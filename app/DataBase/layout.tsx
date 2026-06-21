@@ -112,6 +112,7 @@ export default function DatabaseLayout({ children }: { children: React.ReactNode
     { id: 'db-inv-products', href: '/DataBase/InventoryProducts', icon: Package, label: 'Inventory Products' },
     { id: 'db-inv-moves', href: '/DataBase/InventoryMoves', icon: ArrowLeftRight, label: 'Inventory Moves' },
     { id: 'db-inv-itemcode', href: '/DataBase/InventoryItemCode', icon: Hash, label: 'Inventory Item Code' },
+    { id: 'db-inv-count-products', href: '/DataBase/InventoryCountProducts', icon: Package, label: 'Inventory Count Products' },
     { id: 'db-users', href: '/DataBase/Users', icon: Users, label: 'Users DB' },
     { id: 'db-sales', href: '/DataBase/Sales', icon: FileSpreadsheet, label: 'Sales DB' },
     { id: 'db-suppliers-purchase', href: '/DataBase/SuppliersPurchase', icon: Truck, label: 'Suppliers Purchase' },

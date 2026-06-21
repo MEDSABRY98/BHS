@@ -18,8 +18,7 @@ const emptyForm = (): InventoryProductFormValues => ({
   minQ: '0',
   maxQ: '0',
   qinc: '0',
-  qtyOnHand: '0',
-  qtyFreeToUse: '0',
+  qty: '0',
 });
 
 function parseNum(val: string): number {
@@ -87,8 +86,7 @@ export default function InventoryProductsPage() {
         minQ: String(row['MIN Q BY CTN'] ?? 0),
         maxQ: String(row['MAX Q BY CTN'] ?? 0),
         qinc: String(row.QINC ?? 0),
-        qtyOnHand: String(row['QTY ON HAND'] ?? 0),
-        qtyFreeToUse: String(row['QTY FREE TO USE'] ?? 0),
+        qty: String(row.QTY ?? 0),
       });
     } else {
       setFormValues(emptyForm());
@@ -125,8 +123,7 @@ export default function InventoryProductsPage() {
         'MIN Q BY CTN': parseNum(formValues.minQ),
         'MAX Q BY CTN': parseNum(formValues.maxQ),
         QINC: parseNum(formValues.qinc),
-        'QTY ON HAND': parseNum(formValues.qtyOnHand),
-        'QTY FREE TO USE': parseNum(formValues.qtyFreeToUse),
+        QTY: parseNum(formValues.qty),
       };
 
       if (editing) {

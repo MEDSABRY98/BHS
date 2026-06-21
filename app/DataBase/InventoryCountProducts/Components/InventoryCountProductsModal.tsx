@@ -1,30 +1,27 @@
 'use client';
 
 import { X, Save, Loader2 } from 'lucide-react';
-import { InventoryProductRow } from './InventoryProductsTable';
+import { InventoryCountProductRow } from './InventoryCountProductsTable';
 
-export interface InventoryProductFormValues {
+export interface InventoryCountProductFormValues {
   productId: string;
-  productBarcode: string;
+  barcodeName: string;
   productName: string;
-  tags: string;
-  minQ: string;
-  maxQ: string;
-  qinc: string;
-  qty: string;
+  availableQty: string;
+  qtyInBox: string;
 }
 
 interface Props {
   isOpen: boolean;
-  editing: InventoryProductRow | null;
-  values: InventoryProductFormValues;
+  editing: InventoryCountProductRow | null;
+  values: InventoryCountProductFormValues;
   isSaving: boolean;
-  onChange: (values: InventoryProductFormValues) => void;
+  onChange: (values: InventoryCountProductFormValues) => void;
   onClose: () => void;
   onSubmit: (e: React.FormEvent) => void;
 }
 
-export default function InventoryProductsModal({
+export default function InventoryCountProductsModal({
   isOpen,
   editing,
   values,
@@ -35,7 +32,7 @@ export default function InventoryProductsModal({
 }: Props) {
   if (!isOpen) return null;
 
-  const set = (key: keyof InventoryProductFormValues, val: string) =>
+  const set = (key: keyof InventoryCountProductFormValues, val: string) =>
     onChange({ ...values, [key]: val });
 
   return (
@@ -43,7 +40,7 @@ export default function InventoryProductsModal({
       <div className="bg-white rounded-[2rem] w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl border border-gray-100">
         <div className="flex items-center justify-between p-8 border-b border-gray-50">
           <h2 className="text-2xl font-black text-black tracking-tight">
-            {editing ? 'Edit Inventory Product' : 'New Inventory Product'}
+            {editing ? 'Edit Inventory Count Product' : 'New Inventory Count Product'}
           </h2>
           <button type="button" onClick={onClose} className="p-2 hover:bg-gray-50 rounded-xl">
             <X className="w-5 h-5" />
@@ -64,8 +61,8 @@ export default function InventoryProductsModal({
               <input required value={values.productId} onChange={(e) => set('productId', e.target.value)} className="w-full mt-2 px-4 py-3 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-black/5" />
             </div>
             <div>
-              <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">Barcode</label>
-              <input value={values.productBarcode} onChange={(e) => set('productBarcode', e.target.value)} className="w-full mt-2 px-4 py-3 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-black/5" />
+              <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">Barcode Name</label>
+              <input value={values.barcodeName} onChange={(e) => set('barcodeName', e.target.value)} className="w-full mt-2 px-4 py-3 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-black/5" />
             </div>
           </div>
 
@@ -74,20 +71,15 @@ export default function InventoryProductsModal({
             <input required value={values.productName} onChange={(e) => set('productName', e.target.value)} className="w-full mt-2 px-4 py-3 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-black/5" />
           </div>
 
-          <div>
-            <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">Tags</label>
-            <input value={values.tags} onChange={(e) => set('tags', e.target.value)} className="w-full mt-2 px-4 py-3 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-black/5" />
-          </div>
-
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-5">
-            {(['minQ', 'maxQ', 'qinc', 'qty'] as const).map((field) => (
-              <div key={field}>
-                <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">
-                  {field === 'minQ' ? 'Min Q By Ctn' : field === 'maxQ' ? 'Max Q By Ctn' : field === 'qinc' ? 'Qinc' : 'Qty'}
-                </label>
-                <input type="number" step="any" value={values[field]} onChange={(e) => set(field, e.target.value)} className="w-full mt-2 px-4 py-3 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-black/5" />
-              </div>
-            ))}
+          <div className="grid grid-cols-2 gap-5">
+            <div>
+              <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">Available Qty</label>
+              <input type="number" step="any" value={values.availableQty} onChange={(e) => set('availableQty', e.target.value)} className="w-full mt-2 px-4 py-3 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-black/5" />
+            </div>
+            <div>
+              <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">Qty in Box</label>
+              <input type="number" step="any" value={values.qtyInBox} onChange={(e) => set('qtyInBox', e.target.value)} className="w-full mt-2 px-4 py-3 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-black/5" />
+            </div>
           </div>
 
           <div className="flex gap-4 pt-4">

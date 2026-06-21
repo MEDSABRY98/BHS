@@ -1,6 +1,7 @@
 import { google } from 'googleapis';
-import { SPREADSHEET_ID, getServiceAccountCredentials } from './Core';
+import { SPREADSHEET_ID, getServiceAccountCredentials } from './Sheets/Core';
 import { bhs_supabase } from '@/lib/supabase';
+import { formatInventoryRecordId, parseRecordNum } from '@/app/DataBase/Utils/InventoryRecordIds';
 
 type InventoryMoveRow = {
   DATE: string | null;
@@ -21,8 +22,7 @@ type InventoryProductRow = {
   'MIN Q BY CTN': number | null;
   'MAX Q BY CTN': number | null;
   QINC: number | null;
-  'QTY ON HAND': number | null;
-  'QTY FREE TO USE': number | null;
+  QTY: number | null;
 };
 
 function parseNum(val: unknown): number {
@@ -164,8 +164,7 @@ export interface ProductOrder {
   minQ?: number;
   maxQ?: number;
   tags: string;
-  qtyOnHand: number;
-  qtyFreeToUse: number;
+  qty: number;
   salesQty: number;
   salesBreakdown: { label: string; qty: number }[];
 }
@@ -196,8 +195,7 @@ export async function getProductOrdersData(): Promise<ProductOrder[]> {
           maxQ: parseNum(row['MAX Q BY CTN']),
           qinc: parseNum(row.QINC),
           tags: row.TAGS?.toString().trim() || '',
-          qtyOnHand: parseNum(row['QTY ON HAND']),
-          qtyFreeToUse: parseNum(row['QTY FREE TO USE']),
+          qty: parseNum(row.QTY),
           salesQty: salesMap.get(productId) || 0,
           salesBreakdown,
         };
@@ -278,7 +276,7 @@ export async function getSingleProductAnalysis(productId: string, filters?: { ye
     const productRow = products.find((p) => p['PRODUCT ID']?.toString().trim() === productId.trim());
     if (!productRow) return null;
 
-    const currentStock = parseNum(productRow['QTY ON HAND']);
+    const currentStock = parseNum(productRow.QTY);
     const minQ = parseNum(productRow['MIN Q BY CTN']);
 
     let filterStart: Date | null = null;
@@ -414,8 +412,10 @@ export async function getSingleProductAnalysis(productId: string, filters?: { ye
 }
 
 // ============================================================
-// INVENTORY COUNT (IC)
+// INVENTORY COUNT (IC) — Supabase mix_* tables
 // ============================================================
+
+export type CountType = 'Normal' | 'DamageExpire';
 
 export interface ICItem {
   productId: string;
@@ -439,135 +439,336 @@ export interface ICRecord {
   countedQty: number;
 }
 
-async function fetchICItems(sheetName: string): Promise<ICItem[]> {
-  try {
-    const credentials = getServiceAccountCredentials();
-    const auth = new google.auth.GoogleAuth({
-      credentials,
-      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
-    });
-    const sheets = google.sheets({ version: 'v4', auth });
+type MixCountProductRow = {
+  ID: string;
+  'PRODUCT ID': string;
+  'BARCODE NAME': string | null;
+  'PRODUCT NAME': string;
+  'AVAILABLE QTY': number | null;
+  'QTY IN BOX': number | null;
+};
 
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: SPREADSHEET_ID,
-      range: `'${sheetName}'!A:F`,
-    });
+type MixCountTable =
+  | 'mix_INVENTORY_COUNT_PRODUCTS'
+  | 'mix_INVENTORY_COUNT_DETAILS'
+  | 'mix_INVENTORY_COUNT_TOTALS';
 
-    const rows = response.data.values;
-    if (!rows || rows.length < 2) return [];
-
-    return rows.slice(1).map(row => ({
-      productId: row[0] || '',
-      barcodeName: row[1] || '',
-      productName: row[2] || '',
-      availableQty: parseFloat(row[3]?.toString().replace(/,/g, '') || '0'),
-      qtyInBox: parseFloat(row[4]?.toString().replace(/,/g, '') || '0'),
-      countedQty: parseFloat(row[5]?.toString().replace(/,/g, '') || '0'),
-    })).filter(item => item.productName);
-  } catch (error) {
-    console.error(`Error fetching ${sheetName}:`, error);
-    return [];
-  }
+function countTypeFromSheet(sheetName: string): CountType {
+  return sheetName.includes('D & E') || sheetName.includes('D&E') ? 'DamageExpire' : 'Normal';
 }
 
-async function fetchICRecords(sheetName: string): Promise<ICRecord[]> {
-  try {
-    const credentials = getServiceAccountCredentials();
-    const auth = new google.auth.GoogleAuth({
-      credentials,
-      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
-    });
-    const sheets = google.sheets({ version: 'v4', auth });
+async function fetchAllMixCountRows<T>(
+  table: MixCountTable,
+  select: string,
+  filter?: { column: string; value: string }
+): Promise<T[]> {
+  const pageSize = 1000;
+  let from = 0;
+  const allRows: T[] = [];
 
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: SPREADSHEET_ID,
-      range: `'${sheetName}'!A:J`,
-    });
-
-    const rows = response.data.values;
-    if (!rows || rows.length < 2) return [];
-
-    return rows.slice(1).map(row => ({
-      rowId: row[0] || '',
-      date: row[1] || '',
-      user: row[2] || '',
-      warehouse: row[3] || '',
-      productId: row[4] || '',
-      barcodeName: row[5] || '',
-      productName: row[6] || '',
-      qtyInBox: parseFloat(row[7]?.toString().replace(/,/g, '') || '0'),
-      countDetails: row[8] || '',
-      countedQty: parseFloat(row[9]?.toString().replace(/,/g, '') || '0'),
-    })).filter(record => record.productName);
-  } catch (error) {
-    console.error(`Error fetching ${sheetName}:`, error);
-    return [];
+  while (true) {
+    let query = bhs_supabase.from(table).select(select);
+    if (filter) query = query.eq(filter.column, filter.value);
+    const { data, error } = await query.range(from, from + pageSize - 1);
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    allRows.push(...(data as T[]));
+    if (data.length < pageSize) break;
+    from += pageSize;
   }
+
+  return allRows;
+}
+
+async function loadMixCountProductMap(): Promise<Map<string, MixCountProductRow>> {
+  const products = await fetchAllMixCountRows<MixCountProductRow>('mix_INVENTORY_COUNT_PRODUCTS', '*');
+  return new Map(products.map((p) => [p['PRODUCT ID']?.toString().trim(), p]));
+}
+
+async function fetchICTotal(countType: CountType): Promise<ICItem[]> {
+  const [products, totals] = await Promise.all([
+    fetchAllMixCountRows<MixCountProductRow>('mix_INVENTORY_COUNT_PRODUCTS', '*'),
+    fetchAllMixCountRows<{ 'PRODUCT ID': string; 'COUNTED QTY': number | null }>(
+      'mix_INVENTORY_COUNT_TOTALS',
+      '"PRODUCT ID","COUNTED QTY"',
+      { column: 'COUNT_TYPE', value: countType }
+    ),
+  ]);
+
+  const totalMap = new Map(
+    totals.map((t) => [t['PRODUCT ID']?.toString().trim(), parseNum(t['COUNTED QTY'])])
+  );
+
+  return products
+    .map((p) => ({
+      productId: p['PRODUCT ID']?.toString().trim() || '',
+      barcodeName: p['BARCODE NAME']?.toString().trim() || '',
+      productName: p['PRODUCT NAME']?.toString().trim() || '',
+      availableQty: parseNum(p['AVAILABLE QTY']),
+      qtyInBox: parseNum(p['QTY IN BOX']),
+      countedQty: totalMap.get(p['PRODUCT ID']?.toString().trim()) || 0,
+    }))
+    .filter((item) => item.productName)
+    .sort((a, b) => a.productName.localeCompare(b.productName));
+}
+
+async function fetchICDetails(countType: CountType): Promise<ICRecord[]> {
+  const [details, productMap] = await Promise.all([
+    fetchAllMixCountRows<{
+      ID: string;
+      DATE: string | null;
+      USER: string | null;
+      WAREHOUSE: string | null;
+      'PRODUCT ID': string;
+      'QTY IN BOX': number | null;
+      'COUNT DETAILS': string | null;
+      'COUNTED QTY': number | null;
+    }>('mix_INVENTORY_COUNT_DETAILS', '*', { column: 'COUNT_TYPE', value: countType }),
+    loadMixCountProductMap(),
+  ]);
+
+  return details
+    .map((row) => {
+      const productId = row['PRODUCT ID']?.toString().trim() || '';
+      const product = productMap.get(productId);
+      return {
+        rowId: row.ID || '',
+        date: row.DATE || '',
+        user: row.USER?.toString().trim() || '',
+        warehouse: row.WAREHOUSE?.toString().trim() || '',
+        productId,
+        barcodeName: product?.['BARCODE NAME']?.toString().trim() || '',
+        productName: product?.['PRODUCT NAME']?.toString().trim() || '',
+        qtyInBox: parseNum(row['QTY IN BOX'] ?? product?.['QTY IN BOX']),
+        countDetails: row['COUNT DETAILS']?.toString() || '',
+        countedQty: parseNum(row['COUNTED QTY']),
+      };
+    })
+    .filter((record) => record.productId);
 }
 
 export async function getNormalICTotal(): Promise<ICItem[]> {
-  return fetchICItems('IC Total');
+  return fetchICTotal('Normal');
 }
 
 export async function getDamageICTotal(): Promise<ICItem[]> {
-  return fetchICItems('IC Total - D & E');
+  return fetchICTotal('DamageExpire');
 }
 
 export async function getNormalICRecord(): Promise<ICRecord[]> {
-  return fetchICRecords('IC Record');
+  return fetchICDetails('Normal');
 }
 
 export async function getDamageICRecord(): Promise<ICRecord[]> {
-  return fetchICRecords('IC Record - D & E');
+  return fetchICDetails('DamageExpire');
 }
 
 export async function updateICItem(
-  sheetName: string,
+  _sheetName: string,
   productId: string,
   newValues: { barcodeName: string; productName: string; availableQty: number; qtyInBox: number }
 ): Promise<boolean> {
-  try {
-    const credentials = getServiceAccountCredentials();
-    const auth = new google.auth.GoogleAuth({
-      credentials,
-      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-    });
-    const sheets = google.sheets({ version: 'v4', auth });
+  const { data, error } = await bhs_supabase
+    .from('mix_INVENTORY_COUNT_PRODUCTS')
+    .update({
+      'BARCODE NAME': newValues.barcodeName.trim(),
+      'PRODUCT NAME': newValues.productName.trim(),
+      'AVAILABLE QTY': parseNum(newValues.availableQty),
+      'QTY IN BOX': parseNum(newValues.qtyInBox),
+    })
+    .eq('PRODUCT ID', productId.trim())
+    .select('ID');
 
-    // Find row by product ID (Column A)
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: SPREADSHEET_ID,
-      range: `'${sheetName}'!A:A`,
-    });
+  if (error) throw error;
+  return !!(data && data.length > 0);
+}
 
-    const rows = response.data.values;
-    if (!rows || rows.length === 0) return false;
+async function fetchICSheetRows(sheetName: string, range: string): Promise<string[][]> {
+  const credentials = getServiceAccountCredentials();
+  const auth = new google.auth.GoogleAuth({
+    credentials,
+    scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+  });
+  const sheets = google.sheets({ version: 'v4', auth });
+  const response = await sheets.spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `'${sheetName}'!${range}`,
+  });
+  return (response.data.values as string[][]) || [];
+}
 
-    const rowIndex = rows.findIndex(row => row[0]?.toString().trim() === productId);
-    if (rowIndex === -1) return false;
+async function buildAndUpsertICProducts(sheetNames: string[]): Promise<{
+  productMap: Map<string, { barcode: string; name: string; availableQty: number; qtyInBox: number }>;
+  count: number;
+}> {
+  const productMap = new Map<
+    string,
+    { barcode: string; name: string; availableQty: number; qtyInBox: number }
+  >();
 
-    // Row index in sheet is 1-based, array index is 0-based
-    const sheetRowIndex = rowIndex + 1;
-
-    // Update Columns B, C, D, E
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: SPREADSHEET_ID,
-      range: `'${sheetName}'!B${sheetRowIndex}:E${sheetRowIndex}`,
-      valueInputOption: 'USER_ENTERED',
-      requestBody: {
-        values: [[
-          newValues.barcodeName,
-          newValues.productName,
-          newValues.availableQty,
-          newValues.qtyInBox
-        ]],
-      },
-    });
-
-    return true;
-  } catch (error) {
-    console.error(`Error updating IC item in ${sheetName}:`, error);
-    throw error;
+  for (const sheetName of sheetNames) {
+    const rows = await fetchICSheetRows(sheetName, 'A2:E');
+    for (const row of rows) {
+      const productId = row[0]?.toString().trim();
+      const name = row[2]?.toString().trim();
+      if (!productId || !name) continue;
+      if (!productMap.has(productId) || sheetName === 'IC Total') {
+        productMap.set(productId, {
+          barcode: row[1]?.toString().trim() || '',
+          name,
+          availableQty: parseNum(row[3]),
+          qtyInBox: parseNum(row[4]),
+        });
+      }
+    }
   }
+
+  const existingProducts = await fetchAllMixCountRows<{ ID: string; 'PRODUCT ID': string }>(
+    'mix_INVENTORY_COUNT_PRODUCTS',
+    'ID,"PRODUCT ID"'
+  );
+  const existingIdByProductId = new Map(
+    existingProducts.map((row) => [row['PRODUCT ID']?.toString().trim(), row.ID])
+  );
+
+  let productIdCounter = 0;
+  existingProducts.forEach((row) => {
+    const num = parseRecordNum(row.ID);
+    if (num !== null && num > productIdCounter) productIdCounter = num;
+  });
+
+  const productRows = Array.from(productMap.entries()).map(([productId, info]) => {
+    const existingId = existingIdByProductId.get(productId);
+    if (!existingId) {
+      productIdCounter += 1;
+    }
+    return {
+      ID: existingId || formatInventoryRecordId(productIdCounter),
+      'PRODUCT ID': productId,
+      'BARCODE NAME': info.barcode,
+      'PRODUCT NAME': info.name,
+      'AVAILABLE QTY': info.availableQty,
+      'QTY IN BOX': info.qtyInBox,
+    };
+  });
+
+  if (productRows.length > 0) {
+    const chunkSize = 500;
+    for (let i = 0; i < productRows.length; i += chunkSize) {
+      const chunk = productRows.slice(i, i + chunkSize);
+      const { error } = await bhs_supabase.from('mix_INVENTORY_COUNT_PRODUCTS').upsert(chunk, {
+        onConflict: 'PRODUCT ID',
+      });
+      if (error) throw error;
+    }
+  }
+
+  return { productMap, count: productRows.length };
+}
+
+export async function migrateICProductsFromGoogleSheets(): Promise<{ products: number }> {
+  const { count } = await buildAndUpsertICProducts(['IC Total']);
+  return { products: count };
+}
+
+export async function migrateICFromGoogleSheets(): Promise<{
+  products: number;
+  details: number;
+  totals: number;
+}> {
+  const { productMap, count: productsCount } = await buildAndUpsertICProducts([
+    'IC Total',
+    'IC Total - D & E',
+  ]);
+
+  let detailIdCounter = 0;
+  const existingDetails = await fetchAllMixCountRows<{ ID: string }>('mix_INVENTORY_COUNT_DETAILS', 'ID');
+  existingDetails.forEach((row) => {
+    const num = parseRecordNum(row.ID);
+    if (num !== null && num > detailIdCounter) detailIdCounter = num;
+  });
+
+  const detailRows: Record<string, unknown>[] = [];
+  const validProductIds = new Set(productMap.keys());
+
+  for (const sheetName of ['IC Record', 'IC Record - D & E']) {
+    const countType = countTypeFromSheet(sheetName);
+    const rows = await fetchICSheetRows(sheetName, 'A2:J');
+    for (const row of rows) {
+      const productId = row[4]?.toString().trim();
+      if (!productId || !validProductIds.has(productId)) continue;
+      const countedQty = parseNum(row[9]);
+      if (!row[0] && countedQty === 0) continue;
+
+      detailIdCounter += 1;
+      detailRows.push({
+        ID: row[0]?.toString().trim() || formatInventoryRecordId(detailIdCounter),
+        COUNT_TYPE: countType,
+        DATE: row[1] ? new Date(row[1]).toISOString() : null,
+        USER: row[2]?.toString().trim() || '',
+        WAREHOUSE: row[3]?.toString().trim() || '',
+        'PRODUCT ID': productId,
+        'QTY IN BOX': parseNum(row[7]),
+        'COUNT DETAILS': row[8]?.toString() || '',
+        'COUNTED QTY': countedQty,
+      });
+    }
+  }
+
+  if (detailRows.length > 0) {
+    const chunkSize = 500;
+    for (let i = 0; i < detailRows.length; i += chunkSize) {
+      const chunk = detailRows.slice(i, i + chunkSize);
+      const { error } = await bhs_supabase.from('mix_INVENTORY_COUNT_DETAILS').upsert(chunk, {
+        onConflict: 'ID',
+      });
+      if (error) throw error;
+    }
+  }
+
+  await bhs_supabase.from('mix_INVENTORY_COUNT_TOTALS').delete().neq('ID', '');
+
+  let totalIdCounter = 0;
+  for (const countType of ['Normal', 'DamageExpire'] as CountType[]) {
+    const { data: sums, error } = await bhs_supabase
+      .from('mix_INVENTORY_COUNT_DETAILS')
+      .select('"PRODUCT ID","COUNTED QTY"')
+      .eq('COUNT_TYPE', countType);
+    if (error) throw error;
+
+    const totalByProduct = new Map<string, number>();
+    (sums || []).forEach((row) => {
+      const pid = row['PRODUCT ID']?.toString().trim();
+      if (!pid) return;
+      totalByProduct.set(pid, (totalByProduct.get(pid) || 0) + parseNum(row['COUNTED QTY']));
+    });
+
+    const totalRows = Array.from(totalByProduct.entries())
+      .filter(([, qty]) => qty !== 0)
+      .map(([productId, qty]) => {
+        totalIdCounter += 1;
+        return {
+          ID: formatInventoryRecordId(totalIdCounter),
+          'PRODUCT ID': productId,
+          COUNT_TYPE: countType,
+          'COUNTED QTY': qty,
+        };
+      });
+
+    if (totalRows.length > 0) {
+      const { error: insertErr } = await bhs_supabase.from('mix_INVENTORY_COUNT_TOTALS').insert(totalRows);
+      if (insertErr) throw insertErr;
+    }
+  }
+
+  const { count: totalsCount } = await bhs_supabase
+    .from('mix_INVENTORY_COUNT_TOTALS')
+    .select('ID', { count: 'exact', head: true });
+
+  return {
+    products: productsCount,
+    details: detailRows.length,
+    totals: totalsCount || 0,
+  };
 }
 

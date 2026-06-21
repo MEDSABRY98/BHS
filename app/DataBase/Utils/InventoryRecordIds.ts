@@ -3,9 +3,12 @@ import { bhs_supabas } from '@/lib/supabase';
 export type InventoryTableName =
   | 'web_INVENTORY_PRODUCTS'
   | 'web_INVENTORY_MOVES'
-  | 'web_INVENTORY_ITEM_CODE';
+  | 'web_INVENTORY_ITEM_CODE'
+  | 'mix_INVENTORY_COUNT_PRODUCTS'
+  | 'mix_INVENTORY_COUNT_DETAILS'
+  | 'mix_INVENTORY_COUNT_TOTALS';
 
-function parseRecordNum(id: string): number | null {
+export function parseRecordNum(id: string): number | null {
   const baseId = String(id || '').split('#')[0];
   if (!baseId.startsWith('R-')) return null;
   const num = parseInt(baseId.substring(2), 10);

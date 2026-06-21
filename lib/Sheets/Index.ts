@@ -14,7 +14,7 @@ export * from './Notes';
 export * from './Customers';
 
 // Inventory, Product Orders, Movements, IC
-export * from './Inventory';
+export * from '../Inventory';
 
 // Suppliers Matching (Sheets fallback) + shared Sales types
 export * from './Payments';

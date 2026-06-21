@@ -63,7 +63,7 @@ export default function InventoryProductOrdersTab({ orderItems, setOrderItems }:
                 ...p,
                 formattedTag: formatCategory(p.tags),
                 // Map the new fields from the sheet
-                onHand: p.qtyFreeToUse || 0,
+                onHand: p.qty || 0,
                 qinc: p.qinc,
                 minQ: p.minQ,
                 maxQ: p.maxQ
