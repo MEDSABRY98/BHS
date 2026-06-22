@@ -100,9 +100,9 @@ export default function UsersPage() {
     setUSER_TYPE(user ? user.USER_TYPE : 'Creator');
     setPASSWORD(user ? user.PASSWORD : '');
     setIS_IN_OFFICE(user ? user.IS_IN_OFFICE : false);
-    setCANCEL_AUTHORITY(user ? (user.CANCEL_AUTHORITY === true || user.CANCEL_AUTHORITY === 'TRUE') : false);
+    setCANCEL_AUTHORITY(user ? (user.CANCEL_AUTHORITY === true || String(user.CANCEL_AUTHORITY).toUpperCase() === 'TRUE') : false);
     setCITY(user ? user.CITY || '' : '');
-    setIS_SALESMANAGER(user ? (user.IS_SALESMANAGER === true || user.IS_SALESMANAGER === 'TRUE') : false);
+    setIS_SALESMANAGER(user ? (user.IS_SALESMANAGER === true || String(user.IS_SALESMANAGER).toUpperCase() === 'TRUE') : false);
     setIsModalOpen(true);
   };
 
@@ -241,7 +241,7 @@ export default function UsersPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
           {filteredUsers.map((user) => {
             const initials = user.NAME ? user.NAME.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase() : '?';
-            const isCancelAuth = user.CANCEL_AUTHORITY === true || user.CANCEL_AUTHORITY === 'TRUE';
+            const isCancelAuth = user.CANCEL_AUTHORITY === true || String(user.CANCEL_AUTHORITY).toUpperCase() === 'TRUE';
 
             return (
               <div
@@ -291,7 +291,7 @@ export default function UsersPage() {
                         <MapPin className="w-2.5 h-2.5" /> {user.CITY}
                       </span>
                     )}
-                    {(user.IS_SALESMANAGER === true || user.IS_SALESMANAGER === 'TRUE') && (
+                    {(user.IS_SALESMANAGER === true || String(user.IS_SALESMANAGER).toUpperCase() === 'TRUE') && (
                       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 text-amber-600 rounded-xl text-[9px] font-black uppercase tracking-widest border border-amber-100">
                         <Shield className="w-2.5 h-2.5" /> Sales Manager
                       </span>

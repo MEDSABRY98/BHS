@@ -183,8 +183,29 @@ export default function SalesPage() {
     const savedUser = localStorage.getItem('currentUser');
     if (savedUser) {
       try {
-        setCurrentUser(JSON.parse(savedUser));
+        const parsed = JSON.parse(savedUser);
+        setCurrentUser(parsed);
         setIsAuthenticated(true);
+
+        // Silently sync and update session from database to catch changes in isSalesManager or roles
+        fetch('/DataBase/Users/api')
+          .then(r => r.json())
+          .then(data => {
+            if (data?.users) {
+              const fresh = data.users.find((u: any) => u.id === parsed.id || u.name === parsed.name);
+              if (fresh) {
+                const updatedUser = {
+                  ...parsed,
+                  role: fresh.role,
+                  userAdmin: fresh.userAdmin,
+                  isSalesManager: fresh.isSalesManager
+                };
+                setCurrentUser(updatedUser);
+                localStorage.setItem('currentUser', JSON.stringify(updatedUser));
+              }
+            }
+          })
+          .catch(err => console.warn('Failed to auto-refresh user session:', err));
       } catch (e) {
         localStorage.removeItem('currentUser');
       } finally {

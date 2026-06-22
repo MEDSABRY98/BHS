@@ -65,7 +65,7 @@ export default function SalesSidebar({
       allowedTabs = allTabs.filter(tab => tab.id !== 'sales-my-customers');
     }
 
-    if (currentUser.name === 'MED Sabry') return allowedTabs;
+    if (isManager) return allowedTabs;
 
     try {
       const perms = JSON.parse(currentUser.role || '{}');

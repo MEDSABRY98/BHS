@@ -98,7 +98,7 @@ function isManagerUser(user: { NAME?: string; ROLE?: string; IS_SALESMANAGER?: b
   return user.NAME === 'MED Sabry'
     || user.ROLE?.toLowerCase() === 'admin'
     || user.IS_SALESMANAGER === true
-    || user.IS_SALESMANAGER === 'TRUE';
+    || String(user.IS_SALESMANAGER).toUpperCase() === 'TRUE';
 }
 
 /** Match mapping to user by ID or legacy name stored in SALES_REP. */

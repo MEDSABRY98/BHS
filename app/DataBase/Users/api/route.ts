@@ -15,7 +15,7 @@ export async function GET() {
       name: u.NAME,
       role: u.AUTHORITY || '',
       userAdmin: u.ROLE,
-      isSalesManager: u.IS_SALESMANAGER === true || u.IS_SALESMANAGER === 'TRUE'
+      isSalesManager: u.IS_SALESMANAGER === true || String(u.IS_SALESMANAGER).toUpperCase() === 'TRUE'
     }));
 
     return NextResponse.json({ users: userNames });
@@ -86,7 +86,7 @@ export async function POST(request: Request) {
           name: user.NAME,
           role: user.AUTHORITY || '',
           userAdmin: user.ROLE,
-          isSalesManager: user.IS_SALESMANAGER === true || user.IS_SALESMANAGER === 'TRUE'
+          isSalesManager: user.IS_SALESMANAGER === true || String(user.IS_SALESMANAGER).toUpperCase() === 'TRUE'
         }
       });
     } else {
