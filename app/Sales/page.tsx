@@ -205,7 +205,7 @@ export default function SalesPage() {
   // Enforce subtab permissions
   useEffect(() => {
     if (currentUser) {
-      const isManager = currentUser.name === 'MED Sabry' || currentUser.isSalesManager === true;
+      const isManager = currentUser.name === 'MED Sabry' || currentUser.isSalesManager === true || currentUser.isSalesManager === 'TRUE';
       if (!isManager) {
         try {
           const perms = JSON.parse(currentUser.role || '{}');
@@ -235,7 +235,7 @@ export default function SalesPage() {
 
   const showCosts = useMemo(() => {
     const userName = currentUser?.name?.toLowerCase() || '';
-    const isManager = userName === 'med sabry' || currentUser?.isSalesManager === true;
+    const isManager = userName === 'med sabry' || currentUser?.isSalesManager === true || currentUser?.isSalesManager === 'TRUE';
     if (isManager) return true;
     try {
       const roleStr = currentUser?.role || '';
@@ -531,7 +531,7 @@ export default function SalesPage() {
 
     // Check for dynamic JSON permission structure
     try {
-      const isManager = currentUser?.name === 'MED Sabry' || currentUser?.isSalesManager === true;
+      const isManager = currentUser?.name === 'MED Sabry' || currentUser?.isSalesManager === true || currentUser?.isSalesManager === 'TRUE';
       if (!isManager && currentUser?.role) {
         const perms = JSON.parse(currentUser.role);
         if (perms.sales && Array.isArray(perms.sales)) {

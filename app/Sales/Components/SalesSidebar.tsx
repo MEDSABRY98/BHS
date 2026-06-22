@@ -59,7 +59,7 @@ export default function SalesSidebar({
   const getFilteredTabs = () => {
     if (!currentUser) return [];
 
-    const isManager = currentUser.name === 'MED Sabry' || currentUser.isSalesManager === true;
+    const isManager = currentUser.name === 'MED Sabry' || currentUser.isSalesManager === true || currentUser.isSalesManager === 'TRUE';
     let allowedTabs = allTabs;
     if (!isManager) {
       allowedTabs = allTabs.filter(tab => tab.id !== 'sales-my-customers');
