@@ -49,6 +49,7 @@ export async function POST(request: Request) {
 
             // Map frontend records to Supabase columns
             const insertData = records.map((record: any) => ({
+                "ID": record.documentId || crypto.randomUUID(),
                 "DOCUMENT ID": record.documentId || '',
                 "RECEIVED DATE": record.receivedDate || '',
                 "DATED SEND TO OFFICE": record.datedSendToOffice || '',

@@ -56,7 +56,7 @@ export default function FilterBar(props: FilterBarProps) {
 
   return (
     <div className="mb-6 flex flex-col gap-4">
-      <div className="bg-white p-3 rounded-2xl border border-gray-200 shadow-sm flex flex-col md:flex-row items-center justify-center gap-6 sticky top-0 z-20 backdrop-blur-xl bg-white/90 supports-[backdrop-filter]:bg-white/60">
+      <div className="bg-white p-3 rounded-2xl border border-gray-200 shadow-sm flex flex-col md:flex-row items-center justify-center gap-6 sticky top-20 z-20 backdrop-blur-xl bg-white/90 supports-[backdrop-filter]:bg-white/60">
 
         {/* Search */}
         <div className="relative w-full md:w-96">

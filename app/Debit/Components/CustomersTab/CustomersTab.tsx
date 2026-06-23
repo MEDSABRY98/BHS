@@ -700,7 +700,7 @@ export default function CustomersTab({
   return (
     <div className="flex flex-col h-full bg-white">
       {/* Header Toolbar */}
-      <div className="p-2 bg-white border-b border-gray-200 flex items-center gap-3 sticky top-0 z-30 shadow-sm overflow-x-auto no-scrollbar">
+      <div className="p-2 bg-white border-b border-gray-200 flex items-center gap-3 sticky top-20 z-20 shadow-sm overflow-x-auto no-scrollbar">
         <div className="w-10 shrink-0">
           {onBack && (
             <button onClick={onBack} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">

@@ -98,7 +98,7 @@ export default function RegisterTab({
 
         setIsLoading(true);
         try {
-            // Get current count from sheet first to generate correct DOC IDs
+            // Get current count from database first to generate correct DOC IDs
             const res = await fetch('/api/DocumentsTracking');
             const currentData = await res.json();
             const currentCount = currentData.records ? currentData.records.length : 0;
@@ -145,7 +145,7 @@ export default function RegisterTab({
             }
         } catch (error) {
             console.error('Error saving drafts:', error);
-            showNotify('Error saving data to Google Sheets', 'error');
+            showNotify('Error saving data to Supabase', 'error');
         } finally {
             setIsLoading(false);
         }
