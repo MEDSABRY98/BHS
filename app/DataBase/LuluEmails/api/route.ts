@@ -7,7 +7,32 @@ export async function GET() {
   try {
     const { data, error } = await bhs_supabase.from('debit_EMILS_LULU').select('*');
     if (error) throw error;
-    return NextResponse.json({ data });
+
+    const { data: customersData } = await bhs_supabase.from('bhs_CUSTOMERS').select('"CUSTOMER ID", "CUSTOMER MAIN NAME"');
+    const customerMap = new Map();
+    if (customersData) {
+      customersData.forEach((c: any) => {
+        if (c['CUSTOMER ID']) {
+          customerMap.set(c['CUSTOMER ID'].toString().trim(), c['CUSTOMER MAIN NAME']);
+        }
+      });
+    }
+
+    const enrichedData = data.map((item: any) => {
+      const cid = item['CUSTOMER ID'] ? item['CUSTOMER ID'].toString().trim() : '';
+      return {
+        ...item,
+        'Customer Name': customerMap.get(cid) || item['CUSTOMER ID']
+      };
+    });
+
+    enrichedData.sort((a, b) => {
+      const nameA = (a['Customer Name'] || '').toString();
+      const nameB = (b['Customer Name'] || '').toString();
+      return nameA.localeCompare(nameB, undefined, { numeric: true, sensitivity: 'base' });
+    });
+
+    return NextResponse.json({ data: enrichedData });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

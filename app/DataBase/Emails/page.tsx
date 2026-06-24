@@ -135,32 +135,30 @@ export default function EmailsDatabasePage() {
           <table className="w-full text-center border-collapse">
             <thead>
               <tr className="bg-gray-50 text-xs uppercase tracking-wider text-gray-500">
-                <th className="px-6 py-4 font-medium border-b border-gray-100 text-center">ID</th>
-                <th className="px-6 py-4 font-medium border-b border-gray-100 text-center">Customer ID</th>
-                <th className="px-6 py-4 font-medium border-b border-gray-100 text-center">Email Name</th>
-                <th className="px-6 py-4 font-medium border-b border-gray-100 text-center">Actions</th>
+                <th className="px-6 py-4 font-medium border-b border-gray-100 text-center w-64">Customer Name</th>
+                <th className="px-6 py-4 font-medium border-b border-gray-100 text-center w-96">Email Name</th>
+                <th className="px-6 py-4 font-medium border-b border-gray-100 text-center w-32">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {loading ? (
                 Array(5).fill(0).map((_, i) => (
                   <tr key={i} className="animate-pulse">
-                    <td colSpan={4} className="px-6 py-6">
+                    <td colSpan={3} className="px-6 py-6">
                       <div className="h-6 bg-gray-50 rounded-xl w-full"></div>
                     </td>
                   </tr>
                 ))
               ) : filteredData.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="p-0">
+                  <td colSpan={3} className="p-0">
                     <NoData title="NO EMAILS FOUND" />
                   </td>
                 </tr>
               ) : (
                 filteredData.map((item, idx) => (
                   <tr key={item.ID || idx} className="hover:bg-gray-50/50 transition-colors">
-                    <td className="px-6 py-4 text-sm text-gray-900 text-center">{item.ID || '-'}</td>
-                    <td className="px-6 py-4 text-sm font-medium text-gray-900 text-center">{item['CUSTOMER ID']}</td>
+                    <td className="px-6 py-4 text-sm font-medium text-gray-900 text-center">{item['Customer Name']}</td>
                     <td className="px-6 py-4 text-sm text-gray-500 text-center">{item['EMAIL_NAME']}</td>
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-center gap-2">

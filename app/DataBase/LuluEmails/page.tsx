@@ -144,34 +144,32 @@ export default function LuluEmailsDatabasePage() {
           <table className="w-full text-center border-collapse">
             <thead>
               <tr className="bg-gray-50 text-xs uppercase tracking-wider text-gray-500">
-                <th className="px-6 py-4 font-medium border-b border-gray-100 text-center">ID</th>
-                <th className="px-6 py-4 font-medium border-b border-gray-100 text-center">Customer ID</th>
-                <th className="px-6 py-4 font-medium border-b border-gray-100 text-center">Customer Code</th>
-                <th className="px-6 py-4 font-medium border-b border-gray-100 text-center">To</th>
-                <th className="px-6 py-4 font-medium border-b border-gray-100 text-center">CC</th>
-                <th className="px-6 py-4 font-medium border-b border-gray-100 text-center">Actions</th>
+                <th className="px-6 py-4 font-medium border-b border-gray-100 text-center w-64">Customer Name</th>
+                <th className="px-6 py-4 font-medium border-b border-gray-100 text-center w-32">Customer Code</th>
+                <th className="px-6 py-4 font-medium border-b border-gray-100 text-center w-64">To</th>
+                <th className="px-6 py-4 font-medium border-b border-gray-100 text-center w-64">CC</th>
+                <th className="px-6 py-4 font-medium border-b border-gray-100 text-center w-32">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {loading ? (
                 Array(5).fill(0).map((_, i) => (
                   <tr key={i} className="animate-pulse">
-                    <td colSpan={6} className="px-6 py-6">
+                    <td colSpan={5} className="px-6 py-6">
                       <div className="h-6 bg-gray-50 rounded-xl w-full"></div>
                     </td>
                   </tr>
                 ))
               ) : filteredData.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="p-0">
+                  <td colSpan={5} className="p-0">
                     <NoData title="NO LULU EMAILS FOUND" />
                   </td>
                 </tr>
               ) : (
                 filteredData.map((item, idx) => (
                   <tr key={item.ID || idx} className="hover:bg-gray-50/50 transition-colors">
-                    <td className="px-6 py-4 text-sm text-gray-900 text-center">{item.ID || '-'}</td>
-                    <td className="px-6 py-4 text-sm font-medium text-gray-900 text-center">{item['CUSTOMER ID']}</td>
+                    <td className="px-6 py-4 text-sm font-medium text-gray-900 text-center">{item['Customer Name']}</td>
                     <td className="px-6 py-4 text-sm text-gray-500 text-center">{item['CUSTOMER CODE']}</td>
                     <td className="px-6 py-4 text-sm text-gray-500 max-w-[200px] truncate mx-auto text-center">{item['TO:']}</td>
                     <td className="px-6 py-4 text-sm text-gray-500 max-w-[200px] truncate mx-auto text-center">{item['CC:']}</td>
