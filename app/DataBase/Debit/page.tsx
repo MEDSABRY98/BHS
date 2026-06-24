@@ -7,14 +7,9 @@ import { toast } from '@/app/Components/Notification';
 
 export default function DebitDatabasePage() {
   const [loading, setLoading] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
   const COLUMNS = ['DATE', 'DUE DATE', 'NUMBER', 'CUSTOMER ID', 'DEBIT', 'CREDIT', 'RESIDUAL AMOUNT', 'MATCHING'];
-
-  const showMessage = (type: 'success' | 'error', text: string) => {
-    setMessage({ type, text });
-    setTimeout(() => setMessage({ type: '', text: '' }), 5000);
-  };
 
   const handleDownloadTemplate = () => {
     const ws = XLSX.utils.aoa_to_sheet([COLUMNS]);
@@ -24,17 +19,13 @@ export default function DebitDatabasePage() {
   };
 
   const handleDeleteAll = async () => {
-    if (!confirmDelete) {
-      setConfirmDelete(true);
-      return;
-    }
-    
     setLoading(true);
     try {
       const res = await fetch('/DataBase/Debit/api', { method: 'DELETE' });
       const result = await res.json();
       if (res.ok) {
         toast.success(result.message);
+        setIsDeleteModalOpen(false);
       } else {
         toast.error(result.details || result.error || 'Failed to delete data');
       }
@@ -42,7 +33,6 @@ export default function DebitDatabasePage() {
       toast.error(error.message);
     } finally {
       setLoading(false);
-      setConfirmDelete(false);
     }
   };
 
@@ -161,15 +151,50 @@ export default function DebitDatabasePage() {
             <p className="text-xs text-red-500 mt-1">Wipe the entire table. This action cannot be undone.</p>
           </div>
           <button
-            onClick={handleDeleteAll}
+            onClick={() => setIsDeleteModalOpen(true)}
             disabled={loading}
-            className={`mt-auto w-full py-2.5 rounded-xl font-medium transition-colors disabled:opacity-50 \${confirmDelete ? 'bg-red-700 hover:bg-red-800 text-white ring-2 ring-red-300 ring-offset-2' : 'bg-red-100 hover:bg-red-200 text-red-700'}`}
+            className="mt-auto w-full py-2.5 rounded-xl font-medium transition-colors disabled:opacity-50 bg-red-100 hover:bg-red-200 text-red-700"
           >
-            {confirmDelete ? 'Click to Confirm Wipe' : 'Delete Data'}
+            Delete Data
           </button>
         </div>
 
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {isDeleteModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-xl animate-in zoom-in-95">
+            <div className="p-6 text-center">
+              <div className="w-16 h-16 bg-red-50 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Trash2 className="w-8 h-8" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Wipe Database</h3>
+              <p className="text-gray-500 text-sm">
+                Are you sure you want to delete ALL data in the Debit database? This action is permanent and cannot be undone.
+              </p>
+            </div>
+            <div className="p-4 bg-gray-50 border-t border-gray-100 flex gap-3 justify-end">
+              <button
+                type="button"
+                onClick={() => setIsDeleteModalOpen(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-xl hover:bg-gray-50 transition-colors"
+                disabled={loading}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteAll}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-xl hover:bg-red-700 transition-colors flex items-center gap-2"
+                disabled={loading}
+              >
+                {loading ? 'Deleting...' : 'Wipe Data'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

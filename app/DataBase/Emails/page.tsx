@@ -11,6 +11,7 @@ export default function EmailsDatabasePage() {
   const [search, setSearch] = useState('');
   
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<any>(null);
   const [editingItem, setEditingItem] = useState<any>(null);
   
   const [formData, setFormData] = useState({
@@ -87,12 +88,12 @@ export default function EmailsDatabasePage() {
     }
   };
 
-  const handleDelete = async (item: any) => {
-    if (!confirm('Are you sure you want to delete this email record?')) return;
+  const confirmDelete = async () => {
+    if (!itemToDelete) return;
     try {
       const queryParams = new URLSearchParams();
-      if (item.ID) queryParams.append('id', item.ID);
-      else queryParams.append('customerId', item['CUSTOMER ID']);
+      if (itemToDelete.ID) queryParams.append('id', itemToDelete.ID);
+      else queryParams.append('customerId', itemToDelete['CUSTOMER ID']);
 
       const res = await fetch(`/DataBase/Emails/api?\${queryParams.toString()}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Failed to delete email');
@@ -101,7 +102,13 @@ export default function EmailsDatabasePage() {
       toast.success('Email deleted successfully!');
     } catch (error: any) {
       toast.error(error.message || 'Failed to delete email');
+    } finally {
+      setItemToDelete(null);
     }
+  };
+
+  const handleDelete = (item: any) => {
+    setItemToDelete(item);
   };
 
   return (
@@ -236,6 +243,39 @@ export default function EmailsDatabasePage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {itemToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-xl animate-in zoom-in-95">
+            <div className="p-6 text-center">
+              <div className="w-16 h-16 bg-red-50 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Trash2 className="w-8 h-8" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Delete Email</h3>
+              <p className="text-gray-500 text-sm">
+                Are you sure you want to delete this email record? This action cannot be undone.
+              </p>
+            </div>
+            <div className="p-4 bg-gray-50 border-t border-gray-100 flex gap-3 justify-end">
+              <button
+                type="button"
+                onClick={() => setItemToDelete(null)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-xl hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmDelete}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-xl hover:bg-red-700 transition-colors"
+              >
+                Delete
+              </button>
+            </div>
           </div>
         </div>
       )}

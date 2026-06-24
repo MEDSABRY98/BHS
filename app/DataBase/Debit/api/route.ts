@@ -24,6 +24,30 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid data format' }, { status: 400 });
     }
 
+    // Validation: Ensure all CUSTOMER IDs exist in bhs_CUSTOMERS
+    const { data: customersData, error: customersError } = await bhs_supabase.from('bhs_CUSTOMERS').select('"CUSTOMER ID"');
+    if (customersError) {
+      return NextResponse.json({ error: 'Failed to fetch customers for validation', details: customersError.message }, { status: 500 });
+    }
+
+    const validCustomerIds = new Set(customersData.map((c: any) => c['CUSTOMER ID']?.toString().trim()));
+    const invalidIds = new Set<string>();
+
+    data.forEach((row: any) => {
+      const custId = row['CUSTOMER ID']?.toString().trim();
+      if (custId && !validCustomerIds.has(custId)) {
+        invalidIds.add(custId);
+      }
+    });
+
+    if (invalidIds.size > 0) {
+      const invalidList = Array.from(invalidIds).join(', ');
+      return NextResponse.json({ 
+        error: 'Upload stopped! Some Customer IDs do not exist in the Customers database.', 
+        details: `Invalid IDs: ${invalidList}` 
+      }, { status: 400 });
+    }
+
     // Fetch all existing IDs to find the true numeric max
     const { data: allIds } = await bhs_supabase.from('mix_DEBIT').select('ID');
     let currentMaxId = 0;
