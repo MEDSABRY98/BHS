@@ -141,22 +141,26 @@ export default function LuluEmailsDatabasePage() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+          <table className="w-full text-center border-collapse">
             <thead>
               <tr className="bg-gray-50 text-xs uppercase tracking-wider text-gray-500">
-                <th className="px-6 py-4 font-medium border-b border-gray-100">ID</th>
-                <th className="px-6 py-4 font-medium border-b border-gray-100">Customer ID</th>
-                <th className="px-6 py-4 font-medium border-b border-gray-100">Customer Code</th>
-                <th className="px-6 py-4 font-medium border-b border-gray-100">To</th>
-                <th className="px-6 py-4 font-medium border-b border-gray-100">CC</th>
-                <th className="px-6 py-4 font-medium border-b border-gray-100 text-right">Actions</th>
+                <th className="px-6 py-4 font-medium border-b border-gray-100 text-center">ID</th>
+                <th className="px-6 py-4 font-medium border-b border-gray-100 text-center">Customer ID</th>
+                <th className="px-6 py-4 font-medium border-b border-gray-100 text-center">Customer Code</th>
+                <th className="px-6 py-4 font-medium border-b border-gray-100 text-center">To</th>
+                <th className="px-6 py-4 font-medium border-b border-gray-100 text-center">CC</th>
+                <th className="px-6 py-4 font-medium border-b border-gray-100 text-center">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {loading ? (
-                <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500">Loading...</td>
-                </tr>
+                Array(5).fill(0).map((_, i) => (
+                  <tr key={i} className="animate-pulse">
+                    <td colSpan={6} className="px-6 py-6">
+                      <div className="h-6 bg-gray-50 rounded-xl w-full"></div>
+                    </td>
+                  </tr>
+                ))
               ) : filteredData.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="p-0">
@@ -166,13 +170,13 @@ export default function LuluEmailsDatabasePage() {
               ) : (
                 filteredData.map((item, idx) => (
                   <tr key={item.ID || idx} className="hover:bg-gray-50/50 transition-colors">
-                    <td className="px-6 py-4 text-sm text-gray-900">{item.ID || '-'}</td>
-                    <td className="px-6 py-4 text-sm font-medium text-gray-900">{item['CUSTOMER ID']}</td>
-                    <td className="px-6 py-4 text-sm text-gray-500">{item['CUSTOMER CODE']}</td>
-                    <td className="px-6 py-4 text-sm text-gray-500 max-w-[200px] truncate">{item['TO:']}</td>
-                    <td className="px-6 py-4 text-sm text-gray-500 max-w-[200px] truncate">{item['CC:']}</td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex items-center justify-end gap-2">
+                    <td className="px-6 py-4 text-sm text-gray-900 text-center">{item.ID || '-'}</td>
+                    <td className="px-6 py-4 text-sm font-medium text-gray-900 text-center">{item['CUSTOMER ID']}</td>
+                    <td className="px-6 py-4 text-sm text-gray-500 text-center">{item['CUSTOMER CODE']}</td>
+                    <td className="px-6 py-4 text-sm text-gray-500 max-w-[200px] truncate mx-auto text-center">{item['TO:']}</td>
+                    <td className="px-6 py-4 text-sm text-gray-500 max-w-[200px] truncate mx-auto text-center">{item['CC:']}</td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center justify-center gap-2">
                         <button
                           onClick={() => handleOpenModal(item)}
                           className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
