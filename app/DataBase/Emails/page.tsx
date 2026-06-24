@@ -205,12 +205,12 @@ export default function EmailsDatabasePage() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Email Name</label>
                 <input
-                  type="email"
+                  type="text"
                   required
                   value={formData.email}
                   onChange={(e) => setFormData({...formData, email: e.target.value})}
                   className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/50"
-                  placeholder="email@example.com"
+                  placeholder="email@example.com, another@example.com"
                 />
               </div>
               <div className="flex justify-end gap-3 pt-4">
