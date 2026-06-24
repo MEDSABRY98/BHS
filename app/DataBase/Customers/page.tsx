@@ -579,93 +579,97 @@ export default function CustomersPage() {
       </div>
 
       {isLoading ? (
-        <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr className="border-b border-gray-50">
-                  <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-32">ID</th>
-                  <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-48">Customer ID</th>
-                  <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Customer Main Name</th>
-                  <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Customer Sub Name</th>
-                  <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-40">City</th>
-                  <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-32">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {Array(6).fill(0).map((_, i) => (
-                  <tr key={i} className="animate-pulse">
-                    <td colSpan={6} className="px-8 py-6">
-                      <div className="h-8 bg-gray-50 rounded-xl w-full"></div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+          {Array(8).fill(0).map((_, i) => (
+            <div key={i} className="animate-pulse bg-white border border-gray-100 rounded-[2.5rem] p-6 h-[220px] flex flex-col justify-between">
+              <div className="space-y-4">
+                <div className="w-12 h-12 bg-gray-50 rounded-2xl" />
+                <div className="h-6 bg-gray-50 rounded-xl w-3/4" />
+                <div className="h-4 bg-gray-50 rounded-xl w-1/2" />
+              </div>
+              <div className="h-10 bg-gray-50 rounded-2xl w-full" />
+            </div>
+          ))}
         </div>
       ) : paginatedCustomers.length === 0 ? (
         <NoData title="NO CUSTOMERS FOUND" />
       ) : (
-      <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse">
-            <thead>
-              <tr className="border-b border-gray-50">
-                <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-32">ID</th>
-                <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-48">Customer ID</th>
-                <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Customer Main Name</th>
-                <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Customer Sub Name</th>
-                <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-40">City</th>
-                <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-32">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-                {paginatedCustomers.map((customer) => (
-                  <tr key={customer.ID} className="group hover:bg-gray-50/50 transition-all duration-300">
-                    <td className="px-8 py-6 text-center">
-                      <span className="text-xs font-bold text-gray-300 uppercase tracking-widest">{customer.ID}</span>
-                    </td>
-                    <td className="px-8 py-6 text-center">
-                      <span className="text-xs font-medium font-mono text-gray-400 tracking-wider">{customer["CUSTOMER ID"]}</span>
-                    </td>
-                    <td className="px-8 py-6 text-center">
-                      <div className="flex items-center justify-center gap-3">
-                        <div className="w-10 h-10 bg-black rounded-xl flex items-center justify-center shrink-0 shadow-lg shadow-black/5">
-                          <Building2 className="w-5 h-5 text-[#D4AF37]" />
-                        </div>
-                        <span className="font-bold text-black">{customer["CUSTOMER MAIN NAME"] || '-'}</span>
-                      </div>
-                    </td>
-                    <td className="px-8 py-6 text-center">
-                      <span className="font-bold text-black">{customer["CUSTOMER SUB NAME"]}</span>
-                    </td>
-                    <td className="px-8 py-6 text-center whitespace-nowrap">
-                      <div className="flex items-center justify-center gap-2 text-gray-500">
-                        <MapPin className="w-3.5 h-3.5 text-gray-300 shrink-0" />
-                        <span className="text-xs font-bold uppercase tracking-widest whitespace-nowrap">{customer["CUSTOMER CITY"]}</span>
-                      </div>
-                    </td>
-                    <td className="px-8 py-6 text-center">
-                      <div className="flex justify-center gap-2 opacity-0 group-hover:opacity-100 transition-all">
-                        {canEdit && (
-                          <button onClick={() => handleOpenModal(customer)} className="p-2.5 hover:bg-white hover:shadow-sm rounded-xl text-gray-400 hover:text-black transition-all border border-transparent hover:border-gray-100">
-                            <Edit2 className="w-4 h-4" />
-                          </button>
-                        )}
-                        {canDelete && (
-                          <button onClick={() => handleDelete(customer.ID)} className="p-2.5 hover:bg-red-50 rounded-xl text-gray-400 hover:text-red-500 transition-all border border-transparent hover:border-red-100">
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-            </tbody>
-          </table>
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+          {paginatedCustomers.map((customer) => {
+            const initials = customer["CUSTOMER MAIN NAME"] 
+              ? customer["CUSTOMER MAIN NAME"].split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase() 
+              : '?';
+
+            return (
+              <div
+                key={customer.ID}
+                onClick={() => canEdit && handleOpenModal(customer)}
+                className={`group bg-white border border-gray-100 rounded-[2.5rem] p-6 transition-all duration-300 flex flex-col justify-between min-h-[220px] ${canEdit ? 'hover:shadow-xl hover:border-black/5 cursor-pointer' : ''}`}
+              >
+                <div>
+                  {/* Top Row with Initials/Avatar and ID */}
+                  <div className="flex items-start justify-between">
+                    <div className="w-12 h-12 rounded-2xl bg-black text-[#D4AF37] flex items-center justify-center font-black text-base shadow-lg shadow-black/10">
+                      {initials}
+                    </div>
+                    <span className="text-xs font-bold text-gray-300 uppercase tracking-widest">{customer.ID}</span>
+                  </div>
+
+                  {/* Name and Customer ID */}
+                  <div className="mt-4">
+                    <h3 className="font-black text-black text-base leading-tight group-hover:text-[#D4AF37] transition-colors line-clamp-2" title={customer["CUSTOMER MAIN NAME"]}>
+                      {customer["CUSTOMER MAIN NAME"] || '-'}
+                    </h3>
+                    <div className="text-xs font-bold text-gray-400 mt-1 line-clamp-1" title={customer["CUSTOMER SUB NAME"]}>
+                      {customer["CUSTOMER SUB NAME"]}
+                    </div>
+                    <div className="flex flex-wrap gap-2 mt-3">
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-gray-50 text-gray-500 rounded-xl text-[9px] font-black uppercase tracking-widest font-mono">
+                        ID: {customer["CUSTOMER ID"]}
+                      </span>
+                      {customer["CUSTOMER CITY"] && (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50 text-blue-600 rounded-xl text-[9px] font-black uppercase tracking-widest">
+                          <MapPin className="w-2.5 h-2.5" /> {customer["CUSTOMER CITY"]}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Card Footer with Actions */}
+                <div className="mt-6 pt-3 border-t border-gray-50 flex items-center justify-end">
+                  {/* Action Buttons */}
+                  <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all duration-300">
+                    {canEdit && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenModal(customer);
+                        }}
+                        className="p-2 hover:bg-gray-50 rounded-xl text-gray-400 hover:text-black transition-all border border-transparent hover:border-gray-100"
+                        title="Edit Customer"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                    )}
+                    {canDelete && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDelete(customer.ID);
+                        }}
+                        className="p-2 hover:bg-red-50 rounded-xl text-gray-400 hover:text-red-500 transition-all border border-transparent hover:border-red-100"
+                        title="Delete Customer"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
-      </div>
       )}
 
       {/* Pagination Controls */}
