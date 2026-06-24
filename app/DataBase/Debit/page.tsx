@@ -56,6 +56,32 @@ export default function DebitDatabasePage() {
         data = data.filter((row: any) => {
           return row['CUSTOMER ID'] || row['NUMBER'] || row['DEBIT'] || row['CREDIT'] || row['RESIDUAL AMOUNT'];
         });
+
+        // Format dates correctly (DD/MM/YYYY -> YYYY-MM-DD)
+        data = data.map((row: any) => {
+          ['DATE', 'DUE DATE'].forEach(dateCol => {
+             if (row[dateCol]) {
+               if (typeof row[dateCol] === 'string') {
+                 // Match DD/MM/YYYY or DD-MM-YYYY
+                 const match = row[dateCol].match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+                 if (match) {
+                   const day = match[1].padStart(2, '0');
+                   const month = match[2].padStart(2, '0');
+                   const year = match[3];
+                   row[dateCol] = `${year}-${month}-${day}`;
+                 }
+               } else if (row[dateCol] instanceof Date) {
+                 // Convert JS Date object to YYYY-MM-DD string to avoid timezone offset issues
+                 const d = row[dateCol];
+                 const year = d.getFullYear();
+                 const month = String(d.getMonth() + 1).padStart(2, '0');
+                 const day = String(d.getDate()).padStart(2, '0');
+                 row[dateCol] = `${year}-${month}-${day}`;
+               }
+             }
+          });
+          return row;
+        });
         
         // Ensure data is not empty
         if (data.length === 0) {
@@ -75,7 +101,8 @@ export default function DebitDatabasePage() {
         if (res.ok) {
           toast.success(result.message);
         } else {
-          toast.error(result.details || result.error || 'Failed to upload data');
+          // Just show the high-level error, omitting the detailed list of IDs
+          toast.error(result.error || 'Failed to upload data');
         }
       } catch (error: any) {
         toast.error('Error parsing file: ' + error.message);
