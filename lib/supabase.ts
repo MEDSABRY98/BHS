@@ -199,22 +199,24 @@ export async function getMixDebit() {
     return [];
   }
 
-  // Fetch Customers data to map ID to Name
   let customersData: any[] = [];
   let customersError = null;
   try {
-    customersData = await fetchAllData(() => bhs_supabase.from('bhs_CUSTOMERS').select('"CUSTOMER ID", "CUSTOMER MAIN NAME"'));
+    customersData = await fetchAllData(() => bhs_supabase.from('bhs_CUSTOMERS').select('"CUSTOMER ID", "CUSTOMER MAIN NAME", "CUSTOMER CITY"'));
   } catch (err) {
     customersError = err;
   }
 
   const customerNameMap = new Map<string, string>();
+  const customerCityMap = new Map<string, string>();
   if (!customersError && customersData) {
     customersData.forEach((row: any) => {
       const id = row['CUSTOMER ID']?.toString().trim();
       const name = row['CUSTOMER MAIN NAME']?.toString().trim();
-      if (id && name) {
-        customerNameMap.set(id, name);
+      const city = row['CUSTOMER CITY']?.toString().trim();
+      if (id) {
+        if (name) customerNameMap.set(id, name);
+        if (city) customerCityMap.set(id, city);
       }
     });
   } else if (customersError) {
@@ -224,6 +226,7 @@ export async function getMixDebit() {
   return debitData.map((row) => {
     const custId = row['CUSTOMER ID']?.toString().trim() || '';
     const mappedName = customerNameMap.get(custId) || custId || '';
+    const mappedCity = customerCityMap.get(custId) || row.CITY || '';
 
     return {
       id: row.ID,
@@ -232,8 +235,8 @@ export async function getMixDebit() {
       number: row.NUMBER || '',
       customerId: custId,
       customerName: mappedName, // Mapped from bhs_CUSTOMERS
-      city: row.CITY,
-      salesRep: row.CITY || '', // Map CITY to salesRep for frontend compatibility
+      city: mappedCity,
+      salesRep: mappedCity, // Map CITY to salesRep for frontend compatibility
       debit: Number(row.DEBIT) || 0,
       credit: Number(row.CREDIT) || 0,
       residualAmount: Number(row['RESIDUAL AMOUNT']) || 0,

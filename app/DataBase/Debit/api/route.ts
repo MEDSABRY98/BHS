@@ -24,10 +24,32 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid data format' }, { status: 400 });
     }
 
+    // Fetch all existing IDs to find the true numeric max
+    const { data: allIds } = await bhs_supabase.from('mix_DEBIT').select('ID');
+    let currentMaxId = 0;
+    if (allIds && allIds.length > 0) {
+      allIds.forEach(row => {
+        const match = row.ID?.match(/R-(\d+)/);
+        if (match) {
+          const num = parseInt(match[1], 10);
+          if (num > currentMaxId) currentMaxId = num;
+        }
+      });
+    }
+
     // Upsert or Insert data
     const chunkSize = 1000;
     for (let i = 0; i < data.length; i += chunkSize) {
-      const chunk = data.slice(i, i + chunkSize);
+      const chunk = data.slice(i, i + chunkSize).map((row: any) => {
+        const { ID, id, ...rest } = row;
+        currentMaxId += 1;
+        // Pad with zeros to ensure 4 digits minimum (e.g., R-0001)
+        const newId = `R-${currentMaxId.toString().padStart(4, '0')}`;
+        return {
+          ...rest,
+          ID: newId
+        };
+      });
       const { error } = await bhs_supabase.from('mix_DEBIT').insert(chunk);
       if (error) throw error;
     }

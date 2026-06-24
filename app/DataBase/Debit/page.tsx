@@ -3,13 +3,13 @@
 import React, { useState } from 'react';
 import { Download, Upload, Trash2, AlertTriangle, CheckCircle, FileSpreadsheet } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { toast } from '@/app/Components/Notification';
 
 export default function DebitDatabasePage() {
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState({ type: '', text: '' });
   const [confirmDelete, setConfirmDelete] = useState(false);
 
-  const COLUMNS = ['DATE', 'DUE DATE', 'NUMBER', 'CUSTOMER ID', 'CITY', 'DEBIT', 'CREDIT', 'RESIDUAL AMOUNT', 'MATCHING'];
+  const COLUMNS = ['DATE', 'DUE DATE', 'NUMBER', 'CUSTOMER ID', 'DEBIT', 'CREDIT', 'RESIDUAL AMOUNT', 'MATCHING'];
 
   const showMessage = (type: 'success' | 'error', text: string) => {
     setMessage({ type, text });
@@ -34,12 +34,12 @@ export default function DebitDatabasePage() {
       const res = await fetch('/DataBase/Debit/api', { method: 'DELETE' });
       const result = await res.json();
       if (res.ok) {
-        showMessage('success', result.message);
+        toast.success(result.message);
       } else {
-        showMessage('error', result.error || 'Failed to delete data');
+        toast.error(result.details || result.error || 'Failed to delete data');
       }
     } catch (error: any) {
-      showMessage('error', error.message);
+      toast.error(error.message);
     } finally {
       setLoading(false);
       setConfirmDelete(false);
@@ -60,11 +60,16 @@ export default function DebitDatabasePage() {
         const ws = wb.Sheets[wsname];
         
         // Parse excel to JSON
-        const data = XLSX.utils.sheet_to_json(ws, { defval: null });
+        let data = XLSX.utils.sheet_to_json(ws, { defval: null });
+        
+        // Filter out completely empty rows
+        data = data.filter((row: any) => {
+          return row['CUSTOMER ID'] || row['NUMBER'] || row['DEBIT'] || row['CREDIT'] || row['RESIDUAL AMOUNT'];
+        });
         
         // Ensure data is not empty
         if (data.length === 0) {
-          showMessage('error', 'The uploaded file is empty.');
+          toast.error('The uploaded file is empty.');
           setLoading(false);
           return;
         }
@@ -78,12 +83,12 @@ export default function DebitDatabasePage() {
         
         const result = await res.json();
         if (res.ok) {
-          showMessage('success', result.message);
+          toast.success(result.message);
         } else {
-          showMessage('error', result.error || 'Failed to upload data');
+          toast.error(result.details || result.error || 'Failed to upload data');
         }
       } catch (error: any) {
-        showMessage('error', 'Error parsing file: ' + error.message);
+        toast.error('Error parsing file: ' + error.message);
       } finally {
         setLoading(false);
         e.target.value = ''; // Reset file input
@@ -103,14 +108,7 @@ export default function DebitDatabasePage() {
         </div>
       </div>
 
-      {message.text && (
-        <div className={`p-4 rounded-xl flex items-center gap-3 animate-in fade-in slide-in-from-top-2 \${message.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
-          {message.type === 'success' ? <CheckCircle className="w-5 h-5" /> : <AlertTriangle className="w-5 h-5" />}
-          <p className="font-medium">{message.text}</p>
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
         
         {/* Download Template Card */}
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center text-center gap-4">

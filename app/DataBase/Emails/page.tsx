@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2, Search, Mail } from 'lucide-react';
 import NoData from '@/app/Components/NoDataTab';
+import { toast } from '@/app/Components/Notification';
 
 export default function EmailsDatabasePage() {
   const [data, setData] = useState<any[]>([]);
@@ -80,8 +81,9 @@ export default function EmailsDatabasePage() {
       }
       setIsModalOpen(false);
       fetchData();
-    } catch (error) {
-      console.error(error);
+      toast.success(editingItem ? 'Email updated successfully!' : 'Email added successfully!');
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to save email');
     }
   };
 
@@ -92,10 +94,13 @@ export default function EmailsDatabasePage() {
       if (item.ID) queryParams.append('id', item.ID);
       else queryParams.append('customerId', item['CUSTOMER ID']);
 
-      await fetch(`/DataBase/Emails/api?\${queryParams.toString()}`, { method: 'DELETE' });
+      const res = await fetch(`/DataBase/Emails/api?\${queryParams.toString()}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to delete email');
+      
       fetchData();
-    } catch (error) {
-      console.error(error);
+      toast.success('Email deleted successfully!');
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to delete email');
     }
   };
 
