@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import { SalesInvoice } from '@/lib/Sheets/GoogleSheets';
+import { SalesInvoice } from '@/lib/supabase';;
 import { Search, Loader2, DollarSign, User, TrendingUp, FileSpreadsheet, BarChart2, X } from 'lucide-react';
 import NoData from '@/app/Components/NoDataTab';
 import Loading from '@/app/Components/Loading';

@@ -239,7 +239,7 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
   useEffect(() => {
     const fetchEmail = async () => {
       try {
-        const res = await fetch(`/api/CustomerEmail?customerName=${encodeURIComponent(customerName)}`);
+        const res = await fetch(`/api/Emails?customerName=${encodeURIComponent(customerName)}`);
         const data = await res.json();
         const emails = Array.isArray(data?.emails) ? data.emails.filter(Boolean) : (data?.email ? [data.email] : []);
         const customers = Array.isArray(data?.customers) ? data.customers.filter(Boolean) : [];
@@ -253,25 +253,8 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
   }, [customerName]);
 
   // Fetch Closed Customers for Rating
-  const [closedCustomers, setClosedCustomers] = useState<Set<string>>(new Set());
-  useEffect(() => {
-    const fetchClosedCustomers = async () => {
-      try {
-        const response = await fetch('/api/ClosedCustomers');
-        if (response.ok) {
-          const data = await response.json();
-          const normalizedSet = new Set<string>();
-          data.closedCustomers.forEach((name: string) => {
-            normalizedSet.add(normalizeCustomerKey(name));
-          });
-          setClosedCustomers(normalizedSet);
-        }
-      } catch (error) {
-        console.error('Failed to fetch closed customers:', error);
-      }
-    };
-    fetchClosedCustomers();
-  }, []);
+  
+  
 
   // Update activeTab when initialTab prop changes
   useEffect(() => {
@@ -296,7 +279,7 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
       if (uniqueTargets.length <= 1) {
         invoicesByCustomer.set(customerName, invoices);
       } else {
-        const res = await fetch('/api/Sheets');
+        const res = await fetch('/api/Debit');
         const payload = await res.json();
         const allRows: InvoiceRow[] = Array.isArray(payload?.data) ? payload.data : [];
 

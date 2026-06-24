@@ -15,23 +15,18 @@ interface UseCustomerDataProps {
 }
 
 export const useCustomerData = (data: InvoiceRow[], filters: any, mode: any, yearlySorting: any) => {
-  const [closedCustomers, setClosedCustomers] = useState<Set<string>>(new Set());
-  const [luluEmails, setLuluEmails] = useState<any[]>([]);
+    const [luluEmails, setLuluEmails] = useState<any[]>([]);
   const [customersWithEmails, setCustomersWithEmails] = useState<Map<string, string>>(new Map());
   useEffect(() => {
     const fetchDependencies = async () => {
       try {
-        const [closedRes, emailsRes, luluRes] = await Promise.all([
-          fetch('/api/ClosedCustomers'),
-          fetch('/api/CustomerEmailsList'),
-          fetch('/api/lulu-emails')
+        const [emailsRes, luluRes] = await Promise.all([
+          
+          fetch('/api/Emails'),
+          fetch('/api/LuluEmails')
         ]);
 
-        if (closedRes.ok) {
-          const d = await closedRes.json();
-          setClosedCustomers(new Set(d.closedCustomers.map((n: string) => n.toLowerCase().trim().replace(/\s+/g, ' '))));
-        }
-        if (luluRes.ok) {
+                if (luluRes.ok) {
           const d = await luluRes.json();
           setLuluEmails(d.customers || []);
         }
@@ -332,9 +327,7 @@ export const useCustomerData = (data: InvoiceRow[], filters: any, mode: any, yea
 
     if (selectedSalesRep !== 'ALL') result = result.filter(c => c.salesReps && c.salesReps.has(selectedSalesRep));
 
-    const normalize = (s: string) => s.toLowerCase().trim().replace(/\s+/g, ' ');
-    if (closedFilter === 'HIDE') result = result.filter(c => !closedCustomers.has(normalize(c.customerName)));
-    else if (closedFilter === 'ONLY') result = result.filter(c => closedCustomers.has(normalize(c.customerName)));
+
 
     if (debtOperator && debtAmount) {
       const amount = parseFloat(debtAmount);
@@ -393,16 +386,16 @@ export const useCustomerData = (data: InvoiceRow[], filters: any, mode: any, yea
       } else if (matchingFilter === 'EMAIL_LULU') {
         result = result.filter(c => luluNames.has(normalize(c.customerName)));
       } else if (matchingFilter === 'RATING_GOOD') {
-        result = result.filter(c => calculateDebtRating(c, closedCustomers) === 'Good');
+        result = result.filter(c => calculateDebtRating(c) === 'Good');
       } else if (matchingFilter === 'RATING_MEDIUM') {
-        result = result.filter(c => calculateDebtRating(c, closedCustomers) === 'Medium');
+        result = result.filter(c => calculateDebtRating(c) === 'Medium');
       } else if (matchingFilter === 'RATING_BAD') {
-        result = result.filter(c => calculateDebtRating(c, closedCustomers) === 'Bad');
+        result = result.filter(c => calculateDebtRating(c) === 'Bad');
       }
     }
 
     return result;
-  }, [customerAnalysis, filters, closedCustomers, mode, customersWithEmails, luluEmails]);
+  }, [customerAnalysis, filters, mode, customersWithEmails, luluEmails]);
 
   const yearlyPivotData = useMemo(() => {
     const customerPivotMap = new Map<string, { customerName: string; region: string; totalNetDebt: number; yearlyAmounts: Record<string, number>; }>();
@@ -488,8 +481,7 @@ export const useCustomerData = (data: InvoiceRow[], filters: any, mode: any, yea
   return {
     customerAnalysis,
     filteredData,
-    closedCustomers,
-    customersWithEmails,
+        customersWithEmails,
     luluEmails,
     yearlyPivotData,
     allSalesReps

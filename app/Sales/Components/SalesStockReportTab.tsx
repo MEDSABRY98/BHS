@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { SalesInvoice } from '@/lib/Sheets/GoogleSheets';
+import { SalesInvoice } from '@/lib/supabase';;
 import { Users, Tag, BarChart2 } from 'lucide-react';
 import SalesST_ByCustomers from './SalesST_ByCustomersTab';
 import SalesST_ByProduct from './SalesST_ByProductTab';

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getItemCodesData } from '@/lib/Sheets/GoogleSheets';
+import { getItemCodesData } from '@/lib/Inventory';;
 
 export const dynamic = 'force-dynamic';
 

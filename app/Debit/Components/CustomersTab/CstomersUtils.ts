@@ -136,20 +136,9 @@ export const calculateCustomerMonthlyBreakdown = (customerName: string, invoices
   return { months: monthEntries, netTotal };
 };
 
-export const calculateDebtRating = (customer: CustomerAnalysis, closedCustomersSet: Set<string>, returnBreakdown: boolean = false): 'Good' | 'Medium' | 'Bad' | any => {
+export const calculateDebtRating = (customer: CustomerAnalysis, returnBreakdown: boolean = false): 'Good' | 'Medium' | 'Bad' | any => {
   const customerNameNormalized = customer.customerName.toLowerCase().trim().replace(/\s+/g, ' ');
-  const isClosed = closedCustomersSet.has(customerNameNormalized);
-  if (isClosed) {
-    if (returnBreakdown) {
-      return {
-        rating: 'Bad',
-        reason: 'Closed',
-        isClosed: true,
-        breakdown: null
-      };
-    }
-    return 'Bad';
-  }
+  
 
   const netDebt = customer.netDebt;
   const collRate = customer.totalDebit > 0 ? (customer.totalCredit / customer.totalDebit) : 0;
@@ -351,16 +340,16 @@ export const buildInvoicesWithNetDebtForExport = (invList: InvoiceRow[]) => {
   });
 };
 
-export const exportToPDF = async (data: CustomerAnalysis[], filename: string = 'customers_report', closedCustomersSet: Set<string> = new Set()) => {
+export const exportToPDF = async (data: CustomerAnalysis[], filename: string = 'customers_report') => {
   try {
-    await exportToPDFUtil(data, filename, closedCustomersSet);
+    await exportToPDFUtil(data, filename);
   } catch (error) {
     console.error('Error in exportToPDF:', error);
     alert('Failed to generate PDF');
   }
 };
 
-export const exportToExcel = (data: CustomerAnalysis[], filename: string = 'customers_export', closedCustomersSet: Set<string> = new Set(), invoices: InvoiceRow[] = [], yearlyData?: any) => {
+export const exportToExcel = (data: CustomerAnalysis[], filename: string = 'customers_export', invoices: InvoiceRow[] = [], yearlyData?: any) => {
   const netOnlyHeaders = ['Customer Name', 'Date', 'Type', 'Invoice Number', 'Debit', 'Credit', 'Net Debt'];
   const netOnlyRows: any[] = [];
   for (const customer of data) {
@@ -381,7 +370,7 @@ export const exportToExcel = (data: CustomerAnalysis[], filename: string = 'cust
     if (customer.salesReps && customer.salesReps instanceof Set && customer.salesReps.size > 0) reps = Array.from(customer.salesReps).join(', ');
     else if (Array.isArray(customer.salesReps) && customer.salesReps.length > 0) reps = (customer.salesReps as string[]).join(', ');
     return [
-      index + 1, customer.customerName || '', reps, customer.netDebt.toFixed(2), calculateDebtRating(customer, closedCustomersSet), (customer.openOBAmount || 0).toFixed(2), (customer.overdueAmount || 0).toFixed(2),
+      index + 1, customer.customerName || '', reps, customer.netDebt.toFixed(2), calculateDebtRating(customer), (customer.openOBAmount || 0).toFixed(2), (customer.overdueAmount || 0).toFixed(2),
       customer.totalDebit > 0 ? ((customer.totalCredit / customer.totalDebit) * 100).toFixed(1) + '%' : '0.0%',
       (customer.totalCredit || 0) > 0 ? ((customer.creditPayments || 0) / customer.totalCredit * 100).toFixed(0) + '%' : '0%',
       (customer.totalCredit || 0) > 0 ? ((customer.creditReturns || 0) / customer.totalCredit * 100).toFixed(0) + '%' : '0%',
@@ -400,7 +389,7 @@ export const exportToExcel = (data: CustomerAnalysis[], filename: string = 'cust
     return [
       index + 1, customer.customerName || '', reps, customer.netDebt.toFixed(2), customer.lastPaymentDate ? formatDmy(customer.lastPaymentDate) : '-', (customer.lastPaymentAmount || 0).toFixed(2),
       (customer as any).payments3m?.toFixed(2) || '0.00', (customer as any).paymentsCount3m ?? 0,
-      customer.lastSalesDate ? formatDmy(customer.lastSalesDate) : '-', (customer.lastSalesAmount || 0).toFixed(2), (customer as any).sales3m?.toFixed(2) || '0.00', (customer as any).salesCount3m ?? 0, calculateDebtRating(customer, closedCustomersSet)
+      customer.lastSalesDate ? formatDmy(customer.lastSalesDate) : '-', (customer.lastSalesAmount || 0).toFixed(2), (customer as any).sales3m?.toFixed(2) || '0.00', (customer as any).salesCount3m ?? 0, calculateDebtRating(customer)
     ];
   });
 

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getNormalICRecord } from '@/lib/Sheets/GoogleSheets';
+import { getNormalICRecord } from '@/lib/Inventory';;
 
 export async function GET() {
   try {

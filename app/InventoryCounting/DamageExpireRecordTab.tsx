@@ -5,7 +5,7 @@ import { Search, History, RefreshCw, AlertCircle, User, Home, ChevronDown, FileS
 import * as XLSX from 'xlsx';
 import Loading from '@/app/Components/Loading';
 import NoData from '@/app/Components/NoDataTab';
-import { ICRecord } from '@/lib/Sheets/GoogleSheets';
+import { ICRecord } from '@/lib/Inventory';;
 
 export default function DamageExpireRecordTab() {
     const [data, setData] = useState<ICRecord[]>([]);

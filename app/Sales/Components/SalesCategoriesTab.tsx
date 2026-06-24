@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useEffect, memo } from 'react';
-import { SalesInvoice } from '@/lib/Sheets/GoogleSheets';
+import { SalesInvoice } from '@/lib/supabase';;
 import { Search, Download, FileSpreadsheet } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import NoData from '@/app/Components/NoDataTab';

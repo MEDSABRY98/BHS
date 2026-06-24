@@ -5,7 +5,7 @@ import { User, Home, ArrowUpDown, Search, Package, RefreshCw, AlertCircle, Chevr
 import * as XLSX from 'xlsx';
 import Loading from '@/app/Components/Loading';
 import NoData from '@/app/Components/NoDataTab';
-import { ICItem, ICRecord } from '@/lib/Sheets/GoogleSheets';
+import { ICItem, ICRecord } from '@/lib/Inventory';;
 import EditICItemModal from './EditICItemModal';
 
 export default function DamageExpireCountTab() {

@@ -14,7 +14,7 @@ interface DefaultViewProps {
   setSelectedCollectionStats: (stats: any) => void;
   setSelectedRatingCustomer: (customer: CustomerAnalysis) => void;
   setRatingBreakdown: (breakdown: any) => void;
-  closedCustomers: Set<string>;
+  
   mode?: string;
   customerAnalysis: CustomerAnalysis[];
   filteredData: CustomerAnalysis[];
@@ -30,7 +30,6 @@ const DefaultView: React.FC<DefaultViewProps> = ({
   setSelectedCollectionStats,
   setSelectedRatingCustomer,
   setRatingBreakdown,
-  closedCustomers,
   mode,
   customerAnalysis,
   filteredData,
@@ -97,7 +96,7 @@ const DefaultView: React.FC<DefaultViewProps> = ({
           const payRate = creditDenom > 0 ? ((customer.creditPayments || 0) / creditDenom * 100) : 0;
           const returnRate = creditDenom > 0 ? ((customer.creditReturns || 0) / creditDenom * 100) : 0;
           const discountRate = creditDenom > 0 ? ((customer.creditDiscounts || 0) / creditDenom * 100) : 0;
-          const rating = calculateDebtRating(customer, closedCustomers);
+          const rating = calculateDebtRating(customer);
           const ratingColor = rating === 'Good' ? 'from-emerald-500 to-green-600' : rating === 'Medium' ? 'from-amber-500 to-yellow-600' : 'from-red-500 to-rose-600';
           const ratingBg = rating === 'Good' ? 'bg-emerald-50 border-emerald-200' : rating === 'Medium' ? 'bg-amber-50 border-amber-200' : 'bg-red-50 border-red-200';
           const ratingText = rating === 'Good' ? 'text-emerald-700' : rating === 'Medium' ? 'text-amber-700' : 'text-red-700';
@@ -242,7 +241,7 @@ const DefaultView: React.FC<DefaultViewProps> = ({
                     <div className="flex justify-center">
                       <button
                         onClick={() => {
-                          const breakdown = calculateDebtRating(customer, closedCustomers, true);
+                          const breakdown = calculateDebtRating(customer, true);
                           setSelectedRatingCustomer(customer);
                           setRatingBreakdown(breakdown);
                         }}

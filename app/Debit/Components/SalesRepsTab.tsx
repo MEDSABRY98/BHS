@@ -55,13 +55,8 @@ const getPaymentAmount = (inv: { credit?: number | null; debit?: number | null }
   return credit - debit;
 };
 
-const calculateDebtRating = (customer: CustomerAnalysis, closedCustomersSet: Set<string>): 'Good' | 'Medium' | 'Bad' => {
-  const customerNameNormalized = customer.customerName.toLowerCase().trim().replace(/\s+/g, ' ');
-  const isClosed = closedCustomersSet.has(customerNameNormalized);
-
-  if (isClosed) {
-    return 'Bad';
-  }
+const calculateDebtRating = (customer: CustomerAnalysis): 'Good' | 'Medium' | 'Bad' => {
+  
 
   const netDebt = customer.netDebt;
   const collRate = customer.totalDebit > 0 ? (customer.totalCredit / customer.totalDebit) : 0;
@@ -196,27 +191,9 @@ const calculateDebtRating = (customer: CustomerAnalysis, closedCustomersSet: Set
 export default function SalesRepsTab({ data }: SalesRepsTabProps) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [closedCustomers, setClosedCustomers] = useState<Set<string>>(new Set());
+  
 
-  useEffect(() => {
-    const fetchClosedCustomers = async () => {
-      try {
-        const response = await fetch('/api/ClosedCustomers');
-        if (response.ok) {
-          const data = await response.json();
-          const normalizedSet = new Set<string>();
-          data.closedCustomers.forEach((name: string) => {
-            const normalized = name.toLowerCase().trim().replace(/\s+/g, ' ');
-            normalizedSet.add(normalized);
-          });
-          setClosedCustomers(normalizedSet);
-        }
-      } catch (error) {
-        console.error('Failed to fetch closed customers:', error);
-      }
-    };
-    fetchClosedCustomers();
-  }, []);
+  
 
   // Calculate customer analysis for all customers
   const customerAnalysis = useMemo(() => {
@@ -437,7 +414,7 @@ export default function SalesRepsTab({ data }: SalesRepsTabProps) {
       let badCount = 0;
 
       repCustomers.forEach((customer) => {
-        const rating = calculateDebtRating(customer, closedCustomers);
+        const rating = calculateDebtRating(customer);
         if (rating === 'Good') {
           goodCount++;
         } else if (rating === 'Medium') {
@@ -453,7 +430,7 @@ export default function SalesRepsTab({ data }: SalesRepsTabProps) {
     });
 
     return Array.from(repMap.values()).sort((a, b) => b.netDebt - a.netDebt);
-  }, [data, customerAnalysis, closedCustomers]);
+  }, [data, customerAnalysis]);
 
   const filteredData = useMemo(() => {
     if (!searchQuery.trim()) return salesRepAnalysis;

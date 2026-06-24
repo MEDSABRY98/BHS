@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getDamageICRecord } from '@/lib/Sheets/GoogleSheets';
+import { getDamageICRecord } from '@/lib/Inventory';;
 
 export async function GET() {
   try {

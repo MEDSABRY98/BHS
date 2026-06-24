@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getProductMovementsData } from '@/lib/Sheets/GoogleSheets';
+import { getProductMovementsData } from '@/lib/Inventory';;
 
 export const maxDuration = 120;
 

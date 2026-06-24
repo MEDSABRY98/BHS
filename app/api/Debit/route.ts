@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
-import { getSheetData } from '@/lib/Sheets/GoogleSheets';
+import { getSheetData } from '@/lib/supabase';
+
+export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {

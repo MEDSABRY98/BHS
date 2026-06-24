@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import { SalesInvoice } from '@/lib/Sheets/GoogleSheets';
+import { SalesInvoice } from '@/lib/supabase';;
 import { MapPin, ShoppingBag, UserCircle, DollarSign, Package, Store } from 'lucide-react';
 import Loading from '@/app/Components/Loading';
 

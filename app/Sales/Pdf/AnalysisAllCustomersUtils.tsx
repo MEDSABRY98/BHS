@@ -10,20 +10,10 @@ const formatDmy = (date?: Date | null) => {
   return `${day}/${month}/${year}`;
 };
 
-const calculateDebtRating = (customer: CustomerAnalysis, closedCustomersSet: Set<string>, returnBreakdown: boolean = false): 'Good' | 'Medium' | 'Bad' | any => {
-  const customerNameNormalized = customer.customerName.toLowerCase().trim().replace(/\s+/g, ' ');
-  const isClosed = closedCustomersSet.has(customerNameNormalized);
-  if (isClosed) {
-    if (returnBreakdown) {
-      return {
-        rating: 'Bad',
-        reason: 'Closed',
-        isClosed: true,
-        breakdown: null
-      };
-    }
-    return 'Bad';
-  }
+const calculateDebtRating = (customer: CustomerAnalysis, returnBreakdown: boolean = false): 'Good' | 'Medium' | 'Bad' | any => {
+  
+  
+  
 
   const netDebt = customer.netDebt;
   const collRate = customer.totalDebit > 0 ? (customer.totalCredit / customer.totalDebit) : 0;
@@ -173,7 +163,7 @@ export const exportToPDF = async (data: CustomerAnalysis[], filename: string = '
         };
 
         groupData.forEach(customer => {
-          const ratingInfo = calculateDebtRating(customer, closedCustomersSet, true);
+          const ratingInfo = calculateDebtRating(customer, true);
           const rating = typeof ratingInfo === 'string' ? ratingInfo : ratingInfo.rating;
           if (byRating[rating]) {
             byRating[rating].push(customer);
@@ -201,7 +191,7 @@ export const exportToPDF = async (data: CustomerAnalysis[], filename: string = '
           doc.setTextColor(0);
 
           const tableRows = customersInRating.map(customer => {
-            const ratingInfo = calculateDebtRating(customer, closedCustomersSet, true);
+            const ratingInfo = calculateDebtRating(customer, true);
             const rating = typeof ratingInfo === 'string' ? ratingInfo : ratingInfo.rating;
 
             const salesReps = customer.salesReps ? Array.from(customer.salesReps).join(', ') : '';

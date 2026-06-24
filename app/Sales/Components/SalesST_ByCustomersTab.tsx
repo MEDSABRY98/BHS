@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import { SalesInvoice } from '@/lib/Sheets/GoogleSheets';
+import { SalesInvoice } from '@/lib/supabase';;
 import { Search, ChevronLeft, ChevronRight, Loader2, DollarSign, FileText, FileSpreadsheet, FileDown } from 'lucide-react';
 import { generateSalesPricelistPDF } from '@/app/Sales/Pdf/SalesPricelist';
 import { generateSalesStockFormPDF } from '@/app/Sales/Pdf/SalesStockForm';

@@ -66,28 +66,10 @@ export default function AgesTab({ data }: AgesTabProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSalesRep, setSelectedSalesRep] = useState<string>('all');
 
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'closed'>('all');
-  const [closedCustomers, setClosedCustomers] = useState<Set<string>>(new Set());
+  
+  
 
-  useEffect(() => {
-    // Fetch Closed list
-    const fetchLists = async () => {
-      try {
-        const [closedRes] = await Promise.all([
-          fetch('/api/ClosedCustomers')
-        ]);
-
-        if (closedRes.ok) {
-          const data = await closedRes.json();
-          setClosedCustomers(new Set(data.closedCustomers.map((n: string) => n.toLowerCase().trim())));
-        }
-      } catch (error) {
-        console.error('Error fetching status lists:', error);
-      }
-    };
-
-    fetchLists();
-  }, []);
+  
 
   const agingData = useMemo(() => {
     // Group by customer first
@@ -236,22 +218,6 @@ export default function AgesTab({ data }: AgesTabProps) {
       );
     }
 
-    // Filter by status (Shop Status)
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter(customer => {
-        const normalizedName = customer.customerName.toLowerCase().trim();
-        const isClosed = closedCustomers.has(normalizedName);
-
-        if (statusFilter === 'active') {
-          return !isClosed;
-        }
-        if (statusFilter === 'closed') {
-          return isClosed;
-        }
-        return true;
-      });
-    }
-
     // Filter by search query
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
@@ -264,7 +230,7 @@ export default function AgesTab({ data }: AgesTabProps) {
     filtered = filtered.filter(customer => customer.total >= 0);
 
     return filtered;
-  }, [agingData, searchQuery, selectedSalesRep, statusFilter, closedCustomers]);
+  }, [agingData, searchQuery, selectedSalesRep]);
 
   const exportToExcel = () => {
     const headers = ['Customer Name', 'Sales Rep', '0 - 30', '31 - 60', '61 - 90', '91 - 120', 'OLDER', 'TOTAL'];
@@ -309,8 +275,6 @@ export default function AgesTab({ data }: AgesTabProps) {
 
       // Determine filter description
       let filterDesc = 'All Customers';
-      if (statusFilter === 'active') filterDesc = 'Active Customers Only';
-      if (statusFilter === 'closed') filterDesc = 'Closed Customers Only';
 
       const pdfBlob = await generateAgesPDF(filteredData, filterDesc);
       if (pdfBlob) {
@@ -424,16 +388,7 @@ export default function AgesTab({ data }: AgesTabProps) {
           ))}
         </select>
 
-        {/* Status Filter */}
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value as any)}
-          className="w-56 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-lg bg-white"
-        >
-          <option value="all">All Status</option>
-          <option value="active">Active Only</option>
-          <option value="closed">Closed</option>
-        </select>
+        
 
         <input
           type="text"

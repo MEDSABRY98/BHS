@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { bhs_supabas } from '@/lib/supabase';
-import { getSupplierData } from '@/lib/Sheets/Invoices';
-import { getSuppliersMatchingData } from '@/lib/Sheets/Payments';
+import { getSupplierData } from '@/lib/supabase';;
+import { getSuppliersMatchingData } from '@/lib/supabase';;
 import { allocateSupplierRecordIds } from '@/app/DataBase/Utils/SupplierRecordIds';
 
 function parseSupplierDate(value: unknown): string | null {

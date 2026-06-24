@@ -12,7 +12,7 @@ import {
 } from '@tanstack/react-table';
 import { FileSpreadsheet, FileText, Filter, LayoutGrid, PieChart } from 'lucide-react';
 import { InvoiceRow } from '@/types';
-import { SalesInvoice } from '@/lib/Sheets/GoogleSheets';
+import { SalesInvoice } from '@/lib/supabase';;
 import NoData from '@/app/Components/NoDataTab';
 
 interface CustomersSummariesTabProps {

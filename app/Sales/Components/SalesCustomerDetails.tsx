@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import { SalesInvoice } from '@/lib/Sheets/GoogleSheets';
+import { SalesInvoice } from '@/lib/supabase';;
 import { ArrowLeft, DollarSign, Package, TrendingUp, BarChart3, Search, Calendar, Download, Percent, X, ShoppingBag, FileSpreadsheet } from 'lucide-react';
 import NoData from '@/app/Components/NoDataTab';
 import Loading from '@/app/Components/Loading';
@@ -97,7 +97,7 @@ export default function SalesCustomerDetails({
     const fetchInvoices = async () => {
       setLoadingInvoices(true);
       try {
-        const response = await fetch('/api/Sheets');
+        const response = await fetch('/api/Debit');
         if (response.ok) {
           const result = await response.json();
           setInvoicesData(result.data || []);

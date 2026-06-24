@@ -109,7 +109,6 @@ export default function CustomersTab({
   const {
     customerAnalysis,
     filteredData,
-    closedCustomers,
     customersWithEmails,
     luluEmails,
     yearlyPivotData,
@@ -645,11 +644,11 @@ export default function CustomersTab({
       id: 'debtRating',
       header: 'Rating',
       cell: (info) => {
-        const rating = calculateDebtRating(info.row.original, closedCustomers);
+        const rating = calculateDebtRating(info.row.original);
         return (
           <button
             onClick={() => {
-              const breakdown = calculateDebtRating(info.row.original, closedCustomers, true);
+              const breakdown = calculateDebtRating(info.row.original, true);
               setSelectedRatingCustomer(info.row.original);
               setRatingBreakdown(breakdown);
             }}
@@ -660,7 +659,7 @@ export default function CustomersTab({
         );
       }
     })
-  ], [filteredData, selectedCustomersForDownload, customerAnalysis, closedCustomers]);
+  ], [filteredData, selectedCustomersForDownload, customerAnalysis]);
 
   const table = useReactTable({
     data: filteredData,
@@ -761,10 +760,10 @@ export default function CustomersTab({
 
           <div className="h-6 w-px bg-gray-200 mx-1 shrink-0"></div>
 
-          <button onClick={() => exportToExcel(filteredData, 'Customers_Report', closedCustomers, data, yearlyPivotData)} className="p-2.5 bg-white border border-gray-200 rounded-xl hover:border-green-400 text-green-600 transition-all shadow-sm shrink-0" title="Export Excel">
+          <button onClick={() => exportToExcel(filteredData, 'Customers_Report', data, yearlyPivotData)} className="p-2.5 bg-white border border-gray-200 rounded-xl hover:border-green-400 text-green-600 transition-all shadow-sm shrink-0" title="Export Excel">
             <FileSpreadsheet size={20} />
           </button>
-          <button onClick={() => exportToPDF(filteredData, 'Customers_PDF_Report', closedCustomers)} className="p-2.5 bg-white border border-gray-200 rounded-xl hover:border-red-400 text-red-600 transition-all shadow-sm shrink-0" title="Export PDF">
+          <button onClick={() => exportToPDF(filteredData, 'Customers_PDF_Report')} className="p-2.5 bg-white border border-gray-200 rounded-xl hover:border-red-400 text-red-600 transition-all shadow-sm shrink-0" title="Export PDF">
             <FileText size={20} />
           </button>
 
@@ -814,7 +813,7 @@ export default function CustomersTab({
                 setSelectedCollectionStats={setSelectedCollectionStats}
                 setSelectedRatingCustomer={setSelectedRatingCustomer}
                 setRatingBreakdown={setRatingBreakdown}
-                closedCustomers={closedCustomers}
+                
                 mode={mode}
                 customerAnalysis={customerAnalysis}
                 filteredData={filteredData}
@@ -830,7 +829,7 @@ export default function CustomersTab({
                 toggleCustomerSelection={toggleCustomerSelection}
                 toggleSelectAll={toggleSelectAll}
                 setSelectedCustomer={handleCustomerSelect}
-                closedCustomers={closedCustomers}
+                
               />
             )}
 

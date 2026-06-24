@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getNotes, addNote, updateNote } from '@/lib/Sheets/GoogleSheets';
+import { getNotes, addNote, updateNote } from '@/lib/supabase';;
 
 export async function GET(request: Request) {
   try {
@@ -26,14 +26,14 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { user, customerName, content, isSolved } = body;
 
-    if (!user || !customerName || !content) {
+    if (!customerName || !content) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
       );
     }
 
-    await addNote(user, customerName, content, isSolved);
+    await addNote(customerName, content, isSolved);
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('API Error:', error);
@@ -88,7 +88,7 @@ export async function DELETE(request: Request) {
     }
 
     // Dynamically import to avoid circular dependency issues if any, though here it's fine
-    const { deleteNoteRow } = await import('@/lib/Sheets/GoogleSheets');
+    const { deleteNoteRow } = await import('@/lib/supabase');
     await deleteNoteRow(rowIndex);
 
     return NextResponse.json({ success: true });

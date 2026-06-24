@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getNormalICTotal, migrateICFromGoogleSheets } from '@/lib/Sheets/GoogleSheets';
+import { getNormalICTotal } from '@/lib/Inventory';
 
 export async function GET() {
   try {
@@ -14,15 +14,3 @@ export async function GET() {
   }
 }
 
-export async function POST() {
-  try {
-    const result = await migrateICFromGoogleSheets();
-    return NextResponse.json({ success: true, result });
-  } catch (error: unknown) {
-    console.error('IC migration error:', error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to migrate IC data' },
-      { status: 500 }
-    );
-  }
-}

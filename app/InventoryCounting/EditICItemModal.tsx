@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Package, Save, X } from 'lucide-react';
-import { ICItem } from '@/lib/Sheets/GoogleSheets';
+import { ICItem } from '@/lib/Inventory';;
 
 interface EditICItemModalProps {
     item: ICItem;

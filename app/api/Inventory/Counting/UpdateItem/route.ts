@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { updateICItem } from '@/lib/Sheets/GoogleSheets';
+import { updateICItem } from '@/lib/Inventory';;
 
 export async function PUT(request: Request) {
   try {

@@ -11,7 +11,7 @@ interface SummaryViewProps {
   toggleCustomerSelection: (name: string) => void;
   toggleSelectAll: () => void;
   setSelectedCustomer: (name: string) => void;
-  closedCustomers: Set<string>;
+  
 }
 
 const SummaryView: React.FC<SummaryViewProps> = ({
@@ -21,7 +21,6 @@ const SummaryView: React.FC<SummaryViewProps> = ({
   toggleCustomerSelection,
   toggleSelectAll,
   setSelectedCustomer,
-  closedCustomers,
 }) => {
   return (
     table.getRowModel().rows.length === 0 ? (
@@ -61,7 +60,7 @@ const SummaryView: React.FC<SummaryViewProps> = ({
           <tbody className="bg-white divide-y divide-gray-200">
             {table.getRowModel().rows.map((row, index) => {
               const customer = row.original;
-              const rating = calculateDebtRating(customer, closedCustomers);
+              const rating = calculateDebtRating(customer);
               return (
                 <tr key={row.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-1 py-2 text-center text-xs font-medium text-gray-500 border-r border-gray-100">{index + 1}</td>

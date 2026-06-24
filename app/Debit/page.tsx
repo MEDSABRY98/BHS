@@ -119,7 +119,7 @@ function DebitPageContent() {
     try {
       if (silent) setIsRefreshing(true);
       else setLoading(true);
-      const response = await fetch('/api/Sheets');
+      const response = await fetch('/api/Debit');
       const result = await response.json();
 
       if (!response.ok) {

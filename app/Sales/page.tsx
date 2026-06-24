@@ -17,7 +17,7 @@ import SalesNewListingsTab from './Components/SalesNewListingsTab';
 
 import Login from '@/app/Components/Login';
 import Loading from '@/app/Components/Loading';
-import { SalesInvoice } from '@/lib/Sheets/GoogleSheets';
+import { SalesInvoice } from '@/lib/supabase';;
 import { ArrowLeft, BarChart3, LogOut, User, FileUp, FileSpreadsheet, ChevronDown, CheckCircle2, AlertCircle, Filter, RefreshCcw, LayoutGrid, Calendar, Users, MoreVertical, Layers, TrendingUp, X, RotateCcw, ShoppingBag, Tag, Search, Menu } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { toast } from '@/app/Components/Notification';
