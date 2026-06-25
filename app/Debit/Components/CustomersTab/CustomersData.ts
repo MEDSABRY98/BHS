@@ -34,10 +34,10 @@ export const useCustomerData = (data: InvoiceRow[], filters: any, mode: any, yea
           const d = await emailsRes.json();
           const emailMap = new Map<string, string>();
           
-          // Regular emails API returns { customerName, email }[]
+          // Regular emails API returns { customerId, email }[]
           (d.customers || []).forEach((item: any) => {
-            if (item && item.customerName && item.email) {
-              emailMap.set(item.customerName.toLowerCase().trim(), item.email);
+            if (item && item.customerId && item.email) {
+              emailMap.set(item.customerId.toLowerCase().trim(), item.email);
             }
           });
 
@@ -377,7 +377,7 @@ export const useCustomerData = (data: InvoiceRow[], filters: any, mode: any, yea
 
     if (matchingFilter !== 'ALL') {
       const normalize = (s: string) => (s || '').toLowerCase().trim().replace(/\s+/g, ' ');
-      const luluNames = new Set(luluEmails.map(l => normalize(l.customerName)).filter(Boolean));
+      const luluNames = new Set(luluEmails.map(l => normalize(l.customerId)).filter(Boolean));
 
       if (matchingFilter === 'WITH_EMAIL') {
         result = result.filter(c => customersWithEmails.has(normalize(c.customerName)));
@@ -401,7 +401,7 @@ export const useCustomerData = (data: InvoiceRow[], filters: any, mode: any, yea
 
     if (emailFilter && emailFilter !== 'ALL') {
       const normalize = (s: string) => (s || '').toLowerCase().trim().replace(/\s+/g, ' ');
-      const luluNames = new Set(luluEmails.map(l => normalize(l.customerName)).filter(Boolean));
+      const luluNames = new Set(luluEmails.map(l => normalize(l.customerId)).filter(Boolean));
       if (emailFilter === 'EMAIL_NORMAL') {
         result = result.filter(c => customersWithEmails.has(normalize(c.customerName)) && !luluNames.has(normalize(c.customerName)));
       } else if (emailFilter === 'EMAIL_LULU') {

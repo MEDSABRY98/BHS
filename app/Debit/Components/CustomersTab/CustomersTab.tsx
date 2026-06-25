@@ -369,7 +369,7 @@ export default function CustomersTab({
 
       for (const customerName of selectedCustomersForDownload) {
         const normalize = (s: string) => (s || '').toLowerCase().trim().replace(/\s+/g, ' ');
-        const luluRec = luluEmails.find(l => normalize(l.customerName) === normalize(customerName));
+        const luluRec = luluEmails.find(l => normalize(l.customerId) === normalize(customerName));
 
         if (!luluRec) {
           console.warn(`No Lulu email data found for: ${customerName}`);
