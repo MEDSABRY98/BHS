@@ -309,7 +309,8 @@ export const useCustomerData = (data: InvoiceRow[], filters: any, mode: any, yea
       lastPaymentAmountOperator, lastPaymentAmountValue, hasOB, overdueAmount,
       overdueAging, netSalesOperator, minTotalDebit, noSalesValue, noSalesUnit,
       lastSalesStatus, lastSalesAmountOperator, lastSalesAmountValue,
-      dateRangeType, debtType
+      dateRangeType, debtType,
+      customerRating, emailFilter, overdueMonth, overdueYear
     } = filters;
 
     if (mode === 'OB_POS') result = result.filter(c => (c.openOBAmount || 0) > 0.01);
@@ -392,6 +393,123 @@ export const useCustomerData = (data: InvoiceRow[], filters: any, mode: any, yea
       } else if (matchingFilter === 'RATING_BAD') {
         result = result.filter(c => calculateDebtRating(c) === 'Bad');
       }
+    }
+
+    if (customerRating && customerRating !== 'ALL') {
+      result = result.filter(c => calculateDebtRating(c).toUpperCase() === customerRating.toUpperCase());
+    }
+
+    if (emailFilter && emailFilter !== 'ALL') {
+      const normalize = (s: string) => (s || '').toLowerCase().trim().replace(/\s+/g, ' ');
+      const luluNames = new Set(luluEmails.map(l => normalize(l.customerName)).filter(Boolean));
+      if (emailFilter === 'EMAIL_NORMAL') {
+        result = result.filter(c => customersWithEmails.has(normalize(c.customerName)) && !luluNames.has(normalize(c.customerName)));
+      } else if (emailFilter === 'EMAIL_LULU') {
+        result = result.filter(c => luluNames.has(normalize(c.customerName)));
+      }
+    }
+
+    if (overdueMonth && Array.isArray(overdueMonth) && overdueMonth.length > 0) {
+      const formatMonthYearLocal = (date: Date) => {
+        const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+        return `${months[date.getMonth()]} ${date.getFullYear()}`;
+      };
+
+      result = result.filter(c => {
+        const customerInvoices = data.filter(row => row.customerName === c.customerName);
+        const matchingGroups = new Map<string, InvoiceRow[]>();
+        customerInvoices.forEach(inv => {
+          const key = inv.matching || 'UNMATCHED';
+          const group = matchingGroups.get(key) || [];
+          group.push(inv);
+          matchingGroups.set(key, group);
+        });
+
+        let hasOverdueInMonth = false;
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        matchingGroups.forEach((group, matchingKey) => {
+          if (hasOverdueInMonth) return;
+          const groupNetDebt = group.reduce((sum, inv) => sum + (inv.debit - inv.credit), 0);
+          if (groupNetDebt <= 0.01) return;
+
+          if (matchingKey === 'UNMATCHED') {
+            group.forEach(inv => {
+              if (hasOverdueInMonth) return;
+              const invNetDebt = inv.debit - inv.credit;
+              if (invNetDebt <= 0.01) return;
+              const targetDate = inv.dueDate ? parseDate(inv.dueDate) : (inv.date ? parseDate(inv.date) : null);
+              if (targetDate && targetDate < today) {
+                if (overdueMonth.includes(formatMonthYearLocal(targetDate))) {
+                  hasOverdueInMonth = true;
+                }
+              }
+            });
+          } else {
+            let firstInv = group[0];
+            let maxDebit = -1;
+            group.forEach(inv => { if (inv.debit > maxDebit) { maxDebit = inv.debit; firstInv = inv; } });
+            const targetDate = firstInv.dueDate ? parseDate(firstInv.dueDate) : (firstInv.date ? parseDate(firstInv.date) : null);
+            if (targetDate && targetDate < today) {
+              if (overdueMonth.includes(formatMonthYearLocal(targetDate))) {
+                hasOverdueInMonth = true;
+              }
+            }
+          }
+        });
+
+        return hasOverdueInMonth;
+      });
+    }
+
+    if (overdueYear && Array.isArray(overdueYear) && overdueYear.length > 0) {
+      result = result.filter(c => {
+        const customerInvoices = data.filter(row => row.customerName === c.customerName);
+        const matchingGroups = new Map<string, InvoiceRow[]>();
+        customerInvoices.forEach(inv => {
+          const key = inv.matching || 'UNMATCHED';
+          const group = matchingGroups.get(key) || [];
+          group.push(inv);
+          matchingGroups.set(key, group);
+        });
+
+        let hasOverdueInYear = false;
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        matchingGroups.forEach((group, matchingKey) => {
+          if (hasOverdueInYear) return;
+          const groupNetDebt = group.reduce((sum, inv) => sum + (inv.debit - inv.credit), 0);
+          if (groupNetDebt <= 0.01) return;
+
+          if (matchingKey === 'UNMATCHED') {
+            group.forEach(inv => {
+              if (hasOverdueInYear) return;
+              const invNetDebt = inv.debit - inv.credit;
+              if (invNetDebt <= 0.01) return;
+              const targetDate = inv.dueDate ? parseDate(inv.dueDate) : (inv.date ? parseDate(inv.date) : null);
+              if (targetDate && targetDate < today) {
+                if (overdueYear.includes(targetDate.getFullYear().toString())) {
+                  hasOverdueInYear = true;
+                }
+              }
+            });
+          } else {
+            let firstInv = group[0];
+            let maxDebit = -1;
+            group.forEach(inv => { if (inv.debit > maxDebit) { maxDebit = inv.debit; firstInv = inv; } });
+            const targetDate = firstInv.dueDate ? parseDate(firstInv.dueDate) : (firstInv.date ? parseDate(firstInv.date) : null);
+            if (targetDate && targetDate < today) {
+              if (overdueYear.includes(targetDate.getFullYear().toString())) {
+                hasOverdueInYear = true;
+              }
+            }
+          }
+        });
+
+        return hasOverdueInYear;
+      });
     }
 
     return result;

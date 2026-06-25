@@ -103,7 +103,11 @@ export default function CustomersTab({
     lastSalesAmountValue: '',
     dateRangeType: 'LAST_TRANSACTION' as 'LAST_TRANSACTION' | 'LAST_SALE' | 'LAST_PAYMENT',
     debtType: 'ALL' as 'ALL' | 'DEBTOR' | 'CREDITOR',
-    selectedReps: [] as string[]
+    selectedReps: [] as string[],
+    customerRating: 'ALL',
+    emailFilter: 'ALL',
+    overdueMonth: [] as string[],
+    overdueYear: [] as string[],
   });
 
   const {
@@ -856,6 +860,7 @@ export default function CustomersTab({
         setFilters={setFilters}
         allSalesReps={allSalesReps}
         filteredDataCount={filteredData.length}
+        data={data}
       />
 
       <RatingBreakdownModal
