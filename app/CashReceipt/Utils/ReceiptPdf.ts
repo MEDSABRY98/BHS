@@ -136,30 +136,26 @@ function renderReceiptPage(doc: jsPDF, data: ReceiptPdfData) {
   const pageHeight = doc.internal.pageSize.getHeight();
   const margin = 12;
   const contentWidth = pageWidth - margin * 2;
-  const headerHeight = 20;
+  const headerHeight = 28;
   const infoBarHeight = 12;
   const infoBarBottom = headerHeight + infoBarHeight;
 
-  doc.setFillColor(...COLORS.gray900);
+  doc.setFillColor(...COLORS.black);
   doc.rect(0, 0, pageWidth, headerHeight, 'F');
 
-  setLabelFont(doc, 11, 'bold');
+  let headerY = 10;
+
+  setLabelFont(doc, 14, 'bold');
   doc.setTextColor(...COLORS.white);
-  doc.text('Al Marai Al Arabia Trading Sole Proprietorship L.L.C', margin, 9);
+  doc.text('Al Marai Al Arabia Trading Sole Proprietorship L.L.C', pageWidth / 2, headerY, { align: 'center' });
 
-  const receiptLabel = 'RECEIPT';
-  const cashLabel = 'CASH PAYMENT';
-  setLabelFont(doc, 18, 'bold');
-  const receiptWidth = doc.getTextWidth(receiptLabel);
-  setLabelFont(doc, 8, 'normal');
-  const cashWidth = doc.getTextWidth(cashLabel);
-  const labelGap = 4;
-  const labelsStartX = pageWidth - margin - receiptWidth - labelGap - cashWidth;
+  headerY += 8;
+  doc.setFontSize(12);
+  doc.text('CASH RECEIPT', pageWidth / 2, headerY, { align: 'center' });
 
-  setLabelFont(doc, 18, 'bold');
-  doc.text(receiptLabel, labelsStartX, 10);
-  setLabelFont(doc, 8, 'normal');
-  doc.text(cashLabel, labelsStartX + receiptWidth + labelGap, 10);
+  doc.setDrawColor(...COLORS.white);
+  doc.setLineWidth(0.4);
+  doc.line(margin, headerHeight - 3, pageWidth - margin, headerHeight - 3);
 
   doc.setFillColor(...COLORS.gray100);
   doc.rect(0, headerHeight, pageWidth, infoBarHeight, 'F');

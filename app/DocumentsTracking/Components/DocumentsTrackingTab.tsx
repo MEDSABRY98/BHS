@@ -26,14 +26,14 @@ import ListTab from './ListTab';
 import ReceiversTab from './ReceiversTab';
 
 // Modal imports
-import DetailsModal from './modals/DetailsModal';
-import ActionsModal from './modals/ActionsModal';
-import DeleteConfirmModal from './modals/DeleteConfirmModal';
-import EditCheckModal from './modals/EditCheckModal';
-import PdfOptionsModal from './modals/PdfOptionsModal';
-import TrackingModal from './modals/TrackingModal';
-import BulkDeliverModal from './modals/BulkDeliverModal';
-import ReceiverExcelModal from './modals/ReceiverExcelModal';
+import DetailsModal from './Modals/DetailsModal';
+import ActionsModal from './Modals/ActionsModal';
+import DeleteConfirmModal from './Modals/DeleteConfirmModal';
+import EditCheckModal from './Modals/EditCheckModal';
+import PdfOptionsModal from './Modals/PdfOptionsModal';
+import TrackingModal from './Modals/TrackingModal';
+import BulkDeliverModal from './Modals/BulkDeliverModal';
+import ReceiverExcelModal from './Modals/ReceiverExcelModal';
 
 export default function DocumentsTrackingTab() {
     const router = useRouter();
@@ -408,6 +408,26 @@ export default function DocumentsTrackingTab() {
             doc.setFont('Helvetica', 'bold');
             doc.text(`Total Cheques: ${selectedCheques.length}`, 15, finalY);
             doc.text(`Total Amount: ${totalAmount.toLocaleString('en-US')} AED`, pageWidth - 15, finalY, { align: 'right' });
+
+            const margin = 15;
+            const contentWidth = pageWidth - margin * 2;
+            const signatureWidth = contentWidth * 0.55;
+            const signatureX = margin + (contentWidth - signatureWidth) / 2;
+            const signatureY = Math.max(finalY + 24, pageHeight - 68);
+
+            doc.setDrawColor(0, 0, 0);
+            doc.setLineWidth(0.5);
+            doc.line(signatureX, signatureY, signatureX + signatureWidth, signatureY);
+
+            const signatureLabel = type === 'received' ? "RECEIVER'S SIGNATURE" : "RECIPIENT'S SIGNATURE";
+            doc.setFont('Helvetica', 'bold');
+            doc.setFontSize(8);
+            doc.setTextColor(107, 114, 128);
+            doc.text(signatureLabel, signatureX + signatureWidth / 2, signatureY + 6, { align: 'center' });
+
+            doc.setFontSize(10);
+            doc.setTextColor(17, 24, 39);
+            doc.text(personName, signatureX + signatureWidth / 2, signatureY + 18, { align: 'center' });
 
             doc.save(`Cheque_${today.replace(/\//g, '-')}.pdf`);
             showNotify('Report generated successfully');
