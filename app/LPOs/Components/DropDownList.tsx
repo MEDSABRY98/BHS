@@ -101,7 +101,7 @@ export default function SearchSelect({
       </div>
 
       {isOpen && (
-        <div className={`absolute ${direction === 'up' ? 'bottom-[calc(100%+12px)]' : 'top-[calc(100%+12px)]'} left-0 right-0 bg-white border border-gray-100 rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.15)] z-[100] overflow-hidden animate-in fade-in ${direction === 'up' ? 'slide-in-from-bottom-2' : 'slide-in-from-top-2'} duration-300`}>
+        <div className={`absolute ${direction === 'up' ? 'bottom-[calc(100%+12px)]' : 'top-[calc(100%+12px)]'} left-0 right-0 bg-white border border-gray-100 rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.15)] z-[200] overflow-hidden animate-in fade-in ${direction === 'up' ? 'slide-in-from-bottom-2' : 'slide-in-from-top-2'} duration-300`}>
           <div className="p-4 bg-gray-50/50">
             <div className="relative group">
               <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-black transition-colors" />
@@ -139,14 +139,7 @@ export default function SearchSelect({
                       : 'hover:bg-gray-50 text-gray-700'
                       }`}
                   >
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${value === opt.id ? 'bg-white/10 text-[#D4AF37]' : 'bg-gray-100 text-gray-400 group-hover:bg-white group-hover:text-black'
-                      }`}>
-                      <div className="w-5 h-5 flex items-center justify-center font-black text-xs">
-                        {opt.label.charAt(0).toUpperCase()}
-                      </div>
-                    </div>
-
-                    <div className="flex flex-col min-w-0">
+                    <div className="flex flex-col min-w-0 flex-1">
                       <span className={`text-sm tracking-tight ${value === opt.id ? 'font-black text-[#D4AF37]' : 'font-black text-black group-hover:text-black'}`}>
                         {opt.label}
                       </span>

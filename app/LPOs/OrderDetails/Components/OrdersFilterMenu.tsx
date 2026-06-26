@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { bhs_supabas } from '@/lib/supabase';
-import { Filter, X, ChevronDown, User, Truck, ClipboardList, RotateCcw } from 'lucide-react';
+import { Filter, X, Truck, ClipboardList, RotateCcw } from 'lucide-react';
 import SearchSelect from '../../Components/DropDownList';
 
 interface OrdersFilterMenuProps {
@@ -67,14 +67,15 @@ export default function OrdersFilterMenu({ onFilterChange, activeFilters, staffL
       </button>
 
       {isOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300"
-            onClick={() => setIsOpen(false)}
-          />
+        <div className="fixed inset-0 z-[100] overflow-y-auto">
+          <div className="flex min-h-full items-center justify-center p-4">
+            <div
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300"
+              onClick={() => setIsOpen(false)}
+            />
 
-          <div className="relative w-full max-w-md bg-white rounded-[3rem] shadow-2xl border border-gray-100 p-10 animate-in zoom-in-95 duration-300">
-            <div className="flex items-center justify-between mb-10">
+            <div className="relative w-full max-w-2xl bg-white rounded-[3rem] shadow-2xl border border-gray-100 p-8 sm:p-10 animate-in zoom-in-95 duration-300 overflow-visible my-8">
+            <div className="flex items-center justify-between mb-8">
               <div>
                 <h3 className="text-2xl font-black text-black tracking-tight">Advanced Filters</h3>
                 <p className="text-gray-400 text-sm font-bold mt-1">Refine your orders view</p>
@@ -87,48 +88,52 @@ export default function OrdersFilterMenu({ onFilterChange, activeFilters, staffL
               </button>
             </div>
 
-            <div className="space-y-8">
-              {/* 1. Invoice Status */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-2 text-gray-400 mb-1">
-                  <ClipboardList className="w-4 h-4" />
-                  <p className="text-[10px] font-black uppercase tracking-widest">Invoices Status</p>
+            <div className="space-y-8 overflow-visible">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 overflow-visible">
+                {/* Invoice Status */}
+                <div className="space-y-3 min-w-0 overflow-visible">
+                  <div className="flex items-center gap-2 text-gray-400 mb-1">
+                    <ClipboardList className="w-4 h-4 shrink-0" />
+                    <p className="text-[10px] font-black uppercase tracking-widest">Invoices Status</p>
+                  </div>
+                  <SearchSelect
+                    label=""
+                    placeholder="All Invoices"
+                    heightClass="h-[60px]"
+                    direction="down"
+                    options={[
+                      { id: 'All', label: 'All Invoices' },
+                      { id: 'Pending', label: 'Pending Handover' },
+                      { id: 'Handed Over', label: 'Handed Over' },
+                      { id: 'Confirmed', label: 'Confirmed' },
+                      { id: 'Returned', label: 'Returned & Cancelled' },
+                      { id: 'ReturnedUnconfirmed', label: 'Cancelled (Unconfirmed)' }
+                    ]}
+                    value={activeFilters.invoiceStatus}
+                    onChange={(val) => onFilterChange({ ...activeFilters, invoiceStatus: (val as any) || 'All' })}
+                  />
                 </div>
-                <SearchSelect
-                  label=""
-                  placeholder="All Invoices"
-                  options={[
-                    { id: 'All', label: 'All Invoices' },
-                    { id: 'Pending', label: 'Pending Handover' },
-                    { id: 'Handed Over', label: 'Handed Over' },
-                    { id: 'Confirmed', label: 'Confirmed' },
-                    { id: 'Returned', label: 'Returned & Cancelled' },
-                    { id: 'ReturnedUnconfirmed', label: 'Cancelled (Unconfirmed)' }
-                  ]}
-                  value={activeFilters.invoiceStatus}
-                  onChange={(val) => onFilterChange({ ...activeFilters, invoiceStatus: (val as any) || 'All' })}
-                />
-              </div>
 
-              {/* 2. Driver */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-2 text-gray-400 mb-1">
-                  <Truck className="w-4 h-4" />
-                  <p className="text-[10px] font-black uppercase tracking-widest">Assignee (Driver)</p>
+                {/* Driver */}
+                <div className="space-y-3 min-w-0 overflow-visible">
+                  <div className="flex items-center gap-2 text-gray-400 mb-1">
+                    <Truck className="w-4 h-4 shrink-0" />
+                    <p className="text-[10px] font-black uppercase tracking-widest">Assignee (Driver)</p>
+                  </div>
+                  <SearchSelect
+                    label=""
+                    placeholder="All Drivers"
+                    heightClass="h-[60px]"
+                    direction="down"
+                    options={[
+                      { id: 'All', label: 'All Drivers' },
+                      ...driversList.map(d => ({ id: d.ID, label: d.NAME }))
+                    ]}
+                    value={activeFilters.driverId}
+                    onChange={(val) => onFilterChange({ ...activeFilters, driverId: val || 'All' })}
+                  />
                 </div>
-                <SearchSelect
-                  label=""
-                  placeholder="All Drivers"
-                  options={[
-                    { id: 'All', label: 'All Drivers' },
-                    ...driversList.map(d => ({ id: d.ID, label: d.NAME }))
-                  ]}
-                  value={activeFilters.driverId}
-                  onChange={(val) => onFilterChange({ ...activeFilters, driverId: val || 'All' })}
-                />
               </div>
-
-
 
               <div className="pt-6 flex gap-4">
                 <button
@@ -146,6 +151,7 @@ export default function OrdersFilterMenu({ onFilterChange, activeFilters, staffL
                 </button>
               </div>
             </div>
+          </div>
           </div>
         </div>
       )}
