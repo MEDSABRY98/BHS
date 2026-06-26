@@ -203,10 +203,12 @@ export default function OrdersPage() {
   const processedOrders = useMemo(() => {
     return orders.map(o => {
       const drv = o.app_lpos_DRIVERS?.[0];
+      const driverUserId = drv?.DRIVERS_NAME;
       return {
         ...o,
         source: 'standard',
-        driver_id: drv?.DRIVERS_NAME,
+        driver_id: driverUserId,
+        driver_name: staffList.find(s => s.ID === driverUserId)?.NAME || '',
         handover_status: drv?.OFFICE_HANDOVER_STATUS || 'Not Handed Over',
         tracking_notes: drv?.TRACKING_NOTES || '',
         driver_status: drv?.STATUS || ''
@@ -218,7 +220,7 @@ export default function OrdersPage() {
       if (numB !== numA) return numB - numA;
       return (a.ORDER_ID || '').localeCompare(b.ORDER_ID || '');
     });
-  }, [orders]);
+  }, [orders, staffList]);
 
   const filteredOrders = useMemo(() => {
     return processedOrders.filter(order => {
@@ -227,7 +229,7 @@ export default function OrdersPage() {
         order.ORDER_ID?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         order.INVOICE_ID?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         order.bhs_CUSTOMERS?.["CUSTOMER NAME"]?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        order.bhs_USERS?.NAME?.toLowerCase().includes(searchTerm.toLowerCase());
+        order.driver_name?.toLowerCase().includes(searchTerm.toLowerCase());
 
       // 2. Tab Status Filter
       let matchesStatus = true;
@@ -289,12 +291,11 @@ export default function OrdersPage() {
       "Order Date": order.ORDER_DATE ? new Date(order.ORDER_DATE).toLocaleDateString('en-GB') : new Date(order.CREATED_AT).toLocaleDateString('en-GB'),
       "LPO ID": order.LPO_ID || '',
       "Invoice ID": order.INVOICE_ID || '',
-      "Sales Rep": order.bhs_USERS?.NAME || '',
+      "Driver": order.driver_name || '',
       "Customer Name": order.bhs_CUSTOMERS?.["CUSTOMER NAME"] || '',
       "Customer City": order.bhs_CUSTOMERS?.["CUSTOMER CITY"] || '',
       "Amount": order.AMOUNT || 0,
       "Status": order.STATUS || 'Pending',
-      "Driver": staffList.find(s => s.ID === order.driver_id)?.NAME || order.driver_id || '',
       "Handover Status": order.handover_status || 'Not Handed Over',
       "Tracking Notes": order.tracking_notes || ''
     }));
@@ -389,7 +390,7 @@ export default function OrdersPage() {
           <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
           <input
             type="text"
-            placeholder="Search by Order ID, Invoice ID, Customer or Staff..."
+            placeholder="Search by Order ID, Invoice ID, Customer or Driver..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-14 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-sm font-medium"
@@ -436,11 +437,10 @@ export default function OrdersPage() {
                     }}
                   />
                 </th>
-                <th className="px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] min-w-[100px]">Order ID</th>
                 <th className="px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] min-w-[120px]">Order Date</th>
                 <th className="px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] min-w-[140px]">LPO ID</th>
                 <th className="px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] min-w-[140px]">Invoice ID</th>
-                <th className="px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] min-w-[120px]">Sales Rep</th>
+                <th className="px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] min-w-[120px]">Driver</th>
                 <th className="px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] min-w-[250px] w-[30%]">Customer</th>
                 <th className="px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] min-w-[120px]">Amount</th>
                 <th className="px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] min-w-[70px]">Status</th>
@@ -465,12 +465,7 @@ export default function OrdersPage() {
                         }}
                       />
                     </td>
-                    {/* 1. Order ID */}
-                    <td className="px-6 py-6 whitespace-nowrap">
-                      <span className="font-black text-black text-sm">{order.ORDER_ID}</span>
-                    </td>
-
-                    {/* 2. Date */}
+                    {/* Date */}
                     <td className="px-6 py-6 whitespace-nowrap">
                       <p className="text-sm text-gray-500 font-bold">
                         {new Date(order.ORDER_DATE || order.CREATED_AT).toLocaleDateString('en-GB')}
@@ -487,9 +482,9 @@ export default function OrdersPage() {
                       <span className="font-bold text-gray-400 text-sm">{order.INVOICE_ID || '-'}</span>
                     </td>
 
-                    {/* 5. Sales Rep */}
+                    {/* 5. Driver */}
                     <td className="px-6 py-6 whitespace-nowrap">
-                      <span className="text-sm font-bold text-gray-700">{order.bhs_USERS?.NAME}</span>
+                      <span className="text-sm font-bold text-gray-700">{order.driver_name || '-'}</span>
                     </td>
 
                     {/* 6. Customer */}
