@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Search, History, RefreshCw, AlertCircle, Calendar, User, Home, ChevronDown, FileSpreadsheet } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import Loading from '@/app/Components/Loading';
+import TabLoader from '@/app/Components/TabLoader';
 import NoData from '@/app/Components/NoDataTab';
 import { ICRecord } from '@/lib/Inventory';;
 
@@ -85,7 +85,7 @@ export default function NormalRecordTab() {
     };
 
     if (loading) {
-        return <Loading fullScreen={false} />;
+        return <TabLoader />;
     }
 
     if (error) {

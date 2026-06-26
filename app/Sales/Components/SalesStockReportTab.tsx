@@ -5,7 +5,7 @@ import { SalesInvoice } from '@/lib/supabase';;
 import { Users, Tag, BarChart2 } from 'lucide-react';
 import SalesST_ByCustomers from './SalesST_ByCustomersTab';
 import SalesST_ByProduct from './SalesST_ByProductTab';
-import Loading from '@/app/Components/Loading';
+import SalesTabLoader from './SalesTabLoader';
 
 interface SalesStockReportTabProps {
   refreshTrigger?: number;
@@ -48,7 +48,7 @@ export default function SalesStockReportTab({ filters, userId, refreshTrigger }:
   }, [filters, userId, refreshTrigger]);
 
   if (loading) {
-    return <Loading fullScreen={false} />;
+    return <SalesTabLoader />;
   }
 
   return (

@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Package, Users, ArrowUp, ArrowDown, FileSpreadsheet, LayoutGrid, Layers } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import Loading from '@/app/Components/Loading';
+import SalesTabLoader from './SalesTabLoader';
 
 interface SalesTop10TabProps {
   refreshTrigger?: number;
@@ -260,7 +260,7 @@ export default function SalesTop10Tab({ filters, userId, refreshTrigger }: Sales
   );
 
   if (loading) {
-    return <Loading fullScreen={false} />;
+    return <SalesTabLoader />;
   }
 
   return (

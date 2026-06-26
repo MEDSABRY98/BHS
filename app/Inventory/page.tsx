@@ -4,13 +4,12 @@ import { useState, useEffect } from 'react';
 
 import InventoryProductOrdersTab from './Components/InventoryCategoriesTab';
 import InventoryItemCodeTab from './Components/InventoryItemCodeTab';
-import InventoryCountingTab from '../InventoryCounting/InventoryCountingTab';
 import Login from '@/app/Components/Login';
 import Loading from '@/app/Components/Loading';
 import { ArrowLeft, Box } from 'lucide-react';
 
 export default function InventoryPage() {
-  const [activeTab, setActiveTab] = useState<'orders' | 'item_code' | 'counting'>('orders');
+  const [activeTab, setActiveTab] = useState<'orders' | 'item_code'>('orders');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
 
@@ -76,7 +75,6 @@ export default function InventoryPage() {
               {[
                 { id: 'orders', label: 'Products' },
                 { id: 'item_code', label: 'Item Code' },
-                { id: 'counting', label: 'Inventory Counting' }
               ].map(tab => {
                 // Check permissions
                 try {
@@ -113,9 +111,6 @@ export default function InventoryPage() {
         </div>
         <div className={activeTab === 'item_code' ? 'block' : 'hidden'}>
           <InventoryItemCodeTab />
-        </div>
-        <div className={activeTab === 'counting' ? 'block' : 'hidden'}>
-          <InventoryCountingTab />
         </div>
       </div>
     </div>

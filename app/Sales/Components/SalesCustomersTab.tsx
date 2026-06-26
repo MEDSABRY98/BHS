@@ -6,7 +6,7 @@ import { Search, ChevronLeft, ChevronRight, Download, X, FileSpreadsheet, Layers
 import * as XLSX from 'xlsx';
 import SalesCustomerDetails from './SalesCustomerDetails';
 import NoData from '@/app/Components/NoDataTab';
-import Loading from '@/app/Components/Loading';
+import SalesTabLoader from './SalesTabLoader';
 
 interface SalesCustomersTabProps {
   refreshTrigger?: number;
@@ -185,7 +185,7 @@ export default function SalesCustomersTab({ filters, userId, onUploadMapping, sh
   };
 
   if (loading) {
-    return <Loading fullScreen={false} />;
+    return <SalesTabLoader />;
   } if (selectedCustomer) return (
     <SalesCustomerDetails
       customerName={selectedCustomer.name}

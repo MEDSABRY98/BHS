@@ -24,6 +24,32 @@ import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
 import { toast } from '@/app/Components/Notification';
 
+function downloadUploadErrorsReport(errors: string[], action: 'import' | 'update') {
+  if (errors.length === 0) return;
+
+  const timestamp = new Date().toLocaleString('en-GB');
+  const title = action === 'import' ? 'LPO Orders Import Errors' : 'LPO Orders Update Errors';
+  const lines = [
+    title,
+    `Generated: ${timestamp}`,
+    `Total issues: ${errors.length}`,
+    '',
+    ...errors,
+    '',
+    'Fix the issues above in your Excel file, then upload again.',
+  ];
+
+  const blob = new Blob([lines.join('\r\n')], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `LPO_Orders_${action === 'import' ? 'Import' : 'Update'}_Errors_${new Date().toISOString().split('T')[0]}.txt`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
 export default function CreateOrderPage() {
   const router = useRouter();
   const [users, setUsers] = useState<any[]>([]);
@@ -312,6 +338,10 @@ export default function CreateOrderPage() {
           .map(row => row["Invoice ID"]?.toString().trim())
           .filter(Boolean);
 
+        const uploadedLpoIds: string[] = data
+          .map(row => row["LPO ID"]?.toString().trim())
+          .filter(Boolean);
+
         // Fetch existing Invoice IDs from the database to prevent duplicates
         let dbExistingInvoices: Record<string, string> = {}; // invoice_id -> order_id
         if (uploadedInvoiceIds.length > 0) {
@@ -329,17 +359,65 @@ export default function CreateOrderPage() {
           }
         }
 
+        // Fetch existing LPO IDs from the database to prevent duplicates
+        let dbExistingLpos: Record<string, string> = {}; // lpo_id -> order_id
+        if (uploadedLpoIds.length > 0) {
+          const { data: dbLpoOrders, error: lpoDbError } = await bhs_supabas
+            .from('app_lpos_ORDERS')
+            .select('ORDER_ID, LPO_ID')
+            .in('LPO_ID', uploadedLpoIds);
+
+          if (!lpoDbError && dbLpoOrders) {
+            dbLpoOrders.forEach(row => {
+              if (row.LPO_ID && row.ORDER_ID) {
+                dbExistingLpos[row.LPO_ID.trim().toLowerCase()] = row.ORDER_ID;
+              }
+            });
+          }
+        }
+
         // 2. Keep track of duplicates seen in this Excel sheet and current pending orders list
         const sheetInvoicesSeen = new Set<string>();
+        const sheetLposSeen = new Set<string>();
         const pendingInvoicesSeen = new Set<string>(
           pendingOrders.map(o => o.INVOICE_ID?.trim().toLowerCase()).filter(Boolean)
         );
+        const pendingLposSeen = new Set<string>(
+          pendingOrders.map(o => o.LPO_ID?.trim().toLowerCase()).filter(Boolean)
+        );
 
         data.forEach((row, index) => {
-          const customerName = row["Customer Name"];
-          const lpoId = row["LPO ID"];
+          const customerName = row["Customer Name"]?.toString().trim();
+          const lpoId = row["LPO ID"]?.toString().trim();
           const invoiceId = row["Invoice ID"]?.toString().trim();
-          const driverName = row["Driver"];
+          const driverName = row["Driver"]?.toString().trim();
+
+          if (!customerName) {
+            errors.push(`Row ${index + 2}: Customer Name is required`);
+            return;
+          }
+
+          // Check if LPO ID is duplicate
+          if (lpoId) {
+            const lpoLower = lpoId.toLowerCase();
+
+            if (dbExistingLpos[lpoLower]) {
+              errors.push(`Row ${index + 2}: LPO ID "${lpoId}" already exists in database (Order ${dbExistingLpos[lpoLower]})`);
+              return;
+            }
+
+            if (pendingLposSeen.has(lpoLower)) {
+              errors.push(`Row ${index + 2}: LPO ID "${lpoId}" is already in the pending list`);
+              return;
+            }
+
+            if (sheetLposSeen.has(lpoLower)) {
+              errors.push(`Row ${index + 2}: Duplicate LPO ID "${lpoId}" inside the Excel sheet`);
+              return;
+            }
+
+            sheetLposSeen.add(lpoLower);
+          }
 
           // Check if invoice ID is duplicate
           if (invoiceId) {
@@ -367,7 +445,7 @@ export default function CreateOrderPage() {
           }
 
           const customer = customers.find(c =>
-            c["CUSTOMER NAME"]?.toLowerCase() === customerName?.toString().toLowerCase()
+            c["CUSTOMER NAME"]?.toLowerCase() === customerName.toLowerCase()
           );
 
           if (customer) {
@@ -380,7 +458,7 @@ export default function CreateOrderPage() {
 
               if (driverName) {
                 const matchedStaff = users.find(u =>
-                  u.NAME?.toLowerCase() === driverName?.toString().trim().toLowerCase()
+                  u.NAME?.toLowerCase() === driverName.toLowerCase()
                 );
                 if (matchedStaff) {
                   driverId = matchedStaff.ID;
@@ -434,12 +512,14 @@ export default function CreateOrderPage() {
         if (newPendingOrders.length > 0) {
           setPendingOrders(prev => [...prev, ...newPendingOrders]);
           if (errors.length > 0) {
-            toast.warning(`Imported ${newPendingOrders.length} orders. ${errors.length} failed.`);
+            downloadUploadErrorsReport(errors, 'import');
+            toast.warning(`Imported ${newPendingOrders.length} orders. ${errors.length} row(s) failed — error report downloaded.`);
           } else {
             toast.success(`Imported ${newPendingOrders.length} orders successfully.`);
           }
         } else if (errors.length > 0) {
-          toast.error(`Import failed: ${errors[0]}`);
+          downloadUploadErrorsReport(errors, 'import');
+          toast.error(`Import failed: ${errors.length} issue(s) found — error report downloaded.`);
         }
 
         setIsExcelModalOpen(false);
@@ -581,12 +661,14 @@ export default function CreateOrderPage() {
 
         if (updatedCount > 0) {
           if (errors.length > 0) {
-            toast.warning(`Successfully updated ${updatedCount} orders. ${errors.length} failed.`);
+            downloadUploadErrorsReport(errors, 'update');
+            toast.warning(`Successfully updated ${updatedCount} orders. ${errors.length} row(s) failed — error report downloaded.`);
           } else {
             toast.success(`Successfully updated ${updatedCount} orders.`);
           }
         } else if (errors.length > 0) {
-          toast.error(`Update failed: ${errors[0]}`);
+          downloadUploadErrorsReport(errors, 'update');
+          toast.error(`Update failed: ${errors.length} issue(s) found — error report downloaded.`);
         }
 
         setIsExcelModalOpen(false);

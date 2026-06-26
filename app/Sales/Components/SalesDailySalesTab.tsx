@@ -5,7 +5,7 @@ import { SalesInvoice } from '@/lib/supabase';;
 import { Download, Calendar, MapPin, ShoppingBag, UserCircle, ChevronDown, ChevronLeft, ChevronRight, Search, X, Filter, FileSpreadsheet } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import NoData from '@/app/Components/NoDataTab';
-import Loading from '@/app/Components/Loading';
+import SalesTabLoader from './SalesTabLoader';
 
 interface SalesDailySalesTabProps {
   refreshTrigger?: number;
@@ -395,7 +395,7 @@ export default function SalesDailySalesTab({ filters, invoiceTypeFilter, userId,
   };
 
   if (loading) {
-    return <Loading fullScreen={false} />;
+    return <SalesTabLoader />;
   }
 
   return (

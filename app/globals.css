@@ -42,3 +42,27 @@ body {
   scrollbar-width: none;
   /* Firefox */
 }
+
+@keyframes sales-tab-enter {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-sales-tab-enter {
+  animation: sales-tab-enter 0.45s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes salesShimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}

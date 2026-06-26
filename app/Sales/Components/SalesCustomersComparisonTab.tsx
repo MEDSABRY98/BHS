@@ -5,7 +5,7 @@ import { SalesInvoice } from '@/lib/supabase';;
 import { Search, ArrowUpDown, ArrowUp, ArrowDown, TrendingUp, TrendingDown, Minus, ChevronLeft, ChevronRight, FileSpreadsheet } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import NoData from '@/app/Components/NoDataTab';
-import Loading from '@/app/Components/Loading';
+import SalesTabLoader from './SalesTabLoader';
 
 interface Props {
   filters: any;
@@ -302,7 +302,7 @@ export default function SalesCustomersComparisonTab({ filters, userId, refreshTr
   };
 
   if (loading) {
-    return <Loading fullScreen={false} />;
+    return <SalesTabLoader />;
   } return (
     <div className="space-y-5">
       {/* Header */}

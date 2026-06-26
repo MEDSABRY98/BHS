@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { User, Home, ArrowUpDown, Search, Package, RefreshCw, AlertCircle, ChevronDown, FileSpreadsheet } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import Loading from '@/app/Components/Loading';
+import TabLoader from '@/app/Components/TabLoader';
 import NoData from '@/app/Components/NoDataTab';
 import { ICItem, ICRecord } from '@/lib/Inventory';;
 import EditICItemModal from './EditICItemModal';
@@ -202,7 +202,7 @@ export default function DamageExpireCountTab() {
     };
 
     if (loading) {
-        return <Loading fullScreen={false} />;
+        return <TabLoader />;
     }
 
     if (error) {

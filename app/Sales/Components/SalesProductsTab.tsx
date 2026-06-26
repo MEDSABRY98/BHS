@@ -6,7 +6,7 @@ import { Search, ChevronLeft, ChevronRight, Download, FileSpreadsheet } from 'lu
 import * as XLSX from 'xlsx';
 import NoData from '@/app/Components/NoDataTab';
 import SalesProductDetails from './SalesProductDetails';
-import Loading from '@/app/Components/Loading';
+import SalesTabLoader from './SalesTabLoader';
 
 interface SalesProductsTabProps {
   refreshTrigger?: number;
@@ -158,7 +158,7 @@ export default function SalesProductsTab({ filters, userId, refreshTrigger }: Sa
   };
 
   if (loading) {
-    return <Loading fullScreen={false} />;
+    return <SalesTabLoader />;
   }
 
   if (selectedProductId) {

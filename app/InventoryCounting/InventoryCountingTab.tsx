@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ClipboardList, History, AlertTriangle, FileText } from 'lucide-react';
+import TabPanel from '@/app/Components/TabPanel';
 import NormalCountTab from './NormalCountTab';
 import NormalRecordTab from './NormalRecordTab';
 import DamageExpireCountTab from './DamageExpireCountTab';
@@ -9,27 +10,37 @@ import DamageExpireRecordTab from './DamageExpireRecordTab';
 
 type SubTab = 'normal_total' | 'normal_record' | 'damage_total' | 'damage_record';
 
+function isCountingTabAllowed(tabId: string): boolean {
+    try {
+        const savedUser = localStorage.getItem('currentUser');
+        const currentUser = savedUser ? JSON.parse(savedUser) : null;
+        if (currentUser?.name === 'MED Sabry') return true;
+
+        const perms = JSON.parse(currentUser?.role || '{}');
+        const countingTabs = perms['inventory-counting'];
+        if (Array.isArray(countingTabs)) {
+            return countingTabs.includes(tabId);
+        }
+
+        const inventoryTabs = perms.inventory;
+        if (Array.isArray(inventoryTabs)) {
+            if (inventoryTabs.includes('counting')) return true;
+            return inventoryTabs.includes(tabId);
+        }
+
+        return true;
+    } catch {
+        return true;
+    }
+}
+
 export default function InventoryCountingTab() {
     const subTabs = [
         { id: 'normal_total', label: 'Normal Count', icon: ClipboardList, color: 'blue' },
         { id: 'normal_record', label: 'Normal Record', icon: History, color: 'slate' },
         { id: 'damage_total', label: 'Damage & Expire Count', icon: AlertTriangle, color: 'red' },
         { id: 'damage_record', label: 'Damage & Expire Record', icon: FileText, color: 'rose' },
-    ].filter(tab => {
-        // Check permissions
-        try {
-            const savedUser = localStorage.getItem('currentUser');
-            const currentUser = savedUser ? JSON.parse(savedUser) : null;
-            if (currentUser?.name === 'MED Sabry') return true;
-            const perms = JSON.parse(currentUser?.role || '{}');
-            if (perms.inventory) {
-                return perms.inventory.includes(tab.id);
-            }
-            return true; // Default to true if no specific permissions set
-        } catch (e) {
-            return true;
-        }
-    });
+    ].filter(tab => isCountingTabAllowed(tab.id));
 
     // Adjust active tab if current one is not allowed
     const [activeSubTab, setActiveSubTab] = useState<SubTab>(
@@ -42,10 +53,11 @@ export default function InventoryCountingTab() {
 
     const handleTabChange = (tabId: SubTab) => {
         setActiveSubTab(tabId);
-        if (!visitedTabs.has(tabId)) {
-            setVisitedTabs(prev => new Set(prev).add(tabId));
-        }
     };
+
+    useEffect(() => {
+        setVisitedTabs(prev => new Set([...prev, activeSubTab]));
+    }, [activeSubTab]);
 
     return (
         <div className="flex flex-col gap-8">
@@ -73,29 +85,20 @@ export default function InventoryCountingTab() {
                 })}
             </div>
 
-            {/* Content Area - Using hidden class for persistence */}
+            {/* Content Area */}
             <div className="min-h-[400px]">
-                <div className={activeSubTab === 'normal_total' ? 'block' : 'hidden'}>
+                <TabPanel tabId="normal_total" activeTab={activeSubTab} isVisited={visitedTabs.has('normal_total')}>
                     <NormalCountTab />
-                </div>
-                
-                {visitedTabs.has('normal_record') && (
-                    <div className={activeSubTab === 'normal_record' ? 'block' : 'hidden'}>
-                        <NormalRecordTab />
-                    </div>
-                )}
-                
-                {visitedTabs.has('damage_total') && (
-                    <div className={activeSubTab === 'damage_total' ? 'block' : 'hidden'}>
-                        <DamageExpireCountTab />
-                    </div>
-                )}
-                
-                {visitedTabs.has('damage_record') && (
-                    <div className={activeSubTab === 'damage_record' ? 'block' : 'hidden'}>
-                        <DamageExpireRecordTab />
-                    </div>
-                )}
+                </TabPanel>
+                <TabPanel tabId="normal_record" activeTab={activeSubTab} isVisited={visitedTabs.has('normal_record')}>
+                    <NormalRecordTab />
+                </TabPanel>
+                <TabPanel tabId="damage_total" activeTab={activeSubTab} isVisited={visitedTabs.has('damage_total')}>
+                    <DamageExpireCountTab />
+                </TabPanel>
+                <TabPanel tabId="damage_record" activeTab={activeSubTab} isVisited={visitedTabs.has('damage_record')}>
+                    <DamageExpireRecordTab />
+                </TabPanel>
             </div>
         </div>
     );

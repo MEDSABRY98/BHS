@@ -5,7 +5,7 @@ import { SalesInvoice } from '@/lib/supabase';;
 import { Search, Download, FileSpreadsheet } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import NoData from '@/app/Components/NoDataTab';
-import Loading from '@/app/Components/Loading';
+import SalesTabLoader from './SalesTabLoader';
 
 interface SalesCategoriesTabProps {
   refreshTrigger?: number;
@@ -132,7 +132,7 @@ export default function SalesCategoriesTab({ filters, userId, refreshTrigger }: 
   };
 
   if (loading) {
-    return <Loading fullScreen={false} />;
+    return <SalesTabLoader />;
   }
 
   return (

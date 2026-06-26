@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { SalesInvoice } from '@/lib/supabase';;
 import { ArrowLeft, DollarSign, Package, TrendingUp, BarChart3, Search, Calendar, Download, Percent, X, ShoppingBag, FileSpreadsheet } from 'lucide-react';
 import NoData from '@/app/Components/NoDataTab';
-import Loading from '@/app/Components/Loading';
+import SalesTabLoader from './SalesTabLoader';
 import SalesCustomerCategoriesTab from './SalesCustomerDetailsCategoriesTab';
 import * as XLSX from 'xlsx';
 import {
@@ -869,7 +869,7 @@ export default function SalesCustomerDetails({
   };
 
   if (loading) {
-    return <Loading fullScreen={false} />;
+    return <SalesTabLoader />;
   }
 
   return (

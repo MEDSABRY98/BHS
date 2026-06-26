@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import {
     Shield, User, Check, X, Search, Settings, Save, AlertCircle, ChevronRight, Layers, CheckCircle2,
     CreditCard, Wallet, BarChart3, TrendingUp, Package, Warehouse, Droplet, Truck, FileText, FileCheck, MapPin, ClipboardList, ShoppingCart, Database,
-    Lock, Users, ShieldAlert, Sparkles, Trash2
+    Lock, Users, ShieldAlert, Sparkles, Trash2, ListChecks, FileSpreadsheet
 } from 'lucide-react';
 import Loading from '@/app/Components/Loading';
 
@@ -13,19 +13,23 @@ interface UserPermissions {
     role: string;
 }
 
+const INVENTORY_COUNTING_TAB_IDS = ['normal_total', 'normal_record', 'damage_total', 'damage_record'];
+const LEGACY_INVENTORY_COUNTING_IDS = ['counting', ...INVENTORY_COUNTING_TAB_IDS];
+
 const SYSTEMS = [
     { id: 'cash-receipt', label: 'Cash Receipt' },
     { id: 'petty-cash', label: 'Petty Cash' },
+    { id: 'documents-tracking', label: 'Documents Tracking' },
+    { id: 'customers-summaries', label: 'Customers Summaries' },
     { id: 'debit', label: 'Debit Analysis' },
+    { id: 'customers-documents', label: 'Customers Documents' },
     { id: 'sales', label: 'Sales Analysis' },
     { id: 'inventory', label: 'Inventory' },
+    { id: 'inventory-counting', label: 'Inventory Counting' },
     { id: 'inventory-scrap', label: 'Inventory Scrap' },
     { id: 'suppliers', label: 'Suppliers' },
-    { id: 'customers-summaries', label: 'Customers Summaries' },
-    { id: 'customers-documents', label: 'Customers Documents' },
-    { id: 'documents-tracking', label: 'Documents Tracking' },
     { id: 'lpo-management', label: "LPO's" },
-    { id: 'database', label: 'Database' }
+    { id: 'database', label: 'Database' },
 ];
 
 const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
@@ -56,7 +60,8 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
     'inventory': [
         { id: 'orders', label: 'Products' },
         { id: 'item_code', label: 'Item Code' },
-        { id: 'counting', label: 'Inventory Counting' },
+    ],
+    'inventory-counting': [
         { id: 'normal_total', label: 'Normal Count' },
         { id: 'normal_record', label: 'Normal Record' },
         { id: 'damage_total', label: 'Damage & Expire Count' },
@@ -96,11 +101,11 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
     ],
     'database': [
         { id: 'db-customers', label: 'Customers DB' },
-        { id: 'db-products', label: 'Products DB' },
-        { id: 'db-inv-products', label: 'Inventory Products' },
         { id: 'db-inv-count-products', label: 'Inventory Count Products' },
-        { id: 'db-inv-moves', label: 'Inventory Moves' },
         { id: 'db-inv-itemcode', label: 'Inventory Item Code' },
+        { id: 'db-inv-moves', label: 'Inventory Moves' },
+        { id: 'db-inv-products', label: 'Inventory Products' },
+        { id: 'db-products', label: 'Products DB' },
         { id: 'db-sales', label: 'Sales DB' },
         { id: 'db-debit', label: 'Debit DB' },
         { id: 'db-emails', label: 'Emails DB' },
@@ -108,7 +113,7 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
         { id: 'db-suppliers-purchase', label: 'Suppliers Purchase' },
         { id: 'db-suppliers-refund', label: 'Suppliers Refund' },
         { id: 'db-users', label: 'Users DB' },
-    ]
+    ],
 };
 
 const SYSTEM_ACTIONS: Record<string, { id: string; label: string; icon: string }[]> = {
@@ -134,9 +139,10 @@ const getSystemIcon = (id: string) => {
         case 'debit': return <BarChart3 className="w-5 h-5 text-rose-500" />;
         case 'sales': return <TrendingUp className="w-5 h-5 text-blue-500" />;
         case 'inventory': return <Package className="w-5 h-5 text-amber-500" />;
+        case 'inventory-counting': return <ListChecks className="w-5 h-5 text-blue-500" />;
         case 'inventory-scrap': return <Trash2 className="w-5 h-5 text-orange-500" />;
         case 'suppliers': return <Truck className="w-5 h-5 text-purple-500" />;
-        case 'customers-summaries': return <FileText className="w-5 h-5 text-teal-500" />;
+        case 'customers-summaries': return <FileSpreadsheet className="w-5 h-5 text-teal-500" />;
         case 'customers-documents': return <FileCheck className="w-5 h-5 text-pink-500" />;
         case 'documents-tracking': return <ClipboardList className="w-5 h-5 text-violet-500" />;
         case 'lpo-management': return <ShoppingCart className="w-5 h-5 text-fuchsia-500" />;
@@ -199,9 +205,36 @@ export default function AdminControlTab() {
         }
     };
 
+    const normalizePermissions = (perms: Record<string, any>) => {
+        const next = { ...perms };
+
+        if (Array.isArray(next.inventory)) {
+            const legacyCounting = next.inventory.filter((id: string) => LEGACY_INVENTORY_COUNTING_IDS.includes(id));
+
+            if (legacyCounting.length > 0) {
+                const currentCounting = Array.isArray(next['inventory-counting']) ? next['inventory-counting'] : [];
+                const migratedTabs = [
+                    ...currentCounting,
+                    ...legacyCounting.filter((id: string) => INVENTORY_COUNTING_TAB_IDS.includes(id)),
+                    ...(legacyCounting.includes('counting') ? INVENTORY_COUNTING_TAB_IDS : []),
+                ];
+
+                next['inventory-counting'] = [...new Set(migratedTabs)];
+                next.inventory = next.inventory.filter((id: string) => !LEGACY_INVENTORY_COUNTING_IDS.includes(id));
+
+                const systems = Array.isArray(next.systems) ? next.systems : SYSTEMS.map(s => s.id);
+                if (!systems.includes('inventory-counting')) {
+                    next.systems = [...systems, 'inventory-counting'];
+                }
+            }
+        }
+
+        return next;
+    };
+
     const parsePermissions = (roleStr: string) => {
         try {
-            return JSON.parse(roleStr || '{}');
+            return normalizePermissions(JSON.parse(roleStr || '{}'));
         } catch {
             // Handle legacy 'Admin' role
             if (roleStr === 'Admin') {
@@ -266,14 +299,17 @@ export default function AdminControlTab() {
         setSaving(true);
         setMessage({ type: '', text: '' });
         try {
+            const normalizedRole = JSON.stringify(normalizePermissions(parsePermissions(selectedUser.role)));
             const res = await fetch('/DataBase/Users/api', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name: selectedUser.name, role: selectedUser.role })
+                body: JSON.stringify({ name: selectedUser.name, role: normalizedRole })
             });
             if (res.ok) {
                 setMessage({ type: 'success', text: 'Permissions updated successfully!' });
-                setUsers(users.map(u => u.name === selectedUser.name ? selectedUser : u));
+                const savedUser = { ...selectedUser, role: normalizedRole };
+                setSelectedUser(savedUser);
+                setUsers(users.map(u => u.name === savedUser.name ? savedUser : u));
                 setTimeout(() => setMessage({ type: '', text: '' }), 4000);
             } else {
                 throw new Error('Failed to update');
@@ -473,7 +509,8 @@ export default function AdminControlTab() {
                                     <button
                                         key={user.name}
                                         onClick={() => {
-                                            setSelectedUser(user);
+                                            const normalizedRole = JSON.stringify(normalizePermissions(parsePermissions(user.role)));
+                                            setSelectedUser({ ...user, role: normalizedRole });
                                             setMessage({ type: '', text: '' });
                                         }}
                                         className={`w-full flex items-center justify-between p-3.5 rounded-2xl border-2 transition-all duration-200 ${isSelected

@@ -12,6 +12,8 @@ import SalesProductsTab from './Components/SalesProductsTab';
 import SalesCategoriesTab from './Components/SalesCategoriesTab';
 import SalesStockReportTab from './Components/SalesStockReportTab';
 import SalesSidebar from './Components/SalesSidebar';
+import SalesTabPanel from './Components/SalesTabPanel';
+import SalesTabLoader from './Components/SalesTabLoader';
 import SalesSetCustomersTab from './Components/SalesSetCustomersTab';
 import SalesNewListingsTab from './Components/SalesNewListingsTab';
 
@@ -526,11 +528,11 @@ export default function SalesPage() {
 
   const renderTabContent = () => {
     if (!salesUserId) {
-      return <Loading fullScreen={false} />;
+      return <SalesTabLoader />;
     }
 
     if (loading) {
-      return <Loading fullScreen={false} />;
+      return <SalesTabLoader />;
     }
 
     if (error) {
@@ -578,66 +580,42 @@ export default function SalesPage() {
 
     return (
       <div className="relative w-full">
-        {visitedTabs.has('sales-overview') && (
-          <div className={activeTab === 'sales-overview' ? 'block' : 'hidden'}>
-            <SalesOverviewTab filters={commonFilters} userId={salesUserId} refreshTrigger={refreshTrigger} />
-          </div>
-        )}
-        {visitedTabs.has('sales-top10') && (
-          <div className={activeTab === 'sales-top10' ? 'block' : 'hidden'}>
-            <SalesTop10Tab filters={commonFilters} userId={salesUserId} refreshTrigger={refreshTrigger} />
-          </div>
-        )}
-        {visitedTabs.has('sales-customers') && (
-          <div className={activeTab === 'sales-customers' ? 'block' : 'hidden'}>
-            <SalesCustomersTab filters={commonFilters} userId={salesUserId} onUploadMapping={handleUploadMapping} showCosts={showCosts} refreshTrigger={refreshTrigger} />
-          </div>
-        )}
-        {visitedTabs.has('sales-customers-comparison') && (
-          <div className={activeTab === 'sales-customers-comparison' ? 'block' : 'hidden'}>
-            <SalesCustomersComparisonTab filters={commonFilters} userId={salesUserId} refreshTrigger={refreshTrigger} />
-          </div>
-        )}
-        {visitedTabs.has('sales-inactive-customers') && (
-          <div className={activeTab === 'sales-inactive-customers' ? 'block' : 'hidden'}>
-            <SalesInactiveCustomersTab filters={commonFilters} userId={salesUserId} days={inactiveDays as any} minAmount={inactiveMinAmount as any} refreshTrigger={refreshTrigger} />
-          </div>
-        )}
-        {visitedTabs.has('sales-statistics') && (
-          <div className={activeTab === 'sales-statistics' ? 'block' : 'hidden'}>
-            <SalesStatisticsTab filters={commonFilters} userId={salesUserId} refreshTrigger={refreshTrigger} />
-          </div>
-        )}
-        {visitedTabs.has('sales-daily-sales') && (
-          <div className={activeTab === 'sales-daily-sales' ? 'block' : 'hidden'}>
-            <SalesDailySalesTab filters={commonFilters} invoiceTypeFilter={invoiceTypeFilter} userId={salesUserId} showCosts={showCosts} refreshTrigger={refreshTrigger} />
-          </div>
-        )}
-        {visitedTabs.has('sales-products') && (
-          <div className={activeTab === 'sales-products' ? 'block' : 'hidden'}>
-            <SalesProductsTab filters={commonFilters} userId={salesUserId} refreshTrigger={refreshTrigger} />
-          </div>
-        )}
-        {visitedTabs.has('sales-new-listings') && (
-          <div className={activeTab === 'sales-new-listings' ? 'block' : 'hidden'}>
-            <SalesNewListingsTab filters={commonFilters} userId={salesUserId} refreshTrigger={refreshTrigger} />
-          </div>
-        )}
-        {visitedTabs.has('sales-categories') && (
-          <div className={activeTab === 'sales-categories' ? 'block' : 'hidden'}>
-            <SalesCategoriesTab filters={commonFilters} userId={salesUserId} refreshTrigger={refreshTrigger} />
-          </div>
-        )}
-        {visitedTabs.has('sales-download-form') && (
-          <div className={activeTab === 'sales-download-form' ? 'block' : 'hidden'}>
-            <SalesStockReportTab filters={commonFilters} userId={salesUserId} refreshTrigger={refreshTrigger} />
-          </div>
-        )}
-        {visitedTabs.has('sales-my-customers') && (
-          <div className={activeTab === 'sales-my-customers' ? 'block' : 'hidden'}>
-            <SalesSetCustomersTab userId={salesUserId} refreshTrigger={refreshTrigger} />
-          </div>
-        )}
+        <SalesTabPanel tabId="sales-overview" activeTab={activeTab} isVisited={visitedTabs.has('sales-overview')}>
+          <SalesOverviewTab filters={commonFilters} userId={salesUserId} refreshTrigger={refreshTrigger} />
+        </SalesTabPanel>
+        <SalesTabPanel tabId="sales-top10" activeTab={activeTab} isVisited={visitedTabs.has('sales-top10')}>
+          <SalesTop10Tab filters={commonFilters} userId={salesUserId} refreshTrigger={refreshTrigger} />
+        </SalesTabPanel>
+        <SalesTabPanel tabId="sales-customers" activeTab={activeTab} isVisited={visitedTabs.has('sales-customers')}>
+          <SalesCustomersTab filters={commonFilters} userId={salesUserId} onUploadMapping={handleUploadMapping} showCosts={showCosts} refreshTrigger={refreshTrigger} />
+        </SalesTabPanel>
+        <SalesTabPanel tabId="sales-customers-comparison" activeTab={activeTab} isVisited={visitedTabs.has('sales-customers-comparison')}>
+          <SalesCustomersComparisonTab filters={commonFilters} userId={salesUserId} refreshTrigger={refreshTrigger} />
+        </SalesTabPanel>
+        <SalesTabPanel tabId="sales-inactive-customers" activeTab={activeTab} isVisited={visitedTabs.has('sales-inactive-customers')}>
+          <SalesInactiveCustomersTab filters={commonFilters} userId={salesUserId} days={inactiveDays as any} minAmount={inactiveMinAmount as any} refreshTrigger={refreshTrigger} />
+        </SalesTabPanel>
+        <SalesTabPanel tabId="sales-statistics" activeTab={activeTab} isVisited={visitedTabs.has('sales-statistics')}>
+          <SalesStatisticsTab filters={commonFilters} userId={salesUserId} refreshTrigger={refreshTrigger} />
+        </SalesTabPanel>
+        <SalesTabPanel tabId="sales-daily-sales" activeTab={activeTab} isVisited={visitedTabs.has('sales-daily-sales')}>
+          <SalesDailySalesTab filters={commonFilters} invoiceTypeFilter={invoiceTypeFilter} userId={salesUserId} showCosts={showCosts} refreshTrigger={refreshTrigger} />
+        </SalesTabPanel>
+        <SalesTabPanel tabId="sales-products" activeTab={activeTab} isVisited={visitedTabs.has('sales-products')}>
+          <SalesProductsTab filters={commonFilters} userId={salesUserId} refreshTrigger={refreshTrigger} />
+        </SalesTabPanel>
+        <SalesTabPanel tabId="sales-new-listings" activeTab={activeTab} isVisited={visitedTabs.has('sales-new-listings')}>
+          <SalesNewListingsTab filters={commonFilters} userId={salesUserId} refreshTrigger={refreshTrigger} />
+        </SalesTabPanel>
+        <SalesTabPanel tabId="sales-categories" activeTab={activeTab} isVisited={visitedTabs.has('sales-categories')}>
+          <SalesCategoriesTab filters={commonFilters} userId={salesUserId} refreshTrigger={refreshTrigger} />
+        </SalesTabPanel>
+        <SalesTabPanel tabId="sales-download-form" activeTab={activeTab} isVisited={visitedTabs.has('sales-download-form')}>
+          <SalesStockReportTab filters={commonFilters} userId={salesUserId} refreshTrigger={refreshTrigger} />
+        </SalesTabPanel>
+        <SalesTabPanel tabId="sales-my-customers" activeTab={activeTab} isVisited={visitedTabs.has('sales-my-customers')}>
+          <SalesSetCustomersTab userId={salesUserId} refreshTrigger={refreshTrigger} />
+        </SalesTabPanel>
       </div>
     );
   };

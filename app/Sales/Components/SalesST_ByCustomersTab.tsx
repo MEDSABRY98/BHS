@@ -7,7 +7,7 @@ import { generateSalesPricelistPDF } from '@/app/Sales/Pdf/SalesPricelist';
 import { generateSalesStockFormPDF } from '@/app/Sales/Pdf/SalesStockForm';
 import { generateSalesAnalysisComparisonPDF } from '@/app/Sales/Pdf/SalesAnalysisComparison';;
 import NoData from '@/app/Components/NoDataTab';
-import Loading from '@/app/Components/Loading';
+import SalesTabLoader from './SalesTabLoader';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import * as XLSX from 'xlsx';
@@ -160,7 +160,7 @@ export default function SalesST_ByCustomers({ customersData, loading, refreshTri
     } catch (error) { console.error(error); } finally { setIsGenerating(false); setGenerationProgress({ current: 0, total: 0 }); }
   };
 
-  if (loading) return <Loading fullScreen={false} />;
+  if (loading) return <SalesTabLoader />;
 
   return (
     <div className="space-y-6">

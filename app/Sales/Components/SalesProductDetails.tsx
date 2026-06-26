@@ -5,7 +5,7 @@ import { SalesInvoice } from '@/lib/supabase';;
 import { ArrowLeft, DollarSign, Package, TrendingUp, BarChart3, Search, Calendar, Download } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import NoData from '@/app/Components/NoDataTab';
-import Loading from '@/app/Components/Loading';
+import SalesTabLoader from './SalesTabLoader';
 import {
   ComposedChart,
   Bar,
@@ -479,7 +479,7 @@ export default function SalesProductDetails({ productId, filters, userId, onBack
   };
 
   if (loading) {
-    return <Loading fullScreen={false} />;
+    return <SalesTabLoader />;
   }
 
   return (

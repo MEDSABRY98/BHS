@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { SalesInvoice } from '@/lib/supabase';;
 import { MapPin, ShoppingBag, UserCircle, DollarSign, Package, Store } from 'lucide-react';
-import Loading from '@/app/Components/Loading';
+import SalesTabLoader from './SalesTabLoader';
 
 interface SalesStatisticsTabProps {
   refreshTrigger?: number;
@@ -141,7 +141,7 @@ export default function SalesStatisticsTab({ filters, userId, refreshTrigger }: 
   };
 
   if (loading) {
-    return <Loading fullScreen={false} />;
+    return <SalesTabLoader />;
   }
 
   const totals = getTotalStats();

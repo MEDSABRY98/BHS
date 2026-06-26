@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { Search, Edit, Trash2, Save, X, User, AlertTriangle, Loader2, ChevronDown } from 'lucide-react';
 import { toast } from '@/app/Components/Notification';
 import NoData from '@/app/Components/NoDataTab';
-import Loading from '@/app/Components/Loading';
+import SalesTabLoader from './SalesTabLoader';
 
 // Custom Premium Filter Dropdown Component
 interface FilterDropdownProps {
@@ -308,7 +308,7 @@ export default function SalesSetCustomersTab({ userId, refreshTrigger }: SalesSe
   };
 
   if (loading) {
-    return <Loading fullScreen={false} />;
+    return <SalesTabLoader />;
   }
 
   return (

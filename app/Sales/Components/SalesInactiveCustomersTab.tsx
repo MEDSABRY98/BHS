@@ -6,7 +6,7 @@ import { Search, Users, ChevronLeft, ChevronRight, Download, ArrowUpDown, ArrowU
 import * as XLSX from 'xlsx';
 import SalesCustomerDetails from './SalesCustomerDetails';
 import NoData from '@/app/Components/NoDataTab';
-import Loading from '@/app/Components/Loading';
+import SalesTabLoader from './SalesTabLoader';
 
 interface SalesInactiveCustomersTabProps {
   refreshTrigger?: number;
@@ -255,7 +255,7 @@ export default function SalesInactiveCustomersTab({ filters, userId, days = '30'
   };
 
   if (loading) {
-    return <Loading fullScreen={false} />;
+    return <SalesTabLoader />;
   } if (selectedCustomer) return (
     <SalesCustomerDetails customerName={selectedCustomer} filters={filters} userId={userId} onBack={() => setSelectedCustomer(null)} initialTab="dashboard" />
   );

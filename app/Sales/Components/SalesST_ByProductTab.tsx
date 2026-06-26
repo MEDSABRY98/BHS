@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { SalesInvoice } from '@/lib/supabase';;
 import { Search, Loader2, DollarSign, User, TrendingUp, FileSpreadsheet, BarChart2, X } from 'lucide-react';
 import NoData from '@/app/Components/NoDataTab';
-import Loading from '@/app/Components/Loading';
+import SalesTabLoader from './SalesTabLoader';
 import * as XLSX from 'xlsx';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
 
@@ -84,7 +84,7 @@ export default function SalesST_ByProduct({ productList, loading, refreshTrigger
     XLSX.writeFile(wb, `Pricing_Analysis_By_Product_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
-  if (loading) return <Loading fullScreen={false} />;
+  if (loading) return <SalesTabLoader />;
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">

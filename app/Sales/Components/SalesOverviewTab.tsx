@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { TrendingUp, Package, Users, DollarSign, BarChart3, Calendar, MapPin, ShoppingBag, UserCircle, ChevronDown, Download, Filter, X, FileSpreadsheet } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import NoData from '@/app/Components/NoDataTab';
-import Loading from '@/app/Components/Loading';
+import SalesTabLoader from './SalesTabLoader';
 import {
   ComposedChart,
   Bar,
@@ -116,7 +116,7 @@ export default function SalesOverviewTab({ filters, refreshTrigger, userId }: Sa
   };
 
   if (loading || !data) {
-    return <Loading fullScreen={false} />;
+    return <SalesTabLoader />;
   }
 
   const { metrics, chartData, yearlyTableData, monthlyTableData } = data;
