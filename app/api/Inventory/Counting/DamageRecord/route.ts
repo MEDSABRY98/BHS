@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
-import { getDamageICRecord } from '@/lib/Inventory';;
+import { fetchICDetails } from '../NormalTotal/route';
 
 export async function GET() {
   try {
-    const data = await getDamageICRecord();
+    const data = await fetchICDetails('DamageExpire');
     return NextResponse.json({ data });
   } catch (error) {
     console.error('API Error:', error);

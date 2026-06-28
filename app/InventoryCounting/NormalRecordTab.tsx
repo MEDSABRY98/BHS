@@ -5,7 +5,7 @@ import { Search, History, RefreshCw, AlertCircle, Calendar, User, Home, ChevronD
 import * as XLSX from 'xlsx';
 import TabLoader from '@/app/Components/TabLoader';
 import NoData from '@/app/Components/NoDataTab';
-import { ICRecord } from '@/lib/Inventory';;
+import { ICRecord } from './EditICItemModal';
 
 export default function NormalRecordTab() {
     const [data, setData] = useState<ICRecord[]>([]);

@@ -1,6 +1,27 @@
 import React, { useState } from 'react';
 import { Package, Save, X } from 'lucide-react';
-import { ICItem } from '@/lib/Inventory';;
+
+export interface ICItem {
+    productId: string;
+    barcodeName: string;
+    productName: string;
+    availableQty: number;
+    qtyInBox: number;
+    countedQty: number;
+}
+
+export interface ICRecord {
+    rowId: string;
+    date: string;
+    user: string;
+    warehouse: string;
+    productId: string;
+    barcodeName: string;
+    productName: string;
+    qtyInBox: number;
+    countDetails: string;
+    countedQty: number;
+}
 
 interface EditICItemModalProps {
     item: ICItem;

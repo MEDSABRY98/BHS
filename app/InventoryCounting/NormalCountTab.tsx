@@ -5,7 +5,7 @@ import { User, Home, ArrowUpDown, Search, Package, RefreshCw, AlertCircle, Chevr
 import * as XLSX from 'xlsx';
 import TabLoader from '@/app/Components/TabLoader';
 import NoData from '@/app/Components/NoDataTab';
-import { ICItem, ICRecord } from '@/lib/Inventory';;
+import { ICItem, ICRecord } from './EditICItemModal';
 import EditICItemModal from './EditICItemModal';
 
 export default function NormalCountTab() {

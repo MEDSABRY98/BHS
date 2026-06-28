@@ -147,6 +147,17 @@ export default function SalesStatisticsTab({ filters, userId, refreshTrigger }: 
   const totals = getTotalStats();
   const current = getCurrentStats();
 
+  const getDimensionLabel = () => {
+    switch (activeSubTab) {
+      case 'area': return 'Area';
+      case 'market': return 'Market';
+      case 'merchandiser': return 'Merchandiser';
+      case 'salesrep': return 'Sales Rep';
+    }
+  };
+
+  const dimensionLabel = getDimensionLabel();
+
   return (
     <div className="w-full space-y-6">
       {/* Header */}
@@ -206,12 +217,14 @@ export default function SalesStatisticsTab({ filters, userId, refreshTrigger }: 
         <div className="bg-white rounded-xl shadow-md p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600 mb-1">Total {activeSubTab === 'area' ? 'Areas' : activeSubTab === 'merchandiser' ? 'Merchandisers' : 'Sales Reps'}</p>
+              <p className="text-sm text-gray-600 mb-1">Total {activeSubTab === 'area' ? 'Areas' : activeSubTab === 'market' ? 'Markets' : activeSubTab === 'merchandiser' ? 'Merchandisers' : 'Sales Reps'}</p>
               <p className="text-2xl font-bold text-gray-800">{totals.count}</p>
             </div>
             <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
               {activeSubTab === 'area' ? (
                 <MapPin className="w-6 h-6 text-blue-600" />
+              ) : activeSubTab === 'market' ? (
+                <Store className="w-6 h-6 text-blue-600" />
               ) : activeSubTab === 'merchandiser' ? (
                 <ShoppingBag className="w-6 h-6 text-blue-600" />
               ) : (
@@ -264,7 +277,7 @@ export default function SalesStatisticsTab({ filters, userId, refreshTrigger }: 
       {/* Statistics Table */}
       <div className="bg-white rounded-xl shadow-md p-6">
         <h2 className="text-xl font-bold text-gray-800 mb-4">
-          {activeSubTab === 'area' ? 'Area' : activeSubTab === 'merchandiser' ? 'Merchandiser' : 'Sales Rep'} Statistics
+          {dimensionLabel} Statistics
         </h2>
         {current.stats.length === 0 ? (
           <div className="text-center py-12">
@@ -276,11 +289,11 @@ export default function SalesStatisticsTab({ filters, userId, refreshTrigger }: 
               <thead>
                 <tr className="border-b-2 border-gray-200">
                   <th className="text-center py-3 px-4 text-base font-semibold text-gray-700 min-w-[200px]">
-                    {activeSubTab === 'area' ? 'Area' : activeSubTab === 'merchandiser' ? 'Merchandiser' : 'Sales Rep'}
+                    {dimensionLabel}
                   </th>
+                  <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Customers Count</th>
                   <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Total Amount</th>
                   <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Average Monthly Sales</th>
-                  <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Average Monthly Growth</th>
                   <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">% of Total Sales</th>
                   <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Total Quantity</th>
                 </tr>
@@ -290,20 +303,13 @@ export default function SalesStatisticsTab({ filters, userId, refreshTrigger }: 
                   <tr key={stat.name} className={`border-b border-gray-100 hover:bg-gray-50 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}`}>
                     <td className="text-center py-3 px-4 text-base font-semibold text-gray-800 min-w-[200px]">{stat.name}</td>
                     <td className="text-center py-3 px-4 text-base font-semibold text-gray-800">
+                      {(stat.customerCount ?? 0).toLocaleString('en-US')}
+                    </td>
+                    <td className="text-center py-3 px-4 text-base font-semibold text-gray-800">
                       {stat.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                     </td>
                     <td className="text-center py-3 px-4 text-base font-semibold text-gray-800">
                       {stat.averageMonthly.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                    </td>
-                    <td className="text-center py-3 px-4 text-base font-semibold text-gray-800">
-                      {stat.averageMonthlyGrowth !== 0 ? (
-                        <span className={stat.averageMonthlyGrowth > 0 ? 'text-green-600' : 'text-red-600'}>
-                          {stat.averageMonthlyGrowth > 0 ? '+' : ''}
-                          {stat.averageMonthlyGrowth.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                        </span>
-                      ) : (
-                        <span className="text-gray-500">-</span>
-                      )}
                     </td>
                     <td className="text-center py-3 px-4 text-base font-semibold text-gray-800">
                       {stat.percentageOfTotal.toFixed(2)}%

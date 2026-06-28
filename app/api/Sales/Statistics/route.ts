@@ -3,6 +3,7 @@ import { getFilteredSalesData } from '@/app/Sales/Utils/SalesMappingCache';
 
 function calculateStatsForDimension(data: any[], dimensionKey: string) {
   const dimensionMap = new Map<string, { amount: number; qty: number; count: number }>();
+  const dimensionCustomersMap = new Map<string, Set<string>>();
   const dimensionMonthsMap = new Map<string, Set<string>>();
   const monthlyData = new Map<string, Map<string, { amount: number; qty: number }>>();
 
@@ -17,6 +18,14 @@ function calculateStatsForDimension(data: any[], dimensionKey: string) {
       qty: existing.qty + (Number(item.qty) || 0),
       count: existing.count + 1
     });
+
+    const customerKey = item.customerId || item.customerName;
+    if (customerKey) {
+      if (!dimensionCustomersMap.has(dimValue)) {
+        dimensionCustomersMap.set(dimValue, new Set());
+      }
+      dimensionCustomersMap.get(dimValue)!.add(String(customerKey));
+    }
 
     if (!item.invoiceDate) return;
     const date = new Date(item.invoiceDate);
@@ -70,6 +79,7 @@ function calculateStatsForDimension(data: any[], dimensionKey: string) {
       totalAmount: values.amount,
       totalQty: values.qty,
       invoiceCount: values.count,
+      customerCount: dimensionCustomersMap.get(dim)?.size || 0,
       averageMonthly: averageMonthly,
       averageMonthlyGrowth: averageMonthlyGrowth,
       percentageOfTotal: totalAmountAll > 0 ? (values.amount / totalAmountAll) * 100 : 0

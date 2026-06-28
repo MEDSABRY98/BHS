@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { updateICItem } from '@/lib/Inventory';;
+import { updateICItem } from '../NormalTotal/route';
 
 export async function PUT(request: Request) {
   try {
