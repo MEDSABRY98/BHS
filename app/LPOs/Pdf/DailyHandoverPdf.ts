@@ -1,5 +1,16 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { printPdfInSameTab } from './DeliveryUtils';
+
+const CANCELLED_ROW_FILL: [number, number, number] = [255, 235, 235];
+
+function isInvoiceCancelled(inv: any): boolean {
+  const trackingNotes =
+    inv.app_lpos_DRIVERS?.[0]?.TRACKING_NOTES ||
+    inv.TRACKING_NOTES ||
+    inv.tracking_notes;
+  return trackingNotes === 'SYSTEM_CANCELLED';
+}
 
 export async function generateDailyHandoverPDF(
   driverName: string,
@@ -27,7 +38,10 @@ export async function generateDailyHandoverPDF(
   const totalAmount = invoices.reduce((sum, inv) => sum + (parseFloat(inv.AMOUNT) || 0), 0);
 
   // Table Data mapping
+  const cancelledRows: boolean[] = [];
   const tableData = invoices.map((inv) => {
+    cancelledRows.push(isInvoiceCancelled(inv));
+
     const formattedOrderDate = inv.ORDER_DATE
       ? new Date(inv.ORDER_DATE).toLocaleDateString('en-GB')
       : (inv.CREATED_AT ? new Date(inv.CREATED_AT).toLocaleDateString('en-GB') : '-');
@@ -125,6 +139,10 @@ export async function generateDailyHandoverPDF(
       },
       margin: { left: margin, right: margin },
       didParseCell: (data: any) => {
+        if (data.row.section === 'body' && cancelledRows[data.row.index]) {
+          data.cell.styles.fillColor = CANCELLED_ROW_FILL;
+        }
+
         if (data.row.section === 'body' && data.column.index === 1) {
           const text = data.cell.raw ? data.cell.raw.toString() : '';
           if (text && text !== '-') {
@@ -219,8 +237,7 @@ export async function generateDailyHandoverPDF(
   }
 
   if (action === 'print') {
-    const url = doc.output('bloburl');
-    window.open(url, '_blank');
+    printPdfInSameTab(doc);
   } else {
     doc.save(`Daily_Handover_${driverName.replace(/\s+/g, '_')}_${dateStr}.pdf`);
   }

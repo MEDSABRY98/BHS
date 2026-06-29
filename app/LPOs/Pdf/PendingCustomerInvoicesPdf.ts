@@ -1,5 +1,6 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { printPdfInSameTab } from './DeliveryUtils';
 
 export async function generatePendingCustomerInvoicesPDF(
   customerSearchTerm: string,
@@ -77,8 +78,7 @@ export async function generatePendingCustomerInvoicesPDF(
   }
 
   if (action === 'print') {
-    const url = doc.output('bloburl');
-    window.open(url, '_blank');
+    printPdfInSameTab(doc);
   } else {
     doc.save(`Pending_Invoices_Search_${customerSearchTerm.replace(/\s+/g, '_')}.pdf`);
   }

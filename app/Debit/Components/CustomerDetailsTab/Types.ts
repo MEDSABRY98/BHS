@@ -158,7 +158,6 @@ export interface SharedTabProps {
   selectedInvoice: InvoiceWithNetDebt | OverdueInvoice | null;
   setSelectedInvoice: (i: InvoiceWithNetDebt | OverdueInvoice | null) => void;
   
-  spiData: { number: string, matching: string }[];
   invoicesWithNetDebt: InvoiceWithNetDebt[];
   availableMatchingsWithResidual: string[];
   availableMonths: string[];

@@ -1,5 +1,6 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { printPdfInSameTab } from './DeliveryUtils';
 
 export async function generatePendingDriverInvoicesPDF(
   driverName: string,
@@ -278,8 +279,7 @@ export async function generatePendingDriverInvoicesPDF(
   }
 
   if (action === 'print') {
-    const url = doc.output('bloburl');
-    window.open(url, '_blank');
+    printPdfInSameTab(doc);
   } else {
     doc.save(`Pending_Invoices_${driverName.replace(/\s+/g, '_')}.pdf`);
   }

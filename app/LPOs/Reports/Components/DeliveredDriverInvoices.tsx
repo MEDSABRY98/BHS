@@ -73,7 +73,8 @@ export default function DeliveredDriverInvoices() {
             STATUS,
             OFFICE_HANDOVER_STATUS,
             OFFICE_HANDOVER_TIME,
-            DELIVERY_TIME
+            DELIVERY_TIME,
+            TRACKING_NOTES
           )
         `)
         .eq('app_lpos_DRIVERS.DRIVERS_NAME', selectedDriverId);

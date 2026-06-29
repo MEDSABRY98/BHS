@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, Suspense, useRef, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { bhs_supabas } from '@/lib/supabase';
 import {
@@ -8,25 +8,20 @@ import {
   CheckCircle2,
   XCircle,
   Package,
-  User,
-  Hash,
-  Banknote,
-  Calendar,
-  AlertCircle,
   Loader2,
   Trash2,
-  Undo2,
   FileText,
   Printer,
   FileSpreadsheet,
   Edit2,
   Info,
-  Copy,
-  Check
+  Save,
+  X,
 } from 'lucide-react';
 import { ConfirmModal } from '../Components/ConfirmModal';
 import { usePermissions } from '../Hooks/usePermissions';
 import OrderItemsTab from './Components/OrderItemsTab';
+import OrderInfoTab, { OrderInfoTabHandle } from './Components/OrderInfoTab';
 
 import OrderDeliveryTab from './Components/OrderDeliveryTab';
 import InvoicesStatusTab from './Components/InvoicesStatusTab';
@@ -47,7 +42,17 @@ function OrderDetailsPageContent() {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isNoItemsOrder, setIsNoItemsOrder] = useState(false);
   const [isEditingStatus, setIsEditingStatus] = useState(false);
+  const [isEditingOrderInfo, setIsEditingOrderInfo] = useState(false);
+  const [orderInfoSaving, setOrderInfoSaving] = useState(false);
+  const [orderInfoLoadingOptions, setOrderInfoLoadingOptions] = useState(false);
+  const orderInfoRef = useRef<OrderInfoTabHandle>(null);
   const [pendingStatus, setPendingStatus] = useState('');
+  const [activeTab, setActiveTab] = useState('INFO');
+
+  const handleOrderInfoActionState = useCallback((state: { isSaving: boolean; isLoadingOptions: boolean }) => {
+    setOrderInfoSaving(state.isSaving);
+    setOrderInfoLoadingOptions(state.isLoadingOptions);
+  }, []);
 
   useEffect(() => {
     if (id) fetchOrderDetails();
@@ -157,15 +162,6 @@ function OrderDetailsPageContent() {
     }
   };
 
-  const [activeTab, setActiveTab] = useState('INFO');
-  const [copiedField, setCopiedField] = useState<string | null>(null);
-
-  const handleCopy = (text: string, field: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedField(field);
-    setTimeout(() => setCopiedField(null), 2000);
-  };
-
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -210,6 +206,11 @@ function OrderDetailsPageContent() {
 
   const isTabsEnabled = isNoItemsOrder || order?.STATUS === 'Approved' || order?.STATUS === 'Partially Approved';
 
+  const handleStartEditOrderInfo = () => {
+    setActiveTab('INFO');
+    setIsEditingOrderInfo(true);
+  };
+
   return (
     <div className="space-y-8 pb-20">
       {/* Header Row */}
@@ -246,7 +247,7 @@ function OrderDetailsPageContent() {
             >
               <FileSpreadsheet className="w-5 h-5" />
             </button>
-            {(order?.STATUS === 'Pending' || isEditingStatus) ? (
+            {(order?.STATUS === 'Pending' || isEditingStatus) && !isEditingOrderInfo ? (
               <>
                 <button
                   onClick={() => confirmStatusUpdate('Rejected')}
@@ -268,12 +269,31 @@ function OrderDetailsPageContent() {
                   {order?.STATUS === 'Pending' ? 'APPROVE' : 'CONFIRM'}
                 </button>
               </>
+            ) : isEditingOrderInfo ? (
+              <>
+                <button
+                  onClick={() => orderInfoRef.current?.cancel()}
+                  disabled={orderInfoSaving}
+                  className="p-4 bg-white border border-gray-100 text-gray-600 rounded-2xl hover:bg-gray-50 transition-all flex items-center justify-center shadow-sm"
+                  title="Cancel"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+                <button
+                  onClick={() => orderInfoRef.current?.save()}
+                  disabled={orderInfoSaving || orderInfoLoadingOptions}
+                  className="p-4 bg-black border border-black text-[#D4AF37] rounded-2xl hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center shadow-xl shadow-black/20 disabled:opacity-50"
+                  title="Save Changes"
+                >
+                  {orderInfoSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+                </button>
+              </>
             ) : (
               <button
-                onClick={() => setIsEditingStatus(true)}
+                onClick={handleStartEditOrderInfo}
                 disabled={isSaving}
                 className="p-4 bg-white border border-gray-100 text-black rounded-2xl hover:bg-gray-50 transition-all flex items-center justify-center shadow-sm"
-                title="Edit Status"
+                title="Edit Order Info"
               >
                 <Edit2 className="w-5 h-5 text-[#D4AF37]" />
               </button>
@@ -334,169 +354,14 @@ function OrderDetailsPageContent() {
       {/* Active Tab Content */}
       <div className="min-h-[400px]">
         {activeTab === 'INFO' && (
-          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            {/* Grid of details */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-
-              {/* Card: Customer (Spans 2 columns on larger screens) */}
-              <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm flex flex-col justify-between hover:border-black transition-all duration-300 md:col-span-2">
-                <div className="flex items-center justify-between mb-4">
-                  <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Customer</span>
-                  <div className="w-8 h-8 rounded-xl bg-gray-50 text-gray-400 flex items-center justify-center">
-                    <User className="w-4 h-4" />
-                  </div>
-                </div>
-                <div>
-                  <h4 className="text-xl font-black text-black truncate">{order.bhs_CUSTOMERS?.["CUSTOMER NAME"] || 'None'}</h4>
-                  <p className="text-xs font-semibold text-gray-400 mt-1">Customer account name</p>
-                </div>
-              </div>
-
-              {/* Card: Status */}
-              <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm flex flex-col justify-between hover:border-black transition-all duration-300">
-                <div className="flex items-center justify-between mb-4">
-                  <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Order Status</span>
-                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${order.STATUS === 'Approved' ? 'bg-emerald-50 text-emerald-600' :
-                    order.STATUS === 'Partially Approved' ? 'bg-teal-50 text-teal-600' :
-                      order.STATUS === 'Rejected' ? 'bg-red-50 text-red-600' :
-                        'bg-amber-50 text-amber-600'
-                    }`}>
-                    {order.STATUS === 'Approved' && <CheckCircle2 className="w-4 h-4" />}
-                    {order.STATUS === 'Partially Approved' && <CheckCircle2 className="w-4 h-4" />}
-                    {order.STATUS === 'Rejected' && <XCircle className="w-4 h-4" />}
-                    {order.STATUS === 'Pending' && <Loader2 className="w-4 h-4 animate-spin" />}
-                  </div>
-                </div>
-                <div>
-                  <h4 className={`text-xl font-black ${order.STATUS === 'Approved' ? 'text-emerald-600' :
-                    order.STATUS === 'Partially Approved' ? 'text-teal-600' :
-                      order.STATUS === 'Rejected' ? 'text-red-600' :
-                        'text-amber-500'
-                    }`}>{order.STATUS}</h4>
-                  <p className="text-xs font-semibold text-gray-400 mt-1">Current processing stage</p>
-                </div>
-              </div>
-
-              {/* Card: Order ID */}
-              <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm flex flex-col justify-between hover:border-black transition-all duration-300">
-                <div className="flex items-center justify-between mb-4">
-                  <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Order ID</span>
-                  <button
-                    onClick={() => handleCopy(order.ORDER_ID, 'order_id')}
-                    className="w-8 h-8 rounded-xl bg-gray-50 text-gray-400 flex items-center justify-center hover:bg-gray-100 hover:text-black transition-all"
-                    title="Copy ID"
-                  >
-                    {copiedField === 'order_id' ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
-                  </button>
-                </div>
-                <div>
-                  <h4 className="text-xl font-black text-black tracking-tight">{order.ORDER_ID}</h4>
-                  <p className="text-xs font-semibold text-gray-400 mt-1">System reference ID</p>
-                </div>
-              </div>
-
-              {/* Card: Invoice ID */}
-              <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm flex flex-col justify-between hover:border-black transition-all duration-300">
-                <div className="flex items-center justify-between mb-4">
-                  <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Invoice ID</span>
-                  {order.INVOICE_ID && (
-                    <button
-                      onClick={() => handleCopy(order.INVOICE_ID, 'invoice_id')}
-                      className="w-8 h-8 rounded-xl bg-gray-50 text-gray-400 flex items-center justify-center hover:bg-gray-100 hover:text-black transition-all"
-                      title="Copy Invoice ID"
-                    >
-                      {copiedField === 'invoice_id' ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
-                    </button>
-                  )}
-                </div>
-                <div>
-                  <h4 className="text-xl font-black text-black tracking-tight">{order.INVOICE_ID || 'Not Available'}</h4>
-                  <p className="text-xs font-semibold text-gray-400 mt-1">Invoice tracking code</p>
-                </div>
-              </div>
-
-              {/* Card: LPO ID */}
-              <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm flex flex-col justify-between hover:border-black transition-all duration-300">
-                <div className="flex items-center justify-between mb-4">
-                  <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">LPO ID</span>
-                  {order.LPO_ID && (
-                    <button
-                      onClick={() => handleCopy(order.LPO_ID, 'lpo_id')}
-                      className="w-8 h-8 rounded-xl bg-gray-50 text-gray-400 flex items-center justify-center hover:bg-gray-100 hover:text-black transition-all"
-                      title="Copy LPO ID"
-                    >
-                      {copiedField === 'lpo_id' ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
-                    </button>
-                  )}
-                </div>
-                <div>
-                  <h4 className="text-xl font-black text-black tracking-tight">{order.LPO_ID || 'Not Available'}</h4>
-                  <p className="text-xs font-semibold text-gray-400 mt-1">Local Purchase Order ID</p>
-                </div>
-              </div>
-
-              {/* Card: Created At */}
-              <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm flex flex-col justify-between hover:border-black transition-all duration-300">
-                <div className="flex items-center justify-between mb-4">
-                  <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Created At</span>
-                  <div className="w-8 h-8 rounded-xl bg-gray-50 text-gray-400 flex items-center justify-center">
-                    <Calendar className="w-4 h-4" />
-                  </div>
-                </div>
-                <div>
-                  <h4 className="text-lg font-black text-black">{new Date(order.CREATED_AT).toLocaleString('en-GB')}</h4>
-                  <p className="text-xs font-semibold text-gray-400 mt-1">System registration timestamp</p>
-                </div>
-              </div>
-
-              {/* Card: Order Date */}
-              <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm flex flex-col justify-between hover:border-black transition-all duration-300">
-                <div className="flex items-center justify-between mb-4">
-                  <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Order Date</span>
-                  <div className="w-8 h-8 rounded-xl bg-gray-50 text-gray-400 flex items-center justify-center">
-                    <Calendar className="w-4 h-4" />
-                  </div>
-                </div>
-                <div>
-                  <h4 className="text-lg font-black text-black">
-                    {order.ORDER_DATE ? new Date(order.ORDER_DATE).toLocaleDateString('en-GB') : new Date(order.CREATED_AT).toLocaleDateString('en-GB')}
-                  </h4>
-                  <p className="text-xs font-semibold text-gray-400 mt-1">Requested delivery/order date</p>
-                </div>
-              </div>
-
-              {/* Card: Total Amount */}
-              <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm flex flex-col justify-between hover:border-black transition-all duration-300">
-                <div className="flex items-center justify-between mb-4">
-                  <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Total Amount</span>
-                  <div className="w-8 h-8 rounded-xl bg-gray-50 text-[#D4AF37] flex items-center justify-center">
-                    <Banknote className="w-4 h-4" />
-                  </div>
-                </div>
-                <div>
-                  <h4 className="text-xl font-black text-black">
-                    <span className="text-[#D4AF37]">{order.AMOUNT ? order.AMOUNT.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}</span> <span className="text-xs text-gray-500 font-bold">AED</span>
-                  </h4>
-                  <p className="text-xs font-semibold text-gray-400 mt-1">Calculated order value</p>
-                </div>
-              </div>
-
-              {/* Card: Sales Rep */}
-              <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm flex flex-col justify-between hover:border-black transition-all duration-300">
-                <div className="flex items-center justify-between mb-4">
-                  <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Sales Rep</span>
-                  <div className="w-8 h-8 rounded-xl bg-gray-50 text-gray-400 flex items-center justify-center">
-                    <User className="w-4 h-4" />
-                  </div>
-                </div>
-                <div>
-                  <h4 className="text-lg font-black text-black truncate">{order.bhs_USERS?.NAME || 'None'}</h4>
-                  <p className="text-xs font-semibold text-gray-400 mt-1">Responsible account manager</p>
-                </div>
-              </div>
-
-            </div>
-          </div>
+          <OrderInfoTab
+            ref={orderInfoRef}
+            order={order}
+            isEditing={isEditingOrderInfo}
+            onEditingChange={setIsEditingOrderInfo}
+            onOrderUpdated={fetchOrderDetails}
+            onActionStateChange={handleOrderInfoActionState}
+          />
         )}
         {activeTab === 'ITEMS' && !isNoItemsOrder && (
           <OrderItemsTab

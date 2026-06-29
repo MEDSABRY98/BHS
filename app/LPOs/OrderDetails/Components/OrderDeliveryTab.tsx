@@ -9,6 +9,36 @@ interface OrderDeliveryTabProps {
   orderId: string;
 }
 
+function buildDriverWorkflowReset(newDriverId: string | null) {
+  const now = new Date().toISOString();
+
+  if (!newDriverId) {
+    return {
+      DRIVERS_NAME: null,
+      DISPATCH_TIME: null,
+      DELIVERY_TIME: null,
+      STATUS: 'Assigned',
+      IS_CUSTOMER_SIGNED: false,
+      OFFICE_HANDOVER_ID: null,
+      OFFICE_HANDOVER_STATUS: null,
+      OFFICE_HANDOVER_TIME: null,
+      TRACKING_NOTES: null,
+    };
+  }
+
+  return {
+    DRIVERS_NAME: newDriverId,
+    DISPATCH_TIME: now,
+    DELIVERY_TIME: null,
+    STATUS: 'Dispatched',
+    IS_CUSTOMER_SIGNED: false,
+    OFFICE_HANDOVER_ID: null,
+    OFFICE_HANDOVER_STATUS: null,
+    OFFICE_HANDOVER_TIME: null,
+    TRACKING_NOTES: null,
+  };
+}
+
 export default function OrderDeliveryTab({ orderId }: OrderDeliveryTabProps) {
   const [deliveryData, setDeliveryData] = useState<any>(null);
   const [allStaff, setAllStaff] = useState<any[]>([]);
@@ -170,12 +200,7 @@ export default function OrderDeliveryTab({ orderId }: OrderDeliveryTabProps) {
                     </div>
                   </div>
                   <button
-                    onClick={() => handleSave({
-                      DRIVERS_NAME: null,
-                      DISPATCH_TIME: null,
-                      DELIVERY_TIME: null,
-                      STATUS: 'Assigned'
-                    })}
+                    onClick={() => handleSave(buildDriverWorkflowReset(null))}
                     className="w-10 h-10 bg-white border border-red-50 text-red-400 rounded-xl flex items-center justify-center hover:bg-red-500 hover:text-white transition-all shadow-sm active:scale-95"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -189,14 +214,7 @@ export default function OrderDeliveryTab({ orderId }: OrderDeliveryTabProps) {
                       placeholder="Select driver..."
                       options={staffOptions}
                       value={deliveryData.DRIVERS_NAME}
-                      onChange={(val) => {
-                        const now = new Date().toISOString();
-                        handleSave({
-                          DRIVERS_NAME: val,
-                          DISPATCH_TIME: deliveryData.DISPATCH_TIME || now,
-                          STATUS: deliveryData.STATUS === 'Assigned' || !deliveryData.STATUS ? 'Dispatched' : deliveryData.STATUS
-                        });
-                      }}
+                      onChange={(val) => handleSave(buildDriverWorkflowReset(val))}
                     />
                   </div>
                 </div>

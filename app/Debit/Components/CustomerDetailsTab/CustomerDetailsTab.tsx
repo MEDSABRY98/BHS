@@ -211,6 +211,8 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
 
   const [customerEmails, setCustomerEmails] = useState<string[]>([]);
   const [emailCustomers, setEmailCustomers] = useState<string[]>([]);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [isGeneratingAutoReport, setIsGeneratingAutoReport] = useState(!!downloadAction);
 
   // Notes textarea auto-resize (grow with content; only scroll after max height)
   const newNoteRef = useRef<HTMLTextAreaElement | null>(null);
@@ -513,20 +515,6 @@ ${debtSectionHtml}
       alert('Error deleting note');
     }
   };
-
-  // SPI Data State
-  const [spiData, setSpiData] = useState<{ number: string, matching: string }[]>([]);
-
-  useEffect(() => {
-    const fetchSpi = async () => {
-      try {
-        const res = await fetch('/api/Spi');
-        const json = await res.json();
-        if (json.data) setSpiData(json.data);
-      } catch (e) { console.error('Failed to fetch SPI', e); }
-    };
-    fetchSpi();
-  }, []);
 
   // Prepare invoices data with Net Debt and Residual
   const invoicesWithNetDebt = useMemo(() => {
@@ -1877,8 +1865,6 @@ ${debtSectionHtml}
       alert('Failed to generate PDF. Please try again.');
     }
   };
-  const [isGeneratingAutoReport, setIsGeneratingAutoReport] = useState(!!downloadAction);
-
   // Trigger auto-download if requested via URL
   useEffect(() => {
     if (downloadAction === 'download_report' && !hasDownloadedReport.current && invoices.length > 0) {
@@ -2131,8 +2117,6 @@ ${debtSectionHtml}
     [dashboardMetrics.pieData, agingTotal],
   );
 
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
-
   const sharedProps = {
     customerName,
     invoices,
@@ -2224,29 +2208,28 @@ ${debtSectionHtml}
     setEditingNoteId,
     editingNoteContent,
     setEditingNoteContent,
-    currentUserName: '',
-    customerEmails: [],
-    emailCustomers: [],
+    currentUserName,
+    customerEmails,
+    emailCustomers,
     closedCustomers: new Set<string>(),
     selectedInvoice,
     setSelectedInvoice,
-    spiData: [],
     invoicesWithNetDebt,
-    availableMatchingsWithResidual: [],
-    availableMonths: [],
-    availableYears: [],
-    availableOverdueMonths: [],
+    availableMatchingsWithResidual,
+    availableMonths,
+    availableYears,
+    availableOverdueMonths,
     invoiceTypeTotals,
-    handleEmail: () => { },
+    handleEmail,
     handleAddNote,
     handleUpdateNote,
     handleDeleteNote,
-    toggleYearSelection: () => { },
+    toggleYearSelection,
     newNoteRef,
     editNoteRef,
-    MATCHING_FILTER_ALL_OPEN: 'ALL_OPEN',
-    MATCHING_FILTER_ALL_UNMATCHED: 'ALL_UNMATCHED',
-  } as any;
+    MATCHING_FILTER_ALL_OPEN,
+    MATCHING_FILTER_ALL_UNMATCHED,
+  };
   return (
     <>
       {isGeneratingAutoReport && (
