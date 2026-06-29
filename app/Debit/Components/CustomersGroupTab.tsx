@@ -17,12 +17,14 @@ import NoData from '@/app/Components/NoDataTab';
 import FilterBar from './CustomerDetailsTab/FilterBar';
 import { isPaymentTxn } from './CustomerDetailsTab/Utils';
 import { getInvoiceType } from '@/lib/InvoiceType';
+import { printPdfInSameTab } from '@/app/LPOs/Pdf/DeliveryUtils';
 
 interface CustomersGroupTabProps {
   data: InvoiceRow[];
 }
 
 interface GroupOverdueRow {
+  rowKey: string;
   customerName: string;
   date: string;
   dueDate?: string;
@@ -46,6 +48,7 @@ export default function CustomersGroupTab({ data }: CustomersGroupTabProps) {
     { id: 'date', desc: false }
   ]);
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 50 });
+  const [selectedRowKeys, setSelectedRowKeys] = useState<Set<string>>(new Set());
 
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -145,6 +148,10 @@ export default function CustomersGroupTab({ data }: CustomersGroupTabProps) {
     setGroupCustomers(prev => prev.filter(c => c !== name));
   };
 
+  useEffect(() => {
+    setSelectedRowKeys(new Set());
+  }, [groupCustomers, viewMode]);
+
   // Compile overdue or all invoices for added customers
   const groupOverdueInvoices = useMemo(() => {
     const list: GroupOverdueRow[] = [];
@@ -177,7 +184,7 @@ export default function CustomersGroupTab({ data }: CustomersGroupTabProps) {
         })
         : invoicesWithNet;
 
-      const processed = targetInvoices.map(inv => {
+      const processed = targetInvoices.map((inv, index) => {
         let difference = inv.netDebt;
         if (inv.matching) {
           if (inv.residual !== undefined) {
@@ -200,6 +207,7 @@ export default function CustomersGroupTab({ data }: CustomersGroupTabProps) {
         const adjustedCredit = viewMode === 'overdue' ? (inv.debit - difference) : inv.credit;
 
         return {
+          rowKey: `${custName}::${inv.number || ''}::${inv.date || ''}::${index}`,
           customerName: custName,
           date: inv.date || '',
           dueDate: inv.dueDate || '',
@@ -445,6 +453,34 @@ export default function CustomersGroupTab({ data }: CustomersGroupTabProps) {
     availableMatchingsWithResidual
   ]);
 
+  useEffect(() => {
+    const visibleKeys = new Set(filteredGroupInvoices.map((inv) => inv.rowKey));
+    setSelectedRowKeys((prev) => {
+      const next = new Set([...prev].filter((key) => visibleKeys.has(key)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [filteredGroupInvoices]);
+
+  const invoicesForSummary = useMemo(() => {
+    if (selectedRowKeys.size === 0) return filteredGroupInvoices;
+    return filteredGroupInvoices.filter((inv) => selectedRowKeys.has(inv.rowKey));
+  }, [filteredGroupInvoices, selectedRowKeys]);
+
+  const selectedRowNumberMap = useMemo(() => {
+    const map = new Map<string, number>();
+    if (selectedRowKeys.size === 0) {
+      filteredGroupInvoices.forEach((inv, index) => map.set(inv.rowKey, index + 1));
+      return map;
+    }
+    let n = 1;
+    filteredGroupInvoices.forEach((inv) => {
+      if (selectedRowKeys.has(inv.rowKey)) {
+        map.set(inv.rowKey, n++);
+      }
+    });
+    return map;
+  }, [filteredGroupInvoices, selectedRowKeys]);
+
   // Calculate totals for each invoice type based on current filters (excluding type filters)
   const invoiceTypeTotals = useMemo(() => {
     let filtered = [...groupOverdueInvoices];
@@ -585,8 +621,8 @@ export default function CustomersGroupTab({ data }: CustomersGroupTabProps) {
 
   // PDF / Print Export Handler
   const handlePDFExport = async (isPrint = false) => {
-    if (filteredGroupInvoices.length === 0) {
-      alert('No data to export');
+    if (invoicesForSummary.length === 0) {
+      alert(selectedRowKeys.size > 0 ? 'No selected rows to export' : 'No data to export');
       return;
     }
 
@@ -640,7 +676,7 @@ export default function CustomersGroupTab({ data }: CustomersGroupTabProps) {
     yPosition += 8;
 
     // Sort by date (oldest first)
-    const sortedInvoices = [...filteredGroupInvoices].sort((a, b) => {
+    const sortedInvoices = [...invoicesForSummary].sort((a, b) => {
       const dateA = a.date ? new Date(a.date).getTime() : 0;
       const dateB = b.date ? new Date(b.date).getTime() : 0;
       return dateA - dateB;
@@ -668,8 +704,8 @@ export default function CustomersGroupTab({ data }: CustomersGroupTabProps) {
       ];
     });
 
-    const totalDebit = filteredGroupInvoices.reduce((sum, inv) => sum + (inv.debit || 0), 0);
-    const totalCredit = filteredGroupInvoices.reduce((sum, inv) => sum + (inv.credit || 0), 0);
+    const totalDebit = invoicesForSummary.reduce((sum, inv) => sum + (inv.debit || 0), 0);
+    const totalCredit = invoicesForSummary.reduce((sum, inv) => sum + (inv.credit || 0), 0);
     const totalDifference = totalDebit - totalCredit;
 
     const tableOptions = {
@@ -736,9 +772,7 @@ export default function CustomersGroupTab({ data }: CustomersGroupTabProps) {
     }
 
     if (isPrint) {
-      const pdfBlob = doc.output('blob');
-      const url = URL.createObjectURL(pdfBlob);
-      window.open(url, '_blank');
+      printPdfInSameTab(doc);
     } else {
       const fileName = viewMode === 'overdue' ? 'Group_Overdue_Statement' : 'Group_Account_Statement';
       doc.save(`${fileName}_${currentDate}.pdf`);
@@ -747,14 +781,14 @@ export default function CustomersGroupTab({ data }: CustomersGroupTabProps) {
 
   // Excel Export Handler
   const handleExcelExport = () => {
-    if (filteredGroupInvoices.length === 0) {
-      alert('No data to export');
+    if (invoicesForSummary.length === 0) {
+      alert(selectedRowKeys.size > 0 ? 'No selected rows to export' : 'No data to export');
       return;
     }
     const headers = ['Customer Name', 'Date', 'Type', 'Number', 'Debit', 'Credit', 'Net Debt', 'Matching', 'Days Overdue'];
 
     // Sort by date (oldest first)
-    const sortedExcelInvoices = [...filteredGroupInvoices].sort((a, b) => {
+    const sortedExcelInvoices = [...invoicesForSummary].sort((a, b) => {
       const dateA = a.date ? new Date(a.date).getTime() : 0;
       const dateB = b.date ? new Date(b.date).getTime() : 0;
       return dateA - dateB;
@@ -798,6 +832,68 @@ export default function CustomersGroupTab({ data }: CustomersGroupTabProps) {
   // Table Configuration using Tanstack React Table
   const columns = useMemo(
     () => [
+      columnHelper.display({
+        id: 'rowNumber',
+        header: '#',
+        cell: (info) => {
+          const rowNumber = selectedRowNumberMap.get(info.row.original.rowKey);
+          if (rowNumber === undefined) {
+            return <span className="text-slate-300">-</span>;
+          }
+          return (
+            <span className="font-bold text-slate-700">{rowNumber}</span>
+          );
+        },
+      }),
+      columnHelper.display({
+        id: 'select',
+        header: () => {
+          const allSelected = filteredGroupInvoices.length > 0 &&
+            filteredGroupInvoices.every((inv) => selectedRowKeys.has(inv.rowKey));
+          const someSelected = filteredGroupInvoices.some((inv) => selectedRowKeys.has(inv.rowKey));
+          return (
+            <input
+              type="checkbox"
+              checked={allSelected}
+              ref={(input) => {
+                if (input) input.indeterminate = someSelected && !allSelected;
+              }}
+              onChange={(e) => {
+                if (e.target.checked) {
+                  const next = new Set(selectedRowKeys);
+                  filteredGroupInvoices.forEach((inv) => next.add(inv.rowKey));
+                  setSelectedRowKeys(next);
+                } else {
+                  const next = new Set(selectedRowKeys);
+                  filteredGroupInvoices.forEach((inv) => next.delete(inv.rowKey));
+                  setSelectedRowKeys(next);
+                }
+              }}
+              className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 cursor-pointer"
+            />
+          );
+        },
+        cell: (info) => {
+          const rowKey = info.row.original.rowKey;
+          const isSelected = selectedRowKeys.has(rowKey);
+          return (
+            <input
+              type="checkbox"
+              checked={isSelected}
+              onChange={(e) => {
+                const next = new Set(selectedRowKeys);
+                if (e.target.checked) {
+                  next.add(rowKey);
+                } else {
+                  next.delete(rowKey);
+                }
+                setSelectedRowKeys(next);
+              }}
+              className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 cursor-pointer"
+            />
+          );
+        },
+      }),
       columnHelper.accessor('customerName', {
         header: 'Customer Name',
         cell: (info) => (
@@ -882,7 +978,7 @@ export default function CustomersGroupTab({ data }: CustomersGroupTabProps) {
         },
       }),
     ],
-    []
+    [filteredGroupInvoices, selectedRowKeys, selectedRowNumberMap]
   );
 
   const table = useReactTable({
@@ -927,10 +1023,11 @@ export default function CustomersGroupTab({ data }: CustomersGroupTabProps) {
     return pages;
   };
 
-  // Calculate Totals
-  const totalDebit = filteredGroupInvoices.reduce((sum, item) => sum + item.debit, 0);
-  const totalCredit = filteredGroupInvoices.reduce((sum, item) => sum + item.credit, 0);
+  // Calculate Totals (selected rows when any selection, otherwise all visible rows)
+  const totalDebit = invoicesForSummary.reduce((sum, item) => sum + item.debit, 0);
+  const totalCredit = invoicesForSummary.reduce((sum, item) => sum + item.credit, 0);
   const totalNetDebt = totalDebit - totalCredit;
+  const hasRowSelection = selectedRowKeys.size > 0;
 
   return (
     <div className="p-6 space-y-6">
@@ -1100,7 +1197,9 @@ export default function CustomersGroupTab({ data }: CustomersGroupTabProps) {
             </div>
             <div className="w-[1px] h-8 bg-slate-200 hidden sm:block" />
             <div className="flex flex-col">
-              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Group Total Net Due</span>
+              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                {hasRowSelection ? `Selected Total (${invoicesForSummary.length})` : 'Group Total Net Due'}
+              </span>
               <span className={`text-xl font-extrabold ${totalNetDebt > 0 ? 'text-red-600' : 'text-green-600'}`}>
                 {totalNetDebt.toLocaleString('en-US')}
               </span>
@@ -1195,7 +1294,9 @@ export default function CustomersGroupTab({ data }: CustomersGroupTabProps) {
                     {headerGroup.headers.map((header) => {
                       const getWidth = () => {
                         const colId = header.column.id;
-                        if (colId === 'customerName') return '22%';
+                        if (colId === 'select') return '4%';
+                        if (colId === 'rowNumber') return '4%';
+                        if (colId === 'customerName') return '18%';
                         if (colId === 'date') return '10%';
                         if (colId === 'type') return '8%';
                         if (colId === 'number') return '12%';
@@ -1225,10 +1326,12 @@ export default function CustomersGroupTab({ data }: CustomersGroupTabProps) {
                 ))}
               </thead>
               <tbody className="divide-y divide-slate-200">
-                {table.getRowModel().rows.map((row, idx) => (
+                {table.getRowModel().rows.map((row, idx) => {
+                  const isSelected = selectedRowKeys.has(row.original.rowKey);
+                  return (
                     <tr
                       key={row.id}
-                      className={`hover:bg-slate-50/70 transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'}`}
+                      className={`hover:bg-slate-50/70 transition-colors ${isSelected ? 'bg-blue-50/60' : idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'}`}
                     >
                       {row.getVisibleCells().map((cell) => {
                         return (
@@ -1241,12 +1344,15 @@ export default function CustomersGroupTab({ data }: CustomersGroupTabProps) {
                         );
                       })}
                     </tr>
-                  ))}
+                  );
+                })}
                 {/* Total Summary Row */}
-                {filteredGroupInvoices.length > 0 && (
+                {invoicesForSummary.length > 0 && (
                   <tr className="bg-slate-100 font-bold border-t-2 border-slate-300">
+                    <td className="px-4 py-4"></td>
+                    <td className="px-4 py-4"></td>
                     <td className="px-4 py-4 text-center text-sm text-slate-900 font-extrabold uppercase">
-                      TOTAL
+                      {hasRowSelection ? `TOTAL (${invoicesForSummary.length})` : 'TOTAL'}
                     </td>
                     <td colSpan={3}></td>
                     <td className="px-4 py-4 text-center text-sm text-slate-950 font-extrabold">
