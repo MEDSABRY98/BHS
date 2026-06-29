@@ -2,15 +2,17 @@
 
 import { useState, useEffect } from 'react';
 import { bhs_supabas } from '@/lib/supabase';
-import { FileCheck, UserCheck, Clock, ShieldCheck, AlertCircle, Save, Loader2, CheckCircle2, XCircle, Lock, Truck } from 'lucide-react';
+import { FileCheck, UserCheck, Clock, ShieldCheck, AlertCircle, Save, Loader2, CheckCircle2, XCircle, Lock, Truck, Printer, Download } from 'lucide-react';
+import { generateCancelInvoicePDF } from '@/app/LPOs/Pdf/CancelInvoicePdf';
 import NoData from '@/app/Components/NoDataTab';
 import { usePermissions } from '../../Hooks/usePermissions';
 
 interface InvoicesStatusTabProps {
   orderId: string;
+  order?: any;
 }
 
-export default function InvoicesStatusTab({ orderId }: InvoicesStatusTabProps) {
+export default function InvoicesStatusTab({ orderId, order }: InvoicesStatusTabProps) {
   const { canEdit } = usePermissions();
   const [deliveryData, setDeliveryData] = useState<any>(null);
   const [handoverUser, setHandoverUser] = useState<any>(null);
@@ -20,6 +22,7 @@ export default function InvoicesStatusTab({ orderId }: InvoicesStatusTabProps) {
   const [isUserLoaded, setIsUserLoaded] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isGeneratingCancelPdf, setIsGeneratingCancelPdf] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -130,10 +133,18 @@ export default function InvoicesStatusTab({ orderId }: InvoicesStatusTabProps) {
       // 4. Fetch order details for the digital invoice mockup
       const { data: ordData } = await bhs_supabas
         .from('app_lpos_ORDERS')
-        .select('LPO_ID, CUSTOMER_NAME, TOTAL_AMOUNT, CREATED_AT')
+        .select(`
+          LPO_ID,
+          INVOICE_ID,
+          ORDER_ID,
+          AMOUNT,
+          CREATED_AT,
+          ORDER_DATE,
+          bhs_CUSTOMERS ( "CUSTOMER NAME":"CUSTOMER SUB NAME" )
+        `)
         .eq('ORDER_ID', orderId)
         .maybeSingle();
-      setOrderDetail(ordData);
+      setOrderDetail(ordData || order || null);
     } catch (err) {
       console.error('Error fetching invoice status:', err);
     } finally {
@@ -262,6 +273,47 @@ export default function InvoicesStatusTab({ orderId }: InvoicesStatusTabProps) {
     }
   };
 
+  const buildCancelFormRows = () => {
+    const source = order || orderDetail;
+    if (!source) return [];
+
+    const customerName =
+      source.bhs_CUSTOMERS?.['CUSTOMER NAME'] ||
+      source.CUSTOMER_NAME ||
+      'Unknown Customer';
+
+    const amount = parseFloat(source.AMOUNT ?? source.TOTAL_AMOUNT) || 0;
+
+    return [{
+      invoiceId: source.INVOICE_ID || source.ORDER_ID || orderId,
+      customerName,
+      amount,
+      orderDate: source.ORDER_DATE || source.CREATED_AT,
+    }];
+  };
+
+  const handleCancelFormPdf = async (action: 'download' | 'print') => {
+    const rows = buildCancelFormRows();
+    if (rows.length === 0) {
+      alert('Order details are not loaded yet.');
+      return;
+    }
+
+    setIsGeneratingCancelPdf(true);
+    try {
+      await generateCancelInvoicePDF({
+        invoices: rows,
+        cancelDate: deliveryData?.OFFICE_HANDOVER_TIME || new Date().toISOString(),
+        action,
+      });
+    } catch (err) {
+      console.error('Error generating cancel form PDF:', err);
+      alert('Failed to generate cancellation form.');
+    } finally {
+      setIsGeneratingCancelPdf(false);
+    }
+  };
+
   const handleDirectCancel = async () => {
     setIsSaving(true);
     try {
@@ -324,6 +376,30 @@ export default function InvoicesStatusTab({ orderId }: InvoicesStatusTabProps) {
   return (
     <div className="w-full">
       <div className="bg-white p-12 rounded-[2.5rem] border border-gray-100 shadow-sm">
+        <div className="mb-10 pb-8 border-b border-gray-100 flex items-center justify-between gap-4">
+          <h4 className="text-black font-black text-base">Invoice Cancellation Form</h4>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => handleCancelFormPdf('print')}
+              disabled={isGeneratingCancelPdf}
+              title="Print Form"
+              className="p-3 bg-black text-[#D4AF37] rounded-2xl hover:bg-gray-900 transition-all flex items-center justify-center disabled:opacity-50"
+            >
+              {isGeneratingCancelPdf ? <Loader2 className="w-5 h-5 animate-spin" /> : <Printer className="w-5 h-5" />}
+            </button>
+            <button
+              type="button"
+              onClick={() => handleCancelFormPdf('download')}
+              disabled={isGeneratingCancelPdf}
+              title="Download PDF"
+              className="p-3 bg-white border border-gray-200 text-gray-700 rounded-2xl hover:bg-gray-50 transition-all flex items-center justify-center disabled:opacity-50"
+            >
+              {isGeneratingCancelPdf ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
+            </button>
+          </div>
+        </div>
+
         <div className="relative space-y-12">
           {/* Vertical Line Connector */}
           <div className="absolute left-[27px] top-4 bottom-4 w-0.5 bg-gray-100" />

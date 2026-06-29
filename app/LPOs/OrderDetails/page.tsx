@@ -387,7 +387,7 @@ function OrderDetailsPageContent() {
           !isTabsEnabled ? (
             <NoData title="ORDER NOT APPROVED" />
           ) : (
-            <InvoicesStatusTab orderId={order.ORDER_ID} />
+            <InvoicesStatusTab orderId={order.ORDER_ID} order={order} />
           )
         )}
       </div>
