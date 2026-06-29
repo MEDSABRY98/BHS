@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { bhs_supabas } from '@/lib/supabase';
 import { FileCheck, UserCheck, Clock, ShieldCheck, AlertCircle, Save, Loader2, CheckCircle2, XCircle, Lock, Truck, Printer, Download } from 'lucide-react';
-import { generateCancelInvoicePDF } from '@/app/LPOs/Pdf/CancelInvoicePdf';
+import { generateCancelInvoicePDF, CancelInvoiceReason } from '@/app/LPOs/Pdf/CancelInvoicePdf';
 import NoData from '@/app/Components/NoDataTab';
 import { usePermissions } from '../../Hooks/usePermissions';
 
@@ -23,6 +23,7 @@ export default function InvoicesStatusTab({ orderId, order }: InvoicesStatusTabP
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isGeneratingCancelPdf, setIsGeneratingCancelPdf] = useState(false);
+  const [pendingCancelAction, setPendingCancelAction] = useState<'download' | 'print' | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -292,7 +293,7 @@ export default function InvoicesStatusTab({ orderId, order }: InvoicesStatusTabP
     }];
   };
 
-  const handleCancelFormPdf = async (action: 'download' | 'print') => {
+  const handleCancelFormPdf = async (action: 'download' | 'print', cancelReason: CancelInvoiceReason) => {
     const rows = buildCancelFormRows();
     if (rows.length === 0) {
       alert('Order details are not loaded yet.');
@@ -300,10 +301,12 @@ export default function InvoicesStatusTab({ orderId, order }: InvoicesStatusTabP
     }
 
     setIsGeneratingCancelPdf(true);
+    setPendingCancelAction(null);
     try {
       await generateCancelInvoicePDF({
         invoices: rows,
         cancelDate: deliveryData?.OFFICE_HANDOVER_TIME || new Date().toISOString(),
+        cancelReason,
         action,
       });
     } catch (err) {
@@ -312,6 +315,15 @@ export default function InvoicesStatusTab({ orderId, order }: InvoicesStatusTabP
     } finally {
       setIsGeneratingCancelPdf(false);
     }
+  };
+
+  const openCancelReasonModal = (action: 'download' | 'print') => {
+    const rows = buildCancelFormRows();
+    if (rows.length === 0) {
+      alert('Order details are not loaded yet.');
+      return;
+    }
+    setPendingCancelAction(action);
   };
 
   const handleDirectCancel = async () => {
@@ -375,13 +387,56 @@ export default function InvoicesStatusTab({ orderId, order }: InvoicesStatusTabP
 
   return (
     <div className="w-full">
+      {pendingCancelAction && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-[2rem] p-8 max-w-lg w-full shadow-2xl border border-gray-100">
+            <h3 className="text-xl font-black text-black text-center mb-2">Cancellation Reason</h3>
+            <p className="text-sm text-gray-500 text-center mb-6 font-medium">
+              Choose the reason to include in the cancellation form
+            </p>
+            <div className="flex flex-col gap-3">
+              <button
+                type="button"
+                disabled={isGeneratingCancelPdf}
+                onClick={() => handleCancelFormPdf(pendingCancelAction, 'return')}
+                className="w-full text-left p-4 rounded-2xl border-2 border-red-100 bg-red-50 hover:border-red-300 hover:bg-red-100/80 transition-all disabled:opacity-50"
+              >
+                <span className="block font-black text-red-700 text-sm">Returned Goods</span>
+                <span className="block text-xs text-red-600/80 mt-1 font-medium">
+                  Goods returned from market or by driver
+                </span>
+              </button>
+              <button
+                type="button"
+                disabled={isGeneratingCancelPdf}
+                onClick={() => handleCancelFormPdf(pendingCancelAction, 'amendment')}
+                className="w-full text-left p-4 rounded-2xl border-2 border-amber-100 bg-amber-50 hover:border-amber-300 hover:bg-amber-100/80 transition-all disabled:opacity-50"
+              >
+                <span className="block font-black text-amber-800 text-sm">Amendment & Re-issue</span>
+                <span className="block text-xs text-amber-700/80 mt-1 font-medium">
+                  Cancelled for editing and re-issuing a new invoice
+                </span>
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => setPendingCancelAction(null)}
+              disabled={isGeneratingCancelPdf}
+              className="w-full mt-4 py-3 text-sm font-bold text-gray-500 hover:text-gray-800 transition-colors disabled:opacity-50"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="bg-white p-12 rounded-[2.5rem] border border-gray-100 shadow-sm">
         <div className="mb-10 pb-8 border-b border-gray-100 flex items-center justify-between gap-4">
           <h4 className="text-black font-black text-base">Invoice Cancellation Form</h4>
           <div className="flex items-center gap-3">
             <button
               type="button"
-              onClick={() => handleCancelFormPdf('print')}
+              onClick={() => openCancelReasonModal('print')}
               disabled={isGeneratingCancelPdf}
               title="Print Form"
               className="p-3 bg-black text-[#D4AF37] rounded-2xl hover:bg-gray-900 transition-all flex items-center justify-center disabled:opacity-50"
@@ -390,7 +445,7 @@ export default function InvoicesStatusTab({ orderId, order }: InvoicesStatusTabP
             </button>
             <button
               type="button"
-              onClick={() => handleCancelFormPdf('download')}
+              onClick={() => openCancelReasonModal('download')}
               disabled={isGeneratingCancelPdf}
               title="Download PDF"
               className="p-3 bg-white border border-gray-200 text-gray-700 rounded-2xl hover:bg-gray-50 transition-all flex items-center justify-center disabled:opacity-50"

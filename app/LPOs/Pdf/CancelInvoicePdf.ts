@@ -3,10 +3,28 @@ import autoTable from 'jspdf-autotable';
 import { addArabicFont } from '@/app/Components/Pdf/shared';
 import { printPdfInSameTab } from './DeliveryUtils';
 
-const DISCLAIMER_EN =
+const DISCLAIMER_RETURN_EN =
   'I, the warehouse responsible, confirm that I received the goods for this invoice and request its cancellation.';
-const DISCLAIMER_AR =
+const DISCLAIMER_RETURN_AR =
   'أقر أنا مسؤول المستودع أنني استلمت البضاعة الخاصة بهذه الفاتورة وأرغب في إلغائها.';
+
+const DISCLAIMER_AMENDMENT_EN =
+  'I, the warehouse responsible, confirm that this invoice is cancelled for amendment and will be re-issued as a new amended invoice.';
+const DISCLAIMER_AMENDMENT_AR =
+  'أقر أنا مسؤول المستودع أن هذه الفاتورة ملغاة للتعديل عليها وسيتم إصدارها مرة أخرى كفاتورة جديدة معدلة.';
+
+export type CancelInvoiceReason = 'return' | 'amendment';
+
+function getCancelReasonLabel(reason: CancelInvoiceReason): string {
+  return reason === 'amendment' ? 'Amendment & Re-issue' : 'Returned Goods';
+}
+
+function getDisclaimerText(reason: CancelInvoiceReason) {
+  if (reason === 'amendment') {
+    return { en: DISCLAIMER_AMENDMENT_EN, ar: DISCLAIMER_AMENDMENT_AR };
+  }
+  return { en: DISCLAIMER_RETURN_EN, ar: DISCLAIMER_RETURN_AR };
+}
 
 export interface CancelInvoicePdfRow {
   invoiceId: string;
@@ -18,6 +36,7 @@ export interface CancelInvoicePdfRow {
 export interface CancelInvoicePdfOptions {
   invoices: CancelInvoicePdfRow[];
   cancelDate?: string;
+  cancelReason?: CancelInvoiceReason;
   action?: 'download' | 'print';
 }
 
@@ -37,17 +56,19 @@ function drawDisclaimerBox(
   startY: number,
   margin: number,
   contentWidth: number,
+  cancelReason: CancelInvoiceReason,
 ): number {
+  const { en: disclaimerEn, ar: disclaimerAr } = getDisclaimerText(cancelReason);
   const padding = 5;
   const innerWidth = contentWidth - padding * 2;
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);
-  const enLines = doc.splitTextToSize(DISCLAIMER_EN, innerWidth) as string[];
+  const enLines = doc.splitTextToSize(disclaimerEn, innerWidth) as string[];
 
   doc.setFont('Amiri', 'normal');
   doc.setFontSize(9);
-  const arLines = doc.splitTextToSize(DISCLAIMER_AR, innerWidth) as string[];
+  const arLines = doc.splitTextToSize(disclaimerAr, innerWidth) as string[];
 
   const boxHeight = padding + 5 + enLines.length * 4.2 + 3 + arLines.length * 4.8 + padding;
 
@@ -83,6 +104,7 @@ function drawDisclaimerBox(
 export async function generateCancelInvoicePDF({
   invoices,
   cancelDate,
+  cancelReason = 'return',
   action = 'download',
 }: CancelInvoicePdfOptions): Promise<void> {
   if (invoices.length === 0) {
@@ -108,14 +130,16 @@ export async function generateCancelInvoicePDF({
     formatAmount(inv.amount || 0),
   ]);
 
-  // Header
-  doc.setFillColor(10, 10, 10);
+  // Header — soft red to indicate cancellation
+  const headerRed: [number, number, number] = [232, 84, 84];
+  doc.setFillColor(...headerRed);
   doc.rect(0, 0, pageWidth, 20, 'F');
 
-  doc.setFontSize(14);
-  doc.setTextColor(212, 175, 55);
+  doc.setFontSize(13);
+  doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
-  doc.text('INVOICE CANCELLATION FORM', pageWidth / 2, 13, { align: 'center' });
+  const headerTitle = `INVOICE CANCELLATION FORM (${getCancelReasonLabel(cancelReason)})`;
+  doc.text(headerTitle, pageWidth / 2, 13, { align: 'center' });
 
   let y = 26;
 
@@ -136,7 +160,7 @@ export async function generateCancelInvoicePDF({
   doc.setFont('helvetica', 'bold');
   doc.text(formatDate(cancelDate), margin + 38, y + 7);
   doc.text(String(invoices.length), pageWidth - margin - 30, y + 7);
-  doc.setTextColor(212, 175, 55);
+  doc.setTextColor(185, 28, 28);
   doc.text(formatAmount(totalAmount), pageWidth - margin - 30, y + 13);
 
   y += 22;
@@ -148,8 +172,8 @@ export async function generateCancelInvoicePDF({
     foot: [['', '', 'Total', formatAmount(totalAmount)]],
     theme: 'grid',
     headStyles: {
-      fillColor: [10, 10, 10],
-      textColor: [212, 175, 55],
+      fillColor: headerRed,
+      textColor: [255, 255, 255],
       fontStyle: 'bold',
       halign: 'center',
       valign: 'middle',
@@ -186,40 +210,31 @@ export async function generateCancelInvoicePDF({
 
   const finalY = (doc as any).lastAutoTable?.finalY || y + 40;
   const contentWidth = pageWidth - margin * 2;
-  const disclaimerEndY = drawDisclaimerBox(doc, finalY + 8, margin, contentWidth);
+  const disclaimerEndY = drawDisclaimerBox(doc, finalY + 8, margin, contentWidth, cancelReason);
   let sigY = disclaimerEndY + 14;
 
-  if (sigY + 44 > pageHeight - 10) {
+  if (sigY + 34 > pageHeight - 10) {
     doc.addPage();
     sigY = 30;
   }
 
   const signatureWidth = 110;
   const signatureX = (pageWidth - signatureWidth) / 2;
+  const signatureBoxHeight = 24;
 
   doc.setFontSize(10);
-  doc.setTextColor(60, 60, 60);
+  doc.setTextColor(80, 80, 80);
   doc.setFont('helvetica', 'bold');
   doc.text('Authorized Signature', pageWidth / 2, sigY, { align: 'center' });
 
-  doc.setDrawColor(180, 180, 180);
+  doc.setDrawColor(200, 200, 200);
   doc.setLineWidth(0.3);
   doc.setFillColor(255, 255, 255);
-  doc.roundedRect(signatureX, sigY + 8, signatureWidth, 22, 2, 2, 'FD');
-
-  doc.setDrawColor(0, 0, 0);
-  doc.setLineWidth(0.4);
-  doc.line(signatureX + 8, sigY + 26, signatureX + signatureWidth - 8, sigY + 26);
-
-  doc.setFontSize(9);
-  doc.setTextColor(100, 100, 100);
-  doc.setFont('helvetica', 'normal');
-  doc.text('Name:', signatureX, sigY + 36);
-  doc.line(signatureX + 14, sigY + 36.5, signatureX + signatureWidth, sigY + 36.5);
+  doc.roundedRect(signatureX, sigY + 6, signatureWidth, signatureBoxHeight, 2, 2, 'FD');
 
   const filenameBase = invoices.length === 1
-    ? `Cancel_${(invoices[0].invoiceId || 'Invoice').replace(/\s+/g, '_')}`
-    : `Cancel_Invoices_${formatDate(cancelDate).replace(/\//g, '-')}`;
+    ? `Cancel_${cancelReason === 'amendment' ? 'Amend_' : 'Return_'}${(invoices[0].invoiceId || 'Invoice').replace(/\s+/g, '_')}`
+    : `Cancel_Invoices_${cancelReason === 'amendment' ? 'Amend_' : 'Return_'}${formatDate(cancelDate).replace(/\//g, '-')}`;
 
   if (action === 'print') {
     printPdfInSameTab(doc);
