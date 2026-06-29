@@ -141,7 +141,7 @@ export async function generateCancelInvoicePDF({
 
   y += 22;
 
-  const tableOptions: Parameters<typeof autoTable>[1] = {
+  const tableOptions: any = {
     startY: y,
     head: [['#', 'Invoice No.', 'Customer Name', 'Amount']],
     body: tableData,
@@ -181,13 +181,10 @@ export async function generateCancelInvoicePDF({
     margin: { left: margin, right: margin },
   };
 
-  if (typeof (doc as { autoTable?: typeof autoTable }).autoTable === 'function') {
-    (doc as { autoTable: typeof autoTable }).autoTable(tableOptions);
-  } else {
-    autoTable(doc, tableOptions);
-  }
+  if (typeof (doc as any).autoTable === 'function') (doc as any).autoTable(tableOptions);
+  else if (typeof autoTable === 'function') autoTable(doc, tableOptions);
 
-  const finalY = (doc as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY || y + 40;
+  const finalY = (doc as any).lastAutoTable?.finalY || y + 40;
   const contentWidth = pageWidth - margin * 2;
   const disclaimerEndY = drawDisclaimerBox(doc, finalY + 8, margin, contentWidth);
   let sigY = disclaimerEndY + 14;
