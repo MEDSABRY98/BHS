@@ -8,13 +8,13 @@ export async function GET() {
         const { data, error } = await bhs_supabase
             .from('web_Documents_Tracking')
             .select('*')
-            .order('ID', { ascending: true });
+            .order('DOCUMENT ID', { ascending: true });
 
         if (error) throw error;
 
         // Map Supabase columns to the frontend expected format
         const records = (data || []).map((row: any) => ({
-            rowIndex: row['ID'], // Using ID as the unique identifier
+            rowIndex: row['DOCUMENT ID'],
             documentId: row['DOCUMENT ID'] || '',
             receivedDate: row['RECEIVED DATE'] || '',
             datedSendToOffice: row['DATED SEND TO OFFICE'] || '',
@@ -49,7 +49,6 @@ export async function POST(request: Request) {
 
             // Map frontend records to Supabase columns
             const insertData = records.map((record: any) => ({
-                "ID": record.documentId || crypto.randomUUID(),
                 "DOCUMENT ID": record.documentId || '',
                 "RECEIVED DATE": record.receivedDate || '',
                 "DATED SEND TO OFFICE": record.datedSendToOffice || '',
@@ -109,7 +108,7 @@ export async function PUT(request: Request) {
                 const { error } = await bhs_supabase
                     .from('web_Documents_Tracking')
                     .update(mapData)
-                    .eq('ID', update.rowIndex);
+                    .eq('DOCUMENT ID', update.rowIndex);
 
                 if (error) throw error;
             }
@@ -137,7 +136,7 @@ export async function PUT(request: Request) {
         const { error } = await bhs_supabase
             .from('web_Documents_Tracking')
             .update(mapData)
-            .eq('ID', rowIndex);
+            .eq('DOCUMENT ID', rowIndex);
 
         if (error) throw error;
 
@@ -160,7 +159,7 @@ export async function DELETE(request: Request) {
         const { error } = await bhs_supabase
             .from('web_Documents_Tracking')
             .delete()
-            .eq('ID', rowIndex);
+            .eq('DOCUMENT ID', rowIndex);
 
         if (error) throw error;
 

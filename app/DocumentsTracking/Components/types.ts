@@ -19,7 +19,7 @@ export interface Check {
     timeline: TimelineEvent[];
     receiverName?: string;
     finalReceiverName?: string;
-    rowIndex?: number; // Row index from sheet
+    rowIndex?: string; // Unique key in DB (DOCUMENT ID)
 }
 
 export const STATUS_LABELS = {
