@@ -2,23 +2,26 @@
 
 import { useState, useEffect } from 'react';
 import { SalesInvoice } from '@/lib/supabase';;
-import { Users, Tag, BarChart2 } from 'lucide-react';
+import { Users, Tag, Percent } from 'lucide-react';
+import { useSalesModuleFilters } from '@/app/Sales/Model/SalesFilters';
 import SalesST_ByCustomers from './SalesST_ByCustomersTab';
 import SalesST_ByProduct from './SalesST_ByProductTab';
+import SalesST_CustomerMarginTab from './SalesST_CustomerMarginTab';
 import SalesTabLoader from './SalesTabLoader';
 
 interface SalesStockReportTabProps {
   refreshTrigger?: number;
-  filters: any;
   userId: string;
 }
 
-type TabMode = 'customers' | 'products';
+type TabMode = 'customers' | 'products' | 'margin';
 
-export default function SalesStockReportTab({ filters, userId, refreshTrigger }: SalesStockReportTabProps) {
+export default function SalesStockReportTab({ userId, refreshTrigger }: SalesStockReportTabProps) {
+  const { commonFilters: filters } = useSalesModuleFilters();
   const [activeTab, setActiveTab] = useState<TabMode>('customers');
   const [loading, setLoading] = useState(true);
   const [customersData, setCustomersData] = useState<any[]>([]);
+  const [subCustomersData, setSubCustomersData] = useState<any[]>([]);
   const [productList, setProductList] = useState<any[]>([]);
 
   useEffect(() => {
@@ -37,6 +40,7 @@ export default function SalesStockReportTab({ filters, userId, refreshTrigger }:
         if (!response.ok) throw new Error('Failed to fetch stock report');
         const result = await response.json();
         setCustomersData(result.customersData || []);
+        setSubCustomersData(result.subCustomersData || []);
         setProductList(result.productList || []);
       } catch (error) {
         console.error('Error fetching stock report data:', error);
@@ -61,26 +65,36 @@ export default function SalesStockReportTab({ filters, userId, refreshTrigger }:
           </div>
         </div>
 
-        <div className="flex bg-slate-100 p-1 rounded-[20px] backdrop-blur-sm self-stretch sm:self-auto border border-white">
+        <div className="flex w-full sm:flex-1 sm:max-w-3xl sm:min-w-[600px] bg-slate-100 p-1.5 rounded-[20px] backdrop-blur-sm self-stretch sm:self-auto border border-white">
           <button
             onClick={() => setActiveTab('customers')}
-            className={`flex items-center gap-2 px-6 py-2.5 rounded-[16px] text-xs font-black uppercase tracking-widest transition-all duration-300 ${activeTab === 'customers'
+            className={`flex-1 flex items-center justify-center gap-2.5 px-5 py-3 rounded-[16px] text-xs font-black uppercase tracking-widest transition-all duration-300 ${activeTab === 'customers'
               ? 'bg-white text-green-600 shadow-md scale-[1.02]'
               : 'text-slate-500 hover:text-slate-800'
               }`}
           >
-            <Users className="w-4 h-4" />
+            <Users className="w-4 h-4 shrink-0" />
             <span>By Customers</span>
           </button>
           <button
             onClick={() => setActiveTab('products')}
-            className={`flex items-center gap-2 px-6 py-2.5 rounded-[16px] text-xs font-black uppercase tracking-widest transition-all duration-300 ${activeTab === 'products'
+            className={`flex-1 flex items-center justify-center gap-2.5 px-5 py-3 rounded-[16px] text-xs font-black uppercase tracking-widest transition-all duration-300 ${activeTab === 'products'
               ? 'bg-white text-indigo-600 shadow-md scale-[1.02]'
               : 'text-slate-500 hover:text-slate-800'
               }`}
           >
-            <Tag className="w-4 h-4" />
+            <Tag className="w-4 h-4 shrink-0" />
             <span>By Product</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('margin')}
+            className={`flex-1 flex items-center justify-center gap-2.5 px-5 py-3 rounded-[16px] text-xs font-black uppercase tracking-widest transition-all duration-300 ${activeTab === 'margin'
+              ? 'bg-white text-emerald-600 shadow-md scale-[1.02]'
+              : 'text-slate-500 hover:text-slate-800'
+              }`}
+          >
+            <Percent className="w-4 h-4 shrink-0" />
+            <span>Profit / Loss</span>
           </button>
         </div>
       </div>
@@ -89,8 +103,10 @@ export default function SalesStockReportTab({ filters, userId, refreshTrigger }:
       <div className="transition-all duration-500">
         {activeTab === 'customers' ? (
           <SalesST_ByCustomers customersData={customersData} loading={loading} />
-        ) : (
+        ) : activeTab === 'products' ? (
           <SalesST_ByProduct productList={productList} loading={loading} />
+        ) : (
+          <SalesST_CustomerMarginTab subCustomersData={subCustomersData} loading={loading} />
         )}
       </div>
 

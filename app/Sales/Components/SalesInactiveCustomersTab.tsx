@@ -3,17 +3,15 @@
 import { useState, useMemo, useEffect, memo, useRef } from 'react';
 import { SalesInvoice } from '@/lib/supabase';;
 import { Search, Users, ChevronLeft, ChevronRight, Download, ArrowUpDown, ArrowUp, ArrowDown, X, FileSpreadsheet } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import { useSalesModuleFilters } from '@/app/Sales/Model/SalesFilters';
+import { exportSalesExcelTable } from '@/app/Sales/Export/SalesExcelExport';
 import SalesCustomerDetails from './SalesCustomerDetails';
 import NoData from '@/app/Components/NoDataTab';
 import SalesTabLoader from './SalesTabLoader';
 
 interface SalesInactiveCustomersTabProps {
   refreshTrigger?: number;
-  filters: any;
   userId: string;
-  days?: string;
-  minAmount?: string;
 }
 
 const ITEMS_PER_PAGE = 50;
@@ -81,7 +79,8 @@ const InactiveCustomerRow = memo(({ item, rowNumber, onCustomerClick, onExclude,
 
 InactiveCustomerRow.displayName = 'InactiveCustomerRow';
 
-export default function SalesInactiveCustomersTab({ filters, userId, days = '30', minAmount = '0', refreshTrigger }: SalesInactiveCustomersTabProps) {
+export default function SalesInactiveCustomersTab({ userId, refreshTrigger }: SalesInactiveCustomersTabProps) {
+  const { commonFilters: filters, inactiveDays: days, inactiveMinAmount: minAmount } = useSalesModuleFilters();
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
@@ -240,24 +239,24 @@ export default function SalesInactiveCustomersTab({ filters, userId, days = '30'
     return { ...res, avgAOV: res.totalAOV / filteredCustomers.length };
   }, [filteredCustomers]);
 
-  const exportToExcel = () => {
+  const exportToExcel = async () => {
     const headers = ['#', 'Customer Name', 'Status', 'Last Purchase', 'Days Inactive', 'Amount', 'Amount Average', 'Orders'];
     const rows = filteredCustomers.map((item, i) => [
       i + 1, item.customer, item.status,
       item.lastPurchaseDate?.toLocaleDateString() || '-',
-      item.daysSinceLastPurchase, item.totalAmount.toFixed(2),
-      item.averageOrderValue.toFixed(2), item.orderCount
+      item.daysSinceLastPurchase, item.totalAmount,
+      item.averageOrderValue, item.orderCount
     ]);
-    const sheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, sheet, 'Inactive Customers');
-    XLSX.writeFile(wb, `inactive_customers_${new Date().toISOString().split('T')[0]}.xlsx`);
+    await exportSalesExcelTable(headers, rows, `inactive_customers_${new Date().toISOString().split('T')[0]}.xlsx`, {
+      sheetName: 'Inactive Customers',
+      numericColumns: ['Amount', 'Amount Average'],
+    });
   };
 
   if (loading) {
     return <SalesTabLoader />;
   } if (selectedCustomer) return (
-    <SalesCustomerDetails customerName={selectedCustomer} filters={filters} userId={userId} onBack={() => setSelectedCustomer(null)} initialTab="dashboard" />
+    <SalesCustomerDetails customerName={selectedCustomer} userId={userId} onBack={() => setSelectedCustomer(null)} initialTab="dashboard" />
   );
 
   const totalPages = Math.ceil(filteredCustomers.length / ITEMS_PER_PAGE);

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { bhs_supabas } from '@/lib/supabase';
+import { bhs_supabas, parseBoolFlag } from '@/lib/supabase';
 
 export async function GET() {
   try {
@@ -15,7 +15,7 @@ export async function GET() {
       name: u.NAME,
       role: u.AUTHORITY || '',
       userAdmin: u.ROLE,
-      isSalesManager: u.IS_SALESMANAGER === true || String(u.IS_SALESMANAGER).toUpperCase() === 'TRUE'
+      isSalesManager: parseBoolFlag(u.IS_SALESMANAGER)
     }));
 
     return NextResponse.json({ users: userNames });
@@ -86,7 +86,7 @@ export async function POST(request: Request) {
           name: user.NAME,
           role: user.AUTHORITY || '',
           userAdmin: user.ROLE,
-          isSalesManager: user.IS_SALESMANAGER === true || String(user.IS_SALESMANAGER).toUpperCase() === 'TRUE'
+          isSalesManager: parseBoolFlag(user.IS_SALESMANAGER)
         }
       });
     } else {

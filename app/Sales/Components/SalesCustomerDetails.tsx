@@ -6,7 +6,8 @@ import { ArrowLeft, DollarSign, Package, TrendingUp, BarChart3, Search, Calendar
 import NoData from '@/app/Components/NoDataTab';
 import SalesTabLoader from './SalesTabLoader';
 import SalesCustomerCategoriesTab from './SalesCustomerDetailsCategoriesTab';
-import * as XLSX from 'xlsx';
+import { useSalesModuleFilters } from '@/app/Sales/Model/SalesFilters';
+import { exportSalesExcelTable } from '@/app/Sales/Export/SalesExcelExport';
 import {
   ComposedChart,
   Bar,
@@ -25,7 +26,6 @@ interface SalesCustomerDetailsProps {
   customerName: string;
   customerId?: string;
   customerType?: 'main' | 'sub';
-  filters?: any;
   userId?: string;
   onBack: () => void;
   initialTab?: 'dashboard' | 'monthly' | 'products' | 'invoices';
@@ -36,12 +36,12 @@ export default function SalesCustomerDetails({
   customerName,
   customerId,
   customerType = 'sub',
-  filters,
   userId,
   onBack,
   initialTab = 'dashboard',
   showCosts = true
 }: SalesCustomerDetailsProps) {
+  const { commonFilters: filters } = useSalesModuleFilters();
   const [data, setData] = useState<SalesInvoice[]>([]);
   const [allData, setAllData] = useState<SalesInvoice[]>([]);
   const [loading, setLoading] = useState(true);
@@ -734,26 +734,24 @@ export default function SalesCustomerDetails({
   }, [customerAllData]);
 
 
-  const exportProductsToExcel = () => {
-    const workbook = XLSX.utils.book_new();
-
+  const exportProductsToExcel = async () => {
     const headers = showCosts
       ? ['#', 'Barcode', 'Product', 'Amount', 'Avg Cost', 'Avg Price', 'Quantity', 'Purchase Count', 'LID']
       : ['#', 'Barcode', 'Product', 'Amount', 'Avg Price', 'Quantity', 'Purchase Count', 'LID'];
 
     const rows = productsData.map((item: any, index: number) => {
-      const row = [
+      const row: unknown[] = [
         index + 1,
         item.barcode || '-',
         item.product,
-        item.amount.toFixed(2),
+        item.amount,
       ];
       if (showCosts) {
-        row.push(item.avgCost % 1 === 0 ? item.avgCost.toFixed(0) : item.avgCost.toFixed(2));
+        row.push(item.avgCost);
       }
       row.push(
-        item.avgPrice % 1 === 0 ? item.avgPrice.toFixed(0) : item.avgPrice.toFixed(2),
-        item.qty.toFixed(0),
+        item.avgPrice,
+        item.qty,
         item.invoiceCount || 0,
         item.lastInvoiceDate ? new Date(item.lastInvoiceDate).toLocaleDateString('en-US', {
           year: 'numeric',
@@ -764,24 +762,24 @@ export default function SalesCustomerDetails({
       return row;
     });
 
-    const sheetData = [headers, ...rows];
-    const sheet = XLSX.utils.aoa_to_sheet(sheetData);
-    XLSX.utils.book_append_sheet(workbook, sheet, 'Products');
-
     const safeCustomer = customerName.replace(/[^a-zA-Z0-9\u0600-\u06FF \-_]/g, '').trim() || 'customer';
     const filename = `sales_customer_products_${safeCustomer}_${new Date().toISOString().split('T')[0]}.xlsx`;
-    XLSX.writeFile(workbook, filename);
+    const numericColumns = showCosts
+      ? ['Amount', 'Avg Cost', 'Avg Price', 'Quantity']
+      : ['Amount', 'Avg Price', 'Quantity'];
+    await exportSalesExcelTable(headers, rows, filename, {
+      sheetName: 'Products',
+      numericColumns,
+    });
   };
 
-  const exportInvoicesToExcel = () => {
-    const workbook = XLSX.utils.book_new();
-
+  const exportInvoicesToExcel = async () => {
     const headers = customerType === 'main'
       ? ['Invoice Date', 'Sub Customer', 'Invoice Number', 'Amount', 'Quantity', 'Products Count']
       : ['Invoice Date', 'Invoice Number', 'Amount', 'Quantity', 'Products Count'];
 
     const rows = groupedInvoicesData.map((item: any) => {
-      const row = [
+      const row: unknown[] = [
         item.invoiceDate ? new Date(item.invoiceDate).toLocaleDateString('en-US', {
           year: 'numeric',
           month: 'short',
@@ -793,23 +791,16 @@ export default function SalesCustomerDetails({
         row.push(item.subCustomerNames || '');
       }
 
-      row.push(
-        item.invoiceNumber,
-        item.amount.toFixed(2),
-        item.qty.toFixed(0),
-        item.productCount
-      );
-
+      row.push(item.invoiceNumber, item.amount, item.qty, item.productCount);
       return row;
     });
 
-    const sheetData = [headers, ...rows];
-    const sheet = XLSX.utils.aoa_to_sheet(sheetData);
-    XLSX.utils.book_append_sheet(workbook, sheet, 'Invoices');
-
     const safeCustomer = customerName.replace(/[^a-zA-Z0-9\u0600-\u06FF \-_]/g, '').trim() || 'customer';
     const filename = `sales_customer_invoices_${safeCustomer}_${new Date().toISOString().split('T')[0]}.xlsx`;
-    XLSX.writeFile(workbook, filename);
+    await exportSalesExcelTable(headers, rows, filename, {
+      sheetName: 'Invoices',
+      numericColumns: ['Amount', 'Quantity'],
+    });
   };
 
   // Format date as DD/MM/YYYY
@@ -828,19 +819,13 @@ export default function SalesCustomerDetails({
   };
 
   // Export Single Invoice to Excel
-  const exportSingleInvoiceToExcel = (invoice: any) => {
-    const header = [
-      ['Customer Name:', invoice.customerName],
-      ['Invoice Number:', invoice.invoiceNumber],
-      ['Date:', formatDate(invoice.invoiceDate)],
-      [],
-      showCosts
-        ? ['Barcode', 'Product', 'Quantity', 'Cost', 'Price', 'Total']
-        : ['Barcode', 'Product', 'Quantity', 'Price', 'Total']
-    ];
+  const exportSingleInvoiceToExcel = async (invoice: any) => {
+    const headers = showCosts
+      ? ['Barcode', 'Product', 'Quantity', 'Cost', 'Price', 'Total']
+      : ['Barcode', 'Product', 'Quantity', 'Price', 'Total'];
 
     const rows = invoice.items.map((item: SalesInvoice) => {
-      const row = [
+      const row: unknown[] = [
         item.barcode || '-',
         item.product || '-',
         item.qty || 0,
@@ -848,24 +833,18 @@ export default function SalesCustomerDetails({
       if (showCosts) {
         row.push(item.productCost || 0);
       }
-      row.push(
-        item.productPrice || 0,
-        item.amount || 0
-      );
+      row.push(item.productPrice || 0, item.amount || 0);
       return row;
     });
 
-    const footer = [
-      [],
-      [...Array(showCosts ? 4 : 3).fill(''), 'Total Amount:', invoice.amount]
-    ];
-
-    const worksheetData = [...header, ...rows, ...footer];
-    const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
-    const workbook = XLSX.utils.book_new();
     const sheetName = String(invoice.invoiceNumber).replace(/[:\\/?*[\]]/g, '_').slice(0, 31);
-    XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
-    XLSX.writeFile(workbook, `Invoice_${invoice.invoiceNumber}.xlsx`);
+    const numericColumns = showCosts
+      ? ['Quantity', 'Cost', 'Price', 'Total']
+      : ['Quantity', 'Price', 'Total'];
+    await exportSalesExcelTable(headers, rows, `Invoice_${invoice.invoiceNumber}.xlsx`, {
+      sheetName,
+      numericColumns,
+    });
   };
 
   if (loading) {

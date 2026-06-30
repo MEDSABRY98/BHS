@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { ChevronLeft, Calendar, Package, Users, Search } from 'lucide-react';
+import { useSalesModuleFilters } from '@/app/Sales/Model/SalesFilters';
 import NoData from '@/app/Components/NoDataTab';
 import SalesNewListingsProducts from './SalesNewListingsProducts';
 import SalesTabLoader from './SalesTabLoader';
@@ -9,11 +10,11 @@ import SalesNewListingsCustomers from './SalesNewListingsCustomers';
 
 interface SalesNewListingsTabProps {
   userId: string;
-  filters: any;
   refreshTrigger?: number;
 }
 
-export default function SalesNewListingsTab({ userId, filters, refreshTrigger }: SalesNewListingsTabProps) {
+export default function SalesNewListingsTab({ userId, refreshTrigger }: SalesNewListingsTabProps) {
+  const { commonFilters: filters } = useSalesModuleFilters();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<any[]>([]);
 

@@ -4,7 +4,7 @@ import { useMemo } from 'react';
 import { SalesInvoice } from '@/lib/supabase';;
 import { Download } from 'lucide-react';
 import NoData from '@/app/Components/NoDataTab';
-import * as XLSX from 'xlsx';
+import { exportSalesExcelTable } from '@/app/Sales/Export/SalesExcelExport';
 
 interface SalesCustomerCategoriesTabProps {
   data: SalesInvoice[];
@@ -67,34 +67,25 @@ export default function SalesCustomerCategoriesTab({
     }, { amount: 0, qty: 0 });
   }, [categoriesData]);
 
-  const exportToExcel = () => {
-    const workbook = XLSX.utils.book_new();
+  const exportToExcel = async () => {
     const headers = ['#', 'Category', 'Amount', 'Quantity', 'Transactions'];
 
     const rows = categoriesData.map((item, index) => [
       index + 1,
       item.category,
-      item.amount.toFixed(2),
-      item.qty.toFixed(0),
+      item.amount,
+      item.qty,
       item.invoiceNumbers.size
     ]);
 
-    // Add totals row
-    rows.push([
-      '',
-      'GRAND TOTAL',
-      totals.amount.toFixed(2),
-      totals.qty.toFixed(0),
-      ''
-    ]);
-
-    const sheetData = [headers, ...rows];
-    const sheet = XLSX.utils.aoa_to_sheet(sheetData);
-    XLSX.utils.book_append_sheet(workbook, sheet, 'Categories');
+    rows.push(['', 'GRAND TOTAL', totals.amount, totals.qty, '']);
 
     const safeCustomer = customerName.replace(/[^a-zA-Z0-9\u0600-\u06FF \-_]/g, '').trim() || 'customer';
     const filename = `customer_categories_${safeCustomer}_${new Date().toISOString().split('T')[0]}.xlsx`;
-    XLSX.writeFile(workbook, filename);
+    await exportSalesExcelTable(headers, rows, filename, {
+      sheetName: 'Categories',
+      numericColumns: ['Amount', 'Quantity'],
+    });
   };
 
   return (

@@ -154,17 +154,6 @@ function DebitPageContent() {
     }
   };
 
-  const allTabs = [
-    { id: 'customers', label: 'Customers' },
-    { id: 'customers-group', label: 'Customers Group' },
-    { id: 'all-transactions', label: 'All Transactions' },
-    { id: 'customers-open-matches', label: 'Open Transactions' },
-    { id: 'payment-tracker', label: 'Payment Tracker' },
-    { id: 'salesreps', label: 'Sales Reps' },
-    { id: 'history', label: 'History' },
-    { id: 'ages', label: 'Ages' },
-  ];
-
   const renderTabContent = () => {
     if (loading) {
       return <Loading message="Loading Debit Analysis Data..." />;
@@ -304,16 +293,6 @@ function DebitPageContent() {
                 </button>
               </div>
             </div>
-
-            {/* Middle Section: Display Active Tab Label */}
-            <div className="hidden md:flex items-center gap-2">
-              <span className="text-lg font-extrabold text-slate-800 tracking-tight">
-                {allTabs.find(tab => tab.id === activeTab)?.label || 'Debit Analysis'}
-              </span>
-            </div>
-
-            {/* Right Section */}
-            <div className="flex items-center gap-3 w-10 h-10" />
           </div>
         </header>
 

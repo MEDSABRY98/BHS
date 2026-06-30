@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useMemo, useState, useEffect, useRef } from 'react';
-import * as XLSX from 'xlsx';
+import { exportDebitExcelTable } from '@/app/Debit/Export/DebitExcelExport';
 import {
   AreaChart,
   Area,
@@ -1726,7 +1726,7 @@ ${debtSectionHtml}
     }
   };
 
-  const exportToExcel = (invoicesToExport: any[], monthsLabel: string) => {
+  const exportToExcel = async (invoicesToExport: any[], monthsLabel: string) => {
     const headers = ['Date', 'Type', 'Invoice Number', 'Debit', 'Credit', 'Net Debt'];
 
     const rows = invoicesToExport.map(inv => {
@@ -1764,18 +1764,13 @@ ${debtSectionHtml}
       ];
     });
 
-    const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Account Statement');
-
-    // Auto-size columns
-    const colWidths = [15, 15, 20, 12, 12, 12];
-    worksheet['!cols'] = colWidths.map(w => ({ wch: w }));
-
     const safeName = customerName.replace(/[^a-zA-Z0-9\u0600-\u06FF \-_]/g, '').trim();
     const fileName = `${safeName}.xlsx`;
 
-    XLSX.writeFile(workbook, fileName);
+    await exportDebitExcelTable(headers, rows, fileName, {
+      sheetName: 'Account Statement',
+      numericColumns: ['Debit', 'Credit', 'Net Debt'],
+    });
   };
 
   const handleExport = async () => {
@@ -1834,8 +1829,7 @@ ${debtSectionHtml}
       }
 
       if (exportFormat === 'excel') {
-        // Export to Excel
-        exportToExcel(finalInvoices, monthsLabel);
+        await exportToExcel(finalInvoices, monthsLabel);
       } else {
         // Export to PDF
         const { generateAccountStatementPDF } = await import('@/app/Debit/Pdf/StatementUtils');

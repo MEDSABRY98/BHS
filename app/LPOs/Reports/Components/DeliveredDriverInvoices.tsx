@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { bhs_supabas } from '@/lib/supabase';
+import { bhs_supabas, fetchAssignedDrivers } from '@/lib/supabase';
 import SearchSelect from '../../Components/DropDownList';
 import { FileText, Loader2, Download, Printer, AlertCircle } from 'lucide-react';
 import { generateDeliveredDriverInvoicesPDF } from '@/app/LPOs/Pdf/DeliveredDriverInvoicesPdf';
@@ -45,13 +45,7 @@ export default function DeliveredDriverInvoices() {
   async function fetchDrivers() {
     setIsDriversLoading(true);
     try {
-      const { data, error } = await bhs_supabas
-        .from('bhs_USERS')
-        .select('*')
-        .eq('USER_TYPE', 'Driver')
-        .order('NAME');
-      if (error) throw error;
-      setDrivers(data || []);
+      setDrivers(await fetchAssignedDrivers());
     } catch (err) {
       console.error('Error fetching drivers:', err);
     } finally {
@@ -138,7 +132,7 @@ export default function DeliveredDriverInvoices() {
 
   const selectedDriverName = useMemo(() => {
     const drv = drivers.find(d => d.ID === selectedDriverId);
-    return drv ? drv.NAME : '';
+    return drv?.NAME || selectedDriverId || '';
   }, [drivers, selectedDriverId]);
 
   const handlePdfAction = async (action: 'download' | 'print') => {

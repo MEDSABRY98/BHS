@@ -10,7 +10,7 @@ import NoData from '@/app/Components/NoDataTab';
 import SalesTabLoader from './SalesTabLoader';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
-import * as XLSX from 'xlsx';
+import { exportSalesExcel } from '@/app/Sales/Export/SalesExcelExport';
 
 interface SalesST_ByCustomersProps {
   refreshTrigger?: number;
@@ -85,7 +85,7 @@ export default function SalesST_ByCustomers({ customersData, loading, refreshTri
     } catch (error) { console.error(error); } finally { setIsGenerating(false); }
   };
 
-  const handleExportAnalysisExcel = (customerName: string) => {
+  const handleExportAnalysisExcel = async (customerName: string) => {
     const customer = customersData.find(c => c.customer === customerName);
     if (!customer) return;
 
@@ -110,10 +110,10 @@ export default function SalesST_ByCustomers({ customersData, loading, refreshTri
       };
     });
 
-    const ws = XLSX.utils.json_to_sheet(exportData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Analysis');
-    XLSX.writeFile(wb, `Sales_Analysis_${customerName}_${new Date().toISOString().split('T')[0]}.xlsx`);
+    await exportSalesExcel(exportData, `Sales_Analysis_${customerName}_${new Date().toISOString().split('T')[0]}.xlsx`, {
+      sheetName: 'Analysis',
+      numericColumns: ['Most Price', 'Max Price', 'Cost', 'Diff'],
+    });
     setSelectedCustomerForAnalysis(null);
   };
 

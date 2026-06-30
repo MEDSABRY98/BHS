@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState, useEffect } from 'react';
-import * as XLSX from 'xlsx';
+import { exportDebitExcelTable } from '@/app/Debit/Export/DebitExcelExport';
 import {
   useReactTable,
   getCoreRowModel,
@@ -232,7 +232,7 @@ export default function AgesTab({ data }: AgesTabProps) {
     return filtered;
   }, [agingData, searchQuery, selectedSalesRep]);
 
-  const exportToExcel = () => {
+  const exportToExcel = async () => {
     const headers = ['Customer Name', 'Sales Rep', '0 - 30', '31 - 60', '61 - 90', '91 - 120', 'OLDER', 'TOTAL'];
     const rows = filteredData.map((item) => [
       item.customerName,
@@ -245,27 +245,12 @@ export default function AgesTab({ data }: AgesTabProps) {
       item.total,
     ]);
 
-    // Add totals row
-    rows.push([
-      'TOTAL',
-      '',
-      total1To30,
-      total31To60,
-      total61To90,
-      total91To120,
-      totalOlder,
-      grandTotal
-    ]);
+    rows.push(['TOTAL', '', total1To30, total31To60, total61To90, total91To120, totalOlder, grandTotal]);
 
-    const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Aging Report');
-
-    // Auto-size columns
-    const colWidths = [35, 20, 15, 12, 12, 12, 12, 15];
-    worksheet['!cols'] = colWidths.map(w => ({ wch: w }));
-
-    XLSX.writeFile(workbook, `ages_export_${new Date().toISOString().split('T')[0]}.xlsx`);
+    await exportDebitExcelTable(headers, rows, `ages_export_${new Date().toISOString().split('T')[0]}`, {
+      sheetName: 'Aging Report',
+      numericColumns: ['0 - 30', '31 - 60', '61 - 90', '91 - 120', 'OLDER', 'TOTAL'],
+    });
   };
 
   const handleExportPDF = async () => {

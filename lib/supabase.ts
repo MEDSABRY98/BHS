@@ -29,6 +29,49 @@ export async function fetchAllData(queryFactory: () => any) {
   return allData;
 }
 
+/** Parse DB flags stored as boolean, text ("true"/"TRUE"/"t"), or null. */
+export function parseBoolFlag(value: unknown): boolean {
+  if (value === true || value === 1) return true;
+  if (value === false || value === 0 || value == null) return false;
+  const normalized = String(value).trim().toLowerCase();
+  return normalized === 'true' || normalized === 't' || normalized === 'yes' || normalized === '1';
+}
+
+/** Serialize a flag for bhs_USERS.IS_SALESMANAGER (text column). */
+export function toTextBoolFlag(value: unknown): 'true' | 'false' {
+  return parseBoolFlag(value) ? 'true' : 'false';
+}
+
+/** Users assigned on LPO invoices (any USER_TYPE), resolved from app_lpos_DRIVERS. */
+export async function fetchAssignedDrivers() {
+  const assignments = await fetchAllData(() =>
+    bhs_supabas.from('app_lpos_DRIVERS').select('DRIVERS_NAME')
+  );
+
+  const driverIds = [...new Set(
+    assignments.map((a) => a.DRIVERS_NAME).filter(Boolean)
+  )] as string[];
+
+  if (driverIds.length === 0) return [];
+
+  const { data: users, error } = await bhs_supabas
+    .from('bhs_USERS')
+    .select('*')
+    .in('ID', driverIds)
+    .order('NAME');
+
+  if (error) throw error;
+
+  const knownIds = new Set((users || []).map((u) => u.ID));
+  const extras = driverIds
+    .filter((id) => !knownIds.has(id))
+    .map((id) => ({ ID: id, NAME: id }));
+
+  return [...(users || []), ...extras].sort((a, b) =>
+    String(a.NAME || '').localeCompare(String(b.NAME || ''))
+  );
+}
+
 
 console.log('Supabase initialized with URL:', supabaseUrl?.substring(0, 20) + '...');
 console.log('Supabase initialized with URL:', supabaseUrl?.substring(0, 20) + '...');

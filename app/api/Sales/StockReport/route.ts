@@ -52,7 +52,7 @@ export async function POST(request: Request) {
       return dateB - dateA;
     });
 
-    // 1. Process Customers Data
+    // 1. Process Customers Data (main) + Sub-customers Data
     const customerMap = new Map<string, {
       customerId: string;
       latestName: string;
@@ -66,6 +66,73 @@ export async function POST(request: Request) {
         allBarcodes: Set<string>;
       }>;
     }>();
+
+    const subCustomerMap = new Map<string, {
+      customerId: string;
+      latestName: string;
+      allNames: Set<string>;
+      products: Map<string, {
+        barcode: string;
+        product: string;
+        prices: number[];
+        cost: number;
+        allNames: Set<string>;
+        allBarcodes: Set<string>;
+      }>;
+    }>();
+
+    const upsertCustomerProduct = (
+      map: Map<string, any>,
+      key: string,
+      init: { customerId: string; latestName: string },
+      item: any,
+      pNum: number,
+      productKey: string
+    ) => {
+      if (!map.has(key)) {
+        map.set(key, {
+          customerId: init.customerId,
+          latestName: init.latestName,
+          allNames: new Set<string>(),
+          products: new Map(),
+        });
+      }
+      const entry = map.get(key)!;
+      if (item.customerMainName) entry.allNames.add(item.customerMainName.toLowerCase());
+      if (item.customerName) entry.allNames.add(item.customerName.toLowerCase());
+
+      if (!entry.products.has(productKey)) {
+        entry.products.set(productKey, {
+          barcode: item.barcode || '-',
+          product: item.product || '-',
+          prices: [],
+          cost: item.productCost || 0,
+          allNames: new Set<string>(),
+          allBarcodes: new Set<string>(),
+        });
+      }
+      const prodInCust = entry.products.get(productKey)!;
+      if (item.product) prodInCust.allNames.add(item.product.toLowerCase());
+      if (item.barcode) prodInCust.allBarcodes.add(item.barcode.toLowerCase());
+      if (!isNaN(pNum) && pNum > 0) prodInCust.prices.push(pNum);
+      if (item.productCost > 0) prodInCust.cost = Math.max(prodInCust.cost, item.productCost);
+    };
+
+    const finalizeCustomerEntries = (entries: Iterable<any>) =>
+      Array.from(entries).map((entry: any) => ({
+        customerId: entry.customerId,
+        customer: entry.latestName,
+        allNames: Array.from(entry.allNames),
+        products: Array.from(entry.products.values()).map((p: any) => ({
+          barcode: p.barcode,
+          product: p.product,
+          cost: p.cost,
+          mostPrice: calculateMode(p.prices),
+          lastPrice: p.prices[0] || 0,
+          allNames: Array.from(p.allNames),
+          allBarcodes: Array.from(p.allBarcodes),
+        })).sort((a: any, b: any) => a.product.localeCompare(b.product)),
+      })).sort((a, b) => a.customer.localeCompare(b.customer));
 
     // 2. Process Products Data
     const productMap = new Map<string, {
@@ -84,38 +151,29 @@ export async function POST(request: Request) {
       if (!price && itemAny.amount && itemAny.qty) price = itemAny.amount / itemAny.qty;
       const pNum = parseFloat(price);
 
-      const custId = item.customerId || item.customerMainName || item.customerName || 'Unknown';
-      const custName = item.customerMainName || item.customerName || 'Unknown';
+      const mainName = (item.customerMainName || item.customerName || 'Unknown').trim();
+      const mainKey = mainName.toLowerCase();
+      const subName = (item.customerName || '').trim() || item.customerMainName || 'Unknown';
+      const subKey = item.customerId ? `${item.customerId}::${subName}` : subName;
       const productKey = item.productId || item.barcode || item.product || 'Unknown';
 
-      // --- Customers Map ---
-      if (!customerMap.has(custId)) {
-        customerMap.set(custId, {
-          customerId: item.customerId || '',
-          latestName: custName,
-          allNames: new Set(),
-          products: new Map()
-        });
-      }
-      const custEntry = customerMap.get(custId)!;
-      if (item.customerMainName) custEntry.allNames.add(item.customerMainName.toLowerCase());
-      if (item.customerName) custEntry.allNames.add(item.customerName.toLowerCase());
+      upsertCustomerProduct(
+        customerMap,
+        mainKey,
+        { customerId: item.customerId || '', latestName: mainName },
+        item,
+        pNum,
+        productKey
+      );
 
-      if (!custEntry.products.has(productKey)) {
-        custEntry.products.set(productKey, {
-          barcode: item.barcode || '-',
-          product: item.product || '-',
-          prices: [],
-          cost: item.productCost || 0,
-          allNames: new Set(),
-          allBarcodes: new Set()
-        });
-      }
-      const prodInCust = custEntry.products.get(productKey)!;
-      if (item.product) prodInCust.allNames.add(item.product.toLowerCase());
-      if (item.barcode) prodInCust.allBarcodes.add(item.barcode.toLowerCase());
-      if (!isNaN(pNum) && pNum > 0) prodInCust.prices.push(pNum);
-      if (item.productCost > 0) prodInCust.cost = Math.max(prodInCust.cost, item.productCost);
+      upsertCustomerProduct(
+        subCustomerMap,
+        subKey,
+        { customerId: item.customerId || '', latestName: subName },
+        item,
+        pNum,
+        productKey
+      );
 
       // --- Products Map ---
       if (!productMap.has(productKey)) {
@@ -133,10 +191,10 @@ export async function POST(request: Request) {
       if (item.product) prodEntry.allNames.add(item.product.toLowerCase());
       if (item.barcode) prodEntry.allBarcodes.add(item.barcode.toLowerCase());
 
-      if (!prodEntry.customers.has(custName)) {
-        prodEntry.customers.set(custName, { prices: [], cost: item.productCost || 0 });
+      if (!prodEntry.customers.has(mainName)) {
+        prodEntry.customers.set(mainName, { prices: [], cost: item.productCost || 0 });
       }
-      const custInProd = prodEntry.customers.get(custName)!;
+      const custInProd = prodEntry.customers.get(mainName)!;
       if (!isNaN(pNum) && pNum > 0) {
         custInProd.prices.push(pNum);
         prodEntry.priceRange.min = Math.min(prodEntry.priceRange.min, pNum);
@@ -145,21 +203,8 @@ export async function POST(request: Request) {
       if (item.productCost > 0) custInProd.cost = Math.max(custInProd.cost, item.productCost);
     });
 
-    // Finalize Customers Data
-    const customersData = Array.from(customerMap.values()).map(entry => ({
-      customerId: entry.customerId,
-      customer: entry.latestName,
-      allNames: Array.from(entry.allNames),
-      products: Array.from(entry.products.values()).map(p => ({
-        barcode: p.barcode,
-        product: p.product,
-        cost: p.cost,
-        mostPrice: calculateMode(p.prices),
-        lastPrice: p.prices[0] || 0,
-        allNames: Array.from(p.allNames),
-        allBarcodes: Array.from(p.allBarcodes)
-      })).sort((a, b) => a.product.localeCompare(b.product))
-    })).sort((a, b) => a.customer.localeCompare(b.customer));
+    const customersData = finalizeCustomerEntries(customerMap.values());
+    const subCustomersData = finalizeCustomerEntries(subCustomerMap.values());
 
     // Finalize Products Data
     const productList = Array.from(productMap.values()).map(prod => {
@@ -185,7 +230,7 @@ export async function POST(request: Request) {
       };
     }).sort((a, b) => a.product.localeCompare(b.product));
 
-    return NextResponse.json({ customersData, productList });
+    return NextResponse.json({ customersData, subCustomersData, productList });
 
   } catch (error: any) {
     console.error('API Error StockReport:', error);

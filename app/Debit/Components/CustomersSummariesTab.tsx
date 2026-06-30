@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import * as XLSX from 'xlsx';
+import { exportDebitExcelTable } from '@/app/Debit/Export/DebitExcelExport';
 import {
   useReactTable,
   getCoreRowModel,
@@ -197,7 +197,7 @@ export default function CustomersSummariesTab({ data, onRefresh }: CustomersSumm
     return filtered;
   }, [summaryData, searchQuery, hideNegative]);
 
-  const exportToExcel = () => {
+  const exportToExcel = async () => {
     const headers = ['Customer Name', `Sale ${previousYear}`, `GRV ${previousYear}`, `Sale ${currentYear}`, `GRV ${currentYear}`, '0 - 30', '31 - 60', '61 - 90', '91 - 120', 'OLDER', 'TOTAL'];
     const rows = filteredData.map((item) => [
       item.customerName,
@@ -213,7 +213,6 @@ export default function CustomersSummariesTab({ data, onRefresh }: CustomersSumm
       item.totalAging,
     ]);
 
-    // Add totals row
     rows.push([
       'TOTAL',
       filteredData.reduce((sum, item) => sum + item.salesPrev, 0),
@@ -225,17 +224,18 @@ export default function CustomersSummariesTab({ data, onRefresh }: CustomersSumm
       filteredData.reduce((sum, item) => sum + item.sixtyOneToNinety, 0),
       filteredData.reduce((sum, item) => sum + item.ninetyOneToOneTwenty, 0),
       filteredData.reduce((sum, item) => sum + item.older, 0),
-      filteredData.reduce((sum, item) => sum + item.totalAging, 0)
+      filteredData.reduce((sum, item) => sum + item.totalAging, 0),
     ]);
 
-    const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Customers Summaries');
-
-    const colWidths = [35, 15, 15, 15, 15, 12, 12, 12, 12, 12, 15];
-    worksheet['!cols'] = colWidths.map(w => ({ wch: w }));
-
-    XLSX.writeFile(workbook, `customers_summaries_${new Date().toISOString().split('T')[0]}.xlsx`);
+    await exportDebitExcelTable(
+      headers,
+      rows,
+      `customers_summaries_${new Date().toISOString().split('T')[0]}`,
+      {
+        sheetName: 'Customers Summaries',
+        numericColumns: headers.slice(1),
+      }
+    );
   };
 
   const columns = useMemo(

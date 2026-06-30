@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState, Fragment } from 'react';
-import * as XLSX from 'xlsx';
+import { exportDebitExcelTable } from '@/app/Debit/Export/DebitExcelExport';
 import {
   useReactTable,
   getCoreRowModel,
@@ -298,9 +298,9 @@ export default function AllTransactionsTab({ data }: AllTransactionsTabProps) {
     onPaginationChange: setPagination,
   });
 
-  const exportToExcel = () => {
+  const exportToExcel = async () => {
     const headers = ['Customer Name', 'Date', 'Invoice Number', 'Type', 'Debit', 'Credit', 'Net Amount', 'Matching'];
-    const rows = filteredItems.map(item => [
+    const rows = filteredItems.map((item) => [
       item.customerName,
       item.date.toLocaleDateString('en-GB'),
       item.number,
@@ -308,24 +308,23 @@ export default function AllTransactionsTab({ data }: AllTransactionsTabProps) {
       item.debit,
       item.credit,
       item.netAmount,
-      item.matching || ''
+      item.matching || '',
     ]);
 
-    // Add totals row
     const totalDebit = filteredItems.reduce((sum, item) => sum + item.debit, 0);
     const totalCredit = filteredItems.reduce((sum, item) => sum + item.credit, 0);
     const totalNet = filteredItems.reduce((sum, item) => sum + item.netAmount, 0);
     rows.push(['Total', '', '', '', totalDebit, totalCredit, totalNet, '']);
 
-    const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Transactions');
-
-    // Auto-size columns (rough approximation)
-    const colWidths = [30, 12, 15, 12, 12, 12, 12, 15];
-    worksheet['!cols'] = colWidths.map(w => ({ wch: w }));
-
-    XLSX.writeFile(workbook, `all_transactions_${new Date().toISOString().split('T')[0]}.xlsx`);
+    await exportDebitExcelTable(
+      headers,
+      rows,
+      `all_transactions_${new Date().toISOString().split('T')[0]}`,
+      {
+        sheetName: 'Transactions',
+        numericColumns: ['Debit', 'Credit', 'Net Amount'],
+      }
+    );
   };
 
   return (

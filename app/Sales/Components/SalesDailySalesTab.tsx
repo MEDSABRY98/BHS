@@ -3,19 +3,19 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { SalesInvoice } from '@/lib/supabase';;
 import { Download, Calendar, MapPin, ShoppingBag, UserCircle, ChevronDown, ChevronLeft, ChevronRight, Search, X, Filter, FileSpreadsheet } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import { useSalesModuleFilters } from '@/app/Sales/Model/SalesFilters';
+import { exportSalesExcel, exportSalesExcelTable } from '@/app/Sales/Export/SalesExcelExport';
 import NoData from '@/app/Components/NoDataTab';
 import SalesTabLoader from './SalesTabLoader';
 
 interface SalesDailySalesTabProps {
   refreshTrigger?: number;
-  filters: any;
-  invoiceTypeFilter: string;
   userId: string;
   showCosts?: boolean;
 }
 
-export default function SalesDailySalesTab({ filters, invoiceTypeFilter, userId, showCosts = true, refreshTrigger }: SalesDailySalesTabProps) {
+export default function SalesDailySalesTab({ userId, showCosts = true, refreshTrigger }: SalesDailySalesTabProps) {
+  const { commonFilters: filters, invoiceTypeFilter } = useSalesModuleFilters();
   const [loading, setLoading] = useState(true);
   const [dailySalesData, setDailySalesData] = useState<any[]>([]);
   const [salesByDayData, setSalesByDayData] = useState<any[]>([]);
@@ -295,9 +295,9 @@ export default function SalesDailySalesTab({ filters, invoiceTypeFilter, userId,
 
 
   // Export to Excel - All Invoices
-  const exportAllInvoicesToExcel = () => {
+  const exportAllInvoicesToExcel = async () => {
     const worksheetData = dailySalesData.map((item: any) => {
-      const row: any = {
+      const row: Record<string, unknown> = {
         'Invoice Date': formatDate(item.invoiceDate),
         'Invoice Number': item.invoiceNumber,
         'Customer Name': item.customerName,
@@ -312,14 +312,17 @@ export default function SalesDailySalesTab({ filters, invoiceTypeFilter, userId,
       return row;
     });
 
-    const worksheet = XLSX.utils.json_to_sheet(worksheetData);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'All Invoices');
-    XLSX.writeFile(workbook, 'All_Invoices.xlsx');
+    const numericColumns = showCosts
+      ? ['Amount', 'Quantity', 'Avg Cost', 'Avg Price']
+      : ['Amount', 'Quantity', 'Avg Price'];
+    await exportSalesExcel(worksheetData, 'All_Invoices.xlsx', {
+      sheetName: 'All Invoices',
+      numericColumns,
+    });
   };
 
   // Export to Excel - Sales BY Day
-  const exportSalesByDayToExcel = () => {
+  const exportSalesByDayToExcel = async () => {
     const worksheetData = salesByDayData.map(item => ({
       'Date': item.date,
       'Amount': item.amount,
@@ -329,14 +332,14 @@ export default function SalesDailySalesTab({ filters, invoiceTypeFilter, userId,
       'Products Count': item.salProductsCount
     }));
 
-    const worksheet = XLSX.utils.json_to_sheet(worksheetData);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Sales BY Day');
-    XLSX.writeFile(workbook, 'Sales_BY_Day.xlsx');
+    await exportSalesExcel(worksheetData, 'Sales_BY_Day.xlsx', {
+      sheetName: 'Sales BY Day',
+      numericColumns: ['Amount', 'Quantity'],
+    });
   };
 
   // Export to Excel - AVG Sales BY Day
-  const exportAvgSalesByDayToExcel = () => {
+  const exportAvgSalesByDayToExcel = async () => {
     const worksheetData = avgSalesByDayData.map(item => ({
       'Month/Year': item.monthYear,
       'Avg Daily Amount': item.avgAmount,
@@ -346,26 +349,20 @@ export default function SalesDailySalesTab({ filters, invoiceTypeFilter, userId,
       'Avg Daily Products': item.avgProducts
     }));
 
-    const worksheet = XLSX.utils.json_to_sheet(worksheetData);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'AVG Sales BY Day');
-    XLSX.writeFile(workbook, 'AVG_Sales_BY_Day.xlsx');
+    await exportSalesExcel(worksheetData, 'AVG_Sales_BY_Day.xlsx', {
+      sheetName: 'AVG Sales BY Day',
+      numericColumns: ['Avg Daily Amount', 'Avg Daily Quantity'],
+    });
   };
 
   // Export Single Invoice to Excel
-  const exportSingleInvoiceToExcel = (invoice: any) => {
-    const header = [
-      ['Customer Name:', invoice.customerName],
-      ['Invoice Number:', invoice.invoiceNumber],
-      ['Date:', formatDate(invoice.invoiceDate)],
-      [],
-      showCosts
-        ? ['Barcode', 'Product', 'Quantity', 'Cost', 'Price', 'Total']
-        : ['Barcode', 'Product', 'Quantity', 'Price', 'Total']
-    ];
+  const exportSingleInvoiceToExcel = async (invoice: any) => {
+    const headers = showCosts
+      ? ['Barcode', 'Product', 'Quantity', 'Cost', 'Price', 'Total']
+      : ['Barcode', 'Product', 'Quantity', 'Price', 'Total'];
 
     const rows = invoice.items.map((item: SalesInvoice) => {
-      const row = [
+      const row: unknown[] = [
         item.barcode || '-',
         item.product || '-',
         item.qty || 0,
@@ -373,25 +370,18 @@ export default function SalesDailySalesTab({ filters, invoiceTypeFilter, userId,
       if (showCosts) {
         row.push(item.productCost || 0);
       }
-      row.push(
-        item.productPrice || 0,
-        item.amount || 0
-      );
+      row.push(item.productPrice || 0, item.amount || 0);
       return row;
     });
 
-    const footer = [
-      [],
-      [...Array(showCosts ? 4 : 3).fill(''), 'Total Amount:', invoice.amount]
-    ];
-
-    const worksheetData = [...header, ...rows, ...footer];
-    const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
-    const workbook = XLSX.utils.book_new();
-    // Sanitize sheet name: remove forbidden characters : \ / ? * [ ]
     const sheetName = String(invoice.invoiceNumber).replace(/[:\\/?*[\]]/g, '_').slice(0, 31);
-    XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
-    XLSX.writeFile(workbook, `Invoice_${invoice.invoiceNumber}.xlsx`);
+    const numericColumns = showCosts
+      ? ['Quantity', 'Cost', 'Price', 'Total']
+      : ['Quantity', 'Price', 'Total'];
+    await exportSalesExcelTable(headers, rows, `Invoice_${invoice.invoiceNumber}.xlsx`, {
+      sheetName,
+      numericColumns,
+    });
   };
 
   if (loading) {

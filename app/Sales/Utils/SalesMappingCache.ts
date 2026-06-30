@@ -1,4 +1,4 @@
-import { bhs_supabas } from '@/lib/supabase';
+import { bhs_supabas, parseBoolFlag } from '@/lib/supabase';
 import { getSalesDataServer } from './SalesCache';
 
 // ─────────────────────────────────────────────────────────────
@@ -95,10 +95,12 @@ type SalesUserContext = {
 
 function isManagerUser(user: { NAME?: string; ROLE?: string; IS_SALESMANAGER?: boolean | string } | null | undefined): boolean {
   if (!user) return false;
-  return user.NAME === 'MED Sabry'
-    || user.ROLE?.toLowerCase() === 'admin'
-    || user.IS_SALESMANAGER === true
-    || String(user.IS_SALESMANAGER).toUpperCase() === 'TRUE';
+  const userName = String(user.NAME || '').trim().toLowerCase();
+  return (
+    userName === 'med sabry' ||
+    user.ROLE?.toLowerCase() === 'admin' ||
+    parseBoolFlag(user.IS_SALESMANAGER)
+  );
 }
 
 /** Match mapping to user by ID or legacy name stored in SALES_REP. */

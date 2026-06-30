@@ -3,12 +3,12 @@
 import { useState, useMemo, useEffect, memo } from 'react';
 import { SalesInvoice } from '@/lib/supabase';;
 import { Search, ArrowUpDown, ArrowUp, ArrowDown, TrendingUp, TrendingDown, Minus, ChevronLeft, ChevronRight, FileSpreadsheet } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import { useSalesModuleFilters } from '@/app/Sales/Model/SalesFilters';
+import { exportSalesExcelWorkbook, recordsFromTable } from '@/app/Sales/Export/SalesExcelExport';
 import NoData from '@/app/Components/NoDataTab';
 import SalesTabLoader from './SalesTabLoader';
 
 interface Props {
-  filters: any;
   userId: string;
   refreshTrigger?: number;
 }
@@ -77,7 +77,8 @@ const CompRow = memo(({ row, rowNum, prevLabel, currLabel }: {
 });
 CompRow.displayName = 'CompRow';
 
-export default function SalesCustomersComparisonTab({ filters, userId, refreshTrigger }: Props) {
+export default function SalesCustomersComparisonTab({ userId, refreshTrigger }: Props) {
+  const { commonFilters: filters } = useSalesModuleFilters();
   const [loading, setLoading] = useState(true);
   const today = new Date();
   const currentYear = today.getFullYear();
@@ -204,7 +205,7 @@ export default function SalesCustomersComparisonTab({ filters, userId, refreshTr
       : <ArrowDown className="w-3.5 h-3.5 inline ml-1 text-green-600" />;
   };
 
-  const exportToExcel = () => {
+  const exportToExcel = async () => {
     // Generate and sort Main Customers
     let mainFiltered = [...mainComparisonData];
     if (debouncedSearch.trim()) {
@@ -289,16 +290,27 @@ export default function SalesCustomersComparisonTab({ filters, userId, refreshTr
       `${subPctTotal.toFixed(1)}%`
     ]);
 
-    // Create workbook and sheets
-    const wb = XLSX.utils.book_new();
-
-    const mainSheet = XLSX.utils.aoa_to_sheet([mainHeaders, ...mainRows]);
-    XLSX.utils.book_append_sheet(wb, mainSheet, 'Main Customers');
-
-    const subSheet = XLSX.utils.aoa_to_sheet([subHeaders, ...subRows]);
-    XLSX.utils.book_append_sheet(wb, subSheet, 'Sub Customers');
-
-    XLSX.writeFile(wb, `customers_comparison_${currentYear}_vs_${prevYear}.xlsx`);
+    await exportSalesExcelWorkbook(
+      [
+        {
+          name: 'Main Customers',
+          data: recordsFromTable(mainHeaders, mainRows),
+          options: {
+            numericColumns: [prevLabel, currLabel, 'Difference'],
+            highlightNegativeInColumns: ['Difference'],
+          },
+        },
+        {
+          name: 'Sub Customers',
+          data: recordsFromTable(subHeaders, subRows),
+          options: {
+            numericColumns: [prevLabel, currLabel, 'Difference'],
+            highlightNegativeInColumns: ['Difference'],
+          },
+        },
+      ],
+      `customers_comparison_${currentYear}_vs_${prevYear}.xlsx`
+    );
   };
 
   if (loading) {

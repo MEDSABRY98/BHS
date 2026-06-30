@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { TrendingUp, Package, Users, DollarSign, BarChart3, Calendar, MapPin, ShoppingBag, UserCircle, ChevronDown, Download, Filter, X, FileSpreadsheet } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import { useSalesModuleFilters } from '@/app/Sales/Model/SalesFilters';
+import { exportSalesExcelTable } from '@/app/Sales/Export/SalesExcelExport';
 import NoData from '@/app/Components/NoDataTab';
 import SalesTabLoader from './SalesTabLoader';
 import {
@@ -21,11 +22,11 @@ import {
 
 interface SalesOverviewTabProps {
   refreshTrigger?: number;
-  filters: any;
   userId: string;
 }
 
-export default function SalesOverviewTab({ filters, refreshTrigger, userId }: SalesOverviewTabProps) {
+export default function SalesOverviewTab({ refreshTrigger, userId }: SalesOverviewTabProps) {
+  const { commonFilters: filters } = useSalesModuleFilters();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<{
     metrics: any;
@@ -68,9 +69,8 @@ export default function SalesOverviewTab({ filters, refreshTrigger, userId }: Sa
     return () => { isMounted = false; };
   }, [filters, refreshTrigger, userId]);
 
-  const exportYearlyTableToExcel = () => {
+  const exportYearlyTableToExcel = async () => {
     if (!data) return;
-    const workbook = XLSX.utils.book_new();
     const headers = ['Year', 'Net Amount', 'Net Change', 'Net QTY', 'Cust. Count', 'Sales Amount', 'Sales Count', 'GRV Amount', 'GRV Count'];
     const rows = data.yearlyTableData.map((item: any) => [
       item.year,
@@ -83,17 +83,16 @@ export default function SalesOverviewTab({ filters, refreshTrigger, userId }: Sa
       item.grvAmount,
       item.grvCount,
     ]);
-    const sheetData = [headers, ...rows];
-    const sheet = XLSX.utils.aoa_to_sheet(sheetData);
-    XLSX.utils.book_append_sheet(workbook, sheet, 'Yearly Sales');
     const filename = `sales_yearly_table_${new Date().toISOString().split('T')[0]}.xlsx`;
-    XLSX.writeFile(workbook, filename);
+    await exportSalesExcelTable(headers, rows, filename, {
+      sheetName: 'Yearly Sales',
+      numericColumns: ['Net Amount', 'Net Change', 'Net QTY', 'Sales Amount', 'GRV Amount'],
+      highlightNegativeInColumns: ['Net Change'],
+    });
   };
 
-  const exportMonthlyTableToExcel = () => {
+  const exportMonthlyTableToExcel = async () => {
     if (!data) return;
-    const workbook = XLSX.utils.book_new();
-
     const headers = ['Month', 'Net Amount', 'Net Change', 'Net QTY', 'Cust. Count', 'Sales Amount', 'Sales Count', 'GRV Amount', 'GRV Count'];
     const rows = data.monthlyTableData.map((item: any) => [
       item.month,
@@ -106,13 +105,12 @@ export default function SalesOverviewTab({ filters, refreshTrigger, userId }: Sa
       item.grvAmount,
       item.grvCount,
     ]);
-
-    const sheetData = [headers, ...rows];
-    const sheet = XLSX.utils.aoa_to_sheet(sheetData);
-    XLSX.utils.book_append_sheet(workbook, sheet, 'Monthly Sales');
-
     const filename = `sales_monthly_table_${new Date().toISOString().split('T')[0]}.xlsx`;
-    XLSX.writeFile(workbook, filename);
+    await exportSalesExcelTable(headers, rows, filename, {
+      sheetName: 'Monthly Sales',
+      numericColumns: ['Net Amount', 'Net Change', 'Net QTY', 'Sales Amount', 'GRV Amount'],
+      highlightNegativeInColumns: ['Net Change'],
+    });
   };
 
   if (loading || !data) {

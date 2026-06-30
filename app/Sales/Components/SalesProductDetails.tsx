@@ -3,7 +3,8 @@
 import { useState, useMemo, useEffect } from 'react';
 import { SalesInvoice } from '@/lib/supabase';;
 import { ArrowLeft, DollarSign, Package, TrendingUp, BarChart3, Search, Calendar, Download } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import { useSalesModuleFilters } from '@/app/Sales/Model/SalesFilters';
+import { exportSalesExcelTable } from '@/app/Sales/Export/SalesExcelExport';
 import NoData from '@/app/Components/NoDataTab';
 import SalesTabLoader from './SalesTabLoader';
 import {
@@ -22,14 +23,14 @@ import {
 
 interface SalesProductDetailsProps {
   productId: string;
-  filters?: any;
   userId?: string;
   onBack: () => void;
   initialTab?: 'dashboard' | 'monthly' | 'products';
   filterYear?: string;
 }
 
-export default function SalesProductDetails({ productId, filters, userId, onBack, initialTab = 'dashboard', filterYear }: SalesProductDetailsProps) {
+export default function SalesProductDetails({ productId, userId, onBack, initialTab = 'dashboard', filterYear }: SalesProductDetailsProps) {
+  const { commonFilters: filters } = useSalesModuleFilters();
   const [data, setData] = useState<SalesInvoice[]>([]);
   const [allData, setAllData] = useState<SalesInvoice[]>([]);
   const [loading, setLoading] = useState(true);
@@ -452,15 +453,14 @@ export default function SalesProductDetails({ productId, filters, userId, onBack
     return result;
   }, [productAllData, filterYear]);
 
-  const exportCustomersToExcel = () => {
-    const workbook = XLSX.utils.book_new();
+  const exportCustomersToExcel = async () => {
     const headers = ['#', 'Customer Name', 'Amount', 'Quantity', 'Purchase Count', 'Last Invoice Date'];
 
     const rows = customersData.map((item: any, index: number) => [
       index + 1,
       item.customer,
-      item.amount.toFixed(2),
-      item.qty.toFixed(0),
+      item.amount,
+      item.qty,
       item.invoiceCount || 0,
       item.lastInvoiceDate ? new Date(item.lastInvoiceDate).toLocaleDateString('en-US', {
         year: 'numeric',
@@ -469,13 +469,12 @@ export default function SalesProductDetails({ productId, filters, userId, onBack
       }) : '-',
     ]);
 
-    const sheetData = [headers, ...rows];
-    const sheet = XLSX.utils.aoa_to_sheet(sheetData);
-    XLSX.utils.book_append_sheet(workbook, sheet, 'Customers');
-
     const safeId = (productId || 'product').replace(/[^a-zA-Z0-9\u0600-\u06FF \-_]/g, '').trim() || 'product';
     const filename = `sales_product_customers_${safeId}_${new Date().toISOString().split('T')[0]}.xlsx`;
-    XLSX.writeFile(workbook, filename);
+    await exportSalesExcelTable(headers, rows, filename, {
+      sheetName: 'Customers',
+      numericColumns: ['Amount', 'Quantity'],
+    });
   };
 
   if (loading) {

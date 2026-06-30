@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { bhs_supabas } from '@/lib/supabase';
+import { bhs_supabas, fetchAssignedDrivers } from '@/lib/supabase';
 import { FileText, Loader2, Download, Printer, AlertCircle, Search, Calendar } from 'lucide-react';
 import { generatePendingDriverInvoicesPDF } from '@/app/LPOs/Pdf/PendingDriverInvoicesPdf';
 import NoData from '@/app/Components/NoDataTab';
@@ -34,16 +34,8 @@ export default function PendingDriverInvoices() {
   async function fetchInitialData() {
     setIsLoading(true);
     try {
-      // 1. Fetch drivers
-      const { data: driversData, error: drvErr } = await bhs_supabas
-        .from('bhs_USERS')
-        .select('*')
-        .eq('USER_TYPE', 'Driver')
-        .order('NAME');
-      if (drvErr) throw drvErr;
-      setDrivers(driversData || []);
-
-      // 2. Fetch all pending driver invoices (where handover status !== Confirmed)
+      const driversData = await fetchAssignedDrivers();
+      setDrivers(driversData);
       const { data: ordersData, error: ordErr } = await bhs_supabas
         .from('app_lpos_ORDERS')
         .select(`
@@ -93,18 +85,22 @@ export default function PendingDriverInvoices() {
 
   // Aggregate metrics per driver
   const driverMetrics = useMemo(() => {
-    return drivers.map((driver) => {
-      // Find invoices for this driver
-      const driverInvoices = filteredInvoices.filter(
-        (inv) => inv.app_lpos_DRIVERS?.[0]?.DRIVERS_NAME === driver.ID
-      );
+    const invoicesByDriver = new Map<string, typeof filteredInvoices>();
 
-      // Unique customers count
+    filteredInvoices.forEach((inv) => {
+      const driverId = inv.app_lpos_DRIVERS?.[0]?.DRIVERS_NAME;
+      if (!driverId) return;
+      if (!invoicesByDriver.has(driverId)) invoicesByDriver.set(driverId, []);
+      invoicesByDriver.get(driverId)!.push(inv);
+    });
+
+    return Array.from(invoicesByDriver.entries()).map(([driverId, driverInvoices]) => {
+      const driver = drivers.find((d) => d.ID === driverId) || { ID: driverId, NAME: driverId };
+
       const uniqueCustomerIds = new Set(
         driverInvoices.map((inv) => inv.CUSTOMER_ID).filter(Boolean)
       );
 
-      // Average delay days
       let totalDelayDays = 0;
       driverInvoices.forEach((inv) => {
         const dateStr = inv.ORDER_DATE || inv.CREATED_AT;
@@ -127,7 +123,7 @@ export default function PendingDriverInvoices() {
         uniqueCustomersCount: uniqueCustomerIds.size,
         avgDelayDays,
       };
-    }).sort((a, b) => b.pendingCount - a.pendingCount); // Sort drivers with most pending invoices first
+    }).sort((a, b) => b.pendingCount - a.pendingCount);
   }, [drivers, filteredInvoices]);
 
   const handlePdfAction = async (action: 'download' | 'print', driver: any, driverInvoices: any[]) => {
@@ -285,7 +281,7 @@ export default function PendingDriverInvoices() {
             <p className="text-xs font-black text-gray-400 uppercase tracking-widest">Loading Driver Metrics...</p>
           </div>
         ) : driverMetrics.length === 0 ? (
-          <NoData title="NO LOGISTICS DRIVERS FOUND" />
+          <NoData title="NO PENDING DRIVER INVOICES" />
         ) : (
           <div className="overflow-x-auto rounded-[2.5rem] border border-gray-50">
             <table className="w-full text-center border-collapse">

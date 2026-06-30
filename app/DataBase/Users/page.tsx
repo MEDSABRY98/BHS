@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { bhs_supabas } from '@/lib/supabase';
+import { bhs_supabas, parseBoolFlag, toTextBoolFlag } from '@/lib/supabase';
 import {
   Users,
   Search,
@@ -100,9 +100,9 @@ export default function UsersPage() {
     setUSER_TYPE(user ? user.USER_TYPE : 'Creator');
     setPASSWORD(user ? user.PASSWORD : '');
     setIS_IN_OFFICE(user ? user.IS_IN_OFFICE : false);
-    setCANCEL_AUTHORITY(user ? (user.CANCEL_AUTHORITY === true || String(user.CANCEL_AUTHORITY).toUpperCase() === 'TRUE') : false);
+    setCANCEL_AUTHORITY(user ? parseBoolFlag(user.CANCEL_AUTHORITY) : false);
     setCITY(user ? user.CITY || '' : '');
-    setIS_SALESMANAGER(user ? (user.IS_SALESMANAGER === true || String(user.IS_SALESMANAGER).toUpperCase() === 'TRUE') : false);
+    setIS_SALESMANAGER(user ? parseBoolFlag(user.IS_SALESMANAGER) : false);
     setIsModalOpen(true);
   };
 
@@ -113,13 +113,28 @@ export default function UsersPage() {
 
   const executeSave = async () => {
     setIsSaving(true);
+    const salesManagerValue = toTextBoolFlag(IS_SALESMANAGER);
     try {
       if (editingUser) {
-        const { error } = await bhs_supabas
+        const { data, error } = await bhs_supabas
           .from('bhs_USERS')
-          .update({ NAME, ROLE, USER_TYPE, PASSWORD, IS_IN_OFFICE, CANCEL_AUTHORITY, CITY, IS_SALESMANAGER })
-          .eq('ID', editingUser.ID);
+          .update({
+            NAME,
+            ROLE,
+            USER_TYPE,
+            PASSWORD,
+            IS_IN_OFFICE,
+            CANCEL_AUTHORITY,
+            CITY,
+            IS_SALESMANAGER: salesManagerValue,
+          })
+          .eq('ID', editingUser.ID)
+          .select('*')
+          .single();
         if (error) throw error;
+        if (data) {
+          setUsers((prev) => prev.map((u) => (u.ID === data.ID ? data : u)));
+        }
       } else {
         const { data: maxIdData, error: maxIdError } = await bhs_supabas
           .from('bhs_USERS_MAX_ID')
@@ -141,12 +156,22 @@ export default function UsersPage() {
 
         const { error } = await bhs_supabas
           .from('bhs_USERS')
-          .insert({ ID: nextId, NAME, ROLE, USER_TYPE, PASSWORD, IS_IN_OFFICE, CANCEL_AUTHORITY, CITY, IS_SALESMANAGER });
+          .insert({
+            ID: nextId,
+            NAME,
+            ROLE,
+            USER_TYPE,
+            PASSWORD,
+            IS_IN_OFFICE,
+            CANCEL_AUTHORITY,
+            CITY,
+            IS_SALESMANAGER: salesManagerValue,
+          });
         if (error) throw error;
       }
       setIsConfirmOpen(false);
       setIsModalOpen(false);
-      fetchUsers(searchTerm);
+      await fetchUsers(searchTerm);
       toast.success(editingUser ? 'User updated successfully!' : 'User added successfully!');
     } catch (err: any) {
       toast.error(err.message || 'Failed to save user');
@@ -241,7 +266,8 @@ export default function UsersPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
           {filteredUsers.map((user) => {
             const initials = user.NAME ? user.NAME.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase() : '?';
-            const isCancelAuth = user.CANCEL_AUTHORITY === true || String(user.CANCEL_AUTHORITY).toUpperCase() === 'TRUE';
+            const isCancelAuth = parseBoolFlag(user.CANCEL_AUTHORITY);
+            const isSalesManager = parseBoolFlag(user.IS_SALESMANAGER);
 
             return (
               <div
@@ -291,7 +317,7 @@ export default function UsersPage() {
                         <MapPin className="w-2.5 h-2.5" /> {user.CITY}
                       </span>
                     )}
-                    {(user.IS_SALESMANAGER === true || String(user.IS_SALESMANAGER).toUpperCase() === 'TRUE') && (
+                    {isSalesManager && (
                       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 text-amber-600 rounded-xl text-[9px] font-black uppercase tracking-widest border border-amber-100">
                         <Shield className="w-2.5 h-2.5" /> Sales Manager
                       </span>

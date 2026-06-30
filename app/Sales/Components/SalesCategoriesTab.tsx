@@ -3,13 +3,13 @@
 import { useState, useMemo, useEffect, memo } from 'react';
 import { SalesInvoice } from '@/lib/supabase';;
 import { Search, Download, FileSpreadsheet } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import { useSalesModuleFilters } from '@/app/Sales/Model/SalesFilters';
+import { exportSalesExcelTable } from '@/app/Sales/Export/SalesExcelExport';
 import NoData from '@/app/Components/NoDataTab';
 import SalesTabLoader from './SalesTabLoader';
 
 interface SalesCategoriesTabProps {
   refreshTrigger?: number;
-  filters: any;
   userId: string;
 }
 
@@ -31,7 +31,8 @@ const CategoryRow = memo(({ item, rowNumber }: { item: { category: string; amoun
 
 CategoryRow.displayName = 'CategoryRow';
 
-export default function SalesCategoriesTab({ filters, userId, refreshTrigger }: SalesCategoriesTabProps) {
+export default function SalesCategoriesTab({ userId, refreshTrigger }: SalesCategoriesTabProps) {
+  const { commonFilters: filters } = useSalesModuleFilters();
   const [loading, setLoading] = useState(true);
   const [categoriesData, setCategoriesData] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -101,34 +102,26 @@ export default function SalesCategoriesTab({ filters, userId, refreshTrigger }: 
     };
   }, [filteredCategories]);
 
-  const exportToExcel = () => {
-    const workbook = XLSX.utils.book_new();
+  const exportToExcel = async () => {
     const headers = ['#', 'Category', 'Amount', 'Qty', 'Customers'];
 
     const rows = filteredCategories.map((item, index) => [
       index + 1,
       item.category,
-      item.amount.toFixed(2),
-      item.qty.toFixed(0),
+      item.amount,
+      item.qty,
       item.customers,
     ]);
 
     if (filteredCategories.length > 0) {
-      rows.push([
-        '',
-        'Total',
-        totals.totalAmount.toFixed(2),
-        totals.totalQty.toFixed(0),
-        totals.totalCustomers,
-      ]);
+      rows.push(['', 'Total', totals.totalAmount, totals.totalQty, totals.totalCustomers]);
     }
 
-    const sheetData = [headers, ...rows];
-    const sheet = XLSX.utils.aoa_to_sheet(sheetData);
-    XLSX.utils.book_append_sheet(workbook, sheet, 'Categories');
-
     const filename = `sales_categories_${new Date().toISOString().split('T')[0]}.xlsx`;
-    XLSX.writeFile(workbook, filename);
+    await exportSalesExcelTable(headers, rows, filename, {
+      sheetName: 'Categories',
+      numericColumns: ['Amount', 'Qty'],
+    });
   };
 
   if (loading) {

@@ -5,7 +5,7 @@ import { SalesInvoice } from '@/lib/supabase';;
 import { Search, Loader2, DollarSign, User, TrendingUp, FileSpreadsheet, BarChart2, X } from 'lucide-react';
 import NoData from '@/app/Components/NoDataTab';
 import SalesTabLoader from './SalesTabLoader';
-import * as XLSX from 'xlsx';
+import { exportSalesExcel } from '@/app/Sales/Export/SalesExcelExport';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
 
 interface SalesST_ByProductProps {
@@ -52,9 +52,9 @@ export default function SalesST_ByProduct({ productList, loading, refreshTrigger
     return (appliedSearchQuery.trim() || appliedCustomerQuery.trim()) ? list : [];
   }, [productList, appliedSearchQuery, appliedCustomerQuery]);
 
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
     if (filteredProducts.length === 0) return;
-    const exportData: any[] = [];
+    const exportData: Record<string, unknown>[] = [];
     filteredProducts.forEach(p => {
       p.customers.forEach((stats: any) => {
         const most = stats.mostPrice;
@@ -78,10 +78,10 @@ export default function SalesST_ByProduct({ productList, loading, refreshTrigger
       });
     });
 
-    const ws = XLSX.utils.json_to_sheet(exportData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Analysis');
-    XLSX.writeFile(wb, `Pricing_Analysis_By_Product_${new Date().toISOString().split('T')[0]}.xlsx`);
+    await exportSalesExcel(exportData, `Pricing_Analysis_By_Product_${new Date().toISOString().split('T')[0]}.xlsx`, {
+      sheetName: 'Analysis',
+      numericColumns: ['Most Price', 'Max Price', 'Cost', 'Diff'],
+    });
   };
 
   if (loading) return <SalesTabLoader />;

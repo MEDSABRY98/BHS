@@ -3,15 +3,16 @@
 import { useState, useMemo, useEffect } from 'react';
 import { SalesInvoice } from '@/lib/supabase';;
 import { MapPin, ShoppingBag, UserCircle, DollarSign, Package, Store } from 'lucide-react';
+import { useSalesModuleFilters } from '@/app/Sales/Model/SalesFilters';
 import SalesTabLoader from './SalesTabLoader';
 
 interface SalesStatisticsTabProps {
   refreshTrigger?: number;
-  filters: any;
   userId: string;
 }
 
-export default function SalesStatisticsTab({ filters, userId, refreshTrigger }: SalesStatisticsTabProps) {
+export default function SalesStatisticsTab({ userId, refreshTrigger }: SalesStatisticsTabProps) {
+  const { commonFilters: filters } = useSalesModuleFilters();
   const [loading, setLoading] = useState(true);
   const [activeSubTab, setActiveSubTab] = useState<'area' | 'market' | 'merchandiser' | 'salesrep'>('area');
 

@@ -764,7 +764,7 @@ export default function CustomersTab({
 
           <div className="h-6 w-px bg-gray-200 mx-1 shrink-0"></div>
 
-          <button onClick={() => exportToExcel(filteredData, 'Customers_Report', data, yearlyPivotData)} className="p-2.5 bg-white border border-gray-200 rounded-xl hover:border-green-400 text-green-600 transition-all shadow-sm shrink-0" title="Export Excel">
+          <button onClick={() => void exportToExcel(filteredData, 'Customers_Report', data, yearlyPivotData)} className="p-2.5 bg-white border border-gray-200 rounded-xl hover:border-green-400 text-green-600 transition-all shadow-sm shrink-0" title="Export Excel">
             <FileSpreadsheet size={20} />
           </button>
           <button onClick={() => exportToPDF(filteredData, 'Customers_PDF_Report')} className="p-2.5 bg-white border border-gray-200 rounded-xl hover:border-red-400 text-red-600 transition-all shadow-sm shrink-0" title="Export PDF">

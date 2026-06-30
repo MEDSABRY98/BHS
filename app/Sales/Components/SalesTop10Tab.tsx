@@ -2,12 +2,12 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { Package, Users, ArrowUp, ArrowDown, FileSpreadsheet, LayoutGrid, Layers } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import { useSalesModuleFilters } from '@/app/Sales/Model/SalesFilters';
+import { exportSalesExcelWorkbook, recordsFromTable } from '@/app/Sales/Export/SalesExcelExport';
 import SalesTabLoader from './SalesTabLoader';
 
 interface SalesTop10TabProps {
   refreshTrigger?: number;
-  filters: any;
   userId: string;
 }
 
@@ -56,7 +56,8 @@ function calculateTotals(rows: Top10Row[]) {
   };
 }
 
-export default function SalesTop10Tab({ filters, userId, refreshTrigger }: SalesTop10TabProps) {
+export default function SalesTop10Tab({ userId, refreshTrigger }: SalesTop10TabProps) {
+  const { commonFilters: filters } = useSalesModuleFilters();
   const [loading, setLoading] = useState(true);
   const [topCount, setTopCount] = useState<number>(10);
   const [activeSubTab, setActiveSubTab] = useState<Top10SubTab>('main');
@@ -118,62 +119,55 @@ export default function SalesTop10Tab({ filters, userId, refreshTrigger }: Sales
   const subCustomerTotals = useMemo(() => calculateTotals(sortedSubCustomers), [sortedSubCustomers]);
   const productTotals = useMemo(() => calculateTotals(sortedProducts), [sortedProducts]);
 
-  const exportToExcel = () => {
-    const workbook = XLSX.utils.book_new();
-
-    const addCustomerSheet = (sheetName: string, rows: Top10Row[], totals: ReturnType<typeof calculateTotals>) => {
+  const exportToExcel = async () => {
+    const buildCustomerSheet = (sheetName: string, rows: Top10Row[], totals: ReturnType<typeof calculateTotals>) => {
       const headers = ['#', 'Customer', 'Amount', 'Qty', 'Transactions'];
       const dataRows = rows.map((item, index) => [
         index + 1,
         item.customer,
-        item.totalAmount.toFixed(2),
-        item.totalQty.toFixed(0),
-        item.transactions
+        item.totalAmount,
+        item.totalQty,
+        item.transactions,
       ]);
 
       if (rows.length > 0) {
-        dataRows.push([
-          '',
-          'Total',
-          totals.totalAmount.toFixed(2),
-          totals.totalQty.toFixed(0),
-          totals.totalTransactions
-        ]);
+        dataRows.push(['', 'Total', totals.totalAmount, totals.totalQty, totals.totalTransactions]);
       }
 
-      const sheet = XLSX.utils.aoa_to_sheet([headers, ...dataRows]);
-      XLSX.utils.book_append_sheet(workbook, sheet, sheetName);
+      return {
+        name: sheetName,
+        data: recordsFromTable(headers, dataRows),
+        options: { numericColumns: ['Amount', 'Qty'] },
+      };
     };
-
-    addCustomerSheet('Main Customers', sortedMainCustomers, mainCustomerTotals);
-    addCustomerSheet('Sub Customers', sortedSubCustomers, subCustomerTotals);
 
     const productHeaders = ['#', 'BARCODE', 'Product', 'Amount', 'Qty', 'Transactions'];
     const productRows = sortedProducts.map((item, index) => [
       index + 1,
       item.barcode,
       (item.products || []).join(', '),
-      item.totalAmount.toFixed(2),
-      item.totalQty.toFixed(0),
-      item.transactions
+      item.totalAmount,
+      item.totalQty,
+      item.transactions,
     ]);
 
     if (sortedProducts.length > 0) {
-      productRows.push([
-        '',
-        '',
-        'Total',
-        productTotals.totalAmount.toFixed(2),
-        productTotals.totalQty.toFixed(0),
-        productTotals.totalTransactions
-      ]);
+      productRows.push(['', '', 'Total', productTotals.totalAmount, productTotals.totalQty, productTotals.totalTransactions]);
     }
 
-    const productSheet = XLSX.utils.aoa_to_sheet([productHeaders, ...productRows]);
-    XLSX.utils.book_append_sheet(workbook, productSheet, 'Products');
-
     const filename = `sales_top10_${new Date().toISOString().split('T')[0]}.xlsx`;
-    XLSX.writeFile(workbook, filename);
+    await exportSalesExcelWorkbook(
+      [
+        buildCustomerSheet('Main Customers', sortedMainCustomers, mainCustomerTotals),
+        buildCustomerSheet('Sub Customers', sortedSubCustomers, subCustomerTotals),
+        {
+          name: 'Products',
+          data: recordsFromTable(productHeaders, productRows),
+          options: { numericColumns: ['Amount', 'Qty'] },
+        },
+      ],
+      filename
+    );
   };
 
   const renderCustomerTable = (

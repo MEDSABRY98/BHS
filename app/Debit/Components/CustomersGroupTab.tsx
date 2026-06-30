@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState, useEffect, useRef } from 'react';
-import * as XLSX from 'xlsx';
+import { exportDebitExcelTable } from '@/app/Debit/Export/DebitExcelExport';
 import {
   useReactTable,
   getCoreRowModel,
@@ -780,7 +780,7 @@ export default function CustomersGroupTab({ data }: CustomersGroupTabProps) {
   };
 
   // Excel Export Handler
-  const handleExcelExport = () => {
+  const handleExcelExport = async () => {
     if (invoicesForSummary.length === 0) {
       alert(selectedRowKeys.size > 0 ? 'No selected rows to export' : 'No data to export');
       return;
@@ -816,17 +816,14 @@ export default function CustomersGroupTab({ data }: CustomersGroupTabProps) {
       ];
     });
 
-    const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-    const workbook = XLSX.utils.book_new();
-    const sheetName = viewMode === 'overdue' ? 'Group Overdue Statement' : 'Group Account Statement';
-    XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
-
-    const colWidths = [30, 15, 12, 20, 12, 12, 12, 15, 15];
-    worksheet['!cols'] = colWidths.map(w => ({ wch: w }));
-
     const currentDate = new Date().toISOString().split('T')[0];
     const fileName = viewMode === 'overdue' ? 'Group_Overdue_Statement' : 'Group_Account_Statement';
-    XLSX.writeFile(workbook, `${fileName}_${currentDate}.xlsx`);
+    const sheetName = viewMode === 'overdue' ? 'Group Overdue Statement' : 'Group Account Statement';
+
+    await exportDebitExcelTable(headers, rows, `${fileName}_${currentDate}`, {
+      sheetName,
+      numericColumns: ['Debit', 'Credit', 'Net Debt', 'Days Overdue'],
+    });
   };
 
   // Table Configuration using Tanstack React Table

@@ -3,14 +3,14 @@
 import { useState, useMemo, useEffect, memo, useRef } from 'react';
 import { SalesInvoice } from '@/lib/supabase';;
 import { Search, ChevronLeft, ChevronRight, Download, X, FileSpreadsheet, Layers, LayoutGrid, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import { useSalesModuleFilters } from '@/app/Sales/Model/SalesFilters';
+import { exportSalesExcelTable } from '@/app/Sales/Export/SalesExcelExport';
 import SalesCustomerDetails from './SalesCustomerDetails';
 import NoData from '@/app/Components/NoDataTab';
 import SalesTabLoader from './SalesTabLoader';
 
 interface SalesCustomersTabProps {
   refreshTrigger?: number;
-  filters: any;
   userId: string;
   onUploadMapping?: (mapping: Record<string, any>) => void;
   showCosts?: boolean;
@@ -46,7 +46,8 @@ const CustomerRow = memo(({ item, rowNumber, onCustomerClick }: { item: { custom
 
 CustomerRow.displayName = 'CustomerRow';
 
-export default function SalesCustomersTab({ filters, userId, onUploadMapping, showCosts = true, refreshTrigger }: SalesCustomersTabProps) {
+export default function SalesCustomersTab({ userId, onUploadMapping, showCosts = true, refreshTrigger }: SalesCustomersTabProps) {
+  const { commonFilters: filters } = useSalesModuleFilters();
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
@@ -142,7 +143,7 @@ export default function SalesCustomersTab({ filters, userId, onUploadMapping, sh
     }, { totalAmount: 0, totalAverageAmount: 0, totalQty: 0, totalAverageQty: 0, totalProductsCount: 0, totalTransactions: 0 });
   }, [filteredCustomers]);
 
-  const exportToExcel = (mode: 'standard' | 'months') => {
+  const exportToExcel = async (mode: 'standard' | 'months') => {
     if (mode === 'months') {
       const allMonths = new Set<string>();
       customersData.forEach(item => {
@@ -152,34 +153,36 @@ export default function SalesCustomersTab({ filters, userId, onUploadMapping, sh
       });
 
       const sortedMonths = Array.from(allMonths).sort();
-      const workbook = XLSX.utils.book_new();
+      const monthHeaders = sortedMonths.map(m => new Date(m).toLocaleDateString('en-US', { month: 'short', year: '2-digit' }));
+      const headers = ['Customer', 'Area', 'Market', ...monthHeaders, 'Total'];
 
       const amountRows = customersData.map(item => {
-        const row: any[] = [item.customer, item.area || '', item.market || ''];
+        const row: unknown[] = [item.customer, item.area || '', item.market || ''];
         let total = 0;
         sortedMonths.forEach(m => {
           const val = item.monthlyData?.[m]?.amount || 0;
-          row.push(val.toFixed(2));
+          row.push(val);
           total += val;
         });
-        row.push(total.toFixed(2));
+        row.push(total);
         return row;
-      }).sort((a, b) => a[0].localeCompare(b[0]));
+      }).sort((a, b) => String(a[0]).localeCompare(String(b[0])));
 
-      const amountSheet = XLSX.utils.aoa_to_sheet([['Customer', 'Area', 'Market', ...sortedMonths.map(m => new Date(m).toLocaleDateString('en-US', { month: 'short', year: '2-digit' })), 'Total'], ...amountRows]);
-      XLSX.utils.book_append_sheet(workbook, amountSheet, 'Revenue Distribution');
-      XLSX.writeFile(workbook, `customer_revenue_distribution_${new Date().toISOString().split('T')[0]}.xlsx`);
+      await exportSalesExcelTable(headers, amountRows, `customer_revenue_distribution_${new Date().toISOString().split('T')[0]}.xlsx`, {
+        sheetName: 'Revenue Distribution',
+        numericColumns: [...monthHeaders, 'Total'],
+      });
     } else {
       const headers = ['#', 'Customer Name', 'Amount', 'Amount Average', 'QTY', 'SKUs'];
       const rows = filteredCustomers.map((item, i) => [
-        i + 1, item.customer, item.totalAmount.toFixed(2), item.averageAmount.toFixed(2),
-        item.totalQty.toFixed(0), item.productsCount
+        i + 1, item.customer, item.totalAmount, item.averageAmount,
+        item.totalQty, item.productsCount
       ]);
-      rows.push(['', 'TOTALS', totals.totalAmount.toFixed(2), totals.totalAverageAmount.toFixed(2), totals.totalQty.toFixed(0), totals.totalProductsCount]);
-      const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Customers Analysis');
-      XLSX.writeFile(wb, `customers_analysis_${new Date().toISOString().split('T')[0]}.xlsx`);
+      rows.push(['', 'TOTALS', totals.totalAmount, totals.totalAverageAmount, totals.totalQty, totals.totalProductsCount]);
+      await exportSalesExcelTable(headers, rows, `customers_analysis_${new Date().toISOString().split('T')[0]}.xlsx`, {
+        sheetName: 'Customers Analysis',
+        numericColumns: ['Amount', 'Amount Average', 'QTY'],
+      });
     }
     setShowExportModal(false);
   };
@@ -191,7 +194,6 @@ export default function SalesCustomersTab({ filters, userId, onUploadMapping, sh
       customerName={selectedCustomer.name}
       customerId={selectedCustomer.id}
       customerType={activeTab}
-      filters={filters}
       userId={userId}
       onBack={() => setSelectedCustomer(null)}
       showCosts={showCosts}

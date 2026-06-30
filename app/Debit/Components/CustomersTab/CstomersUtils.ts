@@ -1,6 +1,9 @@
 import { InvoiceRow, CustomerAnalysis } from '@/types';
 import { exportToPDF as exportToPDFUtil } from '@/app/Sales/Pdf/AnalysisAllCustomersUtils';
-import * as XLSX from 'xlsx';
+import {
+  exportDebitExcelWorkbook,
+  recordsFromTable,
+} from '@/app/Debit/Export/DebitExcelExport';
 
 // Helper function to copy text to clipboard
 export const copyToClipboard = async (text: string): Promise<boolean> => {
@@ -349,7 +352,12 @@ export const exportToPDF = async (data: CustomerAnalysis[], filename: string = '
   }
 };
 
-export const exportToExcel = (data: CustomerAnalysis[], filename: string = 'customers_export', invoices: InvoiceRow[] = [], yearlyData?: any) => {
+export const exportToExcel = async (
+  data: CustomerAnalysis[],
+  filename: string = 'customers_export',
+  invoices: InvoiceRow[] = [],
+  yearlyData?: any
+) => {
   const netOnlyHeaders = ['Customer Name', 'Date', 'Type', 'Invoice Number', 'Debit', 'Credit', 'Net Debt'];
   const netOnlyRows: any[] = [];
   for (const customer of data) {
@@ -393,10 +401,29 @@ export const exportToExcel = (data: CustomerAnalysis[], filename: string = 'cust
     ];
   });
 
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([netOnlyHeaders, ...netOnlyRows]), 'Net Only Details');
-  XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([dashboardHeaders, ...dashboardRows]), 'Customers Dashboard');
-  XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([summaryHeaders, ...summaryRows]), 'Summary View');
+  const sheets = [
+    {
+      name: 'Net Only Details',
+      data: recordsFromTable(netOnlyHeaders, netOnlyRows),
+      options: {
+        numericColumns: ['Debit', 'Credit', 'Net Debt'],
+      },
+    },
+    {
+      name: 'Customers Dashboard',
+      data: recordsFromTable(dashboardHeaders, dashboardRows),
+      options: {
+        numericColumns: ['Net Debit', 'OB Amount', 'Overdue Amount', 'Payments 90d Amt', 'Net Sales', 'Sales 90d Amt'],
+      },
+    },
+    {
+      name: 'Summary View',
+      data: recordsFromTable(summaryHeaders, summaryRows),
+      options: {
+        numericColumns: ['Total Debt', 'Last Pay Amt', 'Pay (90d)', 'Last Sale Amt', 'Sales (90d)'],
+      },
+    },
+  ];
 
   if (yearlyData && yearlyData.rows.length > 0) {
     const years = yearlyData.sortedYears;
@@ -406,9 +433,16 @@ export const exportToExcel = (data: CustomerAnalysis[], filename: string = 'cust
       years.forEach((yr: string) => rowData.push((row.yearlyAmounts[yr] || 0).toFixed(2)));
       return rowData;
     });
-    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([yearlyHeaders, ...yearlyRows]), 'Yearly View');
+    sheets.push({
+      name: 'Yearly View',
+      data: recordsFromTable(yearlyHeaders, yearlyRows),
+      options: {
+        numericColumns: ['Net Debt', ...years],
+      },
+    });
   }
-  XLSX.writeFile(workbook, `${filename}.xlsx`);
+
+  await exportDebitExcelWorkbook(sheets, filename);
 };
 
 

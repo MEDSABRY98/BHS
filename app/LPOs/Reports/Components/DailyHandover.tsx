@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { bhs_supabas } from '@/lib/supabase';
+import { bhs_supabas, fetchAssignedDrivers } from '@/lib/supabase';
 import SearchSelect from '../../Components/DropDownList';
 import { FileText, Loader2, Download, Printer, AlertCircle } from 'lucide-react';
 import { generateDailyHandoverPDF } from '@/app/LPOs/Pdf/DailyHandoverPdf';
@@ -46,13 +46,7 @@ export default function HandoverReports() {
   async function fetchDrivers() {
     setIsDriversLoading(true);
     try {
-      const { data, error } = await bhs_supabas
-        .from('bhs_USERS')
-        .select('*')
-        .eq('USER_TYPE', 'Driver')
-        .order('NAME');
-      if (error) throw error;
-      setDrivers(data || []);
+      setDrivers(await fetchAssignedDrivers());
     } catch (err) {
       console.error('Error fetching drivers:', err);
     } finally {

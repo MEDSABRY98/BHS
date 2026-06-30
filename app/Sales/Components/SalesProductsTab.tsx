@@ -3,14 +3,14 @@
 import { useState, useMemo, useEffect, memo } from 'react';
 import { SalesInvoice } from '@/lib/supabase';;
 import { Search, ChevronLeft, ChevronRight, Download, FileSpreadsheet } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import { useSalesModuleFilters } from '@/app/Sales/Model/SalesFilters';
+import { exportSalesExcelTable } from '@/app/Sales/Export/SalesExcelExport';
 import NoData from '@/app/Components/NoDataTab';
 import SalesProductDetails from './SalesProductDetails';
 import SalesTabLoader from './SalesTabLoader';
 
 interface SalesProductsTabProps {
   refreshTrigger?: number;
-  filters: any;
   userId: string;
 }
 
@@ -41,7 +41,8 @@ const ProductRow = memo(({ item, rowNumber, onProductClick }: { item: { productI
 
 ProductRow.displayName = 'ProductRow';
 
-export default function SalesProductsTab({ filters, userId, refreshTrigger }: SalesProductsTabProps) {
+export default function SalesProductsTab({ userId, refreshTrigger }: SalesProductsTabProps) {
+  const { commonFilters: filters } = useSalesModuleFilters();
   const [loading, setLoading] = useState(true);
   const [productsData, setProductsData] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -125,36 +126,27 @@ export default function SalesProductsTab({ filters, userId, refreshTrigger }: Sa
     });
   }, [filteredProducts]);
 
-  const exportToExcel = () => {
-    const workbook = XLSX.utils.book_new();
+  const exportToExcel = async () => {
     const headers = ['#', 'Barcode', 'Product Name', 'Amount', 'Qty', 'Transactions'];
 
     const rows = filteredProducts.map((item, index) => [
       index + 1,
       item.barcode || '-',
       item.product,
-      item.amount.toFixed(2),
-      item.qty.toFixed(0),
+      item.amount,
+      item.qty,
       item.transactions,
     ]);
 
     if (filteredProducts.length > 0) {
-      rows.push([
-        '',
-        '',
-        'Total',
-        totals.totalAmount.toFixed(2),
-        totals.totalQty.toFixed(0),
-        totals.totalTransactions,
-      ]);
+      rows.push(['', '', 'Total', totals.totalAmount, totals.totalQty, totals.totalTransactions]);
     }
 
-    const sheetData = [headers, ...rows];
-    const sheet = XLSX.utils.aoa_to_sheet(sheetData);
-    XLSX.utils.book_append_sheet(workbook, sheet, 'Products');
-
     const filename = `sales_products_${new Date().toISOString().split('T')[0]}.xlsx`;
-    XLSX.writeFile(workbook, filename);
+    await exportSalesExcelTable(headers, rows, filename, {
+      sheetName: 'Products',
+      numericColumns: ['Amount', 'Qty'],
+    });
   };
 
   if (loading) {
@@ -165,7 +157,6 @@ export default function SalesProductsTab({ filters, userId, refreshTrigger }: Sa
     return (
       <SalesProductDetails
         productId={selectedProductId}
-        filters={filters}
         userId={userId}
         onBack={() => setSelectedProductId(null)}
       />
