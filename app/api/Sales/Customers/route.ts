@@ -1,11 +1,37 @@
 import { NextResponse } from 'next/server';
+import { bhs_supabase } from '@/lib/supabase';
 import { getFilteredSalesData } from '@/app/Sales/Utils/SalesMappingCache';
+
+function normCustomerId(value: unknown): string {
+  if (value === null || value === undefined || value === '') return '';
+  return String(value).trim().toUpperCase();
+}
+
+async function getCustomerNameMap() {
+  const { data, error } = await bhs_supabase
+    .from('bhs_CUSTOMERS')
+    .select('"CUSTOMER ID", "CUSTOMER MAIN NAME", "CUSTOMER SUB NAME"');
+
+  if (error) throw error;
+
+  const map = new Map<string, { mainName: string; subName: string }>();
+  (data || []).forEach((row) => {
+    const id = normCustomerId(row['CUSTOMER ID']);
+    if (!id) return;
+    map.set(id, {
+      mainName: row['CUSTOMER MAIN NAME'] || '',
+      subName: row['CUSTOMER SUB NAME'] || '',
+    });
+  });
+  return map;
+}
 
 export async function POST(request: Request) {
   try {
     const { userId, filters, activeTab } = await request.json();
 
     const augmentedData = await getFilteredSalesData(userId);
+    const customerNameMap = await getCustomerNameMap();
 
     // Apply Global Filters
     let globallyFilteredData = augmentedData;
@@ -66,22 +92,33 @@ export async function POST(request: Request) {
     for (let i = 0; i < globallyFilteredData.length; i++) {
       const item = globallyFilteredData[i];
 
+      const normalizedId = normCustomerId(item.customerId);
+      const freshNames = normalizedId ? customerNameMap.get(normalizedId) : undefined;
+
       let key: string;
       let displayName: string;
 
       if (activeTab === 'main') {
-        key = item.customerMainName || item.customerName || 'Unknown';
-        displayName = item.customerMainName || item.customerName || 'Unknown';
+        displayName =
+          freshNames?.mainName ||
+          item.customerMainName ||
+          item.customerName ||
+          'Unknown';
+        key = displayName;
       } else {
-        key = item.customerId || item.customerName;
-        displayName = item.customerName;
+        key = normalizedId || item.customerName || 'Unknown';
+        displayName =
+          freshNames?.subName ||
+          item.customerName ||
+          item.customerMainName ||
+          'Unknown';
       }
 
       let existing = customerMap.get(key);
 
       if (!existing) {
         existing = {
-          customerId: key,
+          customerId: normalizedId || key,
           customer: displayName,
           area: item.area || '',
           market: item.market || '',
@@ -93,6 +130,8 @@ export async function POST(request: Request) {
           monthlyData: {} // For Excel export
         };
         customerMap.set(key, existing);
+      } else if (displayName && existing.customer !== displayName && freshNames?.subName) {
+        existing.customer = displayName;
       }
 
       existing.totalAmount += Number(item.amount) || 0;

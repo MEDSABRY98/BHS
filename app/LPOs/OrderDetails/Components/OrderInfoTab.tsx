@@ -99,8 +99,8 @@ const OrderInfoTab = forwardRef<OrderInfoTabHandle, OrderInfoTabProps>(function 
   const customerOptions = useMemo(
     () =>
       customers.map((c) => ({
-        id: c.ID,
-        label: c['CUSTOMER NAME'] || c['CUSTOMER SUB NAME'] || c.ID,
+        id: c['CUSTOMER ID'],
+        label: c['CUSTOMER NAME'] || c['CUSTOMER SUB NAME'] || c['CUSTOMER ID'],
       })),
     [customers]
   );
@@ -116,7 +116,7 @@ const OrderInfoTab = forwardRef<OrderInfoTabHandle, OrderInfoTabProps>(function 
 
   const selectedCustomerName = useMemo(() => {
     if (isEditing) {
-      return customers.find((c) => c.ID === formData.CUSTOMER_ID)?.['CUSTOMER NAME'] || 'None';
+      return customers.find((c) => c['CUSTOMER ID'] === formData.CUSTOMER_ID)?.['CUSTOMER NAME'] || 'None';
     }
     return order.bhs_CUSTOMERS?.['CUSTOMER NAME'] || 'None';
   }, [isEditing, formData.CUSTOMER_ID, customers, order]);

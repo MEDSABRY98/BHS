@@ -157,7 +157,7 @@ export default function CreateOrderPage() {
       }
     }
 
-    const customer = customers.find(c => c.ID === formData.CUSTOMER_ID);
+    const customer = customers.find(c => c['CUSTOMER ID'] === formData.CUSTOMER_ID);
     const user = users.find(u => u.ID === formData.CREATED_BY);
     const matchedDriver = users.find(u => u.ID === formData.DRIVER_ID);
 
@@ -490,7 +490,7 @@ export default function CreateOrderPage() {
 
               newPendingOrders.push({
                 CREATED_BY: formData.CREATED_BY,
-                CUSTOMER_ID: customer.ID,
+                CUSTOMER_ID: customer['CUSTOMER ID'],
                 LPO_ID: lpoId || '',
                 INVOICE_ID: invoiceId || '',
                 AMOUNT: row["Amount"] || 0,
@@ -635,7 +635,7 @@ export default function CreateOrderPage() {
               c["CUSTOMER NAME"]?.toLowerCase() === customerName.toLowerCase()
             );
             if (matchedCustomer) {
-              updatePayload.CUSTOMER_ID = matchedCustomer.ID;
+              updatePayload.CUSTOMER_ID = matchedCustomer['CUSTOMER ID'];
             } else {
               errors.push(`Row ${index + 2}: Customer "${customerName}" not found in customers list`);
               continue;
@@ -731,7 +731,7 @@ export default function CreateOrderPage() {
             <div className="min-w-0">
               <SearchSelect
                 label=""
-                options={customers.map(c => ({ id: c.ID, label: c["CUSTOMER NAME"], subLabel: c["CUSTOMER CITY"] }))}
+                options={customers.map(c => ({ id: c['CUSTOMER ID'], label: c["CUSTOMER NAME"], subLabel: c["CUSTOMER CITY"] }))}
                 value={formData.CUSTOMER_ID}
                 onChange={(val) => setFormData({ ...formData, CUSTOMER_ID: val })}
                 placeholder="Select Customer"

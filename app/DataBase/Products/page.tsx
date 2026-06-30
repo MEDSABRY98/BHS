@@ -17,12 +17,15 @@ import {
   ChevronLeft,
   ChevronRight,
   Download,
-  Upload
+  Upload,
+  GitMerge
 } from 'lucide-react';
 import { ConfirmModal } from '../../LPOs/Components/ConfirmModal';
 import NoData from '@/app/Components/NoDataTab';
 import { usePermissions } from '../../LPOs/Hooks/usePermissions';
 import { toast } from '@/app/Components/Notification';
+import { useMergeProducts } from './Hooks/UseMergeProducts';
+import MergeProductsModal from './Components/MergeProductsModal';
 
 
 export default function ProductsPage() {
@@ -438,6 +441,21 @@ export default function ProductsPage() {
   const startIndex = (currentPage - 1) * itemsPerPage;
   const paginatedProducts = products;
 
+  const triggerMessage = (type: 'success' | 'error', text: string) => {
+    if (type === 'success') toast.success(text);
+    else toast.error(text);
+  };
+
+  const merge = useMergeProducts(
+    products,
+    () => fetchProducts(searchTerm, currentPage),
+    (msg, type = 'success') => triggerMessage(type, msg)
+  );
+
+  useEffect(() => {
+    merge.setSelectedInternalIds([]);
+  }, [searchTerm, currentPage]);
+
   return (
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -471,6 +489,23 @@ export default function ProductsPage() {
               </label>
 
               <button
+                onClick={merge.handleMergeTrigger}
+                disabled={merge.isMerging || merge.selectedInternalIds.length < 2}
+                className="p-4 bg-white border border-gray-200 text-purple-600 rounded-2xl shadow-sm hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center disabled:opacity-50"
+                title={
+                  merge.selectedInternalIds.length < 2
+                    ? 'Select at least 2 products to merge'
+                    : `Merge ${merge.selectedInternalIds.length} products`
+                }
+              >
+                {merge.isMerging ? (
+                  <Loader2 className="w-6 h-6 animate-spin" />
+                ) : (
+                  <GitMerge className="w-6 h-6" />
+                )}
+              </button>
+
+              <button
                 onClick={() => handleOpenModal()}
                 className="p-4 bg-black text-[#D4AF37] rounded-2xl shadow-xl shadow-black/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center"
                 title="New Product"
@@ -496,104 +531,113 @@ export default function ProductsPage() {
       </div>
 
       {isLoading ? (
-        <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse table-fixed min-w-[1200px]">
-              <thead>
-                <tr className="border-b border-gray-50">
-                  <th className="px-6 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-24">ID</th>
-                  <th className="px-6 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-[35%]">Product Name</th>
-                  <th className="px-6 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-48">Barcode</th>
-                  <th className="px-6 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-[20%]">Category</th>
-                  <th className="px-6 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-32">Item Code</th>
-                  <th className="px-6 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-28">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {Array(8).fill(0).map((_, i) => (
-                  <tr key={i} className="animate-pulse">
-                    <td colSpan={6} className="px-8 py-6">
-                      <div className="h-8 bg-gray-50 rounded-xl w-full"></div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+          {Array(8).fill(0).map((_, i) => (
+            <div key={i} className="animate-pulse bg-white border border-gray-100 rounded-[2.5rem] p-6 h-[220px] flex flex-col justify-between">
+              <div className="space-y-4">
+                <div className="w-12 h-12 bg-gray-50 rounded-2xl" />
+                <div className="h-6 bg-gray-50 rounded-xl w-3/4" />
+                <div className="h-4 bg-gray-50 rounded-xl w-1/2" />
+              </div>
+              <div className="h-10 bg-gray-50 rounded-2xl w-full" />
+            </div>
+          ))}
         </div>
       ) : paginatedProducts.length === 0 ? (
         <NoData title="NO PRODUCTS FOUND" />
       ) : (
-      <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse table-fixed min-w-[1200px]">
-            <thead>
-              <tr className="border-b border-gray-50">
-                <th className="px-6 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-24">ID</th>
-                <th className="px-6 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-[35%]">Product Name</th>
-                <th className="px-6 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-48">Barcode</th>
-                <th className="px-6 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-[20%]">Category</th>
-                <th className="px-6 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-32">Item Code</th>
-                <th className="px-6 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-28">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-                {paginatedProducts.map((product) => (
-                  <tr key={product.ID} className="group hover:bg-gray-50/50 transition-all duration-300">
-                    <td className="px-8 py-6 text-center">
-                      <span className="text-xs font-bold text-gray-300 uppercase tracking-widest">{product.ID}</span>
-                    </td>
-                    <td className="px-6 py-6 text-center overflow-hidden">
-                      <div className="flex items-center justify-center gap-3 w-full">
-                        <div className="w-10 h-10 bg-black rounded-xl flex items-center justify-center shrink-0 shadow-lg shadow-black/5">
-                          <Package className="w-5 h-5 text-[#D4AF37]" />
-                        </div>
-                        <span className="font-bold text-black truncate" title={product["PRODUCT NAME"]}>{product["PRODUCT NAME"]}</span>
-                      </div>
-                    </td>
-                    <td className="px-8 py-6 text-center">
-                      <div className="flex items-center justify-center gap-2 text-gray-400">
-                        <Barcode className="w-3.5 h-3.5" />
-                        <span className="text-xs font-medium font-mono tracking-widest">{product["PRODUCT BARCODE"]}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-6 text-center overflow-hidden">
-                      <span
-                        className="text-xs font-bold text-gray-600 px-3 py-1 bg-gray-100 rounded-lg whitespace-nowrap truncate inline-block max-w-full"
-                        title={product["PRODUCT CATEGORY"] || ''}
-                      >
-                        {product["PRODUCT CATEGORY"] || '—'}
-                      </span>
-                    </td>
-                    <td className="px-8 py-6 text-center">
-                      {product["ITEM CODE"] != null ? (
-                        <span className="inline-flex items-center px-3 py-1 bg-[#D4AF37]/10 text-[#B8960C] text-xs font-black font-mono rounded-lg tracking-widest">
-                          {product["ITEM CODE"]}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-gray-300">—</span>
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+          {paginatedProducts.map((product) => {
+            const isSelected = merge.selectedInternalIds.includes(product.ID);
+
+            return (
+              <div
+                key={product.ID}
+                onClick={() => canEdit && handleOpenModal(product)}
+                className={`group bg-white border rounded-[2.5rem] p-6 transition-all duration-300 flex flex-col justify-between min-h-[220px] ${
+                  isSelected ? 'border-[#D4AF37] ring-2 ring-[#D4AF37]/20' : 'border-gray-100'
+                } ${canEdit ? 'hover:shadow-xl hover:border-black/5 cursor-pointer' : ''}`}
+              >
+                <div>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-start gap-3">
+                      {canEdit && (
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={() => merge.handleToggleSelect(product.ID)}
+                          className="mt-3 w-4 h-4 rounded border-gray-300"
+                          title="Select for merge"
+                        />
                       )}
-                    </td>
-                    <td className="px-8 py-6 text-center">
-                      <div className="flex justify-center gap-2 opacity-0 group-hover:opacity-100 transition-all">
-                        {canEdit && (
-                          <button onClick={() => handleOpenModal(product)} className="p-2.5 hover:bg-white hover:shadow-sm rounded-xl text-gray-400 hover:text-black transition-all border border-transparent hover:border-gray-100">
-                            <Edit2 className="w-4 h-4" />
-                          </button>
-                        )}
-                        {canDelete && (
-                          <button onClick={() => handleDelete(product.ID)} className="p-2.5 hover:bg-red-50 rounded-xl text-gray-400 hover:text-red-500 transition-all border border-transparent hover:border-red-100">
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        )}
+                      <div className="w-12 h-12 rounded-2xl bg-black text-[#D4AF37] flex items-center justify-center shadow-lg shadow-black/10">
+                        <Package className="w-5 h-5" />
                       </div>
-                    </td>
-                  </tr>
-                ))}
-            </tbody>
-          </table>
+                    </div>
+                    <span className="text-xs font-bold text-gray-300 uppercase tracking-widest">{product.ID}</span>
+                  </div>
+
+                  <div className="mt-4">
+                    <h3
+                      className="font-black text-black text-base leading-tight group-hover:text-[#D4AF37] transition-colors line-clamp-2"
+                      title={product['PRODUCT NAME']}
+                    >
+                      {product['PRODUCT NAME'] || '—'}
+                    </h3>
+                    <div className="text-xs font-bold text-gray-400 mt-1 line-clamp-1 font-mono" title={product['PRODUCT BARCODE']}>
+                      {product['PRODUCT BARCODE'] || '—'}
+                    </div>
+                    <div className="flex flex-wrap gap-2 mt-3">
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-gray-50 text-gray-500 rounded-xl text-[9px] font-black uppercase tracking-widest font-mono">
+                        ID: {product['PRODUCT ID']}
+                      </span>
+                      {product['PRODUCT CATEGORY'] && (
+                        <span className="inline-flex items-center px-2.5 py-1 bg-gray-100 text-gray-600 rounded-xl text-[9px] font-black uppercase tracking-widest truncate max-w-full">
+                          {product['PRODUCT CATEGORY']}
+                        </span>
+                      )}
+                      {product['ITEM CODE'] != null && (
+                        <span className="inline-flex items-center px-2.5 py-1 bg-[#D4AF37]/10 text-[#B8960C] rounded-xl text-[9px] font-black font-mono tracking-widest">
+                          #{product['ITEM CODE']}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-6 pt-3 border-t border-gray-50 flex items-center justify-end">
+                  <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all duration-300">
+                    {canEdit && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenModal(product);
+                        }}
+                        className="p-2 hover:bg-gray-50 rounded-xl text-gray-400 hover:text-black transition-all border border-transparent hover:border-gray-100"
+                        title="Edit Product"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                    )}
+                    {canDelete && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDelete(product.ID);
+                        }}
+                        className="p-2 hover:bg-red-50 rounded-xl text-gray-400 hover:text-red-500 transition-all border border-transparent hover:border-red-100"
+                        title="Delete Product"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
-      </div>
       )}
 
       {/* Pagination Controls */}
@@ -753,6 +797,26 @@ export default function ProductsPage() {
         isLoading={isSaving}
         title="Confirm Deletion"
         message="Are you sure you want to delete this product? This action cannot be undone."
+      />
+
+      <MergeProductsModal
+        isOpen={merge.showMergeModal}
+        isConfirmingMerge={merge.isConfirmingMerge}
+        isMerging={merge.isMerging}
+        selectedProducts={merge.selectedProducts}
+        mergeTargetName={merge.mergeTargetName}
+        mergeTargetBarcode={merge.mergeTargetBarcode}
+        mergeTargetCategory={merge.mergeTargetCategory}
+        mergeTargetItemCode={merge.mergeTargetItemCode}
+        survivorProductId={merge.survivorProductId}
+        onClose={merge.closeMergeModal}
+        onConfirm={merge.handleConfirmMerge}
+        onBackFromConfirm={() => merge.setIsConfirmingMerge(false)}
+        setMergeTargetName={merge.setMergeTargetName}
+        setMergeTargetBarcode={merge.setMergeTargetBarcode}
+        setMergeTargetCategory={merge.setMergeTargetCategory}
+        setMergeTargetItemCode={merge.setMergeTargetItemCode}
+        setSurvivorProductId={merge.setSurvivorProductId}
       />
     </div>
   );

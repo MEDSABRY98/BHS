@@ -18,13 +18,16 @@ import {
   Download,
   Upload,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  GitMerge
 } from 'lucide-react';
 import { toast } from '@/app/Components/Notification';
 import * as XLSX from 'xlsx';
 import { ConfirmModal } from '../../LPOs/Components/ConfirmModal';
 import NoData from '@/app/Components/NoDataTab';
 import { usePermissions } from '../../LPOs/Hooks/usePermissions';
+import { useMergeCustomers } from './Hooks/UseMergeCustomers';
+import MergeCustomersModal from './Components/MergeCustomersModal';
 
 
 export default function CustomersPage() {
@@ -207,6 +210,16 @@ export default function CustomersPage() {
     if (type === 'success') toast.success(text);
     else toast.error(text);
   };
+
+  const merge = useMergeCustomers(
+    customers,
+    () => fetchCustomers(searchTerm, currentPage),
+    (msg, type = 'success') => triggerMessage(type, msg)
+  );
+
+  useEffect(() => {
+    merge.setSelectedInternalIds([]);
+  }, [searchTerm, currentPage]);
 
   const normalizeExcelId = (val: unknown): string => {
     if (val === null || val === undefined || val === '') return '';
@@ -485,6 +498,23 @@ export default function CustomersPage() {
               </label>
 
               <button
+                onClick={merge.handleMergeTrigger}
+                disabled={merge.isMerging || merge.selectedInternalIds.length < 2}
+                className="p-4 bg-white border border-gray-200 text-purple-600 rounded-2xl shadow-sm hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center disabled:opacity-50"
+                title={
+                  merge.selectedInternalIds.length < 2
+                    ? 'Select at least 2 customers to merge'
+                    : `Merge ${merge.selectedInternalIds.length} customers`
+                }
+              >
+                {merge.isMerging ? (
+                  <Loader2 className="w-6 h-6 animate-spin" />
+                ) : (
+                  <GitMerge className="w-6 h-6" />
+                )}
+              </button>
+
+              <button
                 onClick={() => handleOpenModal()}
                 className="p-4 bg-black text-[#D4AF37] rounded-2xl shadow-xl shadow-black/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center"
                 title="New Customer"
@@ -496,7 +526,7 @@ export default function CustomersPage() {
         </div>
       </div>
 
-      <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+      <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 space-y-4">
         <div className="relative">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
           <input
@@ -530,18 +560,33 @@ export default function CustomersPage() {
             const initials = customer["CUSTOMER MAIN NAME"] 
               ? customer["CUSTOMER MAIN NAME"].split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase() 
               : '?';
+            const isSelected = merge.selectedInternalIds.includes(customer.ID);
 
             return (
               <div
                 key={customer.ID}
                 onClick={() => canEdit && handleOpenModal(customer)}
-                className={`group bg-white border border-gray-100 rounded-[2.5rem] p-6 transition-all duration-300 flex flex-col justify-between min-h-[220px] ${canEdit ? 'hover:shadow-xl hover:border-black/5 cursor-pointer' : ''}`}
+                className={`group bg-white border rounded-[2.5rem] p-6 transition-all duration-300 flex flex-col justify-between min-h-[220px] ${
+                  isSelected ? 'border-[#D4AF37] ring-2 ring-[#D4AF37]/20' : 'border-gray-100'
+                } ${canEdit ? 'hover:shadow-xl hover:border-black/5 cursor-pointer' : ''}`}
               >
                 <div>
                   {/* Top Row with Initials/Avatar and ID */}
-                  <div className="flex items-start justify-between">
-                    <div className="w-12 h-12 rounded-2xl bg-black text-[#D4AF37] flex items-center justify-center font-black text-base shadow-lg shadow-black/10">
-                      {initials}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-start gap-3">
+                      {canEdit && (
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={() => merge.handleToggleSelect(customer.ID)}
+                          className="mt-3 w-4 h-4 rounded border-gray-300"
+                          title="Select for merge"
+                        />
+                      )}
+                      <div className="w-12 h-12 rounded-2xl bg-black text-[#D4AF37] flex items-center justify-center font-black text-base shadow-lg shadow-black/10">
+                        {initials}
+                      </div>
                     </div>
                     <span className="text-xs font-bold text-gray-300 uppercase tracking-widest">{customer.ID}</span>
                   </div>
@@ -752,6 +797,24 @@ export default function CustomersPage() {
         isLoading={isSaving}
         title="Confirm Deletion"
         message="Are you sure you want to delete this customer? This action cannot be undone."
+      />
+
+      <MergeCustomersModal
+        isOpen={merge.showMergeModal}
+        isConfirmingMerge={merge.isConfirmingMerge}
+        isMerging={merge.isMerging}
+        selectedCustomers={merge.selectedCustomers}
+        mergeTargetMainName={merge.mergeTargetMainName}
+        mergeTargetSubName={merge.mergeTargetSubName}
+        mergeTargetCity={merge.mergeTargetCity}
+        survivorCustomerId={merge.survivorCustomerId}
+        onClose={merge.closeMergeModal}
+        onConfirm={merge.handleConfirmMerge}
+        onBackFromConfirm={() => merge.setIsConfirmingMerge(false)}
+        setMergeTargetMainName={merge.setMergeTargetMainName}
+        setMergeTargetSubName={merge.setMergeTargetSubName}
+        setMergeTargetCity={merge.setMergeTargetCity}
+        setSurvivorCustomerId={merge.setSurvivorCustomerId}
       />
 
     </div>

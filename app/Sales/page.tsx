@@ -294,16 +294,6 @@ export default function SalesPage() {
     setActiveTab('sales-overview');
   };
 
-  // ── Background Build (fire & forget) ─────────────────────────
-  // Triggers a cache rebuild on Supabase Storage without blocking the UI.
-  // The current data stays visible while the build runs in the background.
-  const triggerBackgroundBuild = () => {
-    fetch('/api/Sales/Build', { method: 'POST' })
-      .then(r => r.json())
-      .then(d => console.log(`🏗️ Background build done: ${d.rows} rows`))
-      .catch(e => console.warn('⚠️ Background build error:', e));
-  };
-
   const fetchData = async (silent = false) => {
     try {
       if (silent) setIsRefreshing(true);
@@ -333,9 +323,7 @@ export default function SalesPage() {
 
       if (silent) {
         setRefreshTrigger(prev => prev + 1);
-        toast.success('Data refreshed! Rebuilding cache in background...');
-        // Fire background build so next cold start is instant
-        triggerBackgroundBuild();
+        toast.success('Sales data and cache refreshed successfully.');
       }
 
       setError(null);

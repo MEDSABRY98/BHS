@@ -1,20 +1,28 @@
 import { NextResponse } from 'next/server';
 import { getFilteredSalesData } from '@/app/Sales/Utils/SalesMappingCache';
 
+function normCustomerId(value: unknown): string {
+  if (value === null || value === undefined || value === '') return '';
+  return String(value).trim().toUpperCase();
+}
+
 export async function POST(request: Request) {
   try {
     const { userId, filters, customerName, customerId, customerType } = await request.json();
 
     const augmentedData = await getFilteredSalesData(userId);
 
+    const targetCustomerId = normCustomerId(customerId);
+
     // First filter down to just THIS CUSTOMER to save loop operations!
     let customerRawData = augmentedData.filter(item => {
       if (customerType === 'main') {
         return (item.customerMainName || item.customerName || 'Unknown') === customerName;
-      } else {
-        if (customerId) return item.customerId === customerId;
-        return item.customerName === customerName;
       }
+      if (targetCustomerId) {
+        return normCustomerId(item.customerId) === targetCustomerId;
+      }
+      return item.customerName === customerName;
     });
 
     // Apply Global Filters (except date) -> to get `allData`

@@ -18,6 +18,7 @@ interface SearchSelectProps {
   isLoading?: boolean;
   direction?: 'up' | 'down';
   heightClass?: string;
+  allowClear?: boolean;
 }
 
 export default function SearchSelect({
@@ -28,7 +29,8 @@ export default function SearchSelect({
   placeholder = 'Select option...',
   isLoading = false,
   direction = 'down',
-  heightClass = 'h-[68px]'
+  heightClass = 'h-[68px]',
+  allowClear = true,
 }: SearchSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -47,6 +49,7 @@ export default function SearchSelect({
   }, []);
 
   const filteredOptions = options.filter(opt =>
+    opt.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
     opt.label.toLowerCase().includes(searchTerm.toLowerCase()) ||
     opt.subLabel?.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -82,7 +85,7 @@ export default function SearchSelect({
         </div>
 
         <div className="flex items-center gap-3">
-          {value && !isLoading && (
+          {value && !isLoading && allowClear && (
             <button
               onClick={(e) => {
                 e.stopPropagation();

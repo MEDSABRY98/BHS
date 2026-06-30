@@ -1,9 +1,18 @@
 import { NextResponse } from 'next/server';
-import { getFilteredSalesData, getMappingServer } from '@/app/Sales/Utils/SalesMappingCache';
+import { getFilteredSalesData, getMappingServer, invalidateMappingCache } from '@/app/Sales/Utils/SalesMappingCache';
+import { buildAndSaveCache, invalidateMemoryCache } from '@/app/Sales/Utils/SalesCache';
+
+export const maxDuration = 60;
 
 export async function POST(request: Request) {
   try {
     const { userId, forceRefresh } = await request.json();
+
+    if (forceRefresh) {
+      invalidateMemoryCache();
+      invalidateMappingCache();
+      await buildAndSaveCache();
+    }
 
     // 1. Get filtered and mapped sales data & mappings for the user
     const augmentedData = await getFilteredSalesData(userId);
