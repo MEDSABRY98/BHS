@@ -6,7 +6,7 @@ import {
     toDisplayDate,
     applyDateMask,
     normalizeDate,
-    genDocId
+    getNextDocIds
 } from './types';
 
 interface RegisterTabProps {
@@ -100,12 +100,15 @@ export default function RegisterTab({
         try {
             // Get current count from database first to generate correct DOC IDs
             const res = await fetch('/api/DocumentsTracking');
+            if (!res.ok) {
+                throw new Error('Failed to load existing documents');
+            }
             const currentData = await res.json();
-            const currentCount = currentData.records ? currentData.records.length : 0;
+            const existingRecords = currentData.records || [];
+            const nextDocIds = getNextDocIds(existingRecords, validDrafts.length);
 
-            const now = new Date().toLocaleString('ar-AE');
             const recordsToSave = validDrafts.map((draft, idx) => ({
-                documentId: genDocId(currentCount + idx),
+                documentId: nextDocIds[idx],
                 receivedDate: normalizeDate(draft.date) || draft.date,
                 documentDate: normalizeDate(draft.checkDate) || draft.checkDate,
                 documentNumber: draft.num,
@@ -141,11 +144,13 @@ export default function RegisterTab({
                 ]);
                 onSaveSuccess();
             } else {
-                throw new Error('Failed to save');
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.error || 'Failed to save');
             }
         } catch (error) {
             console.error('Error saving drafts:', error);
-            showNotify('Error saving data to Supabase', 'error');
+            const message = error instanceof Error ? error.message : 'Error saving data to Supabase';
+            showNotify(message, 'error');
         } finally {
             setIsLoading(false);
         }

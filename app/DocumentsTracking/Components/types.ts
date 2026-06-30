@@ -44,6 +44,40 @@ export const genDocId = (index: number) => {
     return `DOC-${(index + 1).toString().padStart(4, '0')}`;
 };
 
+const parseDocNumeric = (value?: string | number | null): number | null => {
+    if (value === null || value === undefined || value === '') return null;
+    const text = String(value).trim();
+    const match = text.match(/^DOC-(\d+)$/i);
+    if (!match) return null;
+    const num = parseInt(match[1], 10);
+    return Number.isFinite(num) ? num : null;
+};
+
+/** Highest existing DOC-#### number from records (uses documentId and rowIndex). */
+export const getMaxDocNumeric = (
+    records: Array<{ documentId?: string; rowIndex?: string | number }>
+): number => {
+    let max = 0;
+    for (const record of records) {
+        for (const candidate of [record.documentId, record.rowIndex]) {
+            const num = parseDocNumeric(candidate);
+            if (num !== null && num > max) max = num;
+        }
+    }
+    return max;
+};
+
+/** Next sequential DOC IDs after the highest existing number. */
+export const getNextDocIds = (
+    records: Array<{ documentId?: string; rowIndex?: string | number }>,
+    count: number
+): string[] => {
+    const start = getMaxDocNumeric(records);
+    return Array.from({ length: count }, (_, i) =>
+        `DOC-${String(start + i + 1).padStart(4, '0')}`
+    );
+};
+
 // Convert any date format (dd/mm/yyyy, dd-mm-yyyy, yyyy-mm-dd) to ISO yyyy-mm-dd
 export const normalizeDate = (val: string): string => {
     if (!val) return '';

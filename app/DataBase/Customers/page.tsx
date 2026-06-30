@@ -308,7 +308,7 @@ export default function CustomersPage() {
         const wb = XLSX.read(bstr, { type: 'binary' });
         const wsname = wb.SheetNames[0];
         const ws = wb.Sheets[wsname];
-        const data: any[] = XLSX.utils.sheet_to_json(ws);
+        const data: Record<string, unknown>[] = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false });
 
         if (data.length === 0) {
           triggerMessage('error', 'Excel file is empty');
@@ -316,38 +316,24 @@ export default function CustomersPage() {
           return;
         }
 
-        // Fetch latest customers from DB to ensure sequential IDs are unique and correct
+        // Fetch existing customers. Upload updates existing customers only.
         const { data: latestCustomers, error: fetchErr } = await bhs_supabas
           .from('bhs_CUSTOMERS')
-          .select('ID, "CUSTOMER ID"');
+          .select('ID, "CUSTOMER ID", "CUSTOMER MAIN NAME", "CUSTOMER SUB NAME", "CUSTOMER CITY"');
 
         if (fetchErr) throw fetchErr;
 
-        // Build mapping of CUSTOMER ID -> ID from DB, and track existing DB IDs
-        const dbCustomerIdToIdMap = new Map<string, string>();
-        const dbIdSet = new Set<string>();
-        let highestNum = 0;
-
-        (latestCustomers || []).forEach(c => {
-          if (c["CUSTOMER ID"]) {
-            dbCustomerIdToIdMap.set(normalizeExcelId(c["CUSTOMER ID"]), c.ID);
-          }
-          if (c.ID) {
-            dbIdSet.add(c.ID.trim());
-            if (c.ID.startsWith('R-')) {
-              const num = parseInt(c.ID.split('-')[1], 10);
-              if (!isNaN(num) && num > highestNum) {
-                highestNum = num;
-              }
-            }
+        const dbCustomerIdToCustomerMap = new Map<string, any>();
+        (latestCustomers || []).forEach((c) => {
+          const customerId = normalizeExcelId(c['CUSTOMER ID']);
+          if (customerId) {
+            dbCustomerIdToCustomerMap.set(customerId, c);
           }
         });
 
         const duplicateCustomerIdsInFile = new Map<string, number[]>();
-        const duplicateIdsInFile = new Map<string, number[]>();
-        const missingSubNameRows: number[] = [];
-        const conflictingCustomerIdRows: number[] = [];
         const missingCustomerIdRows: number[] = [];
+        const notFoundCustomerIdRows: string[] = [];
 
         const trackRow = (map: Map<string, number[]>, key: string, rowNumber: number) => {
           if (!key) return;
@@ -359,36 +345,14 @@ export default function CustomersPage() {
         for (let i = 0; i < data.length; i++) {
           const row = data[i];
           const rowNumber = i + 2;
-          const id = row["ID"]?.toString().trim();
-          const customerId = normalizeExcelId(row["Customer ID"]);
+          const customerId = normalizeExcelId(row['Customer ID']);
 
           if (!customerId) {
             missingCustomerIdRows.push(rowNumber);
           } else {
             trackRow(duplicateCustomerIdsInFile, customerId, rowNumber);
-          }
-
-          if (id) {
-            trackRow(duplicateIdsInFile, id, rowNumber);
-          }
-
-          let resolvedId = id;
-          if (!resolvedId && customerId) {
-            resolvedId = dbCustomerIdToIdMap.get(customerId);
-          }
-
-          const isExisting = !!resolvedId;
-          const customerSubNameRaw = row["Customer Sub Name"] !== undefined ? row["Customer Sub Name"] : row["Customer Name"];
-          const customerSubName = customerSubNameRaw !== undefined ? customerSubNameRaw.toString().trim() : undefined;
-
-          if (!isExisting && !customerSubName) {
-            missingSubNameRows.push(rowNumber);
-          }
-
-          if (customerId && id && dbCustomerIdToIdMap.has(customerId)) {
-            const existingDbId = dbCustomerIdToIdMap.get(customerId);
-            if (existingDbId && existingDbId !== id) {
-              conflictingCustomerIdRows.push(rowNumber);
+            if (!dbCustomerIdToCustomerMap.has(customerId)) {
+              notFoundCustomerIdRows.push(`Row ${rowNumber}: CUSTOMER ID "${customerId}" not found in database`);
             }
           }
         }
@@ -406,19 +370,8 @@ export default function CustomersPage() {
               .map(([customerId, rows]) => `${customerId} -> rows ${rows.join(', ')}`),
           },
           {
-            heading: `=== DUPLICATE ID IN FILE ===`,
-            lines: [...duplicateIdsInFile.entries()]
-              .filter(([, rows]) => rows.length > 1)
-              .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
-              .map(([recordId, rows]) => `${recordId} -> rows ${rows.join(', ')}`),
-          },
-          {
-            heading: `=== MISSING CUSTOMER SUB NAME FOR NEW CUSTOMERS (${missingSubNameRows.length}) ===`,
-            lines: missingSubNameRows.map((row) => `Row ${row}`),
-          },
-          {
-            heading: `=== CUSTOMER ID ALREADY LINKED TO ANOTHER RECORD (${conflictingCustomerIdRows.length}) ===`,
-            lines: conflictingCustomerIdRows.map((row) => `Row ${row}`),
+            heading: `=== CUSTOMER ID NOT FOUND IN DATABASE (${notFoundCustomerIdRows.length}) ===`,
+            lines: notFoundCustomerIdRows,
           },
         ];
 
@@ -438,48 +391,26 @@ export default function CustomersPage() {
           return;
         }
 
-        const recordsToUpsert = [];
-        const excelIdSet = new Set<string>();
+        const recordsToUpsert: any[] = [];
 
         for (let i = 0; i < data.length; i++) {
           const row = data[i];
-          const id = row["ID"]?.toString().trim();
-          const customerId = normalizeExcelId(row["Customer ID"]);
+          const customerId = normalizeExcelId(row['Customer ID']);
           if (!customerId) continue;
 
-          let finalId = id;
-          if (!finalId && customerId) {
-            finalId = dbCustomerIdToIdMap.get(customerId);
-          }
+          const existingCustomer = dbCustomerIdToCustomerMap.get(customerId);
+          if (!existingCustomer) continue;
 
-          const customerSubNameRaw = row["Customer Sub Name"] !== undefined ? row["Customer Sub Name"] : row["Customer Name"];
-          const customerSubName = customerSubNameRaw !== undefined ? customerSubNameRaw.toString().trim() : undefined;
+          const subNameSource =
+            row['Customer Sub Name'] !== undefined ? row['Customer Sub Name'] : row['Customer Name'];
 
-          if (!finalId) {
-            highestNum++;
-            finalId = `R-${highestNum.toString().padStart(4, '0')}`;
-            while (dbIdSet.has(finalId) || excelIdSet.has(finalId)) {
-              highestNum++;
-              finalId = `R-${highestNum.toString().padStart(4, '0')}`;
-            }
-          }
-
-          excelIdSet.add(finalId);
-
-          const record: any = { ID: finalId };
-
-          if (row["Customer ID"] !== undefined) {
-            record["CUSTOMER ID"] = customerId;
-          }
-          if (row["Customer Main Name"] !== undefined) {
-            record["CUSTOMER MAIN NAME"] = row["Customer Main Name"].toString().trim();
-          }
-          if (customerSubNameRaw !== undefined) {
-            record["CUSTOMER SUB NAME"] = customerSubName;
-          }
-          if (row["Customer City"] !== undefined) {
-            record["CUSTOMER CITY"] = row["Customer City"].toString().trim();
-          }
+          const record: any = {
+            ID: existingCustomer.ID,
+            'CUSTOMER ID': customerId,
+            'CUSTOMER MAIN NAME': String(row['Customer Main Name'] ?? '').trim(),
+            'CUSTOMER SUB NAME': String(subNameSource ?? '').trim(),
+            'CUSTOMER CITY': String(row['Customer City'] ?? '').trim(),
+          };
 
           recordsToUpsert.push(record);
         }
@@ -493,7 +424,7 @@ export default function CustomersPage() {
 
         const { error: upsertErr } = await bhs_supabas
           .from('bhs_CUSTOMERS')
-          .upsert(recordsToUpsert);
+          .upsert(recordsToUpsert, { onConflict: 'ID' });
 
         if (upsertErr) throw upsertErr;
 
