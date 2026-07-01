@@ -1,6 +1,16 @@
 import { NextResponse } from 'next/server';
 import { bhs_supabas } from '@/lib/supabase';
-import { checkIsManager, getMappingServer, invalidateMappingCache } from '@/app/Sales/Utils/SalesMappingCache';
+import {
+  checkIsManager,
+  getMappingServer,
+  invalidateMappingCache,
+  loadUserMaps,
+  migrateLegacyMappingRowIds,
+  migrateLegacyMerchandiserNames,
+  normalizeMappingCustomerId,
+  resolveMerchandiserUserId,
+  resolveSalesRepUserId,
+} from '@/app/Sales/Utils/SalesMappingCache';
 
 export async function GET(request: Request) {
   try {
@@ -11,21 +21,19 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
     }
 
-    const cleanUserId = String(userId).trim().toUpperCase();
-    const isManager = await checkIsManager(cleanUserId);
+    await migrateLegacyMappingRowIds();
+    await migrateLegacyMerchandiserNames();
 
-    // 1. Fetch mappings filtered by user permissions (ID or legacy name)
     const filteredMappings = await getMappingServer(userId);
-    const rawMappings = Array.from(filteredMappings.values()).map(m => ({
+    const rawMappings = Array.from(filteredMappings.values()).map((m) => ({
       ID: m.id,
       'CUSTOMER ID': m.customerId,
       'SALES_REP': m.userId,
+      'MERCHANDISER': m.merchandiserId,
       'AREA': m.area,
       'MARKET': m.market,
-      'MERCHANDISER': m.merchandiser,
     }));
 
-    // 2. Fetch all customers to resolve names dynamically
     const { data: customers, error: custError } = await bhs_supabas
       .from('bhs_CUSTOMERS')
       .select('"CUSTOMER ID", "CUSTOMER MAIN NAME", "CUSTOMER SUB NAME"');
@@ -33,7 +41,7 @@ export async function GET(request: Request) {
 
     const custMap = new Map<string, { mainName: string; subName: string }>();
     if (customers) {
-      customers.forEach(c => {
+      customers.forEach((c) => {
         const cId = String(c['CUSTOMER ID']).trim().toUpperCase();
         custMap.set(cId, {
           mainName: c['CUSTOMER MAIN NAME'] || '',
@@ -42,7 +50,6 @@ export async function GET(request: Request) {
       });
     }
 
-    // 3. Fetch all users to resolve rep names dynamically
     const { data: users, error: userError } = await bhs_supabas
       .from('bhs_USERS')
       .select('ID, NAME');
@@ -50,10 +57,9 @@ export async function GET(request: Request) {
 
     const userMap = new Map<string, string>();
     if (users) {
-      users.forEach(u => userMap.set(u.ID, u.NAME));
+      users.forEach((u) => userMap.set(u.ID, u.NAME));
     }
 
-    // 4. Enrich mappings
     const enrichedData = (rawMappings || []).map((m: any) => {
       const cId = String(m['CUSTOMER ID']).trim().toUpperCase();
       const cInfo = custMap.get(cId);
@@ -61,16 +67,16 @@ export async function GET(request: Request) {
         ID: m.ID,
         'CUSTOMER ID': m['CUSTOMER ID'],
         'USER_ID': m['SALES_REP'],
+        'MERCHANDISER_ID': m['MERCHANDISER'],
         'CUSTOMER MAIN NAME': cInfo?.mainName || '',
         'CUSTOMER SUB NAME': cInfo?.subName || '',
         'AREA': m['AREA'] || '',
         'MARKET': m['MARKET'] || '',
-        'SALES_REP': userMap.get(m['SALES_REP']) || '', // Sales Rep Name
-        'MERCHANDISER': m['MERCHANDISER'] || '',
+        'SALES_REP': userMap.get(m['SALES_REP']) || '',
+        'MERCHANDISER': userMap.get(m['MERCHANDISER']) || '',
       };
     });
 
-    // Sort alphabetically by main name
     enrichedData.sort((a, b) => a['CUSTOMER MAIN NAME'].localeCompare(b['CUSTOMER MAIN NAME']));
 
     return NextResponse.json({ success: true, data: enrichedData });
@@ -94,68 +100,49 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Mapping data with customerId is required' }, { status: 400 });
     }
 
-    // Authorization: Only managers/admins can assign customers
     const isManager = await checkIsManager(userId);
     if (!isManager) {
       return NextResponse.json({ error: 'Unauthorized. Only sales managers can modify assignments.' }, { status: 403 });
     }
 
-    // Check if mapping already exists for this customer ID globally
+    const customerId = await normalizeMappingCustomerId(mapping.customerId);
+    const { userMapById, userMapByName } = await loadUserMaps();
+    const salesRepId = resolveSalesRepUserId(mapping.salesRepId || '', userMapById, userMapByName);
+    const merchandiserId = resolveMerchandiserUserId(
+      mapping.merchandiserId || mapping.merchandiser || '',
+      userMapById,
+      userMapByName
+    );
+
     const { data: existing } = await bhs_supabas
       .from('web_Sales_DB_CUSTOMERSMAPPING')
       .select('ID')
-      .eq('CUSTOMER ID', mapping.customerId)
+      .eq('CUSTOMER ID', customerId)
       .maybeSingle();
 
     let saveError;
 
     if (existing) {
-      // Update existing mapping
       const { error } = await bhs_supabas
         .from('web_Sales_DB_CUSTOMERSMAPPING')
         .update({
-          "SALES_REP": mapping.salesRepId || '',
-          "AREA": mapping.area || '',
-          "MARKET": mapping.market || '',
-          "MERCHANDISER": mapping.merchandiser || '',
+          SALES_REP: salesRepId,
+          AREA: mapping.area || '',
+          MARKET: mapping.market || '',
+          MERCHANDISER: merchandiserId,
         })
-        .eq('ID', existing.ID);
+        .eq('CUSTOMER ID', customerId);
       saveError = error;
     } else {
-      // Fetch all IDs to generate next R-XXXX ID
-      const { data: existingRows, error: fetchError } = await bhs_supabas
-        .from('web_Sales_DB_CUSTOMERSMAPPING')
-        .select('ID');
-
-      if (fetchError) {
-        throw fetchError;
-      }
-
-      let highestNum = 0;
-      if (existingRows) {
-        existingRows.forEach((row: any) => {
-          const match = row.ID.match(/^R-(\d+)$/i);
-          if (match) {
-            const num = parseInt(match[1], 10);
-            if (num > highestNum) {
-              highestNum = num;
-            }
-          }
-        });
-      }
-
-      const nextId = `R-${String(highestNum + 1).padStart(4, '0')}`;
-
-      // Insert new mapping
       const { error } = await bhs_supabas
         .from('web_Sales_DB_CUSTOMERSMAPPING')
         .insert({
-          "ID": nextId,
-          "SALES_REP": mapping.salesRepId || '', // Store the rep's user ID directly in SALES_REP
-          "CUSTOMER ID": mapping.customerId,
-          "AREA": mapping.area || '',
-          "MARKET": mapping.market || '',
-          "MERCHANDISER": mapping.merchandiser || '',
+          ID: customerId,
+          SALES_REP: salesRepId,
+          'CUSTOMER ID': customerId,
+          AREA: mapping.area || '',
+          MARKET: mapping.market || '',
+          MERCHANDISER: merchandiserId,
         });
       saveError = error;
     }
@@ -164,7 +151,6 @@ export async function POST(request: Request) {
       throw saveError;
     }
 
-    // Clear mapping caches
     invalidateMappingCache();
 
     return NextResponse.json({ success: true, message: 'Mapping saved successfully' });
@@ -187,7 +173,6 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'User ID and Customer ID are required' }, { status: 400 });
     }
 
-    // Authorization: Only managers/admins can delete mappings
     const isManager = await checkIsManager(userId);
     if (!isManager) {
       return NextResponse.json({ error: 'Unauthorized. Only sales managers can remove assignments.' }, { status: 403 });
@@ -202,7 +187,6 @@ export async function DELETE(request: Request) {
       throw error;
     }
 
-    // Clear mapping caches
     invalidateMappingCache();
 
     return NextResponse.json({ success: true, message: 'Mapping deleted successfully' });

@@ -7,6 +7,7 @@ import SalesCustomersTab from './Components/SalesCustomersTab';
 import SalesCustomersComparisonTab from './Components/SalesCustomersComparisonTab';
 import SalesInactiveCustomersTab from './Components/SalesInactiveCustomersTab';
 import SalesStatisticsTab from './Components/SalesStatisticsTab';
+import SalesReportsTab from './Components/SalesReportsTab';
 import SalesDailySalesTab from './Components/SalesDailySalesTab';
 import SalesProductsTab from './Components/SalesProductsTab';
 import SalesCategoriesTab from './Components/SalesCategoriesTab';
@@ -15,6 +16,7 @@ import SalesSidebar from './Components/SalesSidebar';
 import SalesTabPanel from './Components/SalesTabPanel';
 import SalesTabLoader from './Components/SalesTabLoader';
 import SalesSetCustomersTab from './Components/SalesSetCustomersTab';
+import SalesTargetsTab from './Components/SalesTargetsTab';
 import SalesNewListingsTab from './Components/SalesNewListingsTab';
 import { SalesFiltersProvider, SalesFilterButton } from './Model/SalesFilters';
 
@@ -24,6 +26,17 @@ import { SalesInvoice } from '@/lib/supabase';;
 import { ArrowLeft, BarChart3, LogOut, User, FileUp, FileSpreadsheet, ChevronDown, AlertCircle, RefreshCcw, X, Users, Menu } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { toast } from '@/app/Components/Notification';
+import { exportSalesExcelTable } from '@/app/Sales/Export/SalesExcelExport';
+
+const MAPPING_EXPORT_HEADERS = [
+  'CUSTOMER ID',
+  'CUSTOMER MAIN NAME',
+  'CUSTOMER SUB NAME',
+  'AREA',
+  'MARKETS',
+  'SALESREP',
+  'MERCHANDISER',
+] as const;
 
 export default function SalesPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -315,23 +328,29 @@ export default function SalesPage() {
     reader.readAsBinaryString(file);
   };
 
-  const downloadTemplate = () => {
-    const template = [
-      ['CUSTOMER ID', 'CUSTOMER MAIN NAME', 'CUSTOMER SUB NAME', 'AREA', 'MARKETS', 'SALESREP', 'MERCHANDISER'],
-      ['12345', 'Main Company', 'Branch A', 'Cairo', 'Main Market', 'Jane Smith', 'John Doe']
-    ];
-    const ws = XLSX.utils.aoa_to_sheet(template);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Template');
-    XLSX.writeFile(wb, 'Customer_Mapping_Template.xlsx');
+  const downloadTemplate = async () => {
+    const rows = [['12345', 'Main Company', 'Branch A', 'Cairo', 'Main Market', 'Jane Smith', 'John Doe']];
+    await exportSalesExcelTable(
+      [...MAPPING_EXPORT_HEADERS],
+      rows,
+      'Customer_Mapping_Template.xlsx',
+      { sheetName: 'Template' }
+    );
   };
 
   const downloadTemplateWithData = async () => {
     toast.loading('Fetching customer data...', { id: 'fetching_customers' });
     try {
-      const response = await fetch('/api/Sales/CustomersList');
-      if (!response.ok) throw new Error('Failed to fetch customers');
-      const result = await response.json();
+      const userId = salesUserId;
+      const [customersRes, mappingRes] = await Promise.all([
+        fetch('/api/Sales/CustomersList'),
+        userId
+          ? fetch(`/api/Sales/MyCustomers?userId=${encodeURIComponent(userId)}`)
+          : Promise.resolve(null),
+      ]);
+
+      if (!customersRes.ok) throw new Error('Failed to fetch customers');
+      const result = await customersRes.json();
       const uniqueCustomers = result.uniqueCustomers;
 
       if (!uniqueCustomers || uniqueCustomers.length === 0) {
@@ -339,13 +358,33 @@ export default function SalesPage() {
         toast.dismiss('fetching_customers');
         return;
       }
-      const headers = ['CUSTOMER ID', 'CUSTOMER MAIN NAME', 'CUSTOMER SUB NAME', 'AREA', 'MARKETS', 'SALESREP', 'MERCHANDISER'];
-      const rows = uniqueCustomers.map((c: any) => [c.id, c.mainName, c.subName, '', '', '', '']);
-      const template = [headers, ...rows];
-      const ws = XLSX.utils.aoa_to_sheet(template);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Data Template');
-      XLSX.writeFile(wb, `Customer_Mapping_With_Data_${new Date().toLocaleDateString('en-GB').replace(/\//g, '-')}.xlsx`);
+
+      const mappingByCustomerId = new Map<string, Record<string, string>>();
+      if (mappingRes?.ok) {
+        const mappingResult = await mappingRes.json();
+        (mappingResult.data || []).forEach((m: Record<string, string>) => {
+          const id = String(m['CUSTOMER ID'] || m.ID || '').trim();
+          if (id) mappingByCustomerId.set(id, m);
+        });
+      }
+
+      const rows = uniqueCustomers.map((c: { id: string; mainName: string; subName: string }) => {
+        const mapping = mappingByCustomerId.get(String(c.id).trim());
+        return [
+          c.id,
+          c.mainName,
+          c.subName,
+          mapping?.['AREA'] || '',
+          mapping?.['MARKET'] || '',
+          mapping?.['SALES_REP'] || '',
+          mapping?.['MERCHANDISER'] || '',
+        ];
+      });
+
+      const fileName = `Customer_Mapping_With_Data_${new Date().toLocaleDateString('en-GB').replace(/\//g, '-')}.xlsx`;
+      await exportSalesExcelTable([...MAPPING_EXPORT_HEADERS], rows, fileName, {
+        sheetName: 'Data Template',
+      });
       toast.success('Template downloaded successfully!');
     } catch (error) {
       console.error('Error fetching customers:', error);
@@ -413,6 +452,12 @@ export default function SalesPage() {
         </SalesTabPanel>
         <SalesTabPanel tabId="sales-statistics" activeTab={activeTab} isVisited={visitedTabs.has('sales-statistics')}>
           <SalesStatisticsTab userId={salesUserId} refreshTrigger={refreshTrigger} />
+        </SalesTabPanel>
+        <SalesTabPanel tabId="sales-reports" activeTab={activeTab} isVisited={visitedTabs.has('sales-reports')}>
+          <SalesReportsTab userId={salesUserId} refreshTrigger={refreshTrigger} />
+        </SalesTabPanel>
+        <SalesTabPanel tabId="sales-targets" activeTab={activeTab} isVisited={visitedTabs.has('sales-targets')}>
+          <SalesTargetsTab userId={salesUserId} refreshTrigger={refreshTrigger} />
         </SalesTabPanel>
         <SalesTabPanel tabId="sales-daily-sales" activeTab={activeTab} isVisited={visitedTabs.has('sales-daily-sales')}>
           <SalesDailySalesTab userId={salesUserId} showCosts={showCosts} refreshTrigger={refreshTrigger} />

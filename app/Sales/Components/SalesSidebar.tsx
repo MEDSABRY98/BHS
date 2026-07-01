@@ -6,7 +6,9 @@ import {
   Users, 
   Scale, 
   AlertTriangle, 
-  LineChart, 
+  LineChart,
+  FileBarChart,
+  Target,
   Calendar, 
   Tag, 
   Package, 
@@ -47,6 +49,8 @@ export default function SalesSidebar({
     { id: 'sales-customers-comparison', label: 'Comparison', icon: Scale },
     { id: 'sales-inactive-customers', label: 'Inactive Customers', icon: AlertTriangle },
     { id: 'sales-statistics', label: 'Statistics', icon: LineChart },
+    { id: 'sales-reports', label: 'Reports', icon: FileBarChart },
+    { id: 'sales-targets', label: 'Targets', icon: Target },
     { id: 'sales-daily-sales', label: 'Daily Sales', icon: Calendar },
     { id: 'sales-categories', label: 'Product Category', icon: Tag },
     { id: 'sales-products', label: 'Products', icon: Package },
@@ -59,10 +63,14 @@ export default function SalesSidebar({
   const getFilteredTabs = () => {
     if (!currentUser) return [];
 
-    const isManager = currentUser.name === 'MED Sabry' || currentUser.isSalesManager === true || currentUser.isSalesManager === 'TRUE';
+    const userName = String(currentUser.name || '').trim().toLowerCase();
+    const isManager =
+      userName === 'med sabry' ||
+      currentUser.isSalesManager === true ||
+      currentUser.isSalesManager === 'TRUE';
     let allowedTabs = allTabs;
     if (!isManager) {
-      allowedTabs = allTabs.filter(tab => tab.id !== 'sales-my-customers');
+      allowedTabs = allTabs.filter(tab => tab.id !== 'sales-my-customers' && tab.id !== 'sales-targets');
     }
 
     if (isManager) return allowedTabs;

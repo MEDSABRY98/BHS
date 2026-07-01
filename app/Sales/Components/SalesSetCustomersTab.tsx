@@ -99,10 +99,17 @@ export default function SalesSetCustomersTab({ userId, refreshTrigger }: SalesSe
   const [repSearchQuery, setRepSearchQuery] = useState('');
   const [showRepDropdown, setShowRepDropdown] = useState(false);
 
+  const merchDropdownRef = useRef<HTMLDivElement>(null);
+  const [merchSearchQuery, setMerchSearchQuery] = useState('');
+  const [showMerchDropdown, setShowMerchDropdown] = useState(false);
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (repDropdownRef.current && !repDropdownRef.current.contains(event.target as Node)) {
         setShowRepDropdown(false);
+      }
+      if (merchDropdownRef.current && !merchDropdownRef.current.contains(event.target as Node)) {
+        setShowMerchDropdown(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -178,8 +185,9 @@ export default function SalesSetCustomersTab({ userId, refreshTrigger }: SalesSe
         'CUSTOMER SUB NAME': gc.subName,
         'AREA': m ? m['AREA'] : '',
         'MARKET': m ? m['MARKET'] : '',
-        'USER_ID': m ? m['USER_ID'] : '', // Representative User ID
-        'SALES_REP': m ? m['SALES_REP'] : '', // Representative Name
+        'USER_ID': m ? m['USER_ID'] : '',
+        'SALES_REP': m ? m['SALES_REP'] : '',
+        'MERCHANDISER_ID': m ? m['MERCHANDISER_ID'] : '',
         'MERCHANDISER': m ? m['MERCHANDISER'] : '',
         'ID': m ? m.ID : null
       };
@@ -257,7 +265,7 @@ export default function SalesSetCustomersTab({ userId, refreshTrigger }: SalesSe
         salesRepId: editingCustomer['USER_ID'], // representative user ID
         area: editingCustomer['AREA'],
         market: editingCustomer['MARKET'],
-        merchandiser: editingCustomer['MERCHANDISER']
+        merchandiserId: editingCustomer['MERCHANDISER_ID'],
       };
 
       const response = await fetch('/api/Sales/MyCustomers', {
@@ -421,6 +429,7 @@ export default function SalesSetCustomersTab({ userId, refreshTrigger }: SalesSe
                           onClick={() => {
                             setEditingCustomer({ ...c });
                             setRepSearchQuery(c['SALES_REP'] || '');
+                            setMerchSearchQuery(c['MERCHANDISER'] || '');
                             setIsEditModalOpen(true);
                           }}
                           className="p-1 text-blue-600 hover:bg-blue-50 rounded transition-colors"
@@ -570,14 +579,88 @@ export default function SalesSetCustomersTab({ userId, refreshTrigger }: SalesSe
                   </div>
                 )}
               </div>
-              <div>
+              <div className="relative" ref={merchDropdownRef}>
                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Merchandiser</label>
-                <input
-                  type="text"
-                  value={editingCustomer['MERCHANDISER'] || ''}
-                  onChange={e => setEditingCustomer({ ...editingCustomer, 'MERCHANDISER': e.target.value })}
-                  className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:border-green-500 focus:ring-1 focus:ring-green-500 outline-none text-sm font-medium"
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={merchSearchQuery}
+                    onChange={e => {
+                      setMerchSearchQuery(e.target.value);
+                      if (!e.target.value) {
+                        setEditingCustomer({
+                          ...editingCustomer,
+                          'MERCHANDISER_ID': '',
+                          'MERCHANDISER': ''
+                        });
+                      }
+                    }}
+                    onFocus={() => setShowMerchDropdown(true)}
+                    className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:border-green-500 focus:ring-1 focus:ring-green-500 outline-none text-sm font-medium bg-white"
+                  />
+                  {merchSearchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMerchSearchQuery('');
+                        setEditingCustomer({
+                          ...editingCustomer,
+                          'MERCHANDISER_ID': '',
+                          'MERCHANDISER': ''
+                        });
+                        setShowMerchDropdown(false);
+                      }}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 p-1 hover:bg-slate-100 rounded-full text-slate-400"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                {showMerchDropdown && (
+                  <div className="absolute z-[1100] mt-1.5 w-full bg-white border border-slate-200 rounded-xl shadow-2xl max-h-48 overflow-y-auto p-1.5 space-y-0.5 divide-y divide-transparent scrollbar-thin">
+                    {usersList.filter(u =>
+                      u.name.toLowerCase().includes(merchSearchQuery.toLowerCase())
+                    ).length > 0 ? (
+                      usersList.filter(u =>
+                        u.name.toLowerCase().includes(merchSearchQuery.toLowerCase())
+                      ).map(u => (
+                        <button
+                          key={u.id}
+                          type="button"
+                          onClick={() => {
+                            setEditingCustomer({
+                              ...editingCustomer,
+                              'MERCHANDISER_ID': u.id,
+                              'MERCHANDISER': u.name
+                            });
+                            setMerchSearchQuery(u.name);
+                            setShowMerchDropdown(false);
+                          }}
+                          className={`w-full px-3 py-2 rounded-lg text-left text-xs font-bold transition-colors flex items-center justify-between group cursor-pointer ${
+                            editingCustomer['MERCHANDISER_ID'] === u.id
+                              ? 'bg-green-50 text-green-700'
+                              : 'text-slate-600 hover:bg-slate-50'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black ${
+                              editingCustomer['MERCHANDISER_ID'] === u.id ? 'bg-green-600 text-white' : 'bg-slate-100 text-slate-500'
+                            }`}>
+                              {u.name.charAt(0).toUpperCase()}
+                            </div>
+                            <span>{u.name}</span>
+                          </div>
+                          {editingCustomer['MERCHANDISER_ID'] === u.id && (
+                            <span className="w-1.5 h-1.5 bg-green-600 rounded-full" />
+                          )}
+                        </button>
+                      ))
+                    ) : (
+                      <div className="px-4 py-3 text-xs text-slate-400 italic text-center">No merchandisers found</div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 

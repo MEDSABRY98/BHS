@@ -68,14 +68,20 @@ export async function getGlobalMappings(): Promise<Map<string, any>> {
         ? rawRep
         : (userMapByName.get(rawRep.toUpperCase()) || rawRep);
 
+      const rawMerch = String(m['MERCHANDISER'] || '').trim();
+      const merchId = userMap.has(rawMerch)
+        ? rawMerch
+        : (userMapByName.get(rawMerch.toUpperCase()) || rawMerch);
+
       mappingMap.set(cId, {
-        id: m.ID,
+        id: m['CUSTOMER ID'] || m.ID,
         customerId: m['CUSTOMER ID'],
         userId: repId,
         salesRep: userMap.get(repId) || (userMapByName.has(rawRep.toUpperCase()) ? rawRep : ''),
         area: m['AREA'] || '',
         market: m['MARKET'] || '',
-        merchandiser: m['MERCHANDISER'] || '',
+        merchandiserId: merchId,
+        merchandiser: userMap.get(merchId) || (userMapByName.has(rawMerch.toUpperCase()) ? rawMerch : ''),
         customerMainName: custMap.get(cId)?.mainName || '',
         customerSubName: custMap.get(cId)?.subName || '',
       });
@@ -188,6 +194,7 @@ export function applyMapping(item: any, mappingMap: Map<string, any>): any {
     area: mapping.area || item.area,
     market: mapping.market || item.market,
     merchandiser: mapping.merchandiser || item.merchandiser,
+    merchandiserId: mapping.merchandiserId || '',
     salesRep: mapping.salesRep || item.salesRep,
     salesRepId: mapping.userId || '',
   };
@@ -222,6 +229,7 @@ export async function getFilteredSalesData(userId: string): Promise<any[]> {
         area: mapping?.area || '',
         market: mapping?.market || '',
         merchandiser: mapping?.merchandiser || '',
+        merchandiserId: mapping?.merchandiserId || '',
         salesRep: mapping?.salesRep || '',
         salesRepId: mapping?.userId || '',
       };
@@ -239,3 +247,221 @@ async function checkIsManager(userId: string): Promise<boolean> {
 }
 
 export { checkIsManager, isMappingAssignedToUser, resolveSalesUserContext };
+
+/** Legacy surrogate keys like R-0001 generated for mapping table rows. */
+export function isLegacyMappingRowId(value: string): boolean {
+  return /^R-\d+$/i.test(String(value || '').trim());
+}
+
+/** Ensures the value is a real CUSTOMER ID from bhs_CUSTOMERS. */
+export async function normalizeMappingCustomerId(customerId: string): Promise<string> {
+  const id = String(customerId || '').trim();
+  if (!id) throw new Error('Customer ID is required');
+
+  const { data, error } = await bhs_supabas
+    .from('bhs_CUSTOMERS')
+    .select('"CUSTOMER ID"')
+    .eq('CUSTOMER ID', id)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!data) {
+    if (isLegacyMappingRowId(id)) {
+      throw new Error(
+        'Invalid customer ID: use the actual CUSTOMER ID, not a mapping row ID (R-XXXX).'
+      );
+    }
+    throw new Error(`Customer ID "${id}" was not found.`);
+  }
+
+  return String(data['CUSTOMER ID']).trim();
+}
+
+/** Resolves a sales rep to their bhs_USERS.ID (supports ID or name). */
+export function resolveSalesRepUserId(
+  salesRepIdOrName: string,
+  userMapById: Map<string, string>,
+  userMapByName: Map<string, string>
+): string {
+  const raw = String(salesRepIdOrName || '').trim();
+  if (!raw) return '';
+  if (userMapById.has(raw)) return raw;
+  return userMapByName.get(raw.toUpperCase()) || raw;
+}
+
+/** Alias — merchandisers use the same bhs_USERS lookup as sales reps. */
+export const resolveMerchandiserUserId = resolveSalesRepUserId;
+
+/** Fuzzy match for legacy free-text merchandiser names (e.g. "Anwar" → "Anwar Mohsen"). */
+export function resolveMerchandiserUserIdFuzzy(
+  merchandiserIdOrName: string,
+  userMapById: Map<string, string>,
+  userMapByName: Map<string, string>
+): string {
+  const resolved = resolveMerchandiserUserId(merchandiserIdOrName, userMapById, userMapByName);
+  if (userMapById.has(resolved)) return resolved;
+
+  const upper = String(merchandiserIdOrName || '').trim().toUpperCase();
+  if (!upper) return '';
+
+  for (const [name, id] of userMapByName) {
+    if (name === upper) return id;
+    const firstWord = name.split(/\s+/)[0];
+    if (firstWord === upper) return id;
+    if (name.startsWith(`${upper} `)) return id;
+  }
+
+  for (const [name, id] of userMapByName) {
+    if (name.includes(upper)) return id;
+  }
+
+  return resolved;
+}
+
+export async function loadUserMaps() {
+  const { data: users, error } = await bhs_supabas.from('bhs_USERS').select('ID, NAME');
+  if (error) throw error;
+
+  const userMapById = new Map<string, string>();
+  const userMapByName = new Map<string, string>();
+  (users || []).forEach((u) => {
+    userMapById.set(u.ID, u.NAME);
+    userMapByName.set(String(u.NAME || '').trim().toUpperCase(), u.ID);
+  });
+  return { userMapById, userMapByName };
+}
+
+type MappingRow = {
+  ID: string;
+  'CUSTOMER ID': string;
+  SALES_REP?: string;
+  AREA?: string;
+  MARKET?: string;
+  MERCHANDISER?: string;
+};
+
+function pickKeeperRow(group: MappingRow[]): MappingRow {
+  const nonLegacy = group.find((r) => !isLegacyMappingRowId(String(r.ID || '')));
+  if (nonLegacy) return nonLegacy;
+  return [...group].sort((a, b) => String(a.ID).localeCompare(String(b.ID)))[0];
+}
+
+function mergeMappingFields(target: MappingRow, source: MappingRow): MappingRow {
+  return {
+    ...target,
+    SALES_REP: target.SALES_REP || source.SALES_REP || '',
+    AREA: target.AREA || source.AREA || '',
+    MARKET: target.MARKET || source.MARKET || '',
+    MERCHANDISER: target.MERCHANDISER || source.MERCHANDISER || '',
+  };
+}
+
+/** Converts legacy mapping row IDs (R-XXXX) to CUSTOMER ID as primary key. */
+export async function migrateLegacyMappingRowIds(): Promise<number> {
+  const { data: rows, error } = await bhs_supabas
+    .from('web_Sales_DB_CUSTOMERSMAPPING')
+    .select('ID, "CUSTOMER ID", SALES_REP, AREA, MARKET, MERCHANDISER');
+
+  if (error) throw error;
+  if (!rows?.length) return 0;
+
+  let changed = 0;
+  const byCustomer = new Map<string, MappingRow[]>();
+
+  for (const row of rows as MappingRow[]) {
+    const customerId = String(row['CUSTOMER ID'] || '').trim();
+    if (!customerId) continue;
+    const group = byCustomer.get(customerId) || [];
+    group.push(row);
+    byCustomer.set(customerId, group);
+  }
+
+  for (const [customerId, group] of byCustomer) {
+    if (group.length > 1) {
+      let keeper = pickKeeperRow(group);
+      for (const row of group) {
+        if (row.ID === keeper.ID) continue;
+        keeper = mergeMappingFields(keeper, row);
+      }
+
+      for (const row of group) {
+        if (row.ID === keeper.ID) continue;
+        const { error: deleteError } = await bhs_supabas
+          .from('web_Sales_DB_CUSTOMERSMAPPING')
+          .delete()
+          .eq('ID', row.ID);
+        if (deleteError) throw deleteError;
+        changed += 1;
+      }
+
+      const { error: mergeError } = await bhs_supabas
+        .from('web_Sales_DB_CUSTOMERSMAPPING')
+        .update({
+          SALES_REP: keeper.SALES_REP || '',
+          AREA: keeper.AREA || '',
+          MARKET: keeper.MARKET || '',
+          MERCHANDISER: keeper.MERCHANDISER || '',
+        })
+        .eq('ID', keeper.ID);
+      if (mergeError) throw mergeError;
+    }
+
+    const { data: current, error: fetchError } = await bhs_supabas
+      .from('web_Sales_DB_CUSTOMERSMAPPING')
+      .select('ID')
+      .eq('CUSTOMER ID', customerId)
+      .maybeSingle();
+    if (fetchError) throw fetchError;
+    if (!current) continue;
+
+    if (isLegacyMappingRowId(String(current.ID || '')) && current.ID !== customerId) {
+      const { error: updateError } = await bhs_supabas
+        .from('web_Sales_DB_CUSTOMERSMAPPING')
+        .update({ ID: customerId })
+        .eq('ID', current.ID);
+      if (updateError) throw updateError;
+      changed += 1;
+    }
+  }
+
+  if (changed > 0) {
+    invalidateMappingCache();
+  }
+
+  return changed;
+}
+
+/** Converts legacy free-text MERCHANDISER values to bhs_USERS.ID. */
+export async function migrateLegacyMerchandiserNames(): Promise<number> {
+  const { userMapById, userMapByName } = await loadUserMaps();
+  const { data: rows, error } = await bhs_supabas
+    .from('web_Sales_DB_CUSTOMERSMAPPING')
+    .select('ID, MERCHANDISER')
+    .not('MERCHANDISER', 'is', null);
+
+  if (error) throw error;
+  if (!rows?.length) return 0;
+
+  let updated = 0;
+  for (const row of rows) {
+    const raw = String(row.MERCHANDISER || '').trim();
+    if (!raw || userMapById.has(raw)) continue;
+
+    const userId = resolveMerchandiserUserIdFuzzy(raw, userMapById, userMapByName);
+    if (!userMapById.has(userId) || userId === raw) continue;
+
+    const { error: updateError } = await bhs_supabas
+      .from('web_Sales_DB_CUSTOMERSMAPPING')
+      .update({ MERCHANDISER: userId })
+      .eq('ID', row.ID);
+
+    if (updateError) throw updateError;
+    updated += 1;
+  }
+
+  if (updated > 0) {
+    invalidateMappingCache();
+  }
+
+  return updated;
+}

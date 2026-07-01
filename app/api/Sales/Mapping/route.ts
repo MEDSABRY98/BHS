@@ -1,6 +1,14 @@
 import { NextResponse } from 'next/server';
 import { bhs_supabas } from '@/lib/supabase';
-import { checkIsManager, invalidateMappingCache } from '@/app/Sales/Utils/SalesMappingCache';
+import {
+  checkIsManager,
+  invalidateMappingCache,
+  isLegacyMappingRowId,
+  loadUserMaps,
+  normalizeMappingCustomerId,
+  resolveMerchandiserUserId,
+  resolveSalesRepUserId,
+} from '@/app/Sales/Utils/SalesMappingCache';
 
 export async function POST(request: Request) {
   try {
@@ -10,7 +18,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
     }
 
-    // Authorization check
     const isManager = await checkIsManager(userId);
     if (!isManager) {
       return NextResponse.json({ error: 'Unauthorized. Only sales managers can upload mappings.' }, { status: 403 });
@@ -20,7 +27,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true, message: 'No mapping data provided' });
     }
 
-    // 1. Delete all old mappings since mappings are now global
     const { error: deleteError } = await bhs_supabas
       .from('web_Sales_DB_CUSTOMERSMAPPING')
       .delete()
@@ -31,36 +37,30 @@ export async function POST(request: Request) {
       throw deleteError;
     }
 
-    // 2. Fetch all users to map sheet-provided representative names to their IDs
-    const { data: users, error: userErr } = await bhs_supabas
-      .from('bhs_USERS')
-      .select('ID, NAME');
-    
-    const userMapByName = new Map<string, string>();
-    if (!userErr && users) {
-      users.forEach(u => userMapByName.set(u.NAME.trim().toUpperCase(), u.ID));
+    const { userMapById, userMapByName } = await loadUserMaps();
+
+    const rowsByCustomer = new Map<string, Record<string, string>>();
+    for (const rawCustomerId of Object.keys(mapping)) {
+      if (isLegacyMappingRowId(rawCustomerId)) continue;
+
+      const customerId = await normalizeMappingCustomerId(rawCustomerId);
+      const data = mapping[rawCustomerId];
+      const repRaw = String(data.salesRep || data.salesRepId || '').trim();
+      const repId = resolveSalesRepUserId(repRaw, userMapById, userMapByName);
+      const merchRaw = String(data.merchandiserId || data.merchandiser || '').trim();
+      const merchId = resolveMerchandiserUserId(merchRaw, userMapById, userMapByName);
+
+      rowsByCustomer.set(customerId, {
+        ID: customerId,
+        SALES_REP: repId,
+        'CUSTOMER ID': customerId,
+        AREA: data.area || '',
+        MARKET: data.market || '',
+        MERCHANDISER: merchId,
+      });
     }
+    const rows = Array.from(rowsByCustomer.values());
 
-    // 3. Convert mapping object to database rows
-    const rows = Object.keys(mapping).map((customerId, index) => {
-      const paddedIndex = String(index + 1).padStart(4, '0');
-      const data = mapping[customerId];
-
-      // Resolve rep name to their user ID
-      const repName = (data.salesRep || '').trim().toUpperCase();
-      const repId = userMapByName.get(repName) || '';
-
-      return {
-        "ID": `R-${paddedIndex}`,
-        "SALES_REP": repId, // Store representative ID directly in SALES_REP column
-        "CUSTOMER ID": customerId,
-        "AREA": data.area || '',
-        "MARKET": data.market || '',
-        "MERCHANDISER": data.merchandiser || '',
-      };
-    });
-
-    // 4. Bulk insert mappings in chunks
     const chunkSize = 1000;
     for (let i = 0; i < rows.length; i += chunkSize) {
       const chunk = rows.slice(i, i + chunkSize);
@@ -74,7 +74,6 @@ export async function POST(request: Request) {
       }
     }
 
-    // 5. Invalidate mapping cache
     invalidateMappingCache();
 
     return NextResponse.json({ success: true, message: `Uploaded ${rows.length} mappings successfully` });
