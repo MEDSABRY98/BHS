@@ -23,7 +23,7 @@ import {
   pctChange,
   absChange,
   resolveReportPeriod,
-} from '@/app/Sales/Utils/ReportsAggregation';
+} from '@/app/Sales/Reports/ReportsAggregation';
 import {
   getPrimaryAmount,
   REPORTING_MODE_LABELS,
@@ -32,7 +32,7 @@ import {
   shouldShowReturnAmountKpi,
   shouldShowTargetAchievement,
   shouldShowTargetInChart,
-} from '@/app/Sales/Utils/ReportingMode';
+} from '@/app/Sales/Reports/ReportingMode';
 
 export const maxDuration = 60;
 
@@ -126,16 +126,17 @@ export async function POST(request: Request) {
     const reportingMode = resolveReportingMode(filters?.invoiceType);
 
     const period = resolveReportPeriod(filters);
-    const prevPeriod = getPrevMonthPeriod(period.year, period.month);
-    const smlyPeriod = getSameMonthLastYearPeriod(period.year, period.month);
-    const prevPrevPeriod = getPrevMonthPeriod(prevPeriod.year, prevPeriod.month);
+    const compareDayRange = period.dayRange;
+    const prevPeriod = getPrevMonthPeriod(period.year, period.month, compareDayRange);
+    const smlyPeriod = getSameMonthLastYearPeriod(period.year, period.month, compareDayRange);
+    const prevPrevPeriod = getPrevMonthPeriod(prevPeriod.year, prevPeriod.month, compareDayRange);
 
     const currentData = periodData(geoData, period.fromTime, period.toTime);
     const prevMonthData = periodData(geoData, prevPeriod.fromTime, prevPeriod.toTime);
     const smlyData = periodData(geoData, smlyPeriod.fromTime, smlyPeriod.toTime);
     const prevPrevData = periodData(geoData, prevPrevPeriod.fromTime, prevPrevPeriod.toTime);
 
-    const smlyPrevPeriod = getPrevMonthPeriod(smlyPeriod.year, smlyPeriod.month);
+    const smlyPrevPeriod = getPrevMonthPeriod(smlyPeriod.year, smlyPeriod.month, compareDayRange);
     const smlyPrevData = periodData(geoData, smlyPrevPeriod.fromTime, smlyPrevPeriod.toTime);
 
     const currentMetrics = computePeriodMetrics(currentData, [], filters?.invoiceType);

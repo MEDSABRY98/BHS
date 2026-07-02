@@ -1,23 +1,23 @@
 'use client';
 
 import { useState, useEffect, useRef, useMemo } from 'react';
-import SalesOverviewTab from './Components/SalesOverviewTab';
-import SalesTop10Tab from './Components/SalesTop10Tab';
-import SalesCustomersTab from './Components/SalesCustomersTab';
-import SalesCustomersComparisonTab from './Components/SalesCustomersComparisonTab';
-import SalesInactiveCustomersTab from './Components/SalesInactiveCustomersTab';
-import SalesStatisticsTab from './Components/SalesStatisticsTab';
-import SalesReportsTab from './Components/SalesReportsTab';
-import SalesDailySalesTab from './Components/SalesDailySalesTab';
-import SalesProductsTab from './Components/SalesProductsTab';
-import SalesCategoriesTab from './Components/SalesCategoriesTab';
-import SalesStockReportTab from './Components/SalesStockReportTab';
-import SalesSidebar from './Components/SalesSidebar';
-import SalesTabPanel from './Components/SalesTabPanel';
-import SalesTabLoader from './Components/SalesTabLoader';
-import SalesSetCustomersTab from './Components/SalesSetCustomersTab';
-import SalesTargetsTab from './Components/SalesTargetsTab';
-import SalesNewListingsTab from './Components/SalesNewListingsTab';
+import SalesOverviewTab from './Overview/OverviewTab';
+import SalesTop10Tab from './Top10/Top10Tab';
+import SalesCustomersTab from './Customers/CustomersTab';
+import SalesCustomersComparisonTab from './Comparison/ComparisonTab';
+import SalesInactiveCustomersTab from './InactiveCustomers/InactiveCustomersTab';
+import SalesStatisticsTab from './Statistics/StatisticsTab';
+import SalesReportsTab from './Reports/ReportsTab';
+import SalesDailySalesTab from './DailySales/DailySalesTab';
+import SalesProductsTab from './Products/ProductsTab';
+import SalesCategoriesTab from './Categories/CategoriesTab';
+import SalesStockReportTab from './StockReport/StockReportTab';
+import SalesSidebar from './Shared/Sidebar';
+import SalesTabPanel from './Shared/TabPanel';
+import SalesTabLoader from './Shared/TabLoader';
+import SalesSetCustomersTab from './SetCustomers/SetCustomersTab';
+import SalesTargetsTab from './Targets/TargetsTab';
+import SalesNewListingsTab from './NewListings/NewListingsTab';
 import { SalesFiltersProvider, SalesFilterButton } from './Model/SalesFilters';
 
 import Login from '@/app/Components/Login';
@@ -27,6 +27,7 @@ import { ArrowLeft, BarChart3, LogOut, User, FileUp, FileSpreadsheet, ChevronDow
 import * as XLSX from 'xlsx';
 import { toast } from '@/app/Components/Notification';
 import { exportSalesExcelTable } from '@/app/Sales/Export/SalesExcelExport';
+import { getAllowedReportTableTabIds } from '@/app/Sales/Reports/ReportsTableTabs';
 
 const MAPPING_EXPORT_HEADERS = [
   'CUSTOMER ID',
@@ -168,6 +169,11 @@ export default function SalesPage() {
       currentUser?.isSalesManager === 'TRUE'
     );
   }, [currentUser?.name, currentUser?.isSalesManager]);
+
+  const allowedReportTableTabIds = useMemo(
+    () => getAllowedReportTableTabIds(currentUser?.role, isSalesManager),
+    [currentUser?.role, isSalesManager]
+  );
 
   const showCosts = useMemo(() => {
     const userName = currentUser?.name?.toLowerCase() || '';
@@ -454,7 +460,11 @@ export default function SalesPage() {
           <SalesStatisticsTab userId={salesUserId} refreshTrigger={refreshTrigger} />
         </SalesTabPanel>
         <SalesTabPanel tabId="sales-reports" activeTab={activeTab} isVisited={visitedTabs.has('sales-reports')}>
-          <SalesReportsTab userId={salesUserId} refreshTrigger={refreshTrigger} />
+          <SalesReportsTab
+            userId={salesUserId}
+            refreshTrigger={refreshTrigger}
+            allowedReportTableTabIds={allowedReportTableTabIds}
+          />
         </SalesTabPanel>
         <SalesTabPanel tabId="sales-targets" activeTab={activeTab} isVisited={visitedTabs.has('sales-targets')}>
           <SalesTargetsTab userId={salesUserId} refreshTrigger={refreshTrigger} />

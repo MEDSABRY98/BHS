@@ -24,6 +24,7 @@ const SYSTEMS = [
     { id: 'debit', label: 'Debit Analysis' },
     { id: 'customers-documents', label: 'Customers Documents' },
     { id: 'sales', label: 'Sales Analysis' },
+    { id: 'sales-reports-tables', label: 'Sales Reports Tables' },
     { id: 'inventory', label: 'Inventory' },
     { id: 'inventory-counting', label: 'Inventory Counting' },
     { id: 'inventory-scrap', label: 'Inventory Scrap' },
@@ -58,6 +59,17 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
         { id: 'sales-new-listings', label: 'New Listings' },
         { id: 'sales-download-form', label: 'Stock Report' },
         { id: 'sales-my-customers', label: 'Set Customers' },
+    ],
+    'sales-reports-tables': [
+        { id: 'sales-invoices', label: 'Sales Invoices' },
+        { id: 'return-invoices', label: 'Return Invoices' },
+        { id: 'top-customers', label: 'Top Customers' },
+        { id: 'top-return-customers', label: 'Return Customers' },
+        { id: 'growing', label: 'Growing' },
+        { id: 'declining', label: 'Declining' },
+        { id: 'at-risk', label: 'At-Risk' },
+        { id: 'products', label: 'Products' },
+        { id: 'categories', label: 'Categories' },
     ],
     'inventory': [
         { id: 'orders', label: 'Products' },
@@ -140,6 +152,7 @@ const getSystemIcon = (id: string) => {
         case 'petty-cash': return <Wallet className="w-5 h-5 text-emerald-500" />;
         case 'debit': return <BarChart3 className="w-5 h-5 text-rose-500" />;
         case 'sales': return <TrendingUp className="w-5 h-5 text-blue-500" />;
+        case 'sales-reports-tables': return <FileSpreadsheet className="w-5 h-5 text-emerald-600" />;
         case 'inventory': return <Package className="w-5 h-5 text-amber-500" />;
         case 'inventory-counting': return <ListChecks className="w-5 h-5 text-blue-500" />;
         case 'inventory-scrap': return <Trash2 className="w-5 h-5 text-orange-500" />;
