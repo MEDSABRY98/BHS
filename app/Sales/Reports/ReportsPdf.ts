@@ -592,11 +592,11 @@ function getChartCompareConfig(compareMode: CompareMode, reportingMode: ReturnTy
   if (compareMode === 'prevMonth') {
     return {
       key: 'prevMonth' as const,
-      legendLabel: 'Previous Month',
+      legendLabel: 'Previous Period',
       title,
       subtitle: reportingMode === 'returns'
-        ? 'Last 3 months — Actual GRV and Previous Month'
-        : 'Last 3 months — Actual, Target, and Previous Month',
+        ? 'Last 3 months — Actual GRV and Previous Period'
+        : 'Last 3 months — Actual, Target, and Previous Period',
       showTarget: shouldShowTargetInChart(reportingMode),
       actualLabel: getChartActualLabel(reportingMode),
     };

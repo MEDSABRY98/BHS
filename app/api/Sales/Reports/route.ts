@@ -18,7 +18,9 @@ import {
   buildDailySalesCalendars,
   computePeriodMetrics,
   getPrevMonthPeriod,
+  getPrevPeriod,
   getSameMonthLastYearPeriod,
+  getSamePeriodLastYear,
   periodData,
   pctChange,
   absChange,
@@ -126,17 +128,16 @@ export async function POST(request: Request) {
     const reportingMode = resolveReportingMode(filters?.invoiceType);
 
     const period = resolveReportPeriod(filters);
-    const compareDayRange = period.dayRange;
-    const prevPeriod = getPrevMonthPeriod(period.year, period.month, compareDayRange);
-    const smlyPeriod = getSameMonthLastYearPeriod(period.year, period.month, compareDayRange);
-    const prevPrevPeriod = getPrevMonthPeriod(prevPeriod.year, prevPeriod.month, compareDayRange);
+    const prevPeriod = getPrevPeriod(period.fromTime, period.toTime);
+    const smlyPeriod = getSamePeriodLastYear(period.fromTime, period.toTime);
+    const prevPrevPeriod = getPrevPeriod(prevPeriod.fromTime, prevPeriod.toTime);
 
     const currentData = periodData(geoData, period.fromTime, period.toTime);
     const prevMonthData = periodData(geoData, prevPeriod.fromTime, prevPeriod.toTime);
     const smlyData = periodData(geoData, smlyPeriod.fromTime, smlyPeriod.toTime);
     const prevPrevData = periodData(geoData, prevPrevPeriod.fromTime, prevPrevPeriod.toTime);
 
-    const smlyPrevPeriod = getPrevMonthPeriod(smlyPeriod.year, smlyPeriod.month, compareDayRange);
+    const smlyPrevPeriod = getPrevPeriod(smlyPeriod.fromTime, smlyPeriod.toTime);
     const smlyPrevData = periodData(geoData, smlyPrevPeriod.fromTime, smlyPrevPeriod.toTime);
 
     const currentMetrics = computePeriodMetrics(currentData, [], filters?.invoiceType);

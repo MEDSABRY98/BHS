@@ -440,7 +440,7 @@ export default function SalesReportsTab({ userId, refreshTrigger, allowedReportT
   const showTargetInChart = shouldShowTargetInChart(reportingMode);
   const customerViewLabel = customerView === 'main' ? 'Main Customer' : 'Sub Customer';
   const chartCompareKey = compareMode === 'prevMonth' ? 'prevMonth' : 'lastYear';
-  const chartCompareLabel = compareMode === 'prevMonth' ? 'Previous Month' : 'Same Period Last Year';
+  const chartCompareLabel = compareMode === 'prevMonth' ? 'Previous Period' : 'Same Period Last Year';
   const chartTitle = getChartTitle(reportingMode, compareMode);
   const chartActualLabel = getChartActualLabel(reportingMode);
   const customersTableTitle = getCustomersTableTitle(reportingMode);
@@ -770,7 +770,7 @@ export default function SalesReportsTab({ userId, refreshTrigger, allowedReportT
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >
-              {mode === 'prevMonth' ? 'Previous Month' : 'Same Month Last Year'}
+              {mode === 'prevMonth' ? 'Previous Period' : 'Same Period Last Year'}
             </button>
           ))}
           {compareLabel && (

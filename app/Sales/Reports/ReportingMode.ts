@@ -86,15 +86,20 @@ export function getChartTitle(
   mode: ReportingMode,
   compareMode: 'prevMonth' | 'sameMonthLastYear'
 ): string {
-  if (mode === 'returns') {
-    return compareMode === 'prevMonth'
-      ? 'Monthly GRV vs Previous Month'
-      : 'Monthly GRV vs Same Period Last Year';
+  const isReturn = mode === 'returns';
+  if (compareMode === 'sameMonthLastYear') {
+    return isReturn
+      ? 'Monthly GRV vs Same Period Last Year'
+      : shouldShowTargetInChart(mode)
+        ? `Monthly ${mode === 'sales' ? 'Sales' : 'Net Sales'} vs Target & Last Year`
+        : `Monthly ${mode === 'sales' ? 'Sales' : 'Net Sales'} vs Last Year`;
   }
   const amountWord = mode === 'sales' ? 'Sales' : 'Net Sales';
-  return compareMode === 'prevMonth'
-    ? `Monthly ${amountWord} vs Target & Previous Month`
-    : `Monthly ${amountWord} vs Target & Last Year`;
+  return isReturn
+    ? 'Monthly GRV vs Previous Period'
+    : shouldShowTargetInChart(mode)
+      ? `Monthly ${amountWord} vs Target & Previous Period`
+      : `Monthly ${amountWord} vs Previous Period`;
 }
 
 export function getChartActualLabel(mode: ReportingMode): string {
@@ -124,9 +129,9 @@ export function getKpiCompareLabel(
   comparePeriodLabel?: string
 ): string {
   if (compareMode === 'sameMonthLastYear') {
-    return comparePeriodLabel ? `vs ${comparePeriodLabel}` : 'vs same month last year';
+    return comparePeriodLabel ? `vs ${comparePeriodLabel}` : 'vs same period last year';
   }
-  return 'vs last month';
+  return comparePeriodLabel ? `vs ${comparePeriodLabel}` : 'vs previous period';
 }
 
 export function getKpiLabel(

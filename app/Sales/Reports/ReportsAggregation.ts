@@ -307,6 +307,72 @@ export function getSameMonthLastYearPeriod(year: number, month: number, dayRange
   return buildMonthPeriod(year - 1, month, dayRange);
 }
 
+function formatPeriodLabel(from: Date, to: Date): string {
+  const sameYear = from.getFullYear() === to.getFullYear();
+  const sameMonth = sameYear && from.getMonth() === to.getMonth();
+  if (sameMonth) {
+    const isFullMonth = from.getDate() === 1 && to.getDate() === new Date(to.getFullYear(), to.getMonth() + 1, 0).getDate();
+    if (isFullMonth) return `${MONTH_NAMES_LONG[from.getMonth()]} ${from.getFullYear()}`;
+    return `${MONTH_NAMES_LONG[from.getMonth()]} ${from.getDate()}–${to.getDate()}, ${from.getFullYear()}`;
+  }
+  return `${MONTH_NAMES_LONG[from.getMonth()]} ${from.getFullYear()} – ${MONTH_NAMES_LONG[to.getMonth()]} ${to.getFullYear()}`;
+}
+
+export function getPrevPeriod(fromTime: number, toTime: number) {
+  const from = new Date(fromTime);
+  const to = new Date(toTime);
+  
+  const isFirstDay = from.getDate() === 1;
+  const lastDayOfToMonth = new Date(to.getFullYear(), to.getMonth() + 1, 0).getDate();
+  const isLastDay = to.getDate() === lastDayOfToMonth;
+  const isFullMonths = isFirstDay && isLastDay;
+
+  let prevFrom: Date, prevTo: Date;
+
+  if (isFullMonths) {
+    const diffMonths = (to.getFullYear() - from.getFullYear()) * 12 + (to.getMonth() - from.getMonth()) + 1;
+    prevFrom = new Date(from.getFullYear(), from.getMonth() - diffMonths, 1);
+    prevTo = new Date(to.getFullYear(), to.getMonth() - diffMonths + 1, 0, 23, 59, 59, 999);
+  } else {
+    const durationMs = to.getTime() - from.getTime();
+    prevTo = new Date(from.getTime() - 1);
+    prevFrom = new Date(prevTo.getTime() - durationMs);
+  }
+
+  return {
+    fromTime: prevFrom.getTime(),
+    toTime: prevTo.getTime(),
+    label: formatPeriodLabel(prevFrom, prevTo),
+    year: prevFrom.getFullYear(),
+    month: prevFrom.getMonth() + 1,
+  };
+}
+
+export function getSamePeriodLastYear(fromTime: number, toTime: number) {
+  const from = new Date(fromTime);
+  const to = new Date(toTime);
+  
+  const prevFrom = new Date(from);
+  prevFrom.setFullYear(from.getFullYear() - 1);
+  const prevTo = new Date(to);
+  prevTo.setFullYear(to.getFullYear() - 1);
+
+  if (from.getMonth() === 1 && from.getDate() === 29) {
+    prevFrom.setMonth(1, 28);
+  }
+  if (to.getMonth() === 1 && to.getDate() === 29) {
+    prevTo.setMonth(1, 28);
+  }
+
+  return {
+    fromTime: prevFrom.getTime(),
+    toTime: prevTo.getTime(),
+    label: formatPeriodLabel(prevFrom, prevTo),
+    year: prevFrom.getFullYear(),
+    month: prevFrom.getMonth() + 1,
+  };
+}
+
 export function periodData(
   geoData: SalesItemWithDate[],
   fromTime: number,
