@@ -465,8 +465,7 @@ export default function SalesTargetsTab({ userId, refreshTrigger }: SalesTargets
           ) : (
             <div className="py-12">
               <NoData
-                title="No Sales Reps Found"
-                description={
+                title={
                   searchQuery
                     ? `No sales reps match "${searchQuery}"`
                     : 'No active sales reps found.'
