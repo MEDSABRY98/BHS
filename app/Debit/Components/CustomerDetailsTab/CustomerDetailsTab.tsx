@@ -30,7 +30,7 @@ import {
 } from '@tanstack/react-table';
 import { InvoiceRow } from '@/types';
 import { Mail, FileText, Calendar, ArrowLeft, FileSpreadsheet, ListFilter, CheckSquare, BarChart3, Download, X, Settings2 } from 'lucide-react';
-import { getInvoiceType } from '@/lib/InvoiceType';
+import { getInvoiceType } from '@/app/Debit/Utils/InvoiceType';
 import { useSearchParams } from 'next/navigation';
 import NoData from '@/app/Components/NoDataTab';
 import { generateAnalyticalPDF as generateAnalyticalPDFUtil } from '@/app/Sales/Pdf/AnalysisByCustomerUtils';

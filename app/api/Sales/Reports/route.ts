@@ -37,17 +37,48 @@ import {
 } from '@/app/Sales/Reports/ReportingMode';
 
 export const maxDuration = 60;
+export const dynamic = 'force-dynamic';
+export const fetchCache = 'force-no-store';
 
 async function fetchTargets(): Promise<Map<string, number>> {
   const map = new Map<string, number>();
+
+  // 1. Build a map of Personnel ID -> User ID based on exact Name match
+  const { data: users } = await bhs_supabas.from('bhs_USERS').select('ID, NAME');
+  const { data: personnel } = await bhs_supabas.from('web_Sales_DB_PERSONNEL').select('ID, NAME');
+  
+  const nameToUserId = new Map<string, string>();
+  if (users) {
+    users.forEach(u => {
+      const name = String(u.NAME || '').trim().toUpperCase();
+      if (name) nameToUserId.set(name, String(u.ID));
+    });
+  }
+
+  const personnelToUserId = new Map<string, string>();
+  if (personnel) {
+    personnel.forEach(p => {
+      const name = String(p.NAME || '').trim().toUpperCase();
+      if (name && nameToUserId.has(name)) {
+        personnelToUserId.set(String(p.ID), nameToUserId.get(name)!);
+      }
+    });
+  }
+
+  // 2. Fetch targets and map Personnel ID to User ID
   const { data, error } = await bhs_supabas
     .from('web_Sales_DB_TARGET')
     .select('"USER_ID", "YEAR", "MONTH", "TARGET_AMOUNT", "TARGET_TYPE"');
   if (error || !data) return map;
+  
   data.forEach((row: Record<string, unknown>) => {
     const type = String(row.TARGET_TYPE || 'sales_rep');
-    const key = `${row.USER_ID}|${row.YEAR}|${row.MONTH}|${type}`;
-    map.set(key, Number(row.TARGET_AMOUNT) || 0);
+    const rawUserId = String(row.USER_ID || '');
+    // Resolve to the old user ID if it maps, otherwise keep the raw ID
+    const resolvedUserId = personnelToUserId.get(rawUserId) || rawUserId;
+    
+    const key = `${resolvedUserId}|${row.YEAR}|${row.MONTH}|${type}`;
+    map.set(key, (map.get(key) || 0) + (Number(row.TARGET_AMOUNT) || 0));
   });
   return map;
 }
@@ -163,7 +194,7 @@ export async function POST(request: Request) {
 
     const getTarget = (y: number, m: number) =>
       isManager && !filters?.salesRep && !filters?.merchandiser
-        ? sumTargetsForMonth(targetMap, y, m, null, null)
+        ? sumTargetsForMonth(targetMap, y, m, null, 'sales_rep')
         : sumTargetsForMonth(targetMap, y, m, targetUserIds, targetType);
 
     const monthlyComparison = buildLast6MonthsComparison(

@@ -5,7 +5,8 @@ import {
   invalidateMappingCache,
   isLegacyMappingRowId,
   loadUserMaps,
-  normalizeMappingCustomerId,
+  loadCustomerMaps,
+  resolveCustomerId,
   resolveMerchandiserUserId,
   resolveSalesRepUserId,
 } from '@/app/Sales/Utils/SalesMappingCache';
@@ -38,12 +39,16 @@ export async function POST(request: Request) {
     }
 
     const { userMapById, userMapByName } = await loadUserMaps();
+    const { custMapById, custMapByName } = await loadCustomerMaps();
 
     const rowsByCustomer = new Map<string, Record<string, string>>();
     for (const rawCustomerId of Object.keys(mapping)) {
       if (isLegacyMappingRowId(rawCustomerId)) continue;
 
-      const customerId = await normalizeMappingCustomerId(rawCustomerId);
+      const customerId = resolveCustomerId(rawCustomerId, custMapById, custMapByName);
+      if (!customerId) {
+        throw new Error(`Customer "${rawCustomerId}" was not found in the database.`);
+      }
       const data = mapping[rawCustomerId];
       const repRaw = String(data.salesRep || data.salesRepId || '').trim();
       const repId = resolveSalesRepUserId(repRaw, userMapById, userMapByName);

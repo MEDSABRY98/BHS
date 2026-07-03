@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { InvoiceRow } from '@/types';
-import { getInvoiceType } from '@/lib/InvoiceType';
+import { getInvoiceType } from '@/app/Debit/Utils/InvoiceType';
 import {
   PaymentEntry,
   PaymentByCustomer,

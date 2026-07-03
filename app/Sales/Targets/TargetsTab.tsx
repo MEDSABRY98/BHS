@@ -1,20 +1,19 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
-import { Plus, Save, Search, Trash2, X, Target, ChevronDown } from 'lucide-react';
+import { Save, Search, Target, ChevronDown, Users, X, AlertCircle } from 'lucide-react';
 import { toast } from '@/app/Components/Notification';
 import NoData from '@/app/Components/NoDataTab';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
-
-type TargetType = 'sales_rep' | 'merchandiser';
 
 type TargetRow = {
   userId: string;
   userName: string;
   targetAmount: number;
-  isNew?: boolean;
+  type: 'sales_rep' | 'merchandiser';
   isDirty?: boolean;
+  merchandisers?: TargetRow[];
+  supervisorId?: string | null;
 };
 
 interface SalesTargetsTabProps {
@@ -123,25 +122,16 @@ export default function SalesTargetsTab({ userId, refreshTrigger }: SalesTargets
   const now = new Date();
   const [year, setYear] = useState(Math.max(2025, now.getFullYear()));
   const [month, setMonth] = useState(now.getMonth() + 1);
-  const [targetType, setTargetType] = useState<TargetType>('sales_rep');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [rows, setRows] = useState<TargetRow[]>([]);
+  const [salesReps, setSalesReps] = useState<TargetRow[]>([]);
+  const [unassigned, setUnassigned] = useState<TargetRow[]>([]);
+  const [isManager, setIsManager] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [usersList, setUsersList] = useState<{ id: string; name: string }[]>([]);
-
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [addSearchQuery, setAddSearchQuery] = useState('');
-  const [showAddDropdown, setShowAddDropdown] = useState(false);
-  const [addUserId, setAddUserId] = useState('');
-  const [addAmount, setAddAmount] = useState('');
-  const addDropdownRef = useRef<HTMLDivElement>(null);
   const [yearsWithData, setYearsWithData] = useState<number[]>([2025]);
-  const [portalReady, setPortalReady] = useState(false);
 
-  useEffect(() => {
-    setPortalReady(true);
-  }, []);
+  // Modal State
+  const [activeRep, setActiveRep] = useState<TargetRow | null>(null);
 
   const fetchYearsWithData = useCallback(async () => {
     if (!userId) return;
@@ -173,31 +163,6 @@ export default function SalesTargetsTab({ userId, refreshTrigger }: SalesTargets
     }
   }, [yearOptions, year]);
 
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (addDropdownRef.current && !addDropdownRef.current.contains(event.target as Node)) {
-        setShowAddDropdown(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  useEffect(() => {
-    const fetchUsers = async () => {
-      try {
-        const response = await fetch('/DataBase/Users/api');
-        if (response.ok) {
-          const result = await response.json();
-          setUsersList(result.users || []);
-        }
-      } catch (err) {
-        console.error('Error fetching users:', err);
-      }
-    };
-    fetchUsers();
-  }, []);
-
   const fetchTargets = useCallback(async () => {
     if (!userId) return;
     setLoading(true);
@@ -206,7 +171,6 @@ export default function SalesTargetsTab({ userId, refreshTrigger }: SalesTargets
         userId,
         year: String(year),
         month: String(month),
-        type: targetType,
       });
       const response = await fetch(`/api/Sales/Targets?${params}`);
       if (!response.ok) {
@@ -214,126 +178,104 @@ export default function SalesTargetsTab({ userId, refreshTrigger }: SalesTargets
         throw new Error(err.error || 'Failed to load targets');
       }
       const result = await response.json();
-      setRows(
-        (result.data || []).map((r: TargetRow) => ({
-          userId: r.userId,
-          userName: r.userName,
-          targetAmount: r.targetAmount,
-        }))
-      );
+      setSalesReps(result.data?.salesReps || []);
+      setUnassigned(result.data?.unassignedMerchandisers || []);
+      setIsManager(!!result.isManager);
     } catch (error: any) {
       console.error(error);
       toast.error(error.message || 'Failed to load targets');
-      setRows([]);
+      setSalesReps([]);
+      setUnassigned([]);
     } finally {
       setLoading(false);
     }
-  }, [userId, year, month, targetType]);
+  }, [userId, year, month]);
 
   useEffect(() => {
     fetchTargets();
   }, [fetchTargets, refreshTrigger]);
 
-  const filteredRows = useMemo(() => {
-    if (!searchQuery.trim()) return rows;
+  const filteredReps = useMemo(() => {
+    if (!searchQuery.trim()) return salesReps;
     const q = searchQuery.toLowerCase();
-    return rows.filter((r) => r.userName.toLowerCase().includes(q));
-  }, [rows, searchQuery]);
+    return salesReps.filter((r) => r.userName.toLowerCase().includes(q));
+  }, [salesReps, searchQuery]);
 
-  const existingUserIds = useMemo(() => new Set(rows.map((r) => r.userId)), [rows]);
-
-  const availableUsers = useMemo(() => {
-    const q = addSearchQuery.toLowerCase();
-    return usersList.filter(
-      (u) =>
-        !existingUserIds.has(u.id) &&
-        u.name.toLowerCase().includes(q)
-    );
-  }, [usersList, existingUserIds, addSearchQuery]);
-
-  const updateRowAmount = (userIdKey: string, value: string) => {
+  const updateRepAmount = (userIdKey: string, value: string) => {
     const amount = value === '' ? 0 : Number(value);
-    setRows((prev) =>
+    setSalesReps((prev) =>
       prev.map((r) =>
         r.userId === userIdKey
           ? { ...r, targetAmount: Number.isFinite(amount) ? amount : r.targetAmount, isDirty: true }
           : r
       )
     );
-  };
-
-  const handleDelete = async (row: TargetRow) => {
-    toast.loading('Deleting target...', { id: 'del_target' });
-    try {
-      const params = new URLSearchParams({
-        userId,
-        targetUserId: row.userId,
-        year: String(year),
-        month: String(month),
-        type: targetType,
-      });
-      const response = await fetch(`/api/Sales/Targets?${params}`, { method: 'DELETE' });
-      if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.error || 'Failed to delete');
-      }
-      toast.success('Target removed');
-      await fetchYearsWithData();
-      fetchTargets();
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to delete target');
-    } finally {
-      toast.dismiss('del_target');
+    // If modal is open for this rep, update it too
+    if (activeRep?.userId === userIdKey) {
+      setActiveRep(prev => prev ? { ...prev, targetAmount: Number.isFinite(amount) ? amount : prev.targetAmount, isDirty: true } : prev);
     }
   };
 
-  const handleAddPerson = async () => {
-    if (!addUserId) {
-      toast.error('Select a person first');
-      return;
-    }
-    const amount = parseDecimalInput(addAmount);
-    if (!Number.isFinite(amount) || amount < 0) {
-      toast.error('Enter a valid target amount');
-      return;
-    }
-
-    setSaving(true);
-    toast.loading('Saving target...', { id: 'add_target' });
-    try {
-      const response = await fetch('/api/Sales/Targets', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId,
-          targetUserId: addUserId,
-          year,
-          month,
-          type: targetType,
-          targetAmount: amount,
-        }),
+  const updateMerchAmount = (repId: string, merchId: string, value: string) => {
+    const amount = value === '' ? 0 : Number(value);
+    setSalesReps((prev) =>
+      prev.map((r) => {
+        if (r.userId === repId) {
+          return {
+            ...r,
+            merchandisers: (r.merchandisers || []).map(m => 
+              m.userId === merchId ? { ...m, targetAmount: Number.isFinite(amount) ? amount : m.targetAmount, isDirty: true } : m
+            )
+          };
+        }
+        return r;
+      })
+    );
+    
+    // Update active modal rep instantly
+    if (activeRep?.userId === repId) {
+      setActiveRep(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          merchandisers: (prev.merchandisers || []).map(m => 
+            m.userId === merchId ? { ...m, targetAmount: Number.isFinite(amount) ? amount : m.targetAmount, isDirty: true } : m
+          )
+        };
       });
-      if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.error || 'Failed to save');
-      }
-      toast.success('Target added');
-      setShowAddForm(false);
-      setAddUserId('');
-      setAddAmount('');
-      setAddSearchQuery('');
-      await fetchYearsWithData();
-      fetchTargets();
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to add target');
-    } finally {
-      setSaving(false);
-      toast.dismiss('add_target');
     }
+  };
+
+  const flattenDirtyRows = () => {
+    const dirty: TargetRow[] = [];
+    salesReps.forEach(r => {
+      if (r.isDirty) dirty.push(r);
+      (r.merchandisers || []).forEach(m => {
+        if (m.isDirty) dirty.push(m);
+      });
+    });
+    unassigned.forEach(u => {
+      if (u.isDirty) dirty.push(u);
+    });
+    return dirty;
   };
 
   const handleSaveMonth = async () => {
-    const dirtyRows = rows.filter((r) => r.isDirty);
+    // Validate Allocations
+    let validationError = false;
+    salesReps.forEach(rep => {
+      if (rep.merchandisers && rep.merchandisers.length > 0) {
+        const totalMerchTarget = rep.merchandisers.reduce((sum, m) => sum + (m.targetAmount || 0), 0);
+        if (totalMerchTarget !== (rep.targetAmount || 0)) {
+          toast.error(`Total allocated to merchandisers for ${rep.userName} does not match their target!`);
+          validationError = true;
+        }
+      }
+    });
+
+    if (validationError) return;
+
+    const dirtyRows = flattenDirtyRows();
     if (dirtyRows.length === 0) {
       toast.info('No changes to save');
       return;
@@ -349,10 +291,10 @@ export default function SalesTargetsTab({ userId, refreshTrigger }: SalesTargets
           userId,
           year,
           month,
-          type: targetType,
           targets: dirtyRows.map((r) => ({
             userId: r.userId,
             targetAmount: r.targetAmount,
+            type: r.type
           })),
         }),
       });
@@ -368,6 +310,7 @@ export default function SalesTargetsTab({ userId, refreshTrigger }: SalesTargets
     } finally {
       setSaving(false);
       toast.dismiss('save_targets');
+      setActiveRep(null);
     }
   };
 
@@ -381,11 +324,9 @@ export default function SalesTargetsTab({ userId, refreshTrigger }: SalesTargets
     []
   );
 
-  if (loading && rows.length === 0) {
+  if (loading && salesReps.length === 0) {
     return <SalesTabLoader />;
   }
-
-  const typeLabel = targetType === 'sales_rep' ? 'Sales Rep' : 'Merchandiser';
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
@@ -394,215 +335,226 @@ export default function SalesTargetsTab({ userId, refreshTrigger }: SalesTargets
           <div className="w-10 h-10 bg-green-600 rounded-xl flex items-center justify-center shadow-lg shadow-green-100 shrink-0">
             <Target className="w-5 h-5 text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-slate-800 shrink-0">Monthly Targets</h1>
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setTargetType('sales_rep')}
-              className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
-                targetType === 'sales_rep'
-                  ? 'bg-green-600 text-white shadow-md'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              Sales Rep Targets
-            </button>
-            <button
-              type="button"
-              onClick={() => setTargetType('merchandiser')}
-              className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
-                targetType === 'merchandiser'
-                  ? 'bg-green-600 text-white shadow-md'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              Merchandiser Targets
-            </button>
+          <h1 className="text-2xl font-bold text-slate-800 shrink-0">Sales Rep Targets</h1>
+        </div>
+        
+        <div className="flex flex-col sm:flex-row items-center gap-3">
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <div className="w-28 shrink-0">
+              <PeriodSelect
+                value={String(year)}
+                label="Year"
+                options={yearSelectOptions}
+                onChange={(val) => setYear(Number(val))}
+              />
+            </div>
+            <div className="w-36 shrink-0">
+              <PeriodSelect
+                value={String(month)}
+                label="Month"
+                options={monthSelectOptions}
+                onChange={(val) => setMonth(Number(val))}
+              />
+            </div>
+          </div>
+          
+          <button
+            onClick={handleSaveMonth}
+            disabled={saving}
+            className="w-full sm:w-auto px-6 h-10 bg-black text-[#D4AF37] hover:bg-slate-800 rounded-xl font-bold text-sm transition-all shadow-xl shadow-black/20 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {saving ? (
+              <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <Save className="w-4 h-4" />
+            )}
+            Save All
+          </button>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden flex flex-col">
+        <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="relative w-full max-w-sm">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Search Sales Rep..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full h-10 pl-10 pr-4 bg-white border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500 transition-all placeholder:font-normal"
+            />
+          </div>
+          <div className="text-sm font-bold text-slate-500 bg-white px-4 py-2 rounded-xl border border-slate-200 shadow-sm">
+            {filteredReps.length} Sales Reps
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-2 w-64 shrink-0">
-          <PeriodSelect
-            label="Year"
-            value={String(year)}
-            options={yearSelectOptions}
-            onChange={(v) => setYear(Number(v))}
-          />
-          <PeriodSelect
-            label="Month"
-            value={String(month)}
-            options={monthSelectOptions}
-            onChange={(v) => setMonth(Number(v))}
-          />
-        </div>
-      </div>
-
-      <div className="flex flex-col sm:flex-row gap-3 justify-between">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <input
-            type="text"
-            placeholder={`Search ${typeLabel.toLowerCase()}...`}
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-medium"
-          />
-        </div>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => setShowAddForm(true)}
-            className="h-10 w-10 flex items-center justify-center bg-white border border-green-200 text-green-700 rounded-xl hover:bg-green-50 transition-all shadow-sm"
-            title="Add Person"
-          >
-            <Plus className="w-5 h-5" />
-          </button>
-          <button
-            type="button"
-            onClick={handleSaveMonth}
-            disabled={saving}
-            className="h-10 w-10 flex items-center justify-center bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-all shadow-sm disabled:opacity-50"
-            title="Save Changes"
-          >
-            <Save className="w-5 h-5" />
-          </button>
-        </div>
-      </div>
-
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        {filteredRows.length === 0 ? (
-          <NoData title="NO TARGETS FOUND" />
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-center">
+        <div className="overflow-x-auto min-h-[400px]">
+          {filteredReps.length > 0 ? (
+            <table className="w-full text-center border-collapse min-w-[700px]">
               <thead>
-                <tr className="bg-slate-50 border-b border-slate-100 text-center">
-                  <th className="px-4 py-4 text-xs font-bold text-slate-500 uppercase text-center">#</th>
-                  <th className="px-4 py-4 text-xs font-bold text-slate-500 uppercase text-center">{typeLabel}</th>
-                  <th className="px-4 py-4 text-xs font-bold text-slate-500 uppercase text-center">Target Amount</th>
-                  <th className="px-4 py-4 text-xs font-bold text-slate-500 uppercase text-center w-24">Actions</th>
+                <tr className="border-b border-slate-100 bg-slate-50 text-[10px] uppercase font-extrabold tracking-widest text-slate-400">
+                  <th className="py-4 px-6 w-[20%] text-center">User ID</th>
+                  <th className="py-4 px-6 w-[35%] text-center">Name</th>
+                  <th className="py-4 px-6 w-[20%] text-center">Merchandisers</th>
+                  <th className="py-4 px-6 w-[25%] text-center">Target Amount (AED)</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredRows.map((row, idx) => (
-                  <tr key={row.userId} className="hover:bg-slate-50 text-center">
-                    <td className="px-4 py-3 text-xs text-slate-500 text-center">{idx + 1}</td>
-                    <td className="px-4 py-3 text-sm font-semibold text-slate-800 text-center">{row.userName}</td>
-                    <td className="px-4 py-3 text-center">
-                      <input
-                        type="number"
-                        min={0}
-                        value={row.targetAmount}
-                        onChange={(e) => updateRowAmount(row.userId, e.target.value)}
-                        className="w-40 mx-auto px-3 py-2 border border-slate-200 rounded-lg text-sm font-bold text-center focus:border-green-500 outline-none"
-                      />
+                {filteredReps.map((row) => (
+                  <tr
+                    key={row.userId}
+                    className="group hover:bg-slate-50 transition-colors"
+                  >
+                    <td className="py-3 px-6 text-center">
+                      <div className="font-mono text-xs font-bold text-slate-500 bg-slate-100/50 px-2.5 py-1 rounded-md inline-block">
+                        {row.userId}
+                      </div>
                     </td>
-                    <td className="px-4 py-3 text-center">
+                    <td className="py-3 px-6">
+                      <div className="font-bold text-sm text-slate-800 flex items-center justify-center gap-2">
+                        {row.userName}
+                        {row.isDirty && (
+                          <div className="w-1.5 h-1.5 rounded-full bg-amber-400" title="Unsaved changes" />
+                        )}
+                      </div>
+                    </td>
+                    <td className="py-3 px-6">
                       <div className="flex justify-center">
-                        <button
-                          type="button"
-                          onClick={() => handleDelete(row)}
-                          className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg"
-                          title="Remove from this month"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        {row.merchandisers && row.merchandisers.length > 0 ? (
+                          <button
+                            onClick={() => setActiveRep(row)}
+                            className="flex items-center gap-2 px-3 py-1.5 bg-green-50 text-green-700 hover:bg-green-100 rounded-lg text-xs font-bold transition-colors border border-green-200"
+                          >
+                            <Users className="w-3.5 h-3.5" />
+                            View ({row.merchandisers.length})
+                          </button>
+                        ) : (
+                          <span className="text-xs font-medium text-slate-400 px-3 py-1.5 bg-slate-50 rounded-lg border border-slate-100">
+                            None
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="py-3 px-6">
+                      <div className="flex justify-center">
+                        <div className="relative group/input max-w-[180px] w-full">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 group-focus-within/input:text-green-600 transition-colors">
+                            AED
+                          </span>
+                          <input
+                            type="text"
+                            disabled={!isManager}
+                            value={formatDecimalInput(String(row.targetAmount || ''))}
+                            onChange={(e) => updateRepAmount(row.userId, String(parseDecimalInput(e.target.value)))}
+                            className={`w-full h-10 pl-12 pr-4 text-sm font-bold text-center rounded-xl border transition-all focus:outline-none focus:ring-2 focus:ring-green-500/20 disabled:opacity-60 disabled:cursor-not-allowed ${
+                              row.isDirty
+                                ? 'bg-amber-50 border-amber-200 focus:border-amber-500 text-amber-900'
+                                : 'bg-slate-50 border-slate-200 focus:border-green-500 text-slate-800'
+                            }`}
+                            placeholder="0"
+                          />
+                        </div>
                       </div>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          </div>
-        )}
+          ) : (
+            <div className="py-12">
+              <NoData
+                title="No Sales Reps Found"
+                description={
+                  searchQuery
+                    ? `No sales reps match "${searchQuery}"`
+                    : 'No active sales reps found.'
+                }
+              />
+            </div>
+          )}
+        </div>
       </div>
 
-      {showAddForm && portalReady && createPortal(
-        <div className="fixed inset-0 z-[10001] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => !saving && setShowAddForm(false)} />
-          <div className="relative w-full max-w-md max-h-[90vh] flex flex-col bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden">
-            <div className="p-6 pb-4 space-y-4 overflow-y-auto flex-1 min-h-0">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-bold text-slate-900">Add {typeLabel}</h3>
-              <button type="button" onClick={() => !saving && setShowAddForm(false)} className="p-1 hover:bg-slate-100 rounded-lg">
-                <X className="w-5 h-5 text-slate-400" />
+      {/* Merchandiser Allocation Modal */}
+      {activeRep && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setActiveRep(null)} />
+          <div className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-200">
+            <div className="p-6 border-b border-slate-100 flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-bold text-slate-800">
+                  Merchandiser Targets
+                </h2>
+                <p className="text-sm font-medium text-slate-500 mt-1">
+                  Allocate <span className="text-black font-bold">AED {formatDecimalInput(String(activeRep.targetAmount || 0))}</span> for {activeRep.userName}
+                </p>
+              </div>
+              <button
+                onClick={() => setActiveRep(null)}
+                className="p-2 hover:bg-slate-100 rounded-xl transition-colors text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div ref={addDropdownRef}>
-              <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Person</label>
-              <input
-                type="text"
-                value={addSearchQuery}
-                onChange={(e) => {
-                  setAddSearchQuery(e.target.value);
-                  setAddUserId('');
-                  setShowAddDropdown(true);
-                }}
-                onFocus={() => setShowAddDropdown(true)}
-                placeholder="Search by name..."
-                className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm font-medium"
-              />
-              {showAddDropdown && (
-                <div className="mt-1.5 w-full bg-white border border-slate-200 rounded-xl shadow-sm max-h-36 overflow-y-auto p-1 scrollbar-thin">
-                  {availableUsers.length > 0 ? (
-                    availableUsers.map((u) => (
-                      <button
-                        key={u.id}
-                        type="button"
-                        onClick={() => {
-                          setAddUserId(u.id);
-                          setAddSearchQuery(u.name);
-                          setShowAddDropdown(false);
-                        }}
-                        className={`w-full px-3 py-2 rounded-lg text-left text-sm font-semibold hover:bg-slate-50 ${
-                          addUserId === u.id ? 'bg-green-50 text-green-700' : 'text-slate-700'
+            <div className="flex-1 overflow-y-auto p-6 scrollbar-thin">
+              <div className="space-y-4">
+                {(activeRep.merchandisers || []).map((merch) => (
+                  <div key={merch.userId} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl border border-slate-100 bg-slate-50/50 hover:bg-slate-50 hover:border-slate-200 transition-all">
+                    <div>
+                      <div className="font-bold text-sm text-slate-800">{merch.userName}</div>
+                      <div className="font-mono text-[11px] font-bold text-slate-500 mt-1">{merch.userId}</div>
+                    </div>
+                    <div className="relative max-w-[180px] w-full shrink-0">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
+                        AED
+                      </span>
+                      <input
+                        type="text"
+                        value={formatDecimalInput(String(merch.targetAmount || ''))}
+                        onChange={(e) => updateMerchAmount(activeRep.userId, merch.userId, String(parseDecimalInput(e.target.value)))}
+                        className={`w-full h-10 pl-12 pr-4 text-sm font-bold text-right rounded-xl border transition-all focus:outline-none focus:ring-2 focus:ring-green-500/20 ${
+                          merch.isDirty
+                            ? 'bg-amber-50 border-amber-200 focus:border-amber-500 text-amber-900'
+                            : 'bg-white border-slate-200 focus:border-green-500 text-slate-800'
                         }`}
-                      >
-                        {u.name}
-                      </button>
-                    ))
-                  ) : (
-                    <div className="px-3 py-4 text-xs text-slate-400 text-center">No users available</div>
-                  )}
-                </div>
-              )}
+                        placeholder="0"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
 
-            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Target Amount</label>
-              <input
-                type="text"
-                inputMode="decimal"
-                value={addAmount}
-                onChange={(e) => setAddAmount(formatDecimalInput(e.target.value))}
-                placeholder="0.00"
-                className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm font-medium"
-              />
-            </div>
-            </div>
-
-            <div className="flex justify-end gap-2 p-6 pt-4 border-t border-slate-100 bg-white shrink-0">
-              <button
-                type="button"
-                onClick={() => setShowAddForm(false)}
-                disabled={saving}
-                className="px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100 rounded-xl"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleAddPerson}
-                disabled={saving}
-                className="px-5 py-2 text-sm font-bold text-white bg-green-600 hover:bg-green-700 rounded-xl disabled:opacity-50"
-              >
-                Add
-              </button>
+            <div className="p-6 border-t border-slate-100 bg-slate-50/80 rounded-b-3xl">
+              {(() => {
+                const totalAllocated = (activeRep.merchandisers || []).reduce((sum, m) => sum + (m.targetAmount || 0), 0);
+                const isMatch = totalAllocated === (activeRep.targetAmount || 0);
+                
+                return (
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className={`flex items-center gap-3 px-4 py-2.5 rounded-xl border ${isMatch ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'}`}>
+                      {isMatch ? <Target className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
+                      <div className="font-bold text-sm">
+                        Total Allocated: AED {formatDecimalInput(String(totalAllocated))} 
+                        <span className="text-xs font-medium ml-1 opacity-70">/ {formatDecimalInput(String(activeRep.targetAmount || 0))}</span>
+                      </div>
+                    </div>
+                    
+                    <button
+                      onClick={() => setActiveRep(null)}
+                      className="px-6 py-2.5 bg-black text-[#D4AF37] hover:bg-slate-800 rounded-xl font-bold text-sm transition-all shadow-md shadow-black/10"
+                    >
+                      Done
+                    </button>
+                  </div>
+                );
+              })()}
             </div>
           </div>
-        </div>,
-        document.body
+        </div>
       )}
     </div>
   );

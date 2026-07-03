@@ -7,6 +7,7 @@ import {
     Lock, Users, ShieldAlert, Sparkles, Trash2, ListChecks, FileSpreadsheet
 } from 'lucide-react';
 import Loading from '@/app/Components/Loading';
+import NoData from '@/app/Components/NoDataTab';
 
 interface UserPermissions {
     name: string;
@@ -485,9 +486,9 @@ export default function AdminControlTab() {
         <div className="max-w-[1400px] mx-auto p-4 md:p-6 animate-in fade-in duration-500 pt-2">
             {renderSubTabModal()}
 
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
                 {/* Left Panel: User List */}
-                <div className="lg:col-span-4 bg-white rounded-3xl shadow-xl border border-slate-200/50 overflow-hidden flex flex-col h-[800px] transition-all">
+                <div className="lg:col-span-4 bg-white rounded-3xl shadow-xl border border-slate-200/50 overflow-hidden flex flex-col transition-all">
                     {/* Header */}
                     <div className="p-5 border-b border-slate-100 bg-slate-50/50 flex flex-col gap-4">
                         <div className="flex items-center gap-2.5">
@@ -514,9 +515,9 @@ export default function AdminControlTab() {
                     </div>
 
                     {/* Users List Container */}
-                    <div className="flex-1 overflow-y-auto p-4 space-y-2 no-scrollbar">
+                    <div className="flex-1 p-4 space-y-2">
                         {filteredUsers.length === 0 ? (
-                            <div className="py-20 text-center text-slate-400 font-bold italic">No users found</div>
+                            <NoData title="No users found" />
                         ) : (
                             filteredUsers.map((user) => {
                                 const isSelected = selectedUser?.name === user.name;
@@ -553,7 +554,7 @@ export default function AdminControlTab() {
                 </div>
 
                 {/* Right Panel: Permissions Config */}
-                <div className="lg:col-span-8 bg-white rounded-3xl shadow-xl border border-slate-200/50 p-6 md:p-8 h-[800px] flex flex-col transition-all">
+                <div className="lg:col-span-8 bg-white rounded-3xl shadow-xl border border-slate-200/50 p-6 md:p-8 flex flex-col transition-all min-h-[500px]">
                     {selectedUser ? (
                         <>
                             {/* Profile Header */}
@@ -620,7 +621,10 @@ export default function AdminControlTab() {
                             </div>
 
                             {/* Grid of Systems */}
-                            <div className="flex-1 overflow-y-auto pr-2 space-y-4 no-scrollbar">
+                            <div className="flex-1 pr-2 space-y-4">
+                                {filteredSystems.length === 0 ? (
+                                    <NoData title="No modules found" />
+                                ) : (
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pb-6">
                                     {filteredSystems.map((system) => {
                                         const permissions = parsePermissions(selectedUser.role);
@@ -690,10 +694,11 @@ export default function AdminControlTab() {
                                         );
                                     })}
                                 </div>
+                                )}
                             </div>
                         </>
                     ) : (
-                        <div className="h-full flex flex-col items-center justify-center text-slate-300 py-20 select-none">
+                        <div className="flex-1 flex flex-col items-center justify-center text-slate-300 py-20 select-none">
                             <div className="p-6 bg-slate-50 border border-slate-100 rounded-3xl shadow-sm mb-4">
                                 <ShieldAlert className="w-16 h-16 text-slate-400" />
                             </div>

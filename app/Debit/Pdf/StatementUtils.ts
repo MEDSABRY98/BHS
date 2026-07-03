@@ -1,6 +1,6 @@
 'use client';
 
-import { getInvoiceType } from '@/lib/InvoiceType';
+import { getInvoiceType } from '@/app/Debit/Utils/InvoiceType';
 import { addArabicFont, TYPE_BADGE_COLORS } from '@/app/Components/Pdf/shared';
 
 export async function generateAccountStatementPDF(

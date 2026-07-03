@@ -120,6 +120,7 @@ export default function DatabaseLayout({ children }: { children: React.ReactNode
     { id: 'db-suppliers-purchase', href: '/DataBase/SuppliersPurchase', icon: Truck, label: 'Suppliers Purchase' },
     { id: 'db-suppliers-refund', href: '/DataBase/SuppliersRefund', icon: Truck, label: 'Suppliers Refund' },
     { id: 'db-users', href: '/DataBase/Users', icon: Users, label: 'Users DB' },
+    { id: 'db-personnel', href: '/DataBase/Personnel', icon: Users, label: 'Personnel DB' },
   ];
 
   return (

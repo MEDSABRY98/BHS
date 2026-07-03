@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import NoData from '@/app/Components/NoDataTab';
 import { InvoiceRow } from '@/types';
-import { getInvoiceType } from '@/lib/InvoiceType';
+import { getInvoiceType } from '@/app/Debit/Utils/InvoiceType';
 import { parseDate } from './PaymentTUtilsTab';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, LabelList } from 'recharts';
 

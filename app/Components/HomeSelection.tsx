@@ -2,7 +2,6 @@
 
 import { DollarSign, TrendingUp, ArrowRight, FileText, Package, Clock, Receipt, Wallet, FileSpreadsheet, LogOut, Layers, Truck, Users, LayoutGrid, Shield, ChevronLeft, ShoppingCart, Database, Trash2, ClipboardList } from 'lucide-react';
 import { useState } from 'react';
-import AdminControlTab from './AdminControlTab';
 
 interface HomeSelectionProps {
   currentUser?: any;
@@ -126,7 +125,6 @@ const SystemCard = ({ title, icon: Icon, onClick, color, delay = 0 }: SystemCard
 };
 
 export default function HomeSelection({ currentUser, onLogout }: HomeSelectionProps) {
-  const [activeView, setActiveView] = useState<'selection' | 'admin'>('selection');
 
   // Navigation Handlers
   const nav = (path: string) => () => window.location.href = path;
@@ -170,27 +168,6 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
   const allowedSystems = ALL_SYSTEMS
     .filter(sys => isSystemAllowed(sys.id))
     .sort((a, b) => a.title.localeCompare(b.title));
-
-  if (activeView === 'admin') {
-    return (
-      <div className="min-h-screen bg-slate-50">
-        <div className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between sticky top-0 z-50">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => setActiveView('selection')}
-              className="p-2 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-all"
-              title="Back to Dashboard"
-            >
-              <ChevronLeft className="w-6 h-6" />
-            </button>
-            <div className="h-6 w-px bg-slate-200" />
-            <h1 className="text-xl font-bold text-slate-900">Admin Control</h1>
-          </div>
-        </div>
-        <AdminControlTab />
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-slate-50 relative selection:bg-blue-100 selection:text-blue-900 overflow-y-auto overflow-x-hidden flex flex-col items-center justify-start pt-6 sm:pt-10 pb-10">
@@ -240,7 +217,7 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
             <SystemCard
               title="Admin Control"
               icon={Shield}
-              onClick={() => setActiveView('admin')}
+              onClick={nav('/AdminControl')}
               color="indigo"
               delay={100}
             />

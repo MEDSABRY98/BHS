@@ -16,7 +16,7 @@ import { InvoiceRow } from '@/types';
 import NoData from '@/app/Components/NoDataTab';
 import FilterBar from './CustomerDetailsTab/FilterBar';
 import { isPaymentTxn } from './CustomerDetailsTab/Utils';
-import { getInvoiceType } from '@/lib/InvoiceType';
+import { getInvoiceType } from '@/app/Debit/Utils/InvoiceType';
 import { printPdfInSameTab } from '@/app/LPOs/Pdf/DeliveryUtils';
 
 interface CustomersGroupTabProps {

@@ -331,6 +331,48 @@ export async function loadUserMaps() {
   return { userMapById, userMapByName };
 }
 
+export async function loadCustomerMaps() {
+  const { data: customers, error } = await bhs_supabas
+    .from('bhs_CUSTOMERS')
+    .select('"CUSTOMER ID", "CUSTOMER MAIN NAME", "CUSTOMER SUB NAME"');
+  if (error) throw error;
+
+  const custMapById = new Map<string, string>();
+  const custMapByName = new Map<string, string>();
+  
+  (customers || []).forEach(c => {
+    const id = String(c['CUSTOMER ID'] || '').trim();
+    if (!id) return;
+    custMapById.set(id.toUpperCase(), id);
+    
+    const mainName = String(c['CUSTOMER MAIN NAME'] || '').trim().toUpperCase();
+    if (mainName) custMapByName.set(mainName, id);
+    
+    const subName = String(c['CUSTOMER SUB NAME'] || '').trim().toUpperCase();
+    if (subName) custMapByName.set(subName, id);
+  });
+  
+  return { custMapById, custMapByName };
+}
+
+export function resolveCustomerId(
+  rawIdOrName: string,
+  custMapById: Map<string, string>,
+  custMapByName: Map<string, string>
+): string {
+  const raw = String(rawIdOrName || '').trim();
+  if (!raw) return '';
+  const upperRaw = raw.toUpperCase();
+  
+  if (custMapById.has(upperRaw)) {
+    return custMapById.get(upperRaw)!;
+  }
+  if (custMapByName.has(upperRaw)) {
+    return custMapByName.get(upperRaw)!;
+  }
+  return '';
+}
+
 type MappingRow = {
   ID: string;
   'CUSTOMER ID': string;
