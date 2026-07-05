@@ -575,7 +575,7 @@ export default function InventoryMovesPage() {
     return (
       <div className="space-y-8">
         <div className="flex items-center gap-3">
-          <h1 className="text-4xl font-normal text-black tracking-tighter">Inventory Moves DB</h1>
+          <h1 className="text-4xl font-normal text-black tracking-tighter flex items-center gap-3">Inventory Moves DB <span className="text-lg font-black text-gray-600 bg-gray-100 px-4 py-1.5 rounded-full border border-gray-200">{totalCount.toLocaleString()}</span></h1>
           {canEdit && (
             <button
               type="button"
@@ -627,7 +627,7 @@ export default function InventoryMovesPage() {
               <ArrowLeft className="w-5 h-5" />
             </button>
             <div>
-              <h1 className="text-4xl font-normal text-black tracking-tighter">
+              <h1 className="text-4xl font-normal text-black tracking-tighter flex items-center gap-3">
                 {englishMonths[selectedMonth.month]} {selectedMonth.year} Inventory DB
               </h1>
               <p className="text-sm font-bold text-gray-400 uppercase tracking-[0.2em] mt-1">Inventory Moves</p>
@@ -674,7 +674,7 @@ export default function InventoryMovesPage() {
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
-            <h1 className="text-4xl font-normal text-black tracking-tighter">
+            <h1 className="text-4xl font-normal text-black tracking-tighter flex items-center gap-3">
               {selectedDay ? formatDayLabel(selectedDay) : ''}
             </h1>
             <p className="text-sm font-bold text-gray-400 uppercase tracking-[0.2em] mt-1">Inventory Moves</p>

@@ -149,7 +149,7 @@ export default function InventoryItemCodePage() {
   return (
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <h1 className="text-4xl font-normal text-black tracking-tighter">Inventory Item Code DB</h1>
+        <h1 className="text-4xl font-normal text-black tracking-tighter flex items-center gap-3">Inventory Item Code DB <span className="text-lg font-black text-gray-600 bg-gray-100 px-4 py-1.5 rounded-full border border-gray-200">{totalCount.toLocaleString()}</span></h1>
         {canEdit && (
           <button type="button" onClick={() => openModal()} className="p-4 bg-black text-[#D4AF37] rounded-2xl shadow-xl hover:scale-[1.02] transition-all">
             <Plus className="w-6 h-6" />

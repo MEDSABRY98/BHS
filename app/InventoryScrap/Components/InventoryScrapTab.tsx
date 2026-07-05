@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { bhs_supabas } from '@/lib/supabase';
+import { fetchAllScrapEntries, fetchActiveScrapSession, upsertActiveScrapSession } from '../Service/inventory_scrap_service';
 import RecordScrapTab from './RecordScrapTab';
 import SessionsHistoryTab from './SessionsHistoryScrapTab';
 import InventoryScrapReportTab from './ReportTab';
@@ -59,25 +59,13 @@ export default function InventoryScrapTab({ activeSubTab = 'record' }: Inventory
 
   const initializeSession = async (loadedEntries: ScrapEntry[]) => {
     try {
-      // Query active session globally from database settings table
-      const { data: settingsData, error: settingsError } = await bhs_supabas
-        .from('web_INVENTORY_SCRAB_LIVE_SESSION_ID')
-        .select('VALUE')
-        .eq('KEY', 'active_scrap_session');
-
-      if (settingsError) throw settingsError;
-
-      let session = settingsData && settingsData.length > 0 ? ((settingsData[0] as any).VALUE || (settingsData[0] as any).value) : null;
+      let session = await fetchActiveScrapSession();
       const isValidFormat = session && /^S-\d{4}$/.test(session);
 
       if (!isValidFormat) {
         session = calculateNextSessionId(loadedEntries);
-        // Save back to DB to establish global session
-        await bhs_supabas
-          .from('web_INVENTORY_SCRAB_LIVE_SESSION_ID')
-          .upsert({ KEY: 'active_scrap_session', VALUE: session });
+        await upsertActiveScrapSession(session);
       }
-
       setCurrentSession(session || '');
     } catch (err) {
       console.error('Error initializing global session:', err);
@@ -87,37 +75,9 @@ export default function InventoryScrapTab({ activeSubTab = 'record' }: Inventory
   const fetchScrapEntries = async () => {
     try {
       setIsEntriesLoading(true);
-      const { data, error } = await bhs_supabas
-        .from('web_INVENTORY_SCRAB')
-        .select(`
-          ID,
-          "PRODUCT ID",
-          QTY,
-          REASON,
-          CREATED_AT,
-          SESSION_ID,
-          bhs_PRODUCTS (
-            "PRODUCT NAME",
-            "PRODUCT BARCODE"
-          )
-        `)
-        .order('CREATED_AT', { ascending: false });
-
-      if (error) throw error;
-
-      const entries = (data || []).map((item: any) => ({
-        ID: item.ID,
-        'PRODUCT ID': item['PRODUCT ID'],
-        'PRODUCT BARCODE': item.bhs_PRODUCTS?.['PRODUCT BARCODE'] || '',
-        'PRODUCT NAME': item.bhs_PRODUCTS?.['PRODUCT NAME'] || 'Unknown Product',
-        QTY: item.QTY,
-        REASON: item.REASON,
-        CREATED_AT: item.CREATED_AT,
-        SESSION_ID: item.SESSION_ID
-      }));
-
-      setScrapEntries(entries);
-      await initializeSession(entries);
+      const entries = await fetchAllScrapEntries();
+      setScrapEntries(entries as any);
+      await initializeSession(entries as any);
     } catch (err) {
       console.error('Error fetching scrap entries:', err);
     } finally {

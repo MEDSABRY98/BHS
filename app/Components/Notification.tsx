@@ -193,7 +193,7 @@ const emit = () => {
 export const toast = {
   show: (message: string, type: NotificationType = 'info', duration = 4000) => {
     const id = Math.random().toString(36).substring(7);
-    memoryNotifications = [...memoryNotifications, { id, message, type, duration }];
+    memoryNotifications = [{ id, message, type, duration }];
     emit();
   },
   success: (message: string, duration = 4000) => {
@@ -210,8 +210,7 @@ export const toast = {
   },
   loading: (message: string, options?: { id?: string }) => {
     const id = options?.id || Math.random().toString(36).substring(7);
-    // Remove if already exists to avoid duplicates
-    memoryNotifications = [...memoryNotifications.filter(n => n.id !== id), { id, message, type: 'info', duration: 0 }];
+    memoryNotifications = [{ id, message, type: 'info', duration: 0 }];
     emit();
     return id;
   },

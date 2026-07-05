@@ -8,6 +8,7 @@ import NoData from '@/app/Components/NoDataTab';
 import { toast } from '@/app/Components/Notification';
 import { bhs_supabas } from '@/lib/supabase';
 import * as XLSX from 'xlsx';
+import { getSalesMonthsCache, deleteSalesMonth, buildSalesCache } from '@/app/Sales/Service/sales_core_service';
 
 const englishMonths: Record<number, string> = {
   1: "January", 2: "February", 3: "March", 4: "April", 5: "May", 6: "June",
@@ -23,6 +24,7 @@ interface SalesMonth {
 export default function SalesDBPage() {
   const { canDelete, canEdit, isLoaded } = usePermissions();
   const [salesMonths, setSalesMonths] = useState<SalesMonth[]>([]);
+  const totalCount = salesMonths.reduce((sum, m) => sum + m.count, 0);
   const [isLoading, setIsLoading] = useState(true);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -39,10 +41,8 @@ export default function SalesDBPage() {
   async function fetchSalesMonths(forceRefresh = false) {
     setIsLoading(true);
     try {
-      const response = await fetch('/api/Sales?action=months');
-      const resData = await response.json();
-      if (resData.error) throw new Error(resData.error);
-      setSalesMonths(resData.data || []);
+      const monthsData = await getSalesMonthsCache(forceRefresh);
+      setSalesMonths(monthsData || []);
     } catch (err: any) {
       console.error(err);
       triggerMessage('error', err.message || 'Failed to load sales months');
@@ -60,11 +60,7 @@ export default function SalesDBPage() {
     if (!targetMonth) return;
     setIsDeleting(true);
     try {
-      const response = await fetch(`/api/Sales?year=${targetMonth.year}&month=${targetMonth.month}`, {
-        method: 'DELETE'
-      });
-      const data = await response.json();
-      if (data.error) throw new Error(data.error);
+      await deleteSalesMonth(targetMonth.year, targetMonth.month);
 
       triggerMessage('success', `Deleted sales data for ${englishMonths[targetMonth.month]} ${targetMonth.year} successfully!`);
       // Refetch the sales months (this will regenerate the cache on GET)
@@ -349,11 +345,9 @@ export default function SalesDBPage() {
       toast.success(`Successfully uploaded ${formattedRows.length} sales rows!`);
       setIsUploadModalOpen(false);
 
-      fetch('/api/Sales/Build', { method: 'POST' })
-        .then(r => r.json())
-        .catch(err => console.warn('Background build warning:', err));
+      buildSalesCache().catch(err => console.warn('Background build warning:', err));
 
-      await fetchSalesMonths();
+      await fetchSalesMonths(true);
     } catch (err: any) {
       console.error(err);
       toast.error('Upload failed: ' + (err.message || err.details || 'Unknown error'));
@@ -372,7 +366,7 @@ export default function SalesDBPage() {
     <div className="space-y-8">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <h1 className="text-4xl font-normal text-black tracking-tighter">Sales DB</h1>
+        <h1 className="text-4xl font-normal text-black tracking-tighter flex items-center gap-3">Sales DB <span className="text-lg font-black text-gray-600 bg-gray-100 px-4 py-1.5 rounded-full border border-gray-200">{totalCount.toLocaleString()}</span></h1>
         {canEdit && (
           <button
             onClick={() => setIsUploadModalOpen(true)}

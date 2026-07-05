@@ -55,13 +55,27 @@ export default function ProductsPage() {
   const [productCategory, setProductCategory] = useState('');
   const [isUploading, setIsUploading] = useState(false);
 
+  const [activeTab, setActiveTab] = useState<'products'|'categories'>('products');
+  const [categories, setCategories] = useState<{name: string, count: number}[]>([]);
+  const [isConfirmCategoryOpen, setIsConfirmCategoryOpen] = useState(false);
+  const [categoryToDelete, setCategoryToDelete] = useState<string | null>(null);
+  const [isCategoriesLoading, setIsCategoriesLoading] = useState(false);
+
   // Fetch products when page or search term changes (debounced)
   useEffect(() => {
-    const handler = setTimeout(() => {
-      fetchProducts(searchTerm, currentPage);
-    }, 300);
-    return () => clearTimeout(handler);
-  }, [searchTerm, currentPage]);
+    if (activeTab === 'products') {
+      const handler = setTimeout(() => {
+        fetchProducts(searchTerm, currentPage);
+      }, 300);
+      return () => clearTimeout(handler);
+    }
+  }, [searchTerm, currentPage, activeTab]);
+
+  useEffect(() => {
+    if (activeTab === 'categories') {
+      fetchCategories();
+    }
+  }, [activeTab]);
 
   async function fetchProducts(search: string = '', page: number = 1) {
     try {
@@ -207,6 +221,82 @@ export default function ProductsPage() {
       setIsSaving(false);
       setIsConfirmOpen(false);
       setItemToDelete(null);
+    }
+  };
+
+  const fetchCategories = async () => {
+    setIsCategoriesLoading(true);
+    try {
+      let allCategories: string[] = [];
+      let fetchMore = true;
+      let pageIndex = 0;
+      const limit = 1000;
+
+      while (fetchMore) {
+        const { data, error } = await bhs_supabas
+          .from('bhs_PRODUCTS')
+          .select('"PRODUCT CATEGORY"')
+          .range(pageIndex * limit, (pageIndex + 1) * limit - 1);
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          allCategories = [...allCategories, ...data.map((d: any) => d['PRODUCT CATEGORY'] || '')];
+          if (data.length < limit) fetchMore = false;
+          else pageIndex++;
+        } else {
+          fetchMore = false;
+        }
+      }
+
+      const counts: Record<string, number> = {};
+      allCategories.forEach(cat => {
+        const c = cat.trim() || 'Uncategorized';
+        counts[c] = (counts[c] || 0) + 1;
+      });
+
+      const cats = Object.entries(counts)
+        .map(([name, count]) => ({ name, count }))
+        .sort((a, b) => b.count - a.count);
+
+      setCategories(cats);
+    } catch (err: unknown) {
+      console.error(err);
+      toast.error(err instanceof Error ? err.message : 'Failed to load categories');
+    } finally {
+      setIsCategoriesLoading(false);
+    }
+  };
+
+  const handleDeleteCategory = (categoryName: string) => {
+    setCategoryToDelete(categoryName);
+    setIsConfirmCategoryOpen(true);
+  };
+
+  const executeDeleteCategory = async () => {
+    if (!categoryToDelete) return;
+    setIsSaving(true);
+    try {
+      let query = bhs_supabas.from('bhs_PRODUCTS').delete();
+      
+      if (categoryToDelete === 'Uncategorized') {
+        query = query.or('"PRODUCT CATEGORY".eq."","PRODUCT CATEGORY".is.null');
+      } else {
+        query = query.eq('PRODUCT CATEGORY', categoryToDelete);
+      }
+
+      const { error } = await query;
+      if (error) throw error;
+      
+      toast.success('Category and its products deleted successfully');
+      fetchCategories();
+      setTotalCount(prev => prev - (categories.find(c => c.name === categoryToDelete)?.count || 0));
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete category');
+    } finally {
+      setIsSaving(false);
+      setIsConfirmCategoryOpen(false);
+      setCategoryToDelete(null);
     }
   };
 
@@ -459,8 +549,33 @@ export default function ProductsPage() {
   return (
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-4xl font-normal text-black tracking-tighter">Products DB</h1>
+        <div className="flex flex-col md:flex-row md:items-center gap-6">
+          <h1 className="text-4xl font-normal text-black tracking-tighter flex items-center gap-3">
+            Products DB <span className="text-lg font-black text-gray-600 bg-gray-100 px-4 py-1.5 rounded-full border border-gray-200">{totalCount.toLocaleString()}</span>
+          </h1>
+
+          <div className="flex bg-gray-100 p-1 rounded-2xl w-fit">
+            <button
+              onClick={() => setActiveTab('products')}
+              className={`px-6 py-2.5 rounded-xl text-sm font-black tracking-widest uppercase transition-all ${
+                activeTab === 'products'
+                  ? 'bg-white text-black shadow-sm'
+                  : 'text-gray-500 hover:text-black'
+              }`}
+            >
+              Products
+            </button>
+            <button
+              onClick={() => setActiveTab('categories')}
+              className={`px-6 py-2.5 rounded-xl text-sm font-black tracking-widest uppercase transition-all ${
+                activeTab === 'categories'
+                  ? 'bg-white text-black shadow-sm'
+                  : 'text-gray-500 hover:text-black'
+              }`}
+            >
+              Product Categories
+            </button>
+          </div>
         </div>
         <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
           {canEdit && (
@@ -517,7 +632,9 @@ export default function ProductsPage() {
         </div>
       </div>
 
-      <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+      {activeTab === 'products' ? (
+        <>
+          <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
         <div className="relative">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
           <input
@@ -694,6 +811,68 @@ export default function ProductsPage() {
           </div>
         </div>
       )}
+      </>
+      ) : (
+        <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+          {isCategoriesLoading ? (
+            <div className="p-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                {Array(8).fill(0).map((_, i) => (
+                  <div key={i} className="animate-pulse bg-white border border-gray-100 rounded-[2.5rem] p-6 h-[220px] flex flex-col justify-between">
+                    <div className="space-y-4">
+                      <div className="w-12 h-12 bg-gray-50 rounded-2xl" />
+                      <div className="h-6 bg-gray-50 rounded-xl w-3/4" />
+                      <div className="h-4 bg-gray-50 rounded-xl w-1/2" />
+                    </div>
+                    <div className="h-10 bg-gray-50 rounded-2xl w-full" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : categories.length === 0 ? (
+            <div className="p-12 text-center text-gray-500 font-bold uppercase tracking-widest">
+              No Categories Found
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-100">
+                    <th className="px-6 py-4 text-xs font-black text-gray-500 uppercase tracking-widest text-center">Category Name</th>
+                    <th className="px-6 py-4 text-xs font-black text-gray-500 uppercase tracking-widest text-center">Products Count</th>
+                    {canDelete && (
+                      <th className="px-6 py-4 text-xs font-black text-gray-500 uppercase tracking-widest text-center">Actions</th>
+                    )}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {categories.map((cat, idx) => (
+                    <tr key={idx} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-6 py-5 font-bold text-black text-center">{cat.name}</td>
+                      <td className="px-6 py-5 text-center">
+                        <span className="bg-gray-100 text-gray-600 px-3 py-1 rounded-full text-xs font-black">
+                          {cat.count.toLocaleString()}
+                        </span>
+                      </td>
+                      {canDelete && (
+                        <td className="px-6 py-5 text-center">
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteCategory(cat.name)}
+                            className="px-4 py-2 bg-red-50 hover:bg-red-500 text-red-500 hover:text-white rounded-xl text-xs font-black tracking-widest uppercase transition-all inline-block"
+                          >
+                            Delete Category
+                          </button>
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Product Modal */}
       {isModalOpen && (
@@ -797,6 +976,15 @@ export default function ProductsPage() {
         isLoading={isSaving}
         title="Confirm Deletion"
         message="Are you sure you want to delete this product? This action cannot be undone."
+      />
+
+      <ConfirmModal
+        isOpen={isConfirmCategoryOpen}
+        onConfirm={executeDeleteCategory}
+        onCancel={() => { setIsConfirmCategoryOpen(false); setCategoryToDelete(null); }}
+        isLoading={isSaving}
+        title="Delete Category"
+        message={`Are you sure you want to completely delete the category "${categoryToDelete}" and ALL its products from the database? This action cannot be undone.`}
       />
 
       <MergeProductsModal

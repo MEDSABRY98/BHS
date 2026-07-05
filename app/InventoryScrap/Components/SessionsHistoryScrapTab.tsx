@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { bhs_supabas } from '@/lib/supabase';
+import { upsertActiveScrapSession, deleteScrapEntry, deleteScrapSession } from '../Service/inventory_scrap_service';
 import {
   Layers,
   RefreshCw,
@@ -163,13 +163,7 @@ export default function SessionsHistoryTab({
     if (!sessionToDelete) return;
     setIsDeletingSession(true);
     try {
-      const { error } = await bhs_supabas
-        .from('web_INVENTORY_SCRAB')
-        .delete()
-        .eq('SESSION_ID', sessionToDelete);
-
-      if (error) throw error;
-
+      await deleteScrapSession(sessionToDelete);
       toast.success(`Session ${sessionToDelete} and all its logs deleted successfully`);
 
       // Close detail view if currently open on deleted session
@@ -192,12 +186,7 @@ export default function SessionsHistoryTab({
     if (!entryToDelete) return;
     setIsDeletingEntry(true);
     try {
-      const { error } = await bhs_supabas
-        .from('web_INVENTORY_SCRAB')
-        .delete()
-        .eq('ID', entryToDelete);
-
-      if (error) throw error;
+      await deleteScrapEntry(entryToDelete);
 
       toast.success('Entry deleted successfully');
       await fetchScrapEntries();

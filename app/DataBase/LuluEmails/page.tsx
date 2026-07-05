@@ -106,9 +106,10 @@ export default function LuluEmailsDatabasePage() {
     <div className="space-y-6 max-w-6xl mx-auto">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
             <MailPlus className="w-6 h-6 text-[#D4AF37]" />
             Lulu Emails DB
+            <span className="text-lg font-black text-gray-600 bg-gray-100 px-4 py-1.5 rounded-full border border-gray-200">{data.length.toLocaleString()}</span>
           </h1>
         </div>
         <button

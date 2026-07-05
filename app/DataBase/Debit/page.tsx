@@ -1,14 +1,33 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Download, Upload, Trash2, AlertTriangle, CheckCircle, FileSpreadsheet } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { toast } from '@/app/Components/Notification';
 import { deleteDebitData, uploadDebitData } from '../Service/database_service';
+import { bhs_supabas } from '@/lib/supabase';
 
 export default function DebitDatabasePage() {
   const [loading, setLoading] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [totalCount, setTotalCount] = useState<number>(0);
+
+  useEffect(() => {
+    fetchCount();
+  }, []);
+
+  const fetchCount = async () => {
+    try {
+      const { count, error } = await bhs_supabas
+        .from('bhs_mix_DEBIT')
+        .select('*', { count: 'exact', head: true });
+      if (!error && count !== null) {
+        setTotalCount(count);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   const COLUMNS = ['DATE', 'DUE DATE', 'NUMBER', 'CUSTOMER ID', 'DEBIT', 'CREDIT', 'RESIDUAL AMOUNT', 'MATCHING'];
 
@@ -113,9 +132,10 @@ export default function DebitDatabasePage() {
     <div className="space-y-6 max-w-6xl mx-auto">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
             <FileSpreadsheet className="w-6 h-6 text-[#D4AF37]" />
             Debit DB
+            <span className="text-lg font-black text-gray-600 bg-gray-100 px-4 py-1.5 rounded-full border border-gray-200">{totalCount.toLocaleString()}</span>
           </h1>
         </div>
       </div>

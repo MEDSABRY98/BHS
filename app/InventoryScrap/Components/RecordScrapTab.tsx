@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { bhs_supabas } from '@/lib/supabase';
+import { fetchAllProductsForScrap, upsertActiveScrapSession, insertScrapEntry, deleteScrapEntry } from '../Service/inventory_scrap_service';
 import {
   Search,
   Trash2,
@@ -75,38 +75,11 @@ export default function RecordScrapTab({
     fetchProducts();
   }, []);
 
-  // Fetch all products from database for local search filter (using recursive pagination to load all products bypass API limit)
+  // Fetch all products from database for local search filter
   const fetchProducts = async () => {
     try {
       setIsProductsLoading(true);
-      let allProducts: any[] = [];
-      let page = 0;
-      const pageSize = 1000;
-      let hasMore = true;
-
-      while (hasMore) {
-        const start = page * pageSize;
-        const end = start + pageSize - 1;
-        const { data, error } = await bhs_supabas
-          .from('bhs_PRODUCTS')
-          .select('*')
-          .order('PRODUCT NAME')
-          .range(start, end);
-
-        if (error) throw error;
-
-        if (data && data.length > 0) {
-          allProducts = [...allProducts, ...data];
-          if (data.length < pageSize) {
-            hasMore = false;
-          } else {
-            page++;
-          }
-        } else {
-          hasMore = false;
-        }
-      }
-
+      const allProducts = await fetchAllProductsForScrap();
       setProducts(allProducts);
     } catch (err) {
       console.error('Error fetching products:', err);
@@ -167,11 +140,7 @@ export default function RecordScrapTab({
   const handleSaveAndNewSession = async () => {
     try {
       const nextSession = calculateNextSessionId(scrapEntries, currentSession);
-      const { error } = await bhs_supabas
-        .from('web_INVENTORY_SCRAB_LIVE_SESSION_ID')
-        .upsert({ KEY: 'active_scrap_session', VALUE: nextSession });
-
-      if (error) throw error;
+      await upsertActiveScrapSession(nextSession);
 
       setCurrentSession(nextSession);
       setSessionToSaveConfirm(false);
@@ -212,17 +181,13 @@ export default function RecordScrapTab({
     setIsSubmitting(true);
     try {
       const nextRecordId = calculateNextRecordId(scrapEntries);
-      const { error } = await bhs_supabas
-        .from('web_INVENTORY_SCRAB')
-        .insert({
+      await insertScrapEntry({
           ID: nextRecordId,
           'PRODUCT ID': selectedProduct['PRODUCT ID'],
           QTY: numQty,
           REASON: reason,
           SESSION_ID: currentSession
-        });
-
-      if (error) throw error;
+      });
 
       toast.success('Entry added to current session!');
 
@@ -246,12 +211,8 @@ export default function RecordScrapTab({
     if (!entryToDelete) return;
     setIsDeleting(true);
     try {
-      const { error } = await bhs_supabas
-        .from('web_INVENTORY_SCRAB')
-        .delete()
-        .eq('ID', entryToDelete);
+      await deleteScrapEntry(entryToDelete);
 
-      if (error) throw error;
       toast.success('Entry deleted successfully');
       await fetchScrapEntries();
       setEntryToDelete(null);

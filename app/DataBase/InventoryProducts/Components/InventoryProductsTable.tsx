@@ -61,16 +61,16 @@ export default function InventoryProductsTable({
         >
           <div className="text-center py-2 min-w-0">
             <p
-              className="text-lg font-black text-black font-mono truncate w-full"
-              title={row['PRODUCT BARCODE'] || ''}
-            >
-              {row['PRODUCT BARCODE'] || '—'}
-            </p>
-            <p
-              className="text-xs font-bold text-gray-400 mt-2 truncate w-full leading-snug"
+              className="text-lg font-black text-black truncate w-full"
               title={row['PRODUCT NAME']}
             >
               {row['PRODUCT NAME']}
+            </p>
+            <p
+              className="text-xs font-bold text-gray-400 mt-2 font-mono truncate w-full leading-snug"
+              title={row['PRODUCT BARCODE'] || ''}
+            >
+              {row['PRODUCT BARCODE'] || '—'}
             </p>
           </div>
 

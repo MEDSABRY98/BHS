@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { bhs_supabas } from '@/lib/supabase';
+import { fetchSavedScrapReports, deleteScrapReport } from '../Service/inventory_scrap_service';
 import { Printer, Trash2, Calendar, FileText, Search, Loader2, AlertTriangle, AlertCircle } from 'lucide-react';
 import { generateInventoryScrapReportPDF } from '@/app/InventoryScrap/Pdf/InventoryScrapReportPdf';
 import NoData from '@/app/Components/NoDataTab';
@@ -36,25 +36,7 @@ export default function SavedReportsTab() {
   const fetchSavedReports = async () => {
     setIsLoading(true);
     try {
-      const { data, error } = await bhs_supabas
-        .from('web_INVENTORY_SCRAB_REPORT')
-        .select(`
-          ID,
-          REPORT_ID,
-          CREATED_AT,
-          PERIOD,
-          PRODUCT_ID,
-          UNIT,
-          QTY,
-          REASON,
-          bhs_PRODUCTS (
-            "PRODUCT NAME",
-            "PRODUCT BARCODE"
-          )
-        `)
-        .order('CREATED_AT', { ascending: false });
-
-      if (error) throw error;
+      const data = await fetchSavedScrapReports();
 
       // Group by REPORT_ID in JavaScript
       const groupedMap: { [key: string]: SavedReport } = {};
@@ -67,8 +49,8 @@ export default function SavedReportsTab() {
 
         const item: ReportItem = {
           productId: row.PRODUCT_ID,
-          barcode: row.bhs_PRODUCTS?.['PRODUCT BARCODE'] || '—',
-          name: row.bhs_PRODUCTS?.['PRODUCT NAME'] || 'Unknown Product',
+          barcode: row['PRODUCT BARCODE'] || '—',
+          name: row['PRODUCT NAME'] || 'Unknown Product',
           qty,
           reason: row.REASON || 'UNSPECIFIED',
           unit: row.UNIT || 'PCS'
@@ -127,12 +109,7 @@ export default function SavedReportsTab() {
     if (!reportToDelete) return;
 
     try {
-      const { error } = await bhs_supabas
-        .from('web_INVENTORY_SCRAB_REPORT')
-        .delete()
-        .eq('REPORT_ID', reportToDelete);
-
-      if (error) throw error;
+      await deleteScrapReport(reportToDelete);
 
       // Update local state
       setReports(prev => prev.filter(r => r.reportId !== reportToDelete));

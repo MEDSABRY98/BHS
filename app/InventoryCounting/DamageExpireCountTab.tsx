@@ -7,7 +7,7 @@ import TabLoader from '@/app/Components/TabLoader';
 import NoData from '@/app/Components/NoDataTab';
 import { ICItem, ICRecord } from './EditICItemModal';
 import EditICItemModal from './EditICItemModal';
-import { fetchICTotal, fetchICDetails, updateICItem } from '../Inventory/Service/inventory_counting_service';
+import { fetchICTotal, fetchICDetails, updateICItem } from './Service/inventory_counting_service';
 
 export default function DamageExpireCountTab() {
     const [data, setData] = useState<ICItem[]>([]);

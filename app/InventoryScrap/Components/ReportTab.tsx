@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { bhs_supabas } from '@/lib/supabase';
+import { fetchScrapEntriesByDateRange, fetchMaxScrapReportRowId, fetchMaxScrapReportId, insertScrapReport } from '../Service/inventory_scrap_service';
 import { FileText, Calendar, Printer, Loader2, Eye, AlertCircle } from 'lucide-react';
 import { generateInventoryScrapReportPDF } from '@/app/InventoryScrap/Pdf/InventoryScrapReportPdf';
 import NoData from '@/app/Components/NoDataTab';
@@ -42,32 +42,15 @@ export default function InventoryScrapReportTab() {
 
     setIsLoading(true);
     try {
-      const { data, error } = await bhs_supabas
-        .from('web_INVENTORY_SCRAB')
-        .select(`
-          ID,
-          "PRODUCT ID",
-          QTY,
-          REASON,
-          CREATED_AT,
-          SESSION_ID,
-          bhs_PRODUCTS (
-            "PRODUCT NAME",
-            "PRODUCT BARCODE"
-          )
-        `)
-        .gte('CREATED_AT', `${fromDate}T00:00:00`)
-        .lte('CREATED_AT', `${toDate}T23:59:59`);
-
-      if (error) throw error;
+      const data = await fetchScrapEntriesByDateRange(fromDate, toDate);
 
       // Aggregate by Product Barcode & Reason
       const aggregatedMap: { [key: string]: AggregatedItem } = {};
 
       (data || []).forEach((item: any) => {
         const productId = item['PRODUCT ID'] || '';
-        const barcode = item.bhs_PRODUCTS?.['PRODUCT BARCODE'] || '';
-        const name = item.bhs_PRODUCTS?.['PRODUCT NAME'] || 'Unknown Product';
+        const barcode = item['PRODUCT BARCODE'] || '';
+        const name = item['PRODUCT NAME'] || 'Unknown Product';
         const qty = Number(item.QTY || 0);
         const reason = item.REASON || 'UNSPECIFIED';
         const key = `${barcode}_${reason}`;
@@ -115,10 +98,7 @@ export default function InventoryScrapReportTab() {
       const currentYear = new Date().getFullYear();
 
       // 1. Fetch max row ID
-      const { data: maxIdData } = await bhs_supabas
-        .from('web_INVENTORY_SCRAB_REPORT_MAX_ID')
-        .select('ID')
-        .maybeSingle();
+      const maxIdData = await fetchMaxScrapReportRowId();
 
       let maxIdNum = 0;
       if (maxIdData && maxIdData.ID) {
@@ -129,12 +109,7 @@ export default function InventoryScrapReportTab() {
       }
 
       // 2. Fetch max report ID for the current year
-      const { data: maxReportData } = await bhs_supabas
-        .from('web_INVENTORY_SCRAB_REPORT')
-        .select('REPORT_ID')
-        .like('REPORT_ID', `SCR-${currentYear}-%`)
-        .order('REPORT_ID', { ascending: false })
-        .limit(1);
+      const maxReportData = await fetchMaxScrapReportId();
 
       let maxReportNum = 0;
       if (maxReportData && maxReportData.length > 0) {
@@ -164,11 +139,7 @@ export default function InventoryScrapReportTab() {
         };
       });
 
-      const { error: insertError } = await bhs_supabas
-        .from('web_INVENTORY_SCRAB_REPORT')
-        .insert(insertPayload);
-
-      if (insertError) throw insertError;
+      await insertScrapReport(insertPayload);
 
       // Now print with the generated report ID!
       generateInventoryScrapReportPDF(fromDate, toDate, entries, notes, nextReportId);

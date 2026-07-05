@@ -6,7 +6,7 @@ import * as XLSX from 'xlsx';
 import TabLoader from '@/app/Components/TabLoader';
 import NoData from '@/app/Components/NoDataTab';
 import { ICRecord } from './EditICItemModal';
-import { fetchICDetails } from '../Inventory/Service/inventory_counting_service';
+import { fetchICDetails } from './Service/inventory_counting_service';
 
 export default function DamageExpireRecordTab() {
     const [data, setData] = useState<ICRecord[]>([]);
