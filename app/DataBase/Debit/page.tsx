@@ -43,7 +43,7 @@ export default function DebitDatabasePage() {
     try {
       const result = await deleteDebitData();
       if (result.success) {
-        toast.success(result.message);
+        toast.success(result.message || 'Data deleted successfully');
         setIsDeleteModalOpen(false);
       } else {
         toast.error(result.details || result.error || 'Failed to delete data');
@@ -113,7 +113,7 @@ export default function DebitDatabasePage() {
         const result = await uploadDebitData(data);
         
         if (result.success) {
-          toast.success(result.message);
+          toast.success(result.message || 'Data uploaded successfully');
         } else {
           // Just show the high-level error, omitting the detailed list of IDs
           toast.error(result.error || 'Failed to upload data');
