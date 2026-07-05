@@ -19,7 +19,7 @@ export default function DebitDatabasePage() {
   const fetchCount = async () => {
     try {
       const { count, error } = await bhs_supabas
-        .from('bhs_mix_DEBIT')
+        .from('mix_DEBIT')
         .select('*', { count: 'exact', head: true });
       if (!error && count !== null) {
         setTotalCount(count);
