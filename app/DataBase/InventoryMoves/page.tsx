@@ -571,11 +571,13 @@ export default function InventoryMovesPage() {
     </div>
   ) : null;
 
+  const overallTotalCount = moveMonths.reduce((sum, m) => sum + m.count, 0);
+
   if (view === 'months') {
     return (
       <div className="space-y-8">
         <div className="flex items-center gap-3">
-          <h1 className="text-4xl font-normal text-black tracking-tighter flex items-center gap-3">Inventory Moves DB <span className="text-lg font-black text-gray-600 bg-gray-100 px-4 py-1.5 rounded-full border border-gray-200">{totalCount.toLocaleString()}</span></h1>
+          <h1 className="text-4xl font-normal text-black tracking-tighter flex items-center gap-3">Inventory Moves DB <span className="text-lg font-black text-gray-600 bg-gray-100 px-4 py-1.5 rounded-full border border-gray-200">{overallTotalCount.toLocaleString()}</span></h1>
           {canEdit && (
             <button
               type="button"
