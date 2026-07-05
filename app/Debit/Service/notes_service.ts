@@ -36,7 +36,7 @@ export async function updateCustomerNote(body: { rowIndex: number; content: stri
   }
 
   try {
-    await updateNote(rowIndex, content, isSolved);
+    await updateNote(String(rowIndex), content, isSolved);
     return { success: true };
   } catch (error) {
     console.error('Service Error:', error);
@@ -50,7 +50,7 @@ export async function deleteCustomerNote(rowIndex: number) {
   }
 
   try {
-    await deleteNoteRow(rowIndex);
+    await deleteNoteRow(String(rowIndex));
     return { success: true };
   } catch (error) {
     console.error('Service Error:', error);

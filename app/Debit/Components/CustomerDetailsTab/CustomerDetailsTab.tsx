@@ -245,8 +245,8 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
     const fetchEmail = async () => {
       try {
         const data = await getCustomerEmails(customerName);
-        const emails = Array.isArray(data?.emails) ? data.emails.filter(Boolean) : (data?.email ? [data.email] : []);
-        const customers = Array.isArray(data?.customers) ? data.customers.filter(Boolean) : [];
+        const emails = Array.isArray((data as any)?.emails) ? (data as any).emails.filter(Boolean) : ((data as any)?.email ? [(data as any).email] : []);
+        const customers = Array.isArray((data as any)?.customers) ? (data as any).customers.filter(Boolean) : [];
         setCustomerEmails(emails);
         setEmailCustomers(customers.length > 0 ? customers : [customerName]);
       } catch (error) {

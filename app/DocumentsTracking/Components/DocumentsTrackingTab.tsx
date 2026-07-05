@@ -231,12 +231,14 @@ export default function DocumentsTrackingTab() {
 
         setIsLoading(true);
         try {
-            const updates = receivedChecks.map(c => ({
-                rowIndex: c.rowIndex,
-                data: {
-                    documentStatus: STATUS_LABELS.registered
-                }
-            }));
+            const updates = receivedChecks
+                .filter(c => c.rowIndex !== undefined)
+                .map(c => ({
+                    rowIndex: c.rowIndex as string,
+                    data: {
+                        documentStatus: STATUS_LABELS.registered
+                    }
+                }));
 
             const result = await bulkUpdateDocumentsTrackingRecords(updates);
 
@@ -263,15 +265,17 @@ export default function DocumentsTrackingTab() {
         setIsLoading(true);
         try {
             const now = new Date().toLocaleString('ar-AE');
-            const updates = registeredChecks.map(c => ({
-                rowIndex: c.rowIndex,
-                data: {
-                    documentStatus: STATUS_LABELS.delivered,
-                    datedSendToOffice: now,
-                    whoDeliveryForOffice: details.receiverName,
-                    whoTakeFromOffice: details.finalReceiverName
-                }
-            }));
+            const updates = registeredChecks
+                .filter(c => c.rowIndex !== undefined)
+                .map(c => ({
+                    rowIndex: c.rowIndex as string,
+                    data: {
+                        documentStatus: STATUS_LABELS.delivered,
+                        datedSendToOffice: now,
+                        whoDeliveryForOffice: details.receiverName,
+                        whoTakeFromOffice: details.finalReceiverName
+                    }
+                }));
 
             const result = await bulkUpdateDocumentsTrackingRecords(updates);
 

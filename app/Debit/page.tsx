@@ -12,6 +12,7 @@ import SalesRepsTab from './Components/SalesRepsTab';
 import HistoryTab from './Components/HistoryTab';
 import AgesTab from './Components/AgesTab';
 import Loading from '@/app/Components/Loading';
+import Login from '@/app/Components/Login';
 import { getDebitData } from './Service/debit_service';
 import { InvoiceRow } from '@/types';
 import { ArrowLeft, Wallet, LogOut, User, RefreshCcw, Menu } from 'lucide-react';
