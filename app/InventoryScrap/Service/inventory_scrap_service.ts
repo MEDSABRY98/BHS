@@ -44,7 +44,7 @@ export async function fetchAllScrapEntries(): Promise<ScrapEntry[]> {
 
     const { data: productsData, error: productsError } = await bhs_supabas
       .from('bhs_PRODUCTS')
-      .select('PRODUCT ID, PRODUCT BARCODE, PRODUCT NAME');
+      .select('"PRODUCT ID", "PRODUCT BARCODE", "PRODUCT NAME"');
 
     if (productsError) throw productsError;
 
@@ -86,7 +86,7 @@ export async function fetchScrapEntriesByDateRange(fromDate: string, toDate: str
 
     const { data: productsData, error: productsError } = await bhs_supabas
       .from('bhs_PRODUCTS')
-      .select('PRODUCT ID, PRODUCT BARCODE, PRODUCT NAME');
+      .select('"PRODUCT ID", "PRODUCT BARCODE", "PRODUCT NAME"');
 
     if (productsError) throw productsError;
 
@@ -242,7 +242,7 @@ export async function fetchSavedScrapReports() {
 
     const { data: productsData, error: productsError } = await bhs_supabas
       .from('bhs_PRODUCTS')
-      .select('PRODUCT ID, PRODUCT BARCODE, PRODUCT NAME');
+      .select('"PRODUCT ID", "PRODUCT BARCODE", "PRODUCT NAME"');
 
     if (productsError) throw productsError;
 
