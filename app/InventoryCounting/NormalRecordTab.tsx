@@ -6,6 +6,7 @@ import * as XLSX from 'xlsx';
 import TabLoader from '@/app/Components/TabLoader';
 import NoData from '@/app/Components/NoDataTab';
 import { ICRecord } from './EditICItemModal';
+import { fetchICDetails } from '../Inventory/Service/inventory_counting_service';
 
 export default function NormalRecordTab() {
     const [data, setData] = useState<ICRecord[]>([]);
@@ -24,9 +25,8 @@ export default function NormalRecordTab() {
 
         setError(null);
         try {
-            const res = await fetch('/api/Inventory/Counting/NormalRecord');
-            const json = await res.json();
-            if (json.data) {
+            const json = await fetchICDetails('Normal');
+            if (json.success && json.data) {
                 setData([...json.data].reverse());
             } else {
                 throw new Error(json.error || 'Failed to load data');

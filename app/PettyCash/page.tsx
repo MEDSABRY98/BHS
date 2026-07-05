@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import PettyCashTab from './Components/PettyCashTab';
 import Login from '@/app/Components/Login';
 import Loading from '@/app/Components/Loading';
+import { verifyUserCredentials } from '@/app/DataBase/Service/database_service';
 
 export default function PettyCashPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -21,20 +22,9 @@ export default function PettyCashPage() {
             const userData = JSON.parse(savedUser);
             if (userData && userData.name) {
               // Verify user still exists and password is correct
-              const response = await fetch('/DataBase/Users/api', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                  name: userData.name,
-                  password: savedPassword,
-                }),
-              });
+              const result = await verifyUserCredentials(userData.name, savedPassword);
 
-              const result = await response.json();
-
-              if (response.ok && result.success) {
+              if (result.success && result.user) {
                 // User still exists and credentials are valid
                 setCurrentUser(result.user);
                 setIsAuthenticated(true);

@@ -8,6 +8,7 @@ import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
 import SalesCustomerCategoriesTab from './CustomerDetailsCategoriesTab';
 import { useSalesModuleFilters } from '@/app/Sales/Model/SalesFilters';
 import { exportSalesExcelTable } from '@/app/Sales/Export/SalesExcelExport';
+import { getCustomerDetailsData } from '../Service/sales_customers_service';
 import {
   ComposedChart,
   Bar,
@@ -73,13 +74,7 @@ export default function SalesCustomerDetails({
       }
       setLoading(true);
       try {
-        const response = await fetch('/api/Sales/CustomerDetails', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId, filters, customerName, customerId, customerType })
-        });
-        if (!response.ok) throw new Error('Failed to fetch customer details');
-        const result = await response.json();
+        const result = await getCustomerDetailsData(userId, filters, customerName, customerId || '', customerType);
         setData(result.data || []);
         setAllData(result.allData || []);
       } catch (err) {

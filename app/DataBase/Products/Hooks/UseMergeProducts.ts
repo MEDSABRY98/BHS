@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { mergeProductsAction } from '../../Service/database_service';
 
 export type ProductRecord = {
   ID: string;
@@ -95,21 +96,16 @@ export function useMergeProducts(
     setShowMergeModal(false);
 
     try {
-      const response = await fetch('/api/DataBase/Products/Merge', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const result = await mergeProductsAction({
           survivorProductId: survivorProductId.trim(),
           sourceProductIds,
           targetName: mergeTargetName.trim(),
           targetBarcode: mergeTargetBarcode.trim(),
           targetCategory: mergeTargetCategory.trim(),
           targetItemCode: mergeTargetItemCode.trim() || null,
-        }),
       });
 
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok) {
+      if (!result.success) {
         throw new Error(result.error || 'Merge failed');
       }
 

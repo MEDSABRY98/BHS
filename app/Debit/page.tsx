@@ -11,8 +11,8 @@ import PaymentTrackerTab from './Components/Payment-Tracker/PaymentTrackerTab';
 import SalesRepsTab from './Components/SalesRepsTab';
 import HistoryTab from './Components/HistoryTab';
 import AgesTab from './Components/AgesTab';
-import Login from '@/app/Components/Login';
 import Loading from '@/app/Components/Loading';
+import { getDebitData } from './Service/debit_service';
 import { InvoiceRow } from '@/types';
 import { ArrowLeft, Wallet, LogOut, User, RefreshCcw, Menu } from 'lucide-react';
 import DebitSidebar from './Components/DebitSidebar';
@@ -119,12 +119,7 @@ function DebitPageContent() {
     try {
       if (silent) setIsRefreshing(true);
       else setLoading(true);
-      const response = await fetch('/api/Debit');
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.details || result.error || 'Failed to fetch data');
-      }
+      const result = await getDebitData();
 
       setData(result.data);
 

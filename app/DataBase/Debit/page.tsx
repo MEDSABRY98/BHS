@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { Download, Upload, Trash2, AlertTriangle, CheckCircle, FileSpreadsheet } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { toast } from '@/app/Components/Notification';
+import { deleteDebitData, uploadDebitData } from '../Service/database_service';
 
 export default function DebitDatabasePage() {
   const [loading, setLoading] = useState(false);
@@ -21,9 +22,8 @@ export default function DebitDatabasePage() {
   const handleDeleteAll = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/DataBase/Debit/api', { method: 'DELETE' });
-      const result = await res.json();
-      if (res.ok) {
+      const result = await deleteDebitData();
+      if (result.success) {
         toast.success(result.message);
         setIsDeleteModalOpen(false);
       } else {
@@ -91,14 +91,9 @@ export default function DebitDatabasePage() {
         }
 
         // Send to API
-        const res = await fetch('/DataBase/Debit/api', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ data })
-        });
+        const result = await uploadDebitData(data);
         
-        const result = await res.json();
-        if (res.ok) {
+        if (result.success) {
           toast.success(result.message);
         } else {
           // Just show the high-level error, omitting the detailed list of IDs
@@ -120,7 +115,7 @@ export default function DebitDatabasePage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
             <FileSpreadsheet className="w-6 h-6 text-[#D4AF37]" />
-            Debit Database
+            Debit DB
           </h1>
         </div>
       </div>
@@ -201,11 +196,11 @@ export default function DebitDatabasePage() {
                 Are you sure you want to delete ALL data in the Debit database? This action is permanent and cannot be undone.
               </p>
             </div>
-            <div className="p-4 bg-gray-50 border-t border-gray-100 flex gap-3 justify-end">
+            <div className="p-4 bg-gray-50 border-t border-gray-100 flex gap-3 justify-center w-full">
               <button
                 type="button"
                 onClick={() => setIsDeleteModalOpen(false)}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-xl hover:bg-gray-50 transition-colors"
+                className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-xl hover:bg-gray-50 transition-colors"
                 disabled={loading}
               >
                 Cancel
@@ -213,7 +208,7 @@ export default function DebitDatabasePage() {
               <button
                 type="button"
                 onClick={handleDeleteAll}
-                className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-xl hover:bg-red-700 transition-colors flex items-center gap-2"
+                className="flex-1 px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-xl hover:bg-red-700 transition-colors flex items-center justify-center gap-2"
                 disabled={loading}
               >
                 {loading ? 'Deleting...' : 'Wipe Data'}

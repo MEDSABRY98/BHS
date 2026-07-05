@@ -7,6 +7,7 @@ import { useSalesModuleFilters } from '@/app/Sales/Model/SalesFilters';
 import { exportSalesExcelWorkbook, recordsFromTable } from '@/app/Sales/Export/SalesExcelExport';
 import NoData from '@/app/Components/NoDataTab';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
+import { getCustomersComparisonData } from '../Service/sales_customers_service';
 
 interface Props {
   userId: string;
@@ -104,13 +105,7 @@ export default function SalesCustomersComparisonTab({ userId, refreshTrigger }: 
       }
       setLoading(true);
       try {
-        const response = await fetch('/api/Sales/CustomersComparison', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ filters, userId, currentYear, prevYear, selectedMonth })
-        });
-        if (!response.ok) throw new Error('Failed to fetch customers comparison');
-        const result = await response.json();
+        const result = await getCustomersComparisonData(userId, filters, currentYear, prevYear, selectedMonth);
         setMainComparisonData(result.mainComparison || []);
         setSubComparisonData(result.subComparison || []);
       } catch (error) {

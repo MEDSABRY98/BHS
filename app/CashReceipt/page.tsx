@@ -6,6 +6,7 @@ import Login from '@/app/Components/Login';
 import Loading from '@/app/Components/Loading';
 import CashReceiptSidebar from './Components/CashReceiptSidebar';
 import { Menu, Search } from 'lucide-react';
+import { verifyUserCredentials } from '@/app/DataBase/Service/database_service';
 
 export default function CashReceiptPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -42,22 +43,13 @@ export default function CashReceiptPage() {
             const userData = JSON.parse(savedUser);
             if (userData && userData.name) {
               // Verify user still exists and password is correct
-              const response = await fetch('/DataBase/Users/api', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                  name: userData.name,
-                  password: savedPassword,
-                }),
-              });
+              const result = await verifyUserCredentials(userData.name, savedPassword);
 
-              const result = await response.json();
-
-              if (response.ok && result.success) {
-                setIsAuthenticated(true);
+              if (result.success && result.user) {
+                // User still exists and credentials are valid
                 setCurrentUser(result.user);
+                setIsAuthenticated(true);
+                // Update localStorage with fresh user data
                 localStorage.setItem('currentUser', JSON.stringify(result.user));
               } else {
                 localStorage.removeItem('currentUser');

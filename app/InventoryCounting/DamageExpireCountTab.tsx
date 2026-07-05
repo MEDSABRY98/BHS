@@ -7,6 +7,7 @@ import TabLoader from '@/app/Components/TabLoader';
 import NoData from '@/app/Components/NoDataTab';
 import { ICItem, ICRecord } from './EditICItemModal';
 import EditICItemModal from './EditICItemModal';
+import { fetchICTotal, fetchICDetails, updateICItem } from '../Inventory/Service/inventory_counting_service';
 
 export default function DamageExpireCountTab() {
     const [data, setData] = useState<ICItem[]>([]);
@@ -30,18 +31,15 @@ export default function DamageExpireCountTab() {
 
         setError(null);
         try {
-            const [totalRes, recordRes] = await Promise.all([
-                fetch('/api/Inventory/Counting/DamageTotal'),
-                fetch('/api/Inventory/Counting/DamageRecord')
+            const [totalJson, recordJson] = await Promise.all([
+                fetchICTotal('DamageExpire'),
+                fetchICDetails('DamageExpire')
             ]);
 
-            const totalJson = await totalRes.json();
-            const recordJson = await recordRes.json();
-
-            if (totalJson.data) {
+            if (totalJson.success && totalJson.data) {
                 setData(totalJson.data);
             }
-            if (recordJson.data) {
+            if (recordJson.success && recordJson.data) {
                 setRecords(recordJson.data);
             }
 
@@ -178,19 +176,10 @@ export default function DamageExpireCountTab() {
     const handleSaveItem = async (updatedValues: Partial<ICItem>) => {
         if (!editingItem) return;
         
-        const res = await fetch('/api/Inventory/Counting/UpdateItem', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                sheetName: 'IC Total - D & E',
-                productId: editingItem.productId,
-                newValues: updatedValues
-            })
-        });
+        const res = await updateICItem('IC DamageExp Total', editingItem.productId, updatedValues as any);
 
-        if (!res.ok) {
-            const err = await res.json();
-            throw new Error(err.error || 'Failed to update item');
+        if (!res.success) {
+            throw new Error(res.error || res.details || 'Failed to update item');
         }
 
         // Update local state instantly

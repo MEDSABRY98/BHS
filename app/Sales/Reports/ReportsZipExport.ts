@@ -6,6 +6,8 @@ import type {
   SalesReportsInput,
 } from '@/app/Sales/Reports/ReportsTypes';
 import type { SalesCommonFilters } from '@/app/Sales/Model/SalesFilters';
+import { getReportsData } from '../Service/sales_reports_service';
+import { getSalesMetadata } from '../Service/sales_core_service';
 
 function sanitizeFileName(name: string): string {
   return name.replace(/[<>:"/\\|?*]/g, '').replace(/\s+/g, '_').trim() || 'Unknown';
@@ -15,29 +17,22 @@ async function fetchReportsPayload(
   userId: string,
   filters: SalesCommonFilters
 ): Promise<ReportsPayload> {
-  const res = await fetch('/api/Sales/Reports', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ userId, filters }),
-  });
-  if (!res.ok) throw new Error('Failed to fetch reports');
-  return res.json();
+  const result = await getReportsData(userId, filters);
+  return result as any;
 }
 
 async function fetchMappingPeople(
   userId: string
 ): Promise<{ salesReps: string[]; merchandisers: string[] }> {
-  const res = await fetch('/api/Sales/Metadata', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ userId }),
-  });
-  if (!res.ok) return { salesReps: [], merchandisers: [] };
-  const json = await res.json();
-  return {
-    salesReps: json.uniqueValues?.salesReps ?? [],
-    merchandisers: json.uniqueValues?.merchandisers ?? [],
-  };
+  try {
+    const result = await getSalesMetadata(userId, false);
+    return {
+      salesReps: result.uniqueValues?.salesReps ?? [],
+      merchandisers: result.uniqueValues?.merchandisers ?? [],
+    };
+  } catch (error) {
+    return { salesReps: [], merchandisers: [] };
+  }
 }
 
 function buildPdfInput(

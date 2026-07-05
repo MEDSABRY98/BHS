@@ -18,6 +18,7 @@ import {
 import { ConfirmModal } from '../../LPOs/Components/ConfirmModal';
 import NoData from '@/app/Components/NoDataTab';
 import { toast } from '@/app/Components/Notification';
+import { fetchPersonnel, addPersonnel, updatePersonnel, deletePersonnel } from '../Service/database_service';
 
 export default function PersonnelPage() {
   const [personnel, setPersonnel] = useState<any[]>([]);
@@ -38,16 +39,15 @@ export default function PersonnelPage() {
   // Fetch personnel when search term changes (debounced)
   useEffect(() => {
     const handler = setTimeout(() => {
-      fetchPersonnel();
+      loadPersonnel();
     }, 300);
     return () => clearTimeout(handler);
   }, [searchTerm]);
 
-  async function fetchPersonnel() {
+  async function loadPersonnel() {
     try {
-      const res = await fetch('/api/DataBase/Personnel');
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || 'Failed to load personnel');
+      const json = await fetchPersonnel();
+      if (!json.success) throw new Error(json.error || 'Failed to load personnel');
       
       let data = json.data || [];
       if (searchTerm.trim()) {
@@ -78,22 +78,17 @@ export default function PersonnelPage() {
     e.preventDefault();
     setIsSaving(true);
     try {
-      const method = editingPerson ? 'PUT' : 'POST';
-      const body = editingPerson 
-        ? { id: editingPerson.ID, name: NAME, roleType: ROLE_TYPE, isActive: IS_ACTIVE, supervisorId: SUPERVISOR_ID }
-        : { name: NAME, roleType: ROLE_TYPE, isActive: IS_ACTIVE, supervisorId: SUPERVISOR_ID };
-
-      const res = await fetch('/api/DataBase/Personnel', {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      const json = await res.json();
+      let res;
+      if (editingPerson) {
+        res = await updatePersonnel(editingPerson.ID, NAME, ROLE_TYPE, IS_ACTIVE, SUPERVISOR_ID);
+      } else {
+        res = await addPersonnel(NAME, ROLE_TYPE, IS_ACTIVE, SUPERVISOR_ID);
+      }
       
-      if (!res.ok) throw new Error(json.error || 'Failed to save');
+      if (!res.success) throw new Error(res.error || 'Failed to save');
 
       setIsModalOpen(false);
-      await fetchPersonnel();
+      await loadPersonnel();
       toast.success(editingPerson ? 'Updated successfully!' : 'Added successfully!');
     } catch (err: any) {
       toast.error(err.message || 'Failed to save');
@@ -111,13 +106,10 @@ export default function PersonnelPage() {
     if (!itemToDelete) return;
     setIsSaving(true);
     try {
-      const res = await fetch(`/api/DataBase/Personnel?id=${itemToDelete}`, {
-        method: 'DELETE',
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || 'Failed to delete');
+      const res = await deletePersonnel(itemToDelete);
+      if (!res.success) throw new Error(res.error || 'Failed to delete');
       
-      fetchPersonnel();
+      loadPersonnel();
       toast.success('Deleted successfully!');
     } catch (err: any) {
       toast.error(err.message || 'Failed to delete');
@@ -132,7 +124,7 @@ export default function PersonnelPage() {
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-4xl font-normal text-black tracking-tighter">Sales Personnel</h1>
+          <h1 className="text-4xl font-normal text-black tracking-tighter">Sales Personnel DB</h1>
         </div>
         <div className="flex items-center gap-3">
           <button

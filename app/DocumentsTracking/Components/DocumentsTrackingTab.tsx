@@ -34,6 +34,7 @@ import PdfOptionsModal from './Modals/PdfOptionsModal';
 import TrackingModal from './Modals/TrackingModal';
 import BulkDeliverModal from './Modals/BulkDeliverModal';
 import ReceiverExcelModal from './Modals/ReceiverExcelModal';
+import { getDocumentsTracking, updateDocumentTrackingRecord, deleteDocumentTrackingRecord, bulkUpdateDocumentsTrackingRecords } from '../Service/documents_tracking_service';
 
 export default function DocumentsTrackingTab() {
     const router = useRouter();
@@ -70,9 +71,8 @@ export default function DocumentsTrackingTab() {
     const fetchChecks = async () => {
         setIsLoading(true);
         try {
-            const response = await fetch('/api/DocumentsTracking');
-            const data = await response.json();
-            if (data.records) {
+            const data = await getDocumentsTracking();
+            if (data && data.records) {
                 const mappedChecks: Check[] = data.records.map((r: any) => {
                     const timeline = [];
                     if (r.datedSendToOffice) timeline.push({ event: 'مسلّمة للمكتب الرئيسي', time: r.datedSendToOffice });
@@ -127,24 +127,19 @@ export default function DocumentsTrackingTab() {
 
         setIsLoading(true);
         try {
-            const response = await fetch('/api/DocumentsTracking', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    rowIndex: editCheck.rowIndex,
-                    documentNumber: formData.num,
-                    documentName: formData.client,
-                    receivedDate: formData.date,
-                    documentDate: formData.checkDate,
-                    documentAmount: parseFloat(formData.amount || '0'),
-                    receivedFrom: formData.bank,
-                    documentNotes: formData.notes,
-                    whoDeliveryForOffice: formData.receiverName,
-                    whoTakeFromOffice: formData.finalReceiverName
-                })
+            const result = await updateDocumentTrackingRecord(editCheck.rowIndex, {
+                documentNumber: formData.num,
+                documentName: formData.client,
+                receivedDate: formData.date,
+                documentDate: formData.checkDate,
+                documentAmount: parseFloat(formData.amount || '0'),
+                receivedFrom: formData.bank,
+                documentNotes: formData.notes,
+                whoDeliveryForOffice: formData.receiverName,
+                whoTakeFromOffice: formData.finalReceiverName
             });
 
-            if (response.ok) {
+            if (result && result.success) {
                 showNotify('Check updated successfully');
                 setEditCheck(null);
                 await fetchChecks();
@@ -166,13 +161,9 @@ export default function DocumentsTrackingTab() {
 
         setIsLoading(true);
         try {
-            const response = await fetch('/api/DocumentsTracking', {
-                method: 'DELETE',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ rowIndex: check.rowIndex })
-            });
+            const result = await deleteDocumentTrackingRecord(check.rowIndex);
 
-            if (response.ok) {
+            if (result && result.success) {
                 showNotify('Check deleted successfully', 'success');
                 setConfirmDeleteCheckId(null);
                 await fetchChecks();
@@ -216,13 +207,9 @@ export default function DocumentsTrackingTab() {
                 updateFields.whoTakeFromOffice = details.finalReceiverName;
             }
 
-            const response = await fetch('/api/DocumentsTracking', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ rowIndex: currentCheck.rowIndex, ...updateFields })
-            });
+            const result = await updateDocumentTrackingRecord(currentCheck.rowIndex, updateFields);
 
-            if (response.ok) {
+            if (result && result.success) {
                 showNotify('Status updated successfully');
                 await fetchChecks();
                 setSelectedCheckId(checkId);
@@ -251,13 +238,9 @@ export default function DocumentsTrackingTab() {
                 }
             }));
 
-            const response = await fetch('/api/DocumentsTracking', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ bulk: true, updates })
-            });
+            const result = await bulkUpdateDocumentsTrackingRecords(updates);
 
-            if (response.ok) {
+            if (result && result.success) {
                 showNotify(`Successfully registered ${receivedChecks.length} checks in the system`);
                 setSelectedIds([]);
                 await fetchChecks();
@@ -290,13 +273,9 @@ export default function DocumentsTrackingTab() {
                 }
             }));
 
-            const response = await fetch('/api/DocumentsTracking', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ bulk: true, updates })
-            });
+            const result = await bulkUpdateDocumentsTrackingRecords(updates);
 
-            if (response.ok) {
+            if (result && result.success) {
                 showNotify(`Successfully delivered ${registeredChecks.length} checks`);
                 setIsBulkDeliverModalOpen(false);
                 setSelectedIds([]);

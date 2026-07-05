@@ -4,6 +4,7 @@ import * as XLSX from 'xlsx';
 import { SupplierTransaction, SupplierSummary, standardizeToken } from './types';
 import MatchingModal from './MatchingModal';
 import NoData from '@/app/Components/NoDataTab';
+import { getSuppliersMatching, saveSuppliersMatching } from '../Service/suppliers_service';
 
 interface MatchingTabProps {
     data: SupplierTransaction[];
@@ -22,9 +23,8 @@ export default function MatchingTab({ data }: MatchingTabProps) {
 
     const fetchMatchingData = async () => {
         try {
-            const res = await fetch('/api/SuppliersMatching');
-            const json = await res.json();
-            if (json.data) {
+            const json = await getSuppliersMatching();
+            if (json && json.data) {
                 const map: Record<string, string> = {};
                 json.data.forEach((item: any) => {
                     const key = item.name.trim().toUpperCase();
@@ -41,15 +41,7 @@ export default function MatchingTab({ data }: MatchingTabProps) {
         const months = updatedMonths !== undefined ? updatedMonths : getRawMonths(supplierName);
         setIsSaving(true);
         try {
-            await fetch('/api/SuppliersMatching', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    supplierId: supplierName,
-                    supplierName,
-                    months
-                })
-            });
+            await saveSuppliersMatching(supplierName, months);
         } catch (e) {
             console.error(e);
             alert('Failed to save matching data');

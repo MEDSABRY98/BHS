@@ -13,6 +13,8 @@ import HistoryTab from './HistoryTab';
 import EditEntryModal from './EditEntryModal';
 import { generateVoucherPdf } from '../Utils/VoucherPdf';
 import { toast } from '@/app/Components/Notification';
+import { getPettyCashRecords, createPettyCashEntry, updatePettyCashEntry, deletePettyCashEntry, settlePettyCashPeriod } from '../Service/petty_cash_service';
+import { getVouchers, createVoucher } from '../Service/vouchers_service';
 
 interface Receipt {
   id: string;
@@ -103,10 +105,9 @@ export default function PettyCashTab() {
 
   const fetchVoucherHistory = async () => {
     try {
-      const response = await fetch('/api/Vouchers');
-      const data = await response.json();
-      if (response.ok && data.vouchers) {
-        setVoucherHistory(data.vouchers.reverse()); // Show newest first
+      const vouchersData = await getVouchers();
+      if (vouchersData) {
+        setVoucherHistory(vouchersData.reverse()); // Show newest first
       }
     } catch (error) {
       console.error('Error fetching voucher history:', error);
@@ -116,10 +117,9 @@ export default function PettyCashTab() {
   const fetchHistoryRecords = async () => {
     try {
       setHistoryLoading(true);
-      const response = await fetch('/api/PettyCash?tab=history');
-      const data = await response.json();
-      if (response.ok && data.records) {
-        setHistoryRecords(data.records);
+      const recordsData = await getPettyCashRecords('history');
+      if (recordsData) {
+        setHistoryRecords(recordsData);
       }
     } catch (error) {
       console.error('Error fetching history records:', error);
@@ -136,17 +136,15 @@ export default function PettyCashTab() {
 
   const fetchNextVoucherNumber = async () => {
     try {
-      const response = await fetch('/api/Vouchers');
-      const data = await response.json();
-      if (response.ok && data.vouchers) {
-        if (data.vouchers.length === 0) {
+      const vouchersData = await getVouchers();
+      if (vouchersData) {
+        if (vouchersData.length === 0) {
           setNextVoucherNumber('V-0001');
           return;
         }
 
-        // Get the maximum voucher number parsed from all entries
         let maxNum = 0;
-        data.vouchers.forEach((v: any) => {
+        vouchersData.forEach((v: any) => {
           if (v.number && v.number.includes('-')) {
             const parts = v.number.split('-');
             const numPart = parseInt(parts[parts.length - 1]);
@@ -167,14 +165,13 @@ export default function PettyCashTab() {
   const fetchRecords = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/PettyCash');
-      const data = await response.json();
+      const recordsData = await getPettyCashRecords('active');
 
-      if (response.ok && data.records) {
+      if (recordsData) {
         const receiptsData: Receipt[] = [];
         const expensesData: Expense[] = [];
 
-        data.records.forEach((record: any) => {
+        recordsData.forEach((record: any) => {
           const entry = {
             id: record.id,
             amount: record.amount,
@@ -214,29 +211,24 @@ export default function PettyCashTab() {
   }): Promise<boolean> => {
     try {
       setLoading(true);
-      const response = await fetch('/api/PettyCash', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          date: formData.date,
-          type: 'Receipt',
-          amount: parseFloat(formData.amount),
-          name: formData.source,
-          description: formData.description,
-          paid: formData.paid,
-        }),
+      const response = await createPettyCashEntry({
+        date: formData.date,
+        type: 'Receipt',
+        amount: parseFloat(formData.amount),
+        name: formData.source,
+        description: formData.description,
+        paid: formData.paid,
       });
 
-      if (response.ok) {
+      if (response && response.success) {
         await fetchRecords();
         toast.success('Receipt saved successfully');
         return true;
       }
 
-      const data = await response.json().catch(() => ({}));
-      toast.error(data.details || data.error || 'Error saving receipt');
+      toast.error('Error saving receipt');
       return false;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error submitting receipt:', error);
       toast.error('Error saving receipt');
       return false;
@@ -257,19 +249,15 @@ export default function PettyCashTab() {
       let successCount = 0;
       for (const row of cart) {
         try {
-          const response = await fetch('/api/PettyCash', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              date: row.date,
-              type: 'Expense',
-              amount: parseFloat(row.amount),
-              name: row.source,
-              description: row.description,
-              paid: row.paid,
-            }),
+          const response = await createPettyCashEntry({
+            date: row.date,
+            type: 'Expense',
+            amount: parseFloat(row.amount),
+            name: row.source,
+            description: row.description,
+            paid: row.paid,
           });
-          if (response.ok) successCount++;
+          if (response && response.success) successCount++;
         } catch (e) {
           console.error('Failed to save row:', row, e);
         }
@@ -315,32 +303,24 @@ export default function PettyCashTab() {
 
     try {
       setLoading(true);
-      const response = await fetch('/api/PettyCash', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          id: selectedEntry.id,
-          date: updatedFormData.date,
-          type: entryType === 'receipt' ? 'Receipt' : 'Expense',
-          amount: parseFloat(updatedFormData.amount),
-          name: updatedFormData.source,
-          description: updatedFormData.description,
-          paid: updatedFormData.paid,
-        }),
+      const response = await updatePettyCashEntry({
+        id: selectedEntry.id,
+        date: updatedFormData.date,
+        type: entryType === 'receipt' ? 'Receipt' : 'Expense',
+        amount: parseFloat(updatedFormData.amount),
+        name: updatedFormData.source,
+        description: updatedFormData.description,
+        paid: updatedFormData.paid,
       });
 
-      const data = await response.json();
-
-      if (response.ok && data.success) {
+      if (response && response.success) {
         await fetchRecords();
         closeModal();
         toast.success('Entry updated successfully');
       } else {
-        toast.error(data.details || data.error || 'Failed to update entry');
+        toast.error('Failed to update entry');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating entry:', error);
       toast.error('Failed to update entry');
     } finally {
@@ -357,26 +337,16 @@ export default function PettyCashTab() {
 
     try {
       setLoading(true);
-      const response = await fetch('/api/PettyCash', {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          id: selectedEntry.id,
-        }),
-      });
+      const response = await deletePettyCashEntry(selectedEntry.id);
 
-      const data = await response.json();
-
-      if (response.ok && data.success) {
+      if (response && response.success) {
         await fetchRecords();
         closeModal();
         toast.success('Entry deleted successfully');
       } else {
-        toast.error(data.details || data.error || 'Failed to delete entry');
+        toast.error('Failed to delete entry');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting entry:', error);
       toast.error('Failed to delete entry');
     } finally {
@@ -389,20 +359,13 @@ export default function PettyCashTab() {
     const loadingId = toast.loading('Closing and archiving current period...', { id: 'petty_cash_settle' });
     try {
       setSettleLoading(true);
-      const response = await fetch('/api/PettyCash', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          action: 'settle',
-          liquidationDate: settleDate,
-          openingAmount: openingAmount ? parseFloat(openingAmount) : 0,
-          openingDescription: openingDescription || 'Opening Balance / رصيد افتتاحي للدورة الجديدة',
-        })
+      const response = await settlePettyCashPeriod({
+        liquidationDate: settleDate,
+        openingAmount: openingAmount ? parseFloat(openingAmount) : 0,
+        openingDescription: openingDescription || 'Opening Balance / رصيد افتتاحي للدورة الجديدة',
       });
 
-      if (response.ok) {
+      if (response && response.success) {
         toast.dismiss(loadingId);
         setOpeningAmount('');
         setIsSettleModalOpen(false);
@@ -411,10 +374,9 @@ export default function PettyCashTab() {
         toast.success('Period closed and archived successfully!');
       } else {
         toast.dismiss(loadingId);
-        const errData = await response.json().catch(() => ({}));
-        toast.error(errData.details || errData.error || 'Failed to settle current period');
+        toast.error('Failed to settle current period');
       }
-    } catch (error) {
+    } catch (error: any) {
       toast.dismiss(loadingId);
       console.error('Error settling period:', error);
       toast.error('Failed to settle current period');
@@ -431,20 +393,15 @@ export default function PettyCashTab() {
   }): Promise<boolean> => {
     try {
       setLoading(true);
-      // Save to Google Sheets first
-      const response = await fetch('/api/Vouchers', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          date: formData.date,
-          voucherNumber: nextVoucherNumber,
-          receiptName: formData.source,
-          amount: parseFloat(formData.amount),
-          description: formData.description,
-        }),
+      const response = await createVoucher({
+        date: formData.date,
+        voucherNumber: nextVoucherNumber,
+        receiptName: formData.source,
+        amount: parseFloat(formData.amount),
+        description: formData.description,
       });
 
-      if (response.ok) {
+      if (response && response.success) {
         const voucherData = {
           voucherNumber: nextVoucherNumber,
           date: formData.date,

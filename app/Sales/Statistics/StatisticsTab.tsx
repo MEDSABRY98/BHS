@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { SalesInvoice } from '@/lib/supabase';;
 import { MapPin, ShoppingBag, UserCircle, DollarSign, Package, Store } from 'lucide-react';
 import { useSalesModuleFilters } from '@/app/Sales/Model/SalesFilters';
+import { getStatisticsData } from '@/app/Sales/Service/sales_core_service';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
 
 interface SalesStatisticsTabProps {
@@ -30,13 +31,7 @@ export default function SalesStatisticsTab({ userId, refreshTrigger }: SalesStat
       }
       setLoading(true);
       try {
-        const response = await fetch('/api/Sales/Statistics', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ filters, userId })
-        });
-        if (!response.ok) throw new Error('Failed to fetch statistics data');
-        const result = await response.json();
+        const result = await getStatisticsData(userId, filters);
 
         // Helper to convert plain object back to Map for monthlyData
         const convertMonthlyDataToMap = (monthlyDataObj: any) => {

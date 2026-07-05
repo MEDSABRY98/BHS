@@ -4,6 +4,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Search, Package, AlertCircle, ChevronDown, Filter, Check } from 'lucide-react';
 import Loading from '@/app/Components/Loading';
 import NoData from '@/app/Components/NoDataTab';
+import * as XLSX from 'xlsx';
+import { getItemCodesData } from '../Service/inventory_service';
 
 interface ItemCodeEntry {
     tags: string;
@@ -38,13 +40,12 @@ export default function InventoryItemCodeTab() {
     const fetchItemCodes = async () => {
         setLoading(true);
         try {
-            const res = await fetch('/api/Inventory/ItemCodes');
-            const json = await res.json();
-            if (json.data) {
-                setItemCodes(json.data);
+            const json = await getItemCodesData();
+            if (json.success && json.data) {
+                setItemCodes(json.data as any);
             }
-        } catch (e) {
-            console.error('Failed to load item codes', e);
+        } catch (error) {
+            console.error('Failed to load item codes', error);
         } finally {
             setLoading(false);
         }

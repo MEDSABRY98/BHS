@@ -8,6 +8,7 @@ import {
     normalizeDate,
     getNextDocIds
 } from './types';
+import { getDocumentsTracking, addDocumentsTrackingRecords } from '../Service/documents_tracking_service';
 
 interface RegisterTabProps {
     onSaveSuccess: () => void;
@@ -99,11 +100,7 @@ export default function RegisterTab({
         setIsLoading(true);
         try {
             // Get current count from database first to generate correct DOC IDs
-            const res = await fetch('/api/DocumentsTracking');
-            if (!res.ok) {
-                throw new Error('Failed to load existing documents');
-            }
-            const currentData = await res.json();
+            const currentData = await getDocumentsTracking();
             const existingRecords = currentData.records || [];
             const nextDocIds = getNextDocIds(existingRecords, validDrafts.length);
 
@@ -122,13 +119,9 @@ export default function RegisterTab({
                 whoTakeFromOffice: ''
             }));
 
-            const response = await fetch('/api/DocumentsTracking', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'add', records: recordsToSave })
-            });
+            const result = await addDocumentsTrackingRecords(recordsToSave);
 
-            if (response.ok) {
+            if (result && result.success) {
                 showNotify(`Successfully saved ${validDrafts.length} checks`);
                 setDrafts([
                     {
@@ -143,9 +136,6 @@ export default function RegisterTab({
                     }
                 ]);
                 onSaveSuccess();
-            } else {
-                const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.error || 'Failed to save');
             }
         } catch (error) {
             console.error('Error saving drafts:', error);

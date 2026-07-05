@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { TrendingUp, Package, Users, DollarSign, BarChart3, Calendar, MapPin, ShoppingBag, UserCircle, ChevronDown, Download, Filter, X, FileSpreadsheet } from 'lucide-react';
 import { useSalesModuleFilters } from '@/app/Sales/Model/SalesFilters';
 import { exportSalesExcelTable } from '@/app/Sales/Export/SalesExcelExport';
+import { getOverviewData } from '@/app/Sales/Service/sales_core_service';
 import NoData from '@/app/Components/NoDataTab';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
 import {
@@ -46,14 +47,7 @@ export default function SalesOverviewTab({ refreshTrigger, userId }: SalesOvervi
     const fetchOverview = async () => {
       setLoading(true);
       try {
-        const res = await fetch('/api/Sales/overview', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId, filters }),
-        });
-
-        if (!res.ok) throw new Error('Failed to fetch');
-        const json = await res.json();
+        const json = await getOverviewData(userId, filters);
 
         if (isMounted) {
           setData(json);

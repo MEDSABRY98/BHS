@@ -7,6 +7,7 @@ import NoData from '@/app/Components/NoDataTab';
 import SalesNewListingsProducts from './NewListingsProducts';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
 import SalesNewListingsCustomers from './NewListingsCustomers';
+import { getNewListingsData } from '../Service/sales_reports_service';
 
 interface SalesNewListingsTabProps {
   userId: string;
@@ -31,14 +32,8 @@ export default function SalesNewListingsTab({ userId, refreshTrigger }: SalesNew
       }
       setLoading(true);
       try {
-        const response = await fetch('/api/Sales/NewListings', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId, filters })
-        });
-        if (!response.ok) throw new Error('Failed to fetch new listings');
-        const result = await response.json();
-        setData(result.data || []);
+        const result = await getNewListingsData(userId, filters);
+        setData(result || []);
       } catch (err) {
         console.error('Error fetching new listings:', err);
       } finally {

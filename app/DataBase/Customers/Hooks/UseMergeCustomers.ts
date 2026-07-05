@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { mergeCustomersAction } from '../../Service/database_service';
 
 export type CustomerRecord = {
   ID: string;
@@ -90,20 +91,15 @@ export function useMergeCustomers(
     setShowMergeModal(false);
 
     try {
-      const response = await fetch('/api/DataBase/Customers/Merge', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const result = await mergeCustomersAction({
           survivorCustomerId: survivorCustomerId.trim(),
           sourceCustomerIds,
           targetMainName: mergeTargetMainName.trim(),
           targetSubName: mergeTargetSubName.trim(),
           targetCity: mergeTargetCity.trim(),
-        }),
       });
 
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok) {
+      if (!result.success) {
         throw new Error(result.error || 'Merge failed');
       }
 

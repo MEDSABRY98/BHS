@@ -445,7 +445,7 @@ export default function InventoryCountProductsPage() {
   return (
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <h1 className="text-4xl font-normal text-black tracking-tighter">Inventory Count Products</h1>
+        <h1 className="text-4xl font-normal text-black tracking-tighter">Inventory Count Products DB</h1>
         {canEdit && (
           <div className="flex gap-3">
             <button

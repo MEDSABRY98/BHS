@@ -5,6 +5,7 @@ import { Save, Search, Target, ChevronDown, Users, X, AlertCircle } from 'lucide
 import { toast } from '@/app/Components/Notification';
 import NoData from '@/app/Components/NoDataTab';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
+import { getTargetYears, getTargetsData, batchSaveTargets } from '../Service/sales_targets_service';
 
 type TargetRow = {
   userId: string;
@@ -136,11 +137,7 @@ export default function SalesTargetsTab({ userId, refreshTrigger }: SalesTargets
   const fetchYearsWithData = useCallback(async () => {
     if (!userId) return;
     try {
-      const params = new URLSearchParams({ userId, listYears: 'true' });
-      const response = await fetch(`/api/Sales/Targets?${params}`);
-      if (!response.ok) return;
-      const result = await response.json();
-      const years = (result.years || [2025]) as number[];
+      const years = await getTargetYears();
       setYearsWithData(years.length ? years : [2025]);
     } catch (err) {
       console.error('Error fetching target years:', err);
@@ -167,19 +164,9 @@ export default function SalesTargetsTab({ userId, refreshTrigger }: SalesTargets
     if (!userId) return;
     setLoading(true);
     try {
-      const params = new URLSearchParams({
-        userId,
-        year: String(year),
-        month: String(month),
-      });
-      const response = await fetch(`/api/Sales/Targets?${params}`);
-      if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.error || 'Failed to load targets');
-      }
-      const result = await response.json();
-      setSalesReps(result.data?.salesReps || []);
-      setUnassigned(result.data?.unassignedMerchandisers || []);
+      const result = await getTargetsData(userId, year, month);
+      setSalesReps(result.salesReps || []);
+      setUnassigned(result.unassignedMerchandisers || []);
       setIsManager(!!result.isManager);
     } catch (error: any) {
       console.error(error);
@@ -284,24 +271,11 @@ export default function SalesTargetsTab({ userId, refreshTrigger }: SalesTargets
     setSaving(true);
     toast.loading('Saving targets...', { id: 'save_targets' });
     try {
-      const response = await fetch('/api/Sales/Targets', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId,
-          year,
-          month,
-          targets: dirtyRows.map((r) => ({
-            userId: r.userId,
-            targetAmount: r.targetAmount,
-            type: r.type
-          })),
-        }),
-      });
-      if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.error || 'Failed to save');
-      }
+      await batchSaveTargets(userId, year, month, 'sales_rep', dirtyRows.map((r) => ({
+        userId: r.userId,
+        targetAmount: r.targetAmount,
+        type: r.type
+      })));
       toast.success('Targets saved');
       await fetchYearsWithData();
       fetchTargets();

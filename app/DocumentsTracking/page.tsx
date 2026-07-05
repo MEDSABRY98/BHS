@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import DocumentsTrackingTab from './Components/DocumentsTrackingTab';
 import { ChevronLeft } from 'lucide-react';
 import Loading from '@/app/Components/Loading';
+import { verifyUserCredentials } from '@/app/DataBase/Service/database_service';
 
 export default function DocumentsTrackingPage() {
     const [currentUser, setCurrentUser] = useState<any>(null);
@@ -22,17 +23,8 @@ export default function DocumentsTrackingPage() {
 
                     if (savedPassword) {
                         try {
-                            const response = await fetch('/DataBase/Users/api', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({
-                                    name: userData.name,
-                                    password: savedPassword,
-                                }),
-                            });
-
-                            const result = await response.json();
-                            if (response.ok && result.success) {
+                            const result = await verifyUserCredentials(userData.name, savedPassword);
+                            if (result.success && result.user) {
                                 setCurrentUser(result.user);
                                 localStorage.setItem('currentUser', JSON.stringify(result.user));
                                 return;

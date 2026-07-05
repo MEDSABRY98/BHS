@@ -8,6 +8,7 @@ import { exportSalesExcelTable } from '@/app/Sales/Export/SalesExcelExport';
 import NoData from '@/app/Components/NoDataTab';
 import SalesProductDetails from './ProductDetails';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
+import { getProductsData } from '../Service/sales_products_service';
 
 interface SalesProductsTabProps {
   refreshTrigger?: number;
@@ -68,14 +69,8 @@ export default function SalesProductsTab({ userId, refreshTrigger }: SalesProduc
       }
       setLoading(true);
       try {
-        const response = await fetch('/api/Sales/Products', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ filters, userId })
-        });
-        if (!response.ok) throw new Error('Failed to fetch products data');
-        const result = await response.json();
-        setProductsData(result.productsData || []);
+        const result = await getProductsData(userId, filters);
+        setProductsData(result || []);
       } catch (err) {
         console.error('Error fetching Products Data:', err);
       } finally {

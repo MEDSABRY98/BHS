@@ -7,6 +7,7 @@ import { useSalesModuleFilters } from '@/app/Sales/Model/SalesFilters';
 import { exportSalesExcelTable } from '@/app/Sales/Export/SalesExcelExport';
 import NoData from '@/app/Components/NoDataTab';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
+import { getProductDetailsData } from '../Service/sales_products_service';
 import {
   ComposedChart,
   Bar,
@@ -48,13 +49,7 @@ export default function SalesProductDetails({ productId, userId, onBack, initial
       }
       setLoading(true);
       try {
-        const response = await fetch('/api/Sales/ProductDetails', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId, filters, productId })
-        });
-        if (!response.ok) throw new Error('Failed to fetch product details');
-        const result = await response.json();
+        const result = await getProductDetailsData(userId, filters, productId);
         setData(result.data || []);
         setAllData(result.allData || []);
       } catch (err) {

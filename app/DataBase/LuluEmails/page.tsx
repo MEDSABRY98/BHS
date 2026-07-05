@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2, Search, MailPlus } from 'lucide-react';
 import NoData from '@/app/Components/NoDataTab';
 import { toast } from '@/app/Components/Notification';
+import { fetchLuluEmails, addLuluEmail, updateLuluEmail, deleteLuluEmail } from '../Service/database_service';
 
 export default function LuluEmailsDatabasePage() {
   const [data, setData] = useState<any[]>([]);
@@ -22,16 +23,15 @@ export default function LuluEmailsDatabasePage() {
   });
 
   useEffect(() => {
-    fetchData();
+    loadData();
   }, []);
 
-  const fetchData = async () => {
+  const loadData = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/DataBase/LuluEmails/api');
-      const json = await res.json();
-      if (json.data) {
-        setData(json.data);
+      const res = await fetchLuluEmails();
+      if (res.success && res.data) {
+        setData(res.data);
       }
     } catch (error) {
       console.error(error);
@@ -65,32 +65,15 @@ export default function LuluEmailsDatabasePage() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      let res;
       if (editingItem) {
-        await fetch('/DataBase/LuluEmails/api', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            id: editingItem.ID, 
-            customerId: formData.customerId, 
-            customerCode: formData.customerCode,
-            to: formData.to,
-            cc: formData.cc
-          })
-        });
+        res = await updateLuluEmail(editingItem.ID, formData.customerId, formData.customerCode, formData.to, formData.cc);
       } else {
-        await fetch('/DataBase/LuluEmails/api', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            customerId: formData.customerId, 
-            customerCode: formData.customerCode,
-            to: formData.to,
-            cc: formData.cc
-          })
-        });
+        res = await addLuluEmail(formData.customerId, formData.customerCode, formData.to, formData.cc);
       }
+      if (!res.success) throw new Error(res.error || 'Failed to save');
       setIsModalOpen(false);
-      fetchData();
+      loadData();
       toast.success(editingItem ? 'Email updated successfully!' : 'Email added successfully!');
     } catch (error: any) {
       toast.error(error.message || 'Failed to save email');
@@ -100,14 +83,13 @@ export default function LuluEmailsDatabasePage() {
   const confirmDelete = async () => {
     if (!itemToDelete) return;
     try {
-      const queryParams = new URLSearchParams();
-      if (itemToDelete.ID) queryParams.append('id', itemToDelete.ID);
-      else queryParams.append('customerId', itemToDelete['CUSTOMER ID']);
+      const id = itemToDelete.ID || null;
+      const customerId = itemToDelete['CUSTOMER ID'] || null;
 
-      const res = await fetch(`/DataBase/LuluEmails/api?\${queryParams.toString()}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error('Failed to delete email');
+      const res = await deleteLuluEmail(id, customerId);
+      if (!res.success) throw new Error(res.error || 'Failed to delete email');
       
-      fetchData();
+      loadData();
       toast.success('Email deleted successfully!');
     } catch (error: any) {
       toast.error(error.message || 'Failed to delete email');
@@ -126,7 +108,7 @@ export default function LuluEmailsDatabasePage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
             <MailPlus className="w-6 h-6 text-[#D4AF37]" />
-            Lulu Emails Database
+            Lulu Emails DB
           </h1>
         </div>
         <button
@@ -291,18 +273,18 @@ export default function LuluEmailsDatabasePage() {
                 Are you sure you want to delete this Lulu email record? This action cannot be undone.
               </p>
             </div>
-            <div className="p-4 bg-gray-50 border-t border-gray-100 flex gap-3 justify-end">
+            <div className="p-4 bg-gray-50 border-t border-gray-100 flex gap-3 justify-center w-full">
               <button
                 type="button"
                 onClick={() => setItemToDelete(null)}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-xl hover:bg-gray-50 transition-colors"
+                className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-xl hover:bg-gray-50 transition-colors"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={confirmDelete}
-                className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-xl hover:bg-red-700 transition-colors"
+                className="flex-1 px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-xl hover:bg-red-700 transition-colors flex items-center justify-center"
               >
                 Delete
               </button>

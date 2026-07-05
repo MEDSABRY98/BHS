@@ -9,6 +9,7 @@ import * as XLSX from 'xlsx';
 import { ProductOrder, OrderItem } from './InventoryCategoriesTab';
 import NoData from '@/app/Components/NoDataTab';
 import ProductDetails from './InventoryProductDetails';
+import { getProductMovementsData, updateProductColumn } from '../Service/inventory_service';
 
 interface Props {
     categoryName: string;
@@ -65,9 +66,8 @@ export default function InventoryProductOrdersDetailsTab({
     const fetchMovements = async () => {
         try {
             setFetchingMovements(true);
-            const res = await fetch('/api/Inventory/Movements');
-            const json = await res.json();
-            if (res.ok) {
+            const json = await getProductMovementsData();
+            if (json.success) {
                 setMovements(json.data || {});
             }
         } catch (err) {
@@ -113,12 +113,8 @@ export default function InventoryProductOrdersDetailsTab({
             if (tempInfo.qinc !== editingProductInfo.qinc) updates.push({ field: 'qinc', value: tempInfo.qinc });
 
             for (const update of updates) {
-                const res = await fetch('/api/Inventory', {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ productId: editingProductInfo.productId, field: update.field, value: update.value })
-                });
-                if (!res.ok) throw new Error(`Failed to update ${update.field}`);
+                const res = await updateProductColumn(editingProductInfo.productId, update.field, update.value);
+                if (!res.success) throw new Error(`Failed to update ${update.field}`);
             }
 
             if (updates.length > 0) {

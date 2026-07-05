@@ -7,6 +7,7 @@ import { usePermissions } from '@/app/LPOs/Hooks/usePermissions';
 import { ConfirmModal } from '@/app/LPOs/Components/ConfirmModal';
 import NoData from '@/app/Components/NoDataTab';
 import { toast } from '@/app/Components/Notification';
+import { getSuppliersMonthsSummary, deleteSuppliersMonth, uploadSuppliersInvoices } from '@/app/Suppliers/Service/suppliers_service';
 
 const englishMonths: Record<number, string> = {
   1: 'January',
@@ -53,10 +54,7 @@ export default function SuppliersPurchasePage() {
   async function fetchMonths() {
     setIsLoading(true);
     try {
-      const response = await fetch(
-        `/api/SuppliersInvoices?action=months&type=${encodeURIComponent(invoiceType)}`
-      );
-      const resData = await response.json();
+      const resData = await getSuppliersMonthsSummary(invoiceType as any);
       if (resData.error) {
         throw new Error(resData.details ? `${resData.error}: ${resData.details}` : resData.error);
       }
@@ -78,11 +76,7 @@ export default function SuppliersPurchasePage() {
     if (!targetMonth) return;
     setIsDeleting(true);
     try {
-      const response = await fetch(
-        `/api/SuppliersInvoices?year=${targetMonth.year}&month=${targetMonth.month}&type=${encodeURIComponent(invoiceType)}`,
-        { method: 'DELETE' }
-      );
-      const data = await response.json();
+      const data = await deleteSuppliersMonth(targetMonth.year, targetMonth.month, invoiceType as any);
       if (data.error) throw new Error(data.error);
 
       toast.success(
@@ -145,14 +139,8 @@ export default function SuppliersPurchasePage() {
         AMOUNT: row.AMOUNT,
       }));
 
-      const response = await fetch('/api/SuppliersInvoices', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: invoiceType, rows }),
-      });
-
-      const result = await response.json();
-      if (!response.ok) {
+      const result = await uploadSuppliersInvoices(invoiceType as any, rows);
+      if (result.error) {
         const details = Array.isArray(result.details) ? result.details.join('; ') : result.details;
         throw new Error(details || result.error || 'Upload failed');
       }

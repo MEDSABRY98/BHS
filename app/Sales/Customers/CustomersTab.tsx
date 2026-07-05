@@ -6,6 +6,7 @@ import { Search, ChevronLeft, ChevronRight, Download, X, FileSpreadsheet, Layers
 import { useSalesModuleFilters } from '@/app/Sales/Model/SalesFilters';
 import { exportSalesExcelTable } from '@/app/Sales/Export/SalesExcelExport';
 import SalesCustomerDetails from './CustomerDetails';
+import { getCustomersData } from '@/app/Sales/Service/sales_customers_service';
 import NoData from '@/app/Components/NoDataTab';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
 
@@ -78,13 +79,7 @@ export default function SalesCustomersTab({ userId, onUploadMapping, showCosts =
       }
       setLoading(true);
       try {
-        const response = await fetch('/api/Sales/Customers', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId, filters, activeTab })
-        });
-        if (!response.ok) throw new Error('Failed to fetch customers data');
-        const data = await response.json();
+        const data = await getCustomersData(userId, filters, activeTab);
         setCustomersData(data.customersData || []);
       } catch (err) {
         console.error('Error fetching Customers:', err);

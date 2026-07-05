@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import Loading from '@/app/Components/Loading';
 import NoData from '@/app/Components/NoDataTab';
+import { updateCustomerDocument } from '../Service/customers_documents_service';
 
 interface CustomerDoc {
   rowIndex: string;
@@ -49,13 +50,8 @@ export default function CustomersDocumentsTab({
       );
       setData(newData);
 
-      // Save to Google Sheets
-      const res = await fetch('/api/CustomersDocuments', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rowIndex, [field]: value })
-      });
-      const result = await res.json();
+      // Save to Supabase
+      const result = await updateCustomerDocument(rowIndex, { [field]: value });
       if (!result.success) {
         console.error('Failed to update Google Sheet');
       }

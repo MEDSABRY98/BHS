@@ -6,6 +6,7 @@ import {
   getPaymentAmount,
   calculateDebtRating,
 } from './CstomersUtils';
+import { getCustomerEmails, getLuluCustomerEmails } from '@/app/Emails/Service/email_service';
 
 interface UseCustomerDataProps {
   data: InvoiceRow[];
@@ -14,28 +15,25 @@ interface UseCustomerDataProps {
   yearlySorting: { id: string; desc: boolean };
 }
 
-export const useCustomerData = (data: InvoiceRow[], filters: any, mode: any, yearlySorting: any) => {
+export const useCustomerData = (data: InvoiceRow[] = [], filters: any, mode: any, yearlySorting: any) => {
     const [luluEmails, setLuluEmails] = useState<any[]>([]);
   const [customersWithEmails, setCustomersWithEmails] = useState<Map<string, string>>(new Map());
   useEffect(() => {
     const fetchDependencies = async () => {
       try {
-        const [emailsRes, luluRes] = await Promise.all([
-          
-          fetch('/api/Emails'),
-          fetch('/api/LuluEmails')
+        const [emailsData, luluData] = await Promise.all([
+          getCustomerEmails(),
+          getLuluCustomerEmails()
         ]);
 
-                if (luluRes.ok) {
-          const d = await luluRes.json();
-          setLuluEmails(d.customers || []);
+        if (luluData) {
+          setLuluEmails(luluData.customers || []);
         }
-        if (emailsRes.ok) {
-          const d = await emailsRes.json();
+        if (emailsData) {
           const emailMap = new Map<string, string>();
           
           // Regular emails API returns { customerId, email }[]
-          (d.customers || []).forEach((item: any) => {
+          (emailsData.customers || []).forEach((item: any) => {
             if (item && item.customerId && item.email) {
               emailMap.set(item.customerId.toLowerCase().trim(), item.email);
             }

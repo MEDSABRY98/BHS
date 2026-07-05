@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import Loading from '@/app/Components/Loading';
 import NoData from '@/app/Components/NoDataTab';
+import { fetchUsersList, updateUserRole } from '@/app/DataBase/Service/database_service';
 
 interface UserPermissions {
     name: string;
@@ -210,10 +211,11 @@ export default function AdminControlTab() {
     const fetchUsers = async () => {
         try {
             setLoading(true);
-            const res = await fetch('/DataBase/Users/api');
-            const data = await res.json();
-            const sortedUsers = (data.users || []).sort((a: any, b: any) => a.name.localeCompare(b.name));
-            setUsers(sortedUsers);
+            const data = await fetchUsersList();
+            if (data.success && data.users) {
+                const sortedUsers = data.users.sort((a: any, b: any) => a.name.localeCompare(b.name));
+                setUsers(sortedUsers);
+            }
         } catch (error) {
             console.error('Error fetching users:', error);
         } finally {
@@ -316,12 +318,8 @@ export default function AdminControlTab() {
         setMessage({ type: '', text: '' });
         try {
             const normalizedRole = JSON.stringify(normalizePermissions(parsePermissions(selectedUser.role)));
-            const res = await fetch('/DataBase/Users/api', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name: selectedUser.name, role: normalizedRole })
-            });
-            if (res.ok) {
+            const result = await updateUserRole(selectedUser.name, normalizedRole);
+            if (result.success) {
                 setMessage({ type: 'success', text: 'Permissions updated successfully!' });
                 const savedUser = { ...selectedUser, role: normalizedRole };
                 setSelectedUser(savedUser);

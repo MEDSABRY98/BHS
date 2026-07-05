@@ -8,6 +8,7 @@ import { exportSalesExcelTable } from '@/app/Sales/Export/SalesExcelExport';
 import SalesCustomerDetails from '@/app/Sales/Customers/CustomerDetails';
 import NoData from '@/app/Components/NoDataTab';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
+import { getInactiveCustomersData, getInactiveCustomerExceptions, hideInactiveCustomer, restoreInactiveCustomer } from '../Service/sales_customers_service';
 
 interface SalesInactiveCustomersTabProps {
   refreshTrigger?: number;
@@ -101,16 +102,13 @@ export default function SalesInactiveCustomersTab({ userId, refreshTrigger }: Sa
   useEffect(() => {
     const fetchExceptions = async () => {
       try {
-        const response = await fetch('/api/InactiveCustomer');
-        if (response.ok) {
-          const result = await response.json();
-          const excludedIds = new Set<string>();
-          result.data.forEach((item: { customerId: string, customerName: string }) => {
-            if (item.customerId) excludedIds.add(item.customerId.trim());
-          });
-          setExcludedCustomerIds(excludedIds);
-          setExcludedCustomersData(result.data);
-        }
+        const result = await getInactiveCustomerExceptions();
+        const excludedIds = new Set<string>();
+        result.forEach((item: { customerId: string, customerName: string }) => {
+          if (item.customerId) excludedIds.add(item.customerId.trim());
+        });
+        setExcludedCustomerIds(excludedIds);
+        setExcludedCustomersData(result);
       } catch (error) {
         console.error('Error fetching inactive customer exceptions:', error);
       }
@@ -127,14 +125,8 @@ export default function SalesInactiveCustomersTab({ userId, refreshTrigger }: Sa
       }
       setLoading(true);
       try {
-        const response = await fetch('/api/Sales/InactiveCustomers', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ filters, userId, days, minAmount, refreshTrigger })
-        });
-        if (!response.ok) throw new Error('Failed to fetch inactive customers');
-        const result = await response.json();
-        setServerInactiveCustomersData(result.inactiveCustomersData || []);
+        const result = await getInactiveCustomersData(userId, filters, days, minAmount);
+        setServerInactiveCustomersData(result || []);
       } catch (error) {
         console.error('Error fetching inactive customers:', error);
       } finally {
@@ -205,12 +197,8 @@ export default function SalesInactiveCustomersTab({ userId, refreshTrigger }: Sa
     setExcludingId(customerId);
 
     try {
-      const resp = await fetch('/api/InactiveCustomer', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ customerId, customerName }),
-      });
-      if (resp.ok) {
+      const resp = await hideInactiveCustomer(customerId, customerName);
+      if (resp.success) {
         setExcludedCustomerIds(prev => new Set(prev).add(customerId));
         setExcludedCustomersData(prev => [...prev, { customerId, customerName }]);
       }
@@ -220,8 +208,8 @@ export default function SalesInactiveCustomersTab({ userId, refreshTrigger }: Sa
   const handleRestoreCustomer = async (customerId: string) => {
     setRestoringId(customerId);
     try {
-      const resp = await fetch(`/api/InactiveCustomer?customerId=${encodeURIComponent(customerId)}`, { method: 'DELETE' });
-      if (resp.ok) {
+      const resp = await restoreInactiveCustomer(customerId);
+      if (resp.success) {
         setExcludedCustomerIds(prev => { const n = new Set(prev); n.delete(customerId); return n; });
         setExcludedCustomersData(prev => prev.filter(c => c.customerId !== customerId));
       }

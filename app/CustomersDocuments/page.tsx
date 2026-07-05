@@ -6,6 +6,7 @@ import * as XLSX from 'xlsx';
 import Loading from '@/app/Components/Loading';
 import Login from '@/app/Components/Login';
 import CustomersDocumentsGrid from './Components/CustomersDocumentsGrid';
+import { getCustomersDocuments, updateCustomerDocument } from './Service/customers_documents_service';
 
 export default function CustomersDocumentsPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -50,10 +51,9 @@ export default function CustomersDocumentsPage() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/CustomersDocuments');
-      const result = await res.json();
+      const result = await getCustomersDocuments();
       if (result.success) {
-        setData(result.data);
+        setData(result.data as any);
       }
     } catch (error) {
       console.error('Error fetching customer documents:', error);
@@ -97,11 +97,7 @@ export default function CustomersDocumentsPage() {
       );
       setData(newData);
 
-      await fetch('/api/CustomersDocuments', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rowIndex, [field]: value })
-      });
+      await updateCustomerDocument(rowIndex, { [field]: value });
     } catch (error) {
       console.error('Error updating document:', error);
     }

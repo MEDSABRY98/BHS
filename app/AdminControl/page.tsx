@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ChevronLeft } from 'lucide-react';
 import AdminControlTab from './AdminControlTab';
+import ProtectedRoute from '@/app/Components/ProtectedRoute';
+import { verifyUserCredentials } from '@/app/DataBase/Service/database_service';
 import Login from '@/app/Components/Login';
 import Loading from '@/app/Components/Loading';
 
@@ -23,16 +25,14 @@ export default function AdminControlPage() {
         try {
           const userData = JSON.parse(savedUser);
           if (userData && userData.name) {
-            const response = await fetch('/DataBase/Users/api', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ name: userData.name, password: savedPassword }),
-            });
+            // Verify user still exists and password is correct
+            const result = await verifyUserCredentials(userData.name, savedPassword);
 
-            const result = await response.json();
-            if (response.ok && result.success) {
+            if (result.success && result.user) {
+              // User still exists and credentials are valid
               setCurrentUser(result.user);
               setIsAuthenticated(true);
+              // Update localStorage with fresh user data
               localStorage.setItem('currentUser', JSON.stringify(result.user));
               
               if (result.user.name !== 'MED Sabry') {

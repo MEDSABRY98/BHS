@@ -34,6 +34,9 @@ import { getInvoiceType } from '@/app/Debit/Utils/InvoiceType';
 import { useSearchParams } from 'next/navigation';
 import NoData from '@/app/Components/NoDataTab';
 import { generateAnalyticalPDF as generateAnalyticalPDFUtil } from '@/app/Sales/Pdf/AnalysisByCustomerUtils';
+import { getDebitData } from '../../Service/debit_service';
+import { getCustomerNotes, createNote, updateCustomerNote, deleteCustomerNote } from '../../Service/notes_service';
+import { getCustomerEmails } from '@/app/Emails/Service/email_service';
 
 interface CustomerDetailsProps {
   customerName: string;
@@ -241,8 +244,7 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
   useEffect(() => {
     const fetchEmail = async () => {
       try {
-        const res = await fetch(`/api/Emails?customerName=${encodeURIComponent(customerName)}`);
-        const data = await res.json();
+        const data = await getCustomerEmails(customerName);
         const emails = Array.isArray(data?.emails) ? data.emails.filter(Boolean) : (data?.email ? [data.email] : []);
         const customers = Array.isArray(data?.customers) ? data.customers.filter(Boolean) : [];
         setCustomerEmails(emails);
@@ -281,8 +283,7 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
       if (uniqueTargets.length <= 1) {
         invoicesByCustomer.set(customerName, invoices);
       } else {
-        const res = await fetch('/api/Debit');
-        const payload = await res.json();
+        const payload = await getDebitData();
         const allRows: InvoiceRow[] = Array.isArray(payload?.data) ? payload.data : [];
 
         uniqueTargets.forEach((cust) => {
@@ -420,10 +421,9 @@ ${debtSectionHtml}
   const fetchNotes = async () => {
     setLoadingNotes(true);
     try {
-      const response = await fetch(`/api/Notes?customerName=${encodeURIComponent(customerName)}`);
-      const data = await response.json();
-      if (data.notes) {
-        setNotes(data.notes);
+      const notes = await getCustomerNotes(customerName);
+      if (notes) {
+        setNotes(notes);
       }
     } catch (error) {
       console.error('Error fetching notes:', error);
@@ -443,18 +443,13 @@ ${debtSectionHtml}
     const user = currentUser.name || 'Unknown';
 
     try {
-      const response = await fetch('/api/Notes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          user,
-          customerName,
-          content: newNote,
-          isSolved: false
-        }),
+      const response = await createNote({
+        customerName,
+        content: newNote,
+        isSolved: false
       });
 
-      if (response.ok) {
+      if (response && response.success) {
         setNewNote('');
         // Shrink the textarea back after clearing (avoid keeping the expanded height)
         requestAnimationFrame(() => autoResizeTextarea(newNoteRef.current));
@@ -472,17 +467,13 @@ ${debtSectionHtml}
     if (!content.trim()) return;
 
     try {
-      const response = await fetch('/api/Notes', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          rowIndex,
-          content,
-          isSolved
-        }),
+      const response = await updateCustomerNote({
+        rowIndex,
+        content,
+        isSolved
       });
 
-      if (response.ok) {
+      if (response && response.success) {
         setEditingNoteId(null);
         setEditingNoteContent('');
         // Shrink edit textarea after saving
@@ -499,13 +490,9 @@ ${debtSectionHtml}
 
   const handleDeleteNote = async (rowIndex: number) => {
     try {
-      const response = await fetch('/api/Notes', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rowIndex }),
-      });
+      const response = await deleteCustomerNote(rowIndex);
 
-      if (response.ok) {
+      if (response && response.success) {
         fetchNotes();
       } else {
         alert('Failed to delete note');

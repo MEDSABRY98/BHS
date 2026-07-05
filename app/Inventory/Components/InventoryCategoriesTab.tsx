@@ -9,6 +9,7 @@ import {
 import Loading from '@/app/Components/Loading';
 import InventoryProductOrdersDetailsTab from './InventoryCategoriesDetailsTab';
 import NoData from '@/app/Components/NoDataTab';
+import { getProductOrdersData } from '../Service/inventory_service';
 
 const formatCategory = (tag: string) => {
     if (!tag || tag === 'All' || tag === 'Uncategorized') return tag;
@@ -54,10 +55,9 @@ export default function InventoryProductOrdersTab({ orderItems, setOrderItems }:
     const fetchOrders = async () => {
         try {
             setLoading(true);
-            const res = await fetch('/api/Inventory');
-            const json = await res.json();
+            const json = await getProductOrdersData();
 
-            if (!res.ok) throw new Error(json.details || json.error || 'Failed to fetch orders data');
+            if (!json.success) throw new Error(json.details || json.error || 'Failed to fetch orders data');
 
             const data = (json.data || []).map((p: any) => ({
                 ...p,

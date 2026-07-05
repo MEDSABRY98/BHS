@@ -5,6 +5,7 @@ import { Package, Users, ArrowUp, ArrowDown, FileSpreadsheet, LayoutGrid, Layers
 import { useSalesModuleFilters } from '@/app/Sales/Model/SalesFilters';
 import { exportSalesExcelWorkbook, recordsFromTable } from '@/app/Sales/Export/SalesExcelExport';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
+import { getTop10Data } from '../Service/sales_reports_service';
 
 interface SalesTop10TabProps {
   refreshTrigger?: number;
@@ -80,13 +81,7 @@ export default function SalesTop10Tab({ userId, refreshTrigger }: SalesTop10TabP
       }
       setLoading(true);
       try {
-        const response = await fetch('/api/Sales/Top10', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId, filters })
-        });
-        if (!response.ok) throw new Error('Failed to fetch Top 10 data');
-        const data = await response.json();
+        const data = await getTop10Data(userId, filters);
         setProductsData(data.productsData || []);
         setMainCustomersData(data.mainCustomersData || []);
         setSubCustomersData(data.subCustomersData || []);

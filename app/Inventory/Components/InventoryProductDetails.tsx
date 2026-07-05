@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { getSingleProductAnalysis } from '../Service/inventory_service';
 import {
     ChevronLeft, TrendingDown,
     RefreshCw, Box, ShoppingCart,
@@ -65,10 +66,15 @@ export default function ProductDetails({ productId, productName, barcode, onBack
                 if (preset !== 'all') params.append('preset', preset);
                 params.append('id', productId);
 
-                const res = await fetch(`/api/Inventory/Details?${params.toString()}`);
-                const json = await res.json();
-                if (res.ok) {
-                    setData(json.data);
+                const json = await getSingleProductAnalysis(productId, {
+                    year: year || undefined,
+                    month: month || undefined,
+                    from: fromDate || undefined,
+                    to: toDate || undefined,
+                    preset: preset || undefined
+                });
+                if (json.success) {
+                    setData(json.data as any);
                 }
             } catch (err) {
                 console.error('Error fetching details:', err);

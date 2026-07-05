@@ -6,6 +6,7 @@ import Login from '@/app/Components/Login';
 import Loading from '@/app/Components/Loading';
 import SuppliersSidebar from './Components/SuppliersSidebar';
 import { Menu } from 'lucide-react';
+import { getSuppliersInvoices } from './Service/suppliers_service';
 
 interface SupplierTransaction {
     date: string;
@@ -77,13 +78,9 @@ export default function SuppliersPage() {
     const fetchData = async () => {
         try {
             setLoading(true);
-            const res = await fetch('/api/Suppliers');
-            const json = await res.json();
-            if (json.error) {
-                throw new Error(json.details ? `${json.error}: ${json.details}` : json.error);
-            }
-            if (json.data) {
-                setTransactions(json.data);
+            const json = await getSuppliersInvoices();
+            if (json && json.data) {
+                setTransactions(json.data as any);
             }
         } catch (e) {
             console.error('Failed to fetch suppliers', e);

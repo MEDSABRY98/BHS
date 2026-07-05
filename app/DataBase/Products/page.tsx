@@ -460,7 +460,7 @@ export default function ProductsPage() {
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-4xl font-normal text-black tracking-tighter">Products</h1>
+          <h1 className="text-4xl font-normal text-black tracking-tighter">Products DB</h1>
         </div>
         <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
           {canEdit && (

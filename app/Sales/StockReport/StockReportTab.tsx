@@ -8,6 +8,7 @@ import SalesST_ByCustomers from './ST_ByCustomersTab';
 import SalesST_ByProduct from './ST_ByProductTab';
 import SalesST_CustomerMarginTab from './ST_CustomerMarginTab';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
+import { getStockReportData } from '../Service/sales_reports_service';
 
 interface SalesStockReportTabProps {
   refreshTrigger?: number;
@@ -32,13 +33,7 @@ export default function SalesStockReportTab({ userId, refreshTrigger }: SalesSto
       }
       setLoading(true);
       try {
-        const response = await fetch('/api/Sales/StockReport', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ filters, userId })
-        });
-        if (!response.ok) throw new Error('Failed to fetch stock report');
-        const result = await response.json();
+        const result = await getStockReportData(userId, filters);
         setCustomersData(result.customersData || []);
         setSubCustomersData(result.subCustomersData || []);
         setProductList(result.productList || []);

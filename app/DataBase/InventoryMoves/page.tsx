@@ -12,6 +12,7 @@ import InventoryMovesTable, { InventoryMoveRow } from './Components/InventoryMov
 import InventoryMovesModal, { InventoryMoveFormValues } from './Components/InventoryMovesModal';
 import InventoryMovesMonthsGrid, { MoveMonthSummary, englishMonths } from './Components/InventoryMovesMonthsGrid';
 import InventoryMovesDaysGrid, { MoveDaySummary } from './Components/InventoryMovesDaysGrid';
+import { fetchMoveMonthsSummary, fetchMoveDaysSummary, deleteMovesDb } from '@/app/Inventory/Service/inventory_service';
 
 const emptyForm = (): InventoryMoveFormValues => ({
   date: new Date().toISOString().split('T')[0],
@@ -95,9 +96,8 @@ export default function InventoryMovesPage() {
   async function fetchMoveMonths() {
     setMonthsLoading(true);
     try {
-      const response = await fetch('/api/Inventory/MovesDb?action=months');
-      const result = await response.json();
-      if (result.error) throw new Error(result.error);
+      const result = await fetchMoveMonthsSummary();
+      if (!result.success) throw new Error(result.error);
       setMoveMonths(result.data || []);
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Failed to load move months');
@@ -109,9 +109,8 @@ export default function InventoryMovesPage() {
   async function fetchMoveDays(year: number, month: number) {
     setDaysLoading(true);
     try {
-      const response = await fetch(`/api/Inventory/MovesDb?action=days&year=${year}&month=${month}`);
-      const result = await response.json();
-      if (result.error) throw new Error(result.error);
+      const result = await fetchMoveDaysSummary(year, month);
+      if (!result.success) throw new Error(result.error);
       setMoveDays(result.data || []);
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Failed to load move days');
@@ -317,20 +316,15 @@ export default function InventoryMovesPage() {
     setIsSaving(true);
     try {
       if (confirmMode === 'day' && dayToDelete) {
-        const response = await fetch(`/api/Inventory/MovesDb?date=${dayToDelete}`, { method: 'DELETE' });
-        const result = await response.json();
-        if (result.error) throw new Error(result.error);
+        const result = await deleteMovesDb(dayToDelete);
+        if (!result.success) throw new Error(result.error);
         toast.success(`Deleted moves for ${formatDayLabel(dayToDelete)}`);
         await fetchMoveMonths();
         if (selectedMonth) await fetchMoveDays(selectedMonth.year, selectedMonth.month);
         if (selectedDay === dayToDelete) backToDays();
       } else if (confirmMode === 'month' && monthToDelete) {
-        const response = await fetch(
-          `/api/Inventory/MovesDb?year=${monthToDelete.year}&month=${monthToDelete.month}`,
-          { method: 'DELETE' }
-        );
-        const result = await response.json();
-        if (result.error) throw new Error(result.error);
+        const result = await deleteMovesDb(null, monthToDelete.year, monthToDelete.month);
+        if (!result.success) throw new Error(result.error);
         toast.success(`Deleted moves for ${englishMonths[monthToDelete.month]} ${monthToDelete.year}`);
         await fetchMoveMonths();
         if (
@@ -581,7 +575,7 @@ export default function InventoryMovesPage() {
     return (
       <div className="space-y-8">
         <div className="flex items-center gap-3">
-          <h1 className="text-4xl font-normal text-black tracking-tighter">Inventory Moves</h1>
+          <h1 className="text-4xl font-normal text-black tracking-tighter">Inventory Moves DB</h1>
           {canEdit && (
             <button
               type="button"
@@ -634,7 +628,7 @@ export default function InventoryMovesPage() {
             </button>
             <div>
               <h1 className="text-4xl font-normal text-black tracking-tighter">
-                {englishMonths[selectedMonth.month]} {selectedMonth.year}
+                {englishMonths[selectedMonth.month]} {selectedMonth.year} Inventory DB
               </h1>
               <p className="text-sm font-bold text-gray-400 uppercase tracking-[0.2em] mt-1">Inventory Moves</p>
             </div>

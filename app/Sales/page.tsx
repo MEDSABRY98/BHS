@@ -17,6 +17,7 @@ import SalesTabPanel from './Shared/TabPanel';
 import SalesTabLoader from './Shared/TabLoader';
 import SalesSetCustomersTab from './SetCustomers/SetCustomersTab';
 import SalesTargetsTab from './Targets/TargetsTab';
+import { fetchUsersList } from '@/app/DataBase/Service/database_service';
 import SalesNewListingsTab from './NewListings/NewListingsTab';
 import { SalesFiltersProvider, SalesFilterButton } from './Model/SalesFilters';
 
@@ -28,6 +29,8 @@ import * as XLSX from 'xlsx';
 import { toast } from '@/app/Components/Notification';
 import { exportSalesExcelTable } from '@/app/Sales/Export/SalesExcelExport';
 import { getAllowedReportTableTabIds } from '@/app/Sales/Reports/ReportsTableTabs';
+import { getCustomersList, getMyCustomersData, batchSaveCustomerMapping } from '@/app/Sales/Service/sales_customers_service';
+import { getSalesMetadata } from '@/app/Sales/Service/sales_core_service';
 
 const MAPPING_EXPORT_HEADERS = [
   'CUSTOMER ID',
@@ -100,8 +103,7 @@ export default function SalesPage() {
         setIsAuthenticated(true);
 
         // Silently sync and update session from database to catch changes in isSalesManager or roles
-        fetch('/DataBase/Users/api')
-          .then(r => r.json())
+        fetchUsersList()
           .then(data => {
             if (data?.users) {
               const fresh = data.users.find((u: any) => u.id === parsed.id || u.name === parsed.name);
@@ -226,16 +228,7 @@ export default function SalesPage() {
         return;
       }
 
-      const response = await fetch('/api/Sales/Metadata', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, forceRefresh: silent })
-      });
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.details || result.error || 'Failed to fetch metadata');
-      }
+      const result = await getSalesMetadata(userId, silent);
 
       setUniqueValues(result.uniqueValues);
       setLastUpdated(result.lastUpdated);
@@ -273,15 +266,7 @@ export default function SalesPage() {
     }
 
     try {
-      const response = await fetch('/api/Sales/Mapping', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: userId, mapping }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to sync mapping with database');
-      }
+      await batchSaveCustomerMapping(userId, mapping);
       console.log('Mapping synced successfully to DB');
     } catch (error) {
       console.error('Failed to sync mapping:', error);
@@ -348,16 +333,12 @@ export default function SalesPage() {
     toast.loading('Fetching customer data...', { id: 'fetching_customers' });
     try {
       const userId = salesUserId;
-      const [customersRes, mappingRes] = await Promise.all([
-        fetch('/api/Sales/CustomersList'),
+      const [uniqueCustomers, myCustomersResult] = await Promise.all([
+        getCustomersList(),
         userId
-          ? fetch(`/api/Sales/MyCustomers?userId=${encodeURIComponent(userId)}`)
+          ? getMyCustomersData(userId)
           : Promise.resolve(null),
       ]);
-
-      if (!customersRes.ok) throw new Error('Failed to fetch customers');
-      const result = await customersRes.json();
-      const uniqueCustomers = result.uniqueCustomers;
 
       if (!uniqueCustomers || uniqueCustomers.length === 0) {
         toast.warning('No current customer data found to extract.');
@@ -366,9 +347,8 @@ export default function SalesPage() {
       }
 
       const mappingByCustomerId = new Map<string, Record<string, string>>();
-      if (mappingRes?.ok) {
-        const mappingResult = await mappingRes.json();
-        (mappingResult.data || []).forEach((m: Record<string, string>) => {
+      if (myCustomersResult) {
+        (myCustomersResult || []).forEach((m: Record<string, string>) => {
           const id = String(m['CUSTOMER ID'] || m.ID || '').trim();
           if (id) mappingByCustomerId.set(id, m);
         });

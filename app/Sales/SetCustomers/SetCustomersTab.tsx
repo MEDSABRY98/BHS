@@ -5,6 +5,8 @@ import { Search, Edit, Trash2, Save, X, User, AlertTriangle, Loader2, ChevronDow
 import { toast } from '@/app/Components/Notification';
 import NoData from '@/app/Components/NoDataTab';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
+import { getCustomersList, getMyCustomersData, saveCustomerMapping, deleteCustomerMapping } from '../Service/sales_customers_service';
+import { fetchUsersList } from '@/app/DataBase/Service/database_service';
 
 // Custom Premium Filter Dropdown Component
 interface FilterDropdownProps {
@@ -120,11 +122,8 @@ export default function SalesSetCustomersTab({ userId, refreshTrigger }: SalesSe
   useEffect(() => {
     const fetchGlobalCustomers = async () => {
       try {
-        const response = await fetch('/api/Sales/CustomersList');
-        if (response.ok) {
-          const result = await response.json();
-          setGlobalCustomers(result.uniqueCustomers || []);
-        }
+        const result = await getCustomersList();
+        setGlobalCustomers(result || []);
       } catch (err) {
         console.error('Error fetching global customers:', err);
       }
@@ -132,10 +131,9 @@ export default function SalesSetCustomersTab({ userId, refreshTrigger }: SalesSe
 
     const fetchUsers = async () => {
       try {
-        const response = await fetch('/DataBase/Users/api');
-        if (response.ok) {
-          const result = await response.json();
-          setUsersList(result.users || []);
+        const data = await fetchUsersList();
+        if (data.success && data.users) {
+          setUsersList(data.users);
         }
       } catch (err) {
         console.error('Error fetching users:', err);
@@ -153,10 +151,8 @@ export default function SalesSetCustomersTab({ userId, refreshTrigger }: SalesSe
     }
     setLoading(true);
     try {
-      const response = await fetch(`/api/Sales/MyCustomers?userId=${encodeURIComponent(userId)}`);
-      if (!response.ok) throw new Error('Failed to fetch mappings');
-      const data = await response.json();
-      setMyCustomers(data.data || []);
+      const data = await getMyCustomersData(userId);
+      setMyCustomers(data || []);
     } catch (error) {
       console.error('Error fetching mappings:', error);
       toast.error('Failed to load customer assignments');
@@ -268,16 +264,7 @@ export default function SalesSetCustomersTab({ userId, refreshTrigger }: SalesSe
         merchandiserId: editingCustomer['MERCHANDISER_ID'],
       };
 
-      const response = await fetch('/api/Sales/MyCustomers', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, mapping: mappingData }),
-      });
-
-      if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.error || 'Failed to save assignment');
-      }
+      await saveCustomerMapping(userId, mappingData);
 
       toast.success('Assignment saved successfully!');
       setIsEditModalOpen(false);
@@ -298,11 +285,7 @@ export default function SalesSetCustomersTab({ userId, refreshTrigger }: SalesSe
 
     toast.loading('Clearing assignment...', { id: 'del_mapping' });
     try {
-      const response = await fetch(`/api/Sales/MyCustomers?userId=${encodeURIComponent(userId)}&customerId=${encodeURIComponent(customerId)}`, {
-        method: 'DELETE'
-      });
-
-      if (!response.ok) throw new Error('Failed to delete assignment');
+      await deleteCustomerMapping(userId, customerId);
 
       toast.success('Assignment cleared successfully!');
       fetchMyCustomers();

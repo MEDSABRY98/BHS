@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { User, Lock, ChevronDown, Check, Loader2, ArrowRight } from 'lucide-react';
-
 import Loading from '@/app/Components/Loading';
+import { fetchUsersList, verifyUserCredentials } from '@/app/DataBase/Service/database_service';
 
 interface LoginProps {
   onLogin: (user: any) => void;
@@ -48,18 +48,12 @@ export default function Login({ onLogin }: LoginProps) {
       if (savedUser && savedPassword) {
         const userData = JSON.parse(savedUser);
         if (userData?.name) {
-          const response = await fetch('/DataBase/Users/api', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: userData.name, password: savedPassword }),
-          });
-          const result = await response.json();
-          if (response.ok && result.success) {
+          const result = await verifyUserCredentials(userData.name, savedPassword);
+          if (result.success && result.user) {
             onLogin(result.user);
             localStorage.setItem('userPassword', savedPassword);
             return;
-          }
-          else {
+          } else {
             localStorage.removeItem('currentUser');
             localStorage.removeItem('userPassword');
           }
@@ -73,9 +67,8 @@ export default function Login({ onLogin }: LoginProps) {
 
   const fetchUsers = async () => {
     try {
-      const response = await fetch('/DataBase/Users/api');
-      const data = await response.json();
-      if (data.users) setUsers(data.users);
+      const data = await fetchUsersList();
+      if (data.success && data.users) setUsers(data.users);
     } catch (err) {
       console.error('Error fetching users:', err);
       setError('Failed to load users');
@@ -102,13 +95,8 @@ export default function Login({ onLogin }: LoginProps) {
     }
     setLoading(true);
     try {
-      const response = await fetch('/DataBase/Users/api', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: userToLogin, password: password }),
-      });
-      const result = await response.json();
-      if (response.ok && result.success) {
+      const result = await verifyUserCredentials(userToLogin, password);
+      if (result.success && result.user) {
         localStorage.setItem('userPassword', password);
         setTimeout(() => onLogin(result.user), 500);
       } else {

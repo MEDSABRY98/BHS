@@ -22,6 +22,7 @@ import { toast } from '@/app/Components/Notification';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
 import NoData from '@/app/Components/NoDataTab';
 import ReportsDailyCalendar from './DailyCalendar';
+import { getReportsData } from '../Service/sales_reports_service';
 import type { DailySalesCalendar } from '@/app/Sales/Reports/ReportsAggregation';
 import {
   getAmountTableSubtitle,
@@ -412,13 +413,8 @@ export default function SalesReportsTab({ userId, refreshTrigger, allowedReportT
       if (!userId) { setLoading(false); return; }
       setLoading(true);
       try {
-        const res = await fetch('/api/Sales/Reports', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId, filters }),
-        });
-        if (!res.ok) throw new Error('Failed to fetch reports');
-        setData(await res.json());
+        const result = await getReportsData(userId, filters);
+        setData(result);
       } catch (err) {
         console.error('Reports fetch error:', err);
         setData(null);

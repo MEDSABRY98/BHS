@@ -8,6 +8,7 @@ import NewReceiptForm from './NewReceiptForm';
 import SavedReceiptsTab from './SavedReceiptsTab';
 import { bhs_supabas } from '@/lib/supabase';
 import { toast } from '@/app/Components/Notification';
+import { getCashReceipts, createCashReceipt, updateCashReceipt, deleteCashReceipt } from '../Service/cash_receipt_service';
 
 interface CashReceiptTabProps {
   activeTab: 'new' | 'saved';
@@ -122,13 +123,9 @@ export default function CashReceiptTab({
 
   const saveToDatabase = async () => {
     try {
-      const method = isEditing ? 'PUT' : 'POST';
-      const response = await fetch('/api/CashReceipt', {
-        method: method,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+      let response;
+      if (isEditing) {
+        response = await updateCashReceipt({
           date: formData.date,
           receiptNumber: formData.receiptNumber,
           receivedFrom: formData.receivedFrom,
@@ -136,12 +133,21 @@ export default function CashReceiptTab({
           amount: formData.amount,
           amountInWords: formData.amountInWords,
           reason: formData.reason,
-        }),
-      });
+        });
+      } else {
+        response = await createCashReceipt({
+          date: formData.date,
+          receiptNumber: formData.receiptNumber,
+          receivedFrom: formData.receivedFrom,
+          sendBy: formData.sendBy,
+          amount: formData.amount,
+          amountInWords: formData.amountInWords,
+          reason: formData.reason,
+        });
+      }
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to save to database');
+      if (!response || !response.success) {
+        throw new Error('Failed to save to database');
       }
       return true;
     } catch (error: unknown) {
@@ -223,14 +229,11 @@ export default function CashReceiptTab({
 
   const fetchNextReceiptNumber = async () => {
     try {
-      const response = await fetch('/api/CashReceipt?t=' + Date.now());
-      if (response.ok) {
-        const data = await response.json();
-        const nextNumber = data.nextReceiptNumber || data.nextId;
-        if (nextNumber) {
-          setFormData(prev => ({ ...prev, receiptNumber: nextNumber }));
-          return nextNumber as string;
-        }
+      const data = await getCashReceipts(false);
+      const nextNumber = data.nextReceiptNumber || data.nextId;
+      if (nextNumber) {
+        setFormData(prev => ({ ...prev, receiptNumber: nextNumber }));
+        return nextNumber as string;
       }
     } catch (error) {
       console.error('Error fetching next receipt number:', error);
@@ -242,11 +245,8 @@ export default function CashReceiptTab({
   const fetchSavedReceipts = async () => {
     setIsFetchingSaved(true);
     try {
-      const response = await fetch('/api/CashReceipt?all=true&t=' + Date.now());
-      if (response.ok) {
-        const data = await response.json();
-        setSavedReceipts(data.receipts || []);
-      }
+      const data = await getCashReceipts(true);
+      setSavedReceipts(data.receipts || []);
     } catch (error) {
       console.error('Error fetching saved receipts:', error);
       toast.error('Failed to load saved receipts');
@@ -331,18 +331,15 @@ export default function CashReceiptTab({
     if (!receiptToDelete) return;
     
     try {
-      const response = await fetch(`/api/CashReceipt?receiptNumber=${receiptToDelete.receiptNumber}`, {
-        method: 'DELETE'
-      });
-      if (response.ok) {
+      const response = await deleteCashReceipt(receiptToDelete.receiptNumber);
+      if (response.success) {
         toast.success('Receipt deleted successfully');
         fetchSavedReceipts();
         setSelectedReceipt(null);
       } else {
-        const errorData = await response.json();
-        toast.error(errorData.error || 'Failed to delete receipt');
+        toast.error('Failed to delete receipt');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error deleting:', err);
       toast.error('An error occurred while deleting the receipt');
     } finally {

@@ -5,6 +5,7 @@ import { SalesInvoice } from '@/lib/supabase';;
 import { Search, Download, FileSpreadsheet } from 'lucide-react';
 import { useSalesModuleFilters } from '@/app/Sales/Model/SalesFilters';
 import { exportSalesExcelTable } from '@/app/Sales/Export/SalesExcelExport';
+import { getCategoriesData } from '@/app/Sales/Service/sales_products_service';
 import NoData from '@/app/Components/NoDataTab';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
 
@@ -46,14 +47,8 @@ export default function SalesCategoriesTab({ userId, refreshTrigger }: SalesCate
       }
       setLoading(true);
       try {
-        const response = await fetch('/api/Sales/Categories', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ filters, userId })
-        });
-        if (!response.ok) throw new Error('Failed to fetch categories data');
-        const result = await response.json();
-        setCategoriesData(result.categoriesData || []);
+        const result = await getCategoriesData(userId, filters);
+        setCategoriesData(result || []);
       } catch (err) {
         console.error('Error fetching Categories Data:', err);
       } finally {

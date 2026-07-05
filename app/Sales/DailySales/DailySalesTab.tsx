@@ -5,6 +5,7 @@ import { SalesInvoice } from '@/lib/supabase';;
 import { Download, Calendar, MapPin, ShoppingBag, UserCircle, ChevronDown, ChevronLeft, ChevronRight, Search, X, Filter, FileSpreadsheet } from 'lucide-react';
 import { useSalesModuleFilters } from '@/app/Sales/Model/SalesFilters';
 import { exportSalesExcel, exportSalesExcelTable } from '@/app/Sales/Export/SalesExcelExport';
+import { getDailySalesData } from '@/app/Sales/Service/sales_core_service';
 import NoData from '@/app/Components/NoDataTab';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
 
@@ -140,13 +141,7 @@ export default function SalesDailySalesTab({ userId, showCosts = true, refreshTr
       }
       setLoading(true);
       try {
-        const response = await fetch('/api/Sales/DailySales', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ filters, invoiceTypeFilter, userId })
-        });
-        if (!response.ok) throw new Error('Failed to fetch daily sales data');
-        const result = await response.json();
+        const result = await getDailySalesData(userId, filters, invoiceTypeFilter);
         setDailySalesData(result.dailySalesData || []);
         setSalesByDayData(result.salesByDayData || []);
         setAvgSalesByDayData(result.avgSalesByDayData || []);
