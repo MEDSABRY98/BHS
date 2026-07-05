@@ -80,7 +80,7 @@ export default function SalesCustomersTab({ userId, onUploadMapping, showCosts =
       setLoading(true);
       try {
         const data = await getCustomersData(userId, filters, activeTab);
-        setCustomersData(data.customersData || []);
+        setCustomersData(data || []);
       } catch (err) {
         console.error('Error fetching Customers:', err);
       } finally {

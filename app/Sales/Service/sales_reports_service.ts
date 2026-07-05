@@ -727,7 +727,7 @@ export async function getTop10Data(userId: string, filters: any) {
   const productsData = Array.from(productMap.values()).map(p => ({
     productId: p.productId,
     barcode: Array.from(p.barcodes).join(', ') || '-',
-    products: Array.from(p.products),
+    products: Array.from(p.products) as string[],
     totalAmount: p.totalAmount,
     totalQty: p.totalQty,
     transactions: p.invoiceNumbers.size

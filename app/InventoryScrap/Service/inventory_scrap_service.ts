@@ -49,11 +49,11 @@ export async function fetchAllScrapEntries(): Promise<ScrapEntry[]> {
     if (productsError) throw productsError;
 
     const productMap = new Map();
-    productsData.forEach(p => {
+    productsData.forEach((p: any) => {
       productMap.set(p['PRODUCT ID'], p);
     });
 
-    const enrichedData = scrapData.map(entry => {
+    const enrichedData = scrapData.map((entry: any) => {
       const p = productMap.get(entry['PRODUCT ID']);
       return {
         ...entry,
@@ -91,11 +91,11 @@ export async function fetchScrapEntriesByDateRange(fromDate: string, toDate: str
     if (productsError) throw productsError;
 
     const productMap = new Map();
-    productsData.forEach(p => {
+    productsData.forEach((p: any) => {
       productMap.set(p['PRODUCT ID'], p);
     });
 
-    const enrichedData = scrapData.map(entry => {
+    const enrichedData = scrapData.map((entry: any) => {
       const p = productMap.get(entry['PRODUCT ID']);
       return {
         ...entry,
@@ -247,11 +247,11 @@ export async function fetchSavedScrapReports() {
     if (productsError) throw productsError;
 
     const productMap = new Map();
-    productsData.forEach(p => {
+    productsData.forEach((p: any) => {
       productMap.set(p['PRODUCT ID'], p);
     });
 
-    const enrichedData = scrapData.map(entry => {
+    const enrichedData = scrapData.map((entry: any) => {
       const p = productMap.get(entry.PRODUCT_ID);
       return {
         ...entry,
