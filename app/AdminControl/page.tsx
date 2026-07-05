@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ChevronLeft } from 'lucide-react';
 import AdminControlTab from './AdminControlTab';
-import ProtectedRoute from '@/app/Components/ProtectedRoute';
+
 import { verifyUserCredentials } from '@/app/DataBase/Service/database_service';
 import Login from '@/app/Components/Login';
 import Loading from '@/app/Components/Loading';
