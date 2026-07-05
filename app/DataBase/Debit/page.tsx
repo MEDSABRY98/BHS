@@ -46,7 +46,7 @@ export default function DebitDatabasePage() {
         toast.success(result.message || 'Data deleted successfully');
         setIsDeleteModalOpen(false);
       } else {
-        toast.error(result.details || result.error || 'Failed to delete data');
+        toast.error(result.error || 'Failed to delete data');
       }
     } catch (error: any) {
       toast.error(error.message);

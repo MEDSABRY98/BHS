@@ -55,8 +55,8 @@ export default function SuppliersPurchasePage() {
     setIsLoading(true);
     try {
       const resData = await getSuppliersMonthsSummary(invoiceType as any);
-      if (resData.error) {
-        throw new Error(resData.details ? `${resData.error}: ${resData.details}` : resData.error);
+      if ((resData as any).error) {
+        throw new Error((resData as any).details ? `${(resData as any).error}: ${(resData as any).details}` : (resData as any).error);
       }
       setMonths(resData.data || []);
     } catch (err: unknown) {
@@ -77,7 +77,7 @@ export default function SuppliersPurchasePage() {
     setIsDeleting(true);
     try {
       const data = await deleteSuppliersMonth(targetMonth.year, targetMonth.month, invoiceType as any);
-      if (data.error) throw new Error(data.error);
+      if ((data as any).error) throw new Error((data as any).error);
 
       toast.success(
         `Deleted ${invoiceType.toLowerCase()} data for ${englishMonths[targetMonth.month]} ${targetMonth.year}`
@@ -140,12 +140,12 @@ export default function SuppliersPurchasePage() {
       }));
 
       const result = await uploadSuppliersInvoices(invoiceType as any, rows);
-      if (result.error) {
-        const details = Array.isArray(result.details) ? result.details.join('; ') : result.details;
-        throw new Error(details || result.error || 'Upload failed');
+      if ((result as any).error) {
+        const details = Array.isArray((result as any).details) ? (result as any).details.join('; ') : (result as any).details;
+        throw new Error(details || (result as any).error || 'Upload failed');
       }
 
-      toast.success(`Successfully uploaded ${result.inserted || rows.length} rows!`);
+      toast.success(`Successfully uploaded ${(result as any).inserted || rows.length} rows!`);
       setIsUploadModalOpen(false);
       await fetchMonths();
     } catch (err: unknown) {
