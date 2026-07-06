@@ -110,7 +110,8 @@ export default function DebitDatabasePage() {
         }
 
         // Send to API
-        const result = await uploadDebitData(data);
+        const payloadString = JSON.stringify(data);
+        const result = await uploadDebitData(payloadString);
         
         if (result.success) {
           toast.success(result.message || 'Data uploaded successfully');

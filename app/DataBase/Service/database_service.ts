@@ -643,8 +643,9 @@ export async function deleteDebitData() {
   }
 }
 
-export async function uploadDebitData(data: any[]) {
+export async function uploadDebitData(payload: any[] | string) {
   try {
+    const data = typeof payload === 'string' ? JSON.parse(payload) : payload;
     if (!data || !Array.isArray(data)) {
       throw new Error('Invalid data format');
     }
