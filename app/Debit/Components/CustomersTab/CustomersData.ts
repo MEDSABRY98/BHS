@@ -74,7 +74,7 @@ export const useCustomerData = (data: InvoiceRow[] = [], filters: any, mode: any
       let existing = customerMap.get(row.customerName);
       if (!existing) {
         existing = {
-          customerId: row.customerId,
+          customerId: row.customerId || '',
           customerName: row.customerName,
           totalDebit: 0,
           totalCredit: 0,
