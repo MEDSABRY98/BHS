@@ -302,8 +302,9 @@ export default function CustomersTab({
 </div>
         `.trim();
 
-        const normalize = (s: string) => (s || '').toLowerCase().trim().replace(/\s+/g, ' ');
-        const targetEmail = customersWithEmails.get(normalize(customerName)) || '';
+        const normalize = (s: any) => String(s || '').toLowerCase().trim().replace(/\s+/g, ' ');
+        const customerData = filteredData.find(c => c.customerName === customerName);
+        const targetEmail = customersWithEmails.get(normalize(customerData?.customerId)) || '';
 
         const emlLines = [
           `Date: ${new Date().toUTCString()}`,
@@ -368,15 +369,18 @@ export default function CustomersTab({
       let count = 0;
 
       for (const customerName of selectedCustomersForDownload) {
-        const normalize = (s: string) => (s || '').toLowerCase().trim().replace(/\s+/g, ' ');
-        const luluRec = luluEmails.find(l => normalize(l.customerId) === normalize(customerName));
+        const normalize = (s: any) => String(s || '').toLowerCase().trim().replace(/\s+/g, ' ');
+        const customerData = filteredData.find(c => c.customerName === customerName);
+        const custId = customerData?.customerId;
+        
+        const luluRec = luluEmails.find(l => normalize(l.customerId) === normalize(custId));
 
         if (!luluRec) {
           console.warn(`No Lulu email data found for: ${customerName}`);
           continue;
         }
 
-        const email = luluRec.to || customersWithEmails.get(normalize(customerName));
+        const email = luluRec.to || customersWithEmails.get(normalize(custId));
         if (!email) {
           console.warn(`No email found for customer: ${customerName}`);
           continue;

@@ -30,12 +30,13 @@ export const useCustomerData = (data: InvoiceRow[] = [], filters: any, mode: any
           setLuluEmails(luluData.customers || []);
         }
         if (emailsData) {
+          const normalizeId = (id: any) => String(id || '').toLowerCase().trim().replace(/\s+/g, ' ');
           const emailMap = new Map<string, string>();
           
           // Regular emails API returns { customerId, email }[]
           (emailsData.customers || []).forEach((item: any) => {
             if (item && item.customerId && item.email) {
-              emailMap.set(item.customerId.toLowerCase().trim(), item.email);
+              emailMap.set(normalizeId(item.customerId), item.email);
             }
           });
 
@@ -376,16 +377,20 @@ export const useCustomerData = (data: InvoiceRow[] = [], filters: any, mode: any
     }
 
     if (matchingFilter !== 'ALL') {
-      const normalize = (s: string) => (s || '').toLowerCase().trim().replace(/\s+/g, ' ');
+      const normalize = (s: any) => String(s || '').toLowerCase().trim().replace(/\s+/g, ' ');
       const luluNames = new Set(luluEmails.map(l => normalize(l.customerId)).filter(Boolean));
+      const luluNamesByName = new Set(luluEmails.map(l => normalize(l.customerName || l.customerCode)).filter(Boolean));
 
       if (matchingFilter === 'WITH_EMAIL') {
-        result = result.filter(c => customersWithEmails.has(normalize(c.customerId)));
+        result = result.filter(c => customersWithEmails.has(normalize(c.customerId)) || customersWithEmails.has(normalize(c.customerName)));
       } else if (matchingFilter === 'EMAIL_NORMAL') {
         // Normal customers with email are those in customersWithEmails but NOT specifically in luluEmails list
-        result = result.filter(c => customersWithEmails.has(normalize(c.customerId)) && !luluNames.has(normalize(c.customerId)));
+        result = result.filter(c => 
+          (customersWithEmails.has(normalize(c.customerId)) || customersWithEmails.has(normalize(c.customerName))) && 
+          !(luluNames.has(normalize(c.customerId)) || luluNamesByName.has(normalize(c.customerName)))
+        );
       } else if (matchingFilter === 'EMAIL_LULU') {
-        result = result.filter(c => luluNames.has(normalize(c.customerId)));
+        result = result.filter(c => luluNames.has(normalize(c.customerId)) || luluNamesByName.has(normalize(c.customerName)));
       } else if (matchingFilter === 'RATING_GOOD') {
         result = result.filter(c => calculateDebtRating(c) === 'Good');
       } else if (matchingFilter === 'RATING_MEDIUM') {
@@ -400,12 +405,17 @@ export const useCustomerData = (data: InvoiceRow[] = [], filters: any, mode: any
     }
 
     if (emailFilter && emailFilter !== 'ALL') {
-      const normalize = (s: string) => (s || '').toLowerCase().trim().replace(/\s+/g, ' ');
+      const normalize = (s: any) => String(s || '').toLowerCase().trim().replace(/\s+/g, ' ');
       const luluNames = new Set(luluEmails.map(l => normalize(l.customerId)).filter(Boolean));
+      const luluNamesByName = new Set(luluEmails.map(l => normalize(l.customerName || l.customerCode)).filter(Boolean));
+      
       if (emailFilter === 'EMAIL_NORMAL') {
-        result = result.filter(c => customersWithEmails.has(normalize(c.customerId)) && !luluNames.has(normalize(c.customerId)));
+        result = result.filter(c => 
+          (customersWithEmails.has(normalize(c.customerId)) || customersWithEmails.has(normalize(c.customerName))) && 
+          !(luluNames.has(normalize(c.customerId)) || luluNamesByName.has(normalize(c.customerName)))
+        );
       } else if (emailFilter === 'EMAIL_LULU') {
-        result = result.filter(c => luluNames.has(normalize(c.customerId)));
+        result = result.filter(c => luluNames.has(normalize(c.customerId)) || luluNamesByName.has(normalize(c.customerName)));
       }
     }
 

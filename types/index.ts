@@ -2,6 +2,7 @@ export interface InvoiceRow {
   date: string;
   dueDate?: string;
   number: string;
+  customerId?: string;
   customerName: string;
   debit: number;
   credit: number;
@@ -11,6 +12,7 @@ export interface InvoiceRow {
 }
 
 export interface CustomerAnalysis {
+  customerId?: string;
   customerName: string;
   totalDebit: number;
   totalCredit: number;
