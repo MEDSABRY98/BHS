@@ -82,7 +82,8 @@ function drawTextBlock(
   y: number,
   width: number,
   fontSize: number,
-  rtl = false
+  rtl = false,
+  style: 'normal' | 'bold' | 'italic' = 'bold'
 ): number {
   const content = text || '---';
   const lineHeight = rtl ? 6 : 5;
@@ -102,7 +103,7 @@ function drawTextBlock(
     return measureTextBlockHeight(lines.length, lineHeight);
   }
 
-  const lines = splitLatinLines(doc, content, width, fontSize);
+  const lines = splitLatinLines(doc, content, width, fontSize, style);
   doc.text(lines, x, y);
   return measureTextBlockHeight(lines.length, lineHeight);
 }
@@ -170,63 +171,166 @@ function renderReceiptPage(doc: jsPDF, data: ReceiptPdfData) {
 
   let y = infoBarBottom + 10;
 
-  y += drawFieldBlock(doc, 'Received From:', data.receivedFrom, margin, y, contentWidth, 12);
-  drawDivider(doc, margin, y - 4, contentWidth);
-  y += drawFieldBlock(doc, 'Send By:', data.sendBy, margin, y, contentWidth, 12);
-  drawDivider(doc, margin, y - 4, contentWidth);
+  // ----- BOX 1: RECEIVED FROM & SENT BY -----
+  const payerBoxY = y;
+  
+  const receivedFromStr = (data.receivedFrom || '').trim();
+  const sentByStr = (data.sendBy || '').trim();
+  const showSentBy = sentByStr !== '' && sentByStr.toLowerCase() !== receivedFromStr.toLowerCase();
 
-  const amountBoxHeight = 34;
-  doc.setFillColor(...COLORS.gray50);
-  doc.setDrawColor(...COLORS.gray900);
-  doc.setLineWidth(0.5);
-  doc.roundedRect(margin, y, contentWidth, amountBoxHeight, 2, 2, 'FD');
-
-  setLabelFont(doc, 9, 'bold');
-  doc.setTextColor(...COLORS.gray700);
-  doc.text('Amount:', margin + 4, y + 8);
-
-  setLabelFont(doc, 16, 'bold');
+  // Measure Received From
   doc.setTextColor(...COLORS.gray900);
-  doc.text(formatAmount(data.amount), margin + 4, y + 18);
-
-  doc.setDrawColor(...COLORS.gray200);
-  doc.setLineWidth(0.2);
-  doc.line(margin + 4, y + 22, margin + contentWidth - 4, y + 22);
-
-  setLabelFont(doc, 8, 'bold');
-  doc.setTextColor(...COLORS.gray700);
-  doc.text('Amount in Words:', margin + 4, y + 28);
-
-  doc.setTextColor(...COLORS.gray900);
-  const wordsWidth = contentWidth - 40;
-  const wordsX = margin + 34;
-  if (hasArabic(data.amountInWords || '')) {
-    setContentFont(doc, 8);
-    doc.text(data.amountInWords || '', wordsX + wordsWidth, y + 28, {
-      align: 'right',
-      maxWidth: wordsWidth,
-    });
-  } else {
-    setLabelFont(doc, 8, 'italic');
-    const words = splitLatinLines(doc, data.amountInWords || '', wordsWidth, 8, 'italic');
-    doc.text(words, wordsX, y + 28);
+  let rfHeight = 15;
+  if (receivedFromStr) {
+    if (hasArabic(receivedFromStr)) {
+      setContentFont(doc, 14);
+      rfHeight = measureTextBlockHeight(splitContentLines(doc, receivedFromStr, contentWidth - 16, 14).length, 7);
+    } else {
+      rfHeight = measureTextBlockHeight(splitLatinLines(doc, receivedFromStr, contentWidth - 16, 14, 'bold').length, 6);
+    }
   }
 
-  y += amountBoxHeight + 6;
-  y += drawFieldBlock(doc, 'Payment For:', data.reason, margin, y, contentWidth, 10, true);
+  // Measure Sent By
+  let sbHeight = 0;
+  if (showSentBy) {
+    if (hasArabic(sentByStr)) {
+      setContentFont(doc, 12);
+      sbHeight = measureTextBlockHeight(splitContentLines(doc, sentByStr, contentWidth - 16, 12).length, 6);
+    } else {
+      sbHeight = measureTextBlockHeight(splitLatinLines(doc, sentByStr, contentWidth - 16, 12, 'bold').length, 5);
+    }
+  }
 
-  y += 4;
-  const signatureTop = Math.max(y, pageHeight - 72);
-  const signatureWidth = contentWidth * 0.55;
-  const signatureX = margin + (contentWidth - signatureWidth) / 2;
+  const payerBoxHeight = showSentBy 
+    ? 8 + rfHeight + 4 + 8 + sbHeight + 4 
+    : 8 + rfHeight + 4;
 
-  setLabelFont(doc, 8, 'bold');
-  doc.setTextColor(...COLORS.gray600);
-  doc.text('Received By', signatureX + signatureWidth / 2, signatureTop, { align: 'center' });
+  doc.setFillColor(...COLORS.white);
+  doc.setDrawColor(...COLORS.black);
+  doc.setLineWidth(0.6);
+  doc.roundedRect(margin, payerBoxY, contentWidth, payerBoxHeight, 3, 3, 'D');
 
-  setLabelFont(doc, 12, 'bold');
+  let currentY = payerBoxY + 8;
+  setLabelFont(doc, 9, 'bold');
+  doc.setTextColor(...COLORS.gray500);
+  doc.text('RECEIVED FROM', margin + 6, currentY);
+
+  currentY += 6;
   doc.setTextColor(...COLORS.gray900);
-  doc.text('Mohamed Sabry', signatureX + signatureWidth / 2, signatureTop + 8, { align: 'center' });
+  drawTextBlock(doc, receivedFromStr, margin + 6, currentY, contentWidth - 12, 14, true, 'bold');
+
+  if (showSentBy) {
+    currentY += rfHeight + 2;
+    drawDivider(doc, margin + 6, currentY, contentWidth - 12, 0.4);
+
+    currentY += 6;
+    setLabelFont(doc, 9, 'bold');
+    doc.setTextColor(...COLORS.gray500);
+    doc.text('SENT BY', margin + 6, currentY);
+
+    currentY += 6;
+    doc.setTextColor(...COLORS.gray700);
+    drawTextBlock(doc, sentByStr, margin + 6, currentY, contentWidth - 12, 12, true, 'bold');
+  }
+
+  y += payerBoxHeight + 8;
+
+  // ----- BOX 2: AMOUNT (Stacked) -----
+  const wordsVal = data.amountInWords || '---';
+  const wordsWidth = contentWidth - 12;
+  let wordsHeight = 10;
+  
+  if (hasArabic(wordsVal)) {
+    setContentFont(doc, 12);
+    wordsHeight = measureTextBlockHeight(splitContentLines(doc, wordsVal, wordsWidth, 12).length, 6);
+  } else {
+    wordsHeight = measureTextBlockHeight(splitLatinLines(doc, wordsVal, wordsWidth, 11, 'bold').length, 5);
+  }
+
+  const amountBoxHeight = 6 + 6 + 8 + 6 + 4 + wordsHeight + 2;
+  
+  doc.setFillColor(...COLORS.white);
+  doc.setDrawColor(...COLORS.black);
+  doc.setLineWidth(0.6);
+  doc.roundedRect(margin, y, contentWidth, amountBoxHeight, 3, 3, 'D');
+
+  let amtY = y + 6;
+  
+  // Top - Number
+  setLabelFont(doc, 9, 'bold');
+  doc.setTextColor(...COLORS.gray500);
+  doc.text('TOTAL AMOUNT', margin + 6, amtY);
+
+  amtY += 8;
+  setLabelFont(doc, 18, 'bold');
+  doc.setTextColor(...COLORS.black);
+  doc.text(formatAmount(data.amount), margin + 6, amtY);
+
+  amtY += 8;
+
+  // Bottom - Words
+  setLabelFont(doc, 9, 'bold');
+  doc.setTextColor(...COLORS.gray500);
+  doc.text('AMOUNT IN WORDS', margin + 6, amtY);
+
+  amtY += 5;
+  doc.setTextColor(...COLORS.gray900);
+  
+  if (hasArabic(wordsVal)) {
+    setContentFont(doc, 12);
+    doc.text(wordsVal, margin + 6 + wordsWidth, amtY, { align: 'right', maxWidth: wordsWidth });
+  } else {
+    setLabelFont(doc, 11, 'bold');
+    const words = splitLatinLines(doc, wordsVal, wordsWidth, 11, 'bold');
+    doc.text(words, margin + 6, amtY);
+  }
+
+  y += amountBoxHeight + 8;
+
+  // ----- BOX 3: PAYMENT FOR -----
+  let pfHeight = 15;
+  if (data.reason) {
+    if (hasArabic(data.reason)) {
+      setContentFont(doc, 13);
+      pfHeight = measureTextBlockHeight(splitContentLines(doc, data.reason, contentWidth - 12, 13).length, 6);
+    } else {
+      pfHeight = measureTextBlockHeight(splitLatinLines(doc, data.reason, contentWidth - 12, 13, 'bold').length, 5);
+    }
+  }
+
+  const paymentBoxHeight = Math.max(30, 8 + 6 + pfHeight + 4);
+  
+  doc.setFillColor(...COLORS.white);
+  doc.setDrawColor(...COLORS.black);
+  doc.setLineWidth(0.6);
+  doc.roundedRect(margin, y, contentWidth, paymentBoxHeight, 3, 3, 'D');
+
+  setLabelFont(doc, 9, 'bold');
+  doc.setTextColor(...COLORS.gray500);
+  doc.text('PAYMENT FOR / REASON', margin + 6, y + 8);
+
+  doc.setTextColor(...COLORS.gray900);
+  drawTextBlock(doc, data.reason, margin + 6, y + 16, contentWidth - 12, 13, true, 'bold');
+
+  y += paymentBoxHeight + 20;
+
+  // ----- SIGNATURE AREA -----
+  const signatureTop = Math.max(y, pageHeight - 55);
+
+  const sigBoxWidth = 60;
+  const sigBoxX = pageWidth - margin - sigBoxWidth;
+  
+  doc.setDrawColor(...COLORS.black);
+  doc.setLineWidth(0.5);
+  doc.line(sigBoxX, signatureTop + 20, sigBoxX + sigBoxWidth, signatureTop + 20);
+
+  setLabelFont(doc, 9, 'bold');
+  doc.setTextColor(...COLORS.gray500);
+  doc.text('AUTHORISED SIGNATURE', sigBoxX + sigBoxWidth / 2, signatureTop + 26, { align: 'center' });
+  
+  setLabelFont(doc, 11, 'bold');
+  doc.setTextColor(...COLORS.black);
+  doc.text('Mohamed Sabry', sigBoxX + sigBoxWidth / 2, signatureTop + 32, { align: 'center' });
 
   if (data.receivedBySignature?.startsWith('data:image')) {
     try {
@@ -234,13 +338,13 @@ function renderReceiptPage(doc: jsPDF, data: ReceiptPdfData) {
       doc.addImage(
         data.receivedBySignature,
         format,
-        signatureX + signatureWidth / 2 - 18,
-        signatureTop + 12,
-        36,
-        14,
+        sigBoxX + sigBoxWidth / 2 - 20,
+        signatureTop + 2,
+        40,
+        16,
       );
     } catch {
-      // ignore invalid signature image
+      // ignore
     }
   }
 }
