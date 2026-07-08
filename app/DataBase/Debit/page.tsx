@@ -130,75 +130,83 @@ export default function DebitDatabasePage() {
   };
 
   return (
-    <div className="space-y-6 max-w-6xl mx-auto">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+    <div className="space-y-8">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
-            <FileSpreadsheet className="w-6 h-6 text-[#D4AF37]" />
-            Debit DB
-            <span className="text-lg font-black text-gray-600 bg-gray-100 px-4 py-1.5 rounded-full border border-gray-200">{totalCount.toLocaleString()}</span>
-          </h1>
+          <h1 className="text-4xl font-normal text-black tracking-tighter flex items-center gap-3">Debit DB <span className="text-lg font-black text-gray-600 bg-gray-100 px-4 py-1.5 rounded-full border border-gray-200">{totalCount.toLocaleString()}</span></h1>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-8">
         
         {/* Download Template Card */}
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center text-center gap-4">
-          <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center">
-            <Download className="w-8 h-8" />
+        <div className="group bg-white border border-gray-100 rounded-[2.5rem] p-8 transition-all duration-300 hover:shadow-2xl hover:shadow-black/5 hover:border-black/5 flex flex-col items-center text-center relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-gray-100 to-transparent rounded-bl-full -z-0 transition-transform group-hover:scale-110 opacity-50" />
+          <div className="w-20 h-20 bg-gray-50 text-gray-800 rounded-3xl flex items-center justify-center mb-6 shadow-inner relative z-10 transition-transform group-hover:-translate-y-1">
+            <Download className="w-10 h-10" />
           </div>
-          <div>
-            <h3 className="font-bold text-gray-900">Download Template</h3>
-            <p className="text-xs text-gray-500 mt-1">Get an empty excel file with correct headers.</p>
+          <div className="flex-1 relative z-10">
+            <h3 className="text-xl font-black text-gray-900 tracking-tight">Download Template</h3>
+            <p className="text-sm font-medium text-gray-400 mt-3 leading-relaxed">
+              Get an empty Excel file with the exact headers structured for the Debit Database.
+            </p>
           </div>
           <button
             onClick={handleDownloadTemplate}
             disabled={loading}
-            className="mt-auto w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium transition-colors disabled:opacity-50"
+            className="mt-8 w-full py-4 bg-gray-100 text-gray-900 hover:bg-gray-200 rounded-2xl font-black text-xs uppercase tracking-widest transition-all disabled:opacity-50 flex items-center justify-center gap-2 relative z-10"
           >
+            <Download className="w-4 h-4" />
             Download
           </button>
         </div>
 
         {/* Upload Excel Card */}
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center text-center gap-4">
-          <div className="w-16 h-16 bg-green-50 text-green-600 rounded-2xl flex items-center justify-center">
-            <Upload className="w-8 h-8" />
+        <div className="group bg-white border border-gray-100 rounded-[2.5rem] p-8 transition-all duration-300 hover:shadow-2xl hover:shadow-[#D4AF37]/10 hover:border-[#D4AF37]/30 flex flex-col items-center text-center relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-[#D4AF37]/10 to-transparent rounded-bl-full -z-0 transition-transform group-hover:scale-110" />
+          <div className="w-20 h-20 bg-[#D4AF37]/10 text-[#D4AF37] rounded-3xl flex items-center justify-center mb-6 shadow-inner relative z-10 transition-transform group-hover:-translate-y-1">
+            <Upload className="w-10 h-10" />
           </div>
-          <div>
-            <h3 className="font-bold text-gray-900">Upload Data</h3>
-            <p className="text-xs text-gray-500 mt-1">Upload the populated template. Data will be appended.</p>
+          <div className="flex-1 relative z-10">
+            <h3 className="text-xl font-black text-gray-900 tracking-tight">Upload Data</h3>
+            <p className="text-sm font-medium text-gray-400 mt-3 leading-relaxed">
+              Upload the populated template. Your data will be validated and appended to the database.
+            </p>
           </div>
-          <div className="relative w-full mt-auto">
+          <div className="relative w-full mt-8 z-10">
             <input
               type="file"
               accept=".xlsx, .xls"
               onChange={handleFileUpload}
               disabled={loading}
-              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed z-20"
             />
-            <div className="w-full py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl font-medium transition-colors text-center pointer-events-none">
-              Select Excel File
+            <div className="w-full py-4 bg-black text-[#D4AF37] hover:bg-gray-900 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-black/20 hover:shadow-2xl hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2 pointer-events-none">
+              <Upload className="w-4 h-4" />
+              Select File
             </div>
           </div>
         </div>
 
         {/* Delete Data Card */}
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-red-100 flex flex-col items-center text-center gap-4">
-          <div className="w-16 h-16 bg-red-50 text-red-600 rounded-2xl flex items-center justify-center">
-            <Trash2 className="w-8 h-8" />
+        <div className="group bg-white border border-gray-100 rounded-[2.5rem] p-8 transition-all duration-300 hover:shadow-2xl hover:shadow-red-500/10 hover:border-red-100 flex flex-col items-center text-center relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-red-50 to-transparent rounded-bl-full -z-0 transition-transform group-hover:scale-110" />
+          <div className="w-20 h-20 bg-red-50 text-red-500 rounded-3xl flex items-center justify-center mb-6 shadow-inner relative z-10 transition-transform group-hover:-translate-y-1">
+            <Trash2 className="w-10 h-10" />
           </div>
-          <div>
-            <h3 className="font-bold text-red-900">Delete All Data</h3>
-            <p className="text-xs text-red-500 mt-1">Wipe the entire table. This action cannot be undone.</p>
+          <div className="flex-1 relative z-10">
+            <h3 className="text-xl font-black text-gray-900 tracking-tight">Wipe Database</h3>
+            <p className="text-sm font-medium text-gray-400 mt-3 leading-relaxed">
+              Permanently delete all records in the Debit table. This action cannot be undone.
+            </p>
           </div>
           <button
             onClick={() => setIsDeleteModalOpen(true)}
             disabled={loading}
-            className="mt-auto w-full py-2.5 rounded-xl font-medium transition-colors disabled:opacity-50 bg-red-100 hover:bg-red-200 text-red-700"
+            className="mt-8 w-full py-4 bg-white text-red-500 border-2 border-red-50 hover:bg-red-50 rounded-2xl font-black text-xs uppercase tracking-widest transition-all disabled:opacity-50 flex items-center justify-center gap-2 relative z-10"
           >
-            Delete Data
+            <AlertTriangle className="w-4 h-4" />
+            Wipe Data
           </button>
         </div>
 

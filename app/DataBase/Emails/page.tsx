@@ -98,22 +98,20 @@ export default function EmailsDatabasePage() {
   };
 
   return (
-    <div className="space-y-6 max-w-6xl mx-auto">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+    <div className="space-y-8">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
-            <Mail className="w-6 h-6 text-[#D4AF37]" />
-            Emails DB
-            <span className="text-lg font-black text-gray-600 bg-gray-100 px-4 py-1.5 rounded-full border border-gray-200">{data.length.toLocaleString()}</span>
-          </h1>
+          <h1 className="text-4xl font-normal text-black tracking-tighter flex items-center gap-3">Emails DB <span className="text-lg font-black text-gray-600 bg-gray-100 px-4 py-1.5 rounded-full border border-gray-200">{data.length.toLocaleString()}</span></h1>
         </div>
-        <button
-          onClick={() => handleOpenModal()}
-          className="flex items-center gap-2 bg-[#D4AF37] hover:bg-[#C5A028] text-white px-5 py-2.5 rounded-xl font-medium transition-colors"
-        >
-          <Plus className="w-5 h-5" />
-          Add New
-        </button>
+        <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
+          <button
+            onClick={() => handleOpenModal()}
+            className="p-4 bg-black text-[#D4AF37] rounded-2xl shadow-xl shadow-black/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center"
+            title="New Email"
+          >
+            <Plus className="w-6 h-6" />
+          </button>
+        </div>
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
