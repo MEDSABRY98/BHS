@@ -33,13 +33,15 @@ import EditCheckModal from './Modals/EditCheckModal';
 import PdfOptionsModal from './Modals/PdfOptionsModal';
 import TrackingModal from './Modals/TrackingModal';
 import BulkDeliverModal from './Modals/BulkDeliverModal';
+import OfficeReceiversTab from './OfficeReceiversTab';
 import ReceiverExcelModal from './Modals/ReceiverExcelModal';
+import { exportDebitExcelTable } from '../../Debit/Export/DebitExcelExport';
 import { getDocumentsTracking, updateDocumentTrackingRecord, deleteDocumentTrackingRecord, bulkUpdateDocumentsTrackingRecords } from '../Service/documents_tracking_service';
 
 export default function DocumentsTrackingTab() {
     const router = useRouter();
     const [checks, setChecks] = useState<Check[]>([]);
-    const [currentFilter, setCurrentFilter] = useState<'all' | 'received' | 'registered' | 'delivered'>('all');
+    const [currentFilter, setCurrentFilter] = useState<'all' | 'received' | 'delivered'>('all');
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedCheckId, setSelectedCheckId] = useState<string | null>(null);
     const [headerDate, setHeaderDate] = useState('');
@@ -77,11 +79,9 @@ export default function DocumentsTrackingTab() {
                     const timeline = [];
                     if (r.datedSendToOffice) timeline.push({ event: 'مسلّمة للمكتب الرئيسي', time: r.datedSendToOffice });
 
-                    let status: 'received' | 'registered' | 'delivered' = 'received';
+                    let status: 'received' | 'delivered' = 'received';
                     const s = (r.documentStatus || '').toString().trim();
-                    if (s === 'مسلّمة للمكتب الرئيسي') status = 'delivered';
-                    else if (s === 'مسجلة في السيستم') status = 'registered';
-                    else if (r.datedSendToOffice) status = 'delivered';
+                    if (s === 'مسلّمة للمكتب الرئيسي' || r.datedSendToOffice) status = 'delivered';
 
                     return {
                         id: r.documentId,
@@ -222,50 +222,17 @@ export default function DocumentsTrackingTab() {
         }
     };
 
-    const bulkRegister = async () => {
-        const receivedChecks = checks.filter(c => selectedIds.includes(c.id) && c.status === 'received');
-        if (receivedChecks.length === 0) {
-            showNotify('No "Received" checks to register', 'error');
-            return;
-        }
-
-        setIsLoading(true);
-        try {
-            const updates = receivedChecks
-                .filter(c => c.rowIndex !== undefined)
-                .map(c => ({
-                    rowIndex: c.rowIndex as string,
-                    data: {
-                        documentStatus: STATUS_LABELS.registered
-                    }
-                }));
-
-            const result = await bulkUpdateDocumentsTrackingRecords(updates);
-
-            if (result && result.success) {
-                showNotify(`Successfully registered ${receivedChecks.length} checks in the system`);
-                setSelectedIds([]);
-                await fetchChecks();
-            }
-        } catch (error) {
-            console.error('Error bulk registering checks:', error);
-            showNotify('Failed to bulk register checks', 'error');
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
     const bulkDeliver = async (details: { receiverName: string; finalReceiverName: string }) => {
-        const registeredChecks = checks.filter(c => selectedIds.includes(c.id) && c.status === 'registered');
-        if (registeredChecks.length === 0) {
-            showNotify('No "Registered" checks to deliver', 'error');
+        const deliverableChecks = checks.filter(c => selectedIds.includes(c.id) && c.status === 'received');
+        if (deliverableChecks.length === 0) {
+            showNotify('No "Received" checks to deliver', 'error');
             return;
         }
 
         setIsLoading(true);
         try {
             const now = new Date().toLocaleString('ar-AE');
-            const updates = registeredChecks
+            const updates = deliverableChecks
                 .filter(c => c.rowIndex !== undefined)
                 .map(c => ({
                     rowIndex: c.rowIndex as string,
@@ -280,7 +247,7 @@ export default function DocumentsTrackingTab() {
             const result = await bulkUpdateDocumentsTrackingRecords(updates);
 
             if (result && result.success) {
-                showNotify(`Successfully delivered ${registeredChecks.length} checks`);
+                showNotify(`Successfully delivered ${deliverableChecks.length} checks`);
                 setIsBulkDeliverModalOpen(false);
                 setSelectedIds([]);
                 await fetchChecks();
@@ -426,7 +393,7 @@ export default function DocumentsTrackingTab() {
     };
 
     // Excel Export for Receivers
-    const exportReceiverToExcel = (fileName: string, items: Check[]) => {
+    const exportReceiverToExcel = async (fileName: string, items: Check[]) => {
         const headers = ['تاريخ التسليم', 'اسم صاحب الشيك', 'تاريخ الشيك', 'رقم الشيك', 'قيمة الشيك (د.إ)'];
         const rows = items.map(c => {
             const deliveryDate =
@@ -436,19 +403,18 @@ export default function DocumentsTrackingTab() {
         });
 
         const totalAmount = items.reduce((sum, c) => sum + c.amount, 0);
-        rows.push(['الإجمالي', '', '', '', totalAmount as any]);
+        rows.push(['الإجمالي', '', '', '', totalAmount]);
 
-        const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, 'شيكات المستلم');
-
-        worksheet['!cols'] = [{ wch: 15 }, { wch: 30 }, { wch: 15 }, { wch: 15 }, { wch: 15 }];
-
-        XLSX.writeFile(workbook, `${fileName}.xlsx`);
+        await exportDebitExcelTable(
+            headers,
+            rows,
+            `${fileName}.xlsx`,
+            { sheetName: 'شيكات المستلم', columnWidth: 20, numericColumns: ['قيمة الشيك (د.إ)'] }
+        );
     };
 
     // Excel Handlers for All Data
-    const exportAllToExcel = () => {
+    const exportAllToExcel = async () => {
         const headers = [
             'اسم العميل',
             'تاريخ الاستلام',
@@ -463,20 +429,19 @@ export default function DocumentsTrackingTab() {
             c.client,
             c.date,
             c.checkDate || '',
-            `="${c.num}"`, // formula to prevent leading zeros truncation
+            c.num,
             c.amount,
             c.bank || '',
             c.notes || '',
             STATUS_LABELS[c.status]
         ]);
 
-        const csv = '\uFEFF' + [headers, ...rows].map(r => r.map(v => `"${v}"`).join(',')).join('\n');
-        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `شيكات_${new Date().toISOString().slice(0, 10)}.csv`;
-        a.click();
+        await exportDebitExcelTable(
+            headers,
+            rows,
+            `شيكات_${new Date().toISOString().slice(0, 10)}.xlsx`,
+            { sheetName: 'جميع الشيكات', columnWidth: 20, numericColumns: ['المبلغ'] }
+        );
     };
 
     // Filters and Groupings for List Tab
@@ -537,7 +502,6 @@ export default function DocumentsTrackingTab() {
     // Statistics counts
     const totalAmount = useMemo(() => checks.reduce((sum, c) => sum + c.amount, 0), [checks]);
     const receivedCount = useMemo(() => checks.filter(c => c.status === 'received').length, [checks]);
-    const registeredCount = useMemo(() => checks.filter(c => c.status === 'registered').length, [checks]);
     const deliveredCount = useMemo(() => checks.filter(c => c.status === 'delivered').length, [checks]);
 
     // Multi-Select callbacks
@@ -603,10 +567,6 @@ export default function DocumentsTrackingTab() {
                     <span className="stat-value">{receivedCount}</span>
                 </div>
                 <div className="stat">
-                    <span className="stat-label">مسجلة</span>
-                    <span className="stat-value">{registeredCount}</span>
-                </div>
-                <div className="stat">
                     <span className="stat-label">مسلّمة للمكتب</span>
                     <span className="stat-value gold">{deliveredCount}</span>
                 </div>
@@ -656,7 +616,6 @@ export default function DocumentsTrackingTab() {
                         setSelectedIds={setSelectedIds}
                         onActionModal={setActiveActionModalCheck}
                         onTrackingModal={setTrackingCheck}
-                        onBulkRegister={bulkRegister}
                         onBulkDeliverTrigger={() => setIsBulkDeliverModalOpen(true)}
                         onPdfOptionsTrigger={() => setIsPdfModalOpen(true)}
                         onExcelExport={exportAllToExcel}

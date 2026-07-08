@@ -10,7 +10,6 @@ interface ListTabProps {
     setSelectedIds: React.Dispatch<React.SetStateAction<string[]>>;
     onActionModal: (check: Check) => void;
     onTrackingModal: (check: Check) => void;
-    onBulkRegister: () => Promise<void>;
     onBulkDeliverTrigger: () => void;
     onPdfOptionsTrigger: () => void;
     onExcelExport: () => void;
@@ -23,13 +22,12 @@ export default function ListTab({
     setSelectedIds,
     onActionModal,
     onTrackingModal,
-    onBulkRegister,
     onBulkDeliverTrigger,
     onPdfOptionsTrigger,
     onExcelExport,
     isLoading
 }: ListTabProps) {
-    const [currentFilter, setCurrentFilter] = useState<'all' | 'received' | 'registered' | 'delivered'>('all');
+    const [currentFilter, setCurrentFilter] = useState<'all' | 'received' | 'delivered'>('all');
     const [searchQuery, setSearchQuery] = useState('');
 
     const filteredChecks = useMemo(() => {
@@ -115,40 +113,12 @@ export default function ListTab({
         }
     };
 
-    const renderProgress = (status: string) => {
-        const steps: ('received' | 'registered' | 'delivered')[] = ['received', 'registered', 'delivered'];
-        const cur = steps.indexOf(status as any);
-        return (
-            <div className="progress-track">
-                {steps.map((s, i) => (
-                    <React.Fragment key={s}>
-                        {i > 0 && <div className={`step-line ${i <= cur ? 'done' : ''}`}></div>}
-                        <div
-                            className={`step ${i < cur ? 'done' : i === cur ? 'current' : ''}`}
-                            title={STATUS_LABELS[s]}
-                        >
-                            {i + 1}
-                        </div>
-                    </React.Fragment>
-                ))}
-            </div>
-        );
-    };
-
     const hasReceivedSelected = useMemo(() => {
         return checks.some(c => selectedIds.includes(c.id) && c.status === 'received');
     }, [checks, selectedIds]);
 
-    const hasRegisteredSelected = useMemo(() => {
-        return checks.some(c => selectedIds.includes(c.id) && c.status === 'registered');
-    }, [checks, selectedIds]);
-
     const receivedSelectedCount = useMemo(() => {
         return selectedIds.filter(id => checks.find(c => c.id === id && c.status === 'received')).length;
-    }, [checks, selectedIds]);
-
-    const registeredSelectedCount = useMemo(() => {
-        return selectedIds.filter(id => checks.find(c => c.id === id && c.status === 'registered')).length;
     }, [checks, selectedIds]);
 
     return (
@@ -169,12 +139,6 @@ export default function ListTab({
                     مستلمة
                 </button>
                 <button
-                    className={`filter-btn ${currentFilter === 'registered' ? 'active' : ''}`}
-                    onClick={() => setCurrentFilter('registered')}
-                >
-                    مسجلة
-                </button>
-                <button
                     className={`filter-btn ${currentFilter === 'delivered' ? 'gold-active' : ''}`}
                     onClick={() => setCurrentFilter('delivered')}
                 >
@@ -193,23 +157,6 @@ export default function ListTab({
                         {hasReceivedSelected && (
                             <button
                                 className="filter-btn active"
-                                onClick={onBulkRegister}
-                                disabled={isLoading}
-                                style={{
-                                    background: '#3b82f6',
-                                    borderColor: '#3b82f6',
-                                    color: 'white',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '6px'
-                                }}
-                            >
-                                <Save size={14} /> تسجيل {receivedSelectedCount} شيك في السيستم
-                            </button>
-                        )}
-                        {hasRegisteredSelected && (
-                            <button
-                                className="filter-btn active"
                                 onClick={onBulkDeliverTrigger}
                                 disabled={isLoading}
                                 style={{
@@ -221,7 +168,7 @@ export default function ListTab({
                                     gap: '6px'
                                 }}
                             >
-                                🚀 تسليم {registeredSelectedCount} شيك للمكتب
+                                🚀 تسليم {receivedSelectedCount} شيك للمكتب
                             </button>
                         )}
                         <button
@@ -286,7 +233,6 @@ export default function ListTab({
                     <div className="th">صاحب الشيك</div>
                     <div className="th">المبلغ</div>
                     <div className="th">مستلم من مين</div>
-                    <div className="th">التقدم</div>
                     <div className="th">الإجراء</div>
                 </div>
                 <div className="checks-list">
@@ -341,7 +287,6 @@ export default function ListTab({
                                                     {c.amount?.toLocaleString('en-US', { minimumFractionDigits: 2 })} د.إ
                                                 </div>
                                                 <div className="td">{c.bank || '—'}</div>
-                                                <div className="td">{renderProgress(c.status)}</div>
                                                 <div className="td">
                                                     <button
                                                         className="btn-menu"

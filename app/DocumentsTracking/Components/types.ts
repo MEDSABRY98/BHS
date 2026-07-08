@@ -15,7 +15,7 @@ export interface Check {
     checkDate: string; // DOCUMENT DATE
     bank: string; // RECEIVED FROM
     notes: string; // DOCUMENT NOTES
-    status: 'received' | 'registered' | 'delivered';
+    status: 'received' | 'delivered';
     timeline: TimelineEvent[];
     receiverName?: string;
     finalReceiverName?: string;
@@ -24,19 +24,16 @@ export interface Check {
 
 export const STATUS_LABELS = {
     received: 'مستلمة',
-    registered: 'مسجلة في السيستم',
     delivered: 'مسلّمة للمكتب الرئيسي'
 };
 
-export const STATUS_NEXT: Record<string, 'received' | 'registered' | 'delivered' | null> = {
-    received: 'registered',
-    registered: 'delivered',
+export const STATUS_NEXT: Record<string, 'received' | 'delivered' | null> = {
+    received: 'delivered',
     delivered: null
 };
 
 export const STATUS_NEXT_LABEL: Record<string, string | null> = {
-    received: 'تأكيد التسجيل في السيستم',
-    registered: 'تأكيد التسليم للمكتب الرئيسي',
+    received: 'تأكيد التسليم للمكتب الرئيسي',
     delivered: null
 };
 

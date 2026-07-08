@@ -20,11 +20,8 @@ export default function TrackingModal({
         return check.timeline?.find(e => e.event === eventName);
     };
 
-    const isStepDone = (step: 'received' | 'registered' | 'delivered') => {
+    const isStepDone = (step: 'received' | 'delivered') => {
         if (step === 'received') return true; // Always done since it exists
-        if (step === 'registered') {
-            return check.status === 'registered' || check.status === 'delivered';
-        }
         if (step === 'delivered') {
             return check.status === 'delivered';
         }
@@ -39,16 +36,10 @@ export default function TrackingModal({
             desc: check.bank ? `تم الاستلام من: ${check.bank}` : 'تم استلام الشيك بنجاح'
         },
         {
-            key: 'registered' as const,
-            title: 'تم التسجيل في السيستم',
-            eventKey: 'مسجلة في السيستم',
-            desc: check.receiverName ? `المندوب المسؤول: ${check.receiverName}` : 'تم تسجيل بيانات الشيك بالنظام'
-        },
-        {
             key: 'delivered' as const,
             title: 'تم التسليم للمكتب الرئيسي',
             eventKey: 'مسلّمة للمكتب الرئيسي',
-            desc: check.finalReceiverName ? `المستلم النهائي: ${check.finalReceiverName}` : 'تم إيداع/تسليم الشيك للمقر الرئيسي'
+            desc: check.finalReceiverName ? `المستلم: ${check.finalReceiverName}` : 'تم إيداع/تسليم الشيك للمقر الرئيسي'
         }
     ];
 
@@ -114,11 +105,7 @@ export default function TrackingModal({
                                     )}
                                     
                                     {/* Receiver info pills */}
-                                    {s.key === 'registered' && check.receiverName && (
-                                        <div className="receiver-info-pills">
-                                            <span className="info-pill">المندوب: {check.receiverName}</span>
-                                        </div>
-                                    )}
+
                                     {s.key === 'delivered' && check.finalReceiverName && (
                                         <div className="receiver-info-pills">
                                             <span className="info-pill">المستلم: {check.finalReceiverName}</span>

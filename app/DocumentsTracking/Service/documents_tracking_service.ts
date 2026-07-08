@@ -158,3 +158,60 @@ export async function deleteDocumentTrackingRecord(rowIndex: string) {
         throw new Error(error.message || 'Failed to delete record');
     }
 }
+
+export async function getCustomers() {
+    try {
+        const { data, error } = await bhs_supabase
+            .from('bhs_CUSTOMERS')
+            .select('"CUSTOMER ID", "CUSTOMER MAIN NAME"');
+
+        if (error) throw error;
+
+        const uniqueNames = new Set<string>();
+        const uniqueCustomers: { id: string, name: string }[] = [];
+
+        (data || []).forEach((r: any) => {
+            const name = (r['CUSTOMER MAIN NAME'] || '').trim();
+            if (name && !uniqueNames.has(name)) {
+                uniqueNames.add(name);
+                uniqueCustomers.push({
+                    id: r['CUSTOMER ID'] || '',
+                    name: name
+                });
+            }
+        });
+
+        return { customers: uniqueCustomers };
+    } catch (error) {
+        console.error('Error fetching customers:', error);
+        return { customers: [] };
+    }
+}
+
+export async function getDeliveryPersonnel() {
+    try {
+        const { data, error } = await bhs_supabase
+            .from('web_Documents_Tracking')
+            .select('"WHO DELIVERY FOR OFFICE?", "WHO TAKE FROM OFFICE?"');
+
+        if (error) throw error;
+
+        const reps = new Set<string>();
+        const receivers = new Set<string>();
+
+        (data || []).forEach((r: any) => {
+            const rep = (r['WHO DELIVERY FOR OFFICE?'] || '').trim();
+            const receiver = (r['WHO TAKE FROM OFFICE?'] || '').trim();
+            if (rep) reps.add(rep);
+            if (receiver) receivers.add(receiver);
+        });
+
+        return {
+            representatives: Array.from(reps).sort(),
+            receivers: Array.from(receivers).sort()
+        };
+    } catch (error) {
+        console.error('Error fetching delivery personnel:', error);
+        return { representatives: [], receivers: [] };
+    }
+}

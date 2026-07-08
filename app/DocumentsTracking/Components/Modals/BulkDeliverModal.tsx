@@ -3,6 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import { Send, FileCheck } from 'lucide-react';
 import { Check } from '../types';
+import { createPortal } from 'react-dom';
+import { getDeliveryPersonnel } from '../../Service/documents_tracking_service';
 
 interface BulkDeliverModalProps {
     isOpen: boolean;
@@ -23,6 +25,19 @@ export default function BulkDeliverModal({
 }: BulkDeliverModalProps) {
     const [whoDelivery, setWhoDelivery] = useState('');
     const [whoTake, setWhoTake] = useState('');
+    const [reps, setReps] = useState<string[]>([]);
+    const [receivers, setReceivers] = useState<string[]>([]);
+    const [focusedInput, setFocusedInput] = useState<'rep' | 'receiver' | null>(null);
+    const [dropdownCoords, setDropdownCoords] = useState({ top: 0, left: 0, width: 0 });
+
+    useEffect(() => {
+        const fetchPersonnel = async () => {
+            const data = await getDeliveryPersonnel();
+            setReps(data.representatives);
+            setReceivers(data.receivers);
+        };
+        fetchPersonnel();
+    }, []);
 
     useEffect(() => {
         if (isOpen) {
@@ -50,27 +65,63 @@ export default function BulkDeliverModal({
                     </button>
                 </div>
                 <form onSubmit={handleSubmit} className="space-y-5">
-                    <div>
+                    <div className="relative">
                         <label className="block text-sm font-bold text-gray-500 mb-2">مين اللي راح يسلم (اسم المندوب)</label>
                         <input
                             type="text"
                             value={whoDelivery}
                             onChange={e => setWhoDelivery(e.target.value)}
+                            onFocus={(e) => {
+                                const rect = e.target.getBoundingClientRect();
+                                setDropdownCoords({ top: rect.bottom + window.scrollY, left: rect.left + window.scrollX, width: rect.width });
+                                setFocusedInput('rep');
+                            }}
+                            onBlur={() => setTimeout(() => setFocusedInput(null), 200)}
                             placeholder="اسم المندوب المسؤول عن التوصيل..."
                             required
                             className="w-full px-4 py-3.5 bg-gray-50 border-2 border-transparent rounded-xl focus:bg-white focus:border-indigo-600 outline-none transition-all font-bold text-gray-900"
                         />
+                        {focusedInput === 'rep' && whoDelivery && typeof document !== 'undefined' && createPortal(
+                            <div style={{ position: 'absolute', top: `${dropdownCoords.top}px`, left: `${dropdownCoords.left}px`, width: `${dropdownCoords.width}px`, background: 'white', border: '1px solid #e2e8f0', borderRadius: '8px', maxHeight: '200px', overflowY: 'auto', zIndex: 999999, boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }} dir="rtl">
+                                {reps.filter(r => r.toLowerCase().includes(whoDelivery.toLowerCase())).map(r => (
+                                    <div key={r} style={{ padding: '10px 12px', cursor: 'pointer', fontSize: '13px', fontWeight: 600, color: '#1e293b' }} 
+                                        onMouseDown={(e) => { e.preventDefault(); setWhoDelivery(r); setFocusedInput(null); }}
+                                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f8fafc'}
+                                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                                    >{r}</div>
+                                ))}
+                            </div>,
+                            document.body
+                        )}
                     </div>
-                    <div>
+                    <div className="relative">
                         <label className="block text-sm font-bold text-gray-500 mb-2">مين اللي استلم في المكتب (المستلم النهائي)</label>
                         <input
                             type="text"
                             value={whoTake}
                             onChange={e => setWhoTake(e.target.value)}
+                            onFocus={(e) => {
+                                const rect = e.target.getBoundingClientRect();
+                                setDropdownCoords({ top: rect.bottom + window.scrollY, left: rect.left + window.scrollX, width: rect.width });
+                                setFocusedInput('receiver');
+                            }}
+                            onBlur={() => setTimeout(() => setFocusedInput(null), 200)}
                             placeholder="اسم الموظف المستلم بالمركز الرئيسي..."
                             required
                             className="w-full px-4 py-3.5 bg-gray-50 border-2 border-transparent rounded-xl focus:bg-white focus:border-indigo-600 outline-none transition-all font-bold text-gray-900"
                         />
+                        {focusedInput === 'receiver' && whoTake && typeof document !== 'undefined' && createPortal(
+                            <div style={{ position: 'absolute', top: `${dropdownCoords.top}px`, left: `${dropdownCoords.left}px`, width: `${dropdownCoords.width}px`, background: 'white', border: '1px solid #e2e8f0', borderRadius: '8px', maxHeight: '200px', overflowY: 'auto', zIndex: 999999, boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }} dir="rtl">
+                                {receivers.filter(r => r.toLowerCase().includes(whoTake.toLowerCase())).map(r => (
+                                    <div key={r} style={{ padding: '10px 12px', cursor: 'pointer', fontSize: '13px', fontWeight: 600, color: '#1e293b' }} 
+                                        onMouseDown={(e) => { e.preventDefault(); setWhoTake(r); setFocusedInput(null); }}
+                                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f8fafc'}
+                                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                                    >{r}</div>
+                                ))}
+                            </div>,
+                            document.body
+                        )}
                     </div>
 
                     <div className="flex w-full gap-3 pt-4">

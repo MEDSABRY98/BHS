@@ -9,6 +9,8 @@ import {
     STATUS_NEXT_LABEL,
     formatDate
 } from '../types';
+import { createPortal } from 'react-dom';
+import { getDeliveryPersonnel } from '../../Service/documents_tracking_service';
 
 interface DetailsModalProps {
     isOpen: boolean;
@@ -27,6 +29,19 @@ export default function DetailsModal({
 }: DetailsModalProps) {
     const [receiverNameInput, setReceiverNameInput] = useState('');
     const [finalReceiverNameInput, setFinalReceiverNameInput] = useState('');
+    const [reps, setReps] = useState<string[]>([]);
+    const [receivers, setReceivers] = useState<string[]>([]);
+    const [focusedInput, setFocusedInput] = useState<'rep' | 'receiver' | null>(null);
+    const [dropdownCoords, setDropdownCoords] = useState({ top: 0, left: 0, width: 0 });
+
+    useEffect(() => {
+        const fetchPersonnel = async () => {
+            const data = await getDeliveryPersonnel();
+            setReps(data.representatives);
+            setReceivers(data.receivers);
+        };
+        fetchPersonnel();
+    }, []);
 
     useEffect(() => {
         if (isOpen && check) {
@@ -49,9 +64,8 @@ export default function DetailsModal({
         });
     };
 
-    const isStepDone = (step: 'received' | 'registered' | 'delivered') => {
+    const isStepDone = (step: 'received' | 'delivered') => {
         if (step === 'received') return true;
-        if (step === 'registered') return currentStatus === 'registered' || currentStatus === 'delivered';
         if (step === 'delivered') return currentStatus === 'delivered';
         return false;
     };
@@ -126,20 +140,15 @@ export default function DetailsModal({
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', marginBottom: '24px' }}>
                         <div className="progress-track" style={{ justifyContent: 'center', width: '100%' }}>
                             <div className={`step ${isStepDone('received') ? 'done' : ''}`} title="مستلمة">
-                                {isStepDone('registered') ? '✓' : '1'}
-                            </div>
-                            <div className={`step-line ${isStepDone('registered') ? 'done' : ''}`}></div>
-                            <div className={`step ${isStepDone('registered') ? (isStepDone('delivered') ? 'done' : 'current') : ''}`} title="مسجلة">
-                                {isStepDone('delivered') ? '✓' : '2'}
+                                {isStepDone('delivered') ? '✓' : '1'}
                             </div>
                             <div className={`step-line ${isStepDone('delivered') ? 'done' : ''}`}></div>
                             <div className={`step ${isStepDone('delivered') ? 'done' : ''}`} title="مسلمة للمكتب">
-                                3
+                                {isStepDone('delivered') ? '✓' : '2'}
                             </div>
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', width: '80%', fontSize: '11px', fontWeight: 700, color: 'var(--gray-600)' }}>
                             <span>استلام</span>
-                            <span>تسجيل</span>
                             <span>تسليم مكتب</span>
                         </div>
                     </div>
@@ -153,30 +162,35 @@ export default function DetailsModal({
                             <form onSubmit={handleAdvance} className="action-form">
                                 <div className="delivery-inputs" style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '16px' }}>
                                     {currentStatus === 'received' && (
-                                        <div className="field">
-                                            <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--gray-600)', display: 'block', marginBottom: '6px' }}>اسم المندوب المسؤول عن التسجيل</label>
-                                            <input
-                                                type="text"
-                                                value={receiverNameInput}
-                                                onChange={e => setReceiverNameInput(e.target.value)}
-                                                placeholder="أدخل اسم المندوب..."
-                                                required
-                                                style={{ color: '#000' }}
-                                            />
-                                        </div>
-                                    )}
-                                    {currentStatus === 'registered' && (
                                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                                             <div className="field">
-                                                <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--gray-600)', display: 'block', marginBottom: '6px' }}>اسم المندوب</label>
+                                                <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--gray-600)', display: 'block', marginBottom: '6px' }}>مين اللي راح يسلم (اسم المندوب)</label>
                                                 <input
                                                     type="text"
                                                     value={receiverNameInput}
                                                     onChange={e => setReceiverNameInput(e.target.value)}
-                                                    placeholder="اسم المندوب..."
+                                                    onFocus={(e) => {
+                                                        const rect = e.target.getBoundingClientRect();
+                                                        setDropdownCoords({ top: rect.bottom + window.scrollY, left: rect.left + window.scrollX, width: rect.width });
+                                                        setFocusedInput('rep');
+                                                    }}
+                                                    onBlur={() => setTimeout(() => setFocusedInput(null), 200)}
+                                                    placeholder="اسم المندوب المسؤول عن التوصيل..."
                                                     required
                                                     style={{ color: '#000' }}
                                                 />
+                                                {focusedInput === 'rep' && receiverNameInput && typeof document !== 'undefined' && createPortal(
+                                                    <div style={{ position: 'absolute', top: `${dropdownCoords.top}px`, left: `${dropdownCoords.left}px`, width: `${dropdownCoords.width}px`, background: 'white', border: '1px solid #e2e8f0', borderRadius: '8px', maxHeight: '200px', overflowY: 'auto', zIndex: 999999, boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }} dir="rtl">
+                                                        {reps.filter(r => r.toLowerCase().includes(receiverNameInput.toLowerCase())).map(r => (
+                                                            <div key={r} style={{ padding: '10px 12px', cursor: 'pointer', fontSize: '13px', fontWeight: 600, color: '#1e293b' }} 
+                                                                onMouseDown={(e) => { e.preventDefault(); setReceiverNameInput(r); setFocusedInput(null); }}
+                                                                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f8fafc'}
+                                                                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                                                            >{r}</div>
+                                                        ))}
+                                                    </div>,
+                                                    document.body
+                                                )}
                                             </div>
                                             <div className="field">
                                                 <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--gray-600)', display: 'block', marginBottom: '6px' }}>المستلم النهائي بالمكتب</label>
@@ -184,10 +198,28 @@ export default function DetailsModal({
                                                     type="text"
                                                     value={finalReceiverNameInput}
                                                     onChange={e => setFinalReceiverNameInput(e.target.value)}
+                                                    onFocus={(e) => {
+                                                        const rect = e.target.getBoundingClientRect();
+                                                        setDropdownCoords({ top: rect.bottom + window.scrollY, left: rect.left + window.scrollX, width: rect.width });
+                                                        setFocusedInput('receiver');
+                                                    }}
+                                                    onBlur={() => setTimeout(() => setFocusedInput(null), 200)}
                                                     placeholder="اسم مستلم المكتب..."
                                                     required
                                                     style={{ color: '#000' }}
                                                 />
+                                                {focusedInput === 'receiver' && finalReceiverNameInput && typeof document !== 'undefined' && createPortal(
+                                                    <div style={{ position: 'absolute', top: `${dropdownCoords.top}px`, left: `${dropdownCoords.left}px`, width: `${dropdownCoords.width}px`, background: 'white', border: '1px solid #e2e8f0', borderRadius: '8px', maxHeight: '200px', overflowY: 'auto', zIndex: 999999, boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }} dir="rtl">
+                                                        {receivers.filter(r => r.toLowerCase().includes(finalReceiverNameInput.toLowerCase())).map(r => (
+                                                            <div key={r} style={{ padding: '10px 12px', cursor: 'pointer', fontSize: '13px', fontWeight: 600, color: '#1e293b' }} 
+                                                                onMouseDown={(e) => { e.preventDefault(); setFinalReceiverNameInput(r); setFocusedInput(null); }}
+                                                                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f8fafc'}
+                                                                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                                                            >{r}</div>
+                                                        ))}
+                                                    </div>,
+                                                    document.body
+                                                )}
                                             </div>
                                         </div>
                                     )}

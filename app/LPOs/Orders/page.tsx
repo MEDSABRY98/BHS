@@ -508,12 +508,18 @@ export default function OrdersPage() {
                         const isDelivered = order.driver_status === 'Delivered' && !isCancelled;
                         const isPending = order.driver_status !== 'Delivered' && !isCancelled;
 
+                        const isConfirmed = order.handover_status === 'Confirmed';
+
                         return (
                           <div className={`inline-flex items-center px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider ${isCancelled ? 'bg-red-50 text-red-600' :
                             isDelivered ? 'bg-emerald-50 text-emerald-600' :
                               'bg-orange-50 text-orange-600'
                             }`}>
-                            {isCancelled ? 'Cancelled' : isDelivered ? 'Delivered' : order.driver_status || 'Pending'}
+                            {isCancelled 
+                                ? (isConfirmed ? 'Cancelled' : 'Ask to Cancel') 
+                                : isDelivered 
+                                    ? (isConfirmed ? 'Delivered' : 'Ask to Deliver') 
+                                    : order.driver_status || 'Pending'}
                           </div>
                         );
                       })()}
