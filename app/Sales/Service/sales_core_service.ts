@@ -111,6 +111,20 @@ export async function deleteSalesMonth(year: number, month: number) {
   return { success: true };
 }
 
+export async function deleteAllSalesData() {
+  const { error } = await bhs_supabas
+    .from('web_Sales_DB')
+    .delete()
+    .neq('ID', 'dummy_id_to_match_all'); // .neq acts as a hack to delete all rows
+
+  if (error) throw error;
+
+  await bhs_supabas.from('web_Sales_DB_Cache').update({ DATA: null }).eq('KEY', 'sales_data');
+  await bhs_supabas.from('web_Sales_DB_Cache').update({ DATA: null }).eq('KEY', 'months_data');
+
+  return { success: true };
+}
+
 export async function buildSalesCache() {
   const { rows } = await buildAndSaveCache();
   return { success: true, rows };

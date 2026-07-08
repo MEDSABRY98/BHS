@@ -582,17 +582,17 @@ export const useCustomerData = (data: InvoiceRow[] = [], filters: any, mode: any
     });
 
     const sortedYears = Array.from(yearsSet).sort((a, b) => {
-      // Keep OB at the end of the yearly list
-      if (a === 'OB') return 1;
-      if (b === 'OB') return -1;
-      return b.localeCompare(a); // Years descending (2025, 2024...)
+      // Put OB at the beginning of the yearly list
+      if (a === 'OB') return -1;
+      if (b === 'OB') return 1;
+      return a.localeCompare(b); // Years ascending (2024, 2025, 2026...)
     });
     const finalRows = Array.from(customerPivotMap.values()).filter(row => row.totalNetDebt > 0.01);
     finalRows.sort((a, b) => {
       let valA: any = 0; let valB: any = 0;
       if (yearlySorting.id === 'name') { valA = a.customerName; valB = b.customerName; }
       else if (yearlySorting.id === 'city') { valA = a.region; valB = b.region; }
-      else if (yearlySorting.id === 'netDebt') { valA = a.totalNetDebt; valB = b.totalNetDebt; }
+      else if (yearlySorting.id === 'totalNetDebt') { valA = a.totalNetDebt; valB = b.totalNetDebt; }
       else { valA = a.yearlyAmounts[yearlySorting.id] || 0; valB = b.yearlyAmounts[yearlySorting.id] || 0; }
       if (typeof valA === 'string') return yearlySorting.desc ? (valB as string).localeCompare(valA as string) : (valA as string).localeCompare(valB as string);
       return yearlySorting.desc ? (valB as number) - (valA as number) : (valA as number) - (valB as number);

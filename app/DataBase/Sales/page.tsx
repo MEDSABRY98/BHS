@@ -8,7 +8,7 @@ import NoData from '@/app/Components/NoDataTab';
 import { toast } from '@/app/Components/Notification';
 import { bhs_supabas } from '@/lib/supabase';
 import * as XLSX from 'xlsx';
-import { getSalesMonthsCache, deleteSalesMonth, buildSalesCache } from '@/app/Sales/Service/sales_core_service';
+import { getSalesMonthsCache, deleteSalesMonth, buildSalesCache, deleteAllSalesData } from '@/app/Sales/Service/sales_core_service';
 
 const englishMonths: Record<number, string> = {
   1: "January", 2: "February", 3: "March", 4: "April", 5: "May", 6: "June",
@@ -29,6 +29,9 @@ export default function SalesDBPage() {
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [targetMonth, setTargetMonth] = useState<{ year: number; month: number } | null>(null);
+
+  const [isDeleteAllConfirmOpen, setIsDeleteAllConfirmOpen] = useState(false);
+  const [isDeletingAll, setIsDeletingAll] = useState(false);
 
   // Excel Modal States
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
@@ -72,6 +75,21 @@ export default function SalesDBPage() {
       setIsDeleting(false);
       setIsConfirmOpen(false);
       setTargetMonth(null);
+    }
+  };
+
+  const executeDeleteAll = async () => {
+    setIsDeletingAll(true);
+    try {
+      await deleteAllSalesData();
+      triggerMessage('success', `Deleted all sales data successfully!`);
+      await fetchSalesMonths(true);
+    } catch (err: any) {
+      console.error(err);
+      triggerMessage('error', err.message || 'Failed to delete all sales data');
+    } finally {
+      setIsDeletingAll(false);
+      setIsDeleteAllConfirmOpen(false);
     }
   };
 
@@ -376,6 +394,15 @@ export default function SalesDBPage() {
             <FileSpreadsheet className="w-5 h-5" />
           </button>
         )}
+        {canDelete && (
+          <button
+            onClick={() => setIsDeleteAllConfirmOpen(true)}
+            className="p-3 bg-white border border-red-200 text-red-600 rounded-2xl shadow-sm hover:scale-[1.05] active:scale-[0.95] hover:bg-red-50 transition-all flex items-center justify-center shrink-0 cursor-pointer"
+            title="Delete All Sales Data"
+          >
+            <Trash2 className="w-5 h-5" />
+          </button>
+        )}
       </div>
 
       {/* Grid of Months */}
@@ -446,6 +473,16 @@ export default function SalesDBPage() {
           message={`Are you sure you want to delete all sales data for ${englishMonths[targetMonth.month]} ${targetMonth.year}? This will remove all transactions for this month and cannot be undone.`}
         />
       )}
+
+      {/* Wipe All Confirmation Modal */}
+      <ConfirmModal
+        isOpen={isDeleteAllConfirmOpen}
+        onConfirm={executeDeleteAll}
+        onCancel={() => setIsDeleteAllConfirmOpen(false)}
+        isLoading={isDeletingAll}
+        title="Confirm Wipe Database"
+        message="Are you sure you want to delete ALL sales data? This action is permanent and cannot be undone."
+      />
 
       {/* Excel Upload Modal */}
       {isUploadModalOpen && (

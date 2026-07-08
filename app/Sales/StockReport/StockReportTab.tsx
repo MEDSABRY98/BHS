@@ -13,11 +13,12 @@ import { getStockReportData } from '../Service/sales_reports_service';
 interface SalesStockReportTabProps {
   refreshTrigger?: number;
   userId: string;
+  showCosts?: boolean;
 }
 
 type TabMode = 'customers' | 'products' | 'margin';
 
-export default function SalesStockReportTab({ userId, refreshTrigger }: SalesStockReportTabProps) {
+export default function SalesStockReportTab({ userId, refreshTrigger, showCosts = true }: SalesStockReportTabProps) {
   const { commonFilters: filters } = useSalesModuleFilters();
   const [activeTab, setActiveTab] = useState<TabMode>('customers');
   const [loading, setLoading] = useState(true);
@@ -81,27 +82,29 @@ export default function SalesStockReportTab({ userId, refreshTrigger }: SalesSto
             <Tag className="w-4 h-4 shrink-0" />
             <span>By Product</span>
           </button>
-          <button
-            onClick={() => setActiveTab('margin')}
-            className={`flex-1 flex items-center justify-center gap-2.5 px-5 py-3 rounded-[16px] text-xs font-black uppercase tracking-widest transition-all duration-300 ${activeTab === 'margin'
-              ? 'bg-white text-emerald-600 shadow-md scale-[1.02]'
-              : 'text-slate-500 hover:text-slate-800'
-              }`}
-          >
-            <Percent className="w-4 h-4 shrink-0" />
-            <span>Profit / Loss</span>
-          </button>
+          {showCosts && (
+            <button
+              onClick={() => setActiveTab('margin')}
+              className={`flex-1 flex items-center justify-center gap-2.5 px-5 py-3 rounded-[16px] text-xs font-black uppercase tracking-widest transition-all duration-300 ${activeTab === 'margin'
+                ? 'bg-white text-emerald-600 shadow-md scale-[1.02]'
+                : 'text-slate-500 hover:text-slate-800'
+                }`}
+            >
+              <Percent className="w-4 h-4 shrink-0" />
+              <span>Profit / Loss</span>
+            </button>
+          )}
         </div>
       </div>
 
       {/* View Content */}
       <div className="transition-all duration-500">
         {activeTab === 'customers' ? (
-          <SalesST_ByCustomers customersData={customersData} loading={loading} />
+          <SalesST_ByCustomers customersData={customersData} loading={loading} showCosts={showCosts} />
         ) : activeTab === 'products' ? (
-          <SalesST_ByProduct productList={productList} loading={loading} />
+          <SalesST_ByProduct productList={productList} loading={loading} showCosts={showCosts} />
         ) : (
-          <SalesST_CustomerMarginTab subCustomersData={subCustomersData} loading={loading} />
+          showCosts ? <SalesST_CustomerMarginTab subCustomersData={subCustomersData} loading={loading} /> : null
         )}
       </div>
 

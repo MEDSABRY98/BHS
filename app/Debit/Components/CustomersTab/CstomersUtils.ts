@@ -352,33 +352,97 @@ export const exportToPDF = async (data: CustomerAnalysis[], filename: string = '
   }
 };
 
+export interface ExportExcelOptions {
+  includeNetOnly?: boolean;
+  includeDashboard?: boolean;
+  includeSummary?: boolean;
+  includeYearly?: boolean;
+  groupByRegion?: boolean;
+}
+
 export const exportToExcel = async (
   data: CustomerAnalysis[],
   filename: string = 'customers_export',
   invoices: InvoiceRow[] = [],
-  yearlyData?: any
+  yearlyData?: any,
+  options?: ExportExcelOptions
 ) => {
-  const netOnlyHeaders = ['Customer Name', 'Date', 'Type', 'Invoice Number', 'Debit', 'Credit', 'Net Debt'];
-  const netOnlyRows: any[] = [];
-  for (const customer of data) {
-    const customerInvoices = invoices.filter(row => row.customerName === customer.customerName);
-    if (customerInvoices.length === 0) continue;
-    const invoicesWithNetDebt = buildInvoicesWithNetDebtForExport(customerInvoices);
-    const netOnlyInvoices = invoicesWithNetDebt
-      .filter(inv => !inv.matching || (inv.residual !== undefined && Math.abs(inv.residual) > 0.01))
-      .map(inv => inv.matching && inv.residual !== undefined ? { ...inv, credit: inv.debit - inv.residual, netDebt: inv.residual } : inv);
-    netOnlyInvoices.forEach(inv => {
-      netOnlyRows.push([customer.customerName, formatDmy(parseDate(inv.date)), getInvoiceType(inv), inv.number || '', (inv.debit || 0).toFixed(2), (inv.credit || 0).toFixed(2), (inv.netDebt || 0).toFixed(2)]);
+  const opts = {
+    includeNetOnly: true,
+    includeDashboard: true,
+    includeSummary: true,
+    includeYearly: true,
+    groupByRegion: false,
+    ...options
+  };
+
+  const sheets: any[] = [];
+
+  const getRepsString = (customer: CustomerAnalysis) => {
+    if (customer.salesReps && customer.salesReps instanceof Set && customer.salesReps.size > 0) return Array.from(customer.salesReps).join(', ');
+    else if (Array.isArray(customer.salesReps) && customer.salesReps.length > 0) return (customer.salesReps as string[]).join(', ');
+    return '-';
+  };
+
+  const uniqueRegions = new Set<string>();
+  if (opts.groupByRegion) {
+    data.forEach(c => {
+      const repStr = getRepsString(c);
+      if (repStr !== '-') {
+        repStr.split(',').forEach(r => uniqueRegions.add(r.trim()));
+      } else {
+        uniqueRegions.add('Unassigned');
+      }
     });
   }
 
+  // --- Net Only Details ---
+  const netOnlyHeaders = ['Customer Name', 'Date', 'Type', 'Invoice Number', 'Debit', 'Credit', 'Net Debt'];
+  const buildNetOnlyRows = (dataset: CustomerAnalysis[]) => {
+    const rows: any[] = [];
+    for (const customer of dataset) {
+      const customerInvoices = invoices.filter(row => row.customerName === customer.customerName);
+      if (customerInvoices.length === 0) continue;
+      const invoicesWithNetDebt = buildInvoicesWithNetDebtForExport(customerInvoices);
+      const netOnlyInvoices = invoicesWithNetDebt
+        .filter(inv => !inv.matching || (inv.residual !== undefined && Math.abs(inv.residual) > 0.01))
+        .map(inv => inv.matching && inv.residual !== undefined ? { ...inv, credit: inv.debit - inv.residual, netDebt: inv.residual } : inv);
+      netOnlyInvoices.forEach(inv => {
+        rows.push([customer.customerName, formatDmy(parseDate(inv.date)), getInvoiceType(inv), inv.number || '', (inv.debit || 0).toFixed(2), (inv.credit || 0).toFixed(2), (inv.netDebt || 0).toFixed(2)]);
+      });
+    }
+    return rows;
+  };
+
+  if (opts.includeNetOnly) {
+    sheets.push({
+      name: 'Net Only Details',
+      data: recordsFromTable(netOnlyHeaders, buildNetOnlyRows(data)),
+      options: { numericColumns: ['Debit', 'Credit', 'Net Debt'] },
+    });
+    if (opts.groupByRegion) {
+      Array.from(uniqueRegions).forEach(region => {
+        const filtered = data.filter(c => {
+          const reps = getRepsString(c);
+          if (region === 'Unassigned') return reps === '-';
+          return reps.includes(region);
+        });
+        if (filtered.length > 0) {
+          sheets.push({
+            name: `Net Only - ${region}`.substring(0, 31),
+            data: recordsFromTable(netOnlyHeaders, buildNetOnlyRows(filtered)),
+            options: { numericColumns: ['Debit', 'Credit', 'Net Debt'] },
+          });
+        }
+      });
+    }
+  }
+
+  // --- Dashboard ---
   const dashboardHeaders = ['#', 'Customer Name', 'City', 'Net Debit', 'Debt Rating', 'OB Amount', 'Overdue Amount', 'Collection Rate %', 'Payment Rate %', 'Return Rate %', 'Discount Rate %', 'Average Payment Interval (Days)', 'Last Payment Date', 'Payments Count 90d', 'Payments 90d Amt', 'Net Sales', 'Sales Count 90d', 'Sales 90d Amt'];
-  const dashboardRows = data.map((customer, index) => {
-    let reps = '-';
-    if (customer.salesReps && customer.salesReps instanceof Set && customer.salesReps.size > 0) reps = Array.from(customer.salesReps).join(', ');
-    else if (Array.isArray(customer.salesReps) && customer.salesReps.length > 0) reps = (customer.salesReps as string[]).join(', ');
+  const buildDashboardRows = (dataset: CustomerAnalysis[]) => dataset.map((customer, index) => {
     return [
-      index + 1, customer.customerName || '', reps, customer.netDebt.toFixed(2), calculateDebtRating(customer), (customer.openOBAmount || 0).toFixed(2), (customer.overdueAmount || 0).toFixed(2),
+      index + 1, customer.customerName || '', getRepsString(customer), customer.netDebt.toFixed(2), calculateDebtRating(customer), (customer.openOBAmount || 0).toFixed(2), (customer.overdueAmount || 0).toFixed(2),
       customer.totalDebit > 0 ? ((customer.totalCredit / customer.totalDebit) * 100).toFixed(1) + '%' : '0.0%',
       (customer.totalCredit || 0) > 0 ? ((customer.creditPayments || 0) / customer.totalCredit * 100).toFixed(0) + '%' : '0%',
       (customer.totalCredit || 0) > 0 ? ((customer.creditReturns || 0) / customer.totalCredit * 100).toFixed(0) + '%' : '0%',
@@ -389,57 +453,99 @@ export const exportToExcel = async (
     ];
   });
 
+  if (opts.includeDashboard) {
+    sheets.push({
+      name: 'Customers Dashboard',
+      data: recordsFromTable(dashboardHeaders, buildDashboardRows(data)),
+      options: { numericColumns: ['Net Debit', 'OB Amount', 'Overdue Amount', 'Payments 90d Amt', 'Net Sales', 'Sales 90d Amt'] },
+    });
+    if (opts.groupByRegion) {
+      Array.from(uniqueRegions).forEach(region => {
+        const filtered = data.filter(c => {
+          const reps = getRepsString(c);
+          if (region === 'Unassigned') return reps === '-';
+          return reps.includes(region);
+        });
+        if (filtered.length > 0) {
+          sheets.push({
+            name: `Dashboard - ${region}`.substring(0, 31),
+            data: recordsFromTable(dashboardHeaders, buildDashboardRows(filtered)),
+            options: { numericColumns: ['Net Debit', 'OB Amount', 'Overdue Amount', 'Payments 90d Amt', 'Net Sales', 'Sales 90d Amt'] },
+          });
+        }
+      });
+    }
+  }
+
+  // --- Summary View ---
   const summaryHeaders = ['#', 'Customer Name', 'City / Rep', 'Total Debt', 'Last Pay Date', 'Last Pay Amt', 'Pay (90d)', '# Pay (90d)', 'Last Sale Date', 'Last Sale Amt', 'Sales (90d)', '# Sales (90d)', 'Rating'];
-  const summaryRows = data.map((customer, index) => {
-    let reps = '-';
-    if (customer.salesReps && customer.salesReps instanceof Set && customer.salesReps.size > 0) reps = Array.from(customer.salesReps).join(', ');
-    else if (Array.isArray(customer.salesReps) && customer.salesReps.length > 0) reps = (customer.salesReps as string[]).join(', ');
+  const buildSummaryRows = (dataset: CustomerAnalysis[]) => dataset.map((customer, index) => {
     return [
-      index + 1, customer.customerName || '', reps, customer.netDebt.toFixed(2), customer.lastPaymentDate ? formatDmy(customer.lastPaymentDate) : '-', (customer.lastPaymentAmount || 0).toFixed(2),
+      index + 1, customer.customerName || '', getRepsString(customer), customer.netDebt.toFixed(2), customer.lastPaymentDate ? formatDmy(customer.lastPaymentDate) : '-', (customer.lastPaymentAmount || 0).toFixed(2),
       (customer as any).payments3m?.toFixed(2) || '0.00', (customer as any).paymentsCount3m ?? 0,
       customer.lastSalesDate ? formatDmy(customer.lastSalesDate) : '-', (customer.lastSalesAmount || 0).toFixed(2), (customer as any).sales3m?.toFixed(2) || '0.00', (customer as any).salesCount3m ?? 0, calculateDebtRating(customer)
     ];
   });
 
-  const sheets = [
-    {
-      name: 'Net Only Details',
-      data: recordsFromTable(netOnlyHeaders, netOnlyRows),
-      options: {
-        numericColumns: ['Debit', 'Credit', 'Net Debt'],
-      },
-    },
-    {
-      name: 'Customers Dashboard',
-      data: recordsFromTable(dashboardHeaders, dashboardRows),
-      options: {
-        numericColumns: ['Net Debit', 'OB Amount', 'Overdue Amount', 'Payments 90d Amt', 'Net Sales', 'Sales 90d Amt'],
-      },
-    },
-    {
+  if (opts.includeSummary) {
+    sheets.push({
       name: 'Summary View',
-      data: recordsFromTable(summaryHeaders, summaryRows),
-      options: {
-        numericColumns: ['Total Debt', 'Last Pay Amt', 'Pay (90d)', 'Last Sale Amt', 'Sales (90d)'],
-      },
-    },
-  ];
+      data: recordsFromTable(summaryHeaders, buildSummaryRows(data)),
+      options: { numericColumns: ['Total Debt', 'Last Pay Amt', 'Pay (90d)', 'Last Sale Amt', 'Sales (90d)'] },
+    });
+    if (opts.groupByRegion) {
+      Array.from(uniqueRegions).forEach(region => {
+        const filtered = data.filter(c => {
+          const reps = getRepsString(c);
+          if (region === 'Unassigned') return reps === '-';
+          return reps.includes(region);
+        });
+        if (filtered.length > 0) {
+          sheets.push({
+            name: `Summary - ${region}`.substring(0, 31),
+            data: recordsFromTable(summaryHeaders, buildSummaryRows(filtered)),
+            options: { numericColumns: ['Total Debt', 'Last Pay Amt', 'Pay (90d)', 'Last Sale Amt', 'Sales (90d)'] },
+          });
+        }
+      });
+    }
+  }
 
-  if (yearlyData && yearlyData.rows.length > 0) {
-    const years = yearlyData.sortedYears;
-    const yearlyHeaders = ['#', 'Customer Name', 'City', 'Net Debt', ...years];
-    const yearlyRows = yearlyData.rows.map((row: any, index: number) => {
+  // --- Yearly View ---
+  if (opts.includeYearly && yearlyData && yearlyData.rows.length > 0) {
+    const originalYears = yearlyData.sortedYears;
+    // Add a zero-width space or regular space to prevent JS from sorting numeric string keys first
+    const yearsWithSpaces = originalYears.map((yr: string) => yr === 'OB' ? yr : `${yr} `);
+    const yearlyHeaders = ['#', 'Customer Name', 'City', 'Net Debt', ...yearsWithSpaces];
+    
+    const buildYearlyRows = (dataset: any[]) => dataset.map((row: any, index: number) => {
       const rowData = [index + 1, row.customerName, row.region, row.totalNetDebt.toFixed(2)];
-      years.forEach((yr: string) => rowData.push((row.yearlyAmounts[yr] || 0).toFixed(2)));
+      originalYears.forEach((yr: string) => rowData.push((row.yearlyAmounts[yr] || 0).toFixed(2)));
       return rowData;
     });
+
     sheets.push({
       name: 'Yearly View',
-      data: recordsFromTable(yearlyHeaders, yearlyRows),
-      options: {
-        numericColumns: ['Net Debt', ...years],
-      },
+      data: recordsFromTable(yearlyHeaders, buildYearlyRows(yearlyData.rows)),
+      options: { numericColumns: ['Net Debt', ...yearsWithSpaces] },
     });
+
+    if (opts.groupByRegion) {
+      Array.from(uniqueRegions).forEach(region => {
+        const filtered = yearlyData.rows.filter((c: any) => {
+          const reps = c.region || '-';
+          if (region === 'Unassigned') return reps === '-';
+          return reps.includes(region);
+        });
+        if (filtered.length > 0) {
+          sheets.push({
+            name: `Yearly - ${region}`.substring(0, 31),
+            data: recordsFromTable(yearlyHeaders, buildYearlyRows(filtered)),
+            options: { numericColumns: ['Net Debt', ...yearsWithSpaces] },
+          });
+        }
+      });
+    }
   }
 
   await exportDebitExcelWorkbook(sheets, filename);

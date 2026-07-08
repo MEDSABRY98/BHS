@@ -5,7 +5,7 @@ import { printPdfInSameTab } from './DeliveryUtils';
 export async function generatePendingDriverInvoicesPDF(
   driverName: string,
   invoices: any[],
-  action: 'download' | 'print' = 'download',
+  action: 'download' | 'print' | 'blob' = 'download',
   fromDate?: string,
   toDate?: string,
   driverSignature?: string,
@@ -13,7 +13,8 @@ export async function generatePendingDriverInvoicesPDF(
 ) {
 
   const doc = new jsPDF('p', 'mm', 'a4');
-  doc.setProperties({ title: `Pending_Invoices_${driverName.replace(/\s+/g, '_')}` });
+  const currentDate = new Date().toISOString().split('T')[0];
+  doc.setProperties({ title: `Pending_Invoices_${driverName.replace(/\s+/g, '_')}_${currentDate}` });
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
   const margin = 10;
@@ -280,7 +281,10 @@ export async function generatePendingDriverInvoicesPDF(
 
   if (action === 'print') {
     printPdfInSameTab(doc);
+  } else if (action === 'blob') {
+    return doc.output('blob');
   } else {
-    doc.save(`Pending_Invoices_${driverName.replace(/\s+/g, '_')}.pdf`);
+    const currentDate = new Date().toISOString().split('T')[0];
+    doc.save(`Pending_Invoices_${driverName.replace(/\s+/g, '_')}_${currentDate}.pdf`);
   }
 }

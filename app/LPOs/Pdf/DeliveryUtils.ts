@@ -11,11 +11,22 @@ export function printPdfInSameTab(doc: jsPDF): void {
   iframe.onload = () => {
     iframe.contentWindow?.focus();
     iframe.contentWindow?.print();
-    setTimeout(() => {
-      URL.revokeObjectURL(url);
+    
+    const cleanup = () => {
       if (document.body.contains(iframe)) {
         document.body.removeChild(iframe);
       }
-    }, 2000);
+      URL.revokeObjectURL(url);
+    };
+
+    // Modern browsers support onafterprint (fires when print dialog is closed/printed)
+    if (iframe.contentWindow) {
+      iframe.contentWindow.onafterprint = () => {
+        setTimeout(cleanup, 1000);
+      };
+    }
+
+    // Fallback cleanup after 5 minutes just in case
+    setTimeout(cleanup, 300000);
   };
 }

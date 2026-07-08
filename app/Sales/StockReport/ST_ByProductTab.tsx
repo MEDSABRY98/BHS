@@ -10,11 +10,11 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 
 interface SalesST_ByProductProps {
   refreshTrigger?: number;
-  productList: any[];
   loading: boolean;
+  showCosts?: boolean;
 }
 
-export default function SalesST_ByProduct({ productList, loading, refreshTrigger }: SalesST_ByProductProps) {
+export default function SalesST_ByProduct({ productList, loading, refreshTrigger, showCosts = true }: SalesST_ByProductProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [appliedSearchQuery, setAppliedSearchQuery] = useState('');
   const [customerSearchQuery, setCustomerSearchQuery] = useState('');
@@ -65,22 +65,29 @@ export default function SalesST_ByProduct({ productList, loading, refreshTrigger
         const diff = most - cost;
         const margin = most > 0 ? (diff / most) * 100 : 0;
 
-        exportData.push({
+        const row: any = {
           'Barcode': p.barcode,
           'Product Name': p.product,
           'Customer Name': stats.customerName,
           'Most Price': most,
           'Max Price': maxPrice,
-          'Cost': cost,
-          'Diff': diff,
-          'Margin %': `${margin.toFixed(1)}%`
-        });
+        };
+
+        if (showCosts) {
+          row['Cost'] = cost;
+          row['Diff'] = diff;
+          row['Margin %'] = `${margin.toFixed(1)}%`;
+        }
+
+        exportData.push(row);
       });
     });
 
+    const numericColumns = showCosts ? ['Most Price', 'Max Price', 'Cost', 'Diff'] : ['Most Price', 'Max Price'];
+
     await exportSalesExcel(exportData, `Pricing_Analysis_By_Product_${new Date().toISOString().split('T')[0]}.xlsx`, {
       sheetName: 'Analysis',
-      numericColumns: ['Most Price', 'Max Price', 'Cost', 'Diff'],
+      numericColumns,
     });
   };
 
@@ -190,8 +197,8 @@ export default function SalesST_ByProduct({ productList, loading, refreshTrigger
                         <th className="py-4 px-8 text-center text-[13px] font-black text-slate-500 uppercase tracking-[0.2em] w-[550px]">Customer</th>
                         <th className="py-4 px-2 text-center text-[13px] font-black text-slate-500 uppercase tracking-[0.2em] w-36">Most Price ({avgMost.toFixed(1)})</th>
                         <th className="py-4 px-2 text-center text-[13px] font-black text-amber-500 uppercase tracking-[0.2em] w-36">Max Price ({avgMax.toFixed(1)})</th>
-                        <th className="py-4 px-2 text-center text-[13px] font-black text-slate-500 uppercase tracking-[0.2em] w-36">Cost ({avgCost.toFixed(1)})</th>
-                        <th className="py-4 px-2 text-center text-[13px] font-black text-slate-500 uppercase tracking-[0.2em] w-48">Margin</th>
+                        {showCosts && <th className="py-4 px-2 text-center text-[13px] font-black text-slate-500 uppercase tracking-[0.2em] w-36">Cost ({avgCost.toFixed(1)})</th>}
+                        {showCosts && <th className="py-4 px-2 text-center text-[13px] font-black text-slate-500 uppercase tracking-[0.2em] w-48">Margin</th>}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50">
@@ -224,21 +231,25 @@ export default function SalesST_ByProduct({ productList, loading, refreshTrigger
                                 {maxPrice.toLocaleString('en-US', { minimumFractionDigits: 1 })}
                               </span>
                             </td>
-                            <td className="py-4 px-2 text-center">
-                              <span className="text-lg font-black text-slate-500 bg-slate-50 px-3 py-1 rounded-xl border border-slate-200/60">
-                                {cost.toLocaleString('en-US', { minimumFractionDigits: 1 })}
-                              </span>
-                            </td>
-                            <td className="py-4 px-2 text-center">
-                              <div className="inline-flex items-center justify-center gap-3">
-                                <span className={`text-lg font-black ${diff >= 0 ? 'text-emerald-600' : 'text-rose-600'} bg-white px-2 py-1 rounded-lg border border-slate-100 shadow-sm`}>
-                                  {margin.toFixed(1)}%
+                            {showCosts && (
+                              <td className="py-4 px-2 text-center">
+                                <span className="text-lg font-black text-slate-500 bg-slate-50 px-3 py-1 rounded-xl border border-slate-200/60">
+                                  {cost.toLocaleString('en-US', { minimumFractionDigits: 1 })}
                                 </span>
-                                <span className={`text-xs font-bold ${diff >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                                  ({diff >= 0 ? '+' : ''}{diff.toFixed(1)})
-                                </span>
-                              </div>
-                            </td>
+                              </td>
+                            )}
+                            {showCosts && (
+                              <td className="py-4 px-2 text-center">
+                                <div className="inline-flex items-center justify-center gap-3">
+                                  <span className={`text-lg font-black ${diff >= 0 ? 'text-emerald-600' : 'text-rose-600'} bg-white px-2 py-1 rounded-lg border border-slate-100 shadow-sm`}>
+                                    {margin.toFixed(1)}%
+                                  </span>
+                                  <span className={`text-xs font-bold ${diff >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                    ({diff >= 0 ? '+' : ''}{diff.toFixed(1)})
+                                  </span>
+                                </div>
+                              </td>
+                            )}
                           </tr>
                         );
                       })}

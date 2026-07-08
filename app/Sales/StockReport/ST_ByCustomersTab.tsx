@@ -14,13 +14,13 @@ import { exportSalesExcel } from '@/app/Sales/Export/SalesExcelExport';
 
 interface SalesST_ByCustomersProps {
   refreshTrigger?: number;
-  customersData: any[];
   loading: boolean;
+  showCosts?: boolean;
 }
 
 const ITEMS_PER_PAGE = 50;
 
-export default function SalesST_ByCustomers({ customersData, loading, refreshTrigger }: SalesST_ByCustomersProps) {
+export default function SalesST_ByCustomers({ customersData, loading, refreshTrigger, showCosts = true }: SalesST_ByCustomersProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -98,21 +98,28 @@ export default function SalesST_ByCustomers({ customersData, loading, refreshTri
       const diff = frequent - cost;
       const margin = frequent > 0 ? (diff / frequent) * 100 : 0;
 
-      return {
+      const row: any = {
         '#': index + 1,
         'Barcode': p.barcode,
         'Product': p.product,
         'Most Price': frequent,
         'Max Price': maxPrice,
-        'Cost': cost,
-        'Diff': diff,
-        '%': `${margin.toFixed(1)}%`
       };
+
+      if (showCosts) {
+        row['Cost'] = cost;
+        row['Diff'] = diff;
+        row['%'] = `${margin.toFixed(1)}%`;
+      }
+
+      return row;
     });
+
+    const numericColumns = showCosts ? ['Most Price', 'Max Price', 'Cost', 'Diff'] : ['Most Price', 'Max Price'];
 
     await exportSalesExcel(exportData, `Sales_Analysis_${customerName}_${new Date().toISOString().split('T')[0]}.xlsx`, {
       sheetName: 'Analysis',
-      numericColumns: ['Most Price', 'Max Price', 'Cost', 'Diff'],
+      numericColumns,
     });
     setSelectedCustomerForAnalysis(null);
   };
@@ -206,7 +213,7 @@ export default function SalesST_ByCustomers({ customersData, loading, refreshTri
                   <th className="py-4 px-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider w-[180px]">Items</th>
                   <th className="py-4 px-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider w-[180px]">Standard</th>
                   <th className="py-4 px-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider w-[180px]">Pricing</th>
-                  <th className="py-4 px-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider w-[180px]">Analysis</th>
+                  {showCosts && <th className="py-4 px-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider w-[180px]">Analysis</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
@@ -236,16 +243,18 @@ export default function SalesST_ByCustomers({ customersData, loading, refreshTri
                         <DollarSign className="w-4 h-4" />
                       </button>
                     </td>
-                    <td className="py-3 px-4 text-center">
-                      <button
-                        onClick={() => setSelectedCustomerForAnalysis(c.customer)}
-                        disabled={isGenerating}
-                        className="px-3 py-1.5 bg-white border border-gray-200 text-gray-600 rounded-lg hover:bg-emerald-600 hover:text-white hover:border-emerald-600 transition-all font-bold text-[10px] uppercase tracking-wider flex items-center justify-center gap-2 mx-auto disabled:opacity-30"
-                      >
-                        <Search className="w-3.5 h-3.5" />
-                        <span>Analysis</span>
-                      </button>
-                    </td>
+                    {showCosts && (
+                      <td className="py-3 px-4 text-center">
+                        <button
+                          onClick={() => setSelectedCustomerForAnalysis(c.customer)}
+                          disabled={isGenerating}
+                          className="px-3 py-1.5 bg-white border border-gray-200 text-gray-600 rounded-lg hover:bg-emerald-600 hover:text-white hover:border-emerald-600 transition-all font-bold text-[10px] uppercase tracking-wider flex items-center justify-center gap-2 mx-auto disabled:opacity-30"
+                        >
+                          <Search className="w-3.5 h-3.5" />
+                          <span>Analysis</span>
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -359,15 +368,17 @@ export default function SalesST_ByCustomers({ customersData, loading, refreshTri
                 Generate Stock Reports
               </button>
 
-              <button
-                onClick={() => handleDownloadAllPDFs('analysis')}
-                className="w-full py-5 bg-emerald-600 text-white font-black text-xs uppercase tracking-[0.1em] rounded-2xl hover:bg-emerald-500 transition-all shadow-xl flex items-center justify-center gap-3"
-              >
-                <div className="w-6 h-6 bg-white/10 rounded-lg flex items-center justify-center">
-                  <Search className="w-3.5 h-3.5" />
-                </div>
-                Generate Profit Analysis
-              </button>
+              {showCosts && (
+                <button
+                  onClick={() => handleDownloadAllPDFs('analysis')}
+                  className="w-full py-5 bg-emerald-600 text-white font-black text-xs uppercase tracking-[0.1em] rounded-2xl hover:bg-emerald-500 transition-all shadow-xl flex items-center justify-center gap-3"
+                >
+                  <div className="w-6 h-6 bg-white/10 rounded-lg flex items-center justify-center">
+                    <Search className="w-3.5 h-3.5" />
+                  </div>
+                  Generate Profit Analysis
+                </button>
+              )}
 
               <div className="space-y-2 mt-2">
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center mb-2">Price List Exports</p>

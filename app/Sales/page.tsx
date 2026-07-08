@@ -422,7 +422,7 @@ export default function SalesPage() {
     return (
       <div className="relative w-full">
         <SalesTabPanel tabId="sales-overview" activeTab={activeTab} isVisited={visitedTabs.has('sales-overview')}>
-          <SalesOverviewTab userId={salesUserId} refreshTrigger={refreshTrigger} />
+          <SalesOverviewTab userId={salesUserId} refreshTrigger={refreshTrigger} showCosts={showCosts} />
         </SalesTabPanel>
         <SalesTabPanel tabId="sales-top10" activeTab={activeTab} isVisited={visitedTabs.has('sales-top10')}>
           <SalesTop10Tab userId={salesUserId} refreshTrigger={refreshTrigger} />
@@ -437,13 +437,14 @@ export default function SalesPage() {
           <SalesInactiveCustomersTab userId={salesUserId} refreshTrigger={refreshTrigger} />
         </SalesTabPanel>
         <SalesTabPanel tabId="sales-statistics" activeTab={activeTab} isVisited={visitedTabs.has('sales-statistics')}>
-          <SalesStatisticsTab userId={salesUserId} refreshTrigger={refreshTrigger} />
+          <SalesStatisticsTab userId={salesUserId} refreshTrigger={refreshTrigger} showCosts={showCosts} />
         </SalesTabPanel>
         <SalesTabPanel tabId="sales-reports" activeTab={activeTab} isVisited={visitedTabs.has('sales-reports')}>
           <SalesReportsTab
             userId={salesUserId}
             refreshTrigger={refreshTrigger}
             allowedReportTableTabIds={allowedReportTableTabIds}
+            showCosts={showCosts}
           />
         </SalesTabPanel>
         <SalesTabPanel tabId="sales-targets" activeTab={activeTab} isVisited={visitedTabs.has('sales-targets')}>
@@ -453,7 +454,7 @@ export default function SalesPage() {
           <SalesDailySalesTab userId={salesUserId} showCosts={showCosts} refreshTrigger={refreshTrigger} />
         </SalesTabPanel>
         <SalesTabPanel tabId="sales-products" activeTab={activeTab} isVisited={visitedTabs.has('sales-products')}>
-          <SalesProductsTab userId={salesUserId} refreshTrigger={refreshTrigger} />
+          <SalesProductsTab userId={salesUserId} refreshTrigger={refreshTrigger} showCosts={showCosts} />
         </SalesTabPanel>
         <SalesTabPanel tabId="sales-new-listings" activeTab={activeTab} isVisited={visitedTabs.has('sales-new-listings')}>
           <SalesNewListingsTab userId={salesUserId} refreshTrigger={refreshTrigger} />
@@ -462,7 +463,7 @@ export default function SalesPage() {
           <SalesCategoriesTab userId={salesUserId} refreshTrigger={refreshTrigger} />
         </SalesTabPanel>
         <SalesTabPanel tabId="sales-download-form" activeTab={activeTab} isVisited={visitedTabs.has('sales-download-form')}>
-          <SalesStockReportTab userId={salesUserId} refreshTrigger={refreshTrigger} />
+          <SalesStockReportTab userId={salesUserId} refreshTrigger={refreshTrigger} showCosts={showCosts} />
         </SalesTabPanel>
         <SalesTabPanel tabId="sales-my-customers" activeTab={activeTab} isVisited={visitedTabs.has('sales-my-customers')}>
           <SalesSetCustomersTab userId={salesUserId} refreshTrigger={refreshTrigger} />

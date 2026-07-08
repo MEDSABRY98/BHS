@@ -2,15 +2,19 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { bhs_supabas, fetchAssignedDrivers } from '@/lib/supabase';
-import { FileText, Loader2, Download, Printer, AlertCircle, Search, Calendar } from 'lucide-react';
+import { FileText, Loader2, Download, Printer, AlertCircle, Search, Calendar, Archive } from 'lucide-react';
 import { generatePendingDriverInvoicesPDF } from '@/app/LPOs/Pdf/PendingDriverInvoicesPdf';
 import NoData from '@/app/Components/NoDataTab';
+import JSZip from 'jszip';
+import { saveAs } from 'file-saver';
+import { toast } from '@/app/Components/Notification';
 
 export default function PendingDriverInvoices() {
   const [drivers, setDrivers] = useState<any[]>([]);
   const [invoices, setInvoices] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [generatingDriverId, setGeneratingDriverId] = useState<string | null>(null);
+  const [isGeneratingZip, setIsGeneratingZip] = useState(false);
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [customerSearch, setCustomerSearch] = useState('');
@@ -184,6 +188,77 @@ export default function PendingDriverInvoices() {
     }
   };
 
+  const handleDownloadAllZip = async () => {
+    if (driverMetrics.length === 0) return;
+    setIsGeneratingZip(true);
+    toast.success('Generating ZIP file... Please wait.');
+    try {
+      const zip = new JSZip();
+
+      // Fetch admin signature from database once
+      let adminSignature = '';
+      if (currentAdmin?.id) {
+        const { data: adminData } = await bhs_supabas
+          .from('bhs_USERS')
+          .select('SIGNATURE')
+          .eq('ID', currentAdmin.id)
+          .single();
+        if (adminData?.SIGNATURE) {
+          adminSignature = adminData.SIGNATURE;
+        }
+      }
+
+      for (const { driver, invoices: driverInvoices } of driverMetrics) {
+        if (driverInvoices.length === 0) continue;
+
+        // Fetch driver signature
+        let driverSignature = '';
+        const { data: driverData } = await bhs_supabas
+          .from('bhs_USERS')
+          .select('SIGNATURE')
+          .eq('ID', driver.ID)
+          .single();
+        if (driverData?.SIGNATURE) {
+          driverSignature = driverData.SIGNATURE;
+        }
+
+        const sortedDriverInvoices = [...driverInvoices].sort((a, b) => {
+          const dateA = a.ORDER_DATE ? new Date(a.ORDER_DATE).getTime() : (a.CREATED_AT ? new Date(a.CREATED_AT).getTime() : 0);
+          const dateB = b.ORDER_DATE ? new Date(b.ORDER_DATE).getTime() : (b.CREATED_AT ? new Date(b.CREATED_AT).getTime() : 0);
+          if (dateA !== dateB) return dateA - dateB;
+          const invA = a.INVOICE_ID || a.ORDER_ID || '';
+          const invB = b.INVOICE_ID || b.ORDER_ID || '';
+          return invA.localeCompare(invB);
+        });
+
+        const blob = await generatePendingDriverInvoicesPDF(
+          driver.NAME,
+          sortedDriverInvoices,
+          'blob',
+          fromDate,
+          toDate,
+          driverSignature,
+          adminSignature
+        );
+
+        if (blob) {
+          const currentDate = new Date().toISOString().split('T')[0];
+          zip.file(`Pending_Invoices_${driver.NAME.replace(/\s+/g, '_')}_${currentDate}.pdf`, blob);
+        }
+      }
+
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      const dateStr = new Date().toISOString().split('T')[0];
+      saveAs(zipBlob, `Pending_Invoices_${dateStr}.zip`);
+      toast.success('Downloaded ZIP successfully!');
+    } catch (err) {
+      console.error('ZIP Generation failed:', err);
+      toast.error('Failed to generate ZIP file.');
+    } finally {
+      setIsGeneratingZip(false);
+    }
+  };
+
   return (
     <div className="space-y-8">
       {/* Search and Filters */}
@@ -273,6 +348,20 @@ export default function PendingDriverInvoices() {
               Pending Invoices Overview
             </h3>
           </div>
+          {driverMetrics.length > 0 && (
+            <button
+              onClick={handleDownloadAllZip}
+              disabled={isGeneratingZip || generatingDriverId !== null}
+              className="w-10 h-10 flex items-center justify-center bg-black text-[#D4AF37] hover:bg-gray-900 rounded-xl shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+              title="Download All as ZIP"
+            >
+              {isGeneratingZip ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Archive className="w-4 h-4" />
+              )}
+            </button>
+          )}
         </div>
 
         {isLoading ? (
