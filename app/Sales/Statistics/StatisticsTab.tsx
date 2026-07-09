@@ -10,9 +10,10 @@ import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
 interface SalesStatisticsTabProps {
   refreshTrigger?: number;
   userId: string;
+  showCosts?: boolean;
 }
 
-export default function SalesStatisticsTab({ userId, refreshTrigger }: SalesStatisticsTabProps) {
+export default function SalesStatisticsTab({ userId, refreshTrigger, showCosts = true }: SalesStatisticsTabProps) {
   const { commonFilters: filters } = useSalesModuleFilters();
   const [loading, setLoading] = useState(true);
   const [activeSubTab, setActiveSubTab] = useState<'area' | 'market' | 'merchandiser' | 'salesrep'>('area');

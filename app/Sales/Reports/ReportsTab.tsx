@@ -97,6 +97,7 @@ interface SalesReportsTabProps {
   userId: string;
   refreshTrigger?: number;
   allowedReportTableTabIds?: SalesReportsTableTabId[] | null;
+  showCosts?: boolean;
 }
 
 const BORDER_COLORS: Record<string, string> = {
@@ -391,7 +392,7 @@ function InvoiceRankTable({
   );
 }
 
-export default function SalesReportsTab({ userId, refreshTrigger, allowedReportTableTabIds = null }: SalesReportsTabProps) {
+export default function SalesReportsTab({ userId, refreshTrigger, allowedReportTableTabIds = null, showCosts = true }: SalesReportsTabProps) {
   const {
     commonFilters: filters,
     dateFrom,

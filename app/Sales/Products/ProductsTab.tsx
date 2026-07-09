@@ -42,7 +42,7 @@ const ProductRow = memo(({ item, rowNumber, onProductClick }: { item: { productI
 
 ProductRow.displayName = 'ProductRow';
 
-export default function SalesProductsTab({ userId, refreshTrigger }: SalesProductsTabProps) {
+export default function SalesProductsTab({ userId, refreshTrigger, showCosts = true }: SalesProductsTabProps) {
   const { commonFilters: filters } = useSalesModuleFilters();
   const [loading, setLoading] = useState(true);
   const [productsData, setProductsData] = useState<any[]>([]);
