@@ -13,6 +13,7 @@ import { saveAs } from 'file-saver';
 import { exportSalesExcel } from '@/app/Sales/Export/SalesExcelExport';
 
 interface SalesST_ByCustomersProps {
+  customersData: any[];
   refreshTrigger?: number;
   loading: boolean;
   showCosts?: boolean;
