@@ -13,6 +13,7 @@ import { getProductsData } from '../Service/sales_products_service';
 interface SalesProductsTabProps {
   refreshTrigger?: number;
   userId: string;
+  showCosts?: boolean;
 }
 
 const ITEMS_PER_PAGE = 50;
