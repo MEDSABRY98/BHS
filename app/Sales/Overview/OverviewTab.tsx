@@ -24,9 +24,10 @@ import {
 interface SalesOverviewTabProps {
   refreshTrigger?: number;
   userId: string;
+  showCosts?: boolean;
 }
 
-export default function SalesOverviewTab({ refreshTrigger, userId }: SalesOverviewTabProps) {
+export default function SalesOverviewTab({ refreshTrigger, userId, showCosts = true }: SalesOverviewTabProps) {
   const { commonFilters: filters } = useSalesModuleFilters();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<{
