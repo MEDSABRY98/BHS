@@ -9,6 +9,7 @@ import { exportSalesExcel } from '@/app/Sales/Export/SalesExcelExport';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
 
 interface SalesST_ByProductProps {
+  productList: any[];
   refreshTrigger?: number;
   loading: boolean;
   showCosts?: boolean;
