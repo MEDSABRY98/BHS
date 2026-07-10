@@ -8,6 +8,7 @@ import CustomersList from "./CustomersList";
 import AddDiscount from "./AddDiscount";
 import CustomerDetails from "./CustomerDiscountsDetails/CustomerDetails";
 import MonthsOverview from "./MonthsOverview";
+import Statistics from "./Statistics";
 
 type Discount = {
   id: string;
@@ -51,7 +52,7 @@ type AllCustomerItem = {
 
 export default function CustomerDiscountsPage() {
   // Navigation State
-  const [currentView, setCurrentView] = useState<"grid" | "add" | "details" | "months">("grid");
+  const [currentView, setCurrentView] = useState<"grid" | "add" | "details" | "months" | "stats">("grid");
   
   // Data State
   const [customers, setCustomers] = useState<CustomerView[]>([]);
@@ -608,6 +609,10 @@ export default function CustomerDiscountsPage() {
             customers={customers}
             handleSelectCustomer={handleSelectCustomer}
           />
+        )}
+        
+        {currentView === "stats" && (
+          <Statistics customers={customers} />
         )}
 
       </div>
