@@ -32,6 +32,7 @@ const SYSTEMS = [
     { id: 'inventory-scrap', label: 'Inventory Scrap' },
     { id: 'suppliers', label: 'Suppliers' },
     { id: 'lpo-management', label: "LPO's" },
+    { id: 'cash-handover', label: 'Cash Handover' },
     { id: 'database', label: 'Database' },
 ];
 
@@ -92,6 +93,10 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
     'cash-receipt': [
         { id: 'new', label: 'New Receipt' },
         { id: 'saved', label: 'Saved Receipts' }
+    ],
+    'cash-handover': [
+        { id: 'new', label: 'New Handover' },
+        { id: 'saved', label: 'Saved Handovers' }
     ],
     'petty-cash': [
         { id: 'receipts', label: 'Receipts' },
@@ -163,6 +168,7 @@ const getSystemIcon = (id: string) => {
         case 'customers-documents': return <FileCheck className="w-5 h-5 text-pink-500" />;
         case 'documents-tracking': return <ClipboardList className="w-5 h-5 text-violet-500" />;
         case 'lpo-management': return <ShoppingCart className="w-5 h-5 text-fuchsia-500" />;
+        case 'cash-handover': return <ClipboardList className="w-5 h-5 text-purple-600" />;
         case 'database': return <Database className="w-5 h-5 text-slate-500" />;
         default: return <Settings className="w-5 h-5 text-slate-500" />;
     }
