@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { PlusCircle, Trash2, CheckCircle2, Hash, Calendar, User, ClipboardList, DollarSign } from 'lucide-react';
 import { bhs_supabas } from '@/lib/supabase';
 import { toast } from '@/app/Components/Notification';
-import { getNextHandoverId, saveCashHandover, HandoverItem } from '../Service/cash_handover_service';
+import { getNextHandoverId, saveCashHandover, HandoverItem, CashHandover } from '../Service/cash_handover_service';
 import { generateHandoverPdf } from '../Utils/HandoverPdf';
 
 interface Customer {
