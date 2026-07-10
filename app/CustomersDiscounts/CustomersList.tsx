@@ -49,26 +49,32 @@ export default function CustomersList({
   return (
     <div className="flex-1 overflow-y-auto p-8 animate-in fade-in duration-300">
       <div className="max-w-7xl mx-auto">
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h2 className="text-3xl font-bold text-gray-900">Customers List</h2>
+        <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4 mb-8">
+          <div className="flex items-center gap-3 w-full sm:w-auto">
+            <div className="bg-[#D4AF37]/10 p-3 rounded-2xl">
+              <User className="w-6 h-6 text-[#D4AF37]" />
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900">Customers List</h2>
           </div>
-          <div className="flex items-center gap-4 relative w-full md:w-auto">
-            <div className="relative w-full md:w-80">
-              <Search className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+
+          <div className="flex items-center gap-4 w-full sm:w-auto">
+            <div className="relative w-full sm:w-96">
+              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                <Search className="h-5 w-5 text-gray-400" />
+              </div>
               <input 
                 type="text" 
                 placeholder="Search by name or ID..." 
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-12 pr-4 py-3 bg-white border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#D4AF37] shadow-sm transition-all"
+                className="block w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#D4AF37] focus:border-[#D4AF37] transition-all font-medium text-gray-900 placeholder-gray-400"
               />
             </div>
             
             <button
               onClick={handleExport}
               disabled={exporting || filteredCustomers.length === 0}
-              className="flex items-center justify-center p-3 bg-green-50 text-green-700 hover:bg-green-100 border border-green-200 rounded-2xl transition-all disabled:opacity-50 shadow-sm"
+              className="flex items-center justify-center p-3.5 bg-green-50 text-green-700 hover:bg-green-100 border border-green-200 rounded-2xl transition-all disabled:opacity-50 shadow-sm shrink-0"
               title="Export to Excel"
             >
               {exporting ? <Loader2 className="w-5 h-5 animate-spin" /> : <FileSpreadsheet className="w-5 h-5" />}
@@ -77,8 +83,22 @@ export default function CustomersList({
         </div>
 
         {loading ? (
-          <div className="flex justify-center items-center h-64">
-            <div className="animate-spin rounded-full h-12 w-12 border-4 border-gray-200 border-t-[#D4AF37]"></div>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
+            {[...Array(9)].map((_, i) => (
+              <div key={i} className="bg-white border border-gray-100 rounded-3xl p-6 shadow-sm flex flex-col gap-6 animate-pulse min-h-[200px]">
+                <div className="flex items-center gap-4">
+                  <div className="bg-gray-200 w-14 h-14 rounded-2xl" />
+                  <div className="flex-1 space-y-3">
+                    <div className="bg-gray-200 w-3/4 h-6 rounded-lg" />
+                    <div className="bg-gray-200 w-1/2 h-4 rounded-lg" />
+                  </div>
+                </div>
+                <div className="mt-auto space-y-2">
+                  <div className="bg-gray-100 w-full h-12 rounded-xl" />
+                  <div className="bg-gray-100 w-full h-12 rounded-xl" />
+                </div>
+              </div>
+            ))}
           </div>
         ) : filteredCustomers.length === 0 ? (
           <div className="text-center py-20 bg-white rounded-3xl shadow-sm border border-gray-100">

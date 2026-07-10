@@ -16,7 +16,7 @@ type CustomerView = {
   discounts: Discount[];
 };
 
-import { MonthGroup } from "./page";
+import { MonthGroup } from "../page";
 
 interface CD_PendingMonthsTabProps {
   pendingMonthGroups: MonthGroup[];

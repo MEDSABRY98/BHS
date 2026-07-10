@@ -6,7 +6,8 @@ import Sidebar from "./Sidebar";
 import ConfirmModal from "./ConfirmModal";
 import CustomersList from "./CustomersList";
 import AddDiscount from "./AddDiscount";
-import CustomerDetails from "./CustomerDetails";
+import CustomerDetails from "./CustomerDiscountsDetails/CustomerDetails";
+import MonthsOverview from "./MonthsOverview";
 
 type Discount = {
   id: string;
@@ -36,7 +37,7 @@ export type MonthGroup = {
   settledIds: string[];
 };
 
-type CustomerView = {
+export type CustomerView = {
   customerId: string;
   customerName: string;
   city: string;
@@ -50,7 +51,7 @@ type AllCustomerItem = {
 
 export default function CustomerDiscountsPage() {
   // Navigation State
-  const [currentView, setCurrentView] = useState<"grid" | "add" | "details">("grid");
+  const [currentView, setCurrentView] = useState<"grid" | "add" | "details" | "months">("grid");
   
   // Data State
   const [customers, setCustomers] = useState<CustomerView[]>([]);
@@ -599,6 +600,13 @@ export default function CustomerDiscountsPage() {
             handleDeleteDiscount={handleDeleteDiscount}
             isSubmitting={isSubmitting}
             startEditDiscount={startEditDiscount}
+          />
+        )}
+        
+        {currentView === "months" && (
+          <MonthsOverview 
+            customers={customers}
+            handleSelectCustomer={handleSelectCustomer}
           />
         )}
 

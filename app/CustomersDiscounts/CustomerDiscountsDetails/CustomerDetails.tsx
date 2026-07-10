@@ -28,7 +28,7 @@ type Settlement = {
   notes: string;
 };
 
-import { MonthGroup } from "./page";
+import { MonthGroup } from "../page";
 
 interface CustomerDetailsProps {
   selectedCustomer: CustomerView;

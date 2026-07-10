@@ -1,11 +1,11 @@
 import React from "react";
-import { ShieldCheck, ArrowLeft, ChevronRight, ChevronLeft } from "lucide-react";
+import { ShieldCheck, ArrowLeft, ChevronRight, ChevronLeft, Calendar } from "lucide-react";
 
 interface SidebarProps {
   isSidebarOpen: boolean;
   setIsSidebarOpen: (val: boolean) => void;
-  currentView: "grid" | "add" | "details";
-  setCurrentView: (view: "grid" | "add" | "details") => void;
+  currentView: "grid" | "add" | "details" | "months";
+  setCurrentView: (view: "grid" | "add" | "details" | "months") => void;
   setSelectedCustomer: (val: null) => void;
 }
 
@@ -53,6 +53,21 @@ export default function Sidebar({
           {isSidebarOpen ? <span>Customers List</span> : <span className="font-bold text-lg">C</span>}
         </button>
         
+        <button
+          onClick={() => {
+            setCurrentView("months");
+            setSelectedCustomer(null);
+          }}
+          className={`w-full flex items-center ${isSidebarOpen ? 'justify-start px-4' : 'justify-center px-0'} py-3 rounded-xl transition-all ${
+            currentView === "months"
+              ? "bg-[#D4AF37] text-gray-900 font-bold shadow-lg shadow-[#D4AF37]/20"
+              : "text-gray-400 hover:bg-gray-800 hover:text-white"
+          }`}
+          title="Monthly Overview"
+        >
+          {isSidebarOpen ? <span>Monthly Overview</span> : <Calendar className="w-5 h-5" />}
+        </button>
+
         <button
           onClick={() => {
             setCurrentView("add");

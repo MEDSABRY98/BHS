@@ -82,8 +82,18 @@ export async function exportCustomersExcel(filteredCustomers: CustomerView[]) {
       // Fill months
       const customerSettlements = yearSettlements[customer.customerId] || {};
       
+      // Determine max month for this year
+      const currentYear = new Date().getFullYear();
+      const currentMonth = new Date().getMonth() + 1;
+      let maxMonth = 12;
+      if (year === currentYear) {
+        maxMonth = currentMonth;
+      } else if (year > currentYear) {
+        maxMonth = 0;
+      }
+
       // For each month, check if there are pending settlements
-      for (let m = 1; m <= 12; m++) {
+      for (let m = 1; m <= maxMonth; m++) {
         const statuses = customerSettlements[m];
         const monthName = monthNames[m - 1];
         
@@ -106,7 +116,8 @@ export async function exportCustomersExcel(filteredCustomers: CustomerView[]) {
       views: [{ showGridLines: false }],
     });
 
-    const keys = Object.keys(exportData[0]);
+    const keys = Object.keys(exportData[0] || {});
+    if (keys.length === 0) continue;
     
     worksheet.columns = keys.map((key) => {
       let width = 15;
@@ -129,10 +140,6 @@ export async function exportCustomersExcel(filteredCustomers: CustomerView[]) {
           horizontal: 'center',
           wrapText: true,
         };
-
-        if (columnKey === "Customer Name") {
-          cell.alignment.horizontal = 'left';
-        }
 
         if (rowNumber === 1) {
           cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
