@@ -15,6 +15,7 @@ import { generateVoucherPdf } from '../Utils/VoucherPdf';
 import { toast } from '@/app/Components/Notification';
 import { getPettyCashRecords, createPettyCashEntry, updatePettyCashEntry, deletePettyCashEntry, settlePettyCashPeriod } from '../Service/petty_cash_service';
 import { getVouchers, createVoucher } from '../Service/vouchers_service';
+import { exportDebitExcelWorkbook } from '../../Debit/Export/DebitExcelExport';
 
 interface Receipt {
   id: string;
@@ -516,8 +517,12 @@ export default function PettyCashTab() {
       .sort((a, b) => b.amount - a.amount);
   }, [filteredExpenses]);
 
-  const exportToExcel = () => {
-    const receiptsData = filteredReceipts.slice().reverse().map(receipt => ({
+  const exportToExcel = async () => {
+    // Sort data chronologically by date
+    const sortedReceipts = [...filteredReceipts].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    const sortedExpenses = [...filteredExpenses].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    const receiptsData = sortedReceipts.map(receipt => ({
       'Date': receipt.date,
       'Amount': receipt.amount,
       'Source': receipt.source,
@@ -525,7 +530,7 @@ export default function PettyCashTab() {
       'Paid': receipt.paid
     }));
 
-    const expensesData = filteredExpenses.slice().reverse().map(expense => ({
+    const expensesData = sortedExpenses.map(expense => ({
       'Date': expense.date,
       'Amount': expense.amount,
       'Recipient': expense.source,
@@ -533,19 +538,56 @@ export default function PettyCashTab() {
       'Paid': expense.paid
     }));
 
-    const workbook = XLSX.utils.book_new();
+    const sheets: any[] = [];
+    
+    sheets.push({
+      name: 'Receipts Tracking',
+      data: receiptsData,
+      options: { numericColumns: ['Amount'] }
+    });
 
-    const receiptsSheet = XLSX.utils.json_to_sheet(receiptsData);
-    XLSX.utils.book_append_sheet(workbook, receiptsSheet, 'Receipts Tracking');
+    sheets.push({
+      name: 'All Expenses',
+      data: expensesData,
+      options: { numericColumns: ['Amount'] }
+    });
 
-    const expensesSheet = XLSX.utils.json_to_sheet(expensesData);
-    XLSX.utils.book_append_sheet(workbook, expensesSheet, 'Expenses Tracking');
+    // Group expenses by recipient
+    const recipientGroups: Record<string, any[]> = {};
+    sortedExpenses.forEach(expense => {
+      const recipient = expense.source;
+      if (!recipientGroups[recipient]) {
+        recipientGroups[recipient] = [];
+      }
+      recipientGroups[recipient].push({
+        'Date': expense.date,
+        'Amount': expense.amount,
+        'Description': expense.description,
+        'Paid': expense.paid
+      });
+    });
+
+    // Create a sheet for each recipient
+    Object.keys(recipientGroups).sort().forEach(recipient => {
+      const cleanName = recipient.replace(/[\\/?*\[\]]/g, '').trim();
+      const sheetName = cleanName.slice(0, 31) || 'Unknown'; // Excel sheet names max 31 chars
+      sheets.push({
+        name: sheetName,
+        data: recipientGroups[recipient],
+        options: { numericColumns: ['Amount'] }
+      });
+    });
 
     const date = new Date().toISOString().split('T')[0];
     const filename = `Petty_Cash_Statistics_${date}.xlsx`;
 
-    XLSX.writeFile(workbook, filename);
-    toast.success(`Exported to ${filename}`);
+    try {
+      await exportDebitExcelWorkbook(sheets, filename);
+      toast.success(`Exported to ${filename}`);
+    } catch (error) {
+      console.error('Error exporting to Excel:', error);
+      toast.error('Failed to export data');
+    }
   };
 
   const totalReceipts = filteredReceipts.reduce((sum, r) => sum + r.amount, 0);
