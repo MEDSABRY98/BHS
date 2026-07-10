@@ -23,7 +23,7 @@ function SearchableCustomerSelect({ customers, value, onChange }: { customers: C
     <div className="relative">
       <input
         type="text"
-        className="w-full bg-gray-50 border-2 border-transparent rounded-xl px-4 py-3 outline-none focus:bg-white focus:border-purple-500 font-bold text-gray-900 transition-all text-center"
+        className="w-full bg-gray-50 border-2 border-transparent rounded-xl px-4 py-3 outline-none focus:bg-white focus:border-black font-bold text-gray-900 transition-all text-center"
         placeholder="Search customer..."
         value={displayValue}
         onChange={(e) => {
@@ -39,7 +39,7 @@ function SearchableCustomerSelect({ customers, value, onChange }: { customers: C
           {filteredCustomers.map(c => (
             <div
               key={c.id}
-              className="px-4 py-3 hover:bg-purple-50 cursor-pointer font-bold text-gray-800 border-b border-gray-50 last:border-0 transition-colors"
+              className="px-4 py-3 hover:bg-gray-100 cursor-pointer font-bold text-gray-800 border-b border-gray-50 last:border-0 transition-colors"
               onMouseDown={(e) => {
                 e.preventDefault(); // prevent blur before click
                 onChange(c.id);
@@ -68,7 +68,7 @@ function SearchableReceiverInput({ receivers, value, onChange }: { receivers: st
     <div className="relative w-full">
       <input
         type="text"
-        className="w-full px-5 py-4 bg-gray-50 border-2 border-transparent rounded-2xl text-lg font-bold text-gray-900 focus:bg-white focus:border-purple-600 transition-all outline-none"
+        className="w-full px-5 py-4 bg-gray-50 border-2 border-transparent rounded-2xl text-lg font-bold text-gray-900 focus:bg-white focus:border-black transition-all outline-none"
         placeholder="Enter receiver name"
         value={value}
         onChange={(e) => {
@@ -83,7 +83,7 @@ function SearchableReceiverInput({ receivers, value, onChange }: { receivers: st
           {filteredReceivers.map((r, idx) => (
             <div
               key={idx}
-              className="px-5 py-3 hover:bg-purple-50 cursor-pointer font-bold text-gray-800 border-b border-gray-50 last:border-0 transition-colors"
+              className="px-5 py-3 hover:bg-gray-100 cursor-pointer font-bold text-gray-800 border-b border-gray-50 last:border-0 transition-colors"
               onMouseDown={(e) => {
                 e.preventDefault(); // prevent blur
                 onChange(r);
@@ -286,7 +286,7 @@ export default function HandoverForm({
           <button
             onClick={handleSaveAndPrint}
             disabled={loading}
-            className="flex items-center justify-center gap-2 bg-purple-600 text-white min-w-[220px] py-4 px-6 rounded-2xl font-black text-lg hover:bg-purple-700 hover:-translate-y-1 hover:shadow-lg hover:shadow-purple-200 transition-all disabled:opacity-50"
+            className="flex items-center justify-center gap-2 bg-black text-[#D4AF37] min-w-[220px] py-4 px-6 rounded-2xl font-black text-lg hover:bg-gray-900 hover:-translate-y-1 hover:shadow-lg hover:shadow-black/20 transition-all disabled:opacity-50"
           >
             {loading ? (
               <div className="w-6 h-6 border-2 border-white/20 border-t-white rounded-full animate-spin" />
@@ -299,7 +299,7 @@ export default function HandoverForm({
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-x-8 gap-y-8 mb-12">
           <div className="group">
-            <label className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-gray-400 mb-3 transition-colors group-focus-within:text-purple-600">
+            <label className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-gray-400 mb-3 transition-colors group-focus-within:text-black">
               <Hash className="w-4 h-4" />
               Handover ID
             </label>
@@ -312,7 +312,7 @@ export default function HandoverForm({
           </div>
           
           <div className="group">
-            <label className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-gray-400 mb-3 transition-colors group-focus-within:text-purple-600">
+            <label className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-gray-400 mb-3 transition-colors group-focus-within:text-black">
               <Calendar className="w-4 h-4" />
               Date
             </label>
@@ -320,12 +320,12 @@ export default function HandoverForm({
               type="date"
               value={formData.date}
               onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-              className="w-full px-5 py-4 bg-gray-50 border-2 border-transparent rounded-2xl text-lg font-bold text-gray-900 focus:bg-white focus:border-purple-600 transition-all outline-none"
+              className="w-full px-5 py-4 bg-gray-50 border-2 border-transparent rounded-2xl text-lg font-bold text-gray-900 focus:bg-white focus:border-black transition-all outline-none"
             />
           </div>
 
           <div className="group">
-            <label className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-gray-400 mb-3 transition-colors group-focus-within:text-purple-600">
+            <label className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-gray-400 mb-3 transition-colors group-focus-within:text-black">
               <User className="w-4 h-4" />
               Who Received
             </label>
@@ -339,8 +339,8 @@ export default function HandoverForm({
 
         <div className="pt-8 border-t-2 border-dashed border-gray-100">
           <div className="flex items-center gap-3 mb-8">
-            <div className="p-2.5 bg-purple-100 rounded-xl">
-              <ClipboardList className="w-6 h-6 text-purple-600" />
+            <div className="p-2.5 bg-gray-100 rounded-xl">
+              <ClipboardList className="w-6 h-6 text-black" />
             </div>
             <h3 className="text-2xl font-black text-gray-900 tracking-tight uppercase">Receipts List</h3>
           </div>
@@ -371,7 +371,7 @@ export default function HandoverForm({
                         value={item.receiptNumber}
                         onChange={(e) => handleItemChange(index, 'receiptNumber', e.target.value)}
                         placeholder="Inv-123"
-                        className="w-full bg-gray-50 border-2 border-transparent rounded-xl px-4 py-3 outline-none focus:bg-white focus:border-purple-500 font-bold text-gray-900 transition-all text-center placeholder-gray-300"
+                        className="w-full bg-gray-50 border-2 border-transparent rounded-xl px-4 py-3 outline-none focus:bg-white focus:border-black font-bold text-gray-900 transition-all text-center placeholder-gray-300"
                       />
                     </td>
                     <td className="px-6 py-4 align-top">
@@ -380,7 +380,7 @@ export default function HandoverForm({
                         value={item.amount || ''}
                         onChange={(e) => handleItemChange(index, 'amount', parseFloat(e.target.value))}
                         placeholder="0.00"
-                        className="w-full bg-purple-50 border-2 border-transparent rounded-xl px-4 py-3 outline-none focus:bg-white focus:border-purple-600 font-black text-purple-700 transition-all text-center placeholder-purple-200 text-lg"
+                        className="w-full bg-gray-50 border-2 border-transparent rounded-xl px-4 py-3 outline-none focus:bg-white focus:border-black font-black text-black transition-all text-center placeholder-gray-400 text-lg"
                       />
                     </td>
                     <td className="px-4 py-4 align-middle text-center">
@@ -401,7 +401,7 @@ export default function HandoverForm({
           <div className="flex flex-col sm:flex-row justify-between items-center gap-6">
             <button
               onClick={handleAddItem}
-              className="flex items-center gap-2 px-6 py-4 bg-gray-50 text-gray-700 font-bold rounded-2xl hover:bg-purple-50 hover:text-purple-700 transition-colors w-full sm:w-auto"
+              className="flex items-center gap-2 px-6 py-4 bg-gray-50 text-gray-700 font-bold rounded-2xl hover:bg-black hover:text-[#D4AF37] transition-colors w-full sm:w-auto"
             >
               <PlusCircle className="w-5 h-5" />
               Add Receipt

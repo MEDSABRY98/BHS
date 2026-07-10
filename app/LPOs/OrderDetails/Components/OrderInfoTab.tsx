@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 
 export type OrderInfoTabHandle = {
-  save: () => Promise<void>;
+  save: (notes?: string) => Promise<void>;
   cancel: () => void;
 };
 
@@ -139,7 +139,7 @@ const OrderInfoTab = forwardRef<OrderInfoTabHandle, OrderInfoTabProps>(function 
     onEditingChange(false);
   };
 
-  const handleSave = async () => {
+  const handleSave = async (notes?: string) => {
     if (!formData.CUSTOMER_ID) {
       toast.error('Please select a customer');
       return;
@@ -178,16 +178,22 @@ const OrderInfoTab = forwardRef<OrderInfoTabHandle, OrderInfoTabProps>(function 
         ? new Date(formData.ORDER_DATE).toISOString()
         : order.ORDER_DATE || order.CREATED_AT;
 
+      const updateData: any = {
+        CUSTOMER_ID: formData.CUSTOMER_ID,
+        CREATED_BY: formData.CREATED_BY || null,
+        INVOICE_ID: trimmedInvoice || null,
+        LPO_ID: trimmedLpo || null,
+        ORDER_DATE: orderDateVal,
+        AMOUNT: amount,
+      };
+
+      if (notes !== undefined) {
+        updateData.NOTES = notes;
+      }
+
       const { error } = await bhs_supabas
         .from('app_lpos_ORDERS')
-        .update({
-          CUSTOMER_ID: formData.CUSTOMER_ID,
-          CREATED_BY: formData.CREATED_BY || null,
-          INVOICE_ID: trimmedInvoice || null,
-          LPO_ID: trimmedLpo || null,
-          ORDER_DATE: orderDateVal,
-          AMOUNT: amount,
-        })
+        .update(updateData)
         .eq('ID', order.ID);
 
       if (error) throw error;

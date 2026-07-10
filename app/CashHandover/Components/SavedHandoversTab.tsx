@@ -63,7 +63,7 @@ export default function SavedHandoversTab({ onEdit }: { onEdit?: (handover: Cash
 
       {isLoading ? (
         <div className="flex flex-col items-center justify-center py-24">
-          <div className="w-8 h-8 border-2 border-purple-600 border-t-transparent rounded-full animate-spin mb-3"></div>
+          <div className="w-8 h-8 border-2 border-black border-t-transparent rounded-full animate-spin mb-3"></div>
           <span className="text-sm text-gray-500 font-medium">Loading handovers...</span>
         </div>
       ) : handovers.length > 0 ? (
@@ -72,12 +72,12 @@ export default function SavedHandoversTab({ onEdit }: { onEdit?: (handover: Cash
             <button
               key={handover.ID}
               onClick={() => setSelectedHandover(handover)}
-              className="group relative bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-lg hover:border-purple-300 hover:-translate-y-0.5 transition-all duration-200 overflow-hidden w-full text-left"
+              className="group relative bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-lg hover:border-black hover:-translate-y-0.5 transition-all duration-200 overflow-hidden w-full text-left"
             >
-              <div className="h-1.5 bg-gradient-to-r from-purple-600 to-purple-400" />
+              <div className="h-1.5 bg-gradient-to-r from-black to-gray-800" />
               <div className="p-5">
                 <div className="flex items-center justify-between mb-4">
-                  <span className="inline-flex items-center gap-1.5 bg-purple-50 text-purple-700 text-xs font-bold px-2.5 py-1 rounded-lg border border-purple-100">
+                  <span className="inline-flex items-center gap-1.5 bg-black text-[#D4AF37] text-xs font-bold px-2.5 py-1 rounded-lg">
                     <ClipboardList className="w-3 h-3" />
                     {handover.ID}
                   </span>
@@ -129,8 +129,8 @@ export default function SavedHandoversTab({ onEdit }: { onEdit?: (handover: Cash
           >
             <div className="flex items-start justify-between gap-4 mb-6">
               <div className="flex items-center gap-3">
-                <div className="p-3 bg-purple-50 rounded-2xl shrink-0">
-                  <ClipboardList className="w-6 h-6 text-purple-600" />
+                <div className="p-3 bg-gray-50 rounded-2xl shrink-0 group-hover:bg-black transition-colors">
+                  <ClipboardList className="w-6 h-6 text-black group-hover:text-[#D4AF37] transition-colors" />
                 </div>
                 <div>
                   <h3 className="text-xl font-black text-gray-900">{selectedHandover.ID}</h3>
@@ -148,7 +148,7 @@ export default function SavedHandoversTab({ onEdit }: { onEdit?: (handover: Cash
             <div className="flex flex-col gap-3">
               <button
                 onClick={() => handleReprint(selectedHandover)}
-                className="w-full flex items-center justify-center gap-2 py-4 px-4 bg-purple-600 text-white font-bold rounded-xl hover:bg-purple-700 hover:shadow-lg hover:-translate-y-0.5 transition-all"
+                className="w-full flex items-center justify-center gap-2 py-4 px-4 bg-black text-[#D4AF37] font-bold rounded-xl hover:bg-gray-900 hover:shadow-lg hover:-translate-y-0.5 transition-all"
               >
                 <Printer className="w-5 h-5" />
                 Reprint PDF

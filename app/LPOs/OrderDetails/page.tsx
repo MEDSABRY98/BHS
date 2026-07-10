@@ -280,7 +280,7 @@ function OrderDetailsPageContent() {
                   <X className="w-5 h-5" />
                 </button>
                 <button
-                  onClick={() => orderInfoRef.current?.save()}
+                  onClick={() => orderInfoRef.current?.save(adminNotes)}
                   disabled={orderInfoSaving || orderInfoLoadingOptions}
                   className="p-4 bg-black border border-black text-[#D4AF37] rounded-2xl hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center shadow-xl shadow-black/20 disabled:opacity-50"
                   title="Save Changes"
@@ -415,10 +415,10 @@ function OrderDetailsPageContent() {
         <h3 className="text-xl font-black mb-6 text-black">Admin Notes</h3>
         <textarea
           value={adminNotes}
-          readOnly={!canEdit || (order?.STATUS !== 'Pending' && !isEditingStatus)}
+          readOnly={!canEdit || (order?.STATUS !== 'Pending' && !isEditingStatus && !isEditingOrderInfo)}
           onChange={(e) => setAdminNotes(e.target.value)}
-          placeholder={canEdit && (order?.STATUS === 'Pending' || isEditingStatus) ? "Add any internal notes about this order..." : "No notes available"}
-          className={`w-full h-32 p-6 bg-gray-50 border border-gray-100 rounded-3xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold placeholder:text-gray-400 resize-none ${!canEdit || (order?.STATUS !== 'Pending' && !isEditingStatus) ? 'opacity-50 cursor-not-allowed' : ''}`}
+          placeholder={canEdit && (order?.STATUS === 'Pending' || isEditingStatus || isEditingOrderInfo) ? "Add any internal notes about this order..." : "No notes available"}
+          className={`w-full h-32 p-6 bg-gray-50 border border-gray-100 rounded-3xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold placeholder:text-gray-400 resize-none ${!canEdit || (order?.STATUS !== 'Pending' && !isEditingStatus && !isEditingOrderInfo) ? 'opacity-50 cursor-not-allowed' : ''}`}
         />
       </div>
     </div>

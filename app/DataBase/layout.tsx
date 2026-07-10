@@ -18,7 +18,8 @@ import {
   FileSpreadsheet,
   ArrowLeftRight,
   Hash,
-  Truck
+  Truck,
+  Building2
 } from 'lucide-react';
 
 interface NavItemProps {
@@ -108,19 +109,20 @@ export default function DatabaseLayout({ children }: { children: React.ReactNode
 
   const NAV_ITEMS = [
     { id: 'db-customers', href: '/DataBase/Customers', icon: UserCircle, label: 'Customers DB' },
+    { id: 'db-debit', href: '/DataBase/Debit', icon: Database, label: 'Debit DB' },
+    { id: 'db-emails', href: '/DataBase/Emails', icon: Database, label: 'Emails DB' },
     { id: 'db-inv-count-products', href: '/DataBase/InventoryCountProducts', icon: Package, label: 'Inventory Count Products' },
     { id: 'db-inv-itemcode', href: '/DataBase/InventoryItemCode', icon: Hash, label: 'Inventory Item Code' },
     { id: 'db-inv-moves', href: '/DataBase/InventoryMoves', icon: ArrowLeftRight, label: 'Inventory Moves' },
     { id: 'db-inv-products', href: '/DataBase/InventoryProducts', icon: Package, label: 'Inventory Products' },
+    { id: 'db-lulu-emails', href: '/DataBase/LuluEmails', icon: Database, label: 'Lulu Emails DB' },
+    { id: 'db-personnel', href: '/DataBase/Personnel', icon: Users, label: 'Personnel DB' },
     { id: 'db-products', href: '/DataBase/Products', icon: Package, label: 'Products DB' },
     { id: 'db-sales', href: '/DataBase/Sales', icon: FileSpreadsheet, label: 'Sales DB' },
-    { id: 'db-debit', href: '/DataBase/Debit', icon: Database, label: 'Debit DB' },
-    { id: 'db-emails', href: '/DataBase/Emails', icon: Database, label: 'Emails DB' },
-    { id: 'db-lulu-emails', href: '/DataBase/LuluEmails', icon: Database, label: 'Lulu Emails DB' },
+    { id: 'db-suppliers', href: '/DataBase/Suppliers', icon: Building2, label: 'Suppliers DB' },
     { id: 'db-suppliers-purchase', href: '/DataBase/SuppliersPurchase', icon: Truck, label: 'Suppliers Purchase' },
     { id: 'db-suppliers-refund', href: '/DataBase/SuppliersRefund', icon: Truck, label: 'Suppliers Refund' },
     { id: 'db-users', href: '/DataBase/Users', icon: Users, label: 'Users DB' },
-    { id: 'db-personnel', href: '/DataBase/Personnel', icon: Users, label: 'Personnel DB' },
   ];
 
   return (

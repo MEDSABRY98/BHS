@@ -73,28 +73,6 @@ export default function CashHandoverPage() {
 
   return (
     <div className="flex h-screen bg-[#F8F9FA] text-black flex-col">
-      {/* Header */}
-      <header className="sticky top-0 z-30 bg-white border-b border-slate-200 shadow-sm no-print">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => router.push('/')}
-              className="p-2 text-slate-600 hover:text-slate-900 rounded-xl hover:bg-slate-100 transition-all flex items-center gap-2"
-              title="Back to Home"
-            >
-              <ArrowLeft className="w-5 h-5" />
-              <span className="font-bold hidden sm:block">Back</span>
-            </button>
-            <div className="flex items-center gap-2 text-purple-600">
-              <ClipboardList className="w-6 h-6" />
-              <span className="font-black text-lg tracking-tight uppercase">
-                {activeTab === 'new' ? 'Cash Handover' : 'Saved Handovers'}
-              </span>
-            </div>
-          </div>
-        </div>
-      </header>
-
       {/* Main Layout */}
       <div className="flex flex-1 flex-col md:flex-row overflow-hidden w-full">
         {/* Sidebar */}

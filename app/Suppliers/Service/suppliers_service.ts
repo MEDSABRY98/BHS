@@ -17,6 +17,18 @@ export async function getSuppliersInvoices() {
       type: 'Purchase' | 'Refund';
     }[] = [];
 
+    // Fetch all suppliers to map ID to Name
+    const { data: suppliersData } = await bhs_supabas
+      .from('bhs_SUPPLIERS')
+      .select('"SUPPLIER ID", "SUPPLIER NAME"');
+      
+    const supplierMap = new Map<string, string>();
+    if (suppliersData) {
+      suppliersData.forEach(s => {
+         supplierMap.set(String(s['SUPPLIER ID']).trim(), s['SUPPLIER NAME']);
+      });
+    }
+
     while (true) {
       const { data, error } = await bhs_supabas
         .from('web_Suppliers_Invoices')
@@ -28,8 +40,10 @@ export async function getSuppliersInvoices() {
       if (!data || data.length === 0) break;
 
       data.forEach((row) => {
-        const supplierName = String(row['SUPPLIER NAME'] || '').trim();
-        if (!supplierName) return;
+        const rawSupplier = String(row['SUPPLIER NAME'] || '').trim();
+        if (!rawSupplier) return;
+        
+        const supplierName = supplierMap.get(rawSupplier) || rawSupplier;
 
         allRows.push({
           date: row.DATE || '',
@@ -238,6 +252,18 @@ export async function uploadSuppliersInvoices(type: SupplierInvoiceType, rows: a
 
 export async function getSuppliersMatching() {
   try {
+    // Fetch all suppliers to map ID to Name
+    const { data: suppliersData } = await bhs_supabas
+      .from('bhs_SUPPLIERS')
+      .select('"SUPPLIER ID", "SUPPLIER NAME"');
+      
+    const supplierMap = new Map<string, string>();
+    if (suppliersData) {
+      suppliersData.forEach(s => {
+         supplierMap.set(String(s['SUPPLIER ID']).trim(), s['SUPPLIER NAME']);
+      });
+    }
+
     const { data, error } = await bhs_supabas
       .from('web_Suppliers_Matching')
       .select('"ID", "SUPPLIER NAME", "MONTHS"')
@@ -245,11 +271,16 @@ export async function getSuppliersMatching() {
 
     if (error) throw error;
 
-    const mapped = (data || []).map((row) => ({
-      id: row.ID || '',
-      name: row['SUPPLIER NAME'] || '',
-      months: row.MONTHS || '',
-    }));
+    const mapped = (data || []).map((row) => {
+      const rawSupplier = String(row['SUPPLIER NAME'] || '').trim();
+      const mappedName = supplierMap.get(rawSupplier) || rawSupplier;
+      
+      return {
+        id: row.ID || '',
+        name: mappedName,
+        months: row.MONTHS || '',
+      };
+    });
 
     return { data: mapped };
   } catch (error) {
