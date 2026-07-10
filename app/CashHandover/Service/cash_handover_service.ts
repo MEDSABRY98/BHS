@@ -13,7 +13,6 @@ export interface CashHandover {
   ITEMS: HandoverItem[];
   TOTAL_AMOUNT: number;
   WHO_RECEIVED: string;
-  HANDED_BY: string;
 }
 
 export async function getNextHandoverId(): Promise<string> {
