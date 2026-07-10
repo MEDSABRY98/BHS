@@ -28,17 +28,19 @@ type Settlement = {
   notes: string;
 };
 
+import { MonthGroup } from "./page";
+
 interface CustomerDetailsProps {
   selectedCustomer: CustomerView;
   activeTab: "details" | "pending" | "settled";
   setActiveTab: (tab: "details" | "pending" | "settled") => void;
   setCurrentView: (view: "grid" | "add" | "details") => void;
   setSelectedCustomer: (c: null) => void;
-  pendingSettlements: Settlement[];
-  settledSettlements: Settlement[];
+  pendingMonthGroups: MonthGroup[];
+  settledMonthGroups: MonthGroup[];
   getMonthName: (m: number) => string;
-  handleSettle: (id: string) => void;
-  handleUnsettle: (id: string) => void;
+  handleSettle: (ids: string[]) => void;
+  handleUnsettle: (ids: string[]) => void;
   openConfirm: (options: any) => void;
   
   // Edit & Delete handlers for DiscountDetailsTab
@@ -151,7 +153,7 @@ export default function CustomerDetails(props: CustomerDetailsProps) {
         
         {activeTab === "pending" && (
           <CD_PendingMonthsTab 
-            pendingSettlements={props.pendingSettlements}
+            pendingMonthGroups={props.pendingMonthGroups}
             selectedCustomer={props.selectedCustomer}
             getMonthName={props.getMonthName}
             handleSettle={props.handleSettle}
@@ -160,7 +162,7 @@ export default function CustomerDetails(props: CustomerDetailsProps) {
         
         {activeTab === "settled" && (
           <CD_SettledMonthsTab 
-            settledSettlements={props.settledSettlements}
+            settledMonthGroups={props.settledMonthGroups}
             selectedCustomer={props.selectedCustomer}
             getMonthName={props.getMonthName}
             handleUnsettle={props.handleUnsettle}

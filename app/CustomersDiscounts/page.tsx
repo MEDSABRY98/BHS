@@ -1,6 +1,6 @@
 "use client";
-
 import React, { useEffect, useState } from "react";
+import { CheckCircle } from "lucide-react";
 import { bhs_supabase, fetchAllData } from "@/lib/supabase";
 import Sidebar from "./Sidebar";
 import ConfirmModal from "./ConfirmModal";
@@ -23,6 +23,17 @@ type Settlement = {
   year: number;
   status: string; // "Pending" or "Settled"
   notes: string;
+};
+
+export type MonthGroup = {
+  key: string;
+  month: number;
+  year: number;
+  totalCount: number;
+  settledCount: number;
+  pendingCount: number;
+  pendingIds: string[];
+  settledIds: string[];
 };
 
 type CustomerView = {
@@ -69,6 +80,16 @@ export default function CustomerDiscountsPage() {
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [addError, setAddError] = useState("");
+  
+  // Toast Notification State
+  const [toastMessage, setToastMessage] = useState<{show: boolean, message: string}>({ show: false, message: "" });
+  
+  const showToast = (message: string) => {
+    setToastMessage({ show: true, message });
+    setTimeout(() => {
+      setToastMessage(prev => ({ ...prev, show: false }));
+    }, 3000);
+  };
 
   // Edit State
   const [editingDiscountId, setEditingDiscountId] = useState<string | null>(null);
@@ -284,18 +305,18 @@ export default function CustomerDiscountsPage() {
     }
   };
 
-  const handleSettle = async (settlementId: string) => {
+  const handleSettle = async (settlementIds: string[]) => {
     try {
       const { error } = await bhs_supabase
         .from("web_CUSTOMERS_DISCOUNTS_SETTLEMENTS")
         .update({ STATUS: "Settled" })
-        .eq("ID", settlementId);
+        .in("ID", settlementIds);
 
       if (error) throw error;
 
       // Optimistic update
       setSettlements((prev) =>
-        prev.map((s) => (s.id === settlementId ? { ...s, status: "Settled" } : s))
+        prev.map((s) => (settlementIds.includes(s.id) ? { ...s, status: "Settled" } : s))
       );
     } catch (error) {
       console.error("Error settling month:", error);
@@ -303,18 +324,18 @@ export default function CustomerDiscountsPage() {
     }
   };
 
-  const handleUnsettle = async (settlementId: string) => {
+  const handleUnsettle = async (settlementIds: string[]) => {
     try {
       const { error } = await bhs_supabase
         .from("web_CUSTOMERS_DISCOUNTS_SETTLEMENTS")
         .update({ STATUS: "Pending" })
-        .eq("ID", settlementId);
+        .in("ID", settlementIds);
 
       if (error) throw error;
 
       // Optimistic update
       setSettlements((prev) =>
-        prev.map((s) => (s.id === settlementId ? { ...s, status: "Pending" } : s))
+        prev.map((s) => (settlementIds.includes(s.id) ? { ...s, status: "Pending" } : s))
       );
     } catch (error) {
       console.error("Error unsettling month:", error);
@@ -377,13 +398,14 @@ export default function CustomerDiscountsPage() {
       if (settlementsError) throw settlementsError;
 
       // Success
-      setCurrentView("grid");
       setDiscountName("");
       setDiscountValue("");
-      setSelectedAddCustomerId("");
-      setAddSearch("");
+      // Keep selectedAddCustomerId and addSearch so they can add another discount for the same customer easily
       
       await fetchCustomersAndDiscounts();
+      
+      // Show a quick success alert or just let the empty fields indicate success
+      showToast("Config added successfully!");
 
     } catch (err: any) {
       console.error("Error saving discount:", err);
@@ -475,8 +497,32 @@ export default function CustomerDiscountsPage() {
     return false;
   });
 
-  const pendingSettlements = visibleSettlements.filter((s) => s.status !== "Settled");
-  const settledSettlements = visibleSettlements.filter((s) => s.status === "Settled");
+  const groupedMonthsMap = new Map<string, MonthGroup>();
+  visibleSettlements.forEach(s => {
+    const key = `${s.year}-${s.month}`;
+    if (!groupedMonthsMap.has(key)) {
+      groupedMonthsMap.set(key, {
+        key, month: s.month, year: s.year, totalCount: 0, settledCount: 0, pendingCount: 0, pendingIds: [], settledIds: []
+      });
+    }
+    const group = groupedMonthsMap.get(key)!;
+    group.totalCount++;
+    if (s.status === "Settled") {
+      group.settledCount++;
+      group.settledIds.push(s.id);
+    } else {
+      group.pendingCount++;
+      group.pendingIds.push(s.id);
+    }
+  });
+
+  const allMonthGroups = Array.from(groupedMonthsMap.values()).sort((a, b) => {
+     if (a.year !== b.year) return a.year - b.year;
+     return a.month - b.month;
+  });
+
+  const pendingMonthGroups = allMonthGroups.filter(g => g.pendingCount > 0);
+  const settledMonthGroups = allMonthGroups.filter(g => g.pendingCount === 0 && g.totalCount > 0);
 
   // Format month to English name
   const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -534,8 +580,8 @@ export default function CustomerDiscountsPage() {
             setActiveTab={setActiveTab}
             setCurrentView={setCurrentView}
             setSelectedCustomer={setSelectedCustomer}
-            pendingSettlements={pendingSettlements}
-            settledSettlements={settledSettlements}
+            pendingMonthGroups={pendingMonthGroups}
+            settledMonthGroups={settledMonthGroups}
             getMonthName={getMonthName}
             handleSettle={handleSettle}
             handleUnsettle={handleUnsettle}
@@ -562,6 +608,16 @@ export default function CustomerDiscountsPage() {
         modal={confirmModal}
         closeConfirm={closeConfirm}
       />
+      
+      {/* Toast Notification */}
+      <div className={`fixed bottom-8 right-8 z-50 transition-all duration-300 transform ${toastMessage.show ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0 pointer-events-none'}`}>
+        <div className="bg-white border-l-4 border-l-green-500 shadow-xl rounded-2xl p-4 flex items-center gap-3">
+          <div className="bg-green-100 p-2 rounded-full">
+            <CheckCircle className="w-5 h-5 text-green-600" />
+          </div>
+          <p className="font-bold text-gray-800">{toastMessage.message}</p>
+        </div>
+      </div>
     </div>
   );
 }

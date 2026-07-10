@@ -16,24 +16,17 @@ type CustomerView = {
   discounts: Discount[];
 };
 
-type Settlement = {
-  id: string;
-  customerId: string;
-  month: number;
-  year: number;
-  status: string;
-  notes: string;
-};
+import { MonthGroup } from "./page";
 
 interface CD_PendingMonthsTabProps {
-  pendingSettlements: Settlement[];
+  pendingMonthGroups: MonthGroup[];
   selectedCustomer: CustomerView;
   getMonthName: (m: number) => string;
-  handleSettle: (id: string) => void;
+  handleSettle: (ids: string[]) => void;
 }
 
 export default function CD_PendingMonthsTab({
-  pendingSettlements,
+  pendingMonthGroups,
   selectedCustomer,
   getMonthName,
   handleSettle
@@ -44,7 +37,7 @@ export default function CD_PendingMonthsTab({
         <h3 className="text-2xl font-bold text-gray-900">Pending Months</h3>
       </div>
       
-      {pendingSettlements.length === 0 ? (
+      {pendingMonthGroups.length === 0 ? (
         <div className="bg-white border border-gray-100 rounded-3xl p-16 text-center shadow-sm">
           <Info className="w-16 h-16 text-gray-300 mx-auto mb-4" />
           <h4 className="text-xl font-bold text-gray-900 mb-2">No pending months</h4>
@@ -52,25 +45,24 @@ export default function CD_PendingMonthsTab({
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {pendingSettlements.map((s) => {
-            const discount = selectedCustomer.discounts.find(d => d.id === s.id.split('-').slice(1, 3).join('-'));
+          {pendingMonthGroups.map((g) => {
             return (
-              <div key={s.id} className="bg-white border-t-4 border-t-orange-400 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow relative">
+              <div key={g.key} className="bg-white border-t-4 border-t-orange-400 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow relative">
                 <div className="absolute top-4 right-4">
                   <span className="bg-orange-100 text-orange-700 text-[10px] font-bold px-2 py-1 rounded-md uppercase tracking-wider">
                     Pending
                   </span>
                 </div>
                 <div className="mb-4">
-                  <p className="text-sm font-bold text-gray-400 line-clamp-1 pr-16 uppercase tracking-wider">
-                    {discount ? discount.name : "Unknown"}
+                  <p className="text-sm font-bold text-gray-400 pr-16 uppercase tracking-wider">
+                    {g.settledCount} / {g.totalCount} Collected
                   </p>
                 </div>
                 <h4 className="font-bold text-xl text-gray-900 mb-6 text-center leading-tight">
-                  {getMonthName(s.month)}<br/><span className="text-sm text-gray-500">{s.year}</span>
+                  {getMonthName(g.month)}<br/><span className="text-sm text-gray-500">{g.year}</span>
                 </h4>
                 <button 
-                  onClick={() => handleSettle(s.id)}
+                  onClick={() => handleSettle(g.pendingIds)}
                   className="mt-4 w-full flex items-center justify-center gap-2 bg-gray-900 hover:bg-black text-white py-2.5 rounded-xl text-sm font-bold transition-all shadow-md hover:shadow-lg hover:-translate-y-0.5"
                 >
                   <CheckCircle className="w-4 h-4" />
