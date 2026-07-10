@@ -1,6 +1,6 @@
 'use client';
 
-import { DollarSign, TrendingUp, ArrowRight, FileText, Package, Clock, Receipt, Wallet, FileSpreadsheet, LogOut, Layers, Truck, Users, LayoutGrid, Shield, ChevronLeft, ShoppingCart, Database, Trash2, ClipboardList } from 'lucide-react';
+import { DollarSign, TrendingUp, ArrowRight, FileText, Package, Clock, Receipt, Wallet, FileSpreadsheet, LogOut, Layers, Truck, Users, LayoutGrid, Shield, ChevronLeft, ShoppingCart, Database, Trash2, ClipboardList, ShieldCheck } from 'lucide-react';
 import { useState } from 'react';
 
 interface HomeSelectionProps {
@@ -163,6 +163,7 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
     { id: 'suppliers', title: "Suppliers", icon: Truck, path: '/Suppliers', color: 'emerald' as const },
     { id: 'lpo-management', title: "LPO's", icon: ShoppingCart, path: '/LPOs', color: 'yellow' as const },
     { id: 'database', title: "Database", icon: Database, path: '/DataBase/Customers', color: 'sky' as const },
+    { id: 'customer-discounts', title: "Customers Discounts", icon: ShieldCheck, path: '/CustomersDiscounts', color: 'yellow' as const },
   ];
 
   const allowedSystems = ALL_SYSTEMS
