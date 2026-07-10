@@ -1,5 +1,5 @@
 import React from "react";
-import { ShieldCheck, ArrowLeft, ChevronRight, ChevronLeft, Calendar, BarChart3 } from "lucide-react";
+import { ShieldCheck, ArrowLeft, ChevronRight, ChevronLeft, Calendar, BarChart3, Users, PlusCircle } from "lucide-react";
 
 interface SidebarProps {
   isSidebarOpen: boolean;
@@ -17,55 +17,77 @@ export default function Sidebar({
   setSelectedCustomer
 }: SidebarProps) {
   return (
-    <div className={`${isSidebarOpen ? 'w-64' : 'w-24'} transition-all duration-300 bg-gray-900 text-white flex flex-col shrink-0 shadow-xl z-20`}>
-      <div className="p-6 flex flex-col items-center justify-center border-b border-gray-800 relative">
-        <a 
+    <div className={`${isSidebarOpen ? 'w-72' : 'w-20'} transition-all duration-300 bg-black text-white flex flex-col shrink-0 shadow-2xl z-20 h-screen sticky top-0`}>
+      
+      {/* Top Header - Back Button */}
+      <div className={`px-4 ${isSidebarOpen ? 'px-8' : ''} pt-6 pb-2 bg-black/50 backdrop-blur-md transition-all duration-300`}>
+        <a
           href="/"
-          className="text-gray-400 hover:text-white bg-gray-800/50 hover:bg-gray-800 p-2 rounded-xl mb-6 transition-colors flex items-center justify-center"
-          title="Back to Home"
+          className={`flex items-center justify-center ${!isSidebarOpen ? 'gap-0' : 'gap-3'} py-2.5 text-red-500 hover:text-red-400 transition-all duration-200 group w-full cursor-pointer`}
+          title="Back Home"
         >
-          <ArrowLeft className="w-5 h-5 shrink-0" />
+          <ArrowLeft className="w-5 h-5 shrink-0 group-hover:-translate-x-1 transition-transform" />
+          {isSidebarOpen && (
+            <span className="text-xs font-black uppercase tracking-[0.2em] whitespace-nowrap overflow-hidden transition-all duration-300">
+              Back Home
+            </span>
+          )}
         </a>
-
-        <div className="bg-[#D4AF37]/20 p-3 rounded-2xl">
-          <ShieldCheck className="text-[#D4AF37] w-8 h-8" />
-        </div>
-        {isSidebarOpen && (
-          <h1 className="text-lg font-bold tracking-tight mt-3 text-center leading-tight">
-            Discounts &<br/>Rentals
-          </h1>
-        )}
       </div>
 
-      <div className="flex-1 py-6 px-4 space-y-3">
+      {/* Logo & Title */}
+      <div className={`px-4 ${!isSidebarOpen ? 'py-4' : 'pt-2 pb-6'} shrink-0 flex flex-col items-center justify-center transition-all duration-300`}>
+        <div className="flex flex-col items-center text-center">
+          <div className="w-12 h-12 bg-[#D4AF37] rounded-xl flex items-center justify-center mb-3 shadow-lg shadow-[#D4AF37]/20 transition-all duration-300">
+            <ShieldCheck className="w-7 h-7 text-black" />
+          </div>
+          {isSidebarOpen && (
+            <div className="animate-in fade-in duration-300">
+              <h2 className="text-xl font-bold tracking-tight">DISCOUNTS</h2>
+              <p className="text-[10px] text-[#D4AF37] font-bold tracking-[0.2em] uppercase">Control Panel</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Navigation */}
+      <nav className="flex-1 mt-4 overflow-y-auto no-scrollbar flex flex-col">
         <button
           onClick={() => {
             setCurrentView("grid");
             setSelectedCustomer(null);
           }}
-          className={`w-full flex items-center ${isSidebarOpen ? 'justify-start px-4' : 'justify-center px-0'} py-3 rounded-xl transition-all ${
+          className={`flex items-center ${!isSidebarOpen ? 'justify-center px-4' : 'px-6'} py-4 transition-all duration-200 group ${
             currentView === "grid" || currentView === "details"
-              ? "bg-[#D4AF37] text-gray-900 font-bold shadow-lg shadow-[#D4AF37]/20"
-              : "text-gray-400 hover:bg-gray-800 hover:text-white"
+              ? 'bg-gradient-to-r from-white/10 to-transparent border-l-4 border-[#D4AF37] text-white'
+              : 'text-gray-400 hover:text-white hover:bg-white/5 border-l-4 border-transparent'
           }`}
-          title="Customers List"
+          title={!isSidebarOpen ? "Customers List" : undefined}
         >
-          {isSidebarOpen ? <span>Customers List</span> : <span className="font-bold text-lg">C</span>}
+          <Users className={`w-5 h-5 transition-colors ${isSidebarOpen ? 'mr-4' : ''} ${currentView === "grid" || currentView === "details" ? 'text-[#D4AF37]' : 'group-hover:text-white'}`} />
+          {isSidebarOpen && (
+            <span className="font-medium text-sm tracking-wide whitespace-nowrap animate-in fade-in duration-200">Customers List</span>
+          )}
+          {isSidebarOpen && (currentView === "grid" || currentView === "details") && <ChevronRight className="w-4 h-4 ml-auto text-[#D4AF37] animate-in fade-in duration-200" />}
         </button>
-        
+
         <button
           onClick={() => {
             setCurrentView("months");
             setSelectedCustomer(null);
           }}
-          className={`w-full flex items-center ${isSidebarOpen ? 'justify-start px-4' : 'justify-center px-0'} py-3 rounded-xl transition-all ${
+          className={`flex items-center ${!isSidebarOpen ? 'justify-center px-4' : 'px-6'} py-4 transition-all duration-200 group ${
             currentView === "months"
-              ? "bg-[#D4AF37] text-gray-900 font-bold shadow-lg shadow-[#D4AF37]/20"
-              : "text-gray-400 hover:bg-gray-800 hover:text-white"
+              ? 'bg-gradient-to-r from-white/10 to-transparent border-l-4 border-[#D4AF37] text-white'
+              : 'text-gray-400 hover:text-white hover:bg-white/5 border-l-4 border-transparent'
           }`}
-          title="Monthly Overview"
+          title={!isSidebarOpen ? "Monthly Overview" : undefined}
         >
-          {isSidebarOpen ? <span>Monthly Overview</span> : <Calendar className="w-5 h-5" />}
+          <Calendar className={`w-5 h-5 transition-colors ${isSidebarOpen ? 'mr-4' : ''} ${currentView === "months" ? 'text-[#D4AF37]' : 'group-hover:text-white'}`} />
+          {isSidebarOpen && (
+            <span className="font-medium text-sm tracking-wide whitespace-nowrap animate-in fade-in duration-200">Monthly Overview</span>
+          )}
+          {isSidebarOpen && currentView === "months" && <ChevronRight className="w-4 h-4 ml-auto text-[#D4AF37] animate-in fade-in duration-200" />}
         </button>
 
         <button
@@ -73,14 +95,18 @@ export default function Sidebar({
             setCurrentView("stats");
             setSelectedCustomer(null);
           }}
-          className={`w-full flex items-center ${isSidebarOpen ? 'justify-start px-4' : 'justify-center px-0'} py-3 rounded-xl transition-all ${
+          className={`flex items-center ${!isSidebarOpen ? 'justify-center px-4' : 'px-6'} py-4 transition-all duration-200 group ${
             currentView === "stats"
-              ? "bg-[#D4AF37] text-gray-900 font-bold shadow-lg shadow-[#D4AF37]/20"
-              : "text-gray-400 hover:bg-gray-800 hover:text-white"
+              ? 'bg-gradient-to-r from-white/10 to-transparent border-l-4 border-[#D4AF37] text-white'
+              : 'text-gray-400 hover:text-white hover:bg-white/5 border-l-4 border-transparent'
           }`}
-          title="Statistics"
+          title={!isSidebarOpen ? "Statistics" : undefined}
         >
-          {isSidebarOpen ? <span>Statistics</span> : <BarChart3 className="w-5 h-5" />}
+          <BarChart3 className={`w-5 h-5 transition-colors ${isSidebarOpen ? 'mr-4' : ''} ${currentView === "stats" ? 'text-[#D4AF37]' : 'group-hover:text-white'}`} />
+          {isSidebarOpen && (
+            <span className="font-medium text-sm tracking-wide whitespace-nowrap animate-in fade-in duration-200">Statistics</span>
+          )}
+          {isSidebarOpen && currentView === "stats" && <ChevronRight className="w-4 h-4 ml-auto text-[#D4AF37] animate-in fade-in duration-200" />}
         </button>
 
         <button
@@ -88,24 +114,29 @@ export default function Sidebar({
             setCurrentView("add");
             setSelectedCustomer(null);
           }}
-          className={`w-full flex items-center ${isSidebarOpen ? 'justify-start px-4' : 'justify-center px-0'} py-3 rounded-xl transition-all ${
+          className={`flex items-center ${!isSidebarOpen ? 'justify-center px-4' : 'px-6'} py-4 transition-all duration-200 group ${
             currentView === "add"
-              ? "bg-[#D4AF37] text-gray-900 font-bold shadow-lg shadow-[#D4AF37]/20"
-              : "text-gray-400 hover:bg-gray-800 hover:text-white"
+              ? 'bg-gradient-to-r from-white/10 to-transparent border-l-4 border-[#D4AF37] text-white'
+              : 'text-gray-400 hover:text-white hover:bg-white/5 border-l-4 border-transparent'
           }`}
-          title="Add New Discount"
+          title={!isSidebarOpen ? "Add New Config" : undefined}
         >
-          {isSidebarOpen ? <span>Add New Discount</span> : <span className="font-bold text-lg">+</span>}
+          <PlusCircle className={`w-5 h-5 transition-colors ${isSidebarOpen ? 'mr-4' : ''} ${currentView === "add" ? 'text-[#D4AF37]' : 'group-hover:text-white'}`} />
+          {isSidebarOpen && (
+            <span className="font-medium text-sm tracking-wide whitespace-nowrap animate-in fade-in duration-200">Add New Config</span>
+          )}
+          {isSidebarOpen && currentView === "add" && <ChevronRight className="w-4 h-4 ml-auto text-[#D4AF37] animate-in fade-in duration-200" />}
         </button>
-      </div>
+      </nav>
 
-      <div className="p-4 border-t border-gray-800 flex justify-center mt-auto">
-        <button 
+      {/* Toggle Button */}
+      <div className="p-4 border-t border-white/10 mt-auto flex justify-center">
+        <button
           onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-          className="text-gray-400 hover:text-white hover:bg-gray-800 p-3 rounded-xl transition-colors flex items-center justify-center w-full"
-          title="Toggle Sidebar"
+          className="flex items-center justify-center w-10 h-10 hover:bg-white/10 rounded-xl transition-all duration-200 text-[#D4AF37]"
+          title={isSidebarOpen ? "Collapse Sidebar" : "Expand Sidebar"}
         >
-          {isSidebarOpen ? <ChevronLeft className="w-6 h-6" /> : <ChevronRight className="w-6 h-6" />}
+          {isSidebarOpen ? <ChevronLeft className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
         </button>
       </div>
     </div>

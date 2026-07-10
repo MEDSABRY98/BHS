@@ -13,7 +13,7 @@ export default function CashReceiptPage() {
   const [isChecking, setIsChecking] = useState(true);
   const [currentUser, setCurrentUser] = useState<any>(null);
 
-  const [activeTab, setActiveTab] = useState<'new' | 'saved'>('new');
+  const [activeTab, setActiveTab] = useState<'new' | 'saved' | 'stats'>('new');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -150,7 +150,7 @@ export default function CashReceiptPage() {
                 </div>
               ) : (
                 <span className="text-lg font-extrabold text-slate-800 tracking-tight">
-                  New Receipt
+                  {activeTab === 'stats' ? 'Statistics' : 'New Receipt'}
                 </span>
               )}
             </div>

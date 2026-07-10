@@ -7,12 +7,13 @@ import {
   ChevronLeft,
   ChevronRight,
   DollarSign,
-  X
+  X,
+  BarChart3
 } from 'lucide-react';
 
 interface CashReceiptSidebarProps {
-  activeTab: 'new' | 'saved';
-  onTabChange: (tab: 'new' | 'saved') => void;
+  activeTab: 'new' | 'saved' | 'stats';
+  onTabChange: (tab: 'new' | 'saved' | 'stats') => void;
   currentUser?: any;
   isCollapsed: boolean;
   onToggleCollapse: () => void;
@@ -30,7 +31,8 @@ export default function CashReceiptSidebar({
   
   const allTabs = [
     { id: 'new', label: 'New Receipt', icon: PlusCircle },
-    { id: 'saved', label: 'Saved Receipts', icon: List }
+    { id: 'saved', label: 'Saved Receipts', icon: List },
+    { id: 'stats', label: 'Statistics', icon: BarChart3 }
   ];
 
   // Filter tabs based on user permissions
@@ -104,7 +106,7 @@ export default function CashReceiptSidebar({
             <button
               key={tab.id}
               onClick={() => {
-                onTabChange(tab.id as 'new' | 'saved');
+                onTabChange(tab.id as 'new' | 'saved' | 'stats');
                 if (onCloseMobile) onCloseMobile();
               }}
               className={`w-full flex items-center ${isCollapsed ? 'justify-center px-2' : 'px-4'} py-3.5 rounded-xl transition-all duration-200 group relative ${

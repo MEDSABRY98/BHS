@@ -150,6 +150,7 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
 
   const ALL_SYSTEMS = [
     { id: 'cash-receipt', title: "Cash Receipt", icon: Receipt, path: '/CashReceipt', color: 'teal' as const },
+    { id: 'cash-handover', title: "Cash Handover", icon: ClipboardList, path: '/CashHandover', color: 'purple' as const },
     { id: 'petty-cash', title: "Petty Cash", icon: Wallet, path: '/PettyCash', color: 'cyan' as const },
     { id: 'documents-tracking', title: "Documents Tracking", icon: FileSpreadsheet, path: '/DocumentsTracking', color: 'orange' as const },
     { id: 'customers-summaries', title: "Customers Summaries", icon: FileSpreadsheet, path: '/CustomersSummaries', color: 'sky' as const },

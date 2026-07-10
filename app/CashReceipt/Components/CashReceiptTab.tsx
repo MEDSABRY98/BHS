@@ -6,13 +6,14 @@ import Header from './Header';
 import { generateReceiptPdf } from '../Utils/ReceiptPdf';
 import NewReceiptForm from './NewReceiptForm';
 import SavedReceiptsTab from './SavedReceiptsTab';
+import StatisticsReceiptTab from './StatisticsReceiptTab';
 import { bhs_supabas } from '@/lib/supabase';
 import { toast } from '@/app/Components/Notification';
 import { getCashReceipts, createCashReceipt, updateCashReceipt, deleteCashReceipt } from '../Service/cash_receipt_service';
 
 interface CashReceiptTabProps {
-  activeTab: 'new' | 'saved';
-  setActiveTab: (tab: 'new' | 'saved') => void;
+  activeTab: 'new' | 'saved' | 'stats';
+  setActiveTab: (tab: 'new' | 'saved' | 'stats') => void;
   searchQuery: string;
   setSearchQuery: (query: string) => void;
 }
@@ -260,7 +261,7 @@ export default function CashReceiptTab({
   }, []);
 
   useEffect(() => {
-    if (activeTab === 'saved') {
+    if (activeTab === 'saved' || activeTab === 'stats') {
       fetchSavedReceipts();
     }
   }, [activeTab]);
@@ -389,6 +390,13 @@ export default function CashReceiptTab({
               onEdit={handleEdit}
               onDelete={handleDelete}
               searchQuery={searchQuery}
+            />
+          )}
+
+          {activeTab === 'stats' && (
+            <StatisticsReceiptTab
+              savedReceipts={savedReceipts}
+              isFetchingSaved={isFetchingSaved}
             />
           )}
         </div>

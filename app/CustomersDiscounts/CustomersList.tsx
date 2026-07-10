@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Search, User, ChevronRight, FileSpreadsheet, Loader2 } from "lucide-react";
-import { exportCustomersExcel } from "./CD_ExportExcel";
+import { exportCustomersExcel } from "./ExportExcel";
 
 type Discount = {
   id: string;

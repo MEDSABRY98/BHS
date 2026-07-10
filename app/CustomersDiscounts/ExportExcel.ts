@@ -60,8 +60,9 @@ export async function exportCustomersExcel(filteredCustomers: CustomerView[]) {
   for (const year of yearsArray) {
     const yearSettlements = settlementsByYear[year] || {};
 
-    const exportData = filteredCustomers.map(customer => {
+    const exportData = filteredCustomers.map((customer, index) => {
       const row: Record<string, any> = {
+        "#": index + 1,
         "Customer Name": customer.customerName,
       };
 
@@ -120,9 +121,12 @@ export async function exportCustomersExcel(filteredCustomers: CustomerView[]) {
     if (keys.length === 0) continue;
     
     worksheet.columns = keys.map((key) => {
-      let width = 15;
-      if (key === "Customer Name") width = 40;
-      if (key === "Discount (%)" || key === "Rent (AED)") width = 20;
+      // User requested 64px for #, 350px for Customer Name, 100px for others.
+      // ExcelJS width is in characters. 1 character ~ 7 pixels.
+      let width = 14; // ~100px
+      if (key === "Customer Name") width = 50; // ~350px
+      if (key === "#") width = 9; // ~64px
+      
       return { header: key, key, width };
     });
 
