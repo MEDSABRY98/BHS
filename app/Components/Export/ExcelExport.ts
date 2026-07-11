@@ -18,7 +18,8 @@ const GOLD_BORDER = 'FFC9A84C';
 const LIGHT_ROW_BORDER = 'FFEEEEEE';
 const NEGATIVE_FILL = 'FFFEF2F2';
 const NEGATIVE_TEXT = 'FFB91C1C';
-const NUM_FMT = '#,##0.00';
+const NUM_FMT = '#,##0.00;-#,##0.00;"-"';
+const POSITIVE_GREEN_TEXT = 'FF16A34A';
 
 function parseNumericValue(value: unknown): number | null {
   if (typeof value === 'number' && !Number.isNaN(value)) return value;
@@ -103,6 +104,9 @@ function styleWorksheet(
         if (num !== null) {
           cell.value = num;
           cell.numFmt = NUM_FMT;
+          if (num < 0) {
+             cell.font = { color: { argb: POSITIVE_GREEN_TEXT }, bold: true };
+          }
         }
       }
 

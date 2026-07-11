@@ -357,6 +357,7 @@ export interface ExportExcelOptions {
   includeDashboard?: boolean;
   includeSummary?: boolean;
   includeYearly?: boolean;
+  includeMonthly?: boolean;
   groupByRegion?: boolean;
 }
 
@@ -372,6 +373,7 @@ export const exportToExcel = async (
     includeDashboard: true,
     includeSummary: true,
     includeYearly: true,
+    includeMonthly: true,
     groupByRegion: false,
     ...options
   };
@@ -542,6 +544,76 @@ export const exportToExcel = async (
             name: `Yearly - ${region}`.substring(0, 31),
             data: recordsFromTable(yearlyHeaders, buildYearlyRows(filtered)),
             options: { numericColumns: ['Net Debt', ...yearsWithSpaces] },
+          });
+        }
+      });
+    }
+  }
+
+  // --- Monthly View ---
+  if (opts.includeMonthly) {
+    const customerBreakdowns = new Map<string, { netTotal: number; monthsMap: Map<string, number> }>();
+    const allUniqueMonthKeys = new Set<string>();
+
+    data.forEach(c => {
+      const breakdown = calculateCustomerMonthlyBreakdown(c.customerName, invoices);
+      const monthsMap = new Map<string, number>();
+      breakdown.months.forEach(m => {
+        monthsMap.set(m.key, m.amount);
+        allUniqueMonthKeys.add(m.key);
+      });
+      customerBreakdowns.set(c.customerName, { netTotal: breakdown.netTotal, monthsMap });
+    });
+
+    const sortedMonthKeys = Array.from(allUniqueMonthKeys).sort((a, b) => a.localeCompare(b));
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    
+    const monthHeaders = sortedMonthKeys.map(k => {
+      const [y, m] = k.split('-');
+      return `${monthNames[parseInt(m, 10) - 1]}-${y.slice(-2)} `; 
+    });
+
+    const monthlyHeaders = ['#', 'Customer Name', 'City', 'Net Debt', ...monthHeaders];
+
+    const buildMonthlyRows = (dataset: CustomerAnalysis[]) => {
+      return dataset.map((c, idx) => {
+        const breakdown = customerBreakdowns.get(c.customerName);
+        const netTotal = breakdown?.netTotal || 0;
+        
+        const rowData = [
+          idx + 1,
+          c.customerName || '',
+          getRepsString(c),
+          netTotal.toFixed(2)
+        ];
+
+        sortedMonthKeys.forEach(k => {
+          const amt = breakdown?.monthsMap.get(k) || 0;
+          rowData.push(amt.toFixed(2));
+        });
+
+        return rowData;
+      });
+    };
+
+    sheets.push({
+      name: 'Monthly View',
+      data: recordsFromTable(monthlyHeaders, buildMonthlyRows(data)),
+      options: { numericColumns: ['Net Debt', ...monthHeaders] },
+    });
+
+    if (opts.groupByRegion) {
+      Array.from(uniqueRegions).forEach(region => {
+        const filtered = data.filter(c => {
+          const reps = getRepsString(c);
+          if (region === 'Unassigned') return reps === '-';
+          return reps.includes(region);
+        });
+        if (filtered.length > 0) {
+          sheets.push({
+            name: `Monthly - ${region}`.substring(0, 31),
+            data: recordsFromTable(monthlyHeaders, buildMonthlyRows(filtered)),
+            options: { numericColumns: ['Net Debt', ...monthHeaders] },
           });
         }
       });
