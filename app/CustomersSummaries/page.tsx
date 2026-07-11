@@ -6,6 +6,7 @@ import Login from '@/app/Components/Login';
 import Loading from '@/app/Components/Loading';
 import { ArrowLeft, RefreshCcw, FileSpreadsheet } from 'lucide-react';
 import { InvoiceRow } from '@/types';
+import { getDebitData } from '@/app/Debit/Service/debit_service';
 
 function CustomersSummariesPageContent() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -47,14 +48,8 @@ function CustomersSummariesPageContent() {
       if (silent) setIsRefreshing(true);
       else if (data.length === 0) setLoading(true);
 
-      const response = await fetch('/api/Debit');
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.details || result.error || 'Failed to fetch data');
-      }
-
-      setData(result.data);
+      const result = await getDebitData();
+      setData(result.data as InvoiceRow[]);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
