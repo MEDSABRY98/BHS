@@ -234,6 +234,7 @@ export default function CustomersSummariesTab({ data, onRefresh }: CustomersSumm
       {
         sheetName: 'Customers Summaries',
         numericColumns: headers.slice(1),
+        columnWidth: 14,
       }
     );
   };

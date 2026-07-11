@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { ArrowLeft, Search, RefreshCw, FileCheck, FileSpreadsheet, AlertCircle } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import { exportDebitExcelTable } from '@/app/Debit/Export/ExcelExport';
 import Loading from '@/app/Components/Loading';
 import Login from '@/app/Components/Login';
 import CustomersDocumentsGrid from './Components/CustomersDocumentsGrid';
@@ -124,7 +124,7 @@ export default function CustomersDocumentsPage() {
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   };
 
-  const exportToExcel = () => {
+  const exportToExcel = async () => {
     const headers = ['Customer Name', 'Credit App', 'Licence', 'Licence Date', 'L. Days', 'TRN', 'Passport', 'Passport Date', 'P. Days', 'ID', 'ID Date', 'I. Days'];
     const rows = filteredData.map((item) => {
       const lDays = getDaysRemaining(item.licenceDate);
@@ -132,12 +132,16 @@ export default function CustomersDocumentsPage() {
       const iDays = getDaysRemaining(item.idDate);
       return [item.customerName, item.creditApp, item.licence, item.licenceDate, lDays !== null ? (lDays < 0 ? `${Math.abs(lDays)}d Expired` : `${lDays}d Left`) : '', item.trn, item.passport, item.passportDate, pDays !== null ? (pDays < 0 ? `${Math.abs(pDays)}d Expired` : `${pDays}d Left`) : '', item.id, item.idDate, iDays !== null ? (iDays < 0 ? `${Math.abs(iDays)}d Expired` : `${iDays}d Left`) : ''];
     });
-    const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Customer Documents');
-    const wscols = [{ wch: 35 }, { wch: 12 }, { wch: 12 }, { wch: 15 }, { wch: 15 }, { wch: 12 }, { wch: 12 }, { wch: 15 }, { wch: 15 }, { wch: 12 }, { wch: 15 }, { wch: 15 }];
-    worksheet['!cols'] = wscols;
-    XLSX.writeFile(workbook, `Customers_Documents_${new Date().toISOString().split('T')[0]}.xlsx`);
+    
+    await exportDebitExcelTable(
+      headers,
+      rows,
+      `Customers_Documents_${new Date().toISOString().split('T')[0]}`,
+      {
+        sheetName: 'Customer Documents',
+        columnWidth: 14,
+      }
+    );
   };
 
   if (isChecking) return <Loading />;

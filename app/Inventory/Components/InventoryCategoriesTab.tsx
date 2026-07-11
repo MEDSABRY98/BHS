@@ -9,7 +9,8 @@ import {
 import Loading from '@/app/Components/Loading';
 import InventoryProductOrdersDetailsTab from './InventoryCategoriesDetailsTab';
 import NoData from '@/app/Components/NoDataTab';
-import { getProductOrdersData } from '../Service/inventory_service';
+import { getProductOrdersData, getProductMovementsData } from '../Service/inventory_service';
+import { exportAllCategoriesZip } from './ExcelExport';
 
 const formatCategory = (tag: string) => {
     if (!tag || tag === 'All' || tag === 'Uncategorized') return tag;
@@ -44,6 +45,7 @@ export default function InventoryProductOrdersTab({ orderItems, setOrderItems }:
     const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
     const [categorySearch, setCategorySearch] = useState('');
     const [error, setError] = useState<string | null>(null);
+    const [exportingAll, setExportingAll] = useState(false);
 
     useEffect(() => {
         fetchOrders();
@@ -81,6 +83,40 @@ export default function InventoryProductOrdersTab({ orderItems, setOrderItems }:
         });
         return Array.from(uniqueTags).sort();
     }, [products]);
+
+    const handleExportAll = async () => {
+        try {
+            setExportingAll(true);
+            const movesRes = await getProductMovementsData();
+            const movements = movesRes.success ? (movesRes.data || {}) : {};
+
+            const categoriesMap: Record<string, any[]> = {};
+
+            tags.forEach(tag => {
+                const catProducts = products.filter(p => p.formattedTag === tag);
+                if (catProducts.length === 0) return;
+
+                categoriesMap[tag] = catProducts.map(p => {
+                    const m = movements[p.productId] || { sales: 0, returns: 0, netPurchases: 0 };
+                    return {
+                        'Barcode': p.barcode,
+                        'Name': p.productName,
+                        'QTY (Pcs)': p.onHand,
+                        'Sales': m.sales,
+                        'Returns': m.returns,
+                        'Purchases': m.netPurchases,
+                    };
+                });
+            });
+
+            await exportAllCategoriesZip(categoriesMap, 'All_Categories_Inventory.zip');
+        } catch (err) {
+            console.error('Export Error:', err);
+            alert('Failed to export all categories');
+        } finally {
+            setExportingAll(false);
+        }
+    };
 
     if (error) {
         return (
@@ -165,6 +201,14 @@ export default function InventoryProductOrdersTab({ orderItems, setOrderItems }:
                     title="Refresh Data"
                 >
                     <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
+                </button>
+                <button
+                    onClick={handleExportAll}
+                    disabled={loading || exportingAll}
+                    className="flex items-center justify-center p-3 bg-emerald-50 text-emerald-600 border border-emerald-200 rounded-lg hover:bg-emerald-600 hover:text-white transition-all shadow-sm min-w-[48px]"
+                    title="Export All to ZIP"
+                >
+                    <FileSpreadsheet className={`w-5 h-5 ${exportingAll ? 'animate-pulse' : ''}`} />
                 </button>
             </div>
 

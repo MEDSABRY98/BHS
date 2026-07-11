@@ -258,13 +258,8 @@ export default function CashReceiptTab({
 
   useEffect(() => {
     fetchNextReceiptNumber();
+    fetchSavedReceipts();
   }, []);
-
-  useEffect(() => {
-    if (activeTab === 'saved' || activeTab === 'stats') {
-      fetchSavedReceipts();
-    }
-  }, [activeTab]);
 
   const filteredReceipts = [...savedReceipts]
     .filter(r =>
@@ -363,6 +358,9 @@ export default function CashReceiptTab({
     });
   };
 
+  const uniqueReceivedFrom = Array.from(new Set(savedReceipts.map(r => r.receivedFrom).filter(Boolean))).sort();
+  const uniqueSendBy = Array.from(new Set(savedReceipts.map(r => r.sendBy).filter(Boolean))).sort();
+
   return (
     <>
       {/* Main Content Area */}
@@ -377,6 +375,8 @@ export default function CashReceiptTab({
               onPrint={handlePrint}
               isEditing={isEditing}
               onCancel={handleCancelEdit}
+              uniqueReceivedFrom={uniqueReceivedFrom as string[]}
+              uniqueSendBy={uniqueSendBy as string[]}
             />
           )}
 

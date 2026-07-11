@@ -8,6 +8,7 @@ import {
 import * as XLSX from 'xlsx';
 import { ProductOrder, OrderItem } from './InventoryCategoriesTab';
 import NoData from '@/app/Components/NoDataTab';
+import { exportInventoryExcel } from './ExcelExport';
 import ProductDetails from './InventoryProductDetails';
 import { getProductMovementsData, updateProductColumn } from '../Service/inventory_service';
 
@@ -74,7 +75,7 @@ export default function InventoryProductOrdersDetailsTab({
         }
     };
 
-    const handleExport = () => {
+    const handleExport = async () => {
         const data = filteredProducts.map(p => {
             const m = movements[p.productId] || { sales: 0, returns: 0, netPurchases: 0 };
             return {
@@ -87,10 +88,7 @@ export default function InventoryProductOrdersDetailsTab({
             };
         });
 
-        const ws = XLSX.utils.json_to_sheet(data);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, 'Inventory');
-        XLSX.writeFile(wb, `${categoryName}_inventory.xlsx`);
+        await exportInventoryExcel(data, 'Inventory', `${categoryName}_inventory.xlsx`);
     };
 
 
@@ -179,24 +177,7 @@ export default function InventoryProductOrdersDetailsTab({
             </div>
 
             {/* Main Table Container */}
-            {filteredProducts.length === 0 ? (
-                <NoData title="No Items Found" />
-            ) : (
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden relative">
-                {fetchingMovements && (
-                    <div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-50 flex items-center justify-center transition-all duration-300">
-                        <div className="bg-white px-6 py-5 rounded-xl shadow-lg flex flex-col items-center gap-3 border border-slate-200 animate-in zoom-in duration-300">
-                            <RefreshCw className="w-8 h-8 text-blue-600 animate-spin" />
-                            <div className="flex flex-col items-center gap-1">
-                                <span className="font-bold text-slate-800 text-xs uppercase tracking-widest">
-                                    SYNCING DATA
-                                </span>
-                                <span className="text-[10px] text-slate-500 uppercase tracking-wider">Please wait...</span>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
                 <div className="overflow-x-auto scrollbar-thin scrollbar-track-slate-50 scrollbar-thumb-slate-300">
                     <table className="w-full text-left border-collapse table-fixed min-w-[1400px]">
                         <thead className="sticky top-0 z-20">
@@ -222,7 +203,40 @@ export default function InventoryProductOrdersDetailsTab({
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                            {filteredProducts.map((product, idx) => {
+                            {loading ? (
+                                [...Array(8)].map((_, i) => (
+                                    <tr key={i} className="hover:bg-slate-50/80 transition-all duration-300">
+                                        <td className="px-6 py-4 border-r border-slate-100 bg-white">
+                                            <div className="h-4 bg-slate-200 rounded w-full animate-pulse"></div>
+                                        </td>
+                                        <td className="px-6 py-4 border-r border-slate-100 bg-white">
+                                            <div className="flex items-center gap-3 w-full animate-pulse">
+                                                <div className="w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0" />
+                                                <div className="h-4 bg-slate-200 rounded w-3/4"></div>
+                                            </div>
+                                        </td>
+                                        <td className="px-3 py-4 border-r border-slate-100 bg-white">
+                                            <div className="h-6 bg-slate-200 rounded-lg w-12 mx-auto animate-pulse"></div>
+                                        </td>
+                                        <td className="px-2 py-4 border-r border-slate-100 bg-white">
+                                            <div className="h-5 bg-slate-200 rounded w-10 mx-auto animate-pulse"></div>
+                                        </td>
+                                        <td className="px-2 py-4 border-r border-slate-100 bg-white">
+                                            <div className="h-5 bg-slate-200 rounded w-10 mx-auto animate-pulse"></div>
+                                        </td>
+                                        <td className="px-2 py-4 bg-white">
+                                            <div className="h-5 bg-slate-200 rounded w-10 mx-auto animate-pulse"></div>
+                                        </td>
+                                    </tr>
+                                ))
+                            ) : filteredProducts.length === 0 ? (
+                                <tr>
+                                    <td colSpan={6} className="py-12">
+                                        <NoData title="No Items Found" />
+                                    </td>
+                                </tr>
+                            ) : (
+                                filteredProducts.map((product, idx) => {
                                     const move = movements[product.productId] || { sales: 0, returns: 0, netPurchases: 0 };
                                     return (
                                         <tr key={product.productId} className="hover:bg-slate-50/80 transition-all duration-300 group">
@@ -251,30 +265,42 @@ export default function InventoryProductOrdersDetailsTab({
                                                 </span>
                                             </td>
 
-                                            {/* Metrics with sophisticated colors */}
+                                            {/* Metrics with sophisticated colors or skeletons */}
                                             <td className="px-2 py-3 text-center border-r border-slate-100 bg-white">
-                                                <span className={`text-sm font-bold ${move.sales > 0 ? 'text-blue-600' : 'text-slate-400'}`}>
-                                                    {move.sales === 0 ? '-' : move.sales.toLocaleString()}
-                                                </span>
+                                                {fetchingMovements ? (
+                                                    <div className="h-5 bg-slate-200 rounded w-8 mx-auto animate-pulse"></div>
+                                                ) : (
+                                                    <span className={`text-sm font-bold ${move.sales > 0 ? 'text-blue-600' : 'text-slate-400'}`}>
+                                                        {move.sales === 0 ? '-' : move.sales.toLocaleString()}
+                                                    </span>
+                                                )}
                                             </td>
                                             <td className="px-2 py-3 text-center border-r border-slate-100 bg-white">
-                                                <span className={`text-sm font-bold ${move.returns > 0 ? 'text-amber-600' : 'text-slate-400'}`}>
-                                                    {move.returns === 0 ? '-' : move.returns.toLocaleString()}
-                                                </span>
+                                                {fetchingMovements ? (
+                                                    <div className="h-5 bg-slate-200 rounded w-8 mx-auto animate-pulse"></div>
+                                                ) : (
+                                                    <span className={`text-sm font-bold ${move.returns > 0 ? 'text-amber-600' : 'text-slate-400'}`}>
+                                                        {move.returns === 0 ? '-' : move.returns.toLocaleString()}
+                                                    </span>
+                                                )}
                                             </td>
                                             <td className="px-2 py-3 text-center bg-white">
-                                                <span className={`text-sm font-bold ${move.netPurchases !== 0 ? 'text-indigo-600' : 'text-slate-400'}`}>
-                                                    {move.netPurchases === 0 ? '-' : move.netPurchases.toLocaleString()}
-                                                </span>
+                                                {fetchingMovements ? (
+                                                    <div className="h-5 bg-slate-200 rounded w-8 mx-auto animate-pulse"></div>
+                                                ) : (
+                                                    <span className={`text-sm font-bold ${move.netPurchases !== 0 ? 'text-indigo-600' : 'text-slate-400'}`}>
+                                                        {move.netPurchases === 0 ? '-' : move.netPurchases.toLocaleString()}
+                                                    </span>
+                                                )}
                                             </td>
                                         </tr>
                                     );
-                                })}
+                                })
+                            )}
                         </tbody>
                     </table>
                 </div>
             </div>
-            )}
 
 
         </div>
