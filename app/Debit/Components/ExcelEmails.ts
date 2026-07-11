@@ -18,12 +18,18 @@ export const generateSingleCustomerExcelBlob = async (customerName: string, invo
     { key: 'credit', width: 20 },
   ];
 
-  // Helper for borders
-  const thinBorder = {
-    top: { style: 'thin' as const, color: { argb: 'FFCCCCCC' } },
-    bottom: { style: 'thin' as const, color: { argb: 'FFCCCCCC' } },
-    left: { style: 'thin' as const, color: { argb: 'FFCCCCCC' } },
-    right: { style: 'thin' as const, color: { argb: 'FFCCCCCC' } }
+  const GOLD_BORDER = 'FFC9A84C';
+  const LIGHT_ROW_BORDER = 'FFEEEEEE';
+
+  const bottomBorderOnly = {
+    bottom: { style: 'thin' as const, color: { argb: LIGHT_ROW_BORDER } }
+  };
+  const headerBorder = {
+    bottom: { style: 'medium' as const, color: { argb: GOLD_BORDER } }
+  };
+  const footerBorder = {
+    top: { style: 'thin' as const, color: { argb: 'FFDDDDDD' } },
+    bottom: { style: 'thin' as const, color: { argb: LIGHT_ROW_BORDER } }
   };
 
   // Row 1: Merged Title (Customer Name)
@@ -32,19 +38,13 @@ export const generateSingleCustomerExcelBlob = async (customerName: string, invo
   titleRow.height = 30;
   const titleCell = ws.getCell('A1');
   titleCell.value = customerName;
-  titleCell.font = { name: 'Calibri', size: 12, bold: true };
+  titleCell.font = { name: 'Calibri', size: 14, bold: true, color: { argb: 'FFFFFFFF' } };
   titleCell.alignment = { vertical: 'middle', horizontal: 'center' };
   titleCell.fill = {
     type: 'pattern',
     pattern: 'solid',
-    fgColor: { argb: 'FFF5F5F5' } // Light grey background
+    fgColor: { argb: 'FF000000' } // Seamless with header row
   };
-  titleCell.border = thinBorder;
-
-  // Apply border to merged cells B1:E1
-  for (let col = 2; col <= 5; col++) {
-    ws.getCell(1, col).border = thinBorder;
-  }
 
   // Row 2: Headers
   const headers = ['Date', 'Type', 'Number', 'Debit', 'Credit'];
@@ -64,7 +64,7 @@ export const generateSingleCustomerExcelBlob = async (customerName: string, invo
       color: { argb: 'FFFFFFFF' } // White text
     };
     cell.alignment = { vertical: 'middle', horizontal: 'center' };
-    cell.border = thinBorder;
+    cell.border = headerBorder;
   });
 
   // Data Rows
@@ -107,7 +107,7 @@ export const generateSingleCustomerExcelBlob = async (customerName: string, invo
         horizontal: 'center',
         ...(colNumber === 3 && !isShortInvoiceId ? { shrinkToFit: true } : {})
       };
-      cell.border = thinBorder;
+      cell.border = bottomBorderOnly;
       
       if (colNumber === 4 || colNumber === 5) {
         cell.numFmt = '#,##0.00';
@@ -129,11 +129,11 @@ export const generateSingleCustomerExcelBlob = async (customerName: string, invo
   
   for (let col = 1; col <= 3; col++) {
     const c = totalRow.getCell(col);
-    c.border = thinBorder;
+    c.border = footerBorder;
     c.fill = {
       type: 'pattern',
       pattern: 'solid',
-      fgColor: { argb: 'FFF9F9F9' }
+      fgColor: { argb: 'FFFFFFFF' }
     };
   }
 
@@ -142,11 +142,11 @@ export const generateSingleCustomerExcelBlob = async (customerName: string, invo
   debitTotalCell.font = { name: 'Calibri', size: 11, bold: true };
   debitTotalCell.alignment = { vertical: 'middle', horizontal: 'center' };
   debitTotalCell.numFmt = '#,##0.00';
-  debitTotalCell.border = thinBorder;
+  debitTotalCell.border = footerBorder;
   debitTotalCell.fill = {
     type: 'pattern',
     pattern: 'solid',
-    fgColor: { argb: 'FFF9F9F9' }
+    fgColor: { argb: 'FFFFFFFF' }
   };
 
   const creditTotalCell = totalRow.getCell(5);
@@ -154,11 +154,11 @@ export const generateSingleCustomerExcelBlob = async (customerName: string, invo
   creditTotalCell.font = { name: 'Calibri', size: 11, bold: true };
   creditTotalCell.alignment = { vertical: 'middle', horizontal: 'center' };
   creditTotalCell.numFmt = '#,##0.00';
-  creditTotalCell.border = thinBorder;
+  creditTotalCell.border = footerBorder;
   creditTotalCell.fill = {
     type: 'pattern',
     pattern: 'solid',
-    fgColor: { argb: 'FFF9F9F9' }
+    fgColor: { argb: 'FFFFFFFF' }
   };
 
   currentRowNum++;
@@ -175,28 +175,28 @@ export const generateSingleCustomerExcelBlob = async (customerName: string, invo
   
   for (let col = 1; col <= 3; col++) {
     const c = netRow.getCell(col);
-    c.border = thinBorder;
+    c.border = bottomBorderOnly;
     c.fill = {
       type: 'pattern',
       pattern: 'solid',
-      fgColor: { argb: 'FFF2F2F2' }
+      fgColor: { argb: 'FFFFFFFF' }
     };
   }
 
   ws.mergeCells(`D${currentRowNum}:E${currentRowNum}`);
   const netValCell = netRow.getCell(4);
   netValCell.value = { formula: `=D${currentRowNum - 1}-E${currentRowNum - 1}` };
-  netValCell.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FF9C0006' } }; // Red text
+  netValCell.font = { name: 'Calibri', size: 12, bold: true, color: { argb: 'FFB91C1C' } }; 
   netValCell.alignment = { vertical: 'middle', horizontal: 'center' };
   netValCell.numFmt = '#,##0.00';
   netValCell.fill = {
     type: 'pattern',
     pattern: 'solid',
-    fgColor: { argb: 'FFFFC7CE' } // Soft red
+    fgColor: { argb: 'FFFEF2F2' } 
   };
   
   for (let col = 4; col <= 5; col++) {
-    netRow.getCell(col).border = thinBorder;
+    netRow.getCell(col).border = bottomBorderOnly;
   }
 
   const buf = await wb.xlsx.writeBuffer();

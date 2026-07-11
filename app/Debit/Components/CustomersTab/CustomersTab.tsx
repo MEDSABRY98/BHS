@@ -289,6 +289,13 @@ export default function CustomersTab({
           reader.readAsDataURL(pdfBlob as Blob);
         });
 
+        const excelBlob = await generateSingleCustomerExcelBlob(customerName, netOnlyInvoices, isShort ?? true);
+        const excelBase64 = await new Promise<string>((resolve) => {
+          const excelReader = new FileReader();
+          excelReader.onloadend = () => resolve((excelReader.result as string).split(',')[1]);
+          excelReader.readAsDataURL(excelBlob);
+        });
+
         const cleanName = customerName.replace(/[^a-zA-Z0-9\u0600-\u06FF \-_]/g, '').trim();
         const boundary = "----=_NextPart_000_0001_01C2A9A1.12345678";
         const subject = 'Statement of Account - Al Marai Al Arabia Trading Sole Proprietorship L.L.C';
@@ -328,6 +335,13 @@ export default function CustomersTab({
           `Content-Disposition: attachment; filename="${cleanName}.pdf"`,
           '',
           pdfBase64,
+          '',
+          '--' + boundary,
+          `Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet; name="${cleanName}.xlsx"`,
+          'Content-Transfer-Encoding: base64',
+          `Content-Disposition: attachment; filename="${cleanName}.xlsx"`,
+          '',
+          excelBase64,
           '',
           '--' + boundary + '--'
         ];
