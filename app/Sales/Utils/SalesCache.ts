@@ -122,9 +122,9 @@ async function buildFromDB(): Promise<any[]> {
   };
 
   const [salesData, customersData, productsData] = await Promise.all([
-    fetchAllFromTable('web_Sales_DB', 'ID, "INVOICE DATE", "INVOICE NUMBER", "CUSTOMER ID", "PRODUCT ID", "PRODUCT COST", "PRODUCT PRICE", AMOUNT, QTY'),
+    fetchAllFromTable('web_Sales_DB', 'ID, "INVOICE DATE", "INVOICE NUMBER", "CUSTOMER ID", "PRODUCT ID", "PRODUCT PRICE", AMOUNT, QTY'),
     fetchAllFromTable('bhs_CUSTOMERS', '"CUSTOMER ID", "CUSTOMER MAIN NAME", "CUSTOMER SUB NAME"'),
-    fetchAllFromTable('bhs_PRODUCTS', '"PRODUCT ID", "PRODUCT NAME", "PRODUCT BARCODE", "PRODUCT CATEGORY"'),
+    fetchAllFromTable('bhs_PRODUCTS', '"PRODUCT ID", "PRODUCT NAME", "PRODUCT BARCODE", "PRODUCT CATEGORY", "PRODUCT COST"'),
   ]);
 
   const norm = (v: any) => (v ? String(v).trim().toUpperCase() : '');
@@ -153,7 +153,7 @@ async function buildFromDB(): Promise<any[]> {
       customerId: s['CUSTOMER ID'],
       productId: s['PRODUCT ID'],
       productTag: p['PRODUCT CATEGORY'] || 'Uncategorized',
-      productCost: s['PRODUCT COST'],
+      productCost: p['PRODUCT COST'] || 0,
       productPrice: s['PRODUCT PRICE'],
       amount: s['AMOUNT'],
       qty: s['QTY'],

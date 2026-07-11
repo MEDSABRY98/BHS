@@ -99,7 +99,6 @@ export default function SalesDBPage() {
       'INVOICE NUMBER',
       'CUSTOMER ID',
       'PRODUCT ID',
-      'PRODUCT COST',
       'PRODUCT PRICE',
       'AMOUNT',
       'QTY'
@@ -111,7 +110,6 @@ export default function SalesDBPage() {
       'INVOICE NUMBER': 'INV-001',
       'CUSTOMER ID': '85527',
       'PRODUCT ID': 'PROD-789',
-      'PRODUCT COST': 10.50,
       'PRODUCT PRICE': 15.00,
       'AMOUNT': 15.00,
       'QTY': 1
@@ -239,7 +237,7 @@ export default function SalesDBPage() {
         return;
       }
 
-      const requiredColumns = ['INVOICE DATE', 'INVOICE NUMBER', 'CUSTOMER ID', 'PRODUCT ID', 'PRODUCT COST', 'PRODUCT PRICE', 'QTY'];
+      const requiredColumns = ['INVOICE DATE', 'INVOICE NUMBER', 'CUSTOMER ID', 'PRODUCT ID', 'PRODUCT PRICE', 'QTY'];
       const firstRow = jsonData[0];
       const missingColumns = requiredColumns.filter(col => !(col in firstRow));
       if (missingColumns.length > 0) {
@@ -298,7 +296,6 @@ export default function SalesDBPage() {
       };
 
       const formattedRows = jsonData.map((row) => {
-        const cost = Number(row['PRODUCT COST']) || 0;
         const price = Number(row['PRODUCT PRICE']) || 0;
         const qty = Number(row['QTY']) || 0;
         const amount = row['AMOUNT'] !== undefined ? (Number(row['AMOUNT']) || 0) : (qty * price);
@@ -312,7 +309,6 @@ export default function SalesDBPage() {
           'INVOICE NUMBER': String(row['INVOICE NUMBER'] ?? '').trim(),
           'CUSTOMER ID': normalizeExcelId(row['CUSTOMER ID']),
           'PRODUCT ID': normalizeExcelId(row['PRODUCT ID']),
-          'PRODUCT COST': cost,
           'PRODUCT PRICE': price,
           'AMOUNT': amount,
           'QTY': qty

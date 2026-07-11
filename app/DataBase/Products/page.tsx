@@ -53,6 +53,7 @@ export default function ProductsPage() {
   const [productId, setProductId] = useState('');
   const [itemCode, setItemCode] = useState<string>('');
   const [productCategory, setProductCategory] = useState('');
+  const [productCost, setProductCost] = useState<string>('');
   const [isUploading, setIsUploading] = useState(false);
 
   const [activeTab, setActiveTab] = useState<'products'|'categories'>('products');
@@ -112,6 +113,7 @@ export default function ProductsPage() {
     setProductId(product ? product["PRODUCT ID"] : '');
     setItemCode(product ? (product["ITEM CODE"] ?? '').toString() : '');
     setProductCategory(product ? product["PRODUCT CATEGORY"] || '' : '');
+    setProductCost(product ? (product["PRODUCT COST"] ?? '').toString() : '');
     setIsModalOpen(true);
   };
 
@@ -151,7 +153,8 @@ export default function ProductsPage() {
             "PRODUCT BARCODE": barcode,
             "PRODUCT ID": productId,
             "ITEM CODE": itemCodeValue,
-            "PRODUCT CATEGORY": productCategory
+            "PRODUCT CATEGORY": productCategory,
+            "PRODUCT COST": productCost !== '' ? Number(productCost) : 0
           })
           .eq('ID', editingProduct.ID);
         if (error) throw error;
@@ -183,7 +186,8 @@ export default function ProductsPage() {
             "PRODUCT BARCODE": barcode,
             "PRODUCT ID": productId,
             "ITEM CODE": itemCodeValue,
-            "PRODUCT CATEGORY": productCategory
+            "PRODUCT CATEGORY": productCategory,
+            "PRODUCT COST": productCost !== '' ? Number(productCost) : 0
           });
         if (error) throw error;
       }
@@ -335,7 +339,8 @@ export default function ProductsPage() {
         'PRODUCT BARCODE': p['PRODUCT BARCODE'],
         'PRODUCT NAME': p['PRODUCT NAME'],
         'PRODUCT CATEGORY': p['PRODUCT CATEGORY'],
-        'ITEM CODE': p['ITEM CODE']
+        'ITEM CODE': p['ITEM CODE'],
+        'PRODUCT COST': p['PRODUCT COST']
       }));
 
       const ws = XLSX.utils.json_to_sheet(exportData);
@@ -505,6 +510,7 @@ export default function ProductsPage() {
         'PRODUCT ID': normalizeExcelId(row['PRODUCT ID']),
         'ITEM CODE': row['ITEM CODE'] ? Number(row['ITEM CODE']) : null,
         'PRODUCT CATEGORY': row['PRODUCT CATEGORY']?.toString().trim() || '',
+        'PRODUCT COST': row['PRODUCT COST'] !== undefined && row['PRODUCT COST'] !== '' ? Number(row['PRODUCT COST']) : 0,
       }));
 
       const chunkSize = 500;
@@ -719,6 +725,11 @@ export default function ProductsPage() {
                           #{product['ITEM CODE']}
                         </span>
                       )}
+                      {product['PRODUCT COST'] != null && (
+                        <span className="inline-flex items-center px-2.5 py-1 bg-green-50 text-green-600 rounded-xl text-[9px] font-black font-mono tracking-widest">
+                          AED {product['PRODUCT COST']}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -931,6 +942,19 @@ export default function ProductsPage() {
                     value={productCategory}
                     onChange={(e) => setProductCategory(e.target.value)}
                     placeholder="e.g. ELECTRONICS"
+                    className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">PRODUCT COST (AED)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={productCost}
+                    onChange={(e) => setProductCost(e.target.value)}
+                    placeholder="0.00"
                     className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold"
                   />
                 </div>
