@@ -275,7 +275,7 @@ export async function getSingleProductAnalysis(
     const productRow = products.find((p) => p['PRODUCT ID']?.toString().trim() === productId.trim());
     if (!productRow) return { success: false, error: 'Product not found' };
 
-    const currentStock = parseNum(productRow.QTY);
+    const currentStock = parseNum(productRow['AVAILABLE QTY']);
 
     let filterStart: Date | null = null;
     let filterEnd: Date | null = new Date();
