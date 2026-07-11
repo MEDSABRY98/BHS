@@ -23,9 +23,6 @@ export interface BaseProductOrder {
     barcode: string;
     tags: string;
     onHand: number;
-    qinc: number;
-    minQ?: number;
-    maxQ?: number;
 }
 
 export interface ProductOrder extends BaseProductOrder {
@@ -63,10 +60,7 @@ export default function InventoryProductOrdersTab({ orderItems, setOrderItems }:
                 ...p,
                 formattedTag: formatCategory(p.tags),
                 // Map the new fields from the sheet
-                onHand: p.qty || 0,
-                qinc: p.qinc,
-                minQ: p.minQ,
-                maxQ: p.maxQ
+                onHand: p.qty || 0
             }));
             setProducts(data);
             setError(null);
@@ -125,42 +119,41 @@ export default function InventoryProductOrdersTab({ orderItems, setOrderItems }:
     const categoryStats = tags.map(tag => {
         const catProducts = products.filter(p => p.formattedTag === tag);
         const count = catProducts.length;
-        const lowStockCount = catProducts.filter(p => p.onHand <= (p.minQ || 0) * (p.qinc || 1)).length;
         const outOfStockCount = catProducts.filter(p => p.onHand <= 0).length;
-        return { tag, count, lowStockCount, outOfStockCount };
+        return { tag, count, outOfStockCount };
     }).filter(c => c.tag.toLowerCase().includes(categorySearch.toLowerCase()));
 
     return (
-        <div className="flex flex-col gap-8 animate-in fade-in slide-in-from-bottom-6 duration-700">
+        <div className="flex flex-col gap-6 animate-in fade-in duration-500">
             {/* Summary Dashboard Header */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {[
-                    { label: 'Total Categories', value: tags.length, icon: Package, color: 'blue' },
-                    { label: 'Total Products', value: products.length, icon: Box, color: 'emerald' },
-                    { label: 'Out of Stock', value: products.filter(p => p.onHand <= 0).length, icon: AlertCircle, color: 'red' }
+                    { label: 'Total Categories', value: tags.length, icon: Package, color: 'text-blue-600', bg: 'bg-blue-50' },
+                    { label: 'Total Products', value: products.length, icon: Box, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+                    { label: 'Out of Stock', value: products.filter(p => p.onHand <= 0).length, icon: AlertCircle, color: 'text-red-600', bg: 'bg-red-50' }
                 ].map((stat, i) => (
-                    <div key={i} className="bg-white p-7 rounded-[2rem] border border-gray-100 shadow-xl shadow-slate-200/50 flex items-center gap-6 group hover:shadow-2xl transition-all duration-500">
-                        <div className={`p-5 rounded-2xl bg-${stat.color}-50 text-${stat.color}-600 group-hover:scale-110 transition-transform`}>
-                            <stat.icon className="w-8 h-8" />
+                    <div key={i} className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4 transition-shadow hover:shadow-md">
+                        <div className={`p-3 rounded-lg ${stat.bg} ${stat.color}`}>
+                            <stat.icon className="w-6 h-6" />
                         </div>
                         <div>
-                            <p className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-1">{stat.label}</p>
-                            <p className="text-3xl font-black text-slate-800">{stat.value}</p>
+                            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-0.5">{stat.label}</p>
+                            <p className="text-2xl font-bold text-slate-900">{stat.value}</p>
                         </div>
                     </div>
                 ))}
             </div>
 
             {/* Category Search & Refresh */}
-            <div className="flex items-center gap-4 bg-white p-5 rounded-[2rem] border border-gray-100 shadow-lg">
+            <div className="flex items-center gap-3 bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
                 <div className="relative flex-1 group">
-                    <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none">
-                        <Search className="h-6 w-6 text-gray-300 group-focus-within:text-blue-500 transition-colors" />
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                        <Search className="h-5 w-5 text-slate-400" />
                     </div>
                     <input
                         type="text"
-                        className="block w-full pl-14 pr-6 py-4 bg-slate-50/50 border border-transparent rounded-2xl text-base font-bold text-slate-700 placeholder:text-gray-300 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all"
-                        placeholder="Search product categories..."
+                        className="block w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-lg text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all outline-none"
+                        placeholder="Search categories..."
                         value={categorySearch}
                         onChange={(e) => setCategorySearch(e.target.value)}
                     />
@@ -168,10 +161,10 @@ export default function InventoryProductOrdersTab({ orderItems, setOrderItems }:
                 <button
                     onClick={fetchOrders}
                     disabled={loading}
-                    className="flex items-center justify-center p-4 bg-slate-900 text-white rounded-2xl hover:bg-blue-600 active:scale-95 transition-all shadow-lg min-w-[56px]"
+                    className="flex items-center justify-center p-3 bg-slate-800 text-white rounded-lg hover:bg-slate-700 active:scale-95 transition-all shadow-sm min-w-[48px]"
                     title="Refresh Data"
                 >
-                    <RefreshCw className={`w-6 h-6 ${loading ? 'animate-spin' : ''}`} />
+                    <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
                 </button>
             </div>
 
@@ -179,40 +172,36 @@ export default function InventoryProductOrdersTab({ orderItems, setOrderItems }:
             {categoryStats.length === 0 ? (
                 <NoData title="No Categories" />
             ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {categoryStats.map((cat) => (
                     <button
                         key={cat.tag}
                         onClick={() => setSelectedCategory(cat.tag)}
-                        className="group bg-white p-5 rounded-[2rem] border border-gray-100 shadow-md hover:shadow-xl hover:border-blue-100/50 hover:-translate-y-1 transition-all duration-300 text-left relative overflow-hidden"
+                        className="group bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-blue-300 transition-all text-left flex flex-col h-full"
                     >
-                        <div className="absolute top-0 right-0 w-32 h-32 bg-blue-50/20 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-700" />
-
-                        <div className="relative z-10 flex flex-col h-full">
-                            <div className="flex items-center gap-4 mb-5">
-                                <div className="w-12 h-12 bg-slate-50 text-slate-400 rounded-xl flex items-center justify-center border border-slate-100 group-hover:bg-blue-600 group-hover:text-white transition-all duration-500">
-                                    <Package className="w-6 h-6" />
-                                </div>
-                                <h3 className="text-lg font-semibold text-slate-800 group-hover:text-blue-700 transition-colors leading-tight line-clamp-2 pr-4">
-                                    {cat.tag}
-                                </h3>
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="w-10 h-10 bg-slate-50 text-slate-500 rounded-lg flex items-center justify-center border border-slate-200 group-hover:bg-blue-50 group-hover:text-blue-600 group-hover:border-blue-200 transition-colors">
+                                <Package className="w-5 h-5" />
                             </div>
+                            <h3 className="text-sm font-bold text-slate-800 group-hover:text-blue-700 transition-colors leading-snug line-clamp-2">
+                                {cat.tag}
+                            </h3>
+                        </div>
 
-                            <div className="flex items-center gap-3 mt-auto">
-                                <div className="w-[115px] px-3 py-2 bg-slate-100 text-slate-500 text-[12px] font-bold rounded-lg uppercase tracking-tighter text-center">
-                                    {cat.count} Items
-                                </div>
-                                {cat.outOfStockCount > 0 ? (
-                                    <div className="w-[115px] px-3 py-2 bg-red-50 text-red-600 text-[12px] font-bold rounded-lg border border-red-100 uppercase tracking-tighter flex items-center justify-center gap-1.5 shadow-sm">
-                                        <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />
-                                        {cat.outOfStockCount} OUT
-                                    </div>
-                                ) : (
-                                    <div className="w-[115px] px-3 py-2 bg-blue-50/50 text-blue-400 text-[12px] font-bold rounded-lg border border-blue-50 border-dashed uppercase tracking-tighter text-center">
-                                        ALL IN STOCK
-                                    </div>
-                                )}
+                        <div className="flex items-center gap-2 mt-auto">
+                            <div className="flex-1 py-1.5 bg-slate-50 text-slate-600 text-[11px] font-semibold rounded border border-slate-200 uppercase tracking-wider text-center">
+                                {cat.count} Items
                             </div>
+                            {cat.outOfStockCount > 0 ? (
+                                <div className="flex-1 py-1.5 bg-red-50 text-red-600 text-[11px] font-bold rounded border border-red-200 uppercase tracking-wider flex items-center justify-center gap-1.5">
+                                    <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />
+                                    {cat.outOfStockCount} OUT
+                                </div>
+                            ) : (
+                                <div className="flex-1 py-1.5 bg-emerald-50 text-emerald-600 text-[11px] font-semibold rounded border border-emerald-200 uppercase tracking-wider text-center">
+                                    ALL STOCKED
+                                </div>
+                            )}
                         </div>
                     </button>
                 ))}

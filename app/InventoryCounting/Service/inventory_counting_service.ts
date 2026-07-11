@@ -29,14 +29,14 @@ export interface ICRecord {
 type MixCountProductRow = {
   ID: string;
   'PRODUCT ID': string;
-  'BARCODE NAME': string | null;
+  'PRODUCT BARCODE': string | null;
   'PRODUCT NAME': string;
   'AVAILABLE QTY': number | null;
   'QTY IN BOX': number | null;
 };
 
 type MixCountTable =
-  | 'mix_INVENTORY_COUNT_PRODUCTS'
+  | 'bhs_PRODUCTS'
   | 'mix_INVENTORY_COUNT_DETAILS'
   | 'mix_INVENTORY_COUNT_TOTALS';
 
@@ -57,6 +57,11 @@ async function fetchAllMixCountRows<T>(
   while (true) {
     let query = bhs_supabase.from(table).select(select);
     if (filter) query = query.eq(filter.column, filter.value);
+    
+    if (table === 'bhs_PRODUCTS') {
+      query = query.eq('IS_COUNTABLE', true);
+    }
+    
     const { data, error } = await query.range(from, from + pageSize - 1);
     if (error) throw error;
     if (!data || data.length === 0) break;
@@ -69,14 +74,14 @@ async function fetchAllMixCountRows<T>(
 }
 
 async function loadMixCountProductMap(): Promise<Map<string, MixCountProductRow>> {
-  const products = await fetchAllMixCountRows<MixCountProductRow>('mix_INVENTORY_COUNT_PRODUCTS', '*');
+  const products = await fetchAllMixCountRows<MixCountProductRow>('bhs_PRODUCTS', '*');
   return new Map(products.map((p) => [p['PRODUCT ID']?.toString().trim(), p]));
 }
 
 export async function fetchICTotal(countType: CountType) {
   try {
     const [products, totals] = await Promise.all([
-      fetchAllMixCountRows<MixCountProductRow>('mix_INVENTORY_COUNT_PRODUCTS', '*'),
+      fetchAllMixCountRows<MixCountProductRow>('bhs_PRODUCTS', '*'),
       fetchAllMixCountRows<{ 'PRODUCT ID': string; 'COUNTED QTY': number | null }>(
         'mix_INVENTORY_COUNT_TOTALS',
         '"PRODUCT ID","COUNTED QTY"',
@@ -91,7 +96,7 @@ export async function fetchICTotal(countType: CountType) {
     const data = products
       .map((p) => ({
         productId: p['PRODUCT ID']?.toString().trim() || '',
-        barcodeName: p['BARCODE NAME']?.toString().trim() || '',
+        barcodeName: p['PRODUCT BARCODE']?.toString().trim() || '',
         productName: p['PRODUCT NAME']?.toString().trim() || '',
         availableQty: parseNum(p['AVAILABLE QTY']),
         qtyInBox: parseNum(p['QTY IN BOX']),
@@ -133,7 +138,7 @@ export async function fetchICDetails(countType: CountType) {
           user: row.USER?.toString().trim() || '',
           warehouse: row.WAREHOUSE?.toString().trim() || '',
           productId,
-          barcodeName: product?.['BARCODE NAME']?.toString().trim() || '',
+          barcodeName: product?.['PRODUCT BARCODE']?.toString().trim() || '',
           productName: product?.['PRODUCT NAME']?.toString().trim() || '',
           qtyInBox: parseNum(row['QTY IN BOX'] ?? product?.['QTY IN BOX']),
           countDetails: row['COUNT DETAILS']?.toString() || '',
@@ -156,9 +161,9 @@ export async function updateICItem(
 ) {
   try {
     const { data, error } = await bhs_supabase
-      .from('mix_INVENTORY_COUNT_PRODUCTS')
+      .from('bhs_PRODUCTS')
       .update({
-        'BARCODE NAME': newValues.barcodeName.trim(),
+        'PRODUCT BARCODE': newValues.barcodeName.trim(),
         'PRODUCT NAME': newValues.productName.trim(),
         'AVAILABLE QTY': parseNum(newValues.availableQty),
         'QTY IN BOX': parseNum(newValues.qtyInBox),

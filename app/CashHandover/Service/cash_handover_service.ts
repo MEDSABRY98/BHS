@@ -13,6 +13,7 @@ export interface CashHandover {
   ITEMS: HandoverItem[];
   TOTAL_AMOUNT: number;
   WHO_RECEIVED: string;
+  NOTE?: string;
 }
 
 export async function getNextHandoverId(): Promise<string> {
@@ -54,7 +55,8 @@ export async function saveCashHandover(handover: CashHandover): Promise<{ succes
         DATE: handover.DATE,
         ITEMS: handover.ITEMS,
         TOTAL_AMOUNT: handover.TOTAL_AMOUNT,
-        WHO_RECEIVED: handover.WHO_RECEIVED
+        WHO_RECEIVED: handover.WHO_RECEIVED,
+        NOTE: handover.NOTE || null
       }]);
 
     if (error) {

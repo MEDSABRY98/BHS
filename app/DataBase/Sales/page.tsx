@@ -9,6 +9,8 @@ import { toast } from '@/app/Components/Notification';
 import { bhs_supabas } from '@/lib/supabase';
 import * as XLSX from 'xlsx';
 import { getSalesMonthsCache, deleteSalesMonth, buildSalesCache, deleteAllSalesData } from '@/app/Sales/Service/sales_core_service';
+import { exportDatabaseExcelTable } from '../ExcelExport';
+import { downloadUploadIssuesReport, normalizeExcelId } from '../Utils/ExcelUploadUtils';
 
 const englishMonths: Record<number, string> = {
   1: "January", 2: "February", 3: "March", 4: "April", 5: "May", 6: "June",
@@ -93,7 +95,7 @@ export default function SalesDBPage() {
     }
   };
 
-  const downloadSalesTemplate = () => {
+  const downloadSalesTemplate = async () => {
     const headers = [
       'INVOICE DATE',
       'INVOICE NUMBER',
@@ -104,31 +106,21 @@ export default function SalesDBPage() {
       'QTY'
     ];
 
-    // Create a worksheet with headers and a sample row
-    const sampleRow = {
-      'INVOICE DATE': '2026-06-12',
-      'INVOICE NUMBER': 'INV-001',
-      'CUSTOMER ID': '85527',
-      'PRODUCT ID': 'PROD-789',
-      'PRODUCT PRICE': 15.00,
-      'AMOUNT': 15.00,
-      'QTY': 1
-    };
+    const sampleRow = [
+      '2026-06-12',
+      'INV-001',
+      '85527',
+      'PROD-789',
+      15.00,
+      15.00,
+      1
+    ];
 
-    const ws = XLSX.utils.json_to_sheet([sampleRow], { header: headers });
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Sales Template');
-    XLSX.writeFile(wb, 'Sales_Import_Template.xlsx');
+    await exportDatabaseExcelTable(headers, [sampleRow], 'Sales_Import_Template.xlsx');
     toast.success('Template downloaded successfully!');
   };
 
-  const normalizeExcelId = (val: unknown): string => {
-    if (val === null || val === undefined || val === '') return '';
-    if (typeof val === 'number' && Number.isFinite(val)) {
-      return Number.isInteger(val) ? String(Math.trunc(val)) : String(val);
-    }
-    return String(val).trim();
-  };
+
 
   const fetchAllColumnValues = async (table: string, column: string): Promise<Set<string>> => {
     const pageSize = 1000;
@@ -186,39 +178,7 @@ export default function SalesDBPage() {
     return maxNum + 1;
   };
 
-  const downloadMissingIdsReport = (missingCustomers: Set<string>, missingProducts: Set<string>) => {
-    const lines: string[] = [
-      'Sales Upload - Missing References',
-      `Generated: ${new Date().toLocaleString('en-GB')}`,
-      '',
-    ];
 
-    if (missingCustomers.size > 0) {
-      lines.push(`=== MISSING CUSTOMER IDs (${missingCustomers.size}) — add in Customers DB ===`);
-      [...missingCustomers].sort((a, b) => a.localeCompare(b, undefined, { numeric: true })).forEach((id) => {
-        lines.push(id);
-      });
-      lines.push('');
-    }
-
-    if (missingProducts.size > 0) {
-      lines.push(`=== MISSING PRODUCT IDs (${missingProducts.size}) — add in Products DB ===`);
-      [...missingProducts].sort((a, b) => a.localeCompare(b, undefined, { numeric: true })).forEach((id) => {
-        lines.push(id);
-      });
-      lines.push('');
-    }
-
-    const blob = new Blob([lines.join('\r\n')], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `Sales_Missing_IDs_${new Date().toISOString().split('T')[0]}.txt`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  };
 
   const handleSalesUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -329,7 +289,25 @@ export default function SalesDBPage() {
       });
 
       if (missingProducts.size > 0 || missingCustomers.size > 0) {
-        downloadMissingIdsReport(missingCustomers, missingProducts);
+        const issueSections = [];
+        if (missingCustomers.size > 0) {
+          issueSections.push({
+            heading: `=== MISSING CUSTOMER IDs (${missingCustomers.size}) — add in Customers DB ===`,
+            lines: [...missingCustomers].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+          });
+        }
+        if (missingProducts.size > 0) {
+          issueSections.push({
+            heading: `=== MISSING PRODUCT IDs (${missingProducts.size}) — add in Products DB ===`,
+            lines: [...missingProducts].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+          });
+        }
+        
+        downloadUploadIssuesReport(
+          `Sales_Missing_IDs_${new Date().toISOString().split('T')[0]}.txt`,
+          'Sales Upload - Missing References',
+          issueSections
+        );
 
         const parts: string[] = [];
         if (missingCustomers.size > 0) parts.push(`${missingCustomers.size} customer ID(s)`);

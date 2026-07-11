@@ -265,7 +265,7 @@ const PRODUCT_ID_TABLES = [
   { table: 'web_INVENTORY_SCRAB_REPORT', column: 'PRODUCT_ID' },
 ] as const;
 
-const REGISTRY_TABLES = ['web_INVENTORY_PRODUCTS', 'mix_INVENTORY_COUNT_PRODUCTS'] as const;
+const REGISTRY_TABLES: string[] = [];
 
 type MergeProductBody = {
   survivorProductId?: string;

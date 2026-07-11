@@ -11,7 +11,7 @@ import {
     getNextDocIds
 } from './types';
 import { getDocumentsTracking, addDocumentsTrackingRecords, getCustomers } from '../Service/documents_tracking_service';
-import { exportDebitExcelTable } from '../../Debit/Export/DebitExcelExport';
+import { exportDebitExcelTable } from '../../Debit/Export/ExcelExport';
 
 interface RegisterTabProps {
     onSaveSuccess: () => void;
@@ -40,7 +40,7 @@ export default function RegisterTab({
         }
     ]);
 
-    const [customers, setCustomers] = useState<{id: string, name: string}[]>([]);
+    const [customers, setCustomers] = useState<{ id: string, name: string }[]>([]);
     const [focusedClientRow, setFocusedClientRow] = useState<number | null>(null);
     const [dropdownCoords, setDropdownCoords] = useState({ top: 0, left: 0, width: 0 });
     const [showExcelMenu, setShowExcelMenu] = useState(false);
@@ -75,7 +75,7 @@ export default function RegisterTab({
     const downloadTemplate = async () => {
         const headers = ['صاحب الشيك', 'تاريخ الاستلام', 'تاريخ الشيك', 'رقم الشيك', 'مبلغ الشيك', 'مستلم من مين؟', 'ملاحظات'];
         const rows = [['', '', '', '', '', '', '']];
-        
+
         await exportDebitExcelTable(
             headers,
             rows,
@@ -123,7 +123,7 @@ export default function RegisterTab({
                             notes: row['ملاحظات'] || ''
                         };
                     });
-                    
+
                     if (drafts.length === 1 && !drafts[0].client && !drafts[0].num && !drafts[0].amount) {
                         setDrafts(newDrafts);
                     } else {
@@ -137,7 +137,7 @@ export default function RegisterTab({
             }
         };
         reader.readAsArrayBuffer(file);
-        
+
         if (fileInputRef.current) fileInputRef.current.value = '';
         setShowExcelMenu(false);
     };
@@ -289,11 +289,11 @@ export default function RegisterTab({
                                         .filter(c => c.name.toLowerCase().includes(draft.client.toLowerCase()))
                                         .slice(0, 10)
                                         .map(c => (
-                                            <div 
-                                                key={c.id} 
-                                                style={{ 
-                                                    padding: '10px 12px', 
-                                                    cursor: 'pointer', 
+                                            <div
+                                                key={c.id}
+                                                style={{
+                                                    padding: '10px 12px',
+                                                    cursor: 'pointer',
                                                     borderRadius: '6px',
                                                     fontSize: '13px',
                                                     fontWeight: 600,
@@ -467,15 +467,15 @@ export default function RegisterTab({
                         <Plus size={18} className="icon" /> إضافة صف جديد
                     </button>
 
-                    <button 
-                        className="btn-add-row" 
-                        style={{ backgroundColor: '#217346', color: 'white' }} 
+                    <button
+                        className="btn-add-row"
+                        style={{ backgroundColor: '#217346', color: 'white' }}
                         onClick={() => setShowExcelMenu(true)}
                         disabled={isLoading}
                     >
                         <FileSpreadsheet size={18} className="icon" /> إكسيل
                     </button>
-                    
+
                     {showExcelMenu && typeof document !== 'undefined' && createPortal(
                         <div style={{
                             position: 'fixed',
@@ -495,7 +495,7 @@ export default function RegisterTab({
                                 boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)',
                                 position: 'relative'
                             }}>
-                                <button 
+                                <button
                                     onClick={() => setShowExcelMenu(false)}
                                     style={{ position: 'absolute', top: '16px', left: '16px', background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', fontSize: '18px' }}
                                 >
@@ -504,9 +504,9 @@ export default function RegisterTab({
                                 <h3 style={{ margin: '0 0 24px 0', color: '#0f172a', fontSize: '18px', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
                                     <FileSpreadsheet color="#217346" /> خيارات استيراد الإكسيل
                                 </h3>
-                                
+
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                                    <button 
+                                    <button
                                         onClick={downloadTemplate}
                                         style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '16px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', cursor: 'pointer', color: '#1e293b', fontWeight: 600, fontSize: '15px', transition: 'all 0.2s', textAlign: 'right' }}
                                         onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#217346'; e.currentTarget.style.background = '#f0fdf4'; }}
@@ -518,8 +518,8 @@ export default function RegisterTab({
                                             <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 'normal', marginTop: '4px' }}>قم بتنزيل ملف فارغ بالأعمدة المطلوبة</span>
                                         </div>
                                     </button>
-                                    
-                                    <label 
+
+                                    <label
                                         style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '16px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', cursor: 'pointer', color: '#1e293b', fontWeight: 600, fontSize: '15px', transition: 'all 0.2s', margin: 0 }}
                                         onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#217346'; e.currentTarget.style.background = '#f0fdf4'; }}
                                         onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.background = '#f8fafc'; }}
@@ -529,10 +529,10 @@ export default function RegisterTab({
                                             <span>رفع ملف الشيكات</span>
                                             <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 'normal', marginTop: '4px' }}>ارفع الملف بعد تعبئته لإضافته للبرنامج</span>
                                         </div>
-                                        <input 
-                                            type="file" 
-                                            accept=".xlsx, .xls" 
-                                            style={{ display: 'none' }} 
+                                        <input
+                                            type="file"
+                                            accept=".xlsx, .xls"
+                                            style={{ display: 'none' }}
                                             ref={fileInputRef}
                                             onChange={handleFileUpload}
                                         />

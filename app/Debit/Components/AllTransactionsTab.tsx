@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState, Fragment } from 'react';
-import { exportDebitExcelTable } from '@/app/Debit/Export/DebitExcelExport';
+import { exportDebitExcelTable } from '@/app/Debit/Export/ExcelExport';
 import {
   useReactTable,
   getCoreRowModel,
@@ -442,40 +442,40 @@ export default function AllTransactionsTab({ data }: AllTransactionsTabProps) {
               {table.getRowModel().rows.length === 0 ? (
                 <NoData />
               ) : (
-              <table className="w-full" style={{ tableLayout: 'fixed', direction: 'ltr' }}>
-                <thead className="bg-gray-100">
-                  {table.getHeaderGroups().map((headerGroup) => (
-                    <tr key={headerGroup.id}>
-                      {headerGroup.headers.map((header) => {
-                        const getWidth = () => {
-                          const columnId = header.column.id;
-                          if (columnId === 'customerName') return '32%';
-                          if (columnId === 'date') return '8%';
-                          if (columnId === 'number') return '11%';
-                          if (columnId === 'type') return '7%';
-                          if (columnId === 'debit') return '9%';
-                          if (columnId === 'credit') return '9%';
-                          if (columnId === 'netAmount') return '14%';
-                          if (columnId === 'matching') return '10%';
-                          return 'auto';
-                        };
-                        const alignClass =
-                          header.column.id === 'customerName' ? 'text-left' : 'text-center';
-                        return (
-                          <th
-                            key={header.id}
-                            className={`px-4 py-3 font-semibold ${alignClass}`}
-                            style={{ width: getWidth() }}
-                          >
-                            {flexRender(header.column.columnDef.header, header.getContext())}
-                          </th>
-                        );
-                      })}
-                    </tr>
-                  ))}
-                </thead>
-                <tbody>
-                  {table.getRowModel().rows.map((row) => (
+                <table className="w-full" style={{ tableLayout: 'fixed', direction: 'ltr' }}>
+                  <thead className="bg-gray-100">
+                    {table.getHeaderGroups().map((headerGroup) => (
+                      <tr key={headerGroup.id}>
+                        {headerGroup.headers.map((header) => {
+                          const getWidth = () => {
+                            const columnId = header.column.id;
+                            if (columnId === 'customerName') return '32%';
+                            if (columnId === 'date') return '8%';
+                            if (columnId === 'number') return '11%';
+                            if (columnId === 'type') return '7%';
+                            if (columnId === 'debit') return '9%';
+                            if (columnId === 'credit') return '9%';
+                            if (columnId === 'netAmount') return '14%';
+                            if (columnId === 'matching') return '10%';
+                            return 'auto';
+                          };
+                          const alignClass =
+                            header.column.id === 'customerName' ? 'text-left' : 'text-center';
+                          return (
+                            <th
+                              key={header.id}
+                              className={`px-4 py-3 font-semibold ${alignClass}`}
+                              style={{ width: getWidth() }}
+                            >
+                              {flexRender(header.column.columnDef.header, header.getContext())}
+                            </th>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </thead>
+                  <tbody>
+                    {table.getRowModel().rows.map((row) => (
                       <tr key={row.id} className="border-b hover:bg-gray-50">
                         {row.getVisibleCells().map((cell) => {
                           const getWidth = () => {
@@ -504,46 +504,46 @@ export default function AllTransactionsTab({ data }: AllTransactionsTabProps) {
                         })}
                       </tr>
                     ))}
-                  {filteredItems.length > 0 && (
-                    <tr className="bg-gray-100 font-bold border-t-2 border-gray-300">
-                      <td className="px-4 py-3 text-center text-lg">Total</td>
-                      <td className="px-4 py-3 text-center text-lg">-</td>
-                      <td className="px-4 py-3 text-center text-lg">-</td>
-                      <td className="px-4 py-3 text-center text-lg">-</td>
-                      <td className="px-4 py-3 text-center text-lg">
-                        {filteredItems.reduce((sum, item) => sum + item.debit, 0).toLocaleString('en-US', {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        })}
-                      </td>
-                      <td className="px-4 py-3 text-center text-lg">
-                        {filteredItems.reduce((sum, item) => sum + item.credit, 0).toLocaleString('en-US', {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        })}
-                      </td>
-                      <td className="px-4 py-3 text-center text-lg">
-                        {(() => {
-                          const total = filteredItems.reduce((sum, item) => sum + item.netAmount, 0);
-                          const isNegative = total < 0;
-                          return (
-                            <span
-                              className={`font-semibold ${isNegative ? 'text-green-600' : 'text-orange-600'
-                                }`}
-                            >
-                              {total.toLocaleString('en-US', {
-                                minimumFractionDigits: 2,
-                                maximumFractionDigits: 2,
-                              })}
-                            </span>
-                          );
-                        })()}
-                      </td>
-                      <td className="px-4 py-3 text-center text-lg">-</td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+                    {filteredItems.length > 0 && (
+                      <tr className="bg-gray-100 font-bold border-t-2 border-gray-300">
+                        <td className="px-4 py-3 text-center text-lg">Total</td>
+                        <td className="px-4 py-3 text-center text-lg">-</td>
+                        <td className="px-4 py-3 text-center text-lg">-</td>
+                        <td className="px-4 py-3 text-center text-lg">-</td>
+                        <td className="px-4 py-3 text-center text-lg">
+                          {filteredItems.reduce((sum, item) => sum + item.debit, 0).toLocaleString('en-US', {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}
+                        </td>
+                        <td className="px-4 py-3 text-center text-lg">
+                          {filteredItems.reduce((sum, item) => sum + item.credit, 0).toLocaleString('en-US', {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}
+                        </td>
+                        <td className="px-4 py-3 text-center text-lg">
+                          {(() => {
+                            const total = filteredItems.reduce((sum, item) => sum + item.netAmount, 0);
+                            const isNegative = total < 0;
+                            return (
+                              <span
+                                className={`font-semibold ${isNegative ? 'text-green-600' : 'text-orange-600'
+                                  }`}
+                              >
+                                {total.toLocaleString('en-US', {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 2,
+                                })}
+                              </span>
+                            );
+                          })()}
+                        </td>
+                        <td className="px-4 py-3 text-center text-lg">-</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
               )}
             </div>
 
@@ -612,28 +612,28 @@ export default function AllTransactionsTab({ data }: AllTransactionsTabProps) {
             {groupedByCustomer.length === 0 ? (
               <NoData />
             ) : (
-            <table className="w-full" style={{ tableLayout: 'fixed', direction: 'ltr' }}>
-              <thead className="bg-gray-100">
-                <tr>
-                  <th className="px-4 py-3 text-left font-semibold" style={{ width: '35%' }}>
-                    Customer Name
-                  </th>
-                  <th className="px-4 py-3 text-center font-semibold" style={{ width: '15%' }}>
-                    Transactions
-                  </th>
-                  <th className="px-4 py-3 text-center font-semibold" style={{ width: '15%' }}>
-                    Total Debit
-                  </th>
-                  <th className="px-4 py-3 text-center font-semibold" style={{ width: '15%' }}>
-                    Total Credit
-                  </th>
-                  <th className="px-4 py-3 text-center font-semibold" style={{ width: '20%' }}>
-                    Total Net
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {groupedByCustomer.map((row) => {
+              <table className="w-full" style={{ tableLayout: 'fixed', direction: 'ltr' }}>
+                <thead className="bg-gray-100">
+                  <tr>
+                    <th className="px-4 py-3 text-left font-semibold" style={{ width: '35%' }}>
+                      Customer Name
+                    </th>
+                    <th className="px-4 py-3 text-center font-semibold" style={{ width: '15%' }}>
+                      Transactions
+                    </th>
+                    <th className="px-4 py-3 text-center font-semibold" style={{ width: '15%' }}>
+                      Total Debit
+                    </th>
+                    <th className="px-4 py-3 text-center font-semibold" style={{ width: '15%' }}>
+                      Total Credit
+                    </th>
+                    <th className="px-4 py-3 text-center font-semibold" style={{ width: '20%' }}>
+                      Total Net
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {groupedByCustomer.map((row) => {
                     const isNegative = row.totalNet < 0;
                     const isExpanded = expandedCustomer === row.customerName;
                     return (
@@ -773,7 +773,7 @@ export default function AllTransactionsTab({ data }: AllTransactionsTabProps) {
                       </Fragment>
                     );
                   })}
-                <tr className="bg-gray-100 font-bold border-t-2 border-gray-300">
+                  <tr className="bg-gray-100 font-bold border-t-2 border-gray-300">
                     <td className="px-4 py-3 text-left text-base">
                       Total ({groupedByCustomer.length.toLocaleString('en-US')} customer
                       {groupedByCustomer.length === 1 ? '' : 's'})
@@ -818,8 +818,8 @@ export default function AllTransactionsTab({ data }: AllTransactionsTabProps) {
                       })()}
                     </td>
                   </tr>
-              </tbody>
-            </table>
+                </tbody>
+              </table>
             )}
           </div>
         )}

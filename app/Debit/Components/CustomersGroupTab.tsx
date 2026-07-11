@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState, useEffect, useRef } from 'react';
-import { exportDebitExcelTable } from '@/app/Debit/Export/DebitExcelExport';
+import { exportDebitExcelTable } from '@/app/Debit/Export/ExcelExport';
 import {
   useReactTable,
   getCoreRowModel,
@@ -1139,8 +1139,8 @@ export default function CustomersGroupTab({ data }: CustomersGroupTabProps) {
                 type="button"
                 onClick={() => setViewMode('overdue')}
                 className={`h-full px-4 rounded-lg text-xs font-bold transition-all cursor-pointer ${viewMode === 'overdue'
-                    ? 'bg-white text-blue-700 shadow-sm'
-                    : 'text-slate-500 hover:text-slate-800'
+                  ? 'bg-white text-blue-700 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-800'
                   }`}
               >
                 Overdue Only
@@ -1149,8 +1149,8 @@ export default function CustomersGroupTab({ data }: CustomersGroupTabProps) {
                 type="button"
                 onClick={() => setViewMode('all')}
                 className={`h-full px-4 rounded-lg text-xs font-bold transition-all cursor-pointer ${viewMode === 'all'
-                    ? 'bg-white text-blue-700 shadow-sm'
-                    : 'text-slate-500 hover:text-slate-800'
+                  ? 'bg-white text-blue-700 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-800'
                   }`}
               >
                 All Invoices
@@ -1284,88 +1284,88 @@ export default function CustomersGroupTab({ data }: CustomersGroupTabProps) {
             {table.getRowModel().rows.length === 0 ? (
               <NoData />
             ) : (
-            <table className="w-full border-collapse" style={{ minWidth: '1200px' }}>
-              <thead>
-                {table.getHeaderGroups().map((headerGroup) => (
-                  <tr key={headerGroup.id} className="bg-slate-50 border-b border-slate-200">
-                    {headerGroup.headers.map((header) => {
-                      const getWidth = () => {
-                        const colId = header.column.id;
-                        if (colId === 'select') return '4%';
-                        if (colId === 'rowNumber') return '4%';
-                        if (colId === 'customerName') return '18%';
-                        if (colId === 'date') return '10%';
-                        if (colId === 'type') return '8%';
-                        if (colId === 'number') return '12%';
-                        if (colId === 'debit' || colId === 'credit' || colId === 'difference') return '10%';
-                        if (colId === 'matching') return '10%';
-                        if (colId === 'daysOverdue') return '8%';
-                        return '10%';
-                      };
-                      return (
-                        <th
-                          key={header.id}
-                          style={{ width: getWidth() }}
-                          onClick={header.column.getToggleSortingHandler()}
-                          className="px-4 py-3.5 text-center text-xs font-bold text-slate-500 uppercase tracking-wider cursor-pointer hover:bg-slate-100 transition-colors select-none"
-                        >
-                          <div className="flex items-center justify-center gap-1">
-                            {flexRender(header.column.columnDef.header, header.getContext())}
-                            {{
-                              asc: ' ↑',
-                              desc: ' ↓',
-                            }[header.column.getIsSorted() as string] ?? null}
-                          </div>
-                        </th>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </thead>
-              <tbody className="divide-y divide-slate-200">
-                {table.getRowModel().rows.map((row, idx) => {
-                  const isSelected = selectedRowKeys.has(row.original.rowKey);
-                  return (
-                    <tr
-                      key={row.id}
-                      className={`hover:bg-slate-50/70 transition-colors ${isSelected ? 'bg-blue-50/60' : idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'}`}
-                    >
-                      {row.getVisibleCells().map((cell) => {
+              <table className="w-full border-collapse" style={{ minWidth: '1200px' }}>
+                <thead>
+                  {table.getHeaderGroups().map((headerGroup) => (
+                    <tr key={headerGroup.id} className="bg-slate-50 border-b border-slate-200">
+                      {headerGroup.headers.map((header) => {
+                        const getWidth = () => {
+                          const colId = header.column.id;
+                          if (colId === 'select') return '4%';
+                          if (colId === 'rowNumber') return '4%';
+                          if (colId === 'customerName') return '18%';
+                          if (colId === 'date') return '10%';
+                          if (colId === 'type') return '8%';
+                          if (colId === 'number') return '12%';
+                          if (colId === 'debit' || colId === 'credit' || colId === 'difference') return '10%';
+                          if (colId === 'matching') return '10%';
+                          if (colId === 'daysOverdue') return '8%';
+                          return '10%';
+                        };
                         return (
-                          <td
-                            key={cell.id}
-                            className="px-4 py-3 text-center text-sm"
+                          <th
+                            key={header.id}
+                            style={{ width: getWidth() }}
+                            onClick={header.column.getToggleSortingHandler()}
+                            className="px-4 py-3.5 text-center text-xs font-bold text-slate-500 uppercase tracking-wider cursor-pointer hover:bg-slate-100 transition-colors select-none"
                           >
-                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                          </td>
+                            <div className="flex items-center justify-center gap-1">
+                              {flexRender(header.column.columnDef.header, header.getContext())}
+                              {{
+                                asc: ' ↑',
+                                desc: ' ↓',
+                              }[header.column.getIsSorted() as string] ?? null}
+                            </div>
+                          </th>
                         );
                       })}
                     </tr>
-                  );
-                })}
-                {/* Total Summary Row */}
-                {invoicesForSummary.length > 0 && (
-                  <tr className="bg-slate-100 font-bold border-t-2 border-slate-300">
-                    <td className="px-4 py-4"></td>
-                    <td className="px-4 py-4"></td>
-                    <td className="px-4 py-4 text-center text-sm text-slate-900 font-extrabold uppercase">
-                      {hasRowSelection ? `TOTAL (${invoicesForSummary.length})` : 'TOTAL'}
-                    </td>
-                    <td colSpan={3}></td>
-                    <td className="px-4 py-4 text-center text-sm text-slate-950 font-extrabold">
-                      {totalDebit.toLocaleString('en-US')}
-                    </td>
-                    <td className="px-4 py-4 text-center text-sm text-slate-950 font-extrabold">
-                      {totalCredit.toLocaleString('en-US')}
-                    </td>
-                    <td className="px-4 py-4 text-center text-sm font-extrabold text-red-700">
-                      {totalNetDebt.toLocaleString('en-US')}
-                    </td>
-                    <td colSpan={2}></td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+                  ))}
+                </thead>
+                <tbody className="divide-y divide-slate-200">
+                  {table.getRowModel().rows.map((row, idx) => {
+                    const isSelected = selectedRowKeys.has(row.original.rowKey);
+                    return (
+                      <tr
+                        key={row.id}
+                        className={`hover:bg-slate-50/70 transition-colors ${isSelected ? 'bg-blue-50/60' : idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'}`}
+                      >
+                        {row.getVisibleCells().map((cell) => {
+                          return (
+                            <td
+                              key={cell.id}
+                              className="px-4 py-3 text-center text-sm"
+                            >
+                              {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  })}
+                  {/* Total Summary Row */}
+                  {invoicesForSummary.length > 0 && (
+                    <tr className="bg-slate-100 font-bold border-t-2 border-slate-300">
+                      <td className="px-4 py-4"></td>
+                      <td className="px-4 py-4"></td>
+                      <td className="px-4 py-4 text-center text-sm text-slate-900 font-extrabold uppercase">
+                        {hasRowSelection ? `TOTAL (${invoicesForSummary.length})` : 'TOTAL'}
+                      </td>
+                      <td colSpan={3}></td>
+                      <td className="px-4 py-4 text-center text-sm text-slate-950 font-extrabold">
+                        {totalDebit.toLocaleString('en-US')}
+                      </td>
+                      <td className="px-4 py-4 text-center text-sm text-slate-950 font-extrabold">
+                        {totalCredit.toLocaleString('en-US')}
+                      </td>
+                      <td className="px-4 py-4 text-center text-sm font-extrabold text-red-700">
+                        {totalNetDebt.toLocaleString('en-US')}
+                      </td>
+                      <td colSpan={2}></td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             )}
           </div>
 
@@ -1428,8 +1428,8 @@ export default function CustomersGroupTab({ data }: CustomersGroupTabProps) {
                         key={`page-${page}`}
                         onClick={() => table.setPageIndex(page as number)}
                         className={`w-9 h-9 flex items-center justify-center rounded-xl text-sm font-semibold transition-all ${isActive
-                            ? 'bg-blue-600 text-white shadow-md shadow-blue-100'
-                            : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300'
+                          ? 'bg-blue-600 text-white shadow-md shadow-blue-100'
+                          : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300'
                           }`}
                       >
                         {(page as number) + 1}

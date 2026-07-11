@@ -116,6 +116,7 @@ export default function HandoverForm({
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
     whoReceived: '',
+    note: '',
   });
 
   const [items, setItems] = useState<HandoverItem[]>([
@@ -129,6 +130,7 @@ export default function HandoverForm({
       setFormData({
         date: editHandover.DATE,
         whoReceived: editHandover.WHO_RECEIVED || '',
+        note: editHandover.NOTE || '',
       });
       setItems(editHandover.ITEMS && editHandover.ITEMS.length > 0 
         ? editHandover.ITEMS 
@@ -234,7 +236,8 @@ export default function HandoverForm({
         DATE: formData.date,
         ITEMS: validItems,
         TOTAL_AMOUNT: totalAmount,
-        WHO_RECEIVED: formData.whoReceived
+        WHO_RECEIVED: formData.whoReceived,
+        NOTE: formData.note
       };
 
       const result = await saveCashHandover(handoverData);
@@ -250,7 +253,8 @@ export default function HandoverForm({
           date: handoverData.DATE,
           items: handoverData.ITEMS,
           totalAmount: handoverData.TOTAL_AMOUNT,
-          receivedBy: handoverData.WHO_RECEIVED
+          receivedBy: handoverData.WHO_RECEIVED,
+          note: handoverData.NOTE
         },
         filename: `${handoverData.ID}_${handoverData.DATE}`
       });
@@ -258,7 +262,7 @@ export default function HandoverForm({
       toast.success(editHandover ? 'Handover updated successfully!' : 'Handover saved and PDF generated successfully!');
       
       // Reset form
-      setFormData({ ...formData, whoReceived: '' });
+      setFormData({ ...formData, whoReceived: '', note: '' });
       setItems([{ customerId: '', customerName: '', receiptNumber: '', amount: 0 }]);
       if (onSaveComplete) {
         onSaveComplete();
@@ -335,6 +339,17 @@ export default function HandoverForm({
               onChange={(val) => setFormData({ ...formData, whoReceived: val })}
             />
           </div>
+          <div className="group md:col-span-3">
+            <label className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-gray-400 mb-3 transition-colors group-focus-within:text-black">
+              Note
+            </label>
+            <textarea
+              value={formData.note}
+              onChange={(e) => setFormData({ ...formData, note: e.target.value })}
+              className="w-full px-5 py-4 bg-gray-50 border-2 border-transparent rounded-2xl text-lg font-bold text-gray-900 focus:bg-white focus:border-black transition-all outline-none resize-none h-24"
+              placeholder="Optional notes for this handover..."
+            />
+          </div>
         </div>
 
         <div className="pt-8 border-t-2 border-dashed border-gray-100">
@@ -345,14 +360,14 @@ export default function HandoverForm({
             <h3 className="text-2xl font-black text-gray-900 tracking-tight uppercase">Receipts List</h3>
           </div>
           
-          <div className="border-2 border-gray-100 rounded-3xl mb-8 pb-32">
+          <div className="mb-8 pb-32">
             <table className="w-full table-fixed border-collapse">
-              <thead className="bg-gray-50 border-b-2 border-gray-100">
+              <thead className="border-b-2 border-gray-100">
                 <tr>
-                  <th className="px-6 py-5 text-xs font-black text-gray-400 uppercase tracking-widest text-center w-[45%] rounded-tl-3xl">Customer</th>
+                  <th className="px-6 py-5 text-xs font-black text-gray-400 uppercase tracking-widest text-center w-[45%]">Customer</th>
                   <th className="px-6 py-5 text-xs font-black text-gray-400 uppercase tracking-widest text-center w-[25%]">Invoice ID</th>
                   <th className="px-6 py-5 text-xs font-black text-gray-400 uppercase tracking-widest text-center w-[25%]">Amount (AED)</th>
-                  <th className="px-4 py-5 w-[5%] rounded-tr-3xl"></th>
+                  <th className="px-4 py-5 w-[5%]"></th>
                 </tr>
               </thead>
               <tbody className="divide-y-2 divide-gray-50">

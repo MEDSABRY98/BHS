@@ -15,7 +15,7 @@ import { generateVoucherPdf } from '../Utils/VoucherPdf';
 import { toast } from '@/app/Components/Notification';
 import { getPettyCashRecords, createPettyCashEntry, updatePettyCashEntry, deletePettyCashEntry, settlePettyCashPeriod } from '../Service/petty_cash_service';
 import { getVouchers, createVoucher } from '../Service/vouchers_service';
-import { exportDebitExcelWorkbook } from '../../Debit/Export/DebitExcelExport';
+import { exportDebitExcelWorkbook } from '../../Debit/Export/ExcelExport';
 
 interface Receipt {
   id: string;
@@ -539,7 +539,7 @@ export default function PettyCashTab() {
     }));
 
     const sheets: any[] = [];
-    
+
     sheets.push({
       name: 'Receipts Tracking',
       data: receiptsData,
@@ -630,7 +630,7 @@ export default function PettyCashTab() {
           showBalance={showBalance}
           setShowBalance={setShowBalance}
           isCollapsed={false}
-          onToggleCollapse={() => {}}
+          onToggleCollapse={() => { }}
           onCloseMobile={() => setIsMobileSidebarOpen(false)}
         />
       </aside>
@@ -642,8 +642,8 @@ export default function PettyCashTab() {
           <div className="max-w-[98%] mx-auto px-4 py-3 flex items-center justify-between gap-4 min-h-[5rem]">
             {/* Left section: Hamburger for Mobile & Refresh */}
             <div className="flex items-center gap-4">
-              <button 
-                onClick={() => setIsMobileSidebarOpen(true)} 
+              <button
+                onClick={() => setIsMobileSidebarOpen(true)}
                 className="p-2.5 text-slate-600 hover:text-slate-900 lg:hidden rounded-xl hover:bg-slate-100 transition-all"
                 title="Open Navigation Menu"
               >
@@ -798,7 +798,7 @@ export default function PettyCashTab() {
           <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl border border-gray-100 overflow-hidden flex flex-col max-h-[90vh]">
             <header className="px-6 py-4 bg-gradient-to-r from-cyan-800 to-slate-900 text-white flex justify-between items-center">
               <h3 className="text-lg font-black tracking-wide uppercase">Close Period & Archive</h3>
-              <button 
+              <button
                 onClick={() => setIsSettleModalOpen(false)}
                 className="text-gray-400 hover:text-white transition-colors"
               >

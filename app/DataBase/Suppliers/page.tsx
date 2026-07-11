@@ -22,6 +22,8 @@ import * as XLSX from 'xlsx';
 import { ConfirmModal } from '../../LPOs/Components/ConfirmModal';
 import NoData from '@/app/Components/NoDataTab';
 import { usePermissions } from '../../LPOs/Hooks/usePermissions';
+import { exportDatabaseExcel } from '../ExcelExport';
+import { downloadUploadIssuesReport, normalizeExcelId } from '../Utils/ExcelUploadUtils';
 
 export default function SuppliersPage() {
   const { canEdit, canDelete } = usePermissions();
@@ -190,6 +192,198 @@ export default function SuppliersPage() {
     else toast.error(text);
   };
 
+  const downloadSuppliersExcel = async () => {
+    setIsSaving(true);
+    try {
+      let allSuppliers: any[] = [];
+      let fetchMore = true;
+      let pageIndex = 0;
+      const limit = 1000;
+
+      while (fetchMore) {
+        const { data, error } = await bhs_supabas
+          .from('bhs_SUPPLIERS')
+          .select('*')
+          .order('SUPPLIER NAME')
+          .range(pageIndex * limit, (pageIndex + 1) * limit - 1);
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          allSuppliers = [...allSuppliers, ...data];
+          if (data.length < limit) fetchMore = false;
+          else pageIndex++;
+        } else {
+          fetchMore = false;
+        }
+      }
+
+      const exportData = (allSuppliers || []).map(s => ({
+        "ID": s.ID,
+        "Supplier ID": s["SUPPLIER ID"] || '',
+        "Supplier Name": s["SUPPLIER NAME"] || '',
+      }));
+
+      if (exportData.length === 0) {
+        triggerMessage('error', 'No suppliers found in database to export');
+        setIsSaving(false);
+        return;
+      }
+
+      await exportDatabaseExcel(exportData, "Suppliers.xlsx");
+      triggerMessage('success', 'Excel file exported successfully!');
+    } catch (err: any) {
+      console.error(err);
+      triggerMessage('error', 'Failed to export Excel file');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      try {
+        const bstr = evt.target?.result;
+        const wb = XLSX.read(bstr, { type: 'binary' });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        const data: Record<string, unknown>[] = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false });
+
+        if (data.length === 0) {
+          triggerMessage('error', 'Excel file is empty');
+          setIsUploading(false);
+          return;
+        }
+
+        const { data: latestSuppliers, error: fetchErr } = await bhs_supabas
+          .from('bhs_SUPPLIERS')
+          .select('ID, "SUPPLIER ID"');
+
+        if (fetchErr) throw fetchErr;
+
+        const dbSupplierIdToSupplierMap = new Map<string, any>();
+        let maxRecordNum = 0;
+
+        (latestSuppliers || []).forEach((supplier) => {
+          const supplierId = normalizeExcelId(supplier['SUPPLIER ID']);
+          if (supplierId) {
+            dbSupplierIdToSupplierMap.set(supplierId, supplier);
+          }
+          if (supplier.ID && supplier.ID.startsWith('R-')) {
+            const num = parseInt(supplier.ID.split('-')[1], 10);
+            if (!isNaN(num) && num > maxRecordNum) {
+              maxRecordNum = num;
+            }
+          }
+        });
+
+        const missingSupplierIdRows: number[] = [];
+        const missingNameRows: number[] = [];
+
+        for (let i = 0; i < data.length; i++) {
+          const row = data[i];
+          const rowNumber = i + 2;
+          const supplierId = normalizeExcelId(row['Supplier ID']);
+          const supplierName = String(row['Supplier Name'] ?? '').trim();
+
+          if (!supplierId) missingSupplierIdRows.push(rowNumber);
+          if (!supplierName) missingNameRows.push(rowNumber);
+        }
+
+        const issueSections = [
+          {
+            heading: `=== MISSING SUPPLIER ID (${missingSupplierIdRows.length}) ===`,
+            lines: missingSupplierIdRows.map((row) => `Row ${row}`),
+          },
+          {
+            heading: `=== MISSING SUPPLIER NAME (${missingNameRows.length}) ===`,
+            lines: missingNameRows.map((row) => `Row ${row}`),
+          },
+        ];
+
+        const hasIssues = issueSections.some((section) => section.lines.length > 0);
+        if (hasIssues) {
+          downloadUploadIssuesReport(
+            `Suppliers_Upload_Issues_${new Date().toISOString().split('T')[0]}.txt`,
+            'Suppliers Upload - Issues Found',
+            issueSections
+          );
+          triggerMessage(
+            'error',
+            'Upload blocked. A text file with all issues has been downloaded. Fix the Excel file and upload again.'
+          );
+          setIsUploading(false);
+          e.target.value = '';
+          return;
+        }
+
+        const recordsToUpsert: any[] = [];
+        let nextRecordNum = maxRecordNum;
+
+        for (let i = 0; i < data.length; i++) {
+          const row = data[i];
+          const supplierId = normalizeExcelId(row['Supplier ID']);
+          if (!supplierId) continue;
+
+          let idToUse = '';
+          const existingSupplier = dbSupplierIdToSupplierMap.get(supplierId);
+          if (existingSupplier) {
+            idToUse = existingSupplier.ID;
+          } else {
+            nextRecordNum += 1;
+            idToUse = `R-${String(nextRecordNum).padStart(4, '0')}`;
+          }
+
+          const record: any = {
+            ID: idToUse,
+            'SUPPLIER ID': supplierId,
+            'SUPPLIER NAME': String(row['Supplier Name'] ?? '').trim()
+          };
+
+          recordsToUpsert.push(record);
+        }
+
+        if (recordsToUpsert.length === 0) {
+          triggerMessage('error', 'No valid supplier rows found to upload.');
+          setIsUploading(false);
+          e.target.value = '';
+          return;
+        }
+
+        // Upsert in batches of 1000
+        for (let i = 0; i < recordsToUpsert.length; i += 1000) {
+           const batch = recordsToUpsert.slice(i, i + 1000);
+           const { error: upsertErr } = await bhs_supabas
+             .from('bhs_SUPPLIERS')
+             .upsert(batch, { onConflict: 'ID' });
+           if (upsertErr) throw upsertErr;
+        }
+
+        triggerMessage('success', `${recordsToUpsert.length} suppliers processed successfully!`);
+        fetchSuppliers(searchTerm, currentPage);
+      } catch (err: any) {
+        console.error(err);
+        triggerMessage('error', err.message || 'Failed to process Excel file');
+      } finally {
+        setIsUploading(false);
+        e.target.value = '';
+      }
+    };
+
+    reader.onerror = () => {
+      triggerMessage('error', 'Error reading Excel file');
+      setIsUploading(false);
+    };
+
+    reader.readAsBinaryString(file);
+  };
+
   const totalPages = Math.ceil(totalCount / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
 
@@ -201,13 +395,38 @@ export default function SuppliersPage() {
         </div>
         <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
           {canEdit && (
-            <button
-              onClick={() => handleOpenModal()}
-              className="p-4 bg-black text-[#D4AF37] rounded-2xl shadow-xl shadow-black/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center"
-              title="New Supplier"
-            >
-              <Plus className="w-6 h-6" />
-            </button>
+            <>
+              <button
+                onClick={downloadSuppliersExcel}
+                disabled={isSaving}
+                className="p-4 bg-white border border-gray-200 text-green-600 rounded-2xl shadow-sm hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center disabled:opacity-50"
+                title="Export Excel"
+              >
+                <Download className="w-6 h-6" />
+              </button>
+
+              <label
+                className={`p-4 bg-white border border-gray-200 text-blue-600 rounded-2xl shadow-sm hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center cursor-pointer ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                title="Import/Update from Excel"
+              >
+                {isUploading ? <Loader2 className="w-6 h-6 animate-spin" /> : <Upload className="w-6 h-6" />}
+                <input
+                  type="file"
+                  accept=".xlsx, .xls"
+                  className="hidden"
+                  onChange={handleFileUpload}
+                  disabled={isUploading}
+                />
+              </label>
+
+              <button
+                onClick={() => handleOpenModal()}
+                className="p-4 bg-black text-[#D4AF37] rounded-2xl shadow-xl shadow-black/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center"
+                title="New Supplier"
+              >
+                <Plus className="w-6 h-6" />
+              </button>
+            </>
           )}
         </div>
       </div>

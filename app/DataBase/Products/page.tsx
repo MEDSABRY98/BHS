@@ -26,6 +26,8 @@ import { usePermissions } from '../../LPOs/Hooks/usePermissions';
 import { toast } from '@/app/Components/Notification';
 import { useMergeProducts } from './Hooks/UseMergeProducts';
 import MergeProductsModal from './Components/MergeProductsModal';
+import { exportDatabaseExcel } from '../ExcelExport';
+import { downloadUploadIssuesReport, normalizeExcelId } from '../Utils/ExcelUploadUtils';
 
 
 export default function ProductsPage() {
@@ -54,6 +56,9 @@ export default function ProductsPage() {
   const [itemCode, setItemCode] = useState<string>('');
   const [productCategory, setProductCategory] = useState('');
   const [productCost, setProductCost] = useState<string>('');
+  const [qtyInBox, setQtyInBox] = useState<string>('0');
+  const [availableQty, setAvailableQty] = useState<string>('0');
+  const [isCountable, setIsCountable] = useState<boolean>(false);
   const [isUploading, setIsUploading] = useState(false);
 
   const [activeTab, setActiveTab] = useState<'products'|'categories'>('products');
@@ -114,6 +119,9 @@ export default function ProductsPage() {
     setItemCode(product ? (product["ITEM CODE"] ?? '').toString() : '');
     setProductCategory(product ? product["PRODUCT CATEGORY"] || '' : '');
     setProductCost(product ? (product["PRODUCT COST"] ?? '').toString() : '');
+    setQtyInBox(product ? (product["QTY IN BOX"] ?? '0').toString() : '0');
+    setAvailableQty(product ? (product["AVAILABLE QTY"] ?? '0').toString() : '0');
+    setIsCountable(product ? (product["IS_COUNTABLE"] ?? false) : false);
     setIsModalOpen(true);
   };
 
@@ -154,7 +162,10 @@ export default function ProductsPage() {
             "PRODUCT ID": productId,
             "ITEM CODE": itemCodeValue,
             "PRODUCT CATEGORY": productCategory,
-            "PRODUCT COST": productCost !== '' ? Number(productCost) : 0
+            "PRODUCT COST": productCost !== '' ? Number(productCost) : 0,
+            "QTY IN BOX": qtyInBox !== '' ? Number(qtyInBox) : 0,
+            "AVAILABLE QTY": availableQty !== '' ? Number(availableQty) : 0,
+            "IS_COUNTABLE": isCountable
           })
           .eq('ID', editingProduct.ID);
         if (error) throw error;
@@ -187,7 +198,10 @@ export default function ProductsPage() {
             "PRODUCT ID": productId,
             "ITEM CODE": itemCodeValue,
             "PRODUCT CATEGORY": productCategory,
-            "PRODUCT COST": productCost !== '' ? Number(productCost) : 0
+            "PRODUCT COST": productCost !== '' ? Number(productCost) : 0,
+            "QTY IN BOX": qtyInBox !== '' ? Number(qtyInBox) : 0,
+            "AVAILABLE QTY": availableQty !== '' ? Number(availableQty) : 0,
+            "IS_COUNTABLE": isCountable
           });
         if (error) throw error;
       }
@@ -340,13 +354,15 @@ export default function ProductsPage() {
         'PRODUCT NAME': p['PRODUCT NAME'],
         'PRODUCT CATEGORY': p['PRODUCT CATEGORY'],
         'ITEM CODE': p['ITEM CODE'],
-        'PRODUCT COST': p['PRODUCT COST']
+        'PRODUCT COST': p['PRODUCT COST'],
+        'QTY IN BOX': p['QTY IN BOX'] || 0,
+        'AVAILABLE QTY': p['AVAILABLE QTY'] || 0,
+        'IS_COUNTABLE': p['IS_COUNTABLE'] ? 'Yes' : 'No'
       }));
 
-      const ws = XLSX.utils.json_to_sheet(exportData);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Products');
-      XLSX.writeFile(wb, `Products_Database_${new Date().toISOString().split('T')[0]}.xlsx`);
+      await exportDatabaseExcel(exportData, `Products_Database_${new Date().toISOString().split('T')[0]}.xlsx`, {
+        numericColumns: ['PRODUCT COST', 'ITEM CODE', 'QTY IN BOX', 'AVAILABLE QTY'],
+      });
       toast.success('Database exported successfully!');
     } catch (err: any) {
       toast.error('Failed to export data: ' + err.message);
@@ -355,39 +371,7 @@ export default function ProductsPage() {
     }
   };
 
-  const normalizeExcelId = (val: unknown): string => {
-    if (val === null || val === undefined || val === '') return '';
-    if (typeof val === 'number' && Number.isFinite(val)) {
-      return Number.isInteger(val) ? String(Math.trunc(val)) : String(val);
-    }
-    return String(val).trim();
-  };
 
-  const downloadUploadIssuesReport = (
-    fileName: string,
-    title: string,
-    sections: { heading: string; lines: string[] }[]
-  ) => {
-    const nonEmptySections = sections.filter((section) => section.lines.length > 0);
-    if (nonEmptySections.length === 0) return;
-
-    const lines: string[] = [title, `Generated: ${new Date().toLocaleString('en-GB')}`, ''];
-    nonEmptySections.forEach((section) => {
-      lines.push(section.heading);
-      section.lines.forEach((line) => lines.push(line));
-      lines.push('');
-    });
-
-    const blob = new Blob([lines.join('\r\n')], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  };
 
   const handleImportExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -511,6 +495,9 @@ export default function ProductsPage() {
         'ITEM CODE': row['ITEM CODE'] ? Number(row['ITEM CODE']) : null,
         'PRODUCT CATEGORY': row['PRODUCT CATEGORY']?.toString().trim() || '',
         'PRODUCT COST': row['PRODUCT COST'] !== undefined && row['PRODUCT COST'] !== '' ? Number(row['PRODUCT COST']) : 0,
+        'QTY IN BOX': row['QTY IN BOX'] !== undefined && row['QTY IN BOX'] !== '' ? Number(row['QTY IN BOX']) : 0,
+        'AVAILABLE QTY': row['AVAILABLE QTY'] !== undefined && row['AVAILABLE QTY'] !== '' ? Number(row['AVAILABLE QTY']) : 0,
+        'IS_COUNTABLE': String(row['IS_COUNTABLE'] || '').toLowerCase() === 'yes',
       }));
 
       const chunkSize = 500;
@@ -730,6 +717,21 @@ export default function ProductsPage() {
                           AED {product['PRODUCT COST']}
                         </span>
                       )}
+                      {product['IS_COUNTABLE'] && (
+                        <span className="inline-flex items-center px-2.5 py-1 bg-blue-50 text-blue-600 rounded-xl text-[9px] font-black uppercase tracking-widest">
+                          COUNTABLE
+                        </span>
+                      )}
+                      <div className="w-full mt-2 grid grid-cols-2 gap-2">
+                        <div className="bg-gray-50 rounded-xl p-2 text-center">
+                          <div className="text-[8px] font-black text-gray-400 uppercase tracking-widest">AVL QTY</div>
+                          <div className="text-xs font-black text-black">{product['AVAILABLE QTY'] || 0}</div>
+                        </div>
+                        <div className="bg-gray-50 rounded-xl p-2 text-center">
+                          <div className="text-[8px] font-black text-gray-400 uppercase tracking-widest">IN BOX</div>
+                          <div className="text-xs font-black text-black">{product['QTY IN BOX'] || 0}</div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -887,9 +889,9 @@ export default function ProductsPage() {
 
       {/* Product Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/20 animate-in fade-in duration-300">
-          <div className="bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl animate-in slide-in-from-bottom-8 duration-500">
-            <div className="p-8 flex items-center justify-between">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="bg-white w-full max-w-4xl rounded-[2.5rem] shadow-2xl animate-in slide-in-from-bottom-8 duration-500 overflow-hidden">
+            <div className="p-8 pb-4 flex items-center justify-between border-b border-gray-100">
               <h2 className="text-2xl font-bold">{editingProduct ? 'Edit Product' : 'New Product'}</h2>
               <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-gray-100 rounded-xl transition-all">
                 <X className="w-6 h-6" />
@@ -897,7 +899,7 @@ export default function ProductsPage() {
             </div>
 
             <form onSubmit={handleSave} className="p-8 space-y-6">
-              <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">PRODUCT ID</label>
                   <input
@@ -970,6 +972,40 @@ export default function ProductsPage() {
                   />
                 </div>
               </div>
+
+              <div className="grid grid-cols-2 gap-4 bg-gray-50 p-6 rounded-3xl border border-gray-100">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">AVAILABLE QTY</label>
+                    <input
+                      type="number"
+                      value={availableQty}
+                      onChange={(e) => setAvailableQty(e.target.value)}
+                      className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">QTY IN BOX</label>
+                    <input
+                      type="number"
+                      value={qtyInBox}
+                      onChange={(e) => setQtyInBox(e.target.value)}
+                      className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 pt-2">
+                  <input
+                    type="checkbox"
+                    id="isCountable"
+                    checked={isCountable}
+                    onChange={(e) => setIsCountable(e.target.checked)}
+                    className="w-5 h-5 rounded border-gray-300 text-black focus:ring-black/5"
+                  />
+                  <label htmlFor="isCountable" className="text-sm font-bold text-gray-700 cursor-pointer">
+                    Is Countable? <span className="text-gray-400 text-xs font-normal ml-1">(Show in inventory counting)</span>
+                  </label>
+                </div>
 
               <div className="pt-4 flex gap-4">
                 <button

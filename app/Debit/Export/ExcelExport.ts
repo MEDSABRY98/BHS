@@ -5,4 +5,4 @@ export {
   recordsFromTable,
   type StyledExcelExportOptions as DebitExcelExportOptions,
   type StyledExcelSheet as DebitExcelSheet,
-} from '@/app/Components/Export/StyledExcelExport';
+} from '@/app/Components/Export/ExcelExport';

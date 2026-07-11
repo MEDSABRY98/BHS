@@ -28,6 +28,8 @@ import NoData from '@/app/Components/NoDataTab';
 import { usePermissions } from '../../LPOs/Hooks/usePermissions';
 import { useMergeCustomers } from './Hooks/UseMergeCustomers';
 import MergeCustomersModal from './Components/MergeCustomersModal';
+import { exportDatabaseExcel } from '../ExcelExport';
+import { downloadUploadIssuesReport, normalizeExcelId } from '../Utils/ExcelUploadUtils';
 
 
 export default function CustomersPage() {
@@ -221,39 +223,6 @@ export default function CustomersPage() {
     merge.setSelectedInternalIds([]);
   }, [searchTerm, currentPage]);
 
-  const normalizeExcelId = (val: unknown): string => {
-    if (val === null || val === undefined || val === '') return '';
-    if (typeof val === 'number' && Number.isFinite(val)) {
-      return Number.isInteger(val) ? String(Math.trunc(val)) : String(val);
-    }
-    return String(val).trim();
-  };
-
-  const downloadUploadIssuesReport = (
-    fileName: string,
-    title: string,
-    sections: { heading: string; lines: string[] }[]
-  ) => {
-    const nonEmptySections = sections.filter((section) => section.lines.length > 0);
-    if (nonEmptySections.length === 0) return;
-
-    const lines: string[] = [title, `Generated: ${new Date().toLocaleString('en-GB')}`, ''];
-    nonEmptySections.forEach((section) => {
-      lines.push(section.heading);
-      section.lines.forEach((line) => lines.push(line));
-      lines.push('');
-    });
-
-    const blob = new Blob([lines.join('\r\n')], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  };
 
   const downloadCustomersExcel = async () => {
     setIsSaving(true);
@@ -295,10 +264,7 @@ export default function CustomersPage() {
         return;
       }
 
-      const ws = XLSX.utils.json_to_sheet(exportData);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Customers");
-      XLSX.writeFile(wb, "Customers_Data.xlsx");
+      await exportDatabaseExcel(exportData, "Customers_Data.xlsx");
       triggerMessage('success', 'Excel file exported successfully!');
     } catch (err: any) {
       console.error(err);

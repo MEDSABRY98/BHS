@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState, useEffect } from 'react';
-import { exportDebitExcelTable } from '@/app/Debit/Export/DebitExcelExport';
+import { exportDebitExcelTable } from '@/app/Debit/Export/ExcelExport';
 import {
   useReactTable,
   getCoreRowModel,
@@ -66,10 +66,10 @@ export default function AgesTab({ data }: AgesTabProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSalesRep, setSelectedSalesRep] = useState<string>('all');
 
-  
-  
 
-  
+
+
+
 
   const agingData = useMemo(() => {
     // Group by customer first
@@ -373,7 +373,7 @@ export default function AgesTab({ data }: AgesTabProps) {
           ))}
         </select>
 
-        
+
 
         <input
           type="text"
@@ -403,37 +403,37 @@ export default function AgesTab({ data }: AgesTabProps) {
           {table.getRowModel().rows.length === 0 ? (
             <NoData />
           ) : (
-          <table className="w-full" style={{ tableLayout: 'fixed', minWidth: '1200px' }}>
-            <thead className="bg-black text-white">
-              {table.getHeaderGroups().map((headerGroup) => (
-                <tr key={headerGroup.id}>
-                  {headerGroup.headers.map((header) => {
-                    const getWidth = () => {
-                      const columnId = header.column.id;
-                      if (columnId === 'customerName') return '30%';
-                      // 6 numeric columns remaining = 70% / 6 ~ 11.6%
-                      return '11.6%';
-                    };
-                    return (
-                      <th
-                        key={header.id}
-                        className="px-6 py-4 text-center font-semibold text-sm uppercase tracking-wider text-white cursor-pointer hover:bg-gray-800 transition-colors whitespace-nowrap"
-                        style={{ width: getWidth() }}
-                        onClick={header.column.getToggleSortingHandler()}
-                      >
-                        {flexRender(header.column.columnDef.header, header.getContext())}
-                        {{
-                          asc: ' ↑',
-                          desc: ' ↓',
-                        }[header.column.getIsSorted() as string] ?? null}
-                      </th>
-                    );
-                  })}
-                </tr>
-              ))}
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {table.getRowModel().rows.map((row, idx) => (
+            <table className="w-full" style={{ tableLayout: 'fixed', minWidth: '1200px' }}>
+              <thead className="bg-black text-white">
+                {table.getHeaderGroups().map((headerGroup) => (
+                  <tr key={headerGroup.id}>
+                    {headerGroup.headers.map((header) => {
+                      const getWidth = () => {
+                        const columnId = header.column.id;
+                        if (columnId === 'customerName') return '30%';
+                        // 6 numeric columns remaining = 70% / 6 ~ 11.6%
+                        return '11.6%';
+                      };
+                      return (
+                        <th
+                          key={header.id}
+                          className="px-6 py-4 text-center font-semibold text-sm uppercase tracking-wider text-white cursor-pointer hover:bg-gray-800 transition-colors whitespace-nowrap"
+                          style={{ width: getWidth() }}
+                          onClick={header.column.getToggleSortingHandler()}
+                        >
+                          {flexRender(header.column.columnDef.header, header.getContext())}
+                          {{
+                            asc: ' ↑',
+                            desc: ' ↓',
+                          }[header.column.getIsSorted() as string] ?? null}
+                        </th>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {table.getRowModel().rows.map((row, idx) => (
                   <tr key={row.id} className={`border-b hover:bg-blue-50/50 transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}>
                     {row.getVisibleCells().map((cell) => {
                       const getWidth = () => {
@@ -453,31 +453,31 @@ export default function AgesTab({ data }: AgesTabProps) {
                     })}
                   </tr>
                 ))}
-              <tr className="bg-gradient-to-r from-gray-100 to-gray-200 font-bold border-t-4 border-gray-300">
-                <td className="px-6 py-4 text-center text-lg text-gray-900 whitespace-nowrap" style={{ width: '30%' }}>
-                  TOTAL
-                </td>
-                <td className="px-6 py-4 text-center text-lg whitespace-nowrap" style={{ width: '11.6%' }}>
-                  {total1To30.toLocaleString('en-US')}
-                </td>
-                <td className="px-6 py-4 text-center text-lg whitespace-nowrap" style={{ width: '11.6%' }}>
-                  {total31To60.toLocaleString('en-US')}
-                </td>
-                <td className="px-6 py-4 text-center text-lg whitespace-nowrap" style={{ width: '11.6%' }}>
-                  {total61To90.toLocaleString('en-US')}
-                </td>
-                <td className="px-6 py-4 text-center text-lg whitespace-nowrap" style={{ width: '11.6%' }}>
-                  {total91To120.toLocaleString('en-US')}
-                </td>
-                <td className="px-6 py-4 text-center text-lg text-red-700 whitespace-nowrap" style={{ width: '11.6%' }}>
-                  {totalOlder.toLocaleString('en-US')}
-                </td>
-                <td className="px-6 py-4 text-center text-lg whitespace-nowrap" style={{ width: '11.6%' }}>
-                  {grandTotal.toLocaleString('en-US')}
-                </td>
-              </tr>
-            </tbody>
-          </table>
+                <tr className="bg-gradient-to-r from-gray-100 to-gray-200 font-bold border-t-4 border-gray-300">
+                  <td className="px-6 py-4 text-center text-lg text-gray-900 whitespace-nowrap" style={{ width: '30%' }}>
+                    TOTAL
+                  </td>
+                  <td className="px-6 py-4 text-center text-lg whitespace-nowrap" style={{ width: '11.6%' }}>
+                    {total1To30.toLocaleString('en-US')}
+                  </td>
+                  <td className="px-6 py-4 text-center text-lg whitespace-nowrap" style={{ width: '11.6%' }}>
+                    {total31To60.toLocaleString('en-US')}
+                  </td>
+                  <td className="px-6 py-4 text-center text-lg whitespace-nowrap" style={{ width: '11.6%' }}>
+                    {total61To90.toLocaleString('en-US')}
+                  </td>
+                  <td className="px-6 py-4 text-center text-lg whitespace-nowrap" style={{ width: '11.6%' }}>
+                    {total91To120.toLocaleString('en-US')}
+                  </td>
+                  <td className="px-6 py-4 text-center text-lg text-red-700 whitespace-nowrap" style={{ width: '11.6%' }}>
+                    {totalOlder.toLocaleString('en-US')}
+                  </td>
+                  <td className="px-6 py-4 text-center text-lg whitespace-nowrap" style={{ width: '11.6%' }}>
+                    {grandTotal.toLocaleString('en-US')}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           )}
         </div>
       </div>

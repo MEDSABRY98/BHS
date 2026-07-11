@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { exportDebitExcelTable } from '@/app/Debit/Export/DebitExcelExport';
+import { exportDebitExcelTable } from '@/app/Debit/Export/ExcelExport';
 import {
   useReactTable,
   getCoreRowModel,
@@ -350,35 +350,35 @@ export default function CustomersSummariesTab({ data, onRefresh }: CustomersSumm
           {table.getRowModel().rows.length === 0 ? (
             <NoData />
           ) : (
-          <table className="w-full text-sm" style={{ tableLayout: 'fixed', minWidth: '1400px' }}>
-            <thead className="bg-gradient-to-r from-slate-800 to-slate-900 text-white">
-              {table.getHeaderGroups().map((headerGroup) => (
-                <tr key={headerGroup.id}>
-                  {headerGroup.headers.map((header) => {
-                    const id = header.column.id;
-                    let width = '8%';
-                    if (id === 'customerName') width = '20%';
-                    return (
-                      <th
-                        key={header.id}
-                        className="px-4 py-3 text-center font-semibold uppercase tracking-wider cursor-pointer hover:bg-slate-700 transition-colors whitespace-nowrap select-none"
-                        style={{ width }}
-                        onClick={header.column.getToggleSortingHandler()}
-                      >
-                        <div className="flex items-center justify-center gap-1">
-                          {flexRender(header.column.columnDef.header, header.getContext())}
-                          <span className="text-[10px] text-slate-400">
-                            {{ asc: ' ▲', desc: ' ▼' }[header.column.getIsSorted() as string] ?? null}
-                          </span>
-                        </div>
-                      </th>
-                    );
-                  })}
-                </tr>
-              ))}
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {table.getRowModel().rows.map((row, idx) => (
+            <table className="w-full text-sm" style={{ tableLayout: 'fixed', minWidth: '1400px' }}>
+              <thead className="bg-gradient-to-r from-slate-800 to-slate-900 text-white">
+                {table.getHeaderGroups().map((headerGroup) => (
+                  <tr key={headerGroup.id}>
+                    {headerGroup.headers.map((header) => {
+                      const id = header.column.id;
+                      let width = '8%';
+                      if (id === 'customerName') width = '20%';
+                      return (
+                        <th
+                          key={header.id}
+                          className="px-4 py-3 text-center font-semibold uppercase tracking-wider cursor-pointer hover:bg-slate-700 transition-colors whitespace-nowrap select-none"
+                          style={{ width }}
+                          onClick={header.column.getToggleSortingHandler()}
+                        >
+                          <div className="flex items-center justify-center gap-1">
+                            {flexRender(header.column.columnDef.header, header.getContext())}
+                            <span className="text-[10px] text-slate-400">
+                              {{ asc: ' ▲', desc: ' ▼' }[header.column.getIsSorted() as string] ?? null}
+                            </span>
+                          </div>
+                        </th>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {table.getRowModel().rows.map((row, idx) => (
                   <tr key={row.id} className={`border-b hover:bg-blue-50/50 transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}`}>
                     {row.getVisibleCells().map((cell) => {
                       const id = cell.column.id;
@@ -396,44 +396,44 @@ export default function CustomersSummariesTab({ data, onRefresh }: CustomersSumm
                     })}
                   </tr>
                 ))}
-              {/* Grand Total Row */}
-              <tr className="bg-slate-800 text-white font-bold border-t-2 border-slate-900">
-                <td className="px-4 py-4 text-center whitespace-nowrap" style={{ width: '20%' }}>
-                  TOTAL
-                </td>
-                <td className="px-4 py-4 text-center whitespace-nowrap text-emerald-400">
-                  {filteredData.reduce((sum, i) => sum + i.salesPrev, 0).toLocaleString('en-US')}
-                </td>
-                <td className="px-4 py-4 text-center whitespace-nowrap text-rose-400">
-                  {filteredData.reduce((sum, i) => sum + i.returnsPrev, 0).toLocaleString('en-US')}
-                </td>
-                <td className="px-4 py-4 text-center whitespace-nowrap text-emerald-400">
-                  {filteredData.reduce((sum, i) => sum + i.salesCurrent, 0).toLocaleString('en-US')}
-                </td>
-                <td className="px-4 py-4 text-center whitespace-nowrap text-rose-400">
-                  {filteredData.reduce((sum, i) => sum + i.returnsCurrent, 0).toLocaleString('en-US')}
-                </td>
-                <td className="px-4 py-4 text-center whitespace-nowrap">
-                  {filteredData.reduce((sum, i) => sum + i.oneToThirty, 0).toLocaleString('en-US')}
-                </td>
-                <td className="px-4 py-4 text-center whitespace-nowrap">
-                  {filteredData.reduce((sum, i) => sum + i.thirtyOneToSixty, 0).toLocaleString('en-US')}
-                </td>
-                <td className="px-4 py-4 text-center whitespace-nowrap">
-                  {filteredData.reduce((sum, i) => sum + i.sixtyOneToNinety, 0).toLocaleString('en-US')}
-                </td>
-                <td className="px-4 py-4 text-center whitespace-nowrap">
-                  {filteredData.reduce((sum, i) => sum + i.ninetyOneToOneTwenty, 0).toLocaleString('en-US')}
-                </td>
-                <td className="px-4 py-4 text-center whitespace-nowrap text-red-400">
-                  {filteredData.reduce((sum, i) => sum + i.older, 0).toLocaleString('en-US')}
-                </td>
-                <td className="px-4 py-4 text-center whitespace-nowrap text-blue-200">
-                  {filteredData.reduce((sum, i) => sum + i.totalAging, 0).toLocaleString('en-US')}
-                </td>
-              </tr>
-            </tbody>
-          </table>
+                {/* Grand Total Row */}
+                <tr className="bg-slate-800 text-white font-bold border-t-2 border-slate-900">
+                  <td className="px-4 py-4 text-center whitespace-nowrap" style={{ width: '20%' }}>
+                    TOTAL
+                  </td>
+                  <td className="px-4 py-4 text-center whitespace-nowrap text-emerald-400">
+                    {filteredData.reduce((sum, i) => sum + i.salesPrev, 0).toLocaleString('en-US')}
+                  </td>
+                  <td className="px-4 py-4 text-center whitespace-nowrap text-rose-400">
+                    {filteredData.reduce((sum, i) => sum + i.returnsPrev, 0).toLocaleString('en-US')}
+                  </td>
+                  <td className="px-4 py-4 text-center whitespace-nowrap text-emerald-400">
+                    {filteredData.reduce((sum, i) => sum + i.salesCurrent, 0).toLocaleString('en-US')}
+                  </td>
+                  <td className="px-4 py-4 text-center whitespace-nowrap text-rose-400">
+                    {filteredData.reduce((sum, i) => sum + i.returnsCurrent, 0).toLocaleString('en-US')}
+                  </td>
+                  <td className="px-4 py-4 text-center whitespace-nowrap">
+                    {filteredData.reduce((sum, i) => sum + i.oneToThirty, 0).toLocaleString('en-US')}
+                  </td>
+                  <td className="px-4 py-4 text-center whitespace-nowrap">
+                    {filteredData.reduce((sum, i) => sum + i.thirtyOneToSixty, 0).toLocaleString('en-US')}
+                  </td>
+                  <td className="px-4 py-4 text-center whitespace-nowrap">
+                    {filteredData.reduce((sum, i) => sum + i.sixtyOneToNinety, 0).toLocaleString('en-US')}
+                  </td>
+                  <td className="px-4 py-4 text-center whitespace-nowrap">
+                    {filteredData.reduce((sum, i) => sum + i.ninetyOneToOneTwenty, 0).toLocaleString('en-US')}
+                  </td>
+                  <td className="px-4 py-4 text-center whitespace-nowrap text-red-400">
+                    {filteredData.reduce((sum, i) => sum + i.older, 0).toLocaleString('en-US')}
+                  </td>
+                  <td className="px-4 py-4 text-center whitespace-nowrap text-blue-200">
+                    {filteredData.reduce((sum, i) => sum + i.totalAging, 0).toLocaleString('en-US')}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           )}
         </div>
       </div>

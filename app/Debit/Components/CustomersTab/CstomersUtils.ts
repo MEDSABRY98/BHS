@@ -3,7 +3,7 @@ import { exportToPDF as exportToPDFUtil } from '@/app/Sales/Pdf/AnalysisAllCusto
 import {
   exportDebitExcelWorkbook,
   recordsFromTable,
-} from '@/app/Debit/Export/DebitExcelExport';
+} from '@/app/Debit/Export/ExcelExport';
 
 // Helper function to copy text to clipboard
 export const copyToClipboard = async (text: string): Promise<boolean> => {
@@ -141,7 +141,7 @@ export const calculateCustomerMonthlyBreakdown = (customerName: string, invoices
 
 export const calculateDebtRating = (customer: CustomerAnalysis, returnBreakdown: boolean = false): 'Good' | 'Medium' | 'Bad' | any => {
   const customerNameNormalized = customer.customerName.toLowerCase().trim().replace(/\s+/g, ' ');
-  
+
 
   const netDebt = customer.netDebt;
   const collRate = customer.totalDebit > 0 ? (customer.totalCredit / customer.totalDebit) : 0;
@@ -517,7 +517,7 @@ export const exportToExcel = async (
     // Add a zero-width space or regular space to prevent JS from sorting numeric string keys first
     const yearsWithSpaces = originalYears.map((yr: string) => yr === 'OB' ? yr : `${yr} `);
     const yearlyHeaders = ['#', 'Customer Name', 'City', 'Net Debt', ...yearsWithSpaces];
-    
+
     const buildYearlyRows = (dataset: any[]) => dataset.map((row: any, index: number) => {
       const rowData = [index + 1, row.customerName, row.region, row.totalNetDebt.toFixed(2)];
       originalYears.forEach((yr: string) => rowData.push((row.yearlyAmounts[yr] || 0).toFixed(2)));

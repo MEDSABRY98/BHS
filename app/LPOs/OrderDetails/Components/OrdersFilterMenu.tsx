@@ -18,27 +18,6 @@ export interface FilterCriteria {
 
 export default function OrdersFilterMenu({ onFilterChange, activeFilters, staffList }: OrdersFilterMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [driversList, setDriversList] = useState<any[]>([]);
-
-  useEffect(() => {
-    fetchFilterData();
-  }, []);
-
-  async function fetchFilterData() {
-    try {
-      // Fetch drivers from STAFF master table since assignment uses staff IDs
-      const { data: driverData } = await bhs_supabas
-        .from('bhs_USERS')
-        .select('ID, NAME')
-        .eq('USER_TYPE', 'Driver')
-        .order('NAME');
-      if (driverData) {
-        setDriversList(driverData);
-      }
-    } catch (err) {
-      console.error('Error fetching filter data:', err);
-    }
-  }
 
   const handleClear = () => {
     onFilterChange({
@@ -118,16 +97,16 @@ export default function OrdersFilterMenu({ onFilterChange, activeFilters, staffL
                 <div className="space-y-3 min-w-0 overflow-visible">
                   <div className="flex items-center gap-2 text-gray-400 mb-1">
                     <Truck className="w-4 h-4 shrink-0" />
-                    <p className="text-[10px] font-black uppercase tracking-widest">Assignee (Driver)</p>
+                    <p className="text-[10px] font-black uppercase tracking-widest">Taken Invoices By</p>
                   </div>
                   <SearchSelect
                     label=""
-                    placeholder="All Drivers"
+                    placeholder="All Users"
                     heightClass="h-[60px]"
                     direction="down"
                     options={[
-                      { id: 'All', label: 'All Drivers' },
-                      ...driversList.map(d => ({ id: d.ID, label: d.NAME }))
+                      { id: 'All', label: 'All Users' },
+                      ...staffList.map(s => ({ id: s.ID, label: s.NAME }))
                     ]}
                     value={activeFilters.driverId}
                     onChange={(val) => onFilterChange({ ...activeFilters, driverId: val || 'All' })}

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useMemo, useState, useEffect, useRef } from 'react';
-import { exportDebitExcelTable } from '@/app/Debit/Export/DebitExcelExport';
+import { exportDebitExcelTable } from '@/app/Debit/Export/ExcelExport';
 import {
   AreaChart,
   Area,
@@ -257,8 +257,8 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
   }, [customerName]);
 
   // Fetch Closed Customers for Rating
-  
-  
+
+
 
   // Update activeTab when initialTab prop changes
   useEffect(() => {

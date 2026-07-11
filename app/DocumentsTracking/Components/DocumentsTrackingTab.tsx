@@ -34,7 +34,7 @@ import PdfOptionsModal from './Modals/PdfOptionsModal';
 import TrackingModal from './Modals/TrackingModal';
 import BulkDeliverModal from './Modals/BulkDeliverModal';
 import ReceiverExcelModal from './Modals/ReceiverExcelModal';
-import { exportDebitExcelTable } from '../../Debit/Export/DebitExcelExport';
+import { exportDebitExcelTable } from '../../Debit/Export/ExcelExport';
 import { getDocumentsTracking, updateDocumentTrackingRecord, deleteDocumentTrackingRecord, bulkUpdateDocumentsTrackingRecords } from '../Service/documents_tracking_service';
 
 export default function DocumentsTrackingTab() {

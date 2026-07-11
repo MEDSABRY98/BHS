@@ -6,6 +6,8 @@ import * as XLSX from 'xlsx';
 import { toast } from '@/app/Components/Notification';
 import { deleteDebitData, uploadDebitData } from '../Service/database_service';
 import { bhs_supabas } from '@/lib/supabase';
+import { exportDatabaseExcelTable } from '../ExcelExport';
+import { downloadUploadIssuesReport } from '../Utils/ExcelUploadUtils';
 
 export default function DebitDatabasePage() {
   const [loading, setLoading] = useState(false);
@@ -31,11 +33,8 @@ export default function DebitDatabasePage() {
 
   const COLUMNS = ['DATE', 'DUE DATE', 'NUMBER', 'CUSTOMER ID', 'DEBIT', 'CREDIT', 'RESIDUAL AMOUNT', 'MATCHING'];
 
-  const handleDownloadTemplate = () => {
-    const ws = XLSX.utils.aoa_to_sheet([COLUMNS]);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'DebitTemplate');
-    XLSX.writeFile(wb, 'mix_DEBIT_Template.xlsx');
+  const handleDownloadTemplate = async () => {
+    await exportDatabaseExcelTable(COLUMNS, [], 'mix_DEBIT_Template.xlsx');
   };
 
   const handleDeleteAll = async () => {
@@ -116,8 +115,10 @@ export default function DebitDatabasePage() {
         if (result.success) {
           toast.success(result.message || 'Data uploaded successfully');
         } else {
-          // Just show the high-level error, omitting the detailed list of IDs
-          toast.error(result.error || 'Failed to upload data');
+          toast.error('Upload failed. Downloading error report...');
+          downloadUploadIssuesReport('Debit_Upload_Issues.txt', 'Debit Upload Error', [
+            { heading: 'Error Details:', lines: [result.error || 'Failed to upload data'] }
+          ]);
         }
       } catch (error: any) {
         toast.error('Error parsing file: ' + error.message);

@@ -17,11 +17,8 @@ type InventoryProductRow = {
   'PRODUCT ID': string;
   'PRODUCT BARCODE': string | null;
   'PRODUCT NAME': string;
-  TAGS: string | null;
-  'MIN Q BY CTN': number | null;
-  'MAX Q BY CTN': number | null;
-  QINC: number | null;
-  QTY: number | null;
+  'PRODUCT CATEGORY': string | null;
+  'AVAILABLE QTY'?: number | null;
 };
 
 interface MoveMonthSummary {
@@ -80,7 +77,7 @@ async function fetchAllInventoryRows<T>(
 }
 
 async function fetchInventoryProducts(): Promise<InventoryProductRow[]> {
-  return fetchAllInventoryRows<InventoryProductRow>('web_INVENTORY_PRODUCTS', '*');
+  return fetchAllInventoryRows<InventoryProductRow>('bhs_PRODUCTS', '*');
 }
 
 async function fetchInventoryMoves(): Promise<InventoryMoveRow[]> {
@@ -106,6 +103,7 @@ function buildSalesMaps(moveRows: InventoryMoveRow[]) {
 
   const salesBreakdownMap = new Map<string, number[]>();
   const salesMap = new Map<string, number>();
+  const hasMovesSet = new Set<string>();
 
   const ninetyDaysAgo = new Date();
   ninetyDaysAgo.setDate(now.getDate() - 120);
@@ -123,6 +121,8 @@ function buildSalesMaps(moveRows: InventoryMoveRow[]) {
     const qty = parseNum(row.QTY);
     if (!productId || qty === 0) return;
 
+    hasMovesSet.add(productId);
+
     if (moveDate >= ninetyDaysAgo) {
       salesMap.set(productId, (salesMap.get(productId) || 0) + qty);
     }
@@ -136,7 +136,7 @@ function buildSalesMaps(moveRows: InventoryMoveRow[]) {
     }
   });
 
-  return { salesMap, salesBreakdownMap, monthLabels, months };
+  return { salesMap, salesBreakdownMap, monthLabels, months, hasMovesSet };
 }
 
 export async function getProductOrdersData() {
@@ -146,7 +146,7 @@ export async function getProductOrdersData() {
       fetchInventoryMoves(),
     ]);
 
-    const { salesMap, salesBreakdownMap, monthLabels, months } = buildSalesMaps(moveRows);
+    const { salesMap, salesBreakdownMap, monthLabels, months, hasMovesSet } = buildSalesMaps(moveRows);
 
     const data = products
       .map((row) => {
@@ -161,16 +161,13 @@ export async function getProductOrdersData() {
           productId,
           barcode: row['PRODUCT BARCODE']?.toString().trim() || '',
           productName: row['PRODUCT NAME']?.toString().trim() || '',
-          minQ: parseNum(row['MIN Q BY CTN']),
-          maxQ: parseNum(row['MAX Q BY CTN']),
-          qinc: parseNum(row.QINC),
-          tags: row.TAGS?.toString().trim() || '',
-          qty: parseNum(row.QTY),
+          tags: row['PRODUCT CATEGORY']?.toString().trim() || '',
+          qty: parseNum((row as any)['AVAILABLE QTY']),
           salesQty: salesMap.get(productId) || 0,
           salesBreakdown,
         };
       })
-      .filter((row) => row.productName);
+      .filter((row) => row.productName && hasMovesSet.has(row.productId));
 
     return { success: true, data };
   } catch (error: any) {
@@ -181,22 +178,7 @@ export async function getProductOrdersData() {
 
 export async function updateProductColumn(productId: string, columnName: string, value: unknown) {
   try {
-    const columnMap: Record<string, string> = {
-      minQ: 'MIN Q BY CTN',
-      maxQ: 'MAX Q BY CTN',
-      qinc: 'QINC',
-    };
-
-    const dbColumn = columnMap[columnName];
-    if (!dbColumn) throw new Error(`Column for ${columnName} not found`);
-
-    const { error } = await bhs_supabase
-      .from('web_INVENTORY_PRODUCTS')
-      .update({ [dbColumn]: parseNum(value) })
-      .eq('PRODUCT ID', productId);
-
-    if (error) throw error;
-    return { success: true };
+    throw new Error(`Updating deprecated column: ${columnName}`);
   } catch (error: any) {
     console.error('Update Error:', error);
     return { success: false, error: 'Failed to update inventory', details: error.message };
@@ -294,7 +276,6 @@ export async function getSingleProductAnalysis(
     if (!productRow) return { success: false, error: 'Product not found' };
 
     const currentStock = parseNum(productRow.QTY);
-    const minQ = parseNum(productRow['MIN Q BY CTN']);
 
     let filterStart: Date | null = null;
     let filterEnd: Date | null = new Date();
@@ -418,7 +399,7 @@ export async function getSingleProductAnalysis(
     const netFlow = netPurchases - totalSales;
 
     const data = {
-      summary: { sales: totalSales, returns: totalReturns, returnsRate: returnsRate.toFixed(2), netPurchases, netFlow, currentStock, minQ },
+      summary: { sales: totalSales, returns: totalReturns, returnsRate: returnsRate.toFixed(2), netPurchases, netFlow, currentStock },
       monthlyData: [...allPeriods].reverse(),
       granularity
     };

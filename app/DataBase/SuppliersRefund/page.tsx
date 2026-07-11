@@ -8,6 +8,8 @@ import { ConfirmModal } from '@/app/LPOs/Components/ConfirmModal';
 import NoData from '@/app/Components/NoDataTab';
 import { toast } from '@/app/Components/Notification';
 import { getSuppliersMonthsSummary, deleteSuppliersMonth, uploadSuppliersInvoices } from '@/app/Suppliers/Service/suppliers_service';
+import { exportDatabaseExcelTable } from '../ExcelExport';
+import { downloadUploadIssuesReport } from '../Utils/ExcelUploadUtils';
 
 const englishMonths: Record<number, string> = {
   1: 'January',
@@ -93,19 +95,15 @@ export default function SuppliersRefundPage() {
     }
   };
 
-  const downloadTemplate = () => {
-    const sampleRow = {
-      DATE: '2026-06-12',
-      TYPE: invoiceType,
-      'INVOICE NUMBER': 'INV-001',
-      'SUPPLIER NAME': 'Sample Supplier',
-      AMOUNT: 1500.0,
-    };
-
-    const ws = XLSX.utils.json_to_sheet([sampleRow], { header: EXCEL_HEADERS });
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Template');
-    XLSX.writeFile(wb, templateFilename);
+  const downloadTemplate = async () => {
+    const sampleRow = [
+      '2026-06-12',
+      invoiceType,
+      'INV-001',
+      'Sample Supplier',
+      1500.0,
+    ];
+    await exportDatabaseExcelTable(EXCEL_HEADERS, [sampleRow], templateFilename);
     toast.success('Template downloaded successfully!');
   };
 
@@ -141,6 +139,18 @@ export default function SuppliersRefundPage() {
 
       const result = await uploadSuppliersInvoices(invoiceType as any, rows);
       if ((result as any).error) {
+        if (Array.isArray((result as any).details) && (result as any).details.length > 0) {
+           downloadUploadIssuesReport(
+             `Suppliers_Refund_Upload_Issues_${new Date().toISOString().split('T')[0]}.txt`,
+             'Suppliers Refund Upload - Issues Found',
+             [{ heading: '=== VALIDATION ERRORS ===', lines: (result as any).details }]
+           );
+           toast.error('Upload blocked. A text file with issues has been downloaded.');
+           setIsUploading(false);
+           if (e.target) e.target.value = '';
+           return;
+        }
+
         const details = Array.isArray((result as any).details) ? (result as any).details.join('; ') : (result as any).details;
         throw new Error(details || (result as any).error || 'Upload failed');
       }

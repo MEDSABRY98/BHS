@@ -30,7 +30,8 @@ export default function SavedHandoversTab({ onEdit }: { onEdit?: (handover: Cash
           date: handover.DATE,
           items: handover.ITEMS,
           totalAmount: handover.TOTAL_AMOUNT,
-          receivedBy: handover.WHO_RECEIVED
+          receivedBy: handover.WHO_RECEIVED,
+          note: handover.NOTE
         },
         filename: `${handover.ID}_${handover.DATE}`
       });

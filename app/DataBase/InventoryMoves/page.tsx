@@ -13,6 +13,8 @@ import InventoryMovesModal, { InventoryMoveFormValues } from './Components/Inven
 import InventoryMovesMonthsGrid, { MoveMonthSummary, englishMonths } from './Components/InventoryMovesMonthsGrid';
 import InventoryMovesDaysGrid, { MoveDaySummary } from './Components/InventoryMovesDaysGrid';
 import { fetchMoveMonthsSummary, fetchMoveDaysSummary, deleteMovesDb } from '@/app/Inventory/Service/inventory_service';
+import { exportDatabaseExcelTable } from '../ExcelExport';
+import { downloadUploadIssuesReport } from '../Utils/ExcelUploadUtils';
 
 const emptyForm = (): InventoryMoveFormValues => ({
   date: new Date().toISOString().split('T')[0],
@@ -235,7 +237,7 @@ export default function InventoryMovesPage() {
 
   const validateProductId = async (productId: string) => {
     const { data, error } = await bhs_supabas
-      .from('web_INVENTORY_PRODUCTS')
+      .from('bhs_PRODUCTS')
       .select('ID')
       .eq('PRODUCT ID', productId.trim())
       .maybeSingle();
@@ -394,20 +396,17 @@ export default function InventoryMovesPage() {
     return strVal;
   };
 
-  const downloadMovesTemplate = () => {
+  const downloadMovesTemplate = async () => {
     const headers = ['DATE', 'REFERENCE', 'LOCATION FROM', 'LOCATION TO', 'PRODUCT ID', 'QTY'];
-    const sampleRow = {
-      DATE: '2026-06-12',
-      REFERENCE: 'REF-001',
-      'LOCATION FROM': 'Partners/Vendors',
-      'LOCATION TO': 'Partners/Customers',
-      'PRODUCT ID': 'PROD-001',
-      QTY: 10,
-    };
-    const ws = XLSX.utils.json_to_sheet([sampleRow], { header: headers });
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Moves Template');
-    XLSX.writeFile(wb, 'Inventory_Moves_Import_Template.xlsx');
+    const sampleRow = [
+      '2026-06-12',
+      'REF-001',
+      'Partners/Vendors',
+      'Partners/Customers',
+      'PROD-001',
+      10
+    ];
+    await exportDatabaseExcelTable(headers, [sampleRow], 'Inventory_Moves_Import_Template.xlsx');
     toast.success('Template downloaded successfully!');
   };
 
@@ -441,7 +440,7 @@ export default function InventoryMovesPage() {
 
       while (true) {
         const { data, error } = await bhs_supabas
-          .from('web_INVENTORY_PRODUCTS')
+          .from('bhs_PRODUCTS')
           .select('"PRODUCT ID"')
           .range(from, from + pageSize - 1);
 
@@ -483,7 +482,18 @@ export default function InventoryMovesPage() {
       });
 
       if (invalidProductRows.length > 0) {
-        toast.error(`Invalid PRODUCT ID on row(s): ${invalidProductRows.slice(0, 5).join(', ')}${invalidProductRows.length > 5 ? '...' : ''}`);
+        const issueSections = [
+          {
+            heading: `=== INVALID PRODUCT ID (${invalidProductRows.length}) ===`,
+            lines: invalidProductRows.map((row) => `Row ${row}: Product ID not found in database.`),
+          }
+        ];
+        downloadUploadIssuesReport(
+          `Inventory_Moves_Upload_Issues_${new Date().toISOString().split('T')[0]}.txt`,
+          'Inventory Moves Upload - Issues Found',
+          issueSections
+        );
+        toast.error('Upload blocked. A text file with issues has been downloaded.');
         return;
       }
 
@@ -507,7 +517,37 @@ export default function InventoryMovesPage() {
       }
       if (selectedMonth) await fetchMoveDays(selectedMonth.year, selectedMonth.month);
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Upload failed');
+      const errMsg = err instanceof Error ? err.message : 'Unknown error';
+      if (typeof err === 'object' && err !== null && 'details' in err) {
+         // Supabase error format
+         const pgErr = err as any;
+         downloadUploadIssuesReport(
+           `Inventory_Moves_Upload_Error_${new Date().toISOString().split('T')[0]}.txt`,
+           'Inventory Moves Upload - System Error',
+           [
+             {
+               heading: '=== DATABASE ERROR ===',
+               lines: [
+                 `Message: ${pgErr.message || errMsg}`,
+                 `Details: ${pgErr.details || 'N/A'}`,
+                 `Hint: ${pgErr.hint || 'N/A'}`
+               ]
+             }
+           ]
+         );
+      } else {
+         downloadUploadIssuesReport(
+           `Inventory_Moves_Upload_Error_${new Date().toISOString().split('T')[0]}.txt`,
+           'Inventory Moves Upload - System Error',
+           [
+             {
+               heading: '=== SYSTEM ERROR ===',
+               lines: [errMsg]
+             }
+           ]
+         );
+      }
+      toast.error('Upload failed. An error report has been downloaded.');
     } finally {
       setIsUploading(false);
       e.target.value = '';

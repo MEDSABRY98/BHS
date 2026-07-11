@@ -1,10 +1,8 @@
 import { bhs_supabas } from '@/lib/supabase';
 
 export type InventoryTableName =
-  | 'web_INVENTORY_PRODUCTS'
   | 'web_INVENTORY_MOVES'
   | 'web_INVENTORY_ITEM_CODE'
-  | 'mix_INVENTORY_COUNT_PRODUCTS'
   | 'mix_INVENTORY_COUNT_DETAILS'
   | 'mix_INVENTORY_COUNT_TOTALS';
 

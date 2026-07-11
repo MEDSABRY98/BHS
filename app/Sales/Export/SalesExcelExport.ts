@@ -5,4 +5,4 @@ export {
   recordsFromTable,
   type StyledExcelExportOptions as SalesExcelExportOptions,
   type StyledExcelSheet as SalesExcelSheet,
-} from '@/app/Components/Export/StyledExcelExport';
+} from '@/app/Components/Export/ExcelExport';
