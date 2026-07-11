@@ -192,26 +192,47 @@ export async function getDeliveryPersonnel() {
     try {
         const { data, error } = await bhs_supabase
             .from('web_Documents_Tracking')
-            .select('"WHO DELIVERY FOR OFFICE?", "WHO TAKE FROM OFFICE?"');
+            .select('"WHO DELIVERY FOR OFFICE?", "WHO TAKE FROM OFFICE?", "RECEIVED FROM"');
 
         if (error) throw error;
 
+        // Fetch users from bhs_USERS as well to provide autocomplete for new staff
+        const { data: userData, error: userError } = await bhs_supabase
+            .from('bhs_USERS')
+            .select('NAME');
+            
+        if (userError) console.error('Error fetching users:', userError);
+
         const reps = new Set<string>();
         const receivers = new Set<string>();
+        const receivedFromSet = new Set<string>();
 
+        // Add historical names
         (data || []).forEach((r: any) => {
             const rep = (r['WHO DELIVERY FOR OFFICE?'] || '').trim();
             const receiver = (r['WHO TAKE FROM OFFICE?'] || '').trim();
+            const receivedFrom = (r['RECEIVED FROM'] || '').trim();
             if (rep) reps.add(rep);
             if (receiver) receivers.add(receiver);
+            if (receivedFrom) receivedFromSet.add(receivedFrom);
+        });
+
+        // Add actual user names
+        (userData || []).forEach((u: any) => {
+            const userName = (u.NAME || '').trim();
+            if (userName) {
+                reps.add(userName);
+                receivers.add(userName);
+            }
         });
 
         return {
             representatives: Array.from(reps).sort(),
-            receivers: Array.from(receivers).sort()
+            receivers: Array.from(receivers).sort(),
+            receivedFromList: Array.from(receivedFromSet).sort()
         };
     } catch (error) {
         console.error('Error fetching delivery personnel:', error);
-        return { representatives: [], receivers: [] };
+        return { representatives: [], receivers: [], receivedFromList: [] };
     }
 }

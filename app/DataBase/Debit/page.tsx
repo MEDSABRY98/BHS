@@ -31,7 +31,7 @@ export default function DebitDatabasePage() {
     }
   };
 
-  const COLUMNS = ['DATE', 'DUE DATE', 'NUMBER', 'CUSTOMER ID', 'DEBIT', 'CREDIT', 'RESIDUAL AMOUNT', 'MATCHING'];
+  const COLUMNS = ['DATE', 'DUE DATE', 'NUMBER', 'CUSTOMER NAME', 'DEBIT', 'CREDIT', 'RESIDUAL AMOUNT', 'MATCHING'];
 
   const handleDownloadTemplate = async () => {
     await exportDatabaseExcelTable(COLUMNS, [], 'mix_DEBIT_Template.xlsx');
@@ -72,7 +72,7 @@ export default function DebitDatabasePage() {
         
         // Filter out completely empty rows
         data = data.filter((row: any) => {
-          return row['CUSTOMER ID'] || row['NUMBER'] || row['DEBIT'] || row['CREDIT'] || row['RESIDUAL AMOUNT'];
+          return row['CUSTOMER ID'] || row['CUSTOMER NAME'] || row['NUMBER'] || row['DEBIT'] || row['CREDIT'] || row['RESIDUAL AMOUNT'];
         });
 
         // Format dates correctly (DD/MM/YYYY -> YYYY-MM-DD)

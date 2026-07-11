@@ -10,7 +10,7 @@ import {
     normalizeDate,
     getNextDocIds
 } from './types';
-import { getDocumentsTracking, addDocumentsTrackingRecords, getCustomers } from '../Service/documents_tracking_service';
+import { getDocumentsTracking, addDocumentsTrackingRecords, getCustomers, getDeliveryPersonnel } from '../Service/documents_tracking_service';
 import { exportDebitExcelTable } from '../../Debit/Export/ExcelExport';
 
 interface RegisterTabProps {
@@ -41,19 +41,25 @@ export default function RegisterTab({
     ]);
 
     const [customers, setCustomers] = useState<{ id: string, name: string }[]>([]);
+    const [receivedFromHistory, setReceivedFromHistory] = useState<string[]>([]);
     const [focusedClientRow, setFocusedClientRow] = useState<number | null>(null);
+    const [focusedBankRow, setFocusedBankRow] = useState<number | null>(null);
     const [dropdownCoords, setDropdownCoords] = useState({ top: 0, left: 0, width: 0 });
     const [showExcelMenu, setShowExcelMenu] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
-        const fetchCusts = async () => {
+        const fetchData = async () => {
             const res = await getCustomers();
             if (res.customers) {
                 setCustomers(res.customers);
             }
+            const personnelData = await getDeliveryPersonnel();
+            if (personnelData && personnelData.receivedFromList) {
+                setReceivedFromHistory(personnelData.receivedFromList);
+            }
         };
-        fetchCusts();
+        fetchData();
     }, []);
 
     const addDraftRow = () => {
@@ -270,7 +276,7 @@ export default function RegisterTab({
                                 placeholder="اسم صاحب الشيك"
                             />
                             {focusedClientRow === draft.id && draft.client && typeof document !== 'undefined' && createPortal(
-                                <div style={{
+                                <div dir="rtl" style={{
                                     position: 'absolute',
                                     top: `${dropdownCoords.top}px`,
                                     left: `${dropdownCoords.left}px`,
@@ -436,8 +442,70 @@ export default function RegisterTab({
                                 type="text"
                                 value={draft.bank}
                                 onChange={e => updateDraft(draft.id, 'bank', e.target.value)}
+                                onFocus={(e) => {
+                                    const rect = e.target.getBoundingClientRect();
+                                    setDropdownCoords({
+                                        top: rect.bottom + window.scrollY,
+                                        left: rect.left + window.scrollX,
+                                        width: rect.width
+                                    });
+                                    setFocusedBankRow(draft.id);
+                                }}
+                                onBlur={() => {
+                                    setTimeout(() => setFocusedBankRow(null), 200);
+                                }}
                                 placeholder="اسم المستلم"
                             />
+                            {focusedBankRow === draft.id && draft.bank && typeof document !== 'undefined' && createPortal(
+                                <div dir="rtl" style={{
+                                    position: 'absolute',
+                                    top: `${dropdownCoords.top}px`,
+                                    left: `${dropdownCoords.left}px`,
+                                    width: `${dropdownCoords.width}px`,
+                                    background: '#ffffff',
+                                    border: '1px solid #e2e8f0',
+                                    borderRadius: '8px',
+                                    maxHeight: '220px',
+                                    overflowY: 'auto',
+                                    zIndex: 999999,
+                                    boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05)',
+                                    marginTop: '4px',
+                                    padding: '4px'
+                                }}>
+                                    {receivedFromHistory
+                                        .filter(name => name.toLowerCase().includes(draft.bank.toLowerCase()))
+                                        .slice(0, 10)
+                                        .map((name, i) => (
+                                            <div
+                                                key={`bank-${i}`}
+                                                style={{
+                                                    padding: '10px 12px',
+                                                    cursor: 'pointer',
+                                                    borderRadius: '6px',
+                                                    fontSize: '13px',
+                                                    fontWeight: 600,
+                                                    color: '#1e293b',
+                                                    transition: 'all 0.15s ease'
+                                                }}
+                                                onMouseDown={(e) => {
+                                                    e.preventDefault();
+                                                    updateDraft(draft.id, 'bank', name);
+                                                    setFocusedBankRow(null);
+                                                }}
+                                                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f8fafc'}
+                                                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                                            >
+                                                {name}
+                                            </div>
+                                        ))}
+                                    {receivedFromHistory.filter(name => name.toLowerCase().includes(draft.bank.toLowerCase())).length === 0 && (
+                                        <div style={{ padding: '10px 12px', fontSize: '13px', color: '#94a3b8', textAlign: 'center' }}>
+                                            لا يوجد اسم مطابق
+                                        </div>
+                                    )}
+                                </div>,
+                                document.body
+                            )}
                         </div>
                         <div className="field no-label">
                             <input

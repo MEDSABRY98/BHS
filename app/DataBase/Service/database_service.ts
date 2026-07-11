@@ -650,28 +650,52 @@ export async function uploadDebitData(payload: any[] | string) {
       throw new Error('Invalid data format');
     }
 
-    // Validation: Ensure all CUSTOMER IDs exist in bhs_CUSTOMERS
-    const { data: customersData, error: customersError } = await bhs_supabase.from('bhs_CUSTOMERS').select('"CUSTOMER ID"');
+    // Validation: Ensure all CUSTOMER IDs exist in bhs_CUSTOMERS, or map names to IDs
+    const { data: customersData, error: customersError } = await bhs_supabase.from('bhs_CUSTOMERS').select('"CUSTOMER ID", "CUSTOMER NAME"');
     if (customersError) {
       throw new Error('Failed to fetch customers for validation: ' + customersError.message);
     }
 
     const validCustomerIds = new Set(customersData.map((c: any) => c['CUSTOMER ID']?.toString().trim()));
-    const invalidIds = new Set<string>();
+    const nameToIdMap = new Map<string, string>();
+    customersData.forEach((c: any) => {
+        if (c['CUSTOMER NAME'] && c['CUSTOMER ID']) {
+            nameToIdMap.set(c['CUSTOMER NAME'].toString().trim().toLowerCase(), c['CUSTOMER ID'].toString().trim());
+        }
+    });
+
+    const invalidEntries = new Set<string>();
 
     data.forEach((row: any) => {
-      const custId = row['CUSTOMER ID']?.toString().trim();
-      if (custId && !validCustomerIds.has(custId)) {
-        invalidIds.add(custId);
+      let custId = row['CUSTOMER ID']?.toString().trim();
+      const custName = row['CUSTOMER NAME']?.toString().trim();
+
+      if (custName) {
+          const matchedId = nameToIdMap.get(custName.toLowerCase());
+          if (matchedId) {
+              row['CUSTOMER ID'] = matchedId;
+              delete row['CUSTOMER NAME'];
+          } else {
+              invalidEntries.add(custName);
+          }
+      } else if (custId) {
+          if (validCustomerIds.has(custId)) {
+              // Valid ID, do nothing
+          } else if (nameToIdMap.has(custId.toLowerCase())) {
+              // They put the name in the ID column
+              row['CUSTOMER ID'] = nameToIdMap.get(custId.toLowerCase());
+          } else {
+              invalidEntries.add(custId);
+          }
       }
     });
 
-    if (invalidIds.size > 0) {
-      const invalidList = Array.from(invalidIds).join(', ');
+    if (invalidEntries.size > 0) {
+      const invalidList = Array.from(invalidEntries).join('\n');
       return { 
         success: false, 
-        error: 'Upload stopped! Some Customer IDs do not exist in the Customers database.', 
-        details: `Invalid IDs: ${invalidList}` 
+        error: 'Upload stopped! Some Customer Names/IDs do not exist in the Customers database.', 
+        details: `Invalid Entries:\n${invalidList}` 
       };
     }
 
