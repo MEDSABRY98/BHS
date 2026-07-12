@@ -19,7 +19,8 @@ import {
   ArrowLeftRight,
   Hash,
   Truck,
-  Building2
+  Building2,
+  Receipt
 } from 'lucide-react';
 
 interface NavItemProps {
@@ -107,21 +108,39 @@ export default function DatabaseLayout({ children }: { children: React.ReactNode
     return <Login onLogin={handleLogin} />;
   }
 
+  const CATEGORIES = {
+    CUSTOMERS_DEBT: { id: 'CUSTOMERS_DEBT', label: 'Customers & Debt', icon: UserCircle, href: '/DataBase/Customers' },
+    PRODUCTS_INVENTORY: { id: 'PRODUCTS_INVENTORY', label: 'Products & Inventory', icon: Package, href: '/DataBase/Products' },
+    SALES: { id: 'SALES', label: 'Sales & Operations', icon: FileSpreadsheet, href: '/DataBase/Sales' },
+    SUPPLIERS_PURCHASES: { id: 'SUPPLIERS_PURCHASES', label: 'Suppliers & Purchases', icon: Building2, href: '/DataBase/Suppliers' },
+    SYSTEM_ADMIN: { id: 'SYSTEM_ADMIN', label: 'System & Admin', icon: Users, href: '/DataBase/Personnel' },
+  };
+
   const NAV_ITEMS = [
-    { id: 'db-customers', href: '/DataBase/Customers', icon: UserCircle, label: 'Customers DB' },
-    { id: 'db-debit', href: '/DataBase/Debit', icon: Database, label: 'Debit DB' },
-    { id: 'db-emails', href: '/DataBase/Emails', icon: Database, label: 'Emails DB' },
-    { id: 'db-inv-itemcode', href: '/DataBase/InventoryItemCode', icon: Hash, label: 'Inventory Item Code' },
-    { id: 'db-inv-moves', href: '/DataBase/InventoryMoves', icon: ArrowLeftRight, label: 'Inventory Moves' },
-    { id: 'db-lulu-emails', href: '/DataBase/LuluEmails', icon: Database, label: 'Lulu Emails DB' },
-    { id: 'db-personnel', href: '/DataBase/Personnel', icon: Users, label: 'Personnel DB' },
-    { id: 'db-products', href: '/DataBase/Products', icon: Package, label: 'Products DB' },
-    { id: 'db-sales', href: '/DataBase/Sales', icon: FileSpreadsheet, label: 'Sales DB' },
-    { id: 'db-suppliers', href: '/DataBase/Suppliers', icon: Building2, label: 'Suppliers DB' },
-    { id: 'db-suppliers-purchase', href: '/DataBase/SuppliersPurchase', icon: Truck, label: 'Suppliers Purchase' },
-    { id: 'db-suppliers-refund', href: '/DataBase/SuppliersRefund', icon: Truck, label: 'Suppliers Refund' },
-    { id: 'db-users', href: '/DataBase/Users', icon: Users, label: 'Users DB' },
+    { id: 'db-customers', href: '/DataBase/Customers', icon: UserCircle, label: 'Customers DB', category: CATEGORIES.CUSTOMERS_DEBT.id },
+    { id: 'db-debit', href: '/DataBase/Debit', icon: Database, label: 'Debit DB', category: CATEGORIES.CUSTOMERS_DEBT.id },
+    { id: 'db-emails', href: '/DataBase/Emails', icon: Database, label: 'Emails DB', category: CATEGORIES.CUSTOMERS_DEBT.id },
+    { id: 'db-lulu-emails', href: '/DataBase/LuluEmails', icon: Database, label: 'Lulu Emails DB', category: CATEGORIES.CUSTOMERS_DEBT.id },
+    
+    { id: 'db-products', href: '/DataBase/Products', icon: Package, label: 'Products DB', category: CATEGORIES.PRODUCTS_INVENTORY.id },
+    { id: 'db-inv-itemcode', href: '/DataBase/InventoryItemCode', icon: Hash, label: 'Inventory Item Code', category: CATEGORIES.PRODUCTS_INVENTORY.id },
+    { id: 'db-inv-moves', href: '/DataBase/InventoryMoves', icon: ArrowLeftRight, label: 'Inventory Moves', category: CATEGORIES.PRODUCTS_INVENTORY.id },
+    
+    { id: 'db-sales', href: '/DataBase/Sales', icon: FileSpreadsheet, label: 'Sales DB', category: CATEGORIES.SALES.id },
+    
+    { id: 'db-suppliers', href: '/DataBase/Suppliers', icon: Building2, label: 'Suppliers DB', category: CATEGORIES.SUPPLIERS_PURCHASES.id },
+    { id: 'db-suppliers-invoices', href: '/DataBase/SuppliersStatement/Invoices', icon: Truck, label: 'Suppliers Invoices', category: CATEGORIES.SUPPLIERS_PURCHASES.id },
+    { id: 'db-suppliers-refund', href: '/DataBase/SuppliersStatement/Refunds', icon: Truck, label: 'Suppliers Refund', category: CATEGORIES.SUPPLIERS_PURCHASES.id },
+    { id: 'db-suppliers-purchase-details', href: '/DataBase/SuppliersPurchaseDetails', icon: Receipt, label: 'Suppliers Purchase Details', category: CATEGORIES.SUPPLIERS_PURCHASES.id },
+    
+    { id: 'db-personnel', href: '/DataBase/Personnel', icon: Users, label: 'Personnel DB', category: CATEGORIES.SYSTEM_ADMIN.id },
+    { id: 'db-users', href: '/DataBase/Users', icon: Users, label: 'Users DB', category: CATEGORIES.SYSTEM_ADMIN.id },
   ];
+
+  const isHub = pathname === '/DataBase';
+  const activeNavItem = NAV_ITEMS.find(item => pathname === item.href || pathname.startsWith(`${item.href}/`));
+  const activeCategoryId = activeNavItem?.category || null;
+  const sidebarItems = isHub ? [] : NAV_ITEMS.filter(item => item.category === activeCategoryId);
 
   return (
     <div className="flex min-h-screen bg-[#F8F9FA] text-black">
@@ -155,7 +174,20 @@ export default function DatabaseLayout({ children }: { children: React.ReactNode
         </div>
 
         <nav className="flex-1 mt-4 overflow-y-auto no-scrollbar">
-          {NAV_ITEMS.map((item) => (
+          {!isHub && (
+            <div className="px-4 mb-4">
+               <Link
+                 href="/DataBase"
+                 className={`flex items-center ${isCollapsed ? 'justify-center' : 'px-4'} py-3 bg-white/5 hover:bg-white/10 rounded-2xl transition-all group`}
+                 title="Back to Hub"
+               >
+                 <ArrowLeft className={`w-4 h-4 text-gray-400 group-hover:text-white transition-colors ${isCollapsed ? '' : 'mr-3'}`} />
+                 {!isCollapsed && <span className="font-bold text-xs text-gray-300 uppercase tracking-widest">Hub</span>}
+               </Link>
+            </div>
+          )}
+
+          {sidebarItems.map((item) => (
             <NavItem
               key={item.href}
               {...item}
@@ -224,7 +256,19 @@ export default function DatabaseLayout({ children }: { children: React.ReactNode
               </div>
 
               <nav className="flex-1 mt-4 overflow-y-auto">
-                {NAV_ITEMS.map((item) => (
+                {!isHub && (
+                  <div className="px-4 mb-4">
+                     <Link
+                       href="/DataBase"
+                       onClick={() => setIsSidebarOpen(false)}
+                       className={`flex items-center px-4 py-3 bg-white/5 hover:bg-white/10 rounded-2xl transition-all group`}
+                     >
+                       <ArrowLeft className="w-4 h-4 text-gray-400 group-hover:text-white transition-colors mr-3" />
+                       <span className="font-bold text-xs text-gray-300 uppercase tracking-widest">Database Hub</span>
+                     </Link>
+                  </div>
+                )}
+                {sidebarItems.map((item) => (
                   <NavItem
                     key={item.href}
                     {...item}

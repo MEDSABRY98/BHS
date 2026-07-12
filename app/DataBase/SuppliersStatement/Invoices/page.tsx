@@ -34,7 +34,7 @@ interface InvoiceMonth {
 
 const EXCEL_HEADERS = ['DATE', 'TYPE', 'INVOICE NUMBER', 'SUPPLIER NAME', 'AMOUNT'];
 
-export default function SuppliersPurchasePage() {
+export default function SuppliersInvoicesPage() {
   const { canDelete, canEdit } = usePermissions();
   const [months, setMonths] = useState<InvoiceMonth[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -44,10 +44,10 @@ export default function SuppliersPurchasePage() {
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
 
-  const pageTitle = "Suppliers Purchase DB";
+  const pageTitle = "Suppliers Invoices DB";
   const invoiceType = "Purchase";
-  const templateFilename = "Suppliers_Purchase_Template.xlsx";
-  const cardLabel = "Purchase Invoices";
+  const templateFilename = "Suppliers_Invoices_Template.xlsx";
+  const cardLabel = "Invoices";
 
   useEffect(() => {
     fetchMonths();
@@ -141,8 +141,8 @@ export default function SuppliersPurchasePage() {
       if ((result as any).error) {
         if (Array.isArray((result as any).details) && (result as any).details.length > 0) {
            downloadUploadIssuesReport(
-             `Suppliers_Purchase_Upload_Issues_${new Date().toISOString().split('T')[0]}.txt`,
-             'Suppliers Purchase Upload - Issues Found',
+             `Suppliers_Invoices_Upload_Issues_${new Date().toISOString().split('T')[0]}.txt`,
+             'Suppliers Invoices Upload - Issues Found',
              [{ heading: '=== VALIDATION ERRORS ===', lines: (result as any).details }]
            );
            toast.error('Upload blocked. A text file with issues has been downloaded.');

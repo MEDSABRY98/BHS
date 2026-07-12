@@ -65,53 +65,14 @@ export default function InventoryPage() {
               <div className="bg-gradient-to-br from-blue-600 to-indigo-600 text-white p-2.5 rounded-xl shadow-lg shadow-blue-200">
                 <Box className="w-6 h-6" />
               </div>
-              <h1 className="text-2xl font-black text-slate-800 tracking-tight">Inventory</h1>
-            </div>
-          </div>
-
-          {/* Tab Switcher - Centered */}
-          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-            <div className="flex bg-slate-100 p-1 rounded-xl">
-              {[
-                { id: 'orders', label: 'Products' },
-                { id: 'item_code', label: 'Item Code' },
-              ].map(tab => {
-                // Check permissions
-                try {
-                  const savedUser = localStorage.getItem('currentUser');
-                  const currentUser = savedUser ? JSON.parse(savedUser) : null;
-                  const perms = JSON.parse(currentUser?.role || '{}');
-                  if (perms.inventory && currentUser?.name !== 'MED Sabry') {
-                    if (!perms.inventory.includes(tab.id)) return null;
-                  }
-                } catch (e) { }
-
-                return (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id as any)}
-                    className={`w-60 py-2 rounded-lg text-sm font-bold transition-all text-center ${activeTab === tab.id
-                      ? 'bg-white text-blue-600 shadow-sm'
-                      : 'text-slate-500 hover:text-slate-700'
-                      }`}
-                  >
-                    {tab.label}
-                  </button>
-                );
-              })}
+              <h1 className="text-2xl font-black text-slate-800 tracking-tight">Inventory Analysis</h1>
             </div>
           </div>
         </div>
       </div>
 
       <div className="max-w-[95%] 2xl:max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 pt-8">
-
-        <div className={activeTab === 'orders' ? 'block' : 'hidden'}>
-          <InventoryProductOrdersTab orderItems={orderItems} setOrderItems={setOrderItems} />
-        </div>
-        <div className={activeTab === 'item_code' ? 'block' : 'hidden'}>
-          <InventoryItemCodeTab />
-        </div>
+        <InventoryProductOrdersTab orderItems={orderItems} setOrderItems={setOrderItems} />
       </div>
     </div>
   );

@@ -12,7 +12,7 @@ import InventoryMovesTable, { InventoryMoveRow } from './Components/InventoryMov
 import InventoryMovesModal, { InventoryMoveFormValues } from './Components/InventoryMovesModal';
 import InventoryMovesMonthsGrid, { MoveMonthSummary, englishMonths } from './Components/InventoryMovesMonthsGrid';
 import InventoryMovesDaysGrid, { MoveDaySummary } from './Components/InventoryMovesDaysGrid';
-import { fetchMoveMonthsSummary, fetchMoveDaysSummary, deleteMovesDb } from '@/app/Inventory/Service/inventory_service';
+import { fetchMoveMonthsSummary, fetchMoveDaysSummary, deleteMovesDb } from '@/app/InventoryAnalysis/Service/inventory_service';
 import { exportDatabaseExcelTable } from '../ExcelExport';
 import { downloadUploadIssuesReport } from '../Utils/ExcelUploadUtils';
 

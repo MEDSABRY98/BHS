@@ -1,6 +1,6 @@
 'use client';
 
-import { DollarSign, TrendingUp, ArrowRight, FileText, Package, Clock, Receipt, Wallet, FileSpreadsheet, LogOut, Layers, Truck, Users, LayoutGrid, Shield, ChevronLeft, ShoppingCart, Database, Trash2, ClipboardList, ShieldCheck } from 'lucide-react';
+import { DollarSign, TrendingUp, ArrowRight, FileText, Package, Clock, Receipt, Wallet, FileSpreadsheet, LogOut, Layers, Truck, Users, LayoutGrid, Shield, ChevronLeft, ShoppingCart, Database, Trash2, ClipboardList, ShieldCheck, Hash } from 'lucide-react';
 import { useState } from 'react';
 
 interface HomeSelectionProps {
@@ -156,14 +156,15 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
     { id: 'customers-summaries', title: "Customers Summaries", icon: FileSpreadsheet, path: '/CustomersSummaries', color: 'sky' as const },
     { id: 'debit', title: "Debit Analysis", icon: DollarSign, path: '/Debit', color: 'red' as const },
     { id: 'customers-documents', title: "Customers Documents", icon: FileText, path: '/CustomersDocuments', color: 'indigo' as const },
-    { id: 'sales', title: "Sales Analysis", icon: LayoutGrid, path: '/Sales', color: 'green' as const },
-    { id: 'inventory', title: "Inventory", icon: Package, path: '/Inventory', color: 'indigo' as const },
+    { id: 'inventory', title: "Inventory Analysis", icon: Package, path: '/InventoryAnalysis', color: 'indigo' as const },
+    { id: 'inventory-item-code', title: "Inventory Item Code", icon: Hash, path: '/InventoryItemCode', color: 'blue' as const },
     { id: 'inventory-counting', title: "Inventory Counting", icon: ClipboardList, path: '/InventoryCounting', color: 'blue' as const },
     { id: 'inventory-scrap', title: "Inventory Scrap", icon: Trash2, path: '/InventoryScrap', color: 'orange' as const },
 
     { id: 'suppliers', title: "Suppliers", icon: Truck, path: '/Suppliers', color: 'emerald' as const },
+    { id: 'purchase-price-tracking', title: "Purchase Price Tracking", icon: TrendingUp, path: '/PurchasePriceTracking', color: 'yellow' as const },
     { id: 'lpo-management', title: "LPO's", icon: ShoppingCart, path: '/LPOs', color: 'yellow' as const },
-    { id: 'database', title: "Database", icon: Database, path: '/DataBase/Customers', color: 'sky' as const },
+    { id: 'database', title: "Database", icon: Database, path: '/DataBase', color: 'sky' as const },
     { id: 'customer-discounts', title: "Customers Discounts", icon: ShieldCheck, path: '/CustomersDiscounts', color: 'yellow' as const },
   ];
 
