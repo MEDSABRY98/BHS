@@ -7,7 +7,7 @@ import NoData from '@/app/Components/NoDataTab';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
 import SalesCustomerCategoriesTab from './CustomerDetailsCategoriesTab';
 import { useSalesModuleFilters } from '@/app/Sales/Model/SalesFilters';
-import { exportSalesExcelTable } from '@/app/Sales/Export/SalesExcelExport';
+import { exportSalesExcelTable } from '@/app/Sales/Utils/ExcelExport';
 import { getCustomerDetailsData } from '../Service/sales_customers_service';
 import {
   ComposedChart,

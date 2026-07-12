@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Menu, X, ArrowLeft, FileSpreadsheet, RefreshCcw, Archive } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
-import Sidebar, { tabs } from './PettyCashSidebar';
+import Sidebar, { tabs } from '../Utils/Sidebar';
 import ReceiptsForm from './ReceiptsForm';
 import ExpensesForm from './ExpensesForm';
 import VoucherTab from './VoucherTab';
@@ -15,7 +15,7 @@ import { generateVoucherPdf } from '../Utils/VoucherPdf';
 import { toast } from '@/app/Components/Notification';
 import { getPettyCashRecords, createPettyCashEntry, updatePettyCashEntry, deletePettyCashEntry, settlePettyCashPeriod } from '../Service/petty_cash_service';
 import { getVouchers, createVoucher } from '../Service/vouchers_service';
-import { exportDebitExcelWorkbook } from '../../Debit/Export/ExcelExport';
+import { exportDebitExcelWorkbook } from '../../Debit/Utils/ExcelExport';
 
 interface Receipt {
   id: string;

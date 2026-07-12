@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { ArrowLeft, Search, RefreshCw, FileCheck, FileSpreadsheet, AlertCircle } from 'lucide-react';
-import { exportDebitExcelTable } from '@/app/Debit/Export/ExcelExport';
+import { exportDebitExcelTable } from '@/app/Debit/Utils/ExcelExport';
 import Loading from '@/app/Components/Loading';
 import Login from '@/app/Components/Login';
 import CustomersDocumentsGrid from './Components/CustomersDocumentsGrid';

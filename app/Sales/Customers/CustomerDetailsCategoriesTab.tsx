@@ -4,7 +4,7 @@ import { useMemo } from 'react';
 import { SalesInvoice } from '@/lib/supabase';;
 import { Download } from 'lucide-react';
 import NoData from '@/app/Components/NoDataTab';
-import { exportSalesExcelTable } from '@/app/Sales/Export/SalesExcelExport';
+import { exportSalesExcelTable } from '@/app/Sales/Utils/ExcelExport';
 
 interface SalesCustomerCategoriesTabProps {
   data: SalesInvoice[];

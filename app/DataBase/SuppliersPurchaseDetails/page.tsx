@@ -8,7 +8,7 @@ import { ConfirmModal } from '@/app/LPOs/Components/ConfirmModal';
 import NoData from '@/app/Components/NoDataTab';
 import { toast } from '@/app/Components/Notification';
 import { getPurchaseDetailsMonthsSummary, deletePurchaseDetailsMonth, uploadPurchaseDetails } from '@/app/Suppliers/Service/purchase_details_service';
-import { exportDatabaseExcelTable } from '../ExcelExport';
+import { exportDatabaseExcelTable } from '../Utils/ExcelExport';
 import { downloadUploadIssuesReport } from '../Utils/ExcelUploadUtils';
 
 const englishMonths: Record<number, string> = {

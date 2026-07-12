@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState, useEffect } from 'react';
-import { exportDebitExcelTable } from '@/app/Debit/Export/ExcelExport';
+import { exportDebitExcelTable } from '@/app/Debit/Utils/ExcelExport';
 import {
   useReactTable,
   getCoreRowModel,

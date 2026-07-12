@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Login from '@/app/Components/Login';
 import Loading from '@/app/Components/Loading';
 import HandoverForm from './Components/HandoverForm';
-import HandoverSidebar from './Components/HandoverSidebar';
+import HandoverSidebar from './Utils/Sidebar';
 import SavedHandoversTab from './Components/SavedHandoversTab';
 import { verifyUserCredentials } from '@/app/DataBase/Service/database_service';
 import { CashHandover } from './Service/cash_handover_service';

@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import NoData from '@/app/Components/NoDataTab';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
-import { exportSalesExcel } from '@/app/Sales/Export/SalesExcelExport';
+import { exportSalesExcel } from '@/app/Sales/Utils/ExcelExport';
 import { generateCustomerMarginProducts } from '@/app/Sales/StockReport/CustomerMarginProducts';
 
 interface SalesST_CustomerMarginProps {

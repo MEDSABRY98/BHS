@@ -6,7 +6,7 @@ import * as XLSX from 'xlsx';
 import { toast } from '@/app/Components/Notification';
 import { deleteDebitData, uploadDebitData } from '../Service/database_service';
 import { bhs_supabas } from '@/lib/supabase';
-import { exportDatabaseExcelTable } from '../ExcelExport';
+import { exportDatabaseExcelTable } from '../Utils/ExcelExport';
 import { downloadUploadIssuesReport } from '../Utils/ExcelUploadUtils';
 
 export default function DebitDatabasePage() {

@@ -22,7 +22,7 @@ import * as XLSX from 'xlsx';
 import { ConfirmModal } from '../../LPOs/Components/ConfirmModal';
 import NoData from '@/app/Components/NoDataTab';
 import { usePermissions } from '../../LPOs/Hooks/usePermissions';
-import { exportDatabaseExcel } from '../ExcelExport';
+import { exportDatabaseExcel } from '../Utils/ExcelExport';
 import { downloadUploadIssuesReport, normalizeExcelId } from '../Utils/ExcelUploadUtils';
 
 export default function SuppliersPage() {

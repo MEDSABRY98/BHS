@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect, memo } from 'react';
 import { SalesInvoice } from '@/lib/supabase';;
 import { Search, Download, FileSpreadsheet } from 'lucide-react';
 import { useSalesModuleFilters } from '@/app/Sales/Model/SalesFilters';
-import { exportSalesExcelTable } from '@/app/Sales/Export/SalesExcelExport';
+import { exportSalesExcelTable } from '@/app/Sales/Utils/ExcelExport';
 import { getCategoriesData } from '@/app/Sales/Service/sales_products_service';
 import NoData from '@/app/Components/NoDataTab';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';

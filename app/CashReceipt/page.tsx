@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import CashReceiptTab from './Components/CashReceiptTab';
 import Login from '@/app/Components/Login';
 import Loading from '@/app/Components/Loading';
-import CashReceiptSidebar from './Components/CashReceiptSidebar';
+import CashReceiptSidebar from './Utils/Sidebar';
 import { Menu, Search } from 'lucide-react';
 import { verifyUserCredentials } from '@/app/DataBase/Service/database_service';
 

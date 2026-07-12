@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Menu, Loader2 } from 'lucide-react';
-import Sidebar from './Sidebar';
+import Sidebar from './Utils/Sidebar';
 import { bhs_supabase, fetchAllData } from '@/lib/supabase';
 import ProductPriceHistory from './ProductPriceHistory';
 import SupplierComparison from './SupplierComparison';

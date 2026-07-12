@@ -11,7 +11,7 @@ import {
     getNextDocIds
 } from './types';
 import { getDocumentsTracking, addDocumentsTrackingRecords, getCustomers, getDeliveryPersonnel } from '../Service/documents_tracking_service';
-import { exportDebitExcelTable } from '../../Debit/Export/ExcelExport';
+import { exportDebitExcelTable } from '../../Debit/Utils/ExcelExport';
 
 interface RegisterTabProps {
     onSaveSuccess: () => void;

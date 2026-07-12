@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { PlusCircle, Save, ArrowLeft, ChevronLeft, ChevronRight, ClipboardList, Menu } from 'lucide-react';
+import { PlusCircle, Save, ArrowLeft, ChevronLeft, ChevronRight, ClipboardList } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 interface HandoverSidebarProps {
@@ -8,7 +8,8 @@ interface HandoverSidebarProps {
 }
 
 export default function HandoverSidebar({ activeTab, setActiveTab }: HandoverSidebarProps) {
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  // Set default collapsed to true
+  const [isCollapsed, setIsCollapsed] = useState(true);
   const router = useRouter();
 
   const tabs = [

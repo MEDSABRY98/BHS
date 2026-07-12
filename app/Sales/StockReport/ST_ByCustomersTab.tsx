@@ -10,7 +10,7 @@ import NoData from '@/app/Components/NoDataTab';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
-import { exportSalesExcel } from '@/app/Sales/Export/SalesExcelExport';
+import { exportSalesExcel } from '@/app/Sales/Utils/ExcelExport';
 
 interface SalesST_ByCustomersProps {
   customersData: any[];

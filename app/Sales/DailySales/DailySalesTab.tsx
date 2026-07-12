@@ -4,7 +4,7 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import { SalesInvoice } from '@/lib/supabase';;
 import { Download, Calendar, MapPin, ShoppingBag, UserCircle, ChevronDown, ChevronLeft, ChevronRight, Search, X, Filter, FileSpreadsheet } from 'lucide-react';
 import { useSalesModuleFilters } from '@/app/Sales/Model/SalesFilters';
-import { exportSalesExcel, exportSalesExcelTable } from '@/app/Sales/Export/SalesExcelExport';
+import { exportSalesExcel, exportSalesExcelTable } from '@/app/Sales/Utils/ExcelExport';
 import { getDailySalesData } from '@/app/Sales/Service/sales_core_service';
 import NoData from '@/app/Components/NoDataTab';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';

@@ -26,7 +26,7 @@ export default function InventoryScrapPage() {
   const [activeSubTab, setActiveSubTab] = useState<'record' | 'sessions' | 'report' | 'history'>('record');
 
   // Sidebar Collapse states
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [userInitial, setUserInitial] = useState('U');
 

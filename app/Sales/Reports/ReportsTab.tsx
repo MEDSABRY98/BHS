@@ -15,7 +15,7 @@ import {
 } from 'recharts';
 import { FileSpreadsheet, AlertTriangle, FileText, Loader2 } from 'lucide-react';
 import { useSalesModuleFilters } from '@/app/Sales/Model/SalesFilters';
-import { exportSalesExcelWorkbook } from '@/app/Sales/Export/SalesExcelExport';
+import { exportSalesExcelWorkbook } from '@/app/Sales/Utils/ExcelExport';
 import { generateSalesReportsZip } from '@/app/Sales/Reports/ReportsExport';
 import { saveAs } from 'file-saver';
 import { toast } from '@/app/Components/Notification';

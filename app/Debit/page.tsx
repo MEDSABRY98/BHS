@@ -16,7 +16,7 @@ import Login from '@/app/Components/Login';
 import { getDebitData } from './Service/debit_service';
 import { InvoiceRow } from '@/types';
 import { ArrowLeft, Wallet, LogOut, User, RefreshCcw, Menu } from 'lucide-react';
-import DebitSidebar from './Components/DebitSidebar';
+import DebitSidebar from './Utils/Sidebar';
 
 import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';

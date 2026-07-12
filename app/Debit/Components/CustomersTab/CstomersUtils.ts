@@ -3,7 +3,7 @@ import { exportToPDF as exportToPDFUtil } from '@/app/Sales/Pdf/AnalysisAllCusto
 import {
   exportDebitExcelWorkbook,
   recordsFromTable,
-} from '@/app/Debit/Export/ExcelExport';
+} from '@/app/Debit/Utils/ExcelExport';
 
 // Helper function to copy text to clipboard
 export const copyToClipboard = async (text: string): Promise<boolean> => {

@@ -26,7 +26,7 @@ import { usePermissions } from '../../LPOs/Hooks/usePermissions';
 import { toast } from '@/app/Components/Notification';
 import { useMergeProducts } from './Hooks/UseMergeProducts';
 import MergeProductsModal from './Components/MergeProductsModal';
-import { exportDatabaseExcel } from '../ExcelExport';
+import { exportDatabaseExcel } from '../Utils/ExcelExport';
 import { downloadUploadIssuesReport, normalizeExcelId } from '../Utils/ExcelUploadUtils';
 
 

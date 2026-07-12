@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from "react";
 import { CheckCircle } from "lucide-react";
 import { bhs_supabase, fetchAllData } from "@/lib/supabase";
-import Sidebar from "./Sidebar";
+import Sidebar from "./Utils/Sidebar";
 import ConfirmModal from "./ConfirmModal";
 import CustomersList from "./CustomersList";
 import AddDiscount from "./AddDiscount";

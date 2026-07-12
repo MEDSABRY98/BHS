@@ -28,7 +28,7 @@ import NoData from '@/app/Components/NoDataTab';
 import { usePermissions } from '../../LPOs/Hooks/usePermissions';
 import { useMergeCustomers } from './Hooks/UseMergeCustomers';
 import MergeCustomersModal from './Components/MergeCustomersModal';
-import { exportDatabaseExcel } from '../ExcelExport';
+import { exportDatabaseExcel } from '../Utils/ExcelExport';
 import { downloadUploadIssuesReport, normalizeExcelId } from '../Utils/ExcelUploadUtils';
 
 

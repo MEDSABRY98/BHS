@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import SuppliersTab from './Components/SuppliersTab';
 import Login from '@/app/Components/Login';
 import Loading from '@/app/Components/Loading';
-import SuppliersSidebar from './Components/SuppliersSidebar';
+import SuppliersSidebar from './Utils/Sidebar';
 import { Menu } from 'lucide-react';
 import { getSuppliersInvoices } from './Service/suppliers_service';
 

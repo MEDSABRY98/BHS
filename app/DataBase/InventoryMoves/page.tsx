@@ -13,7 +13,7 @@ import InventoryMovesModal, { InventoryMoveFormValues } from './Components/Inven
 import InventoryMovesMonthsGrid, { MoveMonthSummary, englishMonths } from './Components/InventoryMovesMonthsGrid';
 import InventoryMovesDaysGrid, { MoveDaySummary } from './Components/InventoryMovesDaysGrid';
 import { fetchMoveMonthsSummary, fetchMoveDaysSummary, deleteMovesDb } from '@/app/InventoryAnalysis/Service/inventory_service';
-import { exportDatabaseExcelTable } from '../ExcelExport';
+import { exportDatabaseExcelTable } from '../Utils/ExcelExport';
 import { downloadUploadIssuesReport } from '../Utils/ExcelUploadUtils';
 
 const emptyForm = (): InventoryMoveFormValues => ({

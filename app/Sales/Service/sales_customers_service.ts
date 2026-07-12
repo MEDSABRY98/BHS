@@ -157,64 +157,27 @@ export async function getCustomersComparisonData(userId: string, filters: any, c
 // 5. My Customers (Mappings)
 // -------------------------------------------------------------
 export async function getMyCustomersData(userId: string) {
-  await migrateLegacyMappingRowIds();
-  await migrateLegacyMerchandiserNames();
-
-  const filteredMappings = await getMappingServer(userId);
-  const rawMappings = Array.from(filteredMappings.values()).map((m) => ({
-    ID: m.id,
-    'CUSTOMER ID': m.customerId,
-    'SALES_REP': m.userId,
-    'MERCHANDISER': m.merchandiserId,
-    'AREA': m.area,
-    'MARKET': m.market,
-  }));
-
-  const { data: customers, error: custError } = await bhs_supabas
-    .from('bhs_CUSTOMERS')
-    .select('"CUSTOMER ID", "CUSTOMER MAIN NAME", "CUSTOMER SUB NAME"');
-  if (custError) throw custError;
-
-  const custMap = new Map<string, { mainName: string; subName: string }>();
-  if (customers) {
-    customers.forEach((c) => {
-      const cId = String(c['CUSTOMER ID']).trim().toUpperCase();
-      custMap.set(cId, {
-        mainName: c['CUSTOMER MAIN NAME'] || '',
-        subName: c['CUSTOMER SUB NAME'] || '',
-      });
-    });
-  }
-
-  const { data: users, error: userError } = await bhs_supabas
-    .from('bhs_USERS')
-    .select('ID, NAME');
-  if (userError) throw userError;
-
-  const userMap = new Map<string, string>();
-  if (users) {
-    users.forEach((u) => userMap.set(u.ID, u.NAME));
-  }
-
-  const enrichedData = (rawMappings || []).map((m: any) => {
-    const cId = String(m['CUSTOMER ID']).trim().toUpperCase();
-    const cInfo = custMap.get(cId);
-    return {
-      ID: m.ID,
-      'CUSTOMER ID': m['CUSTOMER ID'],
-      'USER_ID': m['SALES_REP'],
-      'MERCHANDISER_ID': m['MERCHANDISER'],
-      'CUSTOMER MAIN NAME': cInfo?.mainName || '',
-      'CUSTOMER SUB NAME': cInfo?.subName || '',
-      'AREA': m['AREA'] || '',
-      'MARKET': m['MARKET'] || '',
-      'SALES_REP': userMap.get(m['SALES_REP']) || '',
-      'MERCHANDISER': userMap.get(m['MERCHANDISER']) || '',
-    };
+  const { data, error } = await bhs_supabas.rpc('get_my_customers_data', {
+    p_user_id: userId
   });
 
-  enrichedData.sort((a, b) => a['CUSTOMER MAIN NAME'].localeCompare(b['CUSTOMER MAIN NAME']));
-  return enrichedData;
+  if (error) {
+    console.error('RPC Error in getMyCustomersData:', error);
+    return [];
+  }
+
+  return (data || []).map((m: any) => ({
+    ID: m.ID,
+    'CUSTOMER ID': m['CUSTOMER ID'],
+    'USER_ID': m['USER_ID'],
+    'MERCHANDISER_ID': m['MERCHANDISER_ID'],
+    'CUSTOMER MAIN NAME': m['CUSTOMER MAIN NAME'] || '',
+    'CUSTOMER SUB NAME': m['CUSTOMER SUB NAME'] || '',
+    'AREA': m['AREA'] || '',
+    'MARKET': m['MARKET'] || '',
+    'SALES_REP': m['SALES_REP'] || '',
+    'MERCHANDISER': m['MERCHANDISER'] || '',
+  }));
 }
 
 export async function saveCustomerMapping(userId: string, mapping: any) {
