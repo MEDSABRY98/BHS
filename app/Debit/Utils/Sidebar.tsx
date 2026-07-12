@@ -14,7 +14,8 @@ import {
   ChevronRight,
   Wallet,
   X,
-  RefreshCcw
+  RefreshCcw,
+  ShieldAlert
 } from 'lucide-react';
 
 interface DebitSidebarProps {
@@ -43,6 +44,7 @@ export default function DebitSidebar({
   
   const allTabs = [
     { id: 'customers', label: 'Customers', icon: Users },
+    { id: 'credit-limit', label: 'Credit Limit', icon: ShieldAlert },
     { id: 'customers-group', label: 'Customers Group', icon: Layers },
     { id: 'all-transactions', label: 'All Transactions', icon: FileText },
     { id: 'customers-open-matches', label: 'Open Transactions', icon: Activity },

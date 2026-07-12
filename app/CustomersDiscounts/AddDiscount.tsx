@@ -114,7 +114,7 @@ export default function AddDiscount({
                 placeholder="e.g. Shop Rent"
                 value={discountName}
                 onChange={(e) => setDiscountName(e.target.value)}
-                className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#D4AF37] focus:bg-white transition-all text-gray-900"
+                className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#D4AF37] focus:bg-white transition-all text-gray-900 font-medium text-sm"
                 required
               />
             </div>
@@ -122,28 +122,28 @@ export default function AddDiscount({
             {/* Type */}
             <div className="space-y-3">
               <label className="block text-base font-bold text-gray-900">Type</label>
-              <div className="flex bg-gray-50 p-1.5 rounded-2xl border border-gray-200">
+              <div className="flex bg-gray-50 p-1.5 rounded-2xl border border-gray-200 h-[52px]">
                 <button
                   type="button"
                   onClick={() => setDiscountType("fixed_amount")}
-                  className={`flex-1 py-3 text-center rounded-xl font-bold transition-all text-sm ${
+                  className={`flex-1 py-2 text-center rounded-xl font-bold transition-all text-sm ${
                     discountType === "fixed_amount" 
-                      ? "bg-white text-gray-900 shadow-sm" 
+                      ? "bg-white text-gray-900 shadow-sm border border-gray-100" 
                       : "text-gray-500 hover:text-gray-700"
                   }`}
                 >
-                  Fixed Amount
+                  Fixed
                 </button>
                 <button
                   type="button"
                   onClick={() => setDiscountType("percentage")}
-                  className={`flex-1 py-3 text-center rounded-xl font-bold transition-all text-sm ${
+                  className={`flex-1 py-2 text-center rounded-xl font-bold transition-all text-sm ${
                     discountType === "percentage" 
-                      ? "bg-white text-gray-900 shadow-sm" 
+                      ? "bg-white text-gray-900 shadow-sm border border-gray-100" 
                       : "text-gray-500 hover:text-gray-700"
                   }`}
                 >
-                  Percentage
+                  Percent
                 </button>
               </div>
             </div>
@@ -157,12 +157,12 @@ export default function AddDiscount({
                   placeholder="e.g. 500"
                   value={discountValue}
                   onChange={(e) => setDiscountValue(e.target.value)}
-                  className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#D4AF37] focus:bg-white transition-all text-gray-900 font-bold text-lg"
+                  className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#D4AF37] focus:bg-white transition-all text-gray-900 font-bold text-sm"
                   required
                   min="0"
                   step="0.01"
                 />
-                <span className="absolute right-5 top-1/2 -translate-y-1/2 text-gray-400 font-bold">
+                <span className="absolute right-5 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-xs">
                   {discountType === "percentage" ? "%" : "AED"}
                 </span>
               </div>

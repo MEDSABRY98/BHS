@@ -1,9 +1,10 @@
 "use client";
 import React, { useEffect, useState } from "react";
 import { CheckCircle } from "lucide-react";
-import { bhs_supabase, fetchAllData } from "@/lib/supabase";
+import { bhs_supabase, fetchAllData, getAllCustomerEmails } from "@/lib/supabase";
 import Sidebar from "./Utils/Sidebar";
 import ConfirmModal from "./ConfirmModal";
+import { toast, NotificationContainer } from "@/app/Components/Notification";
 import CustomersList from "./CustomersList";
 import AddDiscount from "./AddDiscount";
 import CustomerDetails from "./CustomerDiscountsDetails/CustomerDetails";
@@ -16,6 +17,7 @@ type Discount = {
   name: string;
   type: string;
   value: number;
+  settlementType: string;
 };
 
 type Settlement = {
@@ -82,16 +84,7 @@ export default function CustomerDiscountsPage() {
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [addError, setAddError] = useState("");
-  
-  // Toast Notification State
-  const [toastMessage, setToastMessage] = useState<{show: boolean, message: string}>({ show: false, message: "" });
-  
-  const showToast = (message: string) => {
-    setToastMessage({ show: true, message });
-    setTimeout(() => {
-      setToastMessage(prev => ({ ...prev, show: false }));
-    }, 3000);
-  };
+  const [customersWithEmails, setCustomersWithEmails] = useState<Map<string, string>>(new Map());
 
   // Edit State
   const [editingDiscountId, setEditingDiscountId] = useState<string | null>(null);
@@ -190,9 +183,108 @@ export default function CustomerDiscountsPage() {
     }
   };
 
+  const downloadTaxRebateEml = async (customerId: string, customerName: string) => {
+    try {
+      const normalize = (s: any) => String(s || '').toLowerCase().trim().replace(/\s+/g, ' ');
+      const targetEmail = customersWithEmails.get(normalize(customerId)) || '';
+      
+      const { data: settlementsData, error } = await bhs_supabase
+        .from("web_CUSTOMERS_DISCOUNTS_SETTLEMENTS")
+        .select("*")
+        .eq("CUSTOMER_ID", customerId)
+        .eq("STATUS", "Pending");
+        
+      if (error) throw error;
+      
+      const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+      
+      // Deduplicate pending months and sort chronologically
+      const uniqueMonths = new Set<string>();
+      const pendingPeriods: { month: number; year: number }[] = [];
+      
+      if (settlementsData) {
+        settlementsData.forEach((s: any) => {
+          const key = `${s.MONTH}-${s.YEAR}`;
+          if (!uniqueMonths.has(key)) {
+            uniqueMonths.add(key);
+            pendingPeriods.push({ month: s.MONTH, year: s.YEAR });
+          }
+        });
+      }
+
+      pendingPeriods.sort((a, b) => {
+        if (a.year !== b.year) return a.year - b.year;
+        return a.month - b.month;
+      });
+
+      const pendingMonthsHtml = pendingPeriods.length > 0
+        ? pendingPeriods.map((p) => `  <li style="margin-bottom: 6px;">${monthNames[p.month - 1]} ${p.year}</li>`).join("\n")
+        : "  <li>Past months</li>";
+
+      const subject = "Request for Outstanding Tax Rebate Invoices - Al Marai Al Arabia Trading Sole Proprietorship L.L.C";
+      const htmlBody = `
+<div style="font-family: Arial, sans-serif; font-size: 14px; color: #333; line-height: 1.6;">
+  <p>Dear Team,</p>
+  <p>We hope this email finds you well.</p>
+  <p>We are writing to kindly request the outstanding <strong>Tax Rebate Invoices</strong> (Discounts) for the following pending periods for <strong>${customerName}</strong>:</p>
+  <ul style="font-size: 15px; color: #dc2626; font-weight: bold; margin-left: 10px; padding-left: 20px; list-style-type: square;">
+    ${pendingMonthsHtml}
+  </ul>
+  <p>Please share the pending Tax Rebate Invoices at your earliest convenience so we can reconcile and update our accounts.</p>
+  <p>Best regards,<br><br>Accounts Department<br>Al Marai Al Arabia Trading Sole Proprietorship L.L.C</p>
+</div>
+      `.trim();
+
+      const boundary = "----=_NextPart_000_0001_01C2A9A1.12345678";
+      const emlLines = [
+        `Date: ${new Date().toUTCString()}`,
+        `To: ${targetEmail}`,
+        'From: accounting@marae.ae',
+        'Subject: ' + subject,
+        'MIME-Version: 1.0',
+        'X-Unsent: 1',
+        'Content-Type: multipart/mixed; boundary="' + boundary + '"',
+        '',
+        '--' + boundary,
+        'Content-Type: text/html; charset="UTF-8"',
+        'Content-Transfer-Encoding: 7bit',
+        '',
+        htmlBody,
+        '',
+        '--' + boundary + '--'
+      ];
+
+      const blob = new Blob([emlLines.join('\r\n')], { type: 'message/rfc822' });
+      const { saveAs } = await import('file-saver');
+      saveAs(blob, `Tax_Rebate_Request_${customerName.replace(/[^a-zA-Z0-9\u0600-\u06FF]/g, '_')}.eml`);
+      toast.success("Email draft downloaded successfully!");
+    } catch (err) {
+      console.error("Error generating EML:", err);
+      toast.error("Failed to generate EML file.");
+    }
+  };
+
   const fetchCustomersAndDiscounts = async () => {
     try {
       setLoading(true);
+
+      // Load customer emails
+      let emailMap = new Map<string, string>();
+      try {
+        const emailsData = await getAllCustomerEmails();
+        const normalize = (s: any) => String(s || '').toLowerCase().trim().replace(/\s+/g, ' ');
+        if (emailsData) {
+          emailsData.forEach((item: any) => {
+            if (item && item.customerId && item.email) {
+              emailMap.set(normalize(item.customerId), item.email);
+            }
+          });
+        }
+      } catch (err) {
+        console.error("Error loading customer emails:", err);
+      }
+      setCustomersWithEmails(emailMap);
+
       // Fetch discounts
       const discountsData = await fetchAllData(() =>
         bhs_supabase.from("web_CUSTOMERS_DISCOUNTS").select("*")
@@ -209,6 +301,7 @@ export default function CustomerDiscountsPage() {
           name: d.DISCOUNT_NAME,
           type: d.DISCOUNT_TYPE,
           value: Number(d.DISCOUNT_VALUE) || 0,
+          settlementType: d.SETTLEMENT_TYPE || "monthly",
         });
       });
 
@@ -364,7 +457,31 @@ export default function CustomerDiscountsPage() {
 
     try {
       setIsSubmitting(true);
-      const discountId = `D-${Date.now()}`;
+
+      // Fetch the maximum discount ID to generate the next sequential R-XXXX ID
+      const { data: maxIdData, error: maxIdError } = await bhs_supabase
+        .from("web_CUSTOMERS_DISCOUNTS")
+        .select("ID")
+        .order("ID", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (maxIdError) throw maxIdError;
+
+      let nextNum = 1;
+      if (maxIdData && maxIdData.ID) {
+        const match = maxIdData.ID.match(/^R-(\d+)$/i);
+        if (match) {
+          nextNum = parseInt(match[1], 10) + 1;
+        }
+      }
+      const discountId = `R-${String(nextNum).padStart(4, '0')}`;
+      
+      // Determine the default settlement type based on existing discounts for this customer
+      const customerObj = customers.find(c => c.customerId === selectedAddCustomerId);
+      const defaultSettlementType = customerObj && customerObj.discounts.length > 0
+        ? (customerObj.discounts[0].settlementType || "monthly")
+        : "monthly";
       
       // Insert discount
       const { error: discountError } = await bhs_supabase
@@ -375,6 +492,7 @@ export default function CustomerDiscountsPage() {
           DISCOUNT_NAME: discountName,
           DISCOUNT_TYPE: discountType,
           DISCOUNT_VALUE: Number(discountValue),
+          SETTLEMENT_TYPE: defaultSettlementType,
         });
 
       if (discountError) throw discountError;
@@ -456,6 +574,28 @@ export default function CustomerDiscountsPage() {
 
   const cancelEditDiscount = () => {
     setEditingDiscountId(null);
+  };
+
+  const handleUpdateSettlementType = async (customerId: string, newType: "monthly" | "with_payment") => {
+    try {
+      setIsSubmitting(true);
+      const { error } = await bhs_supabase
+        .from("web_CUSTOMERS_DISCOUNTS")
+        .update({
+          SETTLEMENT_TYPE: newType
+        })
+        .eq("CUSTOMER_ID", customerId);
+
+      if (error) throw error;
+
+      toast.success("Settlement mode updated successfully!");
+      await fetchCustomersAndDiscounts();
+    } catch (err) {
+      console.error("Error updating settlement type:", err);
+      toast.error("Failed to update settlement mode.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const saveEditDiscount = async () => {
@@ -552,6 +692,8 @@ export default function CustomerDiscountsPage() {
             loading={loading}
             filteredCustomers={filteredCustomers}
             handleSelectCustomer={handleSelectCustomer}
+            customersWithEmails={customersWithEmails}
+            downloadTaxRebateEml={downloadTaxRebateEml}
           />
         )}
 
@@ -596,11 +738,14 @@ export default function CustomerDiscountsPage() {
             setEditDiscountType={setEditDiscountType}
             editDiscountValue={editDiscountValue}
             setEditDiscountValue={setEditDiscountValue}
+            handleUpdateSettlementType={handleUpdateSettlementType}
             saveEditDiscount={saveEditDiscount}
             cancelEditDiscount={cancelEditDiscount}
             handleDeleteDiscount={handleDeleteDiscount}
             isSubmitting={isSubmitting}
             startEditDiscount={startEditDiscount}
+            customersWithEmails={customersWithEmails}
+            downloadTaxRebateEml={downloadTaxRebateEml}
           />
         )}
         
@@ -623,14 +768,7 @@ export default function CustomerDiscountsPage() {
       />
       
       {/* Toast Notification */}
-      <div className={`fixed bottom-8 right-8 z-50 transition-all duration-300 transform ${toastMessage.show ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0 pointer-events-none'}`}>
-        <div className="bg-white border-l-4 border-l-green-500 shadow-xl rounded-2xl p-4 flex items-center gap-3">
-          <div className="bg-green-100 p-2 rounded-full">
-            <CheckCircle className="w-5 h-5 text-green-600" />
-          </div>
-          <p className="font-bold text-gray-800">{toastMessage.message}</p>
-        </div>
-      </div>
+      <NotificationContainer />
     </div>
   );
 }

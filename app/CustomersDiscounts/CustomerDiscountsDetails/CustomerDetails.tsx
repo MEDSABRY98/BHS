@@ -1,5 +1,5 @@
 import React from "react";
-import { ArrowLeft, User, Clock, CheckCircle } from "lucide-react";
+import { ArrowLeft, User, Clock, CheckCircle, Mail } from "lucide-react";
 import CD_DiscountDetailsTab from "./CD_DiscountDetailsTab";
 import CD_PendingMonthsTab from "./CD_PendingMonthsTab";
 import CD_SettledMonthsTab from "./CD_SettledMonthsTab";
@@ -10,6 +10,7 @@ type Discount = {
   name: string;
   type: string;
   value: number;
+  settlementType: string;
 };
 
 type CustomerView = {
@@ -52,11 +53,15 @@ interface CustomerDetailsProps {
   setEditDiscountType: (v: "percentage" | "fixed_amount") => void;
   editDiscountValue: string;
   setEditDiscountValue: (v: string) => void;
+  handleUpdateSettlementType: (customerId: string, newType: "monthly" | "with_payment") => void;
   saveEditDiscount: () => void;
   cancelEditDiscount: () => void;
   handleDeleteDiscount: (id: string) => void;
   isSubmitting: boolean;
   startEditDiscount: (d: Discount) => void;
+  
+  customersWithEmails: Map<string, string>;
+  downloadTaxRebateEml: (customerId: string, customerName: string) => void;
 }
 
 export default function CustomerDetails(props: CustomerDetailsProps) {
@@ -65,7 +70,10 @@ export default function CustomerDetails(props: CustomerDetailsProps) {
     activeTab,
     setActiveTab,
     setCurrentView,
-    setSelectedCustomer
+    setSelectedCustomer,
+    customersWithEmails,
+    downloadTaxRebateEml,
+    handleUpdateSettlementType
   } = props;
 
   return (
@@ -143,6 +151,7 @@ export default function CustomerDetails(props: CustomerDetailsProps) {
             setEditDiscountType={props.setEditDiscountType}
             editDiscountValue={props.editDiscountValue}
             setEditDiscountValue={props.setEditDiscountValue}
+            handleUpdateSettlementType={props.handleUpdateSettlementType}
             saveEditDiscount={props.saveEditDiscount}
             cancelEditDiscount={props.cancelEditDiscount}
             handleDeleteDiscount={props.handleDeleteDiscount}

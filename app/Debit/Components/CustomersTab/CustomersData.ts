@@ -76,6 +76,7 @@ export const useCustomerData = (data: InvoiceRow[] = [], filters: any, mode: any
         existing = {
           customerId: row.customerId || '',
           customerName: row.customerName,
+          creditLimit: row.creditLimit || 0,
           totalDebit: 0,
           totalCredit: 0,
           netDebt: 0,
@@ -291,6 +292,7 @@ export const useCustomerData = (data: InvoiceRow[] = [], filters: any, mode: any
 
       return {
         customerId: c.customerId, customerName: c.customerName, totalDebit: c.totalDebit, totalCredit: c.totalCredit, netDebt: c.netDebt,
+        creditLimit: c.creditLimit,
         netSales: c.netSales || 0, transactionCount: c.transactionCount, hasOpenMatchings: hasOpen, salesReps: c.salesReps, invoiceNumbers: c.invoiceNumbers,
         lastPaymentDate: c.lastPaymentDate, lastPaymentMatching: c.lastPaymentMatching, lastPaymentAmount: c.lastPaymentAmount,
         lastSalesDate: c.lastSalesDate, lastSalesAmount: c.lastSalesAmount, overdueAmount: totalOverdue, hasOB: hasOBFlag, openOBAmount, agingBreakdown,

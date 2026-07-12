@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Search, User, ChevronRight, FileSpreadsheet, Loader2 } from "lucide-react";
+import { Search, User, ChevronRight, FileSpreadsheet, Loader2, Mail } from "lucide-react";
 import { exportCustomersExcel } from "./ExportExcel";
 
 type Discount = {
@@ -8,6 +8,7 @@ type Discount = {
   name: string;
   type: string;
   value: number;
+  settlementType: string;
 };
 
 type CustomerView = {
@@ -23,6 +24,8 @@ interface CustomersListProps {
   loading: boolean;
   filteredCustomers: CustomerView[];
   handleSelectCustomer: (c: CustomerView) => void;
+  customersWithEmails: Map<string, string>;
+  downloadTaxRebateEml: (customerId: string, customerName: string) => void;
 }
 
 export default function CustomersList({
@@ -30,7 +33,9 @@ export default function CustomersList({
   setSearchQuery,
   loading,
   filteredCustomers,
-  handleSelectCustomer
+  handleSelectCustomer,
+  customersWithEmails,
+  downloadTaxRebateEml
 }: CustomersListProps) {
   const [exporting, setExporting] = useState(false);
 
@@ -118,14 +123,38 @@ export default function CustomersList({
                   <div className="bg-[#D4AF37]/10 p-3 rounded-2xl group-hover:bg-[#D4AF37]/20 transition-colors">
                     <User className="w-7 h-7 text-[#D4AF37]" />
                   </div>
-                  <span className="bg-gray-100 text-gray-600 px-3 py-1 rounded-full text-xs font-bold">
-                    {c.discounts.length} item(s)
-                  </span>
+                  <div className="flex items-center gap-2">
+                    {customersWithEmails.has(String(c.customerId || '').toLowerCase().trim().replace(/\s+/g, ' ')) && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          downloadTaxRebateEml(c.customerId, c.customerName);
+                        }}
+                        className="bg-blue-50 text-blue-600 hover:bg-blue-100 p-2.5 rounded-xl transition-all border border-blue-100 flex items-center justify-center cursor-pointer shadow-sm relative z-20"
+                        title="Download Tax Rebate Request EML Draft"
+                      >
+                        <Mail className="w-4.5 h-4.5" />
+                      </button>
+                    )}
+                    <span className="bg-gray-100 text-gray-600 px-3 py-1 rounded-full text-xs font-bold">
+                      {c.discounts.length} item(s)
+                    </span>
+                  </div>
                 </div>
                 <h3 className="text-xl font-bold text-gray-800 mb-1 group-hover:text-[#D4AF37] transition-colors leading-snug">{c.customerName}</h3>
                 <p className="text-sm text-gray-500 flex items-center gap-2 mb-6">
                   <span className="w-1.5 h-1.5 rounded-full bg-blue-400"></span>
                   {c.city}
+                  {c.discounts.length > 0 && (() => {
+                    const hasWithPayment = c.discounts.some(d => d.settlementType === "with_payment");
+                    const badgeText = hasWithPayment ? "مع السداد" : "شهرية";
+                    const badgeColor = hasWithPayment ? "bg-blue-50 text-blue-600 border-blue-100" : "bg-green-50 text-green-600 border-green-100";
+                    return (
+                      <span className={`ml-auto px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${badgeColor}`}>
+                        {badgeText}
+                      </span>
+                    );
+                  })()}
                 </p>
                 
                 <div className="mt-auto flex items-center justify-between text-sm font-bold text-gray-900 group-hover:text-[#D4AF37] transition-colors">

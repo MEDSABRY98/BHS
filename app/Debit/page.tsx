@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 
 import CustomersTab from './Components/CustomersTab/CustomersTab';
 import CustomersLandingTab from './Components/CustomersTab/CustomersSwitchsTab';
+import CreditLimitTab from './Components/CreditLimitTab';
 import CustomersGroupTab from './Components/CustomersGroupTab';
 import OpenTransactionsTab from './Components/OpenTransactionsTab';
 import AllTransactionsTab from './Components/AllTransactionsTab';
@@ -189,6 +190,8 @@ function DebitPageContent() {
     switch (activeTab) {
       case 'customers':
         return <CustomersLandingTab data={data} initialCustomer={initialCustomer} />;
+      case 'credit-limit':
+        return <CreditLimitTab data={data} />;
       case 'customers-group':
         return <CustomersGroupTab data={data} />;
       case 'all-transactions':

@@ -7,6 +7,7 @@ type Discount = {
   name: string;
   type: string;
   value: number;
+  settlementType: string;
 };
 
 type CustomerView = {

@@ -7,6 +7,7 @@ type Discount = {
   name: string;
   type: string;
   value: number;
+  settlementType: string;
 };
 
 type CustomerView = {
@@ -26,6 +27,7 @@ interface CD_DiscountDetailsTabProps {
   setEditDiscountType: (v: "percentage" | "fixed_amount") => void;
   editDiscountValue: string;
   setEditDiscountValue: (v: string) => void;
+  handleUpdateSettlementType: (customerId: string, newType: "monthly" | "with_payment") => void;
   saveEditDiscount: () => void;
   cancelEditDiscount: () => void;
   handleDeleteDiscount: (id: string) => void;
@@ -42,14 +44,50 @@ export default function CD_DiscountDetailsTab({
   setEditDiscountType,
   editDiscountValue,
   setEditDiscountValue,
+  handleUpdateSettlementType,
   saveEditDiscount,
   cancelEditDiscount,
   handleDeleteDiscount,
   isSubmitting,
   startEditDiscount
 }: CD_DiscountDetailsTabProps) {
+  const customerSettlementType = selectedCustomer.discounts.length > 0
+    ? (selectedCustomer.discounts[0].settlementType || "monthly")
+    : "monthly";
+
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
+      
+      {/* Customer Billing System Card */}
+      <div className="bg-white border border-gray-100 border-l-4 border-l-blue-500 rounded-3xl p-6 shadow-sm mb-8 flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div>
+          <h4 className="font-bold text-lg text-gray-900 mb-1">Billing & Settlement Mode</h4>
+          <p className="text-sm text-gray-500 font-medium">Configure how discounts and rentals are settled for this customer.</p>
+        </div>
+        <div className="flex bg-gray-50 p-1.5 rounded-2xl border border-gray-200 w-full md:w-80 shrink-0">
+          <button
+            onClick={() => handleUpdateSettlementType(selectedCustomer.customerId, "monthly")}
+            className={`flex-1 py-2.5 text-center rounded-xl font-bold transition-all text-sm cursor-pointer ${
+              customerSettlementType === "monthly"
+                ? "bg-white text-gray-900 shadow-sm border border-gray-100"
+                : "text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            Monthly
+          </button>
+          <button
+            onClick={() => handleUpdateSettlementType(selectedCustomer.customerId, "with_payment")}
+            className={`flex-1 py-2.5 text-center rounded-xl font-bold transition-all text-sm cursor-pointer ${
+              customerSettlementType === "with_payment"
+                ? "bg-white text-gray-900 shadow-sm border border-gray-100"
+                : "text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            With Payment
+          </button>
+        </div>
+      </div>
+
       <div className="flex items-center justify-between mb-8">
         <h3 className="text-2xl font-bold text-gray-900">Registered Configs</h3>
       </div>
@@ -87,7 +125,7 @@ export default function CD_DiscountDetailsTab({
                           type="button"
                           onClick={() => setEditDiscountType("fixed_amount")}
                           className={`flex-1 flex items-center justify-center rounded-lg font-bold transition-all text-xs ${
-                            editDiscountType === "fixed_amount" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"
+                            editDiscountType === "fixed_amount" ? "bg-white text-gray-900 shadow-sm border border-gray-200/50" : "text-gray-500"
                           }`}
                         >
                           AED
@@ -96,7 +134,7 @@ export default function CD_DiscountDetailsTab({
                           type="button"
                           onClick={() => setEditDiscountType("percentage")}
                           className={`flex-1 flex items-center justify-center rounded-lg font-bold transition-all text-xs ${
-                            editDiscountType === "percentage" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"
+                            editDiscountType === "percentage" ? "bg-white text-gray-900 shadow-sm border border-gray-200/50" : "text-gray-500"
                           }`}
                         >
                           %
@@ -109,7 +147,7 @@ export default function CD_DiscountDetailsTab({
                     </div>
                   </div>
 
-                  <div className="mt-auto pt-2">
+                  <div className="mt-auto pt-4 border-t border-gray-100">
                     <button 
                       onClick={saveEditDiscount}
                       disabled={isSubmitting}
@@ -137,8 +175,8 @@ export default function CD_DiscountDetailsTab({
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 mb-6">
-                    <span className="bg-gray-100 text-gray-600 px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap border border-gray-200">
+                  <div className="flex flex-wrap items-center gap-2 mb-6">
+                    <span className="bg-gray-100 text-gray-600 px-3 py-1 rounded-full text-[10px] font-bold whitespace-nowrap border border-gray-200">
                       {d.type === "percentage" ? "PERCENTAGE" : "FIXED AMOUNT"}
                     </span>
                   </div>

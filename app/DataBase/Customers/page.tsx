@@ -57,6 +57,7 @@ export default function CustomersPage() {
   const [CUSTOMER_MAIN_NAME, setCUSTOMER_MAIN_NAME] = useState('');
   const [CUSTOMER_CITY, setCUSTOMER_CITY] = useState('');
   const [CUSTOMER_ID, setCUSTOMER_ID] = useState('');
+  const [CREDIT_LIMIT, setCREDIT_LIMIT] = useState('0');
 
   // Fetch customers when page or search term changes (debounced)
   useEffect(() => {
@@ -100,6 +101,7 @@ export default function CustomersPage() {
     setCUSTOMER_MAIN_NAME(customer ? customer["CUSTOMER MAIN NAME"] : '');
     setCUSTOMER_CITY(customer ? customer["CUSTOMER CITY"] : '');
     setCUSTOMER_ID(customer ? customer["CUSTOMER ID"] : '');
+    setCREDIT_LIMIT(customer ? String(customer["CREDIT LIMIT"] || 0) : '0');
     setIsModalOpen(true);
   };
 
@@ -137,7 +139,8 @@ export default function CustomersPage() {
             "CUSTOMER SUB NAME": CUSTOMER_SUB_NAME,
             "CUSTOMER MAIN NAME": CUSTOMER_MAIN_NAME,
             "CUSTOMER CITY": CUSTOMER_CITY,
-            "CUSTOMER ID": CUSTOMER_ID
+            "CUSTOMER ID": CUSTOMER_ID,
+            "CREDIT LIMIT": Number(CREDIT_LIMIT) || 0
           })
           .eq('ID', editingCustomer.ID);
         if (error) throw error;
@@ -167,7 +170,8 @@ export default function CustomersPage() {
             "CUSTOMER SUB NAME": CUSTOMER_SUB_NAME,
             "CUSTOMER MAIN NAME": CUSTOMER_MAIN_NAME,
             "CUSTOMER CITY": CUSTOMER_CITY,
-            "CUSTOMER ID": CUSTOMER_ID
+            "CUSTOMER ID": CUSTOMER_ID,
+            "CREDIT LIMIT": Number(CREDIT_LIMIT) || 0
           });
         if (error) throw error;
       }
@@ -255,7 +259,8 @@ export default function CustomersPage() {
         "Customer ID": c["CUSTOMER ID"] || '',
         "Customer Main Name": c["CUSTOMER MAIN NAME"] || '',
         "Customer Sub Name": c["CUSTOMER SUB NAME"] || '',
-        "Customer City": c["CUSTOMER CITY"] || ''
+        "Customer City": c["CUSTOMER CITY"] || '',
+        "Credit Limit": Number(c["CREDIT LIMIT"]) || 0
       }));
 
       if (exportData.length === 0) {
@@ -391,12 +396,16 @@ export default function CustomersPage() {
           const subNameSource =
             row['Customer Sub Name'] !== undefined ? row['Customer Sub Name'] : row['Customer Name'];
 
+          const limitSource = row['Credit Limit'] !== undefined ? row['Credit Limit'] : row['CREDIT LIMIT'];
+          const creditLimitVal = limitSource !== undefined && limitSource !== '' ? Number(limitSource) : 0;
+
           const record: any = {
             ID: idToUse,
             'CUSTOMER ID': customerId,
             'CUSTOMER MAIN NAME': String(row['Customer Main Name'] ?? '').trim(),
             'CUSTOMER SUB NAME': String(subNameSource ?? '').trim(),
             'CUSTOMER CITY': String(row['Customer City'] ?? '').trim(),
+            'CREDIT LIMIT': isNaN(creditLimitVal) ? 0 : creditLimitVal
           };
 
           recordsToUpsert.push(record);
@@ -582,6 +591,11 @@ export default function CustomersPage() {
                           <MapPin className="w-2.5 h-2.5" /> {customer["CUSTOMER CITY"]}
                         </span>
                       )}
+                      {customer["CREDIT LIMIT"] !== undefined && customer["CREDIT LIMIT"] !== null && (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-purple-50 text-purple-600 rounded-xl text-[9px] font-black uppercase tracking-widest font-mono">
+                          Limit: {Number(customer["CREDIT LIMIT"]).toLocaleString()} AED
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -738,6 +752,19 @@ export default function CustomersPage() {
                       className="w-full pl-14 pr-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold"
                     />
                   </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">CREDIT LIMIT (AED)</label>
+                  <input
+                    type="number"
+                    value={CREDIT_LIMIT}
+                    onChange={(e) => setCREDIT_LIMIT(e.target.value)}
+                    placeholder="e.g. 50000"
+                    min="0"
+                    step="any"
+                    className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold"
+                  />
                 </div>
               </div>
 

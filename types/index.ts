@@ -9,6 +9,7 @@ export interface InvoiceRow {
   salesRep: string;
   matching?: string;
   residualAmount?: number;
+  creditLimit?: number;
 }
 
 export interface CustomerAnalysis {
@@ -17,6 +18,7 @@ export interface CustomerAnalysis {
   totalDebit: number;
   totalCredit: number;
   netDebt: number;
+  creditLimit?: number;
   netSales?: number; // Net Sales = SAL debit - RSAL credit (matching Dashboard)
   transactionCount: number;
   hasOpenMatchings?: boolean;
