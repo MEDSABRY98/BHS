@@ -54,7 +54,7 @@ export async function generateSupplierDependencyReport(
 
     const product = products.find(p => p.id === productId);
     const productName = product ? product.name : productId;
-    const barcode = product?.barcode ? `[${product.barcode}] ` : '';
+    const barcode = product?.barcode || '-';
 
     const sortedPrices = [...list].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     const oldestPrice = sortedPrices[0]?.unitPrice || 0;
@@ -65,7 +65,8 @@ export async function generateSupplierDependencyReport(
     const avgPrice = list.length > 0 ? sumPrice / list.length : 0;
 
     reportData.push({
-      'Product Name': `${barcode}${productName}`,
+      'Barcode': barcode,
+      'Product Name': productName,
       'Total Suppliers': suppliersArray.length,
       'Primary Supplier': getSupplierName(primarySupplier.supId),
       'Total Qty Bought': totalQty,

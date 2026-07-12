@@ -482,105 +482,69 @@ export default function SalesPage() {
 
   return (
     <SalesFiltersProvider uniqueValues={uniqueValues} activeTab={activeTab}>
-    <div className="flex min-h-screen bg-[#F8F9FA] text-black">
-      {/* Sidebar - Desktop */}
-      <aside className={`hidden lg:flex flex-col ${isSidebarCollapsed ? 'w-20' : 'w-72'} bg-[#0d1e16] text-white shadow-2xl fixed h-screen left-0 top-0 z-50 transition-all duration-300`}>
-        <SalesSidebar
-          activeTab={activeTab}
-          onTabChange={setActiveTab}
-          currentUser={currentUser}
-          lastUpdated={lastUpdated}
-          isCollapsed={isSidebarCollapsed}
-          onToggleCollapse={toggleSidebar}
-        />
-      </aside>
+      <div className="flex min-h-screen bg-[#F8F9FA] text-black">
+        {/* Sidebar - Desktop */}
+        <aside className={`hidden lg:flex flex-col ${isSidebarCollapsed ? 'w-20' : 'w-72'} bg-[#0d1e16] text-white shadow-2xl fixed h-screen left-0 top-0 z-50 transition-all duration-300`}>
+          <SalesSidebar
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+            currentUser={currentUser}
+            lastUpdated={lastUpdated}
+            isCollapsed={isSidebarCollapsed}
+            onToggleCollapse={toggleSidebar}
+            onRefresh={() => fetchData(true)}
+            isLoading={loading || isRefreshing}
+            onUploadClick={() => setIsUploadModalOpen(true)}
+            isManager={isSalesManager}
+            FilterNode={<SalesFilterButton inSidebar={true} isCollapsed={isSidebarCollapsed} />}
+          />
+        </aside>
 
-      {/* Mobile Sidebar Overlay */}
-      {isMobileSidebarOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm lg:hidden"
-          onClick={() => setIsMobileSidebarOpen(false)}
-        />
-      )}
+        {/* Floating Mobile Menu Button */}
+        {!isMobileSidebarOpen && (
+          <button
+            onClick={() => setIsMobileSidebarOpen(true)}
+            className="lg:hidden fixed bottom-6 right-6 z-40 bg-green-600 text-white p-3 rounded-full shadow-xl shadow-green-900/20"
+          >
+            <Menu className="w-6 h-6" />
+          </button>
+        )}
 
-      {/* Mobile Sidebar */}
-      <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-[#0d1e16] text-white transition-transform duration-300 transform lg:hidden ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'} flex flex-col`}>
-        <SalesSidebar
-          activeTab={activeTab}
-          onTabChange={setActiveTab}
-          currentUser={currentUser}
-          lastUpdated={lastUpdated}
-          isCollapsed={false}
-          onToggleCollapse={() => { }}
-          onCloseMobile={() => setIsMobileSidebarOpen(false)}
-        />
-      </aside>
+        {/* Mobile Sidebar Overlay */}
+        {isMobileSidebarOpen && (
+          <div
+            className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm lg:hidden"
+            onClick={() => setIsMobileSidebarOpen(false)}
+          />
+        )}
 
-      {/* Main Content Area */}
-      <div className={`flex-1 flex flex-col min-w-0 ${isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-72'} transition-all duration-300`}>
-        {/* Header */}
-        <header className="sticky top-0 z-30 bg-white/85 backdrop-blur-md border-b border-slate-200 shadow-sm transition-all duration-300">
-          <div className="max-w-[98%] mx-auto px-4 py-3 flex items-center justify-between gap-4 min-h-[5rem]">
-            {/* Left section: Hamburger for Mobile, Upload/Refresh for Desktop */}
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => setIsMobileSidebarOpen(true)}
-                className="p-2.5 text-slate-600 hover:text-slate-900 lg:hidden rounded-xl hover:bg-slate-100 transition-all"
-                title="Open Navigation Menu"
-              >
-                <Menu className="w-6 h-6" />
-              </button>
+        {/* Mobile Sidebar */}
+        <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-[#0d1e16] text-white transition-transform duration-300 transform lg:hidden ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'} flex flex-col`}>
+          <SalesSidebar
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+            currentUser={currentUser}
+            lastUpdated={lastUpdated}
+            isCollapsed={false}
+            onToggleCollapse={() => { }}
+            onCloseMobile={() => setIsMobileSidebarOpen(false)}
+            onRefresh={() => fetchData(true)}
+            isLoading={loading || isRefreshing}
+            onUploadClick={() => setIsUploadModalOpen(true)}
+            isManager={isSalesManager}
+            FilterNode={<SalesFilterButton inSidebar={true} isCollapsed={false} />}
+          />
+        </aside>
 
-              <div className="flex items-center gap-3">
-                {isSalesManager && (
-                  <>
-                    {/* Upload Modal Trigger — sales managers only */}
-                    <div
-                      onClick={() => setIsUploadModalOpen(true)}
-                      className="bg-gradient-to-br from-green-600 to-emerald-600 text-white p-2.5 rounded-xl shadow-lg shadow-green-200 cursor-pointer active:scale-95 transition-transform hover:rotate-3"
-                      title="Upload / Download Templates"
-                    >
-                      <BarChart3 className="w-6 h-6" />
-                    </div>
-
-                    <input
-                      type="file"
-                      ref={fileInputRef}
-                      onChange={handleFileChange}
-                      accept=".xlsx, .xls"
-                      className="hidden"
-                    />
-                  </>
-                )}
-
-                {/* Refresh Data Button */}
-                {isSalesManager && (
-                  <button
-                    onClick={() => fetchData(true)}
-                    disabled={loading || isRefreshing}
-                    className={`p-2.5 rounded-xl border border-slate-200 text-slate-500 hover:text-green-600 hover:border-green-200 hover:bg-green-50 transition-all ${loading || isRefreshing ? 'opacity-50' : 'hover:scale-105 active:scale-95'}`}
-                    title="Refresh Data"
-                  >
-                    <RefreshCcw className="w-5 h-5" />
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Right Section: Filter */}
-            <div className="flex items-center gap-3">
-              <SalesFilterButton />
-            </div>
+        {/* Main Content Area */}
+        <div className={`flex-1 flex flex-col min-w-0 ${isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-72'} transition-all duration-300`}>
+          {/* Main Content */}
+          <div className="max-w-[98%] mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-12 flex-1 w-full">
+            <main ref={mainContentRef} className="bg-white rounded-2xl shadow-sm border border-slate-200 min-h-[calc(100vh-8rem)] p-8">
+              {renderTabContent()}
+            </main>
           </div>
-        </header>
-
-        {/* Main Content */}
-        <div className="max-w-[98%] mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-12 flex-1 w-full">
-          <main ref={mainContentRef} className="bg-white rounded-2xl shadow-sm border border-slate-200 min-h-[calc(100vh-8rem)] p-8">
-            {renderTabContent()}
-          </main>
         </div>
-      </div>
 
       {/* UPLOAD/DOWNLOAD MODAL — sales managers only */}
       {isSalesManager && isUploadModalOpen && (

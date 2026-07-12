@@ -18,7 +18,9 @@ import {
   ChevronRight,
   User,
   X,
-  Sparkles
+  Sparkles,
+  FileSpreadsheet,
+  RefreshCcw
 } from 'lucide-react';
 
 interface SalesSidebarProps {
@@ -30,6 +32,11 @@ interface SalesSidebarProps {
   isCollapsed: boolean;
   onToggleCollapse: () => void;
   onCloseMobile?: () => void;
+  onRefresh?: () => void;
+  isLoading?: boolean;
+  onUploadClick?: () => void;
+  isManager?: boolean;
+  FilterNode?: React.ReactNode;
 }
 
 export default function SalesSidebar({ 
@@ -39,7 +46,12 @@ export default function SalesSidebar({
   lastUpdated,
   isCollapsed,
   onToggleCollapse,
-  onCloseMobile
+  onCloseMobile,
+  onRefresh,
+  isLoading,
+  onUploadClick,
+  isManager,
+  FilterNode
 }: SalesSidebarProps) {
   
   const allTabs = [
@@ -170,15 +182,42 @@ export default function SalesSidebar({
         </div>
       )}
 
-      {/* Toggle Collapse Button */}
-      <div className="p-4 border-t border-white/5 mt-auto flex justify-center shrink-0">
-        <button 
-          onClick={onToggleCollapse} 
-          className="flex items-center justify-center w-10 h-10 hover:bg-white/10 rounded-xl transition-all duration-200 text-emerald-400"
-          title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
-        >
-          {isCollapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
-        </button>
+      {/* Actions and Toggle */}
+      <div className="p-4 border-t border-white/5 mt-auto flex flex-col gap-2 shrink-0 items-center justify-center">
+        <div className={`flex gap-2 ${isCollapsed ? 'flex-col' : 'flex-row items-center'}`}>
+          {FilterNode}
+          
+          {isManager && onUploadClick && (
+            <button
+              onClick={onUploadClick}
+              className="flex items-center justify-center w-10 h-10 hover:bg-white/10 rounded-xl transition-all duration-200 text-emerald-400 group relative"
+              title="Upload Data"
+            >
+              <FileSpreadsheet className="w-5 h-5 group-hover:scale-110 transition-transform" />
+              {isCollapsed && <span className="absolute left-14 opacity-0 group-hover:opacity-100 whitespace-nowrap bg-black/80 px-2 py-1 rounded text-xs pointer-events-none transition-opacity z-50">Upload Data</span>}
+            </button>
+          )}
+
+          {isManager && onRefresh && (
+            <button
+              onClick={onRefresh}
+              disabled={isLoading}
+              className={`flex items-center justify-center w-10 h-10 hover:bg-white/10 rounded-xl transition-all duration-200 text-emerald-400 group relative ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+              title="Refresh Data"
+            >
+              <RefreshCcw className={`w-5 h-5 group-hover:rotate-180 transition-transform duration-500 ${isLoading ? 'animate-spin' : ''}`} />
+              {isCollapsed && <span className="absolute left-14 opacity-0 group-hover:opacity-100 whitespace-nowrap bg-black/80 px-2 py-1 rounded text-xs pointer-events-none transition-opacity z-50">Refresh</span>}
+            </button>
+          )}
+
+          <button 
+            onClick={onToggleCollapse} 
+            className="flex items-center justify-center w-10 h-10 hover:bg-white/10 rounded-xl transition-all duration-200 text-emerald-400"
+            title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+          >
+            {isCollapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
+          </button>
+        </div>
       </div>
     </div>
   );

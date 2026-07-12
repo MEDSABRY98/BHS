@@ -50,10 +50,11 @@ export async function generatePriceInflationReport(
 
     const product = products.find(p => p.id === productId);
     const productName = product ? product.name : productId;
-    const barcode = product?.barcode ? `[${product.barcode}] ` : '';
+    const barcode = product?.barcode || '-';
 
     reportData.push({
-      'Product Name': `${barcode}${productName}`,
+      'Barcode': barcode,
+      'Product Name': productName,
       'Oldest Date': oldestPurchase.date,
       'Oldest Price (AED)': oldestPrice,
       'Latest Date': latestPurchase.date,

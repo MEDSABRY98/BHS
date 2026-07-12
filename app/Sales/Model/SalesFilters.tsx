@@ -684,8 +684,39 @@ export function useSalesModuleFilters(): SalesModuleFiltersContextValue {
   return context;
 }
 
-export function SalesFilterButton() {
+export function SalesFilterButton({
+  inSidebar = false,
+  isCollapsed = false,
+}: {
+  inSidebar?: boolean;
+  isCollapsed?: boolean;
+}) {
   const { hasAnyFilter, setIsFilterOpen } = useSalesModuleFilters();
+
+  if (inSidebar) {
+    return (
+      <button
+        type="button"
+        onClick={() => setIsFilterOpen(true)}
+        className={`flex items-center justify-center w-10 h-10 hover:bg-white/10 rounded-xl transition-all duration-200 group relative ${
+          hasAnyFilter ? 'text-amber-400 bg-white/5 border border-amber-500/30' : 'text-emerald-400'
+        }`}
+        title="Open Global Filters"
+      >
+        <Filter
+          className={`w-5 h-5 transition-transform group-hover:scale-110 ${hasAnyFilter ? 'animate-pulse' : ''}`}
+        />
+        {hasAnyFilter && (
+          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full" />
+        )}
+        {!isCollapsed && (
+          <span className="absolute left-14 opacity-0 group-hover:opacity-100 whitespace-nowrap bg-black/80 px-2 py-1 rounded text-xs pointer-events-none transition-opacity z-50">
+            Filters
+          </span>
+        )}
+      </button>
+    );
+  }
 
   return (
     <button

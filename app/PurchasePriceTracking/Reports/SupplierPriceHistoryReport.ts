@@ -77,8 +77,9 @@ export async function generateSupplierPriceHistoryReport(
   productPeriods.forEach((periods, productId) => {
     const product = products.find(p => p.id === productId);
     const productName = product ? product.name : productId;
+    const barcode = product?.barcode || '-';
 
-    const rowData: Record<string, unknown> = { 'Product Name': productName };
+    const rowData: Record<string, unknown> = { 'Barcode': barcode, 'Product Name': productName };
     
     periods.forEach((period, idx) => {
       rowData[`Period ${idx + 1}`] = period.periodStr;

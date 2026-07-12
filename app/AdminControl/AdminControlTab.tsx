@@ -33,6 +33,8 @@ const SYSTEMS = [
     { id: 'suppliers', label: 'Suppliers' },
     { id: 'lpo-management', label: "LPO's" },
     { id: 'cash-handover', label: 'Cash Handover' },
+    { id: 'purchase-price-tracking', label: 'Purchase Price Tracking' },
+    { id: 'customers-discounts', label: 'Customers Discounts' },
     { id: 'database', label: 'Database' },
 ];
 
@@ -135,6 +137,18 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
         { id: 'db-suppliers-refund', label: 'Suppliers Refund' },
         { id: 'db-users', label: 'Users DB' },
     ],
+    'purchase-price-tracking': [
+        { id: 'product-history', label: 'Product History' },
+        { id: 'supplier-comparison', label: 'Supplier Comparison' },
+        { id: 'supplier-history', label: 'Supplier History' },
+        { id: 'reports', label: 'Reports' }
+    ],
+    'customers-discounts': [
+        { id: 'grid', label: 'Customers List' },
+        { id: 'months', label: 'Monthly Overview' },
+        { id: 'stats', label: 'Statistics' },
+        { id: 'add', label: 'Add Config' }
+    ],
 };
 
 const SYSTEM_ACTIONS: Record<string, { id: string; label: string; icon: string }[]> = {
@@ -169,6 +183,8 @@ const getSystemIcon = (id: string) => {
         case 'documents-tracking': return <ClipboardList className="w-5 h-5 text-violet-500" />;
         case 'lpo-management': return <ShoppingCart className="w-5 h-5 text-fuchsia-500" />;
         case 'cash-handover': return <ClipboardList className="w-5 h-5 text-purple-600" />;
+        case 'purchase-price-tracking': return <Layers className="w-5 h-5 text-blue-600" />;
+        case 'customers-discounts': return <Shield className="w-5 h-5 text-amber-500" />;
         case 'database': return <Database className="w-5 h-5 text-slate-500" />;
         default: return <Settings className="w-5 h-5 text-slate-500" />;
     }
