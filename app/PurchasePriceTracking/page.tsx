@@ -31,7 +31,7 @@ export type Product = {
 };
 
 export default function PurchasePriceTrackingPage() {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('product-history');
   
   const [purchases, setPurchases] = useState<PurchaseRecord[]>([]);

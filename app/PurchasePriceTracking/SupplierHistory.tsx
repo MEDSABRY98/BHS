@@ -213,17 +213,21 @@ export default function SupplierHistory({ purchases, products, suppliers }: Prop
         <div className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm border-t-4 border-t-[#D4AF37]">
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Total Spent</p>
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Unique Products</p>
               <div className="flex items-end gap-2">
-                <p className="text-3xl font-black text-slate-900">{totalSpent.toFixed(2)}</p>
-                <p className="text-sm font-bold text-slate-400 mb-1">AED</p>
+                <p className="text-3xl font-black text-slate-900">{supplierProductsAggregated.length}</p>
+                <p className="text-sm font-bold text-slate-400 mb-1">Products</p>
               </div>
             </div>
             <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm border-t-4 border-t-[#D4AF37]">
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Total Items Bought</p>
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Average Price</p>
               <div className="flex items-end gap-2">
-                <p className="text-3xl font-black text-slate-900">{totalItems}</p>
-                <p className="text-sm font-bold text-slate-400 mb-1">Units</p>
+                <p className="text-3xl font-black text-slate-900">
+                  {supplierPurchases.length > 0 
+                    ? (supplierPurchases.reduce((sum, p) => sum + p.unitPrice, 0) / supplierPurchases.length).toFixed(2) 
+                    : '0.00'}
+                </p>
+                <p className="text-sm font-bold text-slate-400 mb-1">AED</p>
               </div>
             </div>
             <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm border-t-4 border-t-[#D4AF37]">
