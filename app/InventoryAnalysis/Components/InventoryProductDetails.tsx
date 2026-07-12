@@ -7,7 +7,7 @@ import {
     RefreshCw, Box, ShoppingCart,
     ArrowLeftRight, Truck, Activity,
     Calendar, CalendarDays, Filter,
-    Sparkles, X, Clock, AlertTriangle, AlertCircle, CheckCircle2
+    Clock
 } from 'lucide-react';
 import {
     BarChart, Bar, XAxis, YAxis,
@@ -52,7 +52,6 @@ export default function ProductDetails({ productId, productName, barcode, onBack
     const [fromDate, setFromDate] = useState('');
     const [toDate, setToDate] = useState('');
     const [preset, setPreset] = useState('all');
-    const [showInsights, setShowInsights] = useState(false);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -223,12 +222,6 @@ export default function ProductDetails({ productId, productName, barcode, onBack
                             <h2 className="text-2xl font-black text-slate-800 tracking-tight leading-none">
                                 {productName}
                             </h2>
-                            <button
-                                onClick={() => setShowInsights(true)}
-                                className="p-1.5 bg-blue-50 text-blue-500 rounded-lg hover:bg-blue-100 transition-all group/info animate-pulse"
-                            >
-                                <Sparkles className="w-4 h-4 group-hover:scale-110 transition-transform" />
-                            </button>
                         </div>
                         <div className="flex items-center gap-2 text-slate-400 text-xs font-bold">
                             <Box className="w-3.5 h-3.5 text-slate-200" />
@@ -514,148 +507,6 @@ export default function ProductDetails({ productId, productName, barcode, onBack
                 </div>
             </div>
 
-            {/* Smart Insights Modal */}
-            {showInsights && data && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-                    <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setShowInsights(false)} />
-                    <div className="bg-white rounded-[32px] shadow-2xl w-full max-w-xl relative overflow-hidden animate-in zoom-in-95 duration-300">
-                        <div className="p-8 border-b border-slate-50 flex items-center justify-between bg-blue-50/30">
-                            <div className="flex items-center gap-4">
-                                <div className="p-3 bg-blue-500 rounded-2xl shadow-lg shadow-blue-200">
-                                    <Sparkles className="w-6 h-6 text-white" />
-                                </div>
-                                <div>
-                                    <h3 className="text-xl font-black text-slate-800 tracking-tight">Smart Stock Health</h3>
-                                    <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mt-0.5">Automated Product Diagnostics</p>
-                                </div>
-                            </div>
-                            <button onClick={() => setShowInsights(false)} className="p-2 hover:bg-white rounded-full transition-colors text-slate-400">
-                                <X className="w-6 h-6" />
-                            </button>
-                        </div>
-
-                        <div className="p-8 space-y-8">
-                            {(() => {
-                                const { summary, monthlyData } = data;
-                                // Analysis logic
-                                const m3 = monthlyData.slice(0, 3);
-                                const avgSales3M = m3.reduce((sum, m) => sum + m.sales, 0) / (m3.length || 1);
-                                const avgPurchases3M = m3.reduce((sum, m) => sum + m.purchases, 0) / (m3.length || 1);
-
-                                const dailySales = avgSales3M / 30;
-                                const coverageDays = dailySales > 0 ? summary.currentStock / dailySales : (summary.currentStock > 0 ? 999 : 0);
-
-                                // Turnover (Qty Sold in Period / Avg Inventory... or just Qty Sold / Current)
-                                const turnoverRatio = summary.currentStock > 0 ? summary.sales / summary.currentStock : (summary.sales > 0 ? 12 : 0);
-                                const daysPerTurn = turnoverRatio > 0 ? 365 / turnoverRatio : 0;
-
-                                return (
-                                    <>
-                                        {/* Stock Level Card (New) */}
-                                        <div className="bg-blue-600 p-6 rounded-3xl text-white shadow-xl shadow-blue-100 flex items-center justify-between overflow-hidden relative">
-                                            <div className="relative z-10">
-                                                <div className="flex items-center gap-2 mb-2 opacity-80">
-                                                    <Box className="w-4 h-4 text-white" />
-                                                    <span className="text-[10px] font-black uppercase tracking-wider">Current Physical Stock</span>
-                                                </div>
-                                                <p className="text-5xl font-black tracking-tighter">
-                                                    {summary.currentStock.toLocaleString()}
-                                                    <span className="text-sm font-bold opacity-60 ml-2 tracking-normal">Pieces</span>
-                                                </p>
-                                            </div>
-                                            <div className="absolute -right-4 -bottom-4 opacity-10">
-                                                <Box className="w-32 h-32" />
-                                            </div>
-                                            <div className="relative z-10 text-right">
-                                                <span className="text-[10px] font-black uppercase tracking-widest bg-white/20 px-3 py-1 rounded-full">LIVE STOCK</span>
-                                                {summary.minQ > 0 && (
-                                                    <p className="text-[11px] mt-2 font-bold opacity-80 truncate">Min Required: {summary.minQ}</p>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        {/* Coverage Stats */}
-                                        <div className="grid grid-cols-2 gap-6">
-                                            <div className="bg-slate-50 p-5 rounded-3xl border border-slate-100/50">
-                                                <div className="flex items-center gap-2 mb-3">
-                                                    <Clock className="w-4 h-4 text-blue-500" />
-                                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Days of Coverage</span>
-                                                </div>
-                                                <p className={`text-4xl font-black tracking-tighter ${coverageDays < 15 ? 'text-rose-500' : 'text-slate-800'}`}>
-                                                    {Math.round(coverageDays)}
-                                                    <span className="text-sm font-bold text-slate-400 ml-2 tracking-normal">Days</span>
-                                                </p>
-                                                <p className="text-[11px] text-slate-500 mt-2 font-medium">Until zero stock at current pace</p>
-                                            </div>
-
-                                            <div className="bg-slate-50 p-5 rounded-3xl border border-slate-100/50">
-                                                <div className="flex items-center gap-2 mb-3">
-                                                    <ArrowLeftRight className="w-4 h-4 text-emerald-500" />
-                                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Turnover Rhythm</span>
-                                                </div>
-                                                <p className="text-4xl font-black text-slate-800 tracking-tighter">
-                                                    {turnoverRatio.toFixed(1)}
-                                                    <span className="text-sm font-bold text-slate-400 ml-2 tracking-normal">x / Year</span>
-                                                </p>
-                                                <p className="text-[11px] text-slate-500 mt-2 font-medium">Full stock turnover every {Math.round(daysPerTurn)} days</p>
-                                            </div>
-                                        </div>
-
-                                        {/* AI Diagnostic Message */}
-                                        <div className={`p-6 rounded-3xl border-2 ${coverageDays < 15 ? 'bg-rose-50 border-rose-100' :
-                                            coverageDays > 180 ? 'bg-indigo-50 border-indigo-100' :
-                                                coverageDays < 30 ? 'bg-orange-50 border-orange-100' :
-                                                    'bg-emerald-50 border-emerald-100'
-                                            }`}>
-                                            <div className="flex gap-4">
-                                                <div className={`mt-1 ${coverageDays < 15 ? 'text-rose-500' :
-                                                    coverageDays > 180 ? 'text-indigo-500' :
-                                                        coverageDays < 30 ? 'text-orange-500' :
-                                                            'text-emerald-500'
-                                                    }`}>
-                                                    {coverageDays < 15 ? <AlertCircle className="w-6 h-6" /> :
-                                                        coverageDays > 180 ? <TrendingDown className="w-6 h-6" /> :
-                                                            coverageDays < 30 ? <Activity className="w-6 h-6" /> :
-                                                                <CheckCircle2 className="w-6 h-6" />}
-                                                </div>
-                                                <div>
-                                                    <h4 className="font-black text-slate-800 text-sm uppercase mb-1">Diagnostic Report</h4>
-                                                    <p className="text-slate-600 text-sm leading-relaxed text-justify">
-                                                        {coverageDays < 15
-                                                            ? `Critical Alert: At current sales velocity (${Math.round(avgSales3M)}/mo), your physical stock will be depleted in ${Math.round(coverageDays)} days. Urgent restocking is required despite any recent purchase activity.`
-                                                            : coverageDays > 180
-                                                                ? `Inventory Bloat Detected: You have ${Math.round(coverageDays)} days of coverage—far exceeding optimal levels. This represents tied-up capital. Recommendation: Cease all purchases and consider liquidating excess stock through promotions.`
-                                                                : coverageDays > 60 && avgSales3M > avgPurchases3M
-                                                                    ? `Strategic Optimization: You are successfully utilizing existing buffer stock to meet market demand. Even though sales exceed recent purchases, your ${Math.round(coverageDays)} days of coverage provides a safe operational margin.`
-                                                                    : coverageDays < 30
-                                                                        ? `Precautionary Notice: Stock is entering a monitoring phase. While immediate action isn't mandatory, your current coverage (${Math.round(coverageDays)} days) suggests planning a purchase order within the next 2 weeks.`
-                                                                        : `System Healthy: Your current stock levels are perfectly synchronized with sales velocity. You have a robust ${Math.round(coverageDays)} days of coverage, maintaining an ideal balance.`}
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        {/* Summary Recommendation */}
-                                        <div className="bg-slate-900 p-6 rounded-3xl text-white">
-                                            <div className="flex items-center justify-between">
-                                                <div>
-                                                    <span className="text-blue-400 text-[10px] font-black uppercase tracking-[0.2em]">Strategy</span>
-                                                    <p className="text-lg font-bold text-slate-100">
-                                                        {coverageDays < 15 ? 'Critical Restock Required' : coverageDays < 45 ? 'Order Planning' : 'Maintenance Mode'}
-                                                    </p>
-                                                </div>
-                                                <div className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${coverageDays < 15 ? 'bg-rose-500 shadow-lg shadow-rose-900/40' : 'bg-blue-500'}`}>
-                                                    {coverageDays < 15 ? 'ACTION' : 'MONITOR'}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </>
-                                );
-                            })()}
-                        </div>
-                    </div>
-                </div>
-            )}
         </div>
     );
 }

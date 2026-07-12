@@ -238,6 +238,8 @@ function DebitPageContent() {
           lastUpdated={lastUpdated}
           isCollapsed={isSidebarCollapsed}
           onToggleCollapse={toggleSidebar}
+          onRefresh={() => fetchData(true)}
+          isRefreshing={loading || isRefreshing}
         />
       </aside>
 
@@ -259,38 +261,24 @@ function DebitPageContent() {
           isCollapsed={false}
           onToggleCollapse={() => { }}
           onCloseMobile={() => setIsMobileSidebarOpen(false)}
+          onRefresh={() => fetchData(true)}
+          isRefreshing={loading || isRefreshing}
         />
       </aside>
 
       {/* Main Content Area */}
       <div className={`flex-1 flex flex-col min-w-0 ${isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-72'} transition-all duration-300`}>
-        {/* Header */}
-        <header className="sticky top-0 z-30 bg-white/85 backdrop-blur-md border-b border-slate-200 shadow-sm transition-all duration-300">
-          <div className="max-w-[98%] mx-auto px-4 py-3 flex items-center justify-between gap-4 min-h-[5rem]">
-            {/* Left section: Hamburger for Mobile, Logo/Refresh/Upload for Desktop */}
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => setIsMobileSidebarOpen(true)}
-                className="p-2.5 text-slate-600 hover:text-slate-900 lg:hidden rounded-xl hover:bg-slate-100 transition-all"
-                title="Open Navigation Menu"
-              >
-                <Menu className="w-6 h-6" />
-              </button>
-
-              <div className="flex items-center gap-3">
-                {/* Refresh Data Button */}
-                <button
-                  onClick={() => fetchData(true)}
-                  disabled={loading || isRefreshing}
-                  className={`p-2.5 rounded-xl border border-slate-200 text-slate-500 hover:text-blue-600 hover:border-blue-200 hover:bg-blue-50 transition-all ${loading || isRefreshing ? 'opacity-50' : 'hover:scale-105 active:scale-95'}`}
-                  title="Refresh Data"
-                >
-                  <RefreshCcw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
-                </button>
-              </div>
-            </div>
-          </div>
-        </header>
+        
+        {/* Mobile Header (Hamburger Only) */}
+        <div className="lg:hidden p-4 flex items-center bg-white border-b border-slate-200">
+          <button
+            onClick={() => setIsMobileSidebarOpen(true)}
+            className="p-2.5 text-slate-600 hover:text-slate-900 rounded-xl hover:bg-slate-100 transition-all"
+          >
+            <Menu className="w-6 h-6" />
+          </button>
+          <span className="ml-3 font-bold text-slate-800">Debit Analysis</span>
+        </div>
 
         {/* Main Content */}
         <div className="max-w-[98%] mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-12 flex-1 w-full">

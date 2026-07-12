@@ -1,8 +1,10 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { FileSpreadsheet, Download, Building2, Package, Search, ChevronDown, Calendar } from 'lucide-react';
+import { FileSpreadsheet, Download, Building2, Package, Search, ChevronDown, Calendar, TrendingUp, AlertTriangle } from 'lucide-react';
 import { PurchaseRecord, Product, Supplier } from '../page';
 import { generateSupplierPriceHistoryReport } from './SupplierPriceHistoryReport';
 import { generateProductSupplierComparisonReport } from './ProductSupplierComparisonReport';
+import { generatePriceInflationReport } from './PriceInflationReport';
+import { generateSupplierDependencyReport } from './SupplierDependencyReport';
 
 interface SearchableSelectProps {
   options: { id: string; label: string }[];
@@ -100,6 +102,8 @@ export default function ReportsTab({ purchases, products, suppliers }: Props) {
   const [toDate, setToDate] = useState('');
   const [isGenerating1, setIsGenerating1] = useState(false);
   const [isGenerating2, setIsGenerating2] = useState(false);
+  const [isGenerating3, setIsGenerating3] = useState(false);
+  const [isGenerating4, setIsGenerating4] = useState(false);
 
   const activeSuppliers = useMemo(() => {
     const supplierIds = new Set(purchases.map(p => p.supplierId));
@@ -129,6 +133,18 @@ export default function ReportsTab({ purchases, products, suppliers }: Props) {
       await generateProductSupplierComparisonReport(product.id, product.name, purchases, suppliers, fromDate, toDate);
     }
     setIsGenerating2(false);
+  };
+
+  const handleDownloadInflationReport = async () => {
+    setIsGenerating3(true);
+    await generatePriceInflationReport(purchases, products, fromDate, toDate);
+    setIsGenerating3(false);
+  };
+
+  const handleDownloadDependencyReport = async () => {
+    setIsGenerating4(true);
+    await generateSupplierDependencyReport(purchases, products, suppliers, fromDate, toDate);
+    setIsGenerating4(false);
   };
 
   return (
@@ -237,6 +253,64 @@ export default function ReportsTab({ purchases, products, suppliers }: Props) {
               className="w-full bg-slate-900 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 hover:bg-[#D4AF37] hover:text-black hover:shadow-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isGenerating2 ? <span className="animate-pulse">Generating...</span> : <><Download className="w-5 h-5" /> Download Excel</>}
+            </button>
+          </div>
+        </div>
+
+        {/* Report 3: Supplier Dependency */}
+        <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm border-t-4 border-t-purple-500 flex flex-col hover:shadow-lg transition-shadow">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="p-3 bg-purple-50 rounded-xl">
+              <AlertTriangle className="w-6 h-6 text-purple-500" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-slate-800 leading-tight">Supplier Dependency</h3>
+              <p className="text-xs text-slate-500 mt-1">Identify high-risk single sourcing</p>
+            </div>
+          </div>
+          
+          <div className="flex-1 flex items-center justify-center text-center p-4">
+            <p className="text-sm font-medium text-slate-500">
+              Analyzes all products to find which ones are heavily dependent on a single supplier, highlighting sourcing risks.
+            </p>
+          </div>
+
+          <div className="mt-8">
+            <button
+              onClick={handleDownloadDependencyReport}
+              disabled={isGenerating4}
+              className="w-full bg-slate-900 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 hover:bg-[#D4AF37] hover:text-black hover:shadow-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isGenerating4 ? <span className="animate-pulse">Generating...</span> : <><Download className="w-5 h-5" /> Download Excel</>}
+            </button>
+          </div>
+        </div>
+
+        {/* Report 4: Price Inflation */}
+        <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm border-t-4 border-t-rose-500 flex flex-col hover:shadow-lg transition-shadow">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="p-3 bg-rose-50 rounded-xl">
+              <TrendingUp className="w-6 h-6 text-rose-500" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-slate-800 leading-tight">Price Inflation</h3>
+              <p className="text-xs text-slate-500 mt-1">Global price increases/decreases</p>
+            </div>
+          </div>
+          
+          <div className="flex-1 flex items-center justify-center text-center p-4">
+            <p className="text-sm font-medium text-slate-500">
+              Generates a comprehensive report showing the inflation or deflation percentage for all products across the selected date range.
+            </p>
+          </div>
+
+          <div className="mt-8">
+            <button
+              onClick={handleDownloadInflationReport}
+              disabled={isGenerating3}
+              className="w-full bg-slate-900 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 hover:bg-[#D4AF37] hover:text-black hover:shadow-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isGenerating3 ? <span className="animate-pulse">Generating...</span> : <><Download className="w-5 h-5" /> Download Excel</>}
             </button>
           </div>
         </div>

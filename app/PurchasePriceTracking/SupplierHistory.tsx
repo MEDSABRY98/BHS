@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { PurchaseRecord, Product, Supplier } from './page';
-import { Search, Building2, Calendar, FileText, ArrowLeft, Users, Package, X, TrendingUp } from 'lucide-react';
+import { Search, Building2, Calendar, FileText, ArrowLeft, Users, Package, X, TrendingUp, FileSpreadsheet } from 'lucide-react';
+import { exportStyledExcel } from '@/app/Components/Export/ExcelExport';
 
 interface Props {
   purchases: PurchaseRecord[];
@@ -126,6 +127,26 @@ export default function SupplierHistory({ purchases, products, suppliers }: Prop
 
   const selectedSupplier = suppliers.find(s => s.id === selectedSupplierId);
 
+  const exportSupplierProductsToExcel = async () => {
+    if (!selectedSupplierId || !selectedSupplier) return;
+    
+    const reportData = supplierProductsAggregated.map(p => ({
+      'Barcode': p.productBarcode,
+      'Product Name': p.productName,
+      'Purchases Count': p.purchaseCount,
+      'Total Qty': p.totalQty,
+      'Average Price (AED)': Number(p.avgPrice.toFixed(2))
+    }));
+
+    const fileName = `Supplier_Products_${selectedSupplier.name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}`;
+    
+    await exportStyledExcel(reportData, fileName, {
+      sheetName: 'Products Log',
+      columnWidth: 22,
+      numericColumns: ['Purchases Count', 'Total Qty', 'Average Price (AED)']
+    });
+  };
+
   // If no supplier is selected, show Grid View
   if (!selectedSupplierId) {
     return (
@@ -201,6 +222,15 @@ export default function SupplierHistory({ purchases, products, suppliers }: Prop
             </div>
             <p className="text-slate-500 font-medium">Complete purchase history for this supplier</p>
           </div>
+        </div>
+        <div className="flex items-center">
+          <button
+            onClick={exportSupplierProductsToExcel}
+            title="Export Products to Excel"
+            className="flex items-center justify-center bg-emerald-50 border border-emerald-100 text-emerald-600 hover:bg-emerald-600 hover:text-white p-3 rounded-xl transition-all shadow-sm group"
+          >
+            <FileSpreadsheet className="w-6 h-6 group-hover:scale-110 transition-transform" />
+          </button>
         </div>
       </div>
 

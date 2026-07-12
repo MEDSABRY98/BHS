@@ -515,22 +515,45 @@ export const exportToExcel = async (
 
   // --- Yearly View ---
   if (opts.includeYearly && yearlyData && yearlyData.rows.length > 0) {
-    const originalYears = yearlyData.sortedYears;
-    // Add a zero-width space or regular space to prevent JS from sorting numeric string keys first
-    const yearsWithSpaces = originalYears.map((yr: string) => yr === 'OB' ? yr : `${yr} `);
-    const yearlyHeaders = ['#', 'Customer Name', 'City', 'Net Debt', ...yearsWithSpaces];
+    const buildYearlySheet = (name: string, dataset: any[]) => {
+      const activeYears = new Set<string>();
+      dataset.forEach(row => {
+        if (row.yearlyAmounts) {
+          Object.entries(row.yearlyAmounts).forEach(([yr, amt]) => {
+            if (typeof amt === 'number' && Math.abs(amt) > 0.01) {
+              activeYears.add(yr);
+            }
+          });
+        }
+      });
 
-    const buildYearlyRows = (dataset: any[]) => dataset.map((row: any, index: number) => {
-      const rowData = [index + 1, row.customerName, row.region, row.totalNetDebt.toFixed(2)];
-      originalYears.forEach((yr: string) => rowData.push((row.yearlyAmounts[yr] || 0).toFixed(2)));
-      return rowData;
-    });
+      const sortedActiveYears = yearlyData.sortedYears.filter((yr: string) => activeYears.has(yr));
+      const yearsWithSpaces = sortedActiveYears.map((yr: string) => yr === 'OB' ? yr : `${yr} `);
+      
+      const yearlyHeaders = ['#', 'Customer Name', 'City', 'Net Debt', 'Last Payment Date', 'Last Payment Amount', ...yearsWithSpaces];
 
-    sheets.push({
-      name: 'Yearly View',
-      data: recordsFromTable(yearlyHeaders, buildYearlyRows(yearlyData.rows)),
-      options: { numericColumns: ['Net Debt', ...yearsWithSpaces] },
-    });
+      const rows = dataset.map((row: any, index: number) => {
+        const customerInfo = data.find(c => c.customerName === row.customerName);
+        const rowData = [
+          index + 1, 
+          row.customerName, 
+          row.region, 
+          row.totalNetDebt.toFixed(2),
+          customerInfo?.lastPaymentDate ? formatDmy(customerInfo.lastPaymentDate) : '-',
+          (customerInfo?.lastPaymentAmount || 0).toFixed(2)
+        ];
+        sortedActiveYears.forEach((yr: string) => rowData.push((row.yearlyAmounts[yr] || 0).toFixed(2)));
+        return rowData;
+      });
+
+      return {
+        name,
+        data: recordsFromTable(yearlyHeaders, rows),
+        options: { numericColumns: ['Net Debt', 'Last Payment Amount', ...yearsWithSpaces] }
+      };
+    };
+
+    sheets.push(buildYearlySheet('Yearly View', yearlyData.rows));
 
     if (opts.groupByRegion) {
       Array.from(uniqueRegions).forEach(region => {
@@ -540,11 +563,7 @@ export const exportToExcel = async (
           return reps.includes(region);
         });
         if (filtered.length > 0) {
-          sheets.push({
-            name: `Yearly - ${region}`.substring(0, 31),
-            data: recordsFromTable(yearlyHeaders, buildYearlyRows(filtered)),
-            options: { numericColumns: ['Net Debt', ...yearsWithSpaces] },
-          });
+          sheets.push(buildYearlySheet(`Yearly - ${region}`.substring(0, 31), filtered));
         }
       });
     }
@@ -565,18 +584,31 @@ export const exportToExcel = async (
       customerBreakdowns.set(c.customerName, { netTotal: breakdown.netTotal, monthsMap });
     });
 
-    const sortedMonthKeys = Array.from(allUniqueMonthKeys).sort((a, b) => a.localeCompare(b));
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    
-    const monthHeaders = sortedMonthKeys.map(k => {
-      const [y, m] = k.split('-');
-      return `${monthNames[parseInt(m, 10) - 1]}-${y.slice(-2)} `; 
-    });
 
-    const monthlyHeaders = ['#', 'Customer Name', 'City', 'Net Debt', ...monthHeaders];
+    const buildMonthlySheet = (name: string, dataset: CustomerAnalysis[]) => {
+      const activeMonthKeys = new Set<string>();
+      dataset.forEach(c => {
+        const breakdown = customerBreakdowns.get(c.customerName);
+        if (breakdown) {
+          breakdown.monthsMap.forEach((amt, key) => {
+            if (Math.abs(amt) > 0.01) {
+              activeMonthKeys.add(key);
+            }
+          });
+        }
+      });
 
-    const buildMonthlyRows = (dataset: CustomerAnalysis[]) => {
-      return dataset.map((c, idx) => {
+      const sortedMonthKeys = Array.from(activeMonthKeys).sort((a, b) => a.localeCompare(b));
+      
+      const monthHeaders = sortedMonthKeys.map(k => {
+        const [y, m] = k.split('-');
+        return `${monthNames[parseInt(m, 10) - 1]}-${y.slice(-2)} `; 
+      });
+
+      const monthlyHeaders = ['#', 'Customer Name', 'City', 'Net Debt', 'Last Payment Date', 'Last Payment Amount', ...monthHeaders];
+
+      const rows = dataset.map((c, idx) => {
         const breakdown = customerBreakdowns.get(c.customerName);
         const netTotal = breakdown?.netTotal || 0;
         
@@ -584,7 +616,9 @@ export const exportToExcel = async (
           idx + 1,
           c.customerName || '',
           getRepsString(c),
-          netTotal.toFixed(2)
+          netTotal.toFixed(2),
+          c.lastPaymentDate ? formatDmy(c.lastPaymentDate) : '-',
+          (c.lastPaymentAmount || 0).toFixed(2)
         ];
 
         sortedMonthKeys.forEach(k => {
@@ -594,13 +628,15 @@ export const exportToExcel = async (
 
         return rowData;
       });
+
+      return {
+        name,
+        data: recordsFromTable(monthlyHeaders, rows),
+        options: { numericColumns: ['Net Debt', 'Last Payment Amount', ...monthHeaders] }
+      };
     };
 
-    sheets.push({
-      name: 'Monthly View',
-      data: recordsFromTable(monthlyHeaders, buildMonthlyRows(data)),
-      options: { numericColumns: ['Net Debt', ...monthHeaders] },
-    });
+    sheets.push(buildMonthlySheet('Monthly View', data));
 
     if (opts.groupByRegion) {
       Array.from(uniqueRegions).forEach(region => {
@@ -610,11 +646,7 @@ export const exportToExcel = async (
           return reps.includes(region);
         });
         if (filtered.length > 0) {
-          sheets.push({
-            name: `Monthly - ${region}`.substring(0, 31),
-            data: recordsFromTable(monthlyHeaders, buildMonthlyRows(filtered)),
-            options: { numericColumns: ['Net Debt', ...monthHeaders] },
-          });
+          sheets.push(buildMonthlySheet(`Monthly - ${region}`.substring(0, 31), filtered));
         }
       });
     }

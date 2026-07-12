@@ -13,7 +13,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Wallet,
-  X
+  X,
+  RefreshCcw
 } from 'lucide-react';
 
 interface DebitSidebarProps {
@@ -24,6 +25,8 @@ interface DebitSidebarProps {
   isCollapsed: boolean;
   onToggleCollapse: () => void;
   onCloseMobile?: () => void;
+  onRefresh?: () => void;
+  isRefreshing?: boolean;
 }
 
 export default function DebitSidebar({ 
@@ -33,7 +36,9 @@ export default function DebitSidebar({
   lastUpdated,
   isCollapsed,
   onToggleCollapse,
-  onCloseMobile
+  onCloseMobile,
+  onRefresh,
+  isRefreshing
 }: DebitSidebarProps) {
   
   const allTabs = [
@@ -148,14 +153,25 @@ export default function DebitSidebar({
         </div>
       )}
 
-      {/* Toggle Collapse Button */}
-      <div className="p-4 border-t border-white/5 mt-auto flex justify-center shrink-0">
+      {/* Refresh and Toggle Section */}
+      <div className="p-4 border-t border-white/5 mt-auto flex flex-col gap-2 shrink-0">
+        {onRefresh && (
+          <button 
+            onClick={onRefresh} 
+            disabled={isRefreshing}
+            className={`flex items-center justify-center ${isCollapsed ? 'w-10 h-10' : 'w-full py-2.5 px-4'} hover:bg-white/10 rounded-xl transition-all duration-200 text-blue-400 disabled:opacity-50 group`}
+            title={isCollapsed ? "Refresh Data" : undefined}
+          >
+            <RefreshCcw className={`w-5 h-5 shrink-0 ${isRefreshing ? 'animate-spin' : ''}`} />
+            {!isCollapsed && <span className="ml-3 text-sm font-bold tracking-wide">Refresh Data</span>}
+          </button>
+        )}
         <button 
           onClick={onToggleCollapse} 
-          className="flex items-center justify-center w-10 h-10 hover:bg-white/10 rounded-xl transition-all duration-200 text-blue-400"
+          className="flex items-center justify-center w-10 h-10 mx-auto hover:bg-white/10 rounded-xl transition-all duration-200 text-slate-400 group"
           title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
         >
-          {isCollapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
+          {isCollapsed ? <ChevronRight className="w-5 h-5 shrink-0" /> : <ChevronLeft className="w-5 h-5 shrink-0" />}
         </button>
       </div>
     </div>
