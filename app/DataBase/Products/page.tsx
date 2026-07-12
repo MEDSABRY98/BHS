@@ -420,11 +420,16 @@ export default function ProductsPage() {
 
       jsonData.forEach((row, index) => {
         const rowNumber = index + 2;
-        const recordId = row['ID']?.toString().trim() || '';
+        let recordId = row['ID']?.toString().trim() || '';
         const productId = normalizeExcelId(row['PRODUCT ID']);
         const productName = row['PRODUCT NAME']?.toString().trim() || '';
 
-        if (!recordId) missingIdRows.push(rowNumber);
+        // Auto-resolve ID if missing but PRODUCT ID exists in DB
+        if (!recordId && productId && dbProductIdToIdMap.has(productId)) {
+          recordId = dbProductIdToIdMap.get(productId)!;
+          row['ID'] = recordId; // Update row for the mapping later
+        }
+
         if (!productName) missingNameRows.push(rowNumber);
         if (!productId) missingProductIdRows.push(rowNumber);
 
@@ -442,10 +447,6 @@ export default function ProductsPage() {
       });
 
       const issueSections = [
-        {
-          heading: `=== MISSING ID (${missingIdRows.length}) ===`,
-          lines: missingIdRows.map((row) => `Row ${row}`),
-        },
         {
           heading: `=== MISSING PRODUCT NAME (${missingNameRows.length}) ===`,
           lines: missingNameRows.map((row) => `Row ${row}`),
@@ -487,18 +488,21 @@ export default function ProductsPage() {
         return;
       }
 
-      const formattedData = jsonData.map((row) => ({
-        ID: row['ID']?.toString().trim(),
-        'PRODUCT NAME': row['PRODUCT NAME']?.toString().trim() || '',
-        'PRODUCT BARCODE': row['PRODUCT BARCODE']?.toString().trim() || '',
-        'PRODUCT ID': normalizeExcelId(row['PRODUCT ID']),
-        'ITEM CODE': row['ITEM CODE'] ? Number(row['ITEM CODE']) : null,
-        'PRODUCT CATEGORY': row['PRODUCT CATEGORY']?.toString().trim() || '',
-        'PRODUCT COST': row['PRODUCT COST'] !== undefined && row['PRODUCT COST'] !== '' ? Number(row['PRODUCT COST']) : 0,
-        'QTY IN BOX': row['QTY IN BOX'] !== undefined && row['QTY IN BOX'] !== '' ? Number(row['QTY IN BOX']) : 0,
-        'AVAILABLE QTY': row['AVAILABLE QTY'] !== undefined && row['AVAILABLE QTY'] !== '' ? Number(row['AVAILABLE QTY']) : 0,
-        'IS_COUNTABLE': String(row['IS_COUNTABLE'] || '').toLowerCase() === 'yes',
-      }));
+      const formattedData = jsonData.map((row) => {
+        const id = row['ID']?.toString().trim();
+        return {
+          ...(id ? { ID: id } : {}),
+          'PRODUCT NAME': row['PRODUCT NAME']?.toString().trim() || '',
+          'PRODUCT BARCODE': row['PRODUCT BARCODE']?.toString().trim() || '',
+          'PRODUCT ID': normalizeExcelId(row['PRODUCT ID']),
+          'ITEM CODE': row['ITEM CODE'] ? Number(row['ITEM CODE']) : null,
+          'PRODUCT CATEGORY': row['PRODUCT CATEGORY']?.toString().trim() || '',
+          'PRODUCT COST': row['PRODUCT COST'] !== undefined && row['PRODUCT COST'] !== '' ? Number(row['PRODUCT COST']) : 0,
+          'QTY IN BOX': row['QTY IN BOX'] !== undefined && row['QTY IN BOX'] !== '' ? Number(row['QTY IN BOX']) : 0,
+          'AVAILABLE QTY': row['AVAILABLE QTY'] !== undefined && row['AVAILABLE QTY'] !== '' ? Number(row['AVAILABLE QTY']) : 0,
+          'IS_COUNTABLE': String(row['IS_COUNTABLE'] || '').toLowerCase() === 'yes',
+        };
+      });
 
       const chunkSize = 500;
       for (let i = 0; i < formattedData.length; i += chunkSize) {

@@ -303,16 +303,23 @@ export default function CustomersPage() {
         if (fetchErr) throw fetchErr;
 
         const dbCustomerIdToCustomerMap = new Map<string, any>();
+        let maxRecordNum = 0;
+
         (latestCustomers || []).forEach((c) => {
           const customerId = normalizeExcelId(c['CUSTOMER ID']);
           if (customerId) {
             dbCustomerIdToCustomerMap.set(customerId, c);
           }
+          if (c.ID && c.ID.startsWith('R-')) {
+            const num = parseInt(c.ID.split('-')[1], 10);
+            if (!isNaN(num) && num > maxRecordNum) {
+              maxRecordNum = num;
+            }
+          }
         });
 
         const duplicateCustomerIdsInFile = new Map<string, number[]>();
         const missingCustomerIdRows: number[] = [];
-        const notFoundCustomerIdRows: string[] = [];
 
         const trackRow = (map: Map<string, number[]>, key: string, rowNumber: number) => {
           if (!key) return;
@@ -330,9 +337,6 @@ export default function CustomersPage() {
             missingCustomerIdRows.push(rowNumber);
           } else {
             trackRow(duplicateCustomerIdsInFile, customerId, rowNumber);
-            if (!dbCustomerIdToCustomerMap.has(customerId)) {
-              notFoundCustomerIdRows.push(`Row ${rowNumber}: CUSTOMER ID "${customerId}" not found in database`);
-            }
           }
         }
 
@@ -347,10 +351,6 @@ export default function CustomersPage() {
               .filter(([, rows]) => rows.length > 1)
               .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
               .map(([customerId, rows]) => `${customerId} -> rows ${rows.join(', ')}`),
-          },
-          {
-            heading: `=== CUSTOMER ID NOT FOUND IN DATABASE (${notFoundCustomerIdRows.length}) ===`,
-            lines: notFoundCustomerIdRows,
           },
         ];
 
@@ -371,20 +371,28 @@ export default function CustomersPage() {
         }
 
         const recordsToUpsert: any[] = [];
+        let nextRecordNum = maxRecordNum;
 
         for (let i = 0; i < data.length; i++) {
           const row = data[i];
           const customerId = normalizeExcelId(row['Customer ID']);
           if (!customerId) continue;
 
+          let idToUse = '';
           const existingCustomer = dbCustomerIdToCustomerMap.get(customerId);
-          if (!existingCustomer) continue;
+          
+          if (existingCustomer) {
+            idToUse = existingCustomer.ID;
+          } else {
+            nextRecordNum += 1;
+            idToUse = `R-${String(nextRecordNum).padStart(4, '0')}`;
+          }
 
           const subNameSource =
             row['Customer Sub Name'] !== undefined ? row['Customer Sub Name'] : row['Customer Name'];
 
           const record: any = {
-            ID: existingCustomer.ID,
+            ID: idToUse,
             'CUSTOMER ID': customerId,
             'CUSTOMER MAIN NAME': String(row['Customer Main Name'] ?? '').trim(),
             'CUSTOMER SUB NAME': String(subNameSource ?? '').trim(),
