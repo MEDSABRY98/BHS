@@ -292,7 +292,7 @@ export async function getDailySalesData(userId: string, filters: any, invoiceTyp
   }
 
   const invoiceMap = new Map<string, any>();
-  globallyFilteredData.forEach(item => {
+  globallyFilteredData.forEach((item: any) => {
     if (!item.invoiceNumber) return;
 
     const existing = invoiceMap.get(item.invoiceNumber) || {
@@ -363,7 +363,7 @@ export async function getDailySalesData(userId: string, filters: any, invoiceTyp
   }
 
   const dateMap = new Map<string, any>();
-  globallyFilteredData.forEach(item => {
+  globallyFilteredData.forEach((item: any) => {
     if (!item.invoiceDate) return;
     const dateKey = formatDate(item.invoiceDate);
     if (!dateKey) return;
@@ -419,7 +419,7 @@ export async function getDailySalesData(userId: string, filters: any, invoiceTyp
   });
 
   const monthMap = new Map<string, any>();
-  salesByDayData.forEach(item => {
+  salesByDayData.forEach((item: any) => {
     if (!item.date) return;
     const [day, month, year] = item.date.split('/');
     if (!day || !month || !year) return;
@@ -472,7 +472,7 @@ function calculateStatsForDimension(data: any[], dimensionKey: string) {
   const dimensionMonthsMap = new Map<string, Set<string>>();
   const monthlyData = new Map<string, Map<string, { amount: number; qty: number }>>();
 
-  data.forEach(item => {
+  data.forEach((item: any) => {
     const dimValue = item[dimensionKey];
     if (!dimValue) return;
 
@@ -575,7 +575,12 @@ export async function getStatisticsData(userId: string, filters: any) {
 
   if (error) {
     console.error('RPC Error in getStatisticsData:', error);
-    return { areaStats: [], marketStats: [], merchandiserStats: [], salesRepStats: [] };
+    return {
+      areaStats: { stats: [], monthlyData: {} },
+      marketStats: { stats: [], monthlyData: {} },
+      merchandiserStats: { stats: [], monthlyData: {} },
+      salesRepStats: { stats: [], monthlyData: {} }
+    };
   }
 
   const areaStats = calculateStatsForDimension(globallyFilteredData, 'area');

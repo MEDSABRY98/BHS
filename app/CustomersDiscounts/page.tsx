@@ -525,7 +525,7 @@ export default function CustomerDiscountsPage() {
       await fetchCustomersAndDiscounts();
       
       // Show a quick success alert or just let the empty fields indicate success
-      showToast("Config added successfully!");
+      toast.success("Config added successfully!");
 
     } catch (err: any) {
       console.error("Error saving discount:", err);
