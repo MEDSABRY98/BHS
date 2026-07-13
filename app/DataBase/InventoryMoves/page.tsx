@@ -458,7 +458,7 @@ export default function InventoryMovesPage() {
       let nextNum = parseInt(nextId.substring(2), 10);
 
       const formattedRows: Record<string, unknown>[] = [];
-      const invalidProductRows: number[] = [];
+      const invalidProductIds = new Set<string>();
 
       jsonData.forEach((row, index) => {
         const productId = String(row['PRODUCT ID'] ?? '').trim();
@@ -466,7 +466,7 @@ export default function InventoryMovesPage() {
         if (!date || !productId) return;
 
         if (!productIds.has(productId)) {
-          invalidProductRows.push(index + 2);
+          invalidProductIds.add(productId);
           return;
         }
 
@@ -481,16 +481,17 @@ export default function InventoryMovesPage() {
         });
       });
 
-      if (invalidProductRows.length > 0) {
+      if (invalidProductIds.size > 0) {
+        const missingIds = Array.from(invalidProductIds);
         const issueSections = [
           {
-            heading: `=== INVALID PRODUCT ID (${invalidProductRows.length}) ===`,
-            lines: invalidProductRows.map((row) => `Row ${row}: Product ID not found in database.`),
+            heading: `=== MISSING PRODUCT IDS (${missingIds.length}) ===`,
+            lines: missingIds.map((id) => id),
           }
         ];
         downloadUploadIssuesReport(
           `Inventory_Moves_Upload_Issues_${new Date().toISOString().split('T')[0]}.txt`,
-          'Inventory Moves Upload - Issues Found',
+          'Inventory Moves Upload - Missing Products',
           issueSections
         );
         toast.error('Upload blocked. A text file with issues has been downloaded.');
