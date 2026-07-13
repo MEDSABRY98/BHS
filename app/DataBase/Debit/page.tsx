@@ -117,8 +117,12 @@ export default function DebitDatabasePage() {
           toast.success(result.message || 'Data uploaded successfully');
         } else {
           toast.error('Upload failed. Downloading error report...');
+          const lines = [result.error || 'Failed to upload data'];
+          if (result.details) {
+            lines.push(...result.details.split('\n'));
+          }
           downloadUploadIssuesReport('Debit_Upload_Issues.txt', 'Debit Upload Error', [
-            { heading: 'Error Details:', lines: [result.error || 'Failed to upload data'] }
+            { heading: 'Error Details:', lines }
           ]);
         }
       } catch (error: any) {
