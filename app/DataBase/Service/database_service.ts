@@ -651,7 +651,7 @@ export async function uploadDebitData(payload: any[] | string) {
     }
 
     // Validation: Ensure all CUSTOMER IDs exist in bhs_CUSTOMERS, or map names to IDs
-    const { data: customersData, error: customersError } = await bhs_supabase.from('bhs_CUSTOMERS').select('"CUSTOMER ID", "CUSTOMER NAME"');
+    const { data: customersData, error: customersError } = await bhs_supabase.from('bhs_CUSTOMERS').select('"CUSTOMER ID", "CUSTOMER MAIN NAME"');
     if (customersError) {
       throw new Error('Failed to fetch customers for validation: ' + customersError.message);
     }
@@ -659,8 +659,8 @@ export async function uploadDebitData(payload: any[] | string) {
     const validCustomerIds = new Set(customersData.map((c: any) => c['CUSTOMER ID']?.toString().trim()));
     const nameToIdMap = new Map<string, string>();
     customersData.forEach((c: any) => {
-        if (c['CUSTOMER NAME'] && c['CUSTOMER ID']) {
-            nameToIdMap.set(c['CUSTOMER NAME'].toString().trim().toLowerCase(), c['CUSTOMER ID'].toString().trim());
+        if (c['CUSTOMER MAIN NAME'] && c['CUSTOMER ID']) {
+            nameToIdMap.set(c['CUSTOMER MAIN NAME'].toString().trim().toLowerCase(), c['CUSTOMER ID'].toString().trim());
         }
     });
 
