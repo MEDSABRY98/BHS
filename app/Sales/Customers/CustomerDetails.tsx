@@ -46,7 +46,7 @@ export default function SalesCustomerDetails({
   const [data, setData] = useState<SalesInvoice[]>([]);
   const [allData, setAllData] = useState<SalesInvoice[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'monthly' | 'categories' | 'products' | 'invoices'>(initialTab);
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'subcustomers' | 'monthly' | 'categories' | 'products' | 'invoices'>(initialTab as any);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [invoicesData, setInvoicesData] = useState<Array<{ number: string; debit: number; credit: number; customerName: string; date: string }>>([]);
@@ -108,16 +108,24 @@ export default function SalesCustomerDetails({
 
   // Get unfiltered customer data (for lastInvoiceDate calculation)
   const unfilteredCustomerData = useMemo(() => {
-    if (customerType === 'main') {
-      return data.filter(item => (item.customerMainName || item.customerName || 'Unknown') === customerName);
-    }
+    const targetId = customerId?.trim();
+    const targetName = customerName?.trim();
 
-    // Use the passed customerId directly if available, otherwise fall back to name lookup
-    if (customerId) {
-      return data.filter(item => item.customerId === customerId);
-    }
-    // Fallback: find by name (single customer, no ambiguity)
-    return data.filter(item => item.customerName === customerName);
+    return data.filter(item => {
+      const itemMainName = (item.customerMainName || (item as any).customermainname || item.customerName || (item as any).customername || 'Unknown').trim();
+      const itemSubName = (item.customerName || (item as any).customername || itemMainName || 'Unknown').trim();
+      const itemId = (item.customerId || (item as any).customerid || '').trim();
+
+      if (customerType === 'main') {
+        return itemMainName === targetName || itemSubName === targetName;
+      }
+
+      if (targetId && itemId) {
+        return itemId.toUpperCase() === targetId.toUpperCase() || itemSubName === targetName;
+      }
+
+      return itemSubName === targetName;
+    });
   }, [data, customerName, customerId, customerType]);
 
   // Filter data for this customer with search and date filters
@@ -378,6 +386,54 @@ export default function SalesCustomerDetails({
     });
   }, [customerData]);
 
+  // Sub customers breakdown (for Main Customers view)
+  const subCustomersData = useMemo(() => {
+    if (customerType !== 'main') return [];
+
+    const map = new Map<string, {
+      customerId: string;
+      subCustomerName: string;
+      totalAmount: number;
+      totalQty: number;
+      products: Set<string>;
+      invoices: Set<string>;
+    }>();
+
+    customerData.forEach(item => {
+      const subName = (item.customerName || (item as any).customername || 'Unknown').trim();
+      const subId = (item.customerId || (item as any).customerid || '').trim();
+      const key = subId ? `${subId}::${subName}` : subName;
+
+      const existing = map.get(key) || {
+        customerId: subId,
+        subCustomerName: subName,
+        totalAmount: 0,
+        totalQty: 0,
+        products: new Set<string>(),
+        invoices: new Set<string>(),
+      };
+
+      existing.totalAmount += item.amount || 0;
+      existing.totalQty += item.qty || 0;
+
+      const prodKey = item.productId || item.barcode || item.product;
+      if (prodKey) existing.products.add(prodKey);
+
+      if (item.invoiceNumber) existing.invoices.add(item.invoiceNumber);
+
+      map.set(key, existing);
+    });
+
+    return Array.from(map.values()).map(item => ({
+      customerId: item.customerId,
+      subCustomerName: item.subCustomerName,
+      totalAmount: item.totalAmount,
+      totalQty: item.totalQty,
+      productsCount: item.products.size,
+      invoicesCount: item.invoices.size,
+    })).sort((a, b) => b.totalAmount - a.totalAmount);
+  }, [customerData, customerType]);
+
   // Invoices data - grouped by invoiceNumber
   const groupedInvoicesData = useMemo(() => {
     const invoiceMap = new Map<string, {
@@ -544,7 +600,7 @@ export default function SalesCustomerDetails({
     const subCustomerTotalAmount = customerData.reduce((sum, item) => sum + item.amount, 0);
 
     // 3. Calculate total sales amount for main customer (all sub-customers with same customerMainName)
-    const normalizeCustomerName = (name: string) => name.toLowerCase().trim().replace(/\s+/g, ' ');
+    const normalizeCustomerName = (name: string) => (name || '').toLowerCase().trim().replace(/\s+/g, ' ');
     const normalizedMainName = normalizeCustomerName(customerMainName);
 
     const mainCustomerTotalAmount = data.reduce((sum, item) => {
@@ -655,13 +711,24 @@ export default function SalesCustomerDetails({
   // Get unfiltered customer data from ALL data (for comparison chart)
   const customerAllData = useMemo(() => {
     const source = allData.length > 0 ? allData : data;
-    if (customerType === 'main') {
-      return source.filter(item => (item.customerMainName || item.customerName || 'Unknown') === customerName);
-    }
-    if (customerId) {
-      return source.filter(item => item.customerId === customerId);
-    }
-    return source.filter(item => item.customerName === customerName);
+    const targetId = customerId?.trim();
+    const targetName = customerName?.trim();
+
+    return source.filter(item => {
+      const itemMainName = (item.customerMainName || (item as any).customermainname || item.customerName || (item as any).customername || 'Unknown').trim();
+      const itemSubName = (item.customerName || (item as any).customername || itemMainName || 'Unknown').trim();
+      const itemId = (item.customerId || (item as any).customerid || '').trim();
+
+      if (customerType === 'main') {
+        return itemMainName === targetName || itemSubName === targetName;
+      }
+
+      if (targetId && itemId) {
+        return itemId.toUpperCase() === targetId.toUpperCase() || itemSubName === targetName;
+      }
+
+      return itemSubName === targetName;
+    });
   }, [allData, data, customerName, customerId, customerType]);
 
   // Chart data for monthly sales - Jan-Dec comparison
@@ -886,6 +953,17 @@ export default function SalesCustomerDetails({
           >
             Dashboard
           </button>
+          {customerType === 'main' && (
+            <button
+              onClick={() => setActiveTab('subcustomers')}
+              className={`flex-1 py-3 font-semibold transition-colors border-b-2 text-center ${activeTab === 'subcustomers'
+                ? 'text-green-600 border-green-600'
+                : 'text-gray-500 border-transparent hover:text-gray-700'
+                }`}
+            >
+              Sub Customers ({subCustomersData.length})
+            </button>
+          )}
           <button
             onClick={() => setActiveTab('monthly')}
             className={`flex-1 py-3 font-semibold transition-colors border-b-2 text-center ${activeTab === 'monthly'
@@ -1232,6 +1310,79 @@ export default function SalesCustomerDetails({
             </div>          </div>
         )}
 
+        {/* Sub Customers Tab (Main Customer View Only) */}
+        {activeTab === 'subcustomers' && customerType === 'main' && (
+          <div className="bg-white rounded-xl shadow-md p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-gray-800">
+                Sub Customers Breakdown ({subCustomersData.length})
+              </h2>
+              <button
+                onClick={() => {
+                  const headers = ['#', 'Sub Customer Name', 'Total Amount', 'Total QTY', 'SKUs', 'Invoices Count'];
+                  const rows = subCustomersData.map((item, index) => [
+                    index + 1,
+                    item.subCustomerName,
+                    item.totalAmount,
+                    item.totalQty,
+                    item.productsCount,
+                    item.invoicesCount,
+                  ]);
+                  const safeCustomer = customerName.replace(/[^a-zA-Z0-9\u0600-\u06FF \-_]/g, '').trim() || 'customer';
+                  exportSalesExcelTable(headers, rows, `sub_customers_${safeCustomer}_${new Date().toISOString().split('T')[0]}.xlsx`, {
+                    sheetName: 'Sub Customers',
+                    numericColumns: ['Total Amount', 'Total QTY'],
+                  });
+                }}
+                className="h-10 w-10 flex items-center justify-center bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-all shadow-sm group"
+                title="Export to Excel"
+              >
+                <FileSpreadsheet className="h-5 w-5 transition-transform group-hover:scale-110" />
+              </button>
+            </div>
+            {subCustomersData.length === 0 ? (
+              <NoData />
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full table-fixed">
+                  <thead>
+                    <tr className="border-b-2 border-gray-200">
+                      <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-16">#</th>
+                      <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-72">Sub Customer Name</th>
+                      <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-44">Total Amount</th>
+                      <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-36">Total QTY</th>
+                      <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-32">SKUs</th>
+                      <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-36">Invoices Count</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {subCustomersData.map((item, index) => (
+                      <tr key={index} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                        <td className="py-3 px-4 text-sm text-gray-500 text-center font-medium">{index + 1}</td>
+                        <td className="py-3 px-4 text-sm font-bold text-slate-800 text-center truncate w-72" title={item.subCustomerName}>
+                          {item.subCustomerName}
+                        </td>
+                        <td className="py-3 px-4 text-base text-emerald-600 font-bold text-center">
+                          {item.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                        <td className="py-3 px-4 text-base text-gray-800 font-semibold text-center">
+                          {item.totalQty.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                        </td>
+                        <td className="py-3 px-4 text-base text-gray-800 font-semibold text-center">
+                          {item.productsCount}
+                        </td>
+                        <td className="py-3 px-4 text-base text-gray-800 font-semibold text-center">
+                          {item.invoicesCount}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Categories Tab */}
         {activeTab === 'categories' && (
           <SalesCustomerCategoriesTab
@@ -1317,10 +1468,10 @@ export default function SalesCustomerDetails({
               <h2 className="text-xl font-bold text-gray-800">Products Sales</h2>
               <button
                 onClick={exportProductsToExcel}
-                className="p-2 rounded-full bg-green-600 text-white hover:bg-green-700 transition-colors"
+                className="h-10 w-10 flex items-center justify-center bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-all shadow-sm group"
                 title="Export Products to Excel"
               >
-                <Download className="w-5 h-5" />
+                <FileSpreadsheet className="h-5 w-5 transition-transform group-hover:scale-110" />
               </button>
             </div>
             {productsData.length === 0 ? (
@@ -1437,10 +1588,10 @@ export default function SalesCustomerDetails({
               </div>
               <button
                 onClick={exportInvoicesToExcel}
-                className="p-2.5 rounded-xl bg-green-600 text-white hover:bg-green-700 transition-all shadow-md active:scale-95"
+                className="h-10 w-10 flex items-center justify-center bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-all shadow-sm group"
                 title="Export Invoices to Excel"
               >
-                <Download className="w-5 h-5" />
+                <FileSpreadsheet className="h-5 w-5 transition-transform group-hover:scale-110" />
               </button>
             </div>
             {groupedInvoicesData.length === 0 ? (

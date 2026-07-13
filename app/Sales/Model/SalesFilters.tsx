@@ -214,18 +214,20 @@ export function useSalesFilters() {
     setFilterProductTag('');
   };
 
-  const getCommonFilters = (): SalesCommonFilters => ({
-    invoiceType: invoiceTypeFilter,
-    year: filterYear,
-    month: filterMonth,
-    dateFrom,
-    dateTo,
-    area: filterArea,
-    market: filterMarket,
-    merchandiser: filterMerchandiser,
-    salesRep: filterSalesRep,
-    productTag: filterProductTag,
-  });
+  const getCommonFilters = (): SalesCommonFilters => {
+    return {
+      invoiceType: invoiceTypeFilter,
+      year: filterYear,
+      month: filterMonth,
+      dateFrom: dateFrom,
+      dateTo: dateTo,
+      area: filterArea,
+      market: filterMarket,
+      merchandiser: filterMerchandiser,
+      salesRep: filterSalesRep,
+      productTag: filterProductTag,
+    };
+  };
 
   return {
     invoiceTypeFilter,

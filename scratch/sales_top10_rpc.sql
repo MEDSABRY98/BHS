@@ -172,6 +172,11 @@ BEGIN
       barcode as barcode,
       productcost as "productCost",
       productprice as "productPrice",
+      area,
+      market,
+      merchandiser,
+      salesrep as "salesRep",
+      producttag as "productTag",
       amount,
       qty
     FROM v_sales_mapped

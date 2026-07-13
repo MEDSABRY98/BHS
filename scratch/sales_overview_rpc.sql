@@ -33,24 +33,65 @@ BEGIN
   FROM "bhs_USERS" 
   WHERE "ID" = UPPER(TRIM(p_user_id));
 
-  v_target_year := COALESCE(p_year, extract(year from CURRENT_DATE)::int);
+  WITH base_sales AS (
+    SELECT 
+      invoicedate::date as idate,
+      extract(year from invoicedate)::int as yr_date,
+      extract(month from invoicedate)::int as mn,
+      invoicenumber,
+      customerid,
+      COALESCE(NULLIF(TRIM(customermainname), ''), TRIM(customername), 'Unknown') as customer_main,
+      COALESCE(NULLIF(TRIM(customername), ''), TRIM(customermainname), 'Unknown') as customer_sub,
+      producttag,
+      product,
+      barcode,
+      amount,
+      qty
+    FROM v_sales_mapped
+    WHERE 
+      (v_is_manager = true OR salesrepid = UPPER(TRIM(p_user_id)) OR UPPER(TRIM(salesrep)) = UPPER(TRIM(v_user_name)))
+      AND (p_area IS NULL OR area = p_area)
+      AND (p_market IS NULL OR market = p_market)
+      AND (p_merchandiser IS NULL OR merchandiser = p_merchandiser)
+      AND (p_sales_rep IS NULL OR salesrep = p_sales_rep)
+      AND (p_product_tag IS NULL OR producttag = p_product_tag)
+      AND (
+        p_invoice_type = 'all'
+        OR (p_invoice_type = 'sales' AND UPPER(invoicenumber) LIKE 'SAL%')
+        OR (p_invoice_type = 'returns' AND UPPER(invoicenumber) LIKE 'RSAL%')
+      )
+  ),
+  target_year_calc AS (
+    SELECT COALESCE(p_year, MAX(yr_date), extract(year from CURRENT_DATE)::int) as ty FROM base_sales
+  )
+  SELECT ty INTO v_target_year FROM target_year_calc;
 
-  -- Determine date bounds
-  IF p_date_from IS NOT NULL OR p_date_to IS NOT NULL THEN
-    v_curr_from := COALESCE(p_date_from::date, date_trunc('year', CURRENT_DATE)::date);
-    v_curr_to := COALESCE(p_date_to::date, (date_trunc('year', CURRENT_DATE) + interval '1 year - 1 day')::date);
+  IF v_target_year IS NULL THEN
+    v_target_year := extract(year from CURRENT_DATE)::int;
+  END IF;
+
+  -- Determine date bounds for metrics
+  IF p_year IS NOT NULL OR p_month IS NOT NULL OR p_date_from IS NOT NULL OR p_date_to IS NOT NULL THEN
+    IF p_date_from IS NOT NULL OR p_date_to IS NOT NULL THEN
+      v_curr_from := COALESCE(p_date_from::date, date_trunc('year', CURRENT_DATE)::date);
+      v_curr_to := COALESCE(p_date_to::date, (date_trunc('year', CURRENT_DATE) + interval '1 year - 1 day')::date);
+    ELSE
+      DECLARE
+        m int := COALESCE(p_month, 0);
+      BEGIN
+        IF m > 0 THEN
+          v_curr_from := to_date(v_target_year || '-' || m || '-01', 'YYYY-MM-DD');
+          v_curr_to := (v_curr_from + interval '1 month - 1 day')::date;
+        ELSE
+          v_curr_from := to_date(v_target_year || '-01-01', 'YYYY-MM-DD');
+          v_curr_to := to_date(v_target_year || '-12-31', 'YYYY-MM-DD');
+        END IF;
+      END;
+    END IF;
   ELSE
-    DECLARE
-      m int := COALESCE(p_month, 0);
-    BEGIN
-      IF m > 0 THEN
-        v_curr_from := to_date(v_target_year || '-' || m || '-01', 'YYYY-MM-DD');
-        v_curr_to := (v_curr_from + interval '1 month - 1 day')::date;
-      ELSE
-        v_curr_from := to_date(v_target_year || '-01-01', 'YYYY-MM-DD');
-        v_curr_to := to_date(v_target_year || '-12-31', 'YYYY-MM-DD');
-      END IF;
-    END;
+    -- No date filter passed: calculate metrics for all historical data
+    v_curr_from := NULL;
+    v_curr_to := NULL;
   END IF;
 
   WITH base_sales AS (
@@ -82,7 +123,7 @@ BEGIN
       )
   ),
 
-  -- Metrics for the CURRENT selection (e.g. 2026 or month 6 of 2026)
+  -- Metrics for current selection (or all historical data if no filter)
   metrics_curr AS (
     SELECT 
       COALESCE(SUM(amount), 0) as total_amount,
@@ -91,7 +132,8 @@ BEGIN
       COUNT(DISTINCT barcode) as total_products,
       COUNT(DISTINCT to_char(idate, 'YYYY-MM')) as months_count
     FROM base_sales
-    WHERE idate >= v_curr_from AND idate <= v_curr_to
+    WHERE (v_curr_from IS NULL OR idate >= v_curr_from)
+      AND (v_curr_to IS NULL OR idate <= v_curr_to)
   ),
 
   -- Chart Data (12 Months comparison: target_year vs target_year-1)

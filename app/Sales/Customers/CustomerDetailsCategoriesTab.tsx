@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react';
 import { SalesInvoice } from '@/lib/supabase';;
-import { Download } from 'lucide-react';
+import { FileSpreadsheet } from 'lucide-react';
 import NoData from '@/app/Components/NoDataTab';
 import { exportSalesExcelTable } from '@/app/Sales/Utils/ExcelExport';
 
@@ -94,10 +94,10 @@ export default function SalesCustomerCategoriesTab({
         <h2 className="text-xl font-bold text-gray-800">Categories Sales</h2>
         <button
           onClick={exportToExcel}
-          className="p-2 rounded-full bg-green-600 text-white hover:bg-green-700 transition-colors shadow-md active:scale-95"
+          className="h-10 w-10 flex items-center justify-center bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-all shadow-sm group"
           title="Export Categories to Excel"
         >
-          <Download className="w-5 h-5" />
+          <FileSpreadsheet className="h-5 w-5 transition-transform group-hover:scale-110" />
         </button>
       </div>
 
