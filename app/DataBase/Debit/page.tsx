@@ -34,7 +34,8 @@ export default function DebitDatabasePage() {
   const COLUMNS = ['DATE', 'DUE DATE', 'NUMBER', 'CUSTOMER NAME', 'DEBIT', 'CREDIT', 'RESIDUAL AMOUNT', 'MATCHING'];
 
   const handleDownloadTemplate = async () => {
-    await exportDatabaseExcelTable(COLUMNS, [], 'mix_DEBIT_Template.xlsx');
+    const sampleRow = ['2026-06-12', '2026-07-12', 'INV-001', 'Sample Customer', 1000, 0, 1000, 'Matched'];
+    await exportDatabaseExcelTable(COLUMNS, [sampleRow], 'mix_DEBIT_Template.xlsx');
   };
 
   const handleDeleteAll = async () => {
