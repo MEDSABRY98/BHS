@@ -126,7 +126,7 @@ const toNetOnlyOpenInvoices = (invList: InvoiceWithNetDebt[]): InvoiceWithNetDeb
   // Keep only unmatched invoices OR the single "residual holder" invoice for open matching groups
   return invList
     .filter((inv) => {
-      if (!inv.matching) return true;
+      if (!inv.matching) return Math.abs(inv.netDebt) > 0.01;
       return inv.residual !== undefined && Math.abs(inv.residual) > 0.01;
     })
     .map((inv) => {
@@ -625,7 +625,7 @@ ${debtSectionHtml}
     // This keeps only unmatched invoices OR the single "residual holder" invoice for open matching groups
     return invoicesWithNetDebt.filter(inv => {
       // Keep if no matching ID (Unmatched)
-      if (!inv.matching) return true;
+      if (!inv.matching) return Math.abs(inv.netDebt) > 0.01;
 
       // Keep only if it carries the residual (which means it's the main open invoice of an open group)
       return inv.residual !== undefined && Math.abs(inv.residual) > 0.01;

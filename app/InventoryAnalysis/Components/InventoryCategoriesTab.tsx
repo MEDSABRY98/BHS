@@ -156,98 +156,111 @@ export default function InventoryProductOrdersTab({ orderItems, setOrderItems }:
         const catProducts = products.filter(p => p.formattedTag === tag);
         const count = catProducts.length;
         const outOfStockCount = catProducts.filter(p => p.onHand <= 0).length;
-        return { tag, count, outOfStockCount };
-    }).filter(c => c.tag.toLowerCase().includes(categorySearch.toLowerCase()));
+        return { tag, count, outOfStockCount, catProducts };
+    }).filter(c => {
+        const query = categorySearch.toLowerCase();
+        if (!query) return true;
+        if (c.tag.toLowerCase().includes(query)) return true;
+        return c.catProducts.some(p => 
+            p.productName?.toLowerCase().includes(query) || 
+            p.barcode?.toLowerCase().includes(query)
+        );
+    });
 
     return (
         <div className="flex flex-col gap-6 animate-in fade-in duration-500">
             {/* Summary Dashboard Header */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {[
-                    { label: 'Total Categories', value: tags.length, icon: Package, color: 'text-blue-600', bg: 'bg-blue-50' },
-                    { label: 'Total Products', value: products.length, icon: Box, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-                    { label: 'Out of Stock', value: products.filter(p => p.onHand <= 0).length, icon: AlertCircle, color: 'text-red-600', bg: 'bg-red-50' }
+                    { label: 'Total Categories', value: tags.length, icon: Package },
+                    { label: 'Total Products', value: products.length, icon: Box },
+                    { label: 'Out of Stock', value: products.filter(p => p.onHand <= 0).length, icon: AlertCircle }
                 ].map((stat, i) => (
-                    <div key={i} className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4 transition-shadow hover:shadow-md">
-                        <div className={`p-3 rounded-lg ${stat.bg} ${stat.color}`}>
-                            <stat.icon className="w-6 h-6" />
+                    <div key={i} className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex items-center gap-4 transition-shadow hover:shadow-lg hover:border-[#D4AF37]/40">
+                        <div className="bg-[#D4AF37]/10 p-3 rounded-2xl">
+                            <stat.icon className="w-6 h-6 text-[#D4AF37]" />
                         </div>
                         <div>
-                            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-0.5">{stat.label}</p>
-                            <p className="text-2xl font-bold text-slate-900">{stat.value}</p>
+                            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-0.5">{stat.label}</p>
+                            <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
                         </div>
                     </div>
                 ))}
             </div>
 
             {/* Category Search & Refresh */}
-            <div className="flex items-center gap-3 bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
-                <div className="relative flex-1 group">
+            <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="relative w-full sm:w-96 group">
                     <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                        <Search className="h-5 w-5 text-slate-400" />
+                        <Search className="h-5 w-5 text-gray-400" />
                     </div>
                     <input
                         type="text"
-                        className="block w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-lg text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all outline-none"
-                        placeholder="Search categories..."
+                        className="block w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#D4AF37] focus:border-[#D4AF37] transition-all font-medium text-gray-900 placeholder-gray-400"
+                        placeholder="Search categories, products or barcodes..."
                         value={categorySearch}
                         onChange={(e) => setCategorySearch(e.target.value)}
                     />
                 </div>
-                <button
-                    onClick={fetchOrders}
-                    disabled={loading}
-                    className="flex items-center justify-center p-3 bg-slate-800 text-white rounded-lg hover:bg-slate-700 active:scale-95 transition-all shadow-sm min-w-[48px]"
-                    title="Refresh Data"
-                >
-                    <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
-                </button>
-                <button
-                    onClick={handleExportAll}
-                    disabled={loading || exportingAll}
-                    className="flex items-center justify-center p-3 bg-emerald-50 text-emerald-600 border border-emerald-200 rounded-lg hover:bg-emerald-600 hover:text-white transition-all shadow-sm min-w-[48px]"
-                    title="Export All to ZIP"
-                >
-                    <FileSpreadsheet className={`w-5 h-5 ${exportingAll ? 'animate-pulse' : ''}`} />
-                </button>
+                <div className="flex items-center gap-3 w-full sm:w-auto">
+                    <button
+                        onClick={fetchOrders}
+                        disabled={loading}
+                        className="flex items-center justify-center p-3.5 bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-200 rounded-2xl transition-all shadow-sm shrink-0"
+                        title="Refresh Data"
+                    >
+                        <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
+                    </button>
+                    <button
+                        onClick={handleExportAll}
+                        disabled={loading || exportingAll}
+                        className="flex items-center justify-center p-3.5 bg-green-50 text-green-700 hover:bg-green-100 border border-green-200 rounded-2xl transition-all shadow-sm shrink-0"
+                        title="Export All to ZIP"
+                    >
+                        <FileSpreadsheet className={`w-5 h-5 ${exportingAll ? 'animate-pulse' : ''}`} />
+                    </button>
+                </div>
             </div>
 
             {/* Category Cards Grid */}
             {categoryStats.length === 0 ? (
                 <NoData title="No Categories" />
             ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {categoryStats.map((cat) => (
-                    <button
+                    <div
                         key={cat.tag}
                         onClick={() => setSelectedCategory(cat.tag)}
-                        className="group bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-blue-300 transition-all text-left flex flex-col h-full"
+                        className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm hover:shadow-lg hover:border-[#D4AF37]/40 transition-all cursor-pointer group flex flex-col h-full text-left relative overflow-hidden"
                     >
-                        <div className="flex items-center gap-3 mb-4">
-                            <div className="w-10 h-10 bg-slate-50 text-slate-500 rounded-lg flex items-center justify-center border border-slate-200 group-hover:bg-blue-50 group-hover:text-blue-600 group-hover:border-blue-200 transition-colors">
-                                <Package className="w-5 h-5" />
-                            </div>
-                            <h3 className="text-sm font-bold text-slate-800 group-hover:text-blue-700 transition-colors leading-snug line-clamp-2">
-                                {cat.tag}
-                            </h3>
-                        </div>
+                        {/* Status Stripe */}
+                        <div className={`absolute top-0 left-0 right-0 h-1.5 ${cat.outOfStockCount > 0 ? 'bg-red-500' : 'bg-emerald-500'}`} />
 
-                        <div className="flex items-center gap-2 mt-auto">
-                            <div className="flex-1 py-1.5 bg-slate-50 text-slate-600 text-[11px] font-semibold rounded border border-slate-200 uppercase tracking-wider text-center">
-                                {cat.count} Items
+                        <div className="flex justify-between items-start mb-5 mt-1">
+                            <div className="bg-[#D4AF37]/10 p-3 rounded-2xl group-hover:bg-[#D4AF37]/20 transition-colors">
+                                <Package className="w-7 h-7 text-[#D4AF37]" />
                             </div>
-                            {cat.outOfStockCount > 0 ? (
-                                <div className="flex-1 py-1.5 bg-red-50 text-red-600 text-[11px] font-bold rounded border border-red-200 uppercase tracking-wider flex items-center justify-center gap-1.5">
-                                    <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />
-                                    {cat.outOfStockCount} OUT
-                                </div>
-                            ) : (
-                                <div className="flex-1 py-1.5 bg-emerald-50 text-emerald-600 text-[11px] font-semibold rounded border border-emerald-200 uppercase tracking-wider text-center">
-                                    ALL STOCKED
-                                </div>
-                            )}
+                            <div className="flex items-center gap-2">
+                                {cat.outOfStockCount > 0 && (
+                                    <span className="bg-red-50 text-red-600 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 border border-red-100">
+                                        <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />
+                                        {cat.outOfStockCount} OUT
+                                    </span>
+                                )}
+                                <span className="bg-gray-100 text-gray-600 px-3 py-1 rounded-full text-xs font-bold">
+                                    {cat.count} item(s)
+                                </span>
+                            </div>
                         </div>
-                    </button>
+                        <h3 className="text-xl font-bold text-gray-800 mb-1 group-hover:text-[#D4AF37] transition-colors leading-snug">
+                            {cat.tag}
+                        </h3>
+
+                        <div className="mt-auto pt-6 flex items-center justify-between text-sm font-bold text-gray-900 group-hover:text-[#D4AF37] transition-colors">
+                            View Details
+                            <ChevronRight className="w-5 h-5 transform group-hover:translate-x-1 transition-transform" />
+                        </div>
+                    </div>
                 ))}
             </div>
             )}

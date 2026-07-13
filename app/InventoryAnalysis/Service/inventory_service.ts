@@ -215,9 +215,29 @@ function aggregateMovements(moveRows: InventoryMoveRow[]) {
 
 export async function getProductMovementsData() {
   try {
-    const moveRows = await fetchInventoryMoves();
-    const data = aggregateMovements(moveRows);
-    return { success: true, data };
+    const { data, error } = await bhs_supabase.rpc('get_inventory_movements_summary');
+    
+    if (error) {
+      console.warn('RPC failed or not found, falling back to manual fetch', error);
+      const moveRows = await fetchInventoryMoves();
+      const aggregated = aggregateMovements(moveRows);
+      return { success: true, data: aggregated };
+    }
+
+    const movements: Record<string, { sales: number; returns: number; netPurchases: number }> = {};
+    if (data) {
+      data.forEach((row: any) => {
+        if (row.product_id) {
+          movements[row.product_id] = {
+            sales: Number(row.sales) || 0,
+            returns: Number(row.returns) || 0,
+            netPurchases: Number(row.net_purchases) || 0
+          };
+        }
+      });
+    }
+
+    return { success: true, data: movements };
   } catch (error: any) {
     console.error('API Error:', error);
     return { success: false, error: 'Failed to fetch movements data', details: error.message };

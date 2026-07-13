@@ -263,6 +263,48 @@ export async function getOverviewData(userId: string, filters: any) {
     throw error;
   }
 
+  if (!data) return data;
+
+  const normalizeNumeric = (val: any) => Number(val) || 0;
+
+  if (data.metrics) {
+      data.metrics.totalAmount = normalizeNumeric(data.metrics.totalAmount);
+      data.metrics.avgMonthlyAmount = normalizeNumeric(data.metrics.avgMonthlyAmount);
+      data.metrics.totalQty = normalizeNumeric(data.metrics.totalQty);
+      data.metrics.avgMonthlyQty = normalizeNumeric(data.metrics.avgMonthlyQty);
+  }
+
+  if (data.chartData) {
+      data.chartData = data.chartData.map((d: any) => ({
+          ...d,
+          prevAmount: normalizeNumeric(d.prevAmount),
+          currentAmount: normalizeNumeric(d.currentAmount),
+          diff: normalizeNumeric(d.diff)
+      }));
+  }
+
+  if (data.yearlyTableData) {
+      data.yearlyTableData = data.yearlyTableData.map((d: any) => ({
+          ...d,
+          amount: normalizeNumeric(d.amount),
+          amountDiff: normalizeNumeric(d.amountDiff),
+          qty: normalizeNumeric(d.qty),
+          grossSales: normalizeNumeric(d.grossSales),
+          grvAmount: normalizeNumeric(d.grvAmount)
+      }));
+  }
+
+  if (data.monthlyTableData) {
+      data.monthlyTableData = data.monthlyTableData.map((d: any) => ({
+          ...d,
+          amount: normalizeNumeric(d.amount),
+          amountDiff: normalizeNumeric(d.amountDiff),
+          qty: normalizeNumeric(d.qty),
+          grossSales: normalizeNumeric(d.grossSales),
+          grvAmount: normalizeNumeric(d.grvAmount)
+      }));
+  }
+
   return data;
 }
 

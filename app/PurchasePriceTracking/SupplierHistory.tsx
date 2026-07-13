@@ -33,7 +33,7 @@ export default function SupplierHistory({ purchases, products, suppliers }: Prop
     return suppliers.filter(s => 
       s.name.toLowerCase().includes(lower) || 
       s.id.toLowerCase().includes(lower)
-    ).slice(0, 50); // limit for performance in grid
+    );
   }, [searchTerm, suppliers]);
 
   const supplierPurchases = useMemo(() => {

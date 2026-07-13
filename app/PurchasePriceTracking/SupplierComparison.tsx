@@ -27,8 +27,7 @@ export default function SupplierComparison({ purchases, products, suppliers }: P
         p.id.toLowerCase().includes(lower) ||
         (p.barcode && p.barcode.toLowerCase().includes(lower))
       )
-      .sort((a, b) => a.name.localeCompare(b.name))
-      .slice(0, 50); // limit for performance in grid
+      .sort((a, b) => a.name.localeCompare(b.name));
   }, [searchTerm, products, purchases]);
 
   const productPurchases = useMemo(() => {

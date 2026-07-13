@@ -25,6 +25,8 @@ export const getInvoiceType = (inv: InvoiceTypeInput): string => {
     return 'Sales';
   } else if (num.startsWith('RSAL')) {
     return 'Return';
+  } else if (num.startsWith('RBIL')) {
+    return 'R-BIL';
   } else if (num.startsWith('JV') || num.startsWith('BIL')) {
     return 'Discount';
   } else if (credit > 0.01) {

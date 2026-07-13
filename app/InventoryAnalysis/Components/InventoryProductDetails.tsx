@@ -110,12 +110,6 @@ export default function ProductDetails({ productId, productName, barcode, onBack
     if (!data) return null;
     const { summary, monthlyData } = data;
 
-    // --- Predictive Insights Logic ---
-    const m3 = monthlyData.slice(0, 3);
-    const avgSales3M = m3.reduce((sum, m) => sum + m.sales, 0) / (m3.length || 1);
-    const dailySales = avgSales3M / 30;
-    const coverageDays = dailySales > 0 ? summary.currentStock / dailySales : (summary.currentStock > 0 ? 999 : 0);
-    const turnoverRatio = summary.currentStock > 0 ? summary.sales / summary.currentStock : (summary.sales > 0 ? 12 : 0);
 
     const CustomTooltip = ({ active, payload, label }: any) => {
         if (active && payload && payload.length) {
@@ -173,38 +167,30 @@ export default function ProductDetails({ productId, productName, barcode, onBack
         Purchases: m.purchases
     }));
 
-    const StatCard = ({ title, value, icon: Icon, color, subValue, isAvg, suffix }: any) => (
-        <div className={`p-5 rounded-3xl border border-slate-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 group overflow-hidden relative ${isAvg ? 'bg-slate-50/50' : 'bg-white'}`}>
-            <div className="flex items-center justify-between relative z-10 gap-4">
-                {/* Left Side: Icon & Title */}
-                <div className="flex items-center gap-3.5">
-                    <div className={`p-3 rounded-2xl ${color} bg-opacity-10 group-hover:scale-110 transition-transform duration-500`}>
-                        <Icon className={`w-5 h-5 ${color.replace('bg-', 'text-')}`} />
-                    </div>
-                    <div className="flex flex-col">
-                        <h3 className="text-slate-400 text-[10px] font-black uppercase tracking-[0.15em] mb-0.5">{title}</h3>
-                        <div className="flex items-center gap-2">
-                            {isAvg && <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest bg-slate-100 px-1.5 py-0.5 rounded leading-none">Monthly Avg</span>}
-                            {subValue && <span className="text-[9px] font-black text-rose-500 uppercase bg-rose-50 px-1.5 py-0.5 rounded leading-none">{subValue}</span>}
+    const StatCard = ({ title, value, color, subValue, isAvg, suffix }: any) => {
+        const textColorClass = color.replace('bg-', 'text-');
+        const finalTextColor = textColorClass.includes('slate') ? 'text-slate-800' : textColorClass;
+        
+        return (
+            <div className={`p-4 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between gap-3 ${isAvg ? 'bg-slate-50/50' : 'bg-white'}`}>
+                <div className="flex items-start justify-between gap-2">
+                    <h3 className="text-slate-500 text-xs font-bold uppercase tracking-wider leading-tight">{title}</h3>
+                    {(isAvg || subValue) && (
+                        <div className="flex flex-col items-end gap-1 shrink-0">
+                            {isAvg && <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest bg-slate-200/50 px-1.5 py-0.5 rounded leading-none">Avg</span>}
+                            {subValue && <span className="text-[9px] font-bold text-rose-500 uppercase bg-rose-50 px-1.5 py-0.5 rounded leading-none">{subValue}</span>}
                         </div>
-                    </div>
+                    )}
                 </div>
-
-                {/* Right Side: Value */}
-                <div className="text-right">
-                    <p className={`text-2xl font-black tracking-tighter leading-none ${color.replace('bg-', 'text-').includes('slate') ? 'text-slate-800' : color.replace('bg-', 'text-')}`}>
+                <div>
+                    <p className={`text-2xl lg:text-3xl font-black tracking-tighter leading-none ${finalTextColor}`}>
                         {typeof value === 'number' ? Math.round(value).toLocaleString() : value}
-                        {suffix && <span className="text-[11px] font-bold text-slate-400 ml-1 tracking-normal italic opacity-60">{suffix}</span>}
+                        {suffix && <span className="text-xs font-bold text-slate-400 ml-1 tracking-normal italic opacity-60">{suffix}</span>}
                     </p>
                 </div>
             </div>
-
-            {/* Background Decorative Icon */}
-            <div className={`absolute -right-2 -bottom-2 opacity-[0.03] pointer-events-none group-hover:scale-125 group-hover:opacity-5 transition-all duration-1000`}>
-                <Icon className={`w-24 h-24 ${color.replace('bg-', 'text-')}`} />
-            </div>
-        </div>
-    );
+        );
+    };
 
     return (
         <div className="flex flex-col gap-6 p-8 bg-slate-50/30 min-h-screen">
@@ -306,88 +292,58 @@ export default function ProductDetails({ productId, productName, barcode, onBack
                         </div>
                     </div>
 
-                    <button
-                        onClick={() => {
-                            setPreset('all');
-                            setYear(''); setMonth(''); setFromDate(''); setToDate('');
-                        }}
-                        className="p-3 bg-white border border-slate-100 rounded-2xl text-slate-400 hover:text-rose-500 hover:border-rose-100 transition-all shadow-sm"
-                    >
-                        <RefreshCw className="w-4 h-4" />
-                    </button>
+
                 </div>
             </div>
 
-            {/* High-Density KPI Grid - Two Rows Layout */}
-            <div className="flex flex-col gap-4">
-                {/* Row 1: Inventory Health & Sales Performance */}
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-                    <StatCard
-                        title="Live Stock"
-                        value={summary.currentStock}
-                        icon={Box}
-                        color="bg-blue-600"
-                    />
-                    <StatCard
-                        title="Coverage"
-                        value={coverageDays}
-                        suffix="Days"
-                        icon={Clock}
-                        color={coverageDays < 15 ? "bg-rose-500" : "bg-blue-400"}
-                    />
-                    <StatCard
-                        title="Turnover"
-                        value={turnoverRatio}
-                        suffix="x/y"
-                        icon={RefreshCw}
-                        color="bg-emerald-500"
-                    />
-                    <StatCard
-                        title="Total Sales"
-                        value={summary.sales}
-                        subValue={`${summary.returnsRate}% RET`}
-                        icon={ShoppingCart}
-                        color="bg-rose-500"
-                    />
-                    <StatCard
-                        title="Sales Avg"
-                        value={Math.round(summary.sales / (monthlyData.length || 1))}
-                        icon={ShoppingCart}
-                        color="bg-slate-500"
-                        isAvg
-                    />
-                </div>
-
-                {/* Row 2: Returns, Supply & Flow */}
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-                    <StatCard
-                        title="Returns"
-                        value={summary.returns}
-                        icon={TrendingDown}
-                        color="bg-amber-500"
-                    />
-                    <StatCard
-                        title="Returns Avg"
-                        value={Math.round(summary.returns / (monthlyData.length || 1))}
-                        icon={TrendingDown}
-                        color="bg-slate-500"
-                        isAvg
-                    />
-                    <StatCard
-                        title="Net Purchases"
-                        value={summary.netPurchases}
-                        icon={Truck}
-                        color="bg-emerald-600"
-                    />
-                    <StatCard
-                        title="Purchases Avg"
-                        value={Math.round(summary.netPurchases / (monthlyData.length || 1))}
-                        icon={Truck}
-                        color="bg-slate-500"
-                        isAvg
-                    />
-
-                </div>
+            {/* High-Density KPI Grid - Single Row Layout */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-7 gap-4">
+                <StatCard
+                    title="Live Stock"
+                    value={summary.currentStock}
+                    icon={Box}
+                    color="bg-blue-600"
+                />
+                <StatCard
+                    title="Total Sales"
+                    value={summary.sales}
+                    subValue={`${summary.returnsRate}% RET`}
+                    icon={ShoppingCart}
+                    color="bg-rose-500"
+                />
+                <StatCard
+                    title="Sales Avg"
+                    value={Math.round(summary.sales / (monthlyData.length || 1))}
+                    icon={ShoppingCart}
+                    color="bg-slate-500"
+                    isAvg
+                />
+                <StatCard
+                    title="Returns"
+                    value={summary.returns}
+                    icon={TrendingDown}
+                    color="bg-amber-500"
+                />
+                <StatCard
+                    title="Returns Avg"
+                    value={Math.round(summary.returns / (monthlyData.length || 1))}
+                    icon={TrendingDown}
+                    color="bg-slate-500"
+                    isAvg
+                />
+                <StatCard
+                    title="Net Purchases"
+                    value={summary.netPurchases}
+                    icon={Truck}
+                    color="bg-emerald-600"
+                />
+                <StatCard
+                    title="Purchases Avg"
+                    value={Math.round(summary.netPurchases / (monthlyData.length || 1))}
+                    icon={Truck}
+                    color="bg-slate-500"
+                    isAvg
+                />
             </div>
 
             {/* Movement Trends Chart */}

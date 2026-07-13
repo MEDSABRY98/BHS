@@ -48,9 +48,9 @@ export default function PurchasePriceTrackingPage() {
       setIsLoading(true);
       
       const [purchasesData, suppliersData, productsData] = await Promise.all([
-        fetchAllData(() => bhs_supabase.from('web_Suppliers_Purchase').select('*')),
-        fetchAllData(() => bhs_supabase.from('bhs_SUPPLIERS').select('"SUPPLIER ID", "SUPPLIER NAME"')),
-        fetchAllData(() => bhs_supabase.from('bhs_PRODUCTS').select('"PRODUCT ID", "PRODUCT NAME", "PRODUCT BARCODE"'))
+        fetchAllData(() => bhs_supabase.from('web_Suppliers_Purchase').select('*').order('ID', { ascending: true })),
+        fetchAllData(() => bhs_supabase.from('bhs_SUPPLIERS').select('"SUPPLIER ID", "SUPPLIER NAME"').order('SUPPLIER ID', { ascending: true })),
+        fetchAllData(() => bhs_supabase.from('bhs_PRODUCTS').select('"PRODUCT ID", "PRODUCT NAME", "PRODUCT BARCODE"').order('PRODUCT ID', { ascending: true }))
       ]);
 
       const excludedProductNames = ['PACKAGING'];
