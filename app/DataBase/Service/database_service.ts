@@ -651,39 +651,65 @@ export async function uploadDebitData(payload: any[] | string) {
     }
 
     // Validation: Ensure all CUSTOMER IDs exist in bhs_CUSTOMERS, or map names to IDs
-    const { data: customersData, error: customersError } = await bhs_supabase.from('bhs_CUSTOMERS').select('"CUSTOMER ID", "CUSTOMER MAIN NAME"');
-    if (customersError) {
-      throw new Error('Failed to fetch customers for validation: ' + customersError.message);
+    const pageSize = 1000;
+    let from = 0;
+    const customersData: { 'CUSTOMER ID': string, 'CUSTOMER MAIN NAME': string }[] = [];
+
+    while (true) {
+      const { data, error } = await bhs_supabase
+        .from('bhs_CUSTOMERS')
+        .select('"CUSTOMER ID", "CUSTOMER MAIN NAME"')
+        .range(from, from + pageSize - 1);
+        
+      if (error) {
+        throw new Error('Failed to fetch customers for validation: ' + error.message);
+      }
+      
+      if (!data || data.length === 0) break;
+      customersData.push(...data);
+      if (data.length < pageSize) break;
+      from += pageSize;
     }
 
-    const validCustomerIds = new Set(customersData.map((c: any) => c['CUSTOMER ID']?.toString().trim()));
+    const validCustomerIdsMap = new Map<string, string>();
     const nameToIdMap = new Map<string, string>();
     customersData.forEach((c: any) => {
-        if (c['CUSTOMER MAIN NAME'] && c['CUSTOMER ID']) {
-            nameToIdMap.set(c['CUSTOMER MAIN NAME'].toString().trim().toLowerCase(), c['CUSTOMER ID'].toString().trim());
+        const id = c['CUSTOMER ID']?.toString().trim();
+        const name = c['CUSTOMER MAIN NAME']?.toString().trim();
+        if (id) {
+            validCustomerIdsMap.set(id.toLowerCase(), id);
+            if (name) {
+                nameToIdMap.set(name.toLowerCase(), id);
+            }
         }
     });
 
     const invalidEntries = new Set<string>();
 
     data.forEach((row: any) => {
-      let custId = row['CUSTOMER ID']?.toString().trim();
+      const custId = row['CUSTOMER ID']?.toString().trim();
       const custName = row['CUSTOMER NAME']?.toString().trim();
 
       if (custName) {
-          const matchedId = nameToIdMap.get(custName.toLowerCase());
-          if (matchedId) {
-              row['CUSTOMER ID'] = matchedId;
+          const lowerCustName = custName.toLowerCase();
+          if (validCustomerIdsMap.has(lowerCustName)) {
+              row['CUSTOMER ID'] = validCustomerIdsMap.get(lowerCustName);
               delete row['CUSTOMER NAME'];
           } else {
-              invalidEntries.add(custName);
+              const matchedId = nameToIdMap.get(lowerCustName);
+              if (matchedId) {
+                  row['CUSTOMER ID'] = matchedId;
+                  delete row['CUSTOMER NAME'];
+              } else {
+                  invalidEntries.add(custName);
+              }
           }
       } else if (custId) {
-          if (validCustomerIds.has(custId)) {
-              // Valid ID, do nothing
-          } else if (nameToIdMap.has(custId.toLowerCase())) {
-              // They put the name in the ID column
-              row['CUSTOMER ID'] = nameToIdMap.get(custId.toLowerCase());
+          const lowerCustId = custId.toLowerCase();
+          if (validCustomerIdsMap.has(lowerCustId)) {
+              row['CUSTOMER ID'] = validCustomerIdsMap.get(lowerCustId);
+          } else if (nameToIdMap.has(lowerCustId)) {
+              row['CUSTOMER ID'] = nameToIdMap.get(lowerCustId);
           } else {
               invalidEntries.add(custId);
           }
