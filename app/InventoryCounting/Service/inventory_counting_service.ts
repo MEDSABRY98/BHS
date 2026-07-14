@@ -26,12 +26,13 @@ export interface ICRecord {
   countedQty: number;
 }
 
+import { getLiveAvailableQuantitiesFromMoves } from '@/app/InventoryAnalysis/Service/inventory_service';
+
 type MixCountProductRow = {
   ID: string;
   'PRODUCT ID': string;
   'PRODUCT BARCODE': string | null;
   'PRODUCT NAME': string;
-  'AVAILABLE QTY': number | null;
   'QTY IN BOX': number | null;
 };
 
@@ -80,13 +81,14 @@ async function loadMixCountProductMap(): Promise<Map<string, MixCountProductRow>
 
 export async function fetchICTotal(countType: CountType) {
   try {
-    const [products, totals] = await Promise.all([
+    const [products, totals, liveStockMap] = await Promise.all([
       fetchAllMixCountRows<MixCountProductRow>('bhs_PRODUCTS', '*'),
       fetchAllMixCountRows<{ 'PRODUCT ID': string; 'COUNTED QTY': number | null }>(
         'mix_INVENTORY_COUNT_TOTALS',
         '"PRODUCT ID","COUNTED QTY"',
         { column: 'COUNT_TYPE', value: countType }
       ),
+      getLiveAvailableQuantitiesFromMoves(),
     ]);
 
     const totalMap = new Map(
@@ -94,14 +96,17 @@ export async function fetchICTotal(countType: CountType) {
     );
 
     const data = products
-      .map((p) => ({
-        productId: p['PRODUCT ID']?.toString().trim() || '',
-        barcodeName: p['PRODUCT BARCODE']?.toString().trim() || '',
-        productName: p['PRODUCT NAME']?.toString().trim() || '',
-        availableQty: parseNum(p['AVAILABLE QTY']),
-        qtyInBox: parseNum(p['QTY IN BOX']),
-        countedQty: totalMap.get(p['PRODUCT ID']?.toString().trim()) || 0,
-      }))
+      .map((p) => {
+        const pid = p['PRODUCT ID']?.toString().trim() || '';
+        return {
+          productId: pid,
+          barcodeName: p['PRODUCT BARCODE']?.toString().trim() || '',
+          productName: p['PRODUCT NAME']?.toString().trim() || '',
+          availableQty: liveStockMap.get(pid) || 0,
+          qtyInBox: parseNum(p['QTY IN BOX']),
+          countedQty: totalMap.get(pid) || 0,
+        };
+      })
       .filter((item) => item.productName)
       .sort((a, b) => a.productName.localeCompare(b.productName));
       
@@ -165,7 +170,6 @@ export async function updateICItem(
       .update({
         'PRODUCT BARCODE': newValues.barcodeName.trim(),
         'PRODUCT NAME': newValues.productName.trim(),
-        'AVAILABLE QTY': parseNum(newValues.availableQty),
         'QTY IN BOX': parseNum(newValues.qtyInBox),
       })
       .eq('PRODUCT ID', productId.trim())

@@ -1,6 +1,10 @@
 'use server';
 
 import { bhs_supabase } from '@/lib/supabase';
+import {
+  classifyMovement,
+  getNetQtyEffect,
+} from '../Components/locationTypes';
 
 // Shared Types
 type InventoryMoveRow = {
@@ -628,4 +632,233 @@ export async function deleteMovesDb(date?: string | null, year?: number, month?:
     console.error('Inventory moves month delete API error:', error);
     return { success: false, error: 'Failed to delete inventory moves for month', details: error.message };
   }
+}
+
+export async function deleteAllInventoryMovesDb(): Promise<{ success: boolean; error?: string }> {
+  try {
+    const pageSize = 1000;
+    while (true) {
+      const { data, error } = await bhs_supabase
+        .from('web_INVENTORY_MOVES')
+        .select('ID')
+        .limit(pageSize);
+
+      if (error) throw error;
+      if (!data || data.length === 0) break;
+
+      const ids = data.map((row) => row.ID).filter(Boolean);
+      if (ids.length === 0) break;
+
+      const { error: deleteError } = await bhs_supabase
+        .from('web_INVENTORY_MOVES')
+        .delete()
+        .in('ID', ids);
+      if (deleteError) throw deleteError;
+
+      if (data.length < pageSize) break;
+    }
+    return { success: true };
+  } catch (error: any) {
+    console.error('Inventory moves delete all API error:', error);
+    return { success: false, error: error.message || 'Failed to delete all inventory moves' };
+  }
+}
+
+// ----------------------------------------------------------------------
+// Products Balance & Period Movement Calculation
+// ----------------------------------------------------------------------
+
+const formatCategory = (tag: string) => {
+  if (!tag || tag === 'All' || tag === 'Uncategorized') return tag;
+  const parts = tag.split('/');
+  return parts[parts.length - 1].trim();
+};
+
+export interface ProductBalanceRow {
+  productId: string;
+  barcode: string;
+  productName: string;
+  category: string;
+  openingStock: number;
+  netVendors: number;
+  netCustomers: number;
+  netProduction: number;
+  netSubcontracting: number;
+  endingStock: number;
+  periodMovements: Array<{
+    date: string;
+    reference: string;
+    locationFrom: string;
+    locationTo: string;
+    qty: number;
+    type: string;
+  }>;
+}
+
+export async function getProductsBalanceReportData(filters?: { dateFrom?: string; dateTo?: string }) {
+  try {
+    const [products, moveRows] = await Promise.all([
+      fetchInventoryProducts(),
+      fetchAllInventoryRows<InventoryMoveRow>('web_INVENTORY_MOVES', 'ID,DATE,REFERENCE,"LOCATION FROM","LOCATION TO","PRODUCT ID",QTY', {
+        order: { column: 'DATE', ascending: true },
+      }),
+    ]);
+
+    const dateFromStr = filters?.dateFrom ? filters.dateFrom.trim() : null;
+    const dateToStr = filters?.dateTo ? filters.dateTo.trim() : null;
+
+    const fromDate = dateFromStr ? new Date(`${dateFromStr}T00:00:00.000Z`) : null;
+    const toDate = dateToStr ? new Date(`${dateToStr}T23:59:59.999Z`) : null;
+
+    // Aggregate period movements & period opening stock strictly from web_INVENTORY_MOVES
+    const productDataMap = new Map<string, {
+      openingStock: number;
+      netVendors: number;
+      netCustomers: number;
+      netProduction: number;
+      netSubcontracting: number;
+      periodMovements: Array<{
+        date: string;
+        reference: string;
+        locationFrom: string;
+        locationTo: string;
+        qty: number;
+        type: string;
+      }>;
+    }>();
+
+    moveRows.forEach((row: any) => {
+      const productId = row['PRODUCT ID']?.toString().trim();
+      if (!productId) return;
+
+      const dateStr = row.DATE ? String(row.DATE) : '';
+      const moveDate = dateStr ? new Date(dateStr) : null;
+      const qty = parseNum(row.QTY);
+      const locFrom = row['LOCATION FROM']?.toString().trim() || '';
+      const locTo = row['LOCATION TO']?.toString().trim() || '';
+      const ref = row.REFERENCE?.toString().trim() || '-';
+
+      if (!productDataMap.has(productId)) {
+        productDataMap.set(productId, {
+          openingStock: 0,
+          netVendors: 0,
+          netCustomers: 0,
+          netProduction: 0,
+          netSubcontracting: 0,
+          periodMovements: [],
+        });
+      }
+
+      const entry = productDataMap.get(productId)!;
+
+      // Use centralized classifier from locationTypes.ts
+      const type = classifyMovement(locFrom, locTo);
+
+      // 1. If movement is BEFORE dateFrom -> Add to openingStock (purely from web_INVENTORY_MOVES)
+      if (fromDate && moveDate && moveDate < fromDate) {
+        entry.openingStock += getNetQtyEffect(locFrom, locTo, qty);
+        return;
+      }
+
+      // 2. If movement is AFTER dateTo -> Ignore for current period
+      if (toDate && moveDate && moveDate > toDate) {
+        return;
+      }
+
+      // 3. Movement is WITHIN period [dateFrom, dateTo]
+      if (type === 'purchase') entry.netVendors += qty;
+      else if (type === 'vendor_return') entry.netVendors -= qty;
+      else if (type === 'sale') entry.netCustomers -= qty;
+      else if (type === 'customer_return') entry.netCustomers += qty;
+      else if (type === 'production_in') entry.netProduction += qty;
+      else if (type === 'production_out') entry.netProduction -= qty;
+      else if (type === 'subcontracting_in') entry.netSubcontracting += qty;
+      else if (type === 'subcontracting_out') entry.netSubcontracting -= qty;
+
+      entry.periodMovements.push({
+        date: dateStr,
+        reference: ref,
+        locationFrom: locFrom,
+        locationTo: locTo,
+        qty,
+        type,
+      });
+    });
+
+    const result = products.map((row) => {
+      const productId = row['PRODUCT ID']?.toString().trim() || '';
+      const barcode = row['PRODUCT BARCODE']?.toString().trim() || '';
+      const productName = row['PRODUCT NAME']?.toString().trim() || '';
+      const category = formatCategory(row['PRODUCT CATEGORY']?.toString().trim() || '');
+
+      const calcData = productDataMap.get(productId) || {
+        openingStock: 0,
+        netVendors: 0,
+        netCustomers: 0,
+        netProduction: 0,
+        netSubcontracting: 0,
+        periodMovements: [],
+      };
+
+      const endingStock = calcData.openingStock + calcData.netVendors + calcData.netCustomers + calcData.netProduction + calcData.netSubcontracting;
+
+      return {
+        productId,
+        barcode,
+        productName,
+        category,
+        openingStock: calcData.openingStock,
+        netVendors: calcData.netVendors,
+        netCustomers: calcData.netCustomers,
+        netProduction: calcData.netProduction,
+        netSubcontracting: calcData.netSubcontracting,
+        endingStock,
+        periodMovements: calcData.periodMovements,
+      };
+    }).filter(p => p.productName && (productDataMap.has(p.productId) || p.endingStock !== 0 || p.openingStock !== 0));
+
+    return { success: true, data: result };
+  } catch (error: any) {
+    console.error('Service Error getProductsBalanceReportData:', error);
+    return { success: false, error: 'Failed to fetch products balance data', details: error.message };
+  }
+}
+
+/**
+ * Calculates current available stock for all products strictly from web_INVENTORY_MOVES.
+ * Internal Warehouses: defined in locationTypes.ts (INTERNAL_WAREHOUSES)
+ * Returns a Map<productId, currentAvailableQty>
+ */
+export async function getLiveAvailableQuantitiesFromMoves(): Promise<Map<string, number>> {
+  const stockMap = new Map<string, number>();
+
+  const moves = await fetchAllInventoryRows<InventoryMoveRow>(
+    'web_INVENTORY_MOVES',
+    'ID,DATE,REFERENCE,"LOCATION FROM","LOCATION TO","PRODUCT ID",QTY'
+  );
+
+  for (const move of moves) {
+    const productId = (move['PRODUCT ID'] || '').trim();
+    if (!productId) continue;
+
+    const qty = move.QTY || 0;
+    const fromLoc = (move['LOCATION FROM'] || '').trim();
+    const toLoc = (move['LOCATION TO'] || '').trim();
+
+    const effect = getNetQtyEffect(fromLoc, toLoc, qty);
+    if (effect !== 0) {
+      stockMap.set(productId, (stockMap.get(productId) || 0) + effect);
+    }
+  }
+
+  return stockMap;
+}
+
+/**
+ * Calculates live current available stock for a single product strictly from web_INVENTORY_MOVES.
+ */
+export async function getProductAvailableQtyFromMoves(productId: string): Promise<number> {
+  if (!productId) return 0;
+  const map = await getLiveAvailableQuantitiesFromMoves();
+  return map.get(productId.trim()) || 0;
 }

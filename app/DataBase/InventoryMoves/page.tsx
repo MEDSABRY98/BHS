@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { bhs_supabas } from '@/lib/supabase';
-import { Search, Plus, ChevronLeft, ChevronRight, ArrowLeft, FileSpreadsheet, Download, Upload, X, Loader2 } from 'lucide-react';
+import { Search, Plus, ChevronLeft, ChevronRight, ArrowLeft, FileSpreadsheet, Download, Upload, X, Loader2, Trash2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { ConfirmModal } from '@/app/LPOs/Components/ConfirmModal';
 import { usePermissions } from '@/app/LPOs/Hooks/usePermissions';
@@ -12,7 +12,7 @@ import InventoryMovesTable, { InventoryMoveRow } from './Components/InventoryMov
 import InventoryMovesModal, { InventoryMoveFormValues } from './Components/InventoryMovesModal';
 import InventoryMovesMonthsGrid, { MoveMonthSummary, englishMonths } from './Components/InventoryMovesMonthsGrid';
 import InventoryMovesDaysGrid, { MoveDaySummary } from './Components/InventoryMovesDaysGrid';
-import { fetchMoveMonthsSummary, fetchMoveDaysSummary, deleteMovesDb } from '@/app/InventoryAnalysis/Service/inventory_service';
+import { fetchMoveMonthsSummary, fetchMoveDaysSummary, deleteMovesDb, deleteAllInventoryMovesDb } from '@/app/InventoryAnalysis/Service/inventory_service';
 import { exportDatabaseExcelTable } from '../Utils/ExcelExport';
 import { downloadUploadIssuesReport } from '../Utils/ExcelUploadUtils';
 
@@ -79,6 +79,24 @@ export default function InventoryMovesPage() {
   const [dayToDelete, setDayToDelete] = useState<string | null>(null);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [isDeleteAllConfirmOpen, setIsDeleteAllConfirmOpen] = useState(false);
+  const [isDeletingAll, setIsDeletingAll] = useState(false);
+
+  const executeDeleteAll = async () => {
+    setIsDeletingAll(true);
+    try {
+      const result = await deleteAllInventoryMovesDb();
+      if (!result.success) throw new Error(result.error);
+      toast.success('Deleted all inventory moves data successfully!');
+      await fetchMoveMonths();
+      backToMonths();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete all inventory moves');
+    } finally {
+      setIsDeletingAll(false);
+      setIsDeleteAllConfirmOpen(false);
+    }
+  };
 
   useEffect(() => {
     fetchMoveMonths();
@@ -629,6 +647,16 @@ export default function InventoryMovesPage() {
               <FileSpreadsheet className="w-5 h-5" />
             </button>
           )}
+          {canDelete && (
+            <button
+              type="button"
+              onClick={() => setIsDeleteAllConfirmOpen(true)}
+              className="p-3 bg-white border border-red-200 text-red-600 rounded-2xl shadow-sm hover:scale-[1.05] active:scale-[0.95] hover:bg-red-50 transition-all flex items-center justify-center shrink-0 cursor-pointer"
+              title="Delete All Inventory Moves Data"
+            >
+              <Trash2 className="w-5 h-5" />
+            </button>
+          )}
         </div>
 
         <InventoryMovesMonthsGrid
@@ -650,6 +678,14 @@ export default function InventoryMovesPage() {
               ? `Are you sure you want to delete all inventory moves for ${englishMonths[monthToDelete.month]} ${monthToDelete.year}? This cannot be undone.`
               : ''
           }
+        />
+        <ConfirmModal
+          isOpen={isDeleteAllConfirmOpen}
+          onConfirm={executeDeleteAll}
+          onCancel={() => setIsDeleteAllConfirmOpen(false)}
+          isLoading={isDeletingAll}
+          title="Confirm Delete All Data"
+          message="Are you sure you want to delete ALL inventory moves data? This action will permanently remove all recorded movements and CANNOT be undone."
         />
         {excelUploadModal}
       </div>

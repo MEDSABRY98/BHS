@@ -77,8 +77,8 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
         { id: 'categories', label: 'Categories' },
     ],
     'inventory': [
-        { id: 'orders', label: 'Products' },
-        { id: 'item_code', label: 'Item Code' },
+        { id: 'products_balance', label: 'Products Balance' },
+        { id: 'categories', label: 'Categories Analysis' },
     ],
     'inventory-counting': [
         { id: 'normal_total', label: 'Normal Count' },

@@ -57,7 +57,6 @@ export default function ProductsPage() {
   const [productCategory, setProductCategory] = useState('');
   const [productCost, setProductCost] = useState<string>('');
   const [qtyInBox, setQtyInBox] = useState<string>('0');
-  const [availableQty, setAvailableQty] = useState<string>('0');
   const [isCountable, setIsCountable] = useState<boolean>(false);
   const [isUploading, setIsUploading] = useState(false);
 
@@ -104,8 +103,8 @@ export default function ProductsPage() {
       if (error) throw error;
       setProducts(data || []);
       setTotalCount(count || 0);
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      toast.error('Failed to load products: ' + err.message);
     } finally {
       setIsLoading(false);
     }
@@ -120,7 +119,6 @@ export default function ProductsPage() {
     setProductCategory(product ? product["PRODUCT CATEGORY"] || '' : '');
     setProductCost(product ? (product["PRODUCT COST"] ?? '').toString() : '');
     setQtyInBox(product ? (product["QTY IN BOX"] ?? '0').toString() : '0');
-    setAvailableQty(product ? (product["AVAILABLE QTY"] ?? '0').toString() : '0');
     setIsCountable(product ? (product["IS_COUNTABLE"] ?? false) : false);
     setIsModalOpen(true);
   };
@@ -164,7 +162,6 @@ export default function ProductsPage() {
             "PRODUCT CATEGORY": productCategory,
             "PRODUCT COST": productCost !== '' ? Number(productCost) : 0,
             "QTY IN BOX": qtyInBox !== '' ? Number(qtyInBox) : 0,
-            "AVAILABLE QTY": availableQty !== '' ? Number(availableQty) : 0,
             "IS_COUNTABLE": isCountable
           })
           .eq('ID', editingProduct.ID);
@@ -200,7 +197,6 @@ export default function ProductsPage() {
             "PRODUCT CATEGORY": productCategory,
             "PRODUCT COST": productCost !== '' ? Number(productCost) : 0,
             "QTY IN BOX": qtyInBox !== '' ? Number(qtyInBox) : 0,
-            "AVAILABLE QTY": availableQty !== '' ? Number(availableQty) : 0,
             "IS_COUNTABLE": isCountable
           });
         if (error) throw error;
@@ -356,12 +352,11 @@ export default function ProductsPage() {
         'ITEM CODE': p['ITEM CODE'],
         'PRODUCT COST': p['PRODUCT COST'],
         'QTY IN BOX': p['QTY IN BOX'] || 0,
-        'AVAILABLE QTY': p['AVAILABLE QTY'] || 0,
         'IS_COUNTABLE': p['IS_COUNTABLE'] ? 'Yes' : 'No'
       }));
 
       await exportDatabaseExcel(exportData, `Products_Database_${new Date().toISOString().split('T')[0]}.xlsx`, {
-        numericColumns: ['PRODUCT COST', 'ITEM CODE', 'QTY IN BOX', 'AVAILABLE QTY'],
+        numericColumns: ['PRODUCT COST', 'ITEM CODE', 'QTY IN BOX'],
       });
       toast.success('Database exported successfully!');
     } catch (err: any) {
@@ -499,7 +494,6 @@ export default function ProductsPage() {
           'PRODUCT CATEGORY': row['PRODUCT CATEGORY']?.toString().trim() || '',
           'PRODUCT COST': row['PRODUCT COST'] !== undefined && row['PRODUCT COST'] !== '' ? Number(row['PRODUCT COST']) : 0,
           'QTY IN BOX': row['QTY IN BOX'] !== undefined && row['QTY IN BOX'] !== '' ? Number(row['QTY IN BOX']) : 0,
-          'AVAILABLE QTY': row['AVAILABLE QTY'] !== undefined && row['AVAILABLE QTY'] !== '' ? Number(row['AVAILABLE QTY']) : 0,
           'IS_COUNTABLE': String(row['IS_COUNTABLE'] || '').toLowerCase() === 'yes',
         };
       });
@@ -726,11 +720,7 @@ export default function ProductsPage() {
                           COUNTABLE
                         </span>
                       )}
-                      <div className="w-full mt-2 grid grid-cols-2 gap-2">
-                        <div className="bg-gray-50 rounded-xl p-2 text-center">
-                          <div className="text-[8px] font-black text-gray-400 uppercase tracking-widest">AVL QTY</div>
-                          <div className="text-xs font-black text-black">{product['AVAILABLE QTY'] || 0}</div>
-                        </div>
+                      <div className="w-full mt-2">
                         <div className="bg-gray-50 rounded-xl p-2 text-center">
                           <div className="text-[8px] font-black text-gray-400 uppercase tracking-widest">IN BOX</div>
                           <div className="text-xs font-black text-black">{product['QTY IN BOX'] || 0}</div>
@@ -977,26 +967,17 @@ export default function ProductsPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4 bg-gray-50 p-6 rounded-3xl border border-gray-100">
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">AVAILABLE QTY</label>
-                    <input
-                      type="number"
-                      value={availableQty}
-                      onChange={(e) => setAvailableQty(e.target.value)}
-                      className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">QTY IN BOX</label>
-                    <input
-                      type="number"
-                      value={qtyInBox}
-                      onChange={(e) => setQtyInBox(e.target.value)}
-                      className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold"
-                    />
-                  </div>
+              <div className="bg-gray-50 p-6 rounded-3xl border border-gray-100">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">QTY IN BOX</label>
+                  <input
+                    type="number"
+                    value={qtyInBox}
+                    onChange={(e) => setQtyInBox(e.target.value)}
+                    className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold"
+                  />
                 </div>
+              </div>
 
                 <div className="flex items-center gap-3 pt-2">
                   <input
