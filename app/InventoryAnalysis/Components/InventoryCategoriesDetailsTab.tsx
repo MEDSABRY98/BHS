@@ -87,7 +87,11 @@ export default function InventoryProductOrdersDetailsTab({
             setFetchingBalance(true);
             const json = await getProductsBalanceReportData();
             if (json.success) {
-                setEndingBalances(json.data || {});
+                const map: Record<string, number> = {};
+                (json.data || []).forEach((item: any) => {
+                    map[item.productId] = item.endingStock;
+                });
+                setEndingBalances(map);
             }
         } catch (err) {
             console.error('Error fetching balances:', err);
