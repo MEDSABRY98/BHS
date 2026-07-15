@@ -1,13 +1,12 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { getSingleProductAnalysis, getProductsBalanceReportData } from '../Service/inventory_service';
+import { getSingleProductAnalysis } from '../Service/inventory_service';
 import {
     ChevronLeft, TrendingDown,
     RefreshCw, Box, ShoppingCart,
-    ArrowLeftRight, Truck, Activity,
+    Truck,
     Calendar, CalendarDays, Filter,
-    Clock
 } from 'lucide-react';
 import {
     BarChart, Bar, XAxis, YAxis,
@@ -23,6 +22,7 @@ interface AnalysisData {
         netPurchases: number;
         netFlow: number;
         currentStock: number;
+        endingBalance: number;
         minQ: number;
     };
     monthlyData: {
@@ -45,7 +45,6 @@ interface Props {
 export default function ProductDetails({ productId, productName, barcode, onBack }: Props) {
     const [data, setData] = useState<AnalysisData | null>(null);
     const [loading, setLoading] = useState(true);
-    const [endingBalance, setEndingBalance] = useState<number | null>(null);
 
     // Filter States
     const [year, setYear] = useState('');
@@ -58,13 +57,6 @@ export default function ProductDetails({ productId, productName, barcode, onBack
         const fetchData = async () => {
             try {
                 setLoading(true);
-                const params = new URLSearchParams();
-                if (year) params.append('year', year);
-                if (month) params.append('month', month);
-                if (fromDate) params.append('from', fromDate);
-                if (toDate) params.append('to', toDate);
-                if (preset !== 'all') params.append('preset', preset);
-                params.append('id', productId);
 
                 const json = await getSingleProductAnalysis(productId, {
                     year: year || undefined,
@@ -75,12 +67,6 @@ export default function ProductDetails({ productId, productName, barcode, onBack
                 });
                 if (json.success) {
                     setData(json.data as any);
-                }
-
-                const balanceJson = await getProductsBalanceReportData();
-                if (balanceJson.success) {
-                    const product = (balanceJson.data as any[]).find((p: any) => p.productId === productId);
-                    setEndingBalance(product?.endingStock ?? null);
                 }
             } catch (err) {
                 console.error('Error fetching details:', err);
@@ -307,7 +293,7 @@ export default function ProductDetails({ productId, productName, barcode, onBack
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-7 gap-4">
                 <StatCard
                     title="Ending Balance"
-                    value={endingBalance ?? '—'}
+                    value={summary.endingBalance ?? '—'}
                     icon={Box}
                     color="bg-emerald-600"
                 />

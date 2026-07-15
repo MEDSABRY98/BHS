@@ -182,6 +182,16 @@ function buildSalesMaps(moveRows: InventoryMoveRow[]) {
 
 export async function getProductOrdersData() {
   try {
+    // Try RPC first (fast — computed in PostgreSQL)
+    const { data: rpcData, error: rpcError } = await bhs_supabase.rpc('get_inventory_product_orders');
+
+    if (!rpcError && rpcData && rpcData.success) {
+      return rpcData;
+    }
+
+    console.warn('RPC get_inventory_product_orders failed, falling back to JS:', rpcError?.message);
+
+    // Fallback: fetch all data and compute in JS
     const [products, moveRows] = await Promise.all([
       fetchInventoryProducts(),
       fetchInventoryMoves(),
@@ -328,6 +338,23 @@ export async function getSingleProductAnalysis(
   filters?: { year?: string; month?: string; from?: string; to?: string; preset?: string }
 ) {
   try {
+    // Try RPC first (fast — computed in PostgreSQL)
+    const { data: rpcData, error: rpcError } = await bhs_supabase.rpc('get_inventory_product_analysis', {
+      p_product_id: productId,
+      p_year: filters?.year ? parseInt(filters.year) : null,
+      p_month: filters?.month ? parseInt(filters.month) : null,
+      p_date_from: filters?.from || null,
+      p_date_to: filters?.to || null,
+      p_preset: filters?.preset || 'all',
+    });
+
+    if (!rpcError && rpcData && rpcData.success) {
+      return rpcData;
+    }
+
+    console.warn('RPC get_inventory_product_analysis failed, falling back to JS:', rpcError?.message);
+
+    // Fallback: fetch all data and compute in JS
     const [moveRows, products] = await Promise.all([
       fetchInventoryMovesForProduct(productId),
       fetchInventoryProducts(),
@@ -734,10 +761,21 @@ export interface ProductBalanceRow {
 
 export async function getProductsBalanceReportData(filters?: { dateFrom?: string; dateTo?: string }) {
   try {
+    // Try RPC first (fast — computed in PostgreSQL)
+    const { data: rpcData, error: rpcError } = await bhs_supabase.rpc('get_inventory_balance_report', {
+      p_date_from: filters?.dateFrom || null,
+      p_date_to: filters?.dateTo || null,
+    });
+
+    if (!rpcError && rpcData && rpcData.success) {
+      return rpcData;
+    }
+
+    console.warn('RPC get_inventory_balance_report failed, falling back to JS:', rpcError?.message);
+
+    // Fallback: fetch all data and compute in JS
     const [products, moveRows] = await Promise.all([
       fetchInventoryProducts(),
-      // Use cursor-based pagination (by ID) to guarantee stable, complete fetch
-      // of all 89k+ rows. Offset pagination on DATE alone was unstable and missed rows.
       fetchAllInventoryMovesStable(),
     ]);
 
