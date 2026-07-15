@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { getSingleProductAnalysis } from '../Service/inventory_service';
+import { getSingleProductAnalysis, getProductsBalanceReportData } from '../Service/inventory_service';
 import {
     ChevronLeft, TrendingDown,
     RefreshCw, Box, ShoppingCart,
@@ -45,6 +45,7 @@ interface Props {
 export default function ProductDetails({ productId, productName, barcode, onBack }: Props) {
     const [data, setData] = useState<AnalysisData | null>(null);
     const [loading, setLoading] = useState(true);
+    const [endingBalance, setEndingBalance] = useState<number | null>(null);
 
     // Filter States
     const [year, setYear] = useState('');
@@ -74,6 +75,12 @@ export default function ProductDetails({ productId, productName, barcode, onBack
                 });
                 if (json.success) {
                     setData(json.data as any);
+                }
+
+                const balanceJson = await getProductsBalanceReportData();
+                if (balanceJson.success) {
+                    const product = (balanceJson.data as any[]).find((p: any) => p.productId === productId);
+                    setEndingBalance(product?.endingStock ?? null);
                 }
             } catch (err) {
                 console.error('Error fetching details:', err);
@@ -299,10 +306,10 @@ export default function ProductDetails({ productId, productName, barcode, onBack
             {/* High-Density KPI Grid - Single Row Layout */}
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-7 gap-4">
                 <StatCard
-                    title="Live Stock"
-                    value={summary.currentStock}
+                    title="Ending Balance"
+                    value={endingBalance ?? '—'}
                     icon={Box}
-                    color="bg-blue-600"
+                    color="bg-emerald-600"
                 />
                 <StatCard
                     title="Total Sales"
