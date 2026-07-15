@@ -82,6 +82,20 @@ export default function InventoryProductOrdersDetailsTab({
         }
     };
 
+    const fetchBalances = async () => {
+        try {
+            setFetchingBalance(true);
+            const json = await getProductsBalanceReportData();
+            if (json.success) {
+                setEndingBalances(json.data || {});
+            }
+        } catch (err) {
+            console.error('Error fetching balances:', err);
+        } finally {
+            setFetchingBalance(false);
+        }
+    };
+
     const handleExport = async () => {
         const data = filteredProducts.map(p => {
             const m = movements[p.productId] || { sales: 0, returns: 0, netPurchases: 0 };
