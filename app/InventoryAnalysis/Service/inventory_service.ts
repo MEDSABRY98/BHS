@@ -2,8 +2,8 @@
 
 import { bhs_supabase } from '@/lib/supabase';
 import {
-  classifyMovement,
   getNetQtyEffect,
+  INTERNAL_WAREHOUSES_SET,
 } from '../Components/locationTypes';
 
 // Shared Types
@@ -79,6 +79,43 @@ async function fetchAllInventoryRows<T>(
 
   return allRows;
 }
+
+/**
+ * Fetches ALL inventory move rows using cursor-based pagination (stable).
+ * Uses ID as the cursor so that sorting is fully deterministic even on 90k+ rows.
+ * Offset pagination is NOT used here because DATE has many ties, causing rows
+ * to be skipped or duplicated at page boundaries with large datasets.
+ */
+async function fetchAllInventoryMovesStable(): Promise<InventoryMoveRow[]> {
+  const pageSize = 1000;
+  const allRows: InventoryMoveRow[] = [];
+  let lastId: string | null = null;
+
+  const SELECT = 'ID,DATE,REFERENCE,"LOCATION FROM","LOCATION TO","PRODUCT ID",QTY';
+
+  while (true) {
+    let query = bhs_supabase
+      .from('web_INVENTORY_MOVES')
+      .select(SELECT)
+      .order('ID', { ascending: true })
+      .limit(pageSize);
+
+    if (lastId !== null) {
+      query = query.gt('ID', lastId);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+
+    allRows.push(...(data as InventoryMoveRow[]));
+    lastId = String((data[data.length - 1] as any).ID ?? '');
+    if (data.length < pageSize) break;
+  }
+
+  return allRows;
+}
+
 
 async function fetchInventoryProducts(): Promise<InventoryProductRow[]> {
   return fetchAllInventoryRows<InventoryProductRow>('bhs_PRODUCTS', '*');
@@ -683,7 +720,7 @@ export interface ProductBalanceRow {
   netVendors: number;
   netCustomers: number;
   netProduction: number;
-  netSubcontracting: number;
+  netAdjustment: number;
   endingStock: number;
   periodMovements: Array<{
     date: string;
@@ -699,10 +736,11 @@ export async function getProductsBalanceReportData(filters?: { dateFrom?: string
   try {
     const [products, moveRows] = await Promise.all([
       fetchInventoryProducts(),
-      fetchAllInventoryRows<InventoryMoveRow>('web_INVENTORY_MOVES', 'ID,DATE,REFERENCE,"LOCATION FROM","LOCATION TO","PRODUCT ID",QTY', {
-        order: { column: 'DATE', ascending: true },
-      }),
+      // Use cursor-based pagination (by ID) to guarantee stable, complete fetch
+      // of all 89k+ rows. Offset pagination on DATE alone was unstable and missed rows.
+      fetchAllInventoryMovesStable(),
     ]);
+
 
     const dateFromStr = filters?.dateFrom ? filters.dateFrom.trim() : null;
     const dateToStr = filters?.dateTo ? filters.dateTo.trim() : null;
@@ -716,7 +754,7 @@ export async function getProductsBalanceReportData(filters?: { dateFrom?: string
       netVendors: number;
       netCustomers: number;
       netProduction: number;
-      netSubcontracting: number;
+      netAdjustment: number;
       periodMovements: Array<{
         date: string;
         reference: string;
@@ -744,36 +782,64 @@ export async function getProductsBalanceReportData(filters?: { dateFrom?: string
           netVendors: 0,
           netCustomers: 0,
           netProduction: 0,
-          netSubcontracting: 0,
+          netAdjustment: 0,
           periodMovements: [],
         });
       }
 
       const entry = productDataMap.get(productId)!;
 
-      // Use centralized classifier from locationTypes.ts
-      const type = classifyMovement(locFrom, locTo);
+      const fromInternal = INTERNAL_WAREHOUSES_SET.has(locFrom);
+      const toInternal = INTERNAL_WAREHOUSES_SET.has(locTo);
 
-      // 1. If movement is BEFORE dateFrom -> Add to openingStock (purely from web_INVENTORY_MOVES)
-      if (fromDate && moveDate && moveDate < fromDate) {
-        entry.openingStock += getNetQtyEffect(locFrom, locTo, qty);
+      // Internal transfer (both sides are our warehouses) → skip
+      if (fromInternal && toInternal) {
+        entry.periodMovements.push({ date: dateStr, reference: ref, locationFrom: locFrom, locationTo: locTo, qty, type: 'transfer' });
         return;
       }
 
-      // 2. If movement is AFTER dateTo -> Ignore for current period
+      // Determine direction based on which side is our warehouse
+      // to=internal → inflow (stock coming into our warehouses)
+      // from=internal → outflow (stock going out from our warehouses)
+      const isIn = toInternal;
+      const isOut = fromInternal;
+
+      // Neither side is our warehouse → skip (external-to-external)
+      if (!isIn && !isOut) {
+        return;
+      }
+
+      const effect = isIn ? qty : -qty;
+
+      // 1. If movement is BEFORE dateFrom → openingStock
+      if (fromDate && moveDate && moveDate < fromDate) {
+        entry.openingStock += effect;
+        return;
+      }
+
+      // 2. If movement is AFTER dateTo → ignore
       if (toDate && moveDate && moveDate > toDate) {
         return;
       }
 
-      // 3. Movement is WITHIN period [dateFrom, dateTo]
-      if (type === 'purchase') entry.netVendors += qty;
-      else if (type === 'vendor_return') entry.netVendors -= qty;
-      else if (type === 'sale') entry.netCustomers -= qty;
-      else if (type === 'customer_return') entry.netCustomers += qty;
-      else if (type === 'production_in') entry.netProduction += qty;
-      else if (type === 'production_out') entry.netProduction -= qty;
-      else if (type === 'subcontracting_in') entry.netSubcontracting += qty;
-      else if (type === 'subcontracting_out') entry.netSubcontracting -= qty;
+      // 3. Categorize by the "other" location (the non-warehouse side)
+      const otherLocation = isIn ? locFrom : locTo;
+      let type: string;
+      if (isIn) {
+        if (otherLocation === 'Partners/Vendors') { entry.netVendors += qty; type = 'vendor_in'; }
+        else if (otherLocation === 'Partners/Customers') { entry.netCustomers += qty; type = 'customer_return'; }
+        else if (otherLocation === 'Physical Locations/Subcontracting Location') { entry.netProduction += qty; type = 'subcontracting_in'; }
+        else if (otherLocation === 'Virtual Locations/Inventory adjustment') { entry.netAdjustment += qty; type = 'adjustment_in'; }
+        else if (otherLocation === 'Virtual Locations/Production') { entry.netProduction += qty; type = 'production_in'; }
+        else { entry.netProduction += qty; type = 'production_in'; }
+      } else {
+        if (otherLocation === 'Partners/Customers') { entry.netCustomers -= qty; type = 'customer_sale'; }
+        else if (otherLocation === 'Partners/Vendors') { entry.netVendors -= qty; type = 'vendor_return'; }
+        else if (otherLocation === 'Physical Locations/Subcontracting Location') { entry.netProduction -= qty; type = 'subcontracting_out'; }
+        else if (otherLocation === 'Virtual Locations/Inventory adjustment') { entry.netAdjustment -= qty; type = 'adjustment_out'; }
+        else if (otherLocation === 'Virtual Locations/Production') { entry.netProduction -= qty; type = 'production_out'; }
+        else { entry.netProduction -= qty; type = 'production_out'; }
+      }
 
       entry.periodMovements.push({
         date: dateStr,
@@ -797,10 +863,11 @@ export async function getProductsBalanceReportData(filters?: { dateFrom?: string
         netCustomers: 0,
         netProduction: 0,
         netSubcontracting: 0,
+        netAdjustment: 0,
         periodMovements: [],
       };
 
-      const endingStock = calcData.openingStock + calcData.netVendors + calcData.netCustomers + calcData.netProduction + calcData.netSubcontracting;
+      const endingStock = calcData.openingStock + calcData.netVendors + calcData.netCustomers + calcData.netProduction + calcData.netAdjustment;
 
       return {
         productId,
@@ -811,7 +878,7 @@ export async function getProductsBalanceReportData(filters?: { dateFrom?: string
         netVendors: calcData.netVendors,
         netCustomers: calcData.netCustomers,
         netProduction: calcData.netProduction,
-        netSubcontracting: calcData.netSubcontracting,
+        netAdjustment: calcData.netAdjustment,
         endingStock,
         periodMovements: calcData.periodMovements,
       };

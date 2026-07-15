@@ -12,16 +12,18 @@ interface Props {
 }
 
 const MOVEMENT_TYPES = [
-  { value: 'All', label: 'All Movement Types' },
-  { value: 'purchase', label: 'Purchase' },
-  { value: 'vendor_return', label: 'Vendor Return' },
-  { value: 'sale', label: 'Sale' },
-  { value: 'customer_return', label: 'Customer Return' },
-  { value: 'production_in', label: 'Production Out' },
-  { value: 'production_out', label: 'Raw Materials Out' },
+  { value: 'All',               label: 'All Movement Types' },
+  { value: 'vendor_in',         label: 'Purchase (Vendor → WH)' },
+  { value: 'vendor_return',     label: 'Return to Vendor' },
+  { value: 'customer_sale',     label: 'Sale (WH → Customer)' },
+  { value: 'customer_return',   label: 'Customer Return' },
+  { value: 'production_in',     label: 'Production In' },
+  { value: 'production_out',    label: 'Production Out' },
   { value: 'subcontracting_in', label: 'Subcontracting In' },
-  { value: 'subcontracting_out', label: 'Subcontracting Out' },
-  { value: 'transfer', label: 'Internal Transfer' },
+  { value: 'subcontracting_out',label: 'Subcontracting Out' },
+  { value: 'adjustment_in',     label: 'Adjustment (+)' },
+  { value: 'adjustment_out',    label: 'Adjustment (-)' },
+  { value: 'transfer',          label: 'Internal Transfer' },
 ];
 
 export default function InventoryProductsBalanceDetailsTab({ selectedProduct, onBack }: Props) {
@@ -245,12 +247,8 @@ export default function InventoryProductsBalanceDetailsTab({ selectedProduct, on
           <p className="text-lg font-black text-rose-600 mt-1">{selectedProduct.netCustomers.toLocaleString('en-US')}</p>
         </div>
         <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
-          <p className="text-[10px] font-bold text-slate-400 uppercase">Net Production</p>
+          <p className="text-[10px] font-bold text-slate-400 uppercase">Net Production & Sub.</p>
           <p className="text-lg font-black text-indigo-600 mt-1">{selectedProduct.netProduction.toLocaleString('en-US')}</p>
-        </div>
-        <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
-          <p className="text-[10px] font-bold text-slate-400 uppercase">Net Subcontracting</p>
-          <p className="text-lg font-black text-amber-600 mt-1">{selectedProduct.netSubcontracting.toLocaleString('en-US')}</p>
         </div>
         <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs bg-indigo-50/20">
           <p className="text-[10px] font-bold text-indigo-500 uppercase">Ending Stock</p>
@@ -284,16 +282,18 @@ export default function InventoryProductsBalanceDetailsTab({ selectedProduct, on
                     day: 'numeric'
                   }) : '-';
 
-                  let typeBadge = <span className="px-2.5 py-1 bg-slate-100 rounded-lg text-slate-600">Other</span>;
-                  if (move.type === 'purchase') typeBadge = <span className="px-2.5 py-1 bg-emerald-100 text-emerald-800 rounded-lg font-bold">Purchase</span>;
-                  else if (move.type === 'sale') typeBadge = <span className="px-2.5 py-1 bg-rose-100 text-rose-800 rounded-lg font-bold">Sale</span>;
-                  else if (move.type === 'customer_return') typeBadge = <span className="px-2.5 py-1 bg-teal-100 text-teal-800 rounded-lg font-bold">Customer Return</span>;
-                  else if (move.type === 'vendor_return') typeBadge = <span className="px-2.5 py-1 bg-orange-100 text-orange-800 rounded-lg font-bold">Vendor Return</span>;
-                  else if (move.type === 'production_in') typeBadge = <span className="px-2.5 py-1 bg-indigo-100 text-indigo-800 rounded-lg font-bold">Production Out</span>;
-                  else if (move.type === 'production_out') typeBadge = <span className="px-2.5 py-1 bg-purple-100 text-purple-800 rounded-lg font-bold">Raw Materials Out</span>;
-                  else if (move.type === 'subcontracting_in') typeBadge = <span className="px-2.5 py-1 bg-blue-100 text-blue-800 rounded-lg font-bold">Subcontracting In</span>;
-                  else if (move.type === 'subcontracting_out') typeBadge = <span className="px-2.5 py-1 bg-amber-100 text-amber-800 rounded-lg font-bold">Subcontracting Out</span>;
-                  else if (move.type === 'transfer') typeBadge = <span className="px-2.5 py-1 bg-slate-200 text-slate-800 rounded-lg font-bold">Internal Transfer</span>;
+                  let typeBadge = <span className="px-2.5 py-1 bg-slate-100 rounded-lg text-slate-500 font-medium">Other</span>;
+                  if      (move.type === 'vendor_in')          typeBadge = <span className="px-2.5 py-1 bg-emerald-100 text-emerald-800 rounded-lg font-bold">Purchase</span>;
+                  else if (move.type === 'vendor_return')      typeBadge = <span className="px-2.5 py-1 bg-orange-100 text-orange-800 rounded-lg font-bold">Vendor Return</span>;
+                  else if (move.type === 'customer_sale')      typeBadge = <span className="px-2.5 py-1 bg-rose-100 text-rose-800 rounded-lg font-bold">Sale</span>;
+                  else if (move.type === 'customer_return')    typeBadge = <span className="px-2.5 py-1 bg-teal-100 text-teal-800 rounded-lg font-bold">Customer Return</span>;
+                  else if (move.type === 'production_in')      typeBadge = <span className="px-2.5 py-1 bg-indigo-100 text-indigo-800 rounded-lg font-bold">Production In</span>;
+                  else if (move.type === 'production_out')     typeBadge = <span className="px-2.5 py-1 bg-purple-100 text-purple-800 rounded-lg font-bold">Production Out</span>;
+                  else if (move.type === 'subcontracting_in')  typeBadge = <span className="px-2.5 py-1 bg-blue-100 text-blue-800 rounded-lg font-bold">Subcontracting In</span>;
+                  else if (move.type === 'subcontracting_out') typeBadge = <span className="px-2.5 py-1 bg-sky-100 text-sky-800 rounded-lg font-bold">Subcontracting Out</span>;
+                  else if (move.type === 'adjustment_in')      typeBadge = <span className="px-2.5 py-1 bg-amber-100 text-amber-800 rounded-lg font-bold">Adjustment (+)</span>;
+                  else if (move.type === 'adjustment_out')     typeBadge = <span className="px-2.5 py-1 bg-yellow-100 text-yellow-800 rounded-lg font-bold">Adjustment (−)</span>;
+                  else if (move.type === 'transfer')           typeBadge = <span className="px-2.5 py-1 bg-slate-200 text-slate-700 rounded-lg font-bold">Internal Transfer</span>;
 
                   return (
                     <tr key={idx} className="hover:bg-slate-50/80 transition-colors">

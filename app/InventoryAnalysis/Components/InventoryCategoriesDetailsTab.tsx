@@ -10,7 +10,8 @@ import { ProductOrder, OrderItem } from './InventoryCategoriesTab';
 import NoData from '@/app/Components/NoDataTab';
 import { exportInventoryExcel } from './ExcelExport';
 import ProductDetails from './InventoryProductDetails';
-import { getProductMovementsData, updateProductColumn } from '../Service/inventory_service';
+import { getProductMovementsData, updateProductColumn, getProductsBalanceReportData } from '../Service/inventory_service';
+
 
 interface Props {
     categoryName: string;
@@ -42,6 +43,9 @@ export default function InventoryProductOrdersDetailsTab({
     const [movements, setMovements] = useState<Record<string, MovementData>>({});
     const [fetchingMovements, setFetchingMovements] = useState(false);
     const [selectedProduct, setSelectedProduct] = useState<{ id: string, name: string, barcode: string } | null>(null);
+    const [endingBalances, setEndingBalances] = useState<Record<string, number>>({});
+    const [fetchingBalance, setFetchingBalance] = useState(false);
+
 
     useEffect(() => {
         setLocalProducts(initialProducts);
@@ -57,10 +61,12 @@ export default function InventoryProductOrdersDetailsTab({
         return filtered.sort((a, b) => a.productName.localeCompare(b.productName));
     }, [localProducts, categoryName, searchTerm]);
 
-    // Fetch movements on mount
+    // Fetch movements + ending balances on mount
     useEffect(() => {
         fetchMovements();
+        fetchBalances();
     }, []);
+
 
     const fetchMovements = async () => {
         try {
@@ -189,10 +195,14 @@ export default function InventoryProductOrdersDetailsTab({
                                         <Truck className="w-4 h-4 text-indigo-400" /> PURCHASES
                                     </div>
                                 </th>
+                                <th className="px-2 py-4 text-[11px] font-bold uppercase tracking-wider text-center w-[10%] text-emerald-300">
+                                    ENDING BALANCE
+                                </th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
-                            {(loading || fetchingMovements) ? (
+                            {(loading || fetchingMovements || fetchingBalance) ? (
+
                                 [...Array(8)].map((_, i) => (
                                     <tr key={i} className="hover:bg-gray-50 transition-all duration-300">
                                         <td className="px-6 py-4 border-r border-gray-100 bg-white">
@@ -216,17 +226,21 @@ export default function InventoryProductOrdersDetailsTab({
                                         <td className="px-2 py-4 bg-white">
                                             <div className="h-5 bg-gray-200 rounded w-10 mx-auto animate-pulse"></div>
                                         </td>
+                                        <td className="px-2 py-4 bg-white">
+                                            <div className="h-5 bg-gray-200 rounded w-12 mx-auto animate-pulse"></div>
+                                        </td>
                                     </tr>
                                 ))
                             ) : filteredProducts.length === 0 ? (
                                 <tr>
-                                    <td colSpan={6} className="py-12">
+                                    <td colSpan={7} className="py-12">
                                         <NoData title="No Items Found" />
                                     </td>
                                 </tr>
                             ) : (
                                 filteredProducts.map((product, idx) => {
                                     const move = movements[product.productId] || { sales: 0, returns: 0, netPurchases: 0 };
+                                    const endingStock = endingBalances[product.productId] ?? null;
                                     return (
                                         <tr key={product.productId} className="hover:bg-gray-50 transition-all duration-300 group">
                                             {/* Barcode */}
@@ -254,21 +268,39 @@ export default function InventoryProductOrdersDetailsTab({
                                                 </span>
                                             </td>
 
-                                            {/* Metrics with sophisticated colors or skeletons */}
+                                            {/* Sales */}
                                             <td className="px-2 py-3 text-center border-r border-gray-100 bg-white">
                                                 <span className={`text-sm font-bold ${move.sales > 0 ? 'text-blue-600' : 'text-gray-400'}`}>
                                                     {move.sales === 0 ? '-' : move.sales.toLocaleString()}
                                                 </span>
                                             </td>
+                                            {/* Returns */}
                                             <td className="px-2 py-3 text-center border-r border-gray-100 bg-white">
                                                 <span className={`text-sm font-bold ${move.returns > 0 ? 'text-amber-600' : 'text-gray-400'}`}>
                                                     {move.returns === 0 ? '-' : move.returns.toLocaleString()}
                                                 </span>
                                             </td>
-                                            <td className="px-2 py-3 text-center bg-white">
+                                            {/* Purchases */}
+                                            <td className="px-2 py-3 text-center border-r border-gray-100 bg-white">
                                                 <span className={`text-sm font-bold ${move.netPurchases !== 0 ? 'text-indigo-600' : 'text-gray-400'}`}>
                                                     {move.netPurchases === 0 ? '-' : move.netPurchases.toLocaleString()}
                                                 </span>
+                                            </td>
+                                            {/* Ending Balance */}
+                                            <td className="px-2 py-3 text-center bg-white">
+                                                {endingStock === null ? (
+                                                    <span className="text-gray-300 text-xs">—</span>
+                                                ) : (
+                                                    <span className={`px-2 py-1 rounded-md text-sm font-black inline-block min-w-[50px] ${
+                                                        endingStock < 0
+                                                            ? 'bg-red-50 text-red-600 border border-red-100'
+                                                            : endingStock === 0
+                                                            ? 'bg-gray-50 text-gray-400 border border-gray-100'
+                                                            : 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+                                                    }`}>
+                                                        {endingStock.toLocaleString('en-US')}
+                                                    </span>
+                                                )}
                                             </td>
                                         </tr>
                                     );

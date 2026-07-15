@@ -110,7 +110,7 @@ export default function InventoryProductsBalanceTab() {
         acc.netVendors += item.netVendors;
         acc.netCustomers += item.netCustomers;
         acc.netProduction += item.netProduction;
-        acc.netSubcontracting += item.netSubcontracting;
+        acc.netAdjustment += item.netAdjustment;
         acc.endingStock += item.endingStock;
         return acc;
       },
@@ -119,7 +119,7 @@ export default function InventoryProductsBalanceTab() {
         netVendors: 0,
         netCustomers: 0,
         netProduction: 0,
-        netSubcontracting: 0,
+        netAdjustment: 0,
         endingStock: 0,
       }
     );
@@ -136,8 +136,8 @@ export default function InventoryProductsBalanceTab() {
       'Opening Stock',
       'Net Purchases (Vendors)',
       'Net Sales (Customers)',
-      'Net Production',
-      'Net Subcontracting',
+      'Net Production & Sub.',
+      'Net Adjustment',
       'Ending Stock Balance',
     ];
 
@@ -151,7 +151,7 @@ export default function InventoryProductsBalanceTab() {
       item.netVendors,
       item.netCustomers,
       item.netProduction,
-      item.netSubcontracting,
+      item.netAdjustment,
       item.endingStock,
     ]);
 
@@ -165,7 +165,7 @@ export default function InventoryProductsBalanceTab() {
       metrics.netVendors,
       metrics.netCustomers,
       metrics.netProduction,
-      metrics.netSubcontracting,
+      metrics.netAdjustment,
       metrics.endingStock,
     ]);
 
@@ -176,8 +176,8 @@ export default function InventoryProductsBalanceTab() {
         'Opening Stock',
         'Net Purchases (Vendors)',
         'Net Sales (Customers)',
-        'Net Production',
-        'Net Subcontracting',
+        'Net Production & Sub.',
+        'Net Adjustment',
         'Ending Stock Balance',
       ],
     });
@@ -189,12 +189,13 @@ export default function InventoryProductsBalanceTab() {
     return filteredProducts.slice(start, start + itemsPerPage);
   }, [filteredProducts, currentPage]);
 
-  const renderBadge = (val: number, isSales = false) => {
-    if (val === 0) return <span className="text-slate-400 font-medium">0</span>;
+  const renderBadge = (val: number | undefined | null, isSales = false) => {
+    const n = Number(val) || 0;
+    if (n === 0) return <span className="text-slate-400 font-medium">0</span>;
 
     // For sales: negative value means items went out (sold)
-    const isPositive = val > 0;
-    const formatted = val.toLocaleString('en-US');
+    const isPositive = n > 0;
+    const formatted = n.toLocaleString('en-US');
 
     return (
       <span
@@ -451,8 +452,8 @@ export default function InventoryProductsBalanceTab() {
                     <th className="py-3.5 px-3 text-center w-28 bg-slate-100/60">Opening</th>
                     <th className="py-3.5 px-3 text-center w-28">Net Vendors</th>
                     <th className="py-3.5 px-3 text-center w-28">Net Sales</th>
-                    <th className="py-3.5 px-3 text-center w-28">Net Production</th>
-                    <th className="py-3.5 px-3 text-center w-32">Net Subcontracting</th>
+                    <th className="py-3.5 px-3 text-center w-32">Net Production & Sub.</th>
+                    <th className="py-3.5 px-3 text-center w-28 bg-amber-50/60 text-amber-800">Net Adjustment</th>
                     <th className="py-3.5 px-3 text-center w-32 bg-indigo-50/50 text-indigo-900">Ending Balance</th>
                     <th className="py-3.5 px-2 text-center w-20">Actions</th>
                   </tr>
@@ -486,8 +487,8 @@ export default function InventoryProductsBalanceTab() {
                         <td className="py-3.5 px-3 text-center">
                           {renderBadge(item.netProduction)}
                         </td>
-                        <td className="py-3.5 px-3 text-center">
-                          {renderBadge(item.netSubcontracting)}
+                        <td className="py-3.5 px-3 text-center bg-amber-50/20">
+                          {renderBadge(item.netAdjustment)}
                         </td>
                         <td className="py-3.5 px-3 text-center font-black text-sm bg-indigo-50/30 text-indigo-900">
                           {item.endingStock.toLocaleString('en-US')}
