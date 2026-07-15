@@ -192,12 +192,11 @@ export default function InventoryProductOrdersDetailsTab({
             {/* Main Table Container */}
             <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden relative">
                 <div className="overflow-x-auto scrollbar-thin scrollbar-track-gray-50 scrollbar-thumb-gray-300">
-                    <table className="w-full text-left border-collapse table-fixed min-w-[1400px]">
+                    <table className="w-full text-left border-collapse table-fixed min-w-[1200px]">
                         <thead className="sticky top-0 z-20 shadow-sm">
                             <tr className="bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 border-b-[3px] border-[#D4AF37]">
                                 <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-center w-[12%] text-gray-200">BARCODE</th>
                                 <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-center w-[40%] text-gray-200">PRODUCT NAME</th>
-                                <th className="px-3 py-4 text-[11px] font-bold uppercase tracking-wider text-center w-[8%] text-gray-200">QTY (Pcs)</th>
                                 <th className="px-2 py-4 text-[11px] font-bold uppercase tracking-wider text-center w-[9%] text-gray-200">
                                     <div className="flex items-center justify-center gap-1.5">
                                         <TrendingUp className="w-4 h-4 text-emerald-400" /> SALES
@@ -232,9 +231,6 @@ export default function InventoryProductOrdersDetailsTab({
                                                 <div className="h-4 bg-gray-200 rounded w-3/4"></div>
                                             </div>
                                         </td>
-                                        <td className="px-3 py-4 border-r border-gray-100 bg-white">
-                                            <div className="h-6 bg-gray-200 rounded-lg w-12 mx-auto animate-pulse"></div>
-                                        </td>
                                         <td className="px-2 py-4 border-r border-gray-100 bg-white">
                                             <div className="h-5 bg-gray-200 rounded w-10 mx-auto animate-pulse"></div>
                                         </td>
@@ -251,7 +247,7 @@ export default function InventoryProductOrdersDetailsTab({
                                 ))
                             ) : filteredProducts.length === 0 ? (
                                 <tr>
-                                    <td colSpan={7} className="py-12">
+                                    <td colSpan={6} className="py-12">
                                         <NoData title="No Items Found" />
                                     </td>
                                 </tr>
@@ -274,16 +270,6 @@ export default function InventoryProductOrdersDetailsTab({
                                                     <div className="w-1.5 h-1.5 rounded-full bg-gray-300 group-hover:bg-[#D4AF37] transition-colors shrink-0" />
                                                     <span className="flex-1 min-w-0 whitespace-normal break-words leading-snug">{product.productName}</span>
                                                 </div>
-                                            </td>
-
-                                            {/* QTY Pcs */}
-                                            <td className="px-3 py-3 text-center border-r border-gray-100 bg-white">
-                                                <span className={`px-2 py-1 rounded-md text-sm font-bold inline-block min-w-[50px] ${product.onHand <= 0
-                                                    ? 'bg-red-50 text-red-600 border border-red-100'
-                                                    : 'bg-emerald-50 text-emerald-600 border border-emerald-100'
-                                                    }`}>
-                                                    {product.onHand === 0 ? '-' : product.onHand.toLocaleString()}
-                                                </span>
                                             </td>
 
                                             {/* Sales */}
