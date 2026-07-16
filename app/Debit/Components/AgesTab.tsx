@@ -256,15 +256,38 @@ export default function AgesTab({ data }: AgesTabProps) {
   const handleExportPDF = async () => {
     try {
       const { saveAs } = await import('file-saver');
-      const { generateAgesPDF } = await import('@/app/Debit/Pdf/AgesUtils');
+      const JSZip = (await import('jszip')).default;
+      const { generateAgesPDF, generateSingleRegionAgesPDF } = await import('@/app/Debit/Pdf/AgesUtils');
 
-      // Determine filter description
       let filterDesc = 'All Customers';
+      const dateStr = new Date().toISOString().split('T')[0];
 
-      const pdfBlob = await generateAgesPDF(filteredData, filterDesc);
-      if (pdfBlob) {
-        saveAs(pdfBlob, `Aging_Report_${new Date().toISOString().split('T')[0]}.pdf`);
+      // 1. Generate full report PDF
+      const fullPdfBlob = await generateAgesPDF(filteredData, filterDesc);
+
+      // 2. Group by region (salesReps)
+      const regionMap = new Map<string, typeof filteredData>();
+      filteredData.forEach(item => {
+        const regionKey = item.salesReps.join(', ') || 'No Region';
+        const group = regionMap.get(regionKey) || [];
+        group.push(item);
+        regionMap.set(regionKey, group);
+      });
+
+      // 3. Create ZIP
+      const zip = new JSZip();
+      zip.file(`Aging_Report_${dateStr}.pdf`, fullPdfBlob);
+
+      // 4. Generate per-region PDFs and add to ZIP
+      for (const [region, regionData] of regionMap) {
+        const regionPdfBlob = await generateSingleRegionAgesPDF(region, regionData, filterDesc);
+        const safeRegionName = region.replace(/[\/\\:*?"<>|]/g, '_');
+        zip.file(`${safeRegionName}_aging_${dateStr}.pdf`, regionPdfBlob);
       }
+
+      // 5. Download ZIP
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      saveAs(zipBlob, `Aging_Report_${dateStr}.zip`);
     } catch (error) {
       console.error('Error generating PDF:', error);
       alert('Failed to generate PDF');
