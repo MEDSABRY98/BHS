@@ -282,7 +282,7 @@ export default function AgesTab({ data }: AgesTabProps) {
       for (const [region, regionData] of regionMap) {
         const regionPdfBlob = await generateSingleRegionAgesPDF(region, regionData, filterDesc);
         const safeRegionName = region.replace(/[\/\\:*?"<>|]/g, '_');
-        zip.file(`${safeRegionName}_aging_${dateStr}.pdf`, regionPdfBlob);
+        zip.file(`${safeRegionName}_Aging_${dateStr}.pdf`, regionPdfBlob);
       }
 
       // 5. Download ZIP
