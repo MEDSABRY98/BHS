@@ -33,7 +33,7 @@ import { Mail, FileText, Calendar, ArrowLeft, FileSpreadsheet, ListFilter, Check
 import { getInvoiceType } from '@/app/Debit/Utils/InvoiceType';
 import { useSearchParams } from 'next/navigation';
 import NoData from '@/app/Components/NoDataTab';
-import { generateAnalyticalPDF as generateAnalyticalPDFUtil } from '@/app/Sales/Pdf/AnalysisByCustomerUtils';
+import { generateAnalyticalPDF as generateAnalyticalPDFUtil } from '@/app/Debit/Pdf/AnalysisByCustomerUtils';
 import { getDebitData } from '../../Service/debit_service';
 import { getCustomerNotes, createNote, updateCustomerNote, deleteCustomerNote } from '../../Service/notes_service';
 import { getCustomerEmails } from '@/app/Emails/Service/email_service';
