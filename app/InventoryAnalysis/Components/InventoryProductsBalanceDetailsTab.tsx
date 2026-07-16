@@ -231,7 +231,7 @@ export default function InventoryProductsBalanceDetailsTab({ selectedProduct, on
       </div>
 
       {/* KPI Metrics Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
           <p className="text-[10px] font-bold text-slate-400 uppercase">Opening Stock</p>
           <p className="text-lg font-black text-slate-800 mt-1">{selectedProduct.openingStock.toLocaleString('en-US')}</p>
