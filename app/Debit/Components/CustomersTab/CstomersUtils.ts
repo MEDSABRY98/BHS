@@ -1,5 +1,5 @@
 import { InvoiceRow, CustomerAnalysis } from '@/types';
-import { exportToPDF as exportToPDFUtil } from '@/app/Sales/Pdf/AnalysisAllCustomersUtils';
+import { exportToPDF as exportToPDFUtil } from '@/app/Debit/Pdf/AnalysisAllCustomersUtils';
 import {
   exportDebitExcelWorkbook,
   recordsFromTable,
