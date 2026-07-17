@@ -11,6 +11,13 @@ import AddDiscount from "./AddDiscount";
 import CustomerDetails from "./CustomerDiscountsDetails/CustomerDetails";
 import MonthsOverview from "./MonthsOverview";
 import Statistics from "./Statistics";
+import {
+  buildMonthGroups,
+  splitMonthGroups,
+  type MonthGroup,
+} from "./Utils/settlementUtils";
+
+export type { MonthGroup } from "./Utils/settlementUtils";
 
 type Discount = {
   id: string;
@@ -28,17 +35,6 @@ type Settlement = {
   year: number;
   status: string; // "Pending" or "Settled"
   notes: string;
-};
-
-export type MonthGroup = {
-  key: string;
-  month: number;
-  year: number;
-  totalCount: number;
-  settledCount: number;
-  pendingCount: number;
-  pendingIds: string[];
-  settledIds: string[];
 };
 
 export type CustomerView = {
@@ -65,7 +61,7 @@ export default function CustomerDiscountsPage() {
   
   // Details View State
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerView | null>(null);
-  const [activeTab, setActiveTab] = useState<"details" | "pending" | "settled">("details");
+  const [activeTab, setActiveTab] = useState<"details" | "pending" | "semi" | "settled">("details");
   const [settlements, setSettlements] = useState<Settlement[]>([]);
   const [loadingSettlements, setLoadingSettlements] = useState(false);
   
@@ -366,9 +362,12 @@ export default function CustomerDiscountsPage() {
     }
   };
 
-  const handleSelectCustomer = async (customer: CustomerView) => {
+  const handleSelectCustomer = async (
+    customer: CustomerView,
+    initialTab: "details" | "pending" | "semi" | "settled" = "details"
+  ) => {
     setSelectedCustomer(customer);
-    setActiveTab("details");
+    setActiveTab(initialTab);
     setCurrentView("details");
     await loadSettlements(customer.customerId);
   };
@@ -645,32 +644,13 @@ export default function CustomerDiscountsPage() {
     return false;
   });
 
-  const groupedMonthsMap = new Map<string, MonthGroup>();
-  visibleSettlements.forEach(s => {
-    const key = `${s.year}-${s.month}`;
-    if (!groupedMonthsMap.has(key)) {
-      groupedMonthsMap.set(key, {
-        key, month: s.month, year: s.year, totalCount: 0, settledCount: 0, pendingCount: 0, pendingIds: [], settledIds: []
-      });
-    }
-    const group = groupedMonthsMap.get(key)!;
-    group.totalCount++;
-    if (s.status === "Settled") {
-      group.settledCount++;
-      group.settledIds.push(s.id);
-    } else {
-      group.pendingCount++;
-      group.pendingIds.push(s.id);
-    }
-  });
+  const allMonthGroups = buildMonthGroups(
+    visibleSettlements,
+    selectedCustomer?.discounts.map((d) => ({ id: d.id, name: d.name })) || []
+  );
 
-  const allMonthGroups = Array.from(groupedMonthsMap.values()).sort((a, b) => {
-     if (a.year !== b.year) return a.year - b.year;
-     return a.month - b.month;
-  });
-
-  const pendingMonthGroups = allMonthGroups.filter(g => g.pendingCount > 0);
-  const settledMonthGroups = allMonthGroups.filter(g => g.pendingCount === 0 && g.totalCount > 0);
+  const { pending: pendingMonthGroups, semiSettled: semiSettledMonthGroups, settled: settledMonthGroups } =
+    splitMonthGroups(allMonthGroups);
 
   // Format month to English name
   const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -696,6 +676,7 @@ export default function CustomerDiscountsPage() {
             searchQuery={searchQuery}
             setSearchQuery={setSearchQuery}
             loading={loading}
+            customers={customers}
             filteredCustomers={filteredCustomers}
             handleSelectCustomer={handleSelectCustomer}
             customersWithEmails={customersWithEmails}
@@ -731,6 +712,7 @@ export default function CustomerDiscountsPage() {
             setCurrentView={setCurrentView}
             setSelectedCustomer={setSelectedCustomer}
             pendingMonthGroups={pendingMonthGroups}
+            semiSettledMonthGroups={semiSettledMonthGroups}
             settledMonthGroups={settledMonthGroups}
             getMonthName={getMonthName}
             handleSettle={handleSettle}

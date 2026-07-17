@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Search, User, ChevronRight, FileSpreadsheet, Loader2, Mail } from "lucide-react";
 import { exportCustomersExcel } from "./ExportExcel";
+import ExportExcelModal from "./ExportExcelModal";
 import { hasCustomerEmail } from "@/lib/customerEmailLookup";
 
 type Discount = {
@@ -23,7 +24,8 @@ interface CustomersListProps {
   searchQuery: string;
   setSearchQuery: (val: string) => void;
   loading: boolean;
-  filteredCustomers: CustomerView[];
+  customers?: CustomerView[];
+  filteredCustomers?: CustomerView[];
   handleSelectCustomer: (c: CustomerView) => void;
   customersWithEmails: Map<string, string>;
   downloadTaxRebateEml: (customerId: string, customerName: string) => void;
@@ -33,17 +35,34 @@ export default function CustomersList({
   searchQuery,
   setSearchQuery,
   loading,
-  filteredCustomers,
+  customers = [],
+  filteredCustomers = [],
   handleSelectCustomer,
   customersWithEmails,
   downloadTaxRebateEml
 }: CustomersListProps) {
   const [exporting, setExporting] = useState(false);
+  const [exportModalOpen, setExportModalOpen] = useState(false);
 
-  const handleExport = async () => {
+  const safeCustomers = customers ?? [];
+  const safeFilteredCustomers = filteredCustomers ?? [];
+
+  const exportCities = Array.from(new Set(safeCustomers.map((c) => c.city || "Unknown"))).filter(Boolean);
+
+  const handleExport = async (city: string | null) => {
     try {
       setExporting(true);
-      await exportCustomersExcel(filteredCustomers);
+      const customersToExport = city
+        ? safeCustomers.filter((c) => (c.city || "Unknown") === city)
+        : safeCustomers;
+
+      if (customersToExport.length === 0) {
+        alert(city ? `No customers found in ${city}.` : "No customers to export.");
+        return;
+      }
+
+      await exportCustomersExcel(customersToExport, city);
+      setExportModalOpen(false);
     } catch (error) {
       console.error("Export failed", error);
       alert("Failed to export Excel.");
@@ -78,8 +97,8 @@ export default function CustomersList({
             </div>
             
             <button
-              onClick={handleExport}
-              disabled={exporting || filteredCustomers.length === 0}
+              onClick={() => setExportModalOpen(true)}
+              disabled={exporting || safeCustomers.length === 0}
               className="flex items-center justify-center p-3.5 bg-green-50 text-green-700 hover:bg-green-100 border border-green-200 rounded-2xl transition-all disabled:opacity-50 shadow-sm shrink-0"
               title="Export to Excel"
             >
@@ -106,7 +125,7 @@ export default function CustomersList({
               </div>
             ))}
           </div>
-        ) : filteredCustomers.length === 0 ? (
+        ) : safeFilteredCustomers.length === 0 ? (
           <div className="text-center py-20 bg-white rounded-3xl shadow-sm border border-gray-100">
             <User className="mx-auto h-16 w-16 text-gray-300 mb-4" />
             <h3 className="text-xl font-bold text-gray-900">No Customers Found</h3>
@@ -114,7 +133,7 @@ export default function CustomersList({
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
-            {filteredCustomers.map((c) => (
+            {safeFilteredCustomers.map((c) => (
               <div
                 key={c.customerId}
                 onClick={() => handleSelectCustomer(c)}
@@ -167,6 +186,14 @@ export default function CustomersList({
           </div>
         )}
       </div>
+
+      <ExportExcelModal
+        isOpen={exportModalOpen}
+        onClose={() => !exporting && setExportModalOpen(false)}
+        cities={exportCities}
+        onExport={handleExport}
+        exporting={exporting}
+      />
     </div>
   );
 }
