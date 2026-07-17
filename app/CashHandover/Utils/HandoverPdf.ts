@@ -50,29 +50,36 @@ export const generateHandoverPdf = async ({ data, filename }: { data: HandoverPd
   doc.line(margin, headerHeight - 3, pageWidth - margin, headerHeight - 3);
 
   // Details Section
-  let currentY = headerHeight + 15;
+  let currentY = headerHeight + 8;
 
   const leftMargin = 15;
   const rightMargin = pageWidth - 15;
 
+  // Handover ID + Date — centered together
   doc.setFontSize(11);
+  const infoParts: { text: string; bold: boolean }[] = [
+    { text: 'Handover ID: ', bold: false },
+    { text: data.handoverId, bold: true },
+    { text: '   Date: ', bold: false },
+    { text: data.date, bold: true },
+  ];
+
+  doc.setFont('helvetica', 'normal');
+  const totalInfoWidth = infoParts.reduce((sum, part) => {
+    doc.setFont('helvetica', part.bold ? 'bold' : 'normal');
+    return sum + doc.getTextWidth(part.text);
+  }, 0);
+
+  let infoX = (pageWidth - totalInfoWidth) / 2;
+  infoParts.forEach((part) => {
+    doc.setFont('helvetica', part.bold ? 'bold' : 'normal');
+    doc.setTextColor(...(part.bold ? primaryColor : secondaryColor));
+    doc.text(part.text, infoX, currentY);
+    infoX += doc.getTextWidth(part.text);
+  });
+
   doc.setFont('Amiri', 'normal');
-  doc.setTextColor(...secondaryColor);
-
-  // Ref / Date
-  doc.text(`Handover ID: `, leftMargin, currentY);
-  doc.setFont('Amiri', 'bold');
-  doc.setTextColor(...primaryColor);
-  doc.text(data.handoverId, leftMargin + 25, currentY);
-
-  doc.setFont('Amiri', 'normal');
-  doc.setTextColor(...secondaryColor);
-  doc.text(`Date: `, rightMargin - 40, currentY);
-  doc.setFont('Amiri', 'bold');
-  doc.setTextColor(...primaryColor);
-  doc.text(data.date, rightMargin - 28, currentY);
-
-  currentY += 15;
+  currentY += 6;
 
   // Table
   const tableData = data.items.map((item, index) => [
