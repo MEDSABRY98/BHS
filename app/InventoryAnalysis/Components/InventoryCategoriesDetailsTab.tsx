@@ -103,10 +103,11 @@ export default function InventoryProductOrdersDetailsTab({
     const handleExport = async () => {
         const data = filteredProducts.map(p => {
             const m = movements[p.productId] || { sales: 0, returns: 0, netPurchases: 0 };
+            const endingStock = endingBalances[p.productId] ?? p.onHand;
             return {
                 'Barcode': p.barcode,
                 'Name': p.productName,
-                'QTY (Pcs)': p.onHand,
+                'QTY (Pcs)': endingStock,
                 'Sales': m.sales,
                 'Returns': m.returns,
                 'Purchases': m.netPurchases,
@@ -218,8 +219,7 @@ export default function InventoryProductOrdersDetailsTab({
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
-                            {(loading || fetchingMovements || fetchingBalance) ? (
-
+                            {loading && filteredProducts.length === 0 ? (
                                 [...Array(8)].map((_, i) => (
                                     <tr key={i} className="hover:bg-gray-50 transition-all duration-300">
                                         <td className="px-6 py-4 border-r border-gray-100 bg-white">
@@ -252,15 +252,38 @@ export default function InventoryProductOrdersDetailsTab({
                                     </td>
                                 </tr>
                             ) : (
-                                filteredProducts.map((product, idx) => {
+                                filteredProducts.map((product) => {
                                     const move = movements[product.productId] || { sales: 0, returns: 0, netPurchases: 0 };
                                     const endingStock = endingBalances[product.productId] ?? null;
+                                    const metricsPending = fetchingMovements || fetchingBalance;
+                                    const hasMovementData = Object.prototype.hasOwnProperty.call(movements, product.productId);
+                                    const hasBalanceData = Object.prototype.hasOwnProperty.call(endingBalances, product.productId);
+
+                                    const renderMetricCell = (
+                                        value: number | null,
+                                        hasData: boolean,
+                                        activeClass: string,
+                                        formatter?: (val: number) => string,
+                                    ) => {
+                                        if (metricsPending && !hasData) {
+                                            return <div className="h-5 bg-gray-200 rounded w-10 mx-auto animate-pulse" />;
+                                        }
+
+                                        if (value === null || value === 0) {
+                                            return <span className="text-sm font-bold text-gray-400">-</span>;
+                                        }
+
+                                        return (
+                                            <span className={`text-sm font-bold ${activeClass}`}>
+                                                {formatter ? formatter(value) : value.toLocaleString()}
+                                            </span>
+                                        );
+                                    };
+
                                     return (
                                         <tr key={product.productId} className="hover:bg-gray-50 transition-all duration-300 group">
-                                            {/* Barcode */}
                                             <td className="px-6 py-3 text-xs font-semibold text-gray-500 group-hover:text-gray-900 text-center border-r border-gray-100 transition-colors tracking-tight bg-white">{product.barcode}</td>
 
-                                            {/* Name */}
                                             <td
                                                 className="px-6 py-3 text-sm font-bold text-gray-800 border-r border-gray-100 text-center cursor-pointer group-hover:text-[#D4AF37] transition-all bg-white"
                                                 title={product.productName}
@@ -272,27 +295,19 @@ export default function InventoryProductOrdersDetailsTab({
                                                 </div>
                                             </td>
 
-                                            {/* Sales */}
                                             <td className="px-2 py-3 text-center border-r border-gray-100 bg-white">
-                                                <span className={`text-sm font-bold ${move.sales > 0 ? 'text-blue-600' : 'text-gray-400'}`}>
-                                                    {move.sales === 0 ? '-' : move.sales.toLocaleString()}
-                                                </span>
+                                                {renderMetricCell(move.sales, hasMovementData, 'text-blue-600')}
                                             </td>
-                                            {/* Returns */}
                                             <td className="px-2 py-3 text-center border-r border-gray-100 bg-white">
-                                                <span className={`text-sm font-bold ${move.returns > 0 ? 'text-amber-600' : 'text-gray-400'}`}>
-                                                    {move.returns === 0 ? '-' : move.returns.toLocaleString()}
-                                                </span>
+                                                {renderMetricCell(move.returns, hasMovementData, 'text-amber-600')}
                                             </td>
-                                            {/* Purchases */}
                                             <td className="px-2 py-3 text-center border-r border-gray-100 bg-white">
-                                                <span className={`text-sm font-bold ${move.netPurchases !== 0 ? 'text-indigo-600' : 'text-gray-400'}`}>
-                                                    {move.netPurchases === 0 ? '-' : move.netPurchases.toLocaleString()}
-                                                </span>
+                                                {renderMetricCell(move.netPurchases, hasMovementData, 'text-indigo-600')}
                                             </td>
-                                            {/* Ending Balance */}
                                             <td className="px-2 py-3 text-center bg-white">
-                                                {endingStock === null ? (
+                                                {metricsPending && !hasBalanceData ? (
+                                                    <div className="h-5 bg-gray-200 rounded w-12 mx-auto animate-pulse" />
+                                                ) : endingStock === null ? (
                                                     <span className="text-gray-300 text-xs">—</span>
                                                 ) : (
                                                     <span className={`px-2 py-1 rounded-md text-sm font-black inline-block min-w-[50px] ${

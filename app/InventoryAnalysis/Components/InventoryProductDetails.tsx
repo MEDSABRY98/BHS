@@ -51,7 +51,7 @@ export default function ProductDetails({ productId, productName, barcode, onBack
     const [month, setMonth] = useState('');
     const [fromDate, setFromDate] = useState('');
     const [toDate, setToDate] = useState('');
-    const [preset, setPreset] = useState('all');
+    const [preset, setPreset] = useState('6months');
 
     useEffect(() => {
         const fetchData = async () => {

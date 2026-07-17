@@ -10,6 +10,7 @@ import {
 type InventoryMoveRow = {
   ID?: string;
   DATE: string | null;
+  REFERENCE?: string | null;
   'LOCATION FROM': string | null;
   'LOCATION TO': string | null;
   'PRODUCT ID': string | null;
@@ -198,6 +199,19 @@ export async function getProductOrdersData() {
     ]);
 
     const { salesMap, salesBreakdownMap, monthLabels, months, hasMovesSet } = buildSalesMaps(moveRows);
+    const stockMap = new Map<string, number>();
+    for (const move of moveRows) {
+      const productId = (move['PRODUCT ID'] || '').trim();
+      if (!productId) continue;
+      const effect = getNetQtyEffect(
+        (move['LOCATION FROM'] || '').trim(),
+        (move['LOCATION TO'] || '').trim(),
+        parseNum(move.QTY),
+      );
+      if (effect !== 0) {
+        stockMap.set(productId, (stockMap.get(productId) || 0) + effect);
+      }
+    }
 
     const data = products
       .map((row) => {
@@ -213,7 +227,7 @@ export async function getProductOrdersData() {
           barcode: row['PRODUCT BARCODE']?.toString().trim() || '',
           productName: row['PRODUCT NAME']?.toString().trim() || '',
           tags: row['PRODUCT CATEGORY']?.toString().trim() || '',
-          qty: parseNum((row as any)['AVAILABLE QTY']),
+          qty: stockMap.get(productId) || 0,
           salesQty: salesMap.get(productId) || 0,
           salesBreakdown,
         };
@@ -363,7 +377,13 @@ export async function getSingleProductAnalysis(
     const productRow = products.find((p) => p['PRODUCT ID']?.toString().trim() === productId.trim());
     if (!productRow) return { success: false, error: 'Product not found' };
 
-    const currentStock = parseNum(productRow['AVAILABLE QTY']);
+    let endingBalance = 0;
+    moveRows.forEach((row) => {
+      const from = row['LOCATION FROM']?.toString().trim() || '';
+      const to = row['LOCATION TO']?.toString().trim() || '';
+      const qty = parseNum(row.QTY);
+      endingBalance += getNetQtyEffect(from, to, qty);
+    });
 
     let filterStart: Date | null = null;
     let filterEnd: Date | null = new Date();
@@ -487,7 +507,15 @@ export async function getSingleProductAnalysis(
     const netFlow = netPurchases - totalSales;
 
     const data = {
-      summary: { sales: totalSales, returns: totalReturns, returnsRate: returnsRate.toFixed(2), netPurchases, netFlow, currentStock },
+      summary: {
+        sales: totalSales,
+        returns: totalReturns,
+        returnsRate: returnsRate.toFixed(2),
+        netPurchases,
+        netFlow,
+        currentStock: endingBalance,
+        endingBalance,
+      },
       monthlyData: [...allPeriods].reverse(),
       granularity
     };
@@ -738,6 +766,15 @@ const formatCategory = (tag: string) => {
   return parts[parts.length - 1].trim();
 };
 
+export interface PeriodMovement {
+  date: string;
+  reference: string;
+  locationFrom: string;
+  locationTo: string;
+  qty: number;
+  type: string;
+}
+
 export interface ProductBalanceRow {
   productId: string;
   barcode: string;
@@ -749,22 +786,78 @@ export interface ProductBalanceRow {
   netProduction: number;
   netAdjustment: number;
   endingStock: number;
-  periodMovements: Array<{
-    date: string;
-    reference: string;
-    locationFrom: string;
-    locationTo: string;
-    qty: number;
-    type: string;
-  }>;
+  periodMovements?: PeriodMovement[];
+}
+
+function classifyPeriodMovement(
+  locFrom: string,
+  locTo: string,
+  qty: number,
+  fromInternal: boolean,
+  toInternal: boolean,
+): { type: string; netVendors: number; netCustomers: number; netProduction: number; netAdjustment: number } | null {
+  if (fromInternal && toInternal) {
+    return { type: 'transfer', netVendors: 0, netCustomers: 0, netProduction: 0, netAdjustment: 0 };
+  }
+
+  const isIn = toInternal;
+  const isOut = fromInternal;
+  if (!isIn && !isOut) return null;
+
+  const otherLocation = isIn ? locFrom : locTo;
+  if (isIn) {
+    if (otherLocation === 'Partners/Vendors') return { type: 'vendor_in', netVendors: qty, netCustomers: 0, netProduction: 0, netAdjustment: 0 };
+    if (otherLocation === 'Partners/Customers') return { type: 'customer_return', netVendors: 0, netCustomers: qty, netProduction: 0, netAdjustment: 0 };
+    if (otherLocation === 'Physical Locations/Subcontracting Location') return { type: 'subcontracting_in', netVendors: 0, netCustomers: 0, netProduction: qty, netAdjustment: 0 };
+    if (otherLocation === 'Virtual Locations/Inventory adjustment') return { type: 'adjustment_in', netVendors: 0, netCustomers: 0, netProduction: 0, netAdjustment: qty };
+    if (otherLocation === 'Virtual Locations/Production') return { type: 'production_in', netVendors: 0, netCustomers: 0, netProduction: qty, netAdjustment: 0 };
+    return { type: 'production_in', netVendors: 0, netCustomers: 0, netProduction: qty, netAdjustment: 0 };
+  }
+
+  if (otherLocation === 'Partners/Customers') return { type: 'customer_sale', netVendors: 0, netCustomers: -qty, netProduction: 0, netAdjustment: 0 };
+  if (otherLocation === 'Partners/Vendors') return { type: 'vendor_return', netVendors: -qty, netCustomers: 0, netProduction: 0, netAdjustment: 0 };
+  if (otherLocation === 'Physical Locations/Subcontracting Location') return { type: 'subcontracting_out', netVendors: 0, netCustomers: 0, netProduction: -qty, netAdjustment: 0 };
+  if (otherLocation === 'Virtual Locations/Inventory adjustment') return { type: 'adjustment_out', netVendors: 0, netCustomers: 0, netProduction: 0, netAdjustment: -qty };
+  if (otherLocation === 'Virtual Locations/Production') return { type: 'production_out', netVendors: 0, netCustomers: 0, netProduction: -qty, netAdjustment: 0 };
+  return { type: 'production_out', netVendors: 0, netCustomers: 0, netProduction: -qty, netAdjustment: 0 };
+}
+
+async function fetchProductInventoryMoves(productId: string): Promise<InventoryMoveRow[]> {
+  const pageSize = 1000;
+  const allRows: InventoryMoveRow[] = [];
+  let lastId: string | null = null;
+  const SELECT = 'ID,DATE,REFERENCE,"LOCATION FROM","LOCATION TO","PRODUCT ID",QTY';
+
+  while (true) {
+    let query = bhs_supabase
+      .from('web_INVENTORY_MOVES')
+      .select(SELECT)
+      .eq('PRODUCT ID', productId.trim())
+      .order('ID', { ascending: true })
+      .limit(pageSize);
+
+    if (lastId !== null) {
+      query = query.gt('ID', lastId);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+
+    allRows.push(...(data as InventoryMoveRow[]));
+    lastId = String((data[data.length - 1] as any).ID ?? '');
+    if (data.length < pageSize) break;
+  }
+
+  return allRows;
 }
 
 export async function getProductsBalanceReportData(filters?: { dateFrom?: string; dateTo?: string }) {
   try {
-    // Try RPC first (fast — computed in PostgreSQL)
     const { data: rpcData, error: rpcError } = await bhs_supabase.rpc('get_inventory_balance_report', {
       p_date_from: filters?.dateFrom || null,
       p_date_to: filters?.dateTo || null,
+      p_include_movements: false,
     });
 
     if (!rpcError && rpcData && rpcData.success) {
@@ -773,12 +866,10 @@ export async function getProductsBalanceReportData(filters?: { dateFrom?: string
 
     console.warn('RPC get_inventory_balance_report failed, falling back to JS:', rpcError?.message);
 
-    // Fallback: fetch all data and compute in JS
     const [products, moveRows] = await Promise.all([
       fetchInventoryProducts(),
       fetchAllInventoryMovesStable(),
     ]);
-
 
     const dateFromStr = filters?.dateFrom ? filters.dateFrom.trim() : null;
     const dateToStr = filters?.dateTo ? filters.dateTo.trim() : null;
@@ -786,21 +877,12 @@ export async function getProductsBalanceReportData(filters?: { dateFrom?: string
     const fromDate = dateFromStr ? new Date(`${dateFromStr}T00:00:00.000Z`) : null;
     const toDate = dateToStr ? new Date(`${dateToStr}T23:59:59.999Z`) : null;
 
-    // Aggregate period movements & period opening stock strictly from web_INVENTORY_MOVES
     const productDataMap = new Map<string, {
       openingStock: number;
       netVendors: number;
       netCustomers: number;
       netProduction: number;
       netAdjustment: number;
-      periodMovements: Array<{
-        date: string;
-        reference: string;
-        locationFrom: string;
-        locationTo: string;
-        qty: number;
-        type: string;
-      }>;
     }>();
 
     moveRows.forEach((row: any) => {
@@ -812,7 +894,6 @@ export async function getProductsBalanceReportData(filters?: { dateFrom?: string
       const qty = parseNum(row.QTY);
       const locFrom = row['LOCATION FROM']?.toString().trim() || '';
       const locTo = row['LOCATION TO']?.toString().trim() || '';
-      const ref = row.REFERENCE?.toString().trim() || '-';
 
       if (!productDataMap.has(productId)) {
         productDataMap.set(productId, {
@@ -821,7 +902,6 @@ export async function getProductsBalanceReportData(filters?: { dateFrom?: string
           netCustomers: 0,
           netProduction: 0,
           netAdjustment: 0,
-          periodMovements: [],
         });
       }
 
@@ -830,63 +910,39 @@ export async function getProductsBalanceReportData(filters?: { dateFrom?: string
       const fromInternal = INTERNAL_WAREHOUSES_SET.has(locFrom);
       const toInternal = INTERNAL_WAREHOUSES_SET.has(locTo);
 
-      // Internal transfer (both sides are our warehouses) → skip
-      if (fromInternal && toInternal) {
-        entry.periodMovements.push({ date: dateStr, reference: ref, locationFrom: locFrom, locationTo: locTo, qty, type: 'transfer' });
-        return;
-      }
+      if (fromInternal && toInternal) return;
 
-      // Determine direction based on which side is our warehouse
-      // to=internal → inflow (stock coming into our warehouses)
-      // from=internal → outflow (stock going out from our warehouses)
       const isIn = toInternal;
       const isOut = fromInternal;
-
-      // Neither side is our warehouse → skip (external-to-external)
-      if (!isIn && !isOut) {
-        return;
-      }
+      if (!isIn && !isOut) return;
 
       const effect = isIn ? qty : -qty;
 
-      // 1. If movement is BEFORE dateFrom → openingStock
       if (fromDate && moveDate && moveDate < fromDate) {
         entry.openingStock += effect;
         return;
       }
 
-      // 2. If movement is AFTER dateTo → ignore
       if (toDate && moveDate && moveDate > toDate) {
         return;
       }
 
-      // 3. Categorize by the "other" location (the non-warehouse side)
       const otherLocation = isIn ? locFrom : locTo;
-      let type: string;
       if (isIn) {
-        if (otherLocation === 'Partners/Vendors') { entry.netVendors += qty; type = 'vendor_in'; }
-        else if (otherLocation === 'Partners/Customers') { entry.netCustomers += qty; type = 'customer_return'; }
-        else if (otherLocation === 'Physical Locations/Subcontracting Location') { entry.netProduction += qty; type = 'subcontracting_in'; }
-        else if (otherLocation === 'Virtual Locations/Inventory adjustment') { entry.netAdjustment += qty; type = 'adjustment_in'; }
-        else if (otherLocation === 'Virtual Locations/Production') { entry.netProduction += qty; type = 'production_in'; }
-        else { entry.netProduction += qty; type = 'production_in'; }
+        if (otherLocation === 'Partners/Vendors') entry.netVendors += qty;
+        else if (otherLocation === 'Partners/Customers') entry.netCustomers += qty;
+        else if (otherLocation === 'Physical Locations/Subcontracting Location') entry.netProduction += qty;
+        else if (otherLocation === 'Virtual Locations/Inventory adjustment') entry.netAdjustment += qty;
+        else if (otherLocation === 'Virtual Locations/Production') entry.netProduction += qty;
+        else entry.netProduction += qty;
       } else {
-        if (otherLocation === 'Partners/Customers') { entry.netCustomers -= qty; type = 'customer_sale'; }
-        else if (otherLocation === 'Partners/Vendors') { entry.netVendors -= qty; type = 'vendor_return'; }
-        else if (otherLocation === 'Physical Locations/Subcontracting Location') { entry.netProduction -= qty; type = 'subcontracting_out'; }
-        else if (otherLocation === 'Virtual Locations/Inventory adjustment') { entry.netAdjustment -= qty; type = 'adjustment_out'; }
-        else if (otherLocation === 'Virtual Locations/Production') { entry.netProduction -= qty; type = 'production_out'; }
-        else { entry.netProduction -= qty; type = 'production_out'; }
+        if (otherLocation === 'Partners/Customers') entry.netCustomers -= qty;
+        else if (otherLocation === 'Partners/Vendors') entry.netVendors -= qty;
+        else if (otherLocation === 'Physical Locations/Subcontracting Location') entry.netProduction -= qty;
+        else if (otherLocation === 'Virtual Locations/Inventory adjustment') entry.netAdjustment -= qty;
+        else if (otherLocation === 'Virtual Locations/Production') entry.netProduction -= qty;
+        else entry.netProduction -= qty;
       }
-
-      entry.periodMovements.push({
-        date: dateStr,
-        reference: ref,
-        locationFrom: locFrom,
-        locationTo: locTo,
-        qty,
-        type,
-      });
     });
 
     const result = products.map((row) => {
@@ -900,9 +956,7 @@ export async function getProductsBalanceReportData(filters?: { dateFrom?: string
         netVendors: 0,
         netCustomers: 0,
         netProduction: 0,
-        netSubcontracting: 0,
         netAdjustment: 0,
-        periodMovements: [],
       };
 
       const endingStock = calcData.openingStock + calcData.netVendors + calcData.netCustomers + calcData.netProduction + calcData.netAdjustment;
@@ -918,7 +972,6 @@ export async function getProductsBalanceReportData(filters?: { dateFrom?: string
         netProduction: calcData.netProduction,
         netAdjustment: calcData.netAdjustment,
         endingStock,
-        periodMovements: calcData.periodMovements,
       };
     }).filter(p => p.productName && (productDataMap.has(p.productId) || p.endingStock !== 0 || p.openingStock !== 0));
 
@@ -926,6 +979,75 @@ export async function getProductsBalanceReportData(filters?: { dateFrom?: string
   } catch (error: any) {
     console.error('Service Error getProductsBalanceReportData:', error);
     return { success: false, error: 'Failed to fetch products balance data', details: error.message };
+  }
+}
+
+export async function getProductPeriodMovements(
+  productId: string,
+  filters?: { dateFrom?: string; dateTo?: string },
+) {
+  try {
+    const trimmedId = productId?.trim();
+    if (!trimmedId) {
+      return { success: false, error: 'Product ID is required' };
+    }
+
+    const { data: rpcData, error: rpcError } = await bhs_supabase.rpc('get_inventory_product_period_movements', {
+      p_product_id: trimmedId,
+      p_date_from: filters?.dateFrom || null,
+      p_date_to: filters?.dateTo || null,
+    });
+
+    if (!rpcError && rpcData && rpcData.success) {
+      return rpcData;
+    }
+
+    console.warn('RPC get_inventory_product_period_movements failed, falling back to JS:', rpcError?.message);
+
+    const dateFromStr = filters?.dateFrom ? filters.dateFrom.trim() : null;
+    const dateToStr = filters?.dateTo ? filters.dateTo.trim() : null;
+    const fromDate = dateFromStr ? new Date(`${dateFromStr}T00:00:00.000Z`) : null;
+    const toDate = dateToStr ? new Date(`${dateToStr}T23:59:59.999Z`) : null;
+
+    const moveRows = await fetchProductInventoryMoves(trimmedId);
+    const movements: PeriodMovement[] = [];
+
+    moveRows.forEach((row: any) => {
+      const dateStr = row.DATE ? String(row.DATE) : '';
+      const moveDate = dateStr ? new Date(dateStr) : null;
+      const qty = parseNum(row.QTY);
+      const locFrom = row['LOCATION FROM']?.toString().trim() || '';
+      const locTo = row['LOCATION TO']?.toString().trim() || '';
+      const ref = row.REFERENCE?.toString().trim() || '-';
+
+      if (fromDate && moveDate && moveDate < fromDate) return;
+      if (toDate && moveDate && moveDate > toDate) return;
+
+      const fromInternal = INTERNAL_WAREHOUSES_SET.has(locFrom);
+      const toInternal = INTERNAL_WAREHOUSES_SET.has(locTo);
+      const classified = classifyPeriodMovement(locFrom, locTo, qty, fromInternal, toInternal);
+      if (!classified) return;
+
+      movements.push({
+        date: dateStr,
+        reference: ref,
+        locationFrom: locFrom,
+        locationTo: locTo,
+        qty,
+        type: classified.type,
+      });
+    });
+
+    movements.sort((a, b) => {
+      const timeA = a.date ? new Date(a.date).getTime() : 0;
+      const timeB = b.date ? new Date(b.date).getTime() : 0;
+      return timeB - timeA;
+    });
+
+    return { success: true, data: movements };
+  } catch (error: any) {
+    console.error('Service Error getProductPeriodMovements:', error);
+    return { success: false, error: 'Failed to fetch product period movements', details: error.message };
   }
 }
 

@@ -1,13 +1,15 @@
 'use client';
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Box, ArrowLeft, FileSpreadsheet, Search, Filter, ChevronDown, Check, X } from 'lucide-react';
-import { ProductBalanceRow } from '../Service/inventory_service';
+import { Box, ArrowLeft, FileSpreadsheet, Search, Filter, ChevronDown, Check, X, RefreshCcw } from 'lucide-react';
+import { ProductBalanceRow, PeriodMovement, getProductPeriodMovements } from '../Service/inventory_service';
 import NoData from '@/app/Components/NoDataTab';
 import { exportSalesExcelTable } from '@/app/Sales/Utils/ExcelExport';
 
 interface Props {
   selectedProduct: ProductBalanceRow;
+  dateFrom: string;
+  dateTo: string;
   onBack: () => void;
 }
 
@@ -26,14 +28,48 @@ const MOVEMENT_TYPES = [
   { value: 'transfer',          label: 'Internal Transfer' },
 ];
 
-export default function InventoryProductsBalanceDetailsTab({ selectedProduct, onBack }: Props) {
+export default function InventoryProductsBalanceDetailsTab({ selectedProduct, dateFrom, dateTo, onBack }: Props) {
   const [ledgerSearch, setLedgerSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('All');
+  const [periodMovements, setPeriodMovements] = useState<PeriodMovement[]>([]);
+  const [movementsLoading, setMovementsLoading] = useState(true);
+  const [movementsError, setMovementsError] = useState<string | null>(null);
 
   // Custom Dropdown State
   const [isTypeOpen, setIsTypeOpen] = useState(false);
   const [typeSearch, setTypeSearch] = useState('');
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadMovements = async () => {
+      try {
+        setMovementsLoading(true);
+        setMovementsError(null);
+        const res = await getProductPeriodMovements(selectedProduct.productId, { dateFrom, dateTo });
+        if (cancelled) return;
+        if (!res.success) {
+          throw new Error(res.error || 'Failed to fetch product movements');
+        }
+        setPeriodMovements(res.data || []);
+      } catch (err: any) {
+        if (cancelled) return;
+        console.error('Error fetching product period movements:', err);
+        setMovementsError(err.message || 'Failed to load movement ledger');
+        setPeriodMovements([]);
+      } finally {
+        if (!cancelled) {
+          setMovementsLoading(false);
+        }
+      }
+    };
+
+    loadMovements();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedProduct.productId, dateFrom, dateTo]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -56,7 +92,7 @@ export default function InventoryProductsBalanceDetailsTab({ selectedProduct, on
 
   // Filtered & sorted movements for the selected product (Newest first)
   const filteredMovements = useMemo(() => {
-    const list = selectedProduct.periodMovements.filter(move => {
+    const list = periodMovements.filter(move => {
       // Type Filter
       if (typeFilter !== 'All' && move.type !== typeFilter) return false;
 
@@ -77,7 +113,7 @@ export default function InventoryProductsBalanceDetailsTab({ selectedProduct, on
       const timeB = b.date ? new Date(b.date).getTime() : 0;
       return timeB - timeA;
     });
-  }, [selectedProduct.periodMovements, ledgerSearch, typeFilter]);
+  }, [periodMovements, ledgerSearch, typeFilter]);
 
   // Export ledger to Excel
   const handleExportLedgerExcel = async () => {
@@ -257,9 +293,29 @@ export default function InventoryProductsBalanceDetailsTab({ selectedProduct, on
       </div>
 
       {/* Ledger Table Container */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden">
-        {filteredMovements.length === 0 ? (
-          <NoData />
+      <div className={`bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden transition-opacity duration-300 ${movementsLoading ? 'opacity-60' : ''}`}>
+        {movementsError ? (
+          <div className="p-8 text-center space-y-3">
+            <p className="text-sm font-semibold text-rose-600">{movementsError}</p>
+            <button
+              type="button"
+              onClick={() => {
+                setMovementsLoading(true);
+                setMovementsError(null);
+                getProductPeriodMovements(selectedProduct.productId, { dateFrom, dateTo })
+                  .then(res => {
+                    if (!res.success) throw new Error(res.error || 'Failed to fetch product movements');
+                    setPeriodMovements(res.data || []);
+                  })
+                  .catch(err => setMovementsError(err.message || 'Failed to load movement ledger'))
+                  .finally(() => setMovementsLoading(false));
+              }}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 text-white hover:bg-indigo-700 transition-all"
+            >
+              <RefreshCcw className="w-4 h-4" />
+              Retry
+            </button>
+          </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-center border-collapse text-xs font-semibold min-w-[1000px]">
@@ -275,7 +331,26 @@ export default function InventoryProductsBalanceDetailsTab({ selectedProduct, on
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-700">
-                {filteredMovements.map((move, idx) => {
+                {movementsLoading ? (
+                  Array.from({ length: 6 }).map((_, idx) => (
+                    <tr key={`skeleton-${idx}`} className="animate-pulse">
+                      <td className="py-3.5 px-3"><div className="h-3 w-4 bg-slate-100 rounded mx-auto" /></td>
+                      <td className="py-3.5 px-3"><div className="h-3 w-20 bg-slate-100 rounded mx-auto" /></td>
+                      <td className="py-3.5 px-3"><div className="h-3 w-24 bg-slate-100 rounded mx-auto" /></td>
+                      <td className="py-3.5 px-3"><div className="h-3 w-32 bg-slate-100 rounded mx-auto" /></td>
+                      <td className="py-3.5 px-3"><div className="h-3 w-32 bg-slate-100 rounded mx-auto" /></td>
+                      <td className="py-3.5 px-3"><div className="h-6 w-24 bg-slate-100 rounded-lg mx-auto" /></td>
+                      <td className="py-3.5 px-3"><div className="h-3 w-12 bg-slate-100 rounded mx-auto" /></td>
+                    </tr>
+                  ))
+                ) : filteredMovements.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="py-12">
+                      <NoData />
+                    </td>
+                  </tr>
+                ) : (
+                  filteredMovements.map((move, idx) => {
                   const dateStr = move.date ? new Date(move.date).toLocaleDateString('en-US', {
                     year: 'numeric',
                     month: 'short',
@@ -306,7 +381,8 @@ export default function InventoryProductsBalanceDetailsTab({ selectedProduct, on
                       <td className="py-3.5 px-3 text-center font-bold text-slate-800 text-sm">{move.qty.toLocaleString('en-US')}</td>
                     </tr>
                   );
-                })}
+                  })
+                )}
               </tbody>
             </table>
           </div>

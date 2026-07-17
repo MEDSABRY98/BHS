@@ -6,7 +6,7 @@ import {
   FileSpreadsheet, Calendar, Eye, X, ArrowUpRight, ArrowDownLeft,
   Layers, Filter, Box, ChevronLeft, ChevronRight, ChevronDown, Check
 } from 'lucide-react';
-import Loading from '@/app/Components/Loading';
+import TabLoader from '@/app/Components/TabLoader';
 import NoData from '@/app/Components/NoDataTab';
 import { getProductsBalanceReportData, ProductBalanceRow } from '../Service/inventory_service';
 import { exportSalesExcelTable } from '@/app/Sales/Utils/ExcelExport';
@@ -22,6 +22,8 @@ export default function InventoryProductsBalanceTab() {
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [dateFrom, setDateFrom] = useState<string>('');
   const [dateTo, setDateTo] = useState<string>('');
+  const [appliedDateFrom, setAppliedDateFrom] = useState<string>('');
+  const [appliedDateTo, setAppliedDateTo] = useState<string>('');
 
   // Selected Product Modal State
   const [selectedProduct, setSelectedProduct] = useState<ProductBalanceRow | null>(null);
@@ -29,27 +31,41 @@ export default function InventoryProductsBalanceTab() {
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 50;
+  const fetchRequestId = useRef(0);
 
   useEffect(() => {
-    fetchReport();
-  }, [dateFrom, dateTo]);
+    fetchReport(appliedDateFrom, appliedDateTo);
+  }, [appliedDateFrom, appliedDateTo]);
 
-  const fetchReport = async () => {
+  const fetchReport = async (from = appliedDateFrom, to = appliedDateTo) => {
+    const requestId = ++fetchRequestId.current;
     try {
       setLoading(true);
-      const res = await getProductsBalanceReportData({ dateFrom, dateTo });
+      const res = await getProductsBalanceReportData({ dateFrom: from, dateTo: to });
+      if (requestId !== fetchRequestId.current) return;
       if (!res.success) {
         throw new Error(res.error || 'Failed to fetch inventory balance data');
       }
       setData(res.data || []);
       setError(null);
     } catch (err: any) {
+      if (requestId !== fetchRequestId.current) return;
       console.error('Error fetching Products Balance:', err);
       setError(err.message || 'Failed to load report data');
     } finally {
-      setLoading(false);
+      if (requestId === fetchRequestId.current) {
+        setLoading(false);
+      }
     }
   };
+
+  const handleApplyDateFilter = () => {
+    setAppliedDateFrom(dateFrom);
+    setAppliedDateTo(dateTo);
+    setCurrentPage(1);
+  };
+
+  const hasPendingDateChanges = dateFrom !== appliedDateFrom || dateTo !== appliedDateTo;
 
   // Custom Searchable Category Dropdown State
   const [isCategoryOpen, setIsCategoryOpen] = useState(false);
@@ -208,13 +224,15 @@ export default function InventoryProductsBalanceTab() {
     );
   };
 
-  if (loading && data.length === 0) return <Loading />;
+  if (loading && data.length === 0) return <TabLoader />;
 
   // Render Full Page Details Tab View if a product is selected
   if (selectedProduct) {
     return (
       <InventoryProductsBalanceDetailsTab
         selectedProduct={selectedProduct}
+        dateFrom={appliedDateFrom}
+        dateTo={appliedDateTo}
         onBack={() => setSelectedProduct(null)}
       />
     );
@@ -234,7 +252,7 @@ export default function InventoryProductsBalanceTab() {
 
           <div className="flex items-center gap-3">
             <button
-              onClick={fetchReport}
+              onClick={() => fetchReport()}
               disabled={loading}
               className="p-2.5 rounded-xl border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all shadow-sm disabled:opacity-50"
               title="Refresh Data"
@@ -252,7 +270,7 @@ export default function InventoryProductsBalanceTab() {
         </div>
 
         {/* Filter Toolbar */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 pt-2">
           {/* Search Bar */}
           <div className="relative flex items-center h-11 bg-slate-50/80 hover:bg-slate-100/60 focus-within:bg-white border border-slate-200/90 rounded-xl px-3.5 transition-all shadow-xs focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-500">
             <Search className="w-4 h-4 text-slate-400 shrink-0 mr-2.5" />
@@ -377,7 +395,28 @@ export default function InventoryProductsBalanceTab() {
               className="w-full bg-transparent text-xs font-bold text-slate-700 outline-none cursor-pointer"
             />
           </div>
+
+          {/* Apply Date Filter */}
+          <button
+            type="button"
+            onClick={handleApplyDateFilter}
+            disabled={loading || !hasPendingDateChanges}
+            className="h-11 px-4 rounded-xl text-xs font-bold transition-all shadow-sm border disabled:opacity-50 disabled:cursor-not-allowed bg-indigo-600 hover:bg-indigo-700 text-white border-indigo-600"
+          >
+            Apply Dates
+          </button>
         </div>
+
+        {loading && data.length > 0 && (
+          <p className="text-xs font-semibold text-indigo-600 flex items-center gap-2">
+            <RefreshCcw className="w-3.5 h-3.5 animate-spin" />
+            Updating balance columns for the selected date range...
+          </p>
+        )}
+
+        {error && (
+          <p className="text-xs font-semibold text-rose-600">{error}</p>
+        )}
       </div>
 
       {/* KPI Metrics Cards */}

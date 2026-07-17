@@ -5,10 +5,13 @@
 -- ============================================================
 
 DROP FUNCTION IF EXISTS get_inventory_balance_report(text, text);
+DROP FUNCTION IF EXISTS get_inventory_balance_report(text, text, boolean);
+DROP FUNCTION IF EXISTS get_inventory_product_period_movements(text, text, text);
 
 CREATE OR REPLACE FUNCTION get_inventory_balance_report(
   p_date_from text DEFAULT NULL,
-  p_date_to   text DEFAULT NULL
+  p_date_to   text DEFAULT NULL,
+  p_include_movements boolean DEFAULT false
 )
 RETURNS json AS $$
 DECLARE
@@ -26,7 +29,7 @@ BEGIN
   WITH classified AS (
     SELECT
       m."PRODUCT ID" AS product_id,
-      m.DATE::timestamptz AS move_date,
+      m."DATE"::timestamptz AS move_date,
       TRIM(m."LOCATION FROM") AS loc_from,
       TRIM(m."LOCATION TO")   AS loc_to,
       COALESCE(m."QTY"::numeric, 0) AS qty,
@@ -75,7 +78,7 @@ BEGIN
     GROUP BY product_id
   ),
 
-  -- Period movements detail (individual rows) per product
+  -- Period movements detail (individual rows) per product — only when requested
   period_detail AS (
     SELECT
       product_id,
@@ -100,7 +103,8 @@ BEGIN
           ELSE 'production_out'
         END
       )) AS movements
-    FROM with_effects WHERE period = 'period'
+    FROM with_effects
+    WHERE period = 'period' AND p_include_movements
     GROUP BY product_id
   ),
 
@@ -121,31 +125,47 @@ BEGIN
         + COALESCE(pa.net_customers, 0)
         + COALESCE(pa.net_production, 0)
         + COALESCE(pa.net_adjustment, 0) AS "endingStock",
-      COALESCE(pd.movements, '[]'::json) AS "periodMovements"
+      CASE
+        WHEN p_include_movements THEN COALESCE(pd.movements, '[]'::json)
+        ELSE '[]'::json
+      END AS "periodMovements"
     FROM "bhs_PRODUCTS" p
     LEFT JOIN opening     o  ON o.product_id = p."PRODUCT ID"
     LEFT JOIN period_agg  pa ON pa.product_id = p."PRODUCT ID"
-    LEFT JOIN period_detail pd ON pd.product_id = p."PRODUCT ID"
+    LEFT JOIN period_detail pd ON pd.product_id = p."PRODUCT ID" AND p_include_movements
     WHERE p."PRODUCT NAME" IS NOT NULL AND TRIM(p."PRODUCT NAME") != ''
   )
-  SELECT json_agg(json_build_object(
-    "productId",         "productId",
-    "barcode",           "barcode",
-    "productName",       "productName",
-    "category",          "category",
-    "openingStock",      "openingStock",
-    "netVendors",        "netVendors",
-    "netCustomers",      "netCustomers",
-    "netProduction",     "netProduction",
-    "netAdjustment",     "netAdjustment",
-    "endingStock",       "endingStock",
-    "periodMovements",   "periodMovements"
-  ) ORDER BY "productName")
+  SELECT COALESCE(json_agg(row_json ORDER BY "productName"), '[]'::json)
   INTO v_result
-  FROM combined
-  WHERE "productId" IN (SELECT DISTINCT product_id FROM with_effects)
-     OR "openingStock" != 0
-     OR "endingStock" != 0;
+  FROM (
+    SELECT
+      (
+        json_build_object(
+          'productId', "productId",
+          'barcode', "barcode",
+          'productName', "productName",
+          'category', "category",
+          'openingStock', "openingStock",
+          'netVendors', "netVendors",
+          'netCustomers', "netCustomers",
+          'netProduction', "netProduction",
+          'netAdjustment', "netAdjustment",
+          'endingStock', "endingStock"
+        )::jsonb
+        || jsonb_build_object(
+          'periodMovements',
+          CASE
+            WHEN p_include_movements THEN COALESCE("periodMovements", '[]'::json)::jsonb
+            ELSE '[]'::jsonb
+          END
+        )
+      )::json AS row_json,
+      "productName"
+    FROM combined
+    WHERE "productId" IN (SELECT DISTINCT product_id FROM with_effects)
+       OR "openingStock" != 0
+       OR "endingStock" != 0
+  ) report_rows;
 
   IF v_result IS NULL THEN v_result := '[]'::json; END IF;
 
@@ -153,6 +173,91 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER
 SET statement_timeout = '60s';
+
+
+-- ============================================================
+-- RPC 1b: get_inventory_product_period_movements
+-- Returns period ledger rows for a single product (lazy-loaded details)
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION get_inventory_product_period_movements(
+  p_product_id text,
+  p_date_from  text DEFAULT NULL,
+  p_date_to    text DEFAULT NULL
+)
+RETURNS json AS $$
+DECLARE
+  v_result    json;
+  v_from_date timestamptz;
+  v_to_date   timestamptz;
+BEGIN
+  IF p_product_id IS NULL OR TRIM(p_product_id) = '' THEN
+    RETURN json_build_object('success', false, 'error', 'Product ID is required');
+  END IF;
+
+  IF p_date_from IS NOT NULL AND p_date_from != '' THEN
+    v_from_date := (p_date_from || 'T00:00:00.000Z')::timestamptz;
+  END IF;
+  IF p_date_to IS NOT NULL AND p_date_to != '' THEN
+    v_to_date := (p_date_to || 'T23:59:59.999Z')::timestamptz;
+  END IF;
+
+  WITH classified AS (
+    SELECT
+      m."DATE"::timestamptz AS move_date,
+      TRIM(m."LOCATION FROM") AS loc_from,
+      TRIM(m."LOCATION TO")   AS loc_to,
+      COALESCE(m."QTY"::numeric, 0) AS qty,
+      COALESCE(NULLIF(TRIM(m.REFERENCE), ''), '-') AS reference,
+      (TRIM(m."LOCATION FROM") IN ('M/WH/Mazyad','S/WH/S20','GM/WH/Game area','HA/WH/Hashi')) AS from_internal,
+      (TRIM(m."LOCATION TO")   IN ('M/WH/Mazyad','S/WH/S20','GM/WH/Game area','HA/WH/Hashi')) AS to_internal
+    FROM "web_INVENTORY_MOVES" m
+    WHERE m."PRODUCT ID" = TRIM(p_product_id)
+      AND m."QTY" IS NOT NULL
+      AND m."QTY"::numeric != 0
+      AND (v_from_date IS NULL OR m."DATE"::timestamptz >= v_from_date)
+      AND (v_to_date   IS NULL OR m."DATE"::timestamptz <= v_to_date)
+  ),
+  ledger_rows AS (
+    SELECT
+      move_date,
+      reference,
+      loc_from,
+      loc_to,
+      qty,
+      CASE
+        WHEN from_internal AND to_internal THEN 'transfer'
+        WHEN to_internal AND loc_from = 'Partners/Vendors'                       THEN 'vendor_in'
+        WHEN NOT to_internal AND loc_to = 'Partners/Vendors'                     THEN 'vendor_return'
+        WHEN to_internal AND loc_from = 'Partners/Customers'                     THEN 'customer_return'
+        WHEN NOT to_internal AND loc_to = 'Partners/Customers'                     THEN 'customer_sale'
+        WHEN to_internal AND loc_from LIKE 'Physical Locations/Subcontracting%'    THEN 'subcontracting_in'
+        WHEN NOT to_internal AND loc_to LIKE 'Physical Locations/Subcontracting%' THEN 'subcontracting_out'
+        WHEN to_internal AND loc_from = 'Virtual Locations/Inventory adjustment' THEN 'adjustment_in'
+        WHEN NOT to_internal AND loc_to = 'Virtual Locations/Inventory adjustment' THEN 'adjustment_out'
+        WHEN to_internal AND loc_from = 'Virtual Locations/Production'           THEN 'production_in'
+        WHEN NOT to_internal AND loc_to = 'Virtual Locations/Production'           THEN 'production_out'
+        WHEN to_internal THEN 'production_in'
+        ELSE 'production_out'
+      END AS move_type
+    FROM classified
+    WHERE (from_internal OR to_internal)
+  )
+  SELECT COALESCE(json_agg(json_build_object(
+    'date',         to_char(move_date AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+    'reference',    reference,
+    'locationFrom', loc_from,
+    'locationTo',   loc_to,
+    'qty',          qty,
+    'type',         move_type
+  ) ORDER BY move_date DESC), '[]'::json)
+  INTO v_result
+  FROM ledger_rows;
+
+  RETURN json_build_object('success', true, 'data', v_result);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER
+SET statement_timeout = '30s';
 
 
 -- ============================================================
@@ -174,20 +279,11 @@ CREATE OR REPLACE FUNCTION get_inventory_product_analysis(
 RETURNS json AS $$
 DECLARE
   v_result     json;
-  v_current_stock numeric;
   v_granularity text;
   v_filter_start timestamptz;
   v_filter_end   timestamptz;
   v_now         timestamptz := now();
 BEGIN
-  -- Get current stock from products table
-  SELECT COALESCE("AVAILABLE QTY"::numeric, 0) INTO v_current_stock
-  FROM "bhs_PRODUCTS"
-  WHERE "PRODUCT ID" = TRIM(p_product_id)
-  LIMIT 1;
-
-  IF v_current_stock IS NULL THEN v_current_stock := 0; END IF;
-
   -- Determine granularity and date bounds
   v_granularity := CASE WHEN p_preset = '7days' THEN 'day' ELSE 'month' END;
 
@@ -222,7 +318,7 @@ BEGIN
 
   WITH product_moves AS (
     SELECT
-      m.DATE::timestamptz AS move_date,
+      m."DATE"::timestamptz AS move_date,
       TRIM(m."LOCATION FROM") AS loc_from,
       TRIM(m."LOCATION TO")   AS loc_to,
       COALESCE(m."QTY"::numeric, 0) AS qty
@@ -328,7 +424,7 @@ BEGIN
                             ELSE '0' END,
         'netPurchases', t.total_purchases_in - t.total_purchases_out,
         'netFlow',      (t.total_purchases_in - t.total_purchases_out) - t.total_sales,
-        'currentStock', v_current_stock,
+        'currentStock', ec.ending_stock,
         'endingBalance', ec.ending_stock
       ),
       'monthlyData', (
@@ -384,7 +480,7 @@ BEGIN
   WITH customer_moves AS (
     SELECT
       m."PRODUCT ID" AS product_id,
-      m.DATE::timestamptz AS move_date,
+      m."DATE"::timestamptz AS move_date,
       COALESCE(m."QTY"::numeric, 0) AS qty
     FROM "web_INVENTORY_MOVES" m
     WHERE m."LOCATION TO" = 'Partners/Customers'
@@ -402,13 +498,33 @@ BEGIN
       SUM(CASE WHEN move_date >= v_month3_start AND move_date < v_month3_start + interval '1 month' THEN qty ELSE 0 END) AS m3
     FROM customer_moves
     GROUP BY product_id
+  ),
+  product_balance AS (
+    SELECT
+      m."PRODUCT ID" AS product_id,
+      SUM(
+        CASE
+          WHEN TRIM(m."LOCATION TO") IN ('M/WH/Mazyad','S/WH/S20','GM/WH/Game area','HA/WH/Hashi')
+               AND NOT (TRIM(m."LOCATION FROM") IN ('M/WH/Mazyad','S/WH/S20','GM/WH/Game area','HA/WH/Hashi'))
+          THEN COALESCE(m."QTY"::numeric, 0)
+          WHEN TRIM(m."LOCATION FROM") IN ('M/WH/Mazyad','S/WH/S20','GM/WH/Game area','HA/WH/Hashi')
+               AND NOT (TRIM(m."LOCATION TO") IN ('M/WH/Mazyad','S/WH/S20','GM/WH/Game area','HA/WH/Hashi'))
+          THEN -COALESCE(m."QTY"::numeric, 0)
+          ELSE 0
+        END
+      ) AS ending_stock
+    FROM "web_INVENTORY_MOVES" m
+    WHERE m."PRODUCT ID" IS NOT NULL
+      AND m."QTY" IS NOT NULL
+      AND m."QTY"::numeric != 0
+    GROUP BY m."PRODUCT ID"
   )
   SELECT json_agg(json_build_object(
     'productId',      p."PRODUCT ID",
     'barcode',        COALESCE(p."PRODUCT BARCODE", ''),
     'productName',    p."PRODUCT NAME",
     'tags',           COALESCE(p."PRODUCT CATEGORY", ''),
-    'qty',            COALESCE(p."AVAILABLE QTY"::numeric, 0),
+    'qty',            COALESCE(pb.ending_stock, 0),
     'salesQty',       COALESCE(ps.sales_qty, 0),
     'salesBreakdown', json_build_array(
       json_build_object('label', v_month3_label, 'qty', COALESCE(ps.m3, 0)),
@@ -420,6 +536,7 @@ BEGIN
   INTO v_result
   FROM "bhs_PRODUCTS" p
   INNER JOIN product_sales ps ON ps.product_id = p."PRODUCT ID"
+  LEFT JOIN product_balance pb ON pb.product_id = p."PRODUCT ID"
   WHERE p."PRODUCT NAME" IS NOT NULL AND TRIM(p."PRODUCT NAME") != '';
 
   IF v_result IS NULL THEN v_result := '[]'::json; END IF;

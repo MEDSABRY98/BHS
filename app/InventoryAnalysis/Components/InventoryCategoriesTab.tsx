@@ -6,14 +6,14 @@ import {
     ArrowUpDown, RotateCw, RefreshCw, AlertCircle, FileDown,
     ChevronLeft, ChevronRight, FileSpreadsheet, Box
 } from 'lucide-react';
-import Loading from '@/app/Components/Loading';
-import InventoryProductOrdersDetailsTab from './InventoryCategoriesDetailsTab';
 import NoData from '@/app/Components/NoDataTab';
+import TabLoader from '@/app/Components/TabLoader';
+import InventoryProductOrdersDetailsTab from './InventoryCategoriesDetailsTab';
 import { getProductOrdersData, getProductMovementsData } from '../Service/inventory_service';
 import { exportAllCategoriesZip } from './ExcelExport';
 
 const formatCategory = (tag: string) => {
-    if (!tag || tag === 'All' || tag === 'Uncategorized') return tag;
+    if (!tag || tag === 'All' || tag === 'Uncategorized') return '';
     const parts = tag.split('/');
     return parts[parts.length - 1].trim();
 };
@@ -61,8 +61,7 @@ export default function InventoryProductOrdersTab({ orderItems, setOrderItems }:
             const data = (json.data || []).map((p: any) => ({
                 ...p,
                 formattedTag: formatCategory(p.tags),
-                // Map the new fields from the sheet
-                onHand: p.qty || 0
+                onHand: p.qty ?? 0,
             }));
             setProducts(data);
             setError(null);
@@ -77,9 +76,8 @@ export default function InventoryProductOrdersTab({ orderItems, setOrderItems }:
     const tags = useMemo(() => {
         const uniqueTags = new Set<string>();
         products.forEach(p => {
-            const tag = p.formattedTag;
+            const tag = p.formattedTag?.trim();
             if (tag) uniqueTags.add(tag);
-            else uniqueTags.add('Uncategorized');
         });
         return Array.from(uniqueTags).sort();
     }, [products]);
@@ -134,9 +132,6 @@ export default function InventoryProductOrdersTab({ orderItems, setOrderItems }:
         );
     }
 
-    if (loading && products.length === 0) return <Loading message="Fetching Inventory Summary..." />;
-
-    // If a category is selected, show the details view
     if (selectedCategory) {
         return (
             <InventoryProductOrdersDetailsTab
@@ -151,13 +146,19 @@ export default function InventoryProductOrdersTab({ orderItems, setOrderItems }:
         );
     }
 
-    // Otherwise, show the Category Summary View
+    const isInitialLoad = loading && products.length === 0;
+
+    if (isInitialLoad) {
+        return <TabLoader />;
+    }
+
     const categoryStats = tags.map(tag => {
         const catProducts = products.filter(p => p.formattedTag === tag);
         const count = catProducts.length;
         const outOfStockCount = catProducts.filter(p => p.onHand <= 0).length;
         return { tag, count, outOfStockCount, catProducts };
     }).filter(c => {
+        if (c.count === 0) return false;
         const query = categorySearch.toLowerCase();
         if (!query) return true;
         if (c.tag.toLowerCase().includes(query)) return true;
