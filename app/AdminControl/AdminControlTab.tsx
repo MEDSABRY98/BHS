@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import {
-    Shield, User, Check, X, Search, Settings, Save, AlertCircle, ChevronRight, Layers, CheckCircle2,
-    CreditCard, Wallet, BarChart3, TrendingUp, Package, Warehouse, Droplet, Truck, FileText, FileCheck, MapPin, ClipboardList, ShoppingCart, Database,
-    Lock, Users, ShieldAlert, Sparkles, Trash2, ListChecks, FileSpreadsheet
+    Shield, Check, X, Search, Settings, Save, AlertCircle, ChevronRight, Layers,
+    CreditCard, Wallet, BarChart3, TrendingUp, Package, Truck, FileCheck,
+    ClipboardList, ShoppingCart, Database, Users, Sparkles, Trash2, ListChecks, FileSpreadsheet, ArrowLeft, CheckCheck, Ban
 } from 'lucide-react';
 import Loading from '@/app/Components/Loading';
 import NoData from '@/app/Components/NoDataTab';
@@ -221,11 +221,14 @@ const getAvatarGradient = (name: string) => {
     return gradients[sum % gradients.length];
 };
 
+const CARD_GRID = 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4';
+
 export default function AdminControlTab() {
     const [users, setUsers] = useState<UserPermissions[]>([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
     const [selectedUser, setSelectedUser] = useState<UserPermissions | null>(null);
+    const [view, setView] = useState<'users' | 'modules'>('users');
     const [saving, setSaving] = useState(false);
     const [message, setMessage] = useState({ type: '', text: '' });
     const [modalSystem, setModalSystem] = useState<string | null>(null);
@@ -340,6 +343,24 @@ export default function AdminControlTab() {
         setSelectedUser({ ...selectedUser, role: JSON.stringify({ ...perms, [key]: newActions }) });
     };
 
+    const handleEnableAllSystems = () => {
+        if (!selectedUser) return;
+        const perms = parsePermissions(selectedUser.role);
+        setSelectedUser({
+            ...selectedUser,
+            role: JSON.stringify({ ...perms, systems: SYSTEMS.map(s => s.id) })
+        });
+    };
+
+    const handleDisableAllSystems = () => {
+        if (!selectedUser) return;
+        const perms = parsePermissions(selectedUser.role);
+        setSelectedUser({
+            ...selectedUser,
+            role: JSON.stringify({ ...perms, systems: [] })
+        });
+    };
+
     const handleSave = async () => {
         if (!selectedUser) return;
         setSaving(true);
@@ -365,13 +386,32 @@ export default function AdminControlTab() {
 
     const filteredUsers = users.filter(u => u.name.toLowerCase().includes(search.toLowerCase()));
 
-    // Filter systems based on system search box
     const filteredSystems = useMemo(() => {
         const sorted = [...SYSTEMS].sort((a, b) => a.label.localeCompare(b.label));
         if (!systemSearch) return sorted;
         const q = systemSearch.toLowerCase();
         return sorted.filter(s => s.label.toLowerCase().includes(q));
     }, [systemSearch]);
+
+    const getEnabledSystemsCount = (roleStr: string) => {
+        const perms = parsePermissions(roleStr);
+        const currentSystems = perms.systems !== undefined ? perms.systems : SYSTEMS.map(s => s.id);
+        return currentSystems.length;
+    };
+
+    const openUserModules = (user: UserPermissions) => {
+        const normalizedRole = JSON.stringify(normalizePermissions(parsePermissions(user.role)));
+        setSelectedUser({ ...user, role: normalizedRole });
+        setMessage({ type: '', text: '' });
+        setSystemSearch('');
+        setView('modules');
+    };
+
+    const backToUsers = () => {
+        setView('users');
+        setModalSystem(null);
+        setModalInnerTab('tabs');
+    };
 
     if (loading) return <Loading message="Loading Admin Control..." />;
 
@@ -509,231 +549,231 @@ export default function AdminControlTab() {
     };
 
     return (
-        <div className="max-w-[1400px] mx-auto p-4 md:p-6 animate-in fade-in duration-500 pt-2">
+        <div className="max-w-[1600px] mx-auto p-4 md:p-6 animate-in fade-in duration-500">
             {renderSubTabModal()}
 
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
-                {/* Left Panel: User List */}
-                <div className="lg:col-span-4 bg-white rounded-3xl shadow-xl border border-slate-200/50 overflow-hidden flex flex-col transition-all">
-                    {/* Header */}
-                    <div className="p-5 border-b border-slate-100 bg-slate-50/50 flex flex-col gap-4">
-                        <div className="flex items-center gap-2.5">
-                            <div className="bg-slate-900 text-white p-2 rounded-xl">
-                                <Users className="w-5 h-5" />
+            {/* Top bar */}
+            <div className="bg-white rounded-3xl shadow-sm border border-slate-200/60 p-5 md:p-6 mb-6">
+                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                    <div className="flex items-center gap-4 min-w-0">
+                        {view === 'modules' && selectedUser && (
+                            <button
+                                onClick={backToUsers}
+                                className="p-3 bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200 rounded-2xl transition-all shrink-0"
+                                title="Back to users"
+                            >
+                                <ArrowLeft className="w-5 h-5" />
+                            </button>
+                        )}
+                        <div className="flex items-center gap-3 min-w-0">
+                            <div className="bg-slate-900 text-white p-3 rounded-2xl shrink-0">
+                                {view === 'users' ? <Users className="w-6 h-6" /> : <Shield className="w-6 h-6" />}
                             </div>
-                            <div>
-                                <h3 className="font-black text-slate-800 text-lg uppercase tracking-wide">Users Management</h3>
-                                <p className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Select user to edit</p>
+                            <div className="min-w-0">
+                                <h2 className="text-xl md:text-2xl font-black text-slate-900 truncate">
+                                    {view === 'users' ? 'Users Management' : selectedUser?.name}
+                                </h2>
+                                <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider">
+                                    {view === 'users'
+                                        ? 'Select a user to configure modules'
+                                        : 'Enable modules and configure tabs'}
+                                </p>
                             </div>
-                        </div>
-
-                        {/* Search Box */}
-                        <div className="relative">
-                            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                            <input
-                                type="text"
-                                placeholder="Search users..."
-                                className="w-full pl-10 pr-4 py-3 bg-white border-2 border-slate-100 focus:border-slate-900 rounded-2xl text-sm font-semibold outline-none transition-all placeholder-slate-400"
-                                value={search}
-                                onChange={(e) => setSearch(e.target.value)}
-                            />
                         </div>
                     </div>
 
-                    {/* Users List Container */}
-                    <div className="flex-1 p-4 space-y-2">
-                        {filteredUsers.length === 0 ? (
-                            <NoData title="No users found" />
-                        ) : (
-                            filteredUsers.map((user) => {
-                                const isSelected = selectedUser?.name === user.name;
-                                return (
-                                    <button
-                                        key={user.name}
-                                        onClick={() => {
-                                            const normalizedRole = JSON.stringify(normalizePermissions(parsePermissions(user.role)));
-                                            setSelectedUser({ ...user, role: normalizedRole });
-                                            setMessage({ type: '', text: '' });
-                                        }}
-                                        className={`w-full flex items-center justify-between p-3.5 rounded-2xl border-2 transition-all duration-200 ${isSelected
-                                                ? 'border-slate-950 bg-slate-50 text-slate-900 shadow-md shadow-slate-100'
-                                                : 'border-transparent bg-transparent hover:bg-slate-50 text-slate-600 hover:text-slate-900'
-                                            }`}
-                                    >
-                                        <div className="flex items-center gap-3 truncate">
-                                            <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${getAvatarGradient(user.name)} text-white flex items-center justify-center font-bold text-sm shadow-md shrink-0`}>
-                                                {getUserInitials(user.name)}
-                                            </div>
-                                            <div className="text-left truncate">
-                                                <p className="font-bold text-sm truncate">{user.name}</p>
-                                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">
-                                                    {user.name === 'MED Sabry' ? 'Super Admin' : 'System User'}
-                                                </p>
-                                            </div>
-                                        </div>
-                                        <ChevronRight className={`w-4 h-4 text-slate-400 transition-transform ${isSelected ? 'translate-x-1 text-slate-900' : ''}`} />
-                                    </button>
-                                );
-                            })
+                    <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
+                        <div className="relative flex-1 sm:min-w-[260px]">
+                            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                            <input
+                                type="text"
+                                placeholder={view === 'users' ? 'Search users...' : 'Search modules...'}
+                                className="w-full pl-10 pr-4 py-3 bg-slate-50 border-2 border-slate-100 focus:border-slate-900 rounded-2xl text-sm font-semibold outline-none transition-all placeholder-slate-400"
+                                value={view === 'users' ? search : systemSearch}
+                                onChange={(e) => view === 'users' ? setSearch(e.target.value) : setSystemSearch(e.target.value)}
+                            />
+                        </div>
+
+                        {view === 'modules' && selectedUser && (
+                            <button
+                                onClick={handleSave}
+                                disabled={saving}
+                                title="Save changes"
+                                className="flex items-center justify-center bg-slate-900 text-white p-3 rounded-2xl hover:bg-black transition-all disabled:opacity-50 shadow-lg shrink-0"
+                            >
+                                {saving ? (
+                                    <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                                ) : (
+                                    <Save className="w-5 h-5" />
+                                )}
+                            </button>
                         )}
                     </div>
                 </div>
 
-                {/* Right Panel: Permissions Config */}
-                <div className="lg:col-span-8 bg-white rounded-3xl shadow-xl border border-slate-200/50 p-6 md:p-8 flex flex-col transition-all min-h-[500px]">
-                    {selectedUser ? (
-                        <>
-                            {/* Profile Header */}
-                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-6 border-b border-slate-100 mb-6">
-                                <div className="flex items-center gap-4">
-                                    <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${getAvatarGradient(selectedUser.name)} text-white flex items-center justify-center font-black text-xl shadow-lg shadow-indigo-100`}>
-                                        {getUserInitials(selectedUser.name)}
-                                    </div>
-                                    <div>
-                                        <h2 className="text-xl font-black text-slate-900 tracking-tight">{selectedUser.name}</h2>
-                                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-slate-100 text-slate-800 border border-slate-200 mt-1">
-                                            <Lock className="w-3 h-3 text-slate-500" /> Custom Permissions
-                                        </span>
-                                    </div>
-                                </div>
+                {message.text && view === 'modules' && (
+                    <div className={`mt-4 p-4 rounded-2xl flex items-center gap-3 animate-in slide-in-from-top duration-300 ${
+                        message.type === 'success'
+                            ? 'bg-emerald-50 text-emerald-800 border border-emerald-100'
+                            : 'bg-rose-50 text-rose-800 border border-rose-100'
+                    }`}>
+                        {message.type === 'success' ? (
+                            <div className="bg-emerald-500 text-white p-1 rounded-lg"><Check className="w-4 h-4 stroke-[3]" /></div>
+                        ) : (
+                            <div className="bg-rose-500 text-white p-1 rounded-lg"><AlertCircle className="w-4 h-4 stroke-[3]" /></div>
+                        )}
+                        <span className="font-bold text-sm">{message.text}</span>
+                    </div>
+                )}
+            </div>
 
+            {/* Users grid */}
+            {view === 'users' && (
+                filteredUsers.length === 0 ? (
+                    <div className="bg-white rounded-3xl border border-slate-200/60 p-12">
+                        <NoData title="No users found" />
+                    </div>
+                ) : (
+                    <div className={CARD_GRID}>
+                        {filteredUsers.map((user) => (
+                            <button
+                                key={user.name}
+                                onClick={() => openUserModules(user)}
+                                className="group bg-white rounded-3xl border-2 border-slate-100 hover:border-slate-900 hover:shadow-lg p-5 text-left transition-all duration-200 flex flex-col min-h-[180px]"
+                            >
+                                <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${getAvatarGradient(user.name)} text-white flex items-center justify-center font-black text-lg shadow-md mb-4`}>
+                                    {getUserInitials(user.name)}
+                                </div>
+                                <h3 className="font-black text-slate-900 text-sm leading-snug line-clamp-2 group-hover:text-slate-950">
+                                    {user.name}
+                                </h3>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-1">
+                                    {user.name === 'MED Sabry' ? 'Super Admin' : 'System User'}
+                                </p>
+                                <div className="mt-auto pt-4 flex items-center justify-between">
+                                    <span className="text-[10px] font-black text-slate-500 bg-slate-100 px-2 py-1 rounded-md uppercase tracking-wider">
+                                        {getEnabledSystemsCount(user.role)} / {SYSTEMS.length} Modules
+                                    </span>
+                                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-slate-900 group-hover:translate-x-0.5 transition-all" />
+                                </div>
+                            </button>
+                        ))}
+                    </div>
+                )
+            )}
+
+            {/* Modules grid */}
+            {view === 'modules' && selectedUser && (
+                filteredSystems.length === 0 ? (
+                    <div className="bg-white rounded-3xl border border-slate-200/60 p-12">
+                        <NoData title="No modules found" />
+                    </div>
+                ) : (
+                    <>
+                        <div className="flex items-center justify-between gap-3 mb-4 px-1">
+                            <div className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase tracking-widest min-w-0">
+                                <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                                <span className="truncate">{filteredSystems.length} modules · toggle access · click card to configure tabs</span>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
                                 <button
-                                    onClick={handleSave}
-                                    disabled={saving}
-                                    className="flex items-center justify-center gap-2 bg-slate-900 text-white py-3 px-6 rounded-2xl font-black text-xs uppercase tracking-wider hover:bg-black hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 shadow-lg shadow-slate-200 shrink-0 min-w-[160px]"
+                                    type="button"
+                                    onClick={handleEnableAllSystems}
+                                    title="Enable all modules"
+                                    className="p-2.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 rounded-xl transition-all"
                                 >
-                                    {saving ? (
-                                        <>
-                                            <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
-                                            <span>Saving Changes...</span>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <Save className="w-4 h-4" />
-                                            <span>Save Changes</span>
-                                        </>
-                                    )}
+                                    <CheckCheck className="w-4 h-4" />
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleDisableAllSystems}
+                                    title="Disable all modules"
+                                    className="p-2.5 bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 rounded-xl transition-all"
+                                >
+                                    <Ban className="w-4 h-4" />
                                 </button>
                             </div>
-
-                            {/* Toast Notification */}
-                            {message.text && (
-                                <div className={`mb-6 p-4 rounded-2xl flex items-center gap-3 animate-in slide-in-from-top duration-300 ${message.type === 'success' ? 'bg-emerald-50 text-emerald-800 border border-emerald-100' : 'bg-rose-50 text-rose-800 border border-rose-100'
-                                    }`}>
-                                    {message.type === 'success' ? (
-                                        <div className="bg-emerald-500 text-white p-1 rounded-lg"><Check className="w-4 h-4 stroke-[3]" /></div>
-                                    ) : (
-                                        <div className="bg-rose-500 text-white p-1 rounded-lg"><AlertCircle className="w-4 h-4 stroke-[3]" /></div>
-                                    )}
-                                    <span className="font-bold text-sm">{message.text}</span>
-                                </div>
-                            )}
-
-                            {/* Section Controls */}
-                            <div className="mb-4 flex flex-col sm:flex-row gap-4 items-center justify-between">
-                                <div className="relative w-full sm:max-w-xs">
-                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                                    <input
-                                        type="text"
-                                        placeholder="Search system modules..."
-                                        className="w-full pl-9 pr-4 py-2 border border-slate-200/80 rounded-xl text-xs font-semibold outline-none focus:border-slate-900 transition-all placeholder-slate-400 bg-slate-50/50 focus:bg-white"
-                                        value={systemSearch}
-                                        onChange={(e) => setSystemSearch(e.target.value)}
-                                    />
-                                </div>
-                                <div className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase tracking-widest shrink-0">
-                                    <Sparkles className="w-3.5 h-3.5 text-amber-500" /> {filteredSystems.length} modules
-                                </div>
-                            </div>
-
-                            {/* Grid of Systems */}
-                            <div className="flex-1 pr-2 space-y-4">
-                                {filteredSystems.length === 0 ? (
-                                    <NoData title="No modules found" />
-                                ) : (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pb-6">
-                                    {filteredSystems.map((system) => {
-                                        const permissions = parsePermissions(selectedUser.role);
-                                        const isEnabled = permissions.systems !== undefined
-                                            ? permissions.systems.includes(system.id)
-                                            : true;
-                                        const hasSubTabs = !!SYSTEM_SUBTABS[system.id];
-                                        const subTabs = SYSTEM_SUBTABS[system.id] || [];
-                                        const subTabIds = subTabs.map(t => t.id);
-                                        const enabledTabsCount = subTabs.length > 0
-                                            ? (permissions[system.id] !== undefined
-                                                ? permissions[system.id].filter((id: string) => subTabIds.includes(id)).length
-                                                : subTabs.length)
-                                            : 0;
-
-                                        return (
-                                            <div
-                                                key={system.id}
-                                                className={`group rounded-2xl border-2 p-4 transition-all duration-200 flex flex-col justify-between ${isEnabled
-                                                        ? 'border-slate-200 bg-white hover:border-slate-900 shadow-sm'
-                                                        : 'border-slate-100 bg-slate-50/60 opacity-60 hover:opacity-90'
-                                                    }`}
-                                            >
-                                                <div className="flex items-start justify-between gap-3">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center border border-slate-100 shrink-0">
-                                                            {getSystemIcon(system.id)}
-                                                        </div>
-                                                        <div className="text-left">
-                                                            <h4 className={`font-black text-sm transition-colors ${isEnabled ? 'text-slate-900 group-hover:text-slate-950' : 'text-slate-400'}`}>
-                                                                {system.label}
-                                                            </h4>
-                                                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">
-                                                                {isEnabled ? 'Access Granted' : 'Access Blocked'}
-                                                            </p>
-                                                        </div>
-                                                    </div>
-
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => handleToggleSystem(system.id)}
-                                                        className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all ${isEnabled
-                                                                ? 'bg-slate-900 text-white shadow-md'
-                                                                : 'bg-white border-2 border-slate-200 text-transparent hover:border-slate-400'
-                                                            }`}
-                                                    >
-                                                        <Check className="w-3.5 h-3.5 stroke-[3]" />
-                                                    </button>
-                                                </div>
-
-                                                {/* Configure Link */}
-                                                {hasSubTabs && isEnabled && (
-                                                    <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
-                                                        <span className="text-[10px] font-black text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md uppercase tracking-wider">
-                                                            {enabledTabsCount} / {subTabs.length} Tabs
-                                                        </span>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => setModalSystem(system.id)}
-                                                            className="text-[11px] text-slate-900 hover:text-black font-black uppercase tracking-wider flex items-center gap-1 transition-all"
-                                                        >
-                                                            Configure <ChevronRight className="w-3 h-3 stroke-[2]" />
-                                                        </button>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                                )}
-                            </div>
-                        </>
-                    ) : (
-                        <div className="flex-1 flex flex-col items-center justify-center text-slate-300 py-20 select-none">
-                            <div className="p-6 bg-slate-50 border border-slate-100 rounded-3xl shadow-sm mb-4">
-                                <ShieldAlert className="w-16 h-16 text-slate-400" />
-                            </div>
-                            <h3 className="text-lg font-black text-slate-700 uppercase tracking-wider">Select a user</h3>
-                            <p className="text-sm text-slate-400 font-semibold mt-1">Configure individual access modules and settings</p>
                         </div>
-                    )}
-                </div>
-            </div>
+                        <div className={CARD_GRID}>
+                            {filteredSystems.map((system) => {
+                                const permissions = parsePermissions(selectedUser.role);
+                                const isEnabled = permissions.systems !== undefined
+                                    ? permissions.systems.includes(system.id)
+                                    : true;
+                                const hasSubTabs = !!SYSTEM_SUBTABS[system.id];
+                                const subTabs = SYSTEM_SUBTABS[system.id] || [];
+                                const subTabIds = subTabs.map(t => t.id);
+                                const enabledTabsCount = subTabs.length > 0
+                                    ? (permissions[system.id] !== undefined
+                                        ? permissions[system.id].filter((id: string) => subTabIds.includes(id)).length
+                                        : subTabs.length)
+                                    : 0;
+
+                                return (
+                                    <div
+                                        key={system.id}
+                                        onClick={() => {
+                                            if (isEnabled && hasSubTabs) setModalSystem(system.id);
+                                        }}
+                                        className={`rounded-3xl border-2 p-4 transition-all duration-200 flex flex-col min-h-[170px] ${
+                                            isEnabled
+                                                ? 'border-slate-200 bg-white hover:border-slate-900 hover:shadow-md'
+                                                : 'border-slate-100 bg-slate-50/70 opacity-75'
+                                        } ${isEnabled && hasSubTabs ? 'cursor-pointer' : ''}`}
+                                    >
+                                        <div className="flex items-start justify-between gap-2 mb-3">
+                                            <div className="w-11 h-11 rounded-xl bg-slate-50 flex items-center justify-center border border-slate-100 shrink-0">
+                                                {getSystemIcon(system.id)}
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleToggleSystem(system.id);
+                                                }}
+                                                className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all shrink-0 ${
+                                                    isEnabled
+                                                        ? 'bg-slate-900 text-white shadow-md'
+                                                        : 'bg-white border-2 border-slate-200 text-transparent hover:border-slate-400'
+                                                }`}
+                                                title={isEnabled ? 'Disable module' : 'Enable module'}
+                                            >
+                                                <Check className="w-3.5 h-3.5 stroke-[3]" />
+                                            </button>
+                                        </div>
+
+                                        <h4 className={`font-black text-sm leading-snug line-clamp-2 ${isEnabled ? 'text-slate-900' : 'text-slate-400'}`}>
+                                            {system.label}
+                                        </h4>
+                                        <p className={`text-[10px] font-bold uppercase tracking-wider mt-1 ${isEnabled ? 'text-emerald-600' : 'text-slate-400'}`}>
+                                            {isEnabled ? 'Available' : 'Blocked'}
+                                        </p>
+
+                                        <div className="mt-auto pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+                                            {hasSubTabs ? (
+                                                <>
+                                                    <span className="text-[10px] font-black text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md uppercase tracking-wider">
+                                                        {enabledTabsCount}/{subTabs.length} tabs
+                                                    </span>
+                                                    {isEnabled && (
+                                                        <span className="text-[10px] font-black text-slate-900 uppercase tracking-wider flex items-center gap-0.5">
+                                                            Configure <ChevronRight className="w-3 h-3" />
+                                                        </span>
+                                                    )}
+                                                </>
+                                            ) : (
+                                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                                                    No sub-tabs
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </>
+                )
+            )}
         </div>
     );
 }

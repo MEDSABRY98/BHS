@@ -1,9 +1,11 @@
 export interface InvoiceRow {
+  id?: string | number;
   date: string;
   dueDate?: string;
   number: string;
   customerId?: string;
   customerName: string;
+  city?: string;
   debit: number;
   credit: number;
   salesRep: string;
