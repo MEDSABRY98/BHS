@@ -96,27 +96,25 @@ function CustomersSummariesPageContent() {
       </div>
 
       {/* Main Content */}
-      <div className="w-full px-2 sm:px-4 pt-4">
-        <main className="bg-white rounded-2xl shadow-sm border border-slate-200 min-h-[calc(100vh-7rem)]">
-          {isInitialLoading ? (
-            <Loading message="Loading Summaries Data..." />
-          ) : error && data.length === 0 ? (
-            <div className="flex items-center justify-center h-full pt-20">
-              <div className="text-center bg-red-50 p-6 rounded-lg max-w-md">
-                <p className="text-red-600 text-lg mb-4 font-semibold">Error loading data</p>
-                <p className="text-gray-600 mb-4">{error}</p>
-                <button
-                  onClick={() => fetchData()}
-                  className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 shadow-sm"
-                >
-                  Retry
-                </button>
-              </div>
+      <div className="w-full px-2 sm:px-4 pt-4 pb-6">
+        {isInitialLoading ? (
+          <Loading message="Loading Summaries Data..." />
+        ) : error && data.length === 0 ? (
+          <div className="flex items-center justify-center pt-20">
+            <div className="text-center bg-red-50 p-6 rounded-lg max-w-md">
+              <p className="text-red-600 text-lg mb-4 font-semibold">Error loading data</p>
+              <p className="text-gray-600 mb-4">{error}</p>
+              <button
+                onClick={() => fetchData()}
+                className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 shadow-sm"
+              >
+                Retry
+              </button>
             </div>
-          ) : (
-            <CustomersSummariesTab data={data} onRefresh={() => fetchData(true)} />
-          )}
-        </main>
+          </div>
+        ) : (
+          <CustomersSummariesTab data={data} onRefresh={() => fetchData(true)} />
+        )}
       </div>
     </div>
   );

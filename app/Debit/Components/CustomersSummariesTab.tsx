@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useRef, useEffect } from 'react';
 import { exportDebitExcelTable } from '@/app/Debit/Utils/ExcelExport';
 import {
   useReactTable,
@@ -10,9 +10,8 @@ import {
   createColumnHelper,
   SortingState,
 } from '@tanstack/react-table';
-import { FileSpreadsheet, FileText, Filter, LayoutGrid, PieChart } from 'lucide-react';
+import { FileSpreadsheet, MapPin, ChevronDown, Search, Check } from 'lucide-react';
 import { InvoiceRow } from '@/types';
-import { SalesInvoice } from '@/lib/supabase';;
 import NoData from '@/app/Components/NoDataTab';
 import { useDebouncedValue } from '../Hooks/useDebouncedValue';
 
@@ -23,10 +22,14 @@ interface CustomersSummariesTabProps {
 
 interface CustomerSummary {
   customerName: string;
+  city: string;
   salesPrev: number;
   returnsPrev: number;
   salesCurrent: number;
   returnsCurrent: number;
+  netSalesPrev: number;
+  netSalesCurrent: number;
+  growth: number | null;
   oneToThirty: number;
   thirtyOneToSixty: number;
   sixtyOneToNinety: number;
@@ -34,6 +37,22 @@ interface CustomerSummary {
   older: number;
   totalAging: number;
 }
+
+const formatGrowth = (growth: number | null, netSalesCurrent: number, netSalesPrev: number) => {
+  if (netSalesPrev <= 0 && netSalesCurrent > 0) return 'New';
+  if (netSalesPrev <= 0 && netSalesCurrent <= 0) return '—';
+  if (growth === null) return '—';
+  const sign = growth > 0 ? '+' : '';
+  return `${sign}${growth.toFixed(1)}%`;
+};
+
+const growthColorClass = (growth: number | null, netSalesCurrent: number, netSalesPrev: number) => {
+  if (netSalesPrev <= 0 && netSalesCurrent > 0) return 'text-blue-600';
+  if (growth === null || growth === 0) return 'text-slate-500';
+  return growth > 0 ? 'text-emerald-600' : 'text-rose-600';
+};
+
+const formatNetSalesHeader = (year: number) => `N.S.${year}`;
 
 const parseInvoiceDate = (dateStr?: string | null): Date | null => {
   if (!dateStr) return null;
@@ -62,6 +81,10 @@ const columnHelper = createColumnHelper<CustomerSummary>();
 export default function CustomersSummariesTab({ data, onRefresh }: CustomersSummariesTabProps) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCity, setSelectedCity] = useState('ALL');
+  const [cityDropdownOpen, setCityDropdownOpen] = useState(false);
+  const [citySearch, setCitySearch] = useState('');
+  const cityDropdownRef = useRef<HTMLDivElement>(null);
   const debouncedSearch = useDebouncedValue(searchQuery);
   const [hideNegative, setHideNegative] = useState(false);
   // dynamic years
@@ -98,6 +121,10 @@ export default function CustomersSummariesTab({ data, onRefresh }: CustomersSumm
       let returnsPrev = 0;
       let salesCurrent = 0;
       let returnsCurrent = 0;
+      const city =
+        customerInvoices.find((inv) => inv.city?.trim())?.city?.trim() ||
+        customerInvoices.find((inv) => inv.salesRep?.trim())?.salesRep?.trim() ||
+        '';
 
       customerInvoices.forEach((inv) => {
         const date = parseInvoiceDate(inv.date);
@@ -172,16 +199,59 @@ export default function CustomersSummariesTab({ data, onRefresh }: CustomersSumm
       });
 
       const totalAging = oneToThirty + thirtyOneToSixty + sixtyOneToNinety + ninetyOneToOneTwenty + older;
+      const netSalesPrev = salesPrev - returnsPrev;
+      const netSalesCurrent = salesCurrent - returnsCurrent;
+      const growth =
+        netSalesPrev > 0 ? ((netSalesCurrent - netSalesPrev) / netSalesPrev) * 100 : null;
+
       if (salesPrev > 0 || returnsPrev > 0 || salesCurrent > 0 || returnsCurrent > 0 || Math.abs(totalAging) > 0.01) {
         summaries.push({
-          customerName, salesPrev, returnsPrev, salesCurrent, returnsCurrent,
-          oneToThirty, thirtyOneToSixty, sixtyOneToNinety, ninetyOneToOneTwenty, older, totalAging
+          customerName,
+          city,
+          salesPrev,
+          returnsPrev,
+          salesCurrent,
+          returnsCurrent,
+          netSalesPrev,
+          netSalesCurrent,
+          growth,
+          oneToThirty,
+          thirtyOneToSixty,
+          sixtyOneToNinety,
+          ninetyOneToOneTwenty,
+          older,
+          totalAging,
         });
       }
     });
 
     return summaries.sort((a, b) => b.totalAging - a.totalAging);
   }, [data, currentYear, previousYear]);
+
+  const cities = useMemo(() => {
+    const set = new Set<string>();
+    summaryData.forEach((item) => {
+      if (item.city) set.add(item.city);
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [summaryData]);
+
+  const filteredCitiesForDropdown = useMemo(() => {
+    const q = citySearch.trim().toLowerCase();
+    if (!q) return cities;
+    return cities.filter((city) => city.toLowerCase().includes(q));
+  }, [cities, citySearch]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (cityDropdownRef.current && !cityDropdownRef.current.contains(event.target as Node)) {
+        setCityDropdownOpen(false);
+        setCitySearch('');
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const filteredData = useMemo(() => {
     let filtered = summaryData;
@@ -190,23 +260,40 @@ export default function CustomersSummariesTab({ data, onRefresh }: CustomersSumm
       filtered = filtered.filter(item => item.totalAging >= -0.01);
     }
 
+    if (selectedCity !== 'ALL') {
+      filtered = filtered.filter((item) => item.city === selectedCity);
+    }
+
     if (debouncedSearch.trim()) {
       const query = debouncedSearch.toLowerCase();
       filtered = filtered.filter((customer) =>
-        customer.customerName.toLowerCase().includes(query)
+        customer.customerName.toLowerCase().includes(query) ||
+        customer.city.toLowerCase().includes(query)
       );
     }
     return filtered;
-  }, [summaryData, debouncedSearch, hideNegative]);
+  }, [summaryData, debouncedSearch, hideNegative, selectedCity]);
 
   const exportToExcel = async () => {
-    const headers = ['Customer Name', `Sale ${previousYear}`, `GRV ${previousYear}`, `Sale ${currentYear}`, `GRV ${currentYear}`, '0 - 30', '31 - 60', '61 - 90', '91 - 120', 'OLDER', 'TOTAL'];
+    const headers = [
+      'Customer Name',
+      'City',
+      formatNetSalesHeader(previousYear),
+      formatNetSalesHeader(currentYear),
+      'Growth %',
+      '0 - 30',
+      '31 - 60',
+      '61 - 90',
+      '91 - 120',
+      'OLDER',
+      'TOTAL',
+    ];
     const rows = filteredData.map((item) => [
       item.customerName,
-      item.salesPrev,
-      item.returnsPrev,
-      item.salesCurrent,
-      item.returnsCurrent,
+      item.city,
+      item.netSalesPrev,
+      item.netSalesCurrent,
+      formatGrowth(item.growth, item.netSalesCurrent, item.netSalesPrev),
       item.oneToThirty,
       item.thirtyOneToSixty,
       item.sixtyOneToNinety,
@@ -215,12 +302,17 @@ export default function CustomersSummariesTab({ data, onRefresh }: CustomersSumm
       item.totalAging,
     ]);
 
+    const totalNetPrev = filteredData.reduce((sum, item) => sum + item.netSalesPrev, 0);
+    const totalNetCurrent = filteredData.reduce((sum, item) => sum + item.netSalesCurrent, 0);
+    const totalGrowth =
+      totalNetPrev > 0 ? ((totalNetCurrent - totalNetPrev) / totalNetPrev) * 100 : null;
+
     rows.push([
       'TOTAL',
-      filteredData.reduce((sum, item) => sum + item.salesPrev, 0),
-      filteredData.reduce((sum, item) => sum + item.returnsPrev, 0),
-      filteredData.reduce((sum, item) => sum + item.salesCurrent, 0),
-      filteredData.reduce((sum, item) => sum + item.returnsCurrent, 0),
+      '',
+      totalNetPrev,
+      totalNetCurrent,
+      formatGrowth(totalGrowth, totalNetCurrent, totalNetPrev),
       filteredData.reduce((sum, item) => sum + item.oneToThirty, 0),
       filteredData.reduce((sum, item) => sum + item.thirtyOneToSixty, 0),
       filteredData.reduce((sum, item) => sum + item.sixtyOneToNinety, 0),
@@ -235,7 +327,7 @@ export default function CustomersSummariesTab({ data, onRefresh }: CustomersSumm
       `customers_summaries_${new Date().toISOString().split('T')[0]}`,
       {
         sheetName: 'Customers Summaries',
-        numericColumns: headers.slice(1),
+        numericColumns: headers.filter((h) => !['Customer Name', 'City', 'Growth %'].includes(h)),
         columnWidth: 14,
       }
     );
@@ -245,27 +337,52 @@ export default function CustomersSummariesTab({ data, onRefresh }: CustomersSumm
     () => [
       columnHelper.accessor('customerName', {
         header: 'Customer Name',
+        cell: (info) => {
+          const city = info.row.original.city;
+          return (
+            <div className="flex items-start justify-center gap-2 w-full">
+              <span className="font-medium text-gray-900 whitespace-normal break-words leading-snug text-center min-w-0">
+                {info.getValue()}
+              </span>
+              {city && (
+                <span className="inline-flex items-center gap-1 shrink-0 text-[10px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md uppercase tracking-wide mt-0.5">
+                  <MapPin className="w-3 h-3" />
+                  {city}
+                </span>
+              )}
+            </div>
+          );
+        },
+      }),
+      columnHelper.accessor('netSalesPrev', {
+        header: formatNetSalesHeader(previousYear),
         cell: (info) => (
-          <div className="font-medium text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis" title={info.getValue()}>
-            {info.getValue()}
-          </div>
+          <span className="text-emerald-700 font-medium">{info.getValue().toLocaleString('en-US')}</span>
         ),
       }),
-      columnHelper.accessor('salesPrev', {
-        header: `Sale ${previousYear}`,
-        cell: (info) => <span className="text-emerald-600 font-medium">{info.getValue().toLocaleString('en-US')}</span>,
+      columnHelper.accessor('netSalesCurrent', {
+        header: formatNetSalesHeader(currentYear),
+        cell: (info) => (
+          <span className="text-emerald-700 font-semibold">{info.getValue().toLocaleString('en-US')}</span>
+        ),
       }),
-      columnHelper.accessor('returnsPrev', {
-        header: `GRV ${previousYear}`,
-        cell: (info) => <span className="text-rose-600 font-medium">{info.getValue().toLocaleString('en-US')}</span>,
-      }),
-      columnHelper.accessor('salesCurrent', {
-        header: `Sale ${currentYear}`,
-        cell: (info) => <span className="text-emerald-600 font-medium">{info.getValue().toLocaleString('en-US')}</span>,
-      }),
-      columnHelper.accessor('returnsCurrent', {
-        header: `GRV ${currentYear}`,
-        cell: (info) => <span className="text-rose-600 font-medium">{info.getValue().toLocaleString('en-US')}</span>,
+      columnHelper.accessor('growth', {
+        header: 'Growth',
+        sortingFn: (rowA, rowB) => {
+          const a = rowA.original;
+          const b = rowB.original;
+          const valA = a.netSalesPrev > 0 ? (a.growth ?? -Infinity) : a.netSalesCurrent > 0 ? Infinity : -Infinity;
+          const valB = b.netSalesPrev > 0 ? (b.growth ?? -Infinity) : b.netSalesCurrent > 0 ? Infinity : -Infinity;
+          return valA - valB;
+        },
+        cell: (info) => {
+          const row = info.row.original;
+          return (
+            <span className={`font-semibold ${growthColorClass(row.growth, row.netSalesCurrent, row.netSalesPrev)}`}>
+              {formatGrowth(row.growth, row.netSalesCurrent, row.netSalesPrev)}
+            </span>
+          );
+        },
       }),
       columnHelper.accessor('oneToThirty', {
         header: '0 - 30',
@@ -309,17 +426,104 @@ export default function CustomersSummariesTab({ data, onRefresh }: CustomersSumm
   });
 
   return (
-    <div className="p-6">
-      <div className="mb-6 flex items-center bg-white p-4 rounded-xl shadow-sm border border-slate-200 relative gap-4">
-        <div className="flex-1 flex justify-center items-center gap-3">
-
+    <div className="space-y-6 max-w-[1700px] mx-auto w-full">
+      <div className="flex items-center bg-white p-4 rounded-xl shadow-sm border border-slate-200 relative gap-4">
+        <div className="flex-1 flex justify-center items-center gap-3 flex-wrap">
           <input
             type="text"
-            placeholder="Search by customer name..."
+            placeholder="Search by customer or city..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full max-w-lg px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-slate-50 transition-all focus:bg-white text-center"
+            className="w-full max-w-md px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-slate-50 transition-all focus:bg-white text-center"
           />
+          <div className="relative min-w-[300px] shrink-0" ref={cityDropdownRef}>
+            <button
+              type="button"
+              onClick={() => setCityDropdownOpen((open) => !open)}
+              className="w-full min-w-[300px] whitespace-nowrap px-5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-semibold text-slate-700 flex items-center justify-between gap-3 transition-all hover:bg-white hover:border-slate-300 shadow-sm"
+            >
+              <span className="inline-flex items-center gap-2 flex-1 min-w-0">
+                <MapPin className="w-4 h-4 text-blue-500 shrink-0" />
+                <span className="text-sm truncate">
+                  {selectedCity === 'ALL' ? 'All Cities' : selectedCity}
+                </span>
+              </span>
+              <ChevronDown
+                className={`w-4 h-4 text-slate-400 shrink-0 transition-transform ${cityDropdownOpen ? 'rotate-180' : ''}`}
+              />
+            </button>
+
+            {cityDropdownOpen && (
+              <div className="absolute z-30 mt-2 left-0 w-full min-w-[300px] bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="p-2.5 border-b border-slate-100 bg-slate-50">
+                  <div className="relative">
+                    <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      value={citySearch}
+                      onChange={(e) => setCitySearch(e.target.value)}
+                      placeholder="Search city..."
+                      className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-medium text-slate-800"
+                    />
+                  </div>
+                </div>
+
+                <div className="max-h-52 overflow-y-auto divide-y divide-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedCity('ALL');
+                      setCityDropdownOpen(false);
+                      setCitySearch('');
+                    }}
+                    className={`w-full px-3.5 py-2.5 text-left flex items-center justify-between gap-2 transition-colors text-sm ${
+                      selectedCity === 'ALL'
+                        ? 'bg-blue-50 text-blue-900 font-bold'
+                        : 'hover:bg-slate-50 text-slate-700'
+                    }`}
+                  >
+                    <span className="inline-flex items-center gap-2">
+                      <MapPin className={`w-3.5 h-3.5 ${selectedCity === 'ALL' ? 'text-blue-500' : 'text-slate-400'}`} />
+                      All Cities
+                    </span>
+                    {selectedCity === 'ALL' && <Check className="w-4 h-4 text-blue-500 shrink-0" />}
+                  </button>
+
+                  {filteredCitiesForDropdown.length === 0 ? (
+                    <div className="px-4 py-5 text-center text-sm font-medium text-slate-500">
+                      No cities found
+                    </div>
+                  ) : (
+                    filteredCitiesForDropdown.map((city) => {
+                      const isSelected = city === selectedCity;
+                      return (
+                        <button
+                          key={city}
+                          type="button"
+                          onClick={() => {
+                            setSelectedCity(city);
+                            setCityDropdownOpen(false);
+                            setCitySearch('');
+                          }}
+                          className={`w-full px-3.5 py-2.5 text-left flex items-center justify-between gap-3 transition-colors text-sm whitespace-nowrap ${
+                            isSelected
+                              ? 'bg-blue-50 text-blue-900 font-bold'
+                              : 'hover:bg-slate-50 text-slate-700'
+                          }`}
+                        >
+                          <span className="inline-flex items-center gap-2">
+                            <MapPin className={`w-3.5 h-3.5 shrink-0 ${isSelected ? 'text-blue-500' : 'text-slate-400'}`} />
+                            <span>{city}</span>
+                          </span>
+                          {isSelected && <Check className="w-4 h-4 text-blue-500 shrink-0" />}
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
           <div className="flex items-center gap-3 bg-slate-100/50 p-1.5 rounded-xl border border-slate-200 shadow-inner">
             <span className="text-[10px] font-bold text-slate-500 ml-2 uppercase tracking-wider">Negatives</span>
             <button
@@ -353,14 +557,15 @@ export default function CustomersSummariesTab({ data, onRefresh }: CustomersSumm
           {table.getRowModel().rows.length === 0 ? (
             <NoData />
           ) : (
-            <table className="w-full text-sm" style={{ tableLayout: 'fixed', minWidth: '1400px' }}>
+            <table className="w-full text-sm" style={{ tableLayout: 'fixed', minWidth: '1100px' }}>
               <thead className="bg-gradient-to-r from-slate-800 to-slate-900 text-white">
                 {table.getHeaderGroups().map((headerGroup) => (
                   <tr key={headerGroup.id}>
                     {headerGroup.headers.map((header) => {
                       const id = header.column.id;
                       let width = '8%';
-                      if (id === 'customerName') width = '20%';
+                      if (id === 'customerName') width = '26%';
+                      if (id === 'growth') width = '7%';
                       return (
                         <th
                           key={header.id}
@@ -386,11 +591,16 @@ export default function CustomersSummariesTab({ data, onRefresh }: CustomersSumm
                     {row.getVisibleCells().map((cell) => {
                       const id = cell.column.id;
                       let width = '8%';
-                      if (id === 'customerName') width = '20%';
+                      if (id === 'customerName') width = '26%';
+                      if (id === 'growth') width = '7%';
                       return (
                         <td
                           key={cell.id}
-                          className="px-4 py-3 text-center whitespace-nowrap"
+                          className={`px-4 py-3 align-top ${
+                            id === 'customerName'
+                              ? 'text-center whitespace-normal'
+                              : 'text-center whitespace-nowrap'
+                          }`}
                           style={{ width }}
                         >
                           {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -400,21 +610,25 @@ export default function CustomersSummariesTab({ data, onRefresh }: CustomersSumm
                   </tr>
                 ))}
                 {/* Grand Total Row */}
+                {(() => {
+                  const totalNetPrev = filteredData.reduce((sum, i) => sum + i.netSalesPrev, 0);
+                  const totalNetCurrent = filteredData.reduce((sum, i) => sum + i.netSalesCurrent, 0);
+                  const totalGrowth =
+                    totalNetPrev > 0 ? ((totalNetCurrent - totalNetPrev) / totalNetPrev) * 100 : null;
+
+                  return (
                 <tr className="bg-slate-800 text-white font-bold border-t-2 border-slate-900">
-                  <td className="px-4 py-4 text-center whitespace-nowrap" style={{ width: '20%' }}>
+                  <td className="px-4 py-4 text-center whitespace-normal align-top" style={{ width: '26%' }}>
                     TOTAL
                   </td>
                   <td className="px-4 py-4 text-center whitespace-nowrap text-emerald-400">
-                    {filteredData.reduce((sum, i) => sum + i.salesPrev, 0).toLocaleString('en-US')}
-                  </td>
-                  <td className="px-4 py-4 text-center whitespace-nowrap text-rose-400">
-                    {filteredData.reduce((sum, i) => sum + i.returnsPrev, 0).toLocaleString('en-US')}
+                    {totalNetPrev.toLocaleString('en-US')}
                   </td>
                   <td className="px-4 py-4 text-center whitespace-nowrap text-emerald-400">
-                    {filteredData.reduce((sum, i) => sum + i.salesCurrent, 0).toLocaleString('en-US')}
+                    {totalNetCurrent.toLocaleString('en-US')}
                   </td>
-                  <td className="px-4 py-4 text-center whitespace-nowrap text-rose-400">
-                    {filteredData.reduce((sum, i) => sum + i.returnsCurrent, 0).toLocaleString('en-US')}
+                  <td className="px-4 py-4 text-center whitespace-nowrap text-blue-200">
+                    {formatGrowth(totalGrowth, totalNetCurrent, totalNetPrev)}
                   </td>
                   <td className="px-4 py-4 text-center whitespace-nowrap">
                     {filteredData.reduce((sum, i) => sum + i.oneToThirty, 0).toLocaleString('en-US')}
@@ -435,6 +649,8 @@ export default function CustomersSummariesTab({ data, onRefresh }: CustomersSumm
                     {filteredData.reduce((sum, i) => sum + i.totalAging, 0).toLocaleString('en-US')}
                   </td>
                 </tr>
+                  );
+                })()}
               </tbody>
             </table>
           )}
