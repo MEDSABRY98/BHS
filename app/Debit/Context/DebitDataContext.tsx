@@ -6,6 +6,13 @@ import { getDebitData, getDebitMetadata } from '../Service/debit_service';
 import { buildInvoicesByCustomer } from '../Utils/debitIndexes';
 import { InvoiceRow } from '@/types';
 
+export type LuluEmailRecord = {
+  customerId: string;
+  customerCode?: string;
+  to?: string;
+  cc?: string;
+};
+
 export interface DebitDataContextValue {
   data: InvoiceRow[];
   loading: boolean;
@@ -17,7 +24,7 @@ export interface DebitDataContextValue {
   dataVersion: number;
   invoicesByCustomer: Map<string, InvoiceRow[]>;
   customersWithEmails: Map<string, string>;
-  luluEmails: { customerId: string; email: string; customerName?: string; customerCode?: string }[];
+  luluEmails: LuluEmailRecord[];
   emailsReady: boolean;
   refresh: (silent?: boolean) => Promise<void>;
   ensureFullData: () => Promise<void>;
@@ -59,7 +66,7 @@ export function DebitDataProvider({
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [dataVersion, setDataVersion] = useState(0);
   const [customersWithEmails, setCustomersWithEmails] = useState<Map<string, string>>(new Map());
-  const [luluEmails, setLuluEmails] = useState<{ customerId: string; email: string; customerName?: string; customerCode?: string }[]>([]);
+  const [luluEmails, setLuluEmails] = useState<LuluEmailRecord[]>([]);
   const [emailsReady, setEmailsReady] = useState(false);
   const metaRequestId = useRef(0);
   const fullDataRequestId = useRef(0);

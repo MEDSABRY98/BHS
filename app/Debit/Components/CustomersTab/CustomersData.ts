@@ -349,7 +349,7 @@ export const useCustomerData = (data: InvoiceRow[] = [], filters: any, mode: any
     if (matchingFilter !== 'ALL') {
       const normalize = (s: any) => String(s || '').toLowerCase().trim().replace(/\s+/g, ' ');
       const luluNames = new Set(luluEmails.map(l => normalize(l.customerId)).filter(Boolean));
-      const luluNamesByName = new Set(luluEmails.map(l => normalize(l.customerName || l.customerCode)).filter(Boolean));
+      const luluNamesByName = new Set(luluEmails.map(l => normalize(l.customerCode)).filter(Boolean));
 
       if (matchingFilter === 'WITH_EMAIL') {
         result = result.filter(c => customersWithEmails.has(normalize(c.customerId)) || customersWithEmails.has(normalize(c.customerName)));
@@ -377,7 +377,7 @@ export const useCustomerData = (data: InvoiceRow[] = [], filters: any, mode: any
     if (emailFilter && emailFilter !== 'ALL') {
       const normalize = (s: any) => String(s || '').toLowerCase().trim().replace(/\s+/g, ' ');
       const luluNames = new Set(luluEmails.map(l => normalize(l.customerId)).filter(Boolean));
-      const luluNamesByName = new Set(luluEmails.map(l => normalize(l.customerName || l.customerCode)).filter(Boolean));
+      const luluNamesByName = new Set(luluEmails.map(l => normalize(l.customerCode)).filter(Boolean));
       
       if (emailFilter === 'EMAIL_NORMAL') {
         result = result.filter(c => 
