@@ -41,7 +41,9 @@ const SYSTEMS = [
 const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
     'debit': [
         { id: 'customers', label: 'Customers' },
+        { id: 'credit-limit', label: 'Credit Limit' },
         { id: 'customers-group', label: 'Customers Group' },
+        { id: 'payment-reconciliation', label: 'Payment Reconciliation' },
         { id: 'all-transactions', label: 'All Transactions' },
         { id: 'customers-open-matches', label: 'Open Transactions' },
         { id: 'payment-tracker', label: 'Payment Tracker' },
@@ -147,7 +149,11 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
         { id: 'grid', label: 'Customers List' },
         { id: 'months', label: 'Monthly Overview' },
         { id: 'stats', label: 'Statistics' },
-        { id: 'add', label: 'Add Config' }
+        { id: 'add', label: 'Add Config' },
+        { id: 'details', label: 'Discount Details' },
+        { id: 'pending', label: 'Pending Months' },
+        { id: 'semi', label: 'Semi Settled' },
+        { id: 'settled', label: 'Settled Months' },
     ],
 };
 
