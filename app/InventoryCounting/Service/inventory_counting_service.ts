@@ -1,6 +1,7 @@
 'use server';
 
 import { bhs_supabase } from '@/lib/supabase';
+import { getLiveAvailableQuantitiesFromMoves } from '@/app/InventoryAnalysis/Service/inventory_service';
 
 export type CountType = 'Normal' | 'DamageExpire';
 
@@ -26,10 +27,19 @@ export interface ICRecord {
   countedQty: number;
 }
 
-import { getLiveAvailableQuantitiesFromMoves } from '@/app/InventoryAnalysis/Service/inventory_service';
+export interface ICTotalCountItem {
+  productId: string;
+  barcodeName: string;
+  productName: string;
+  availableQty: number;
+  totalCountedQty: number;
+  normalQty: number;
+  damageQty: number;
+  difference: number;
+}
 
 type MixCountProductRow = {
-  ID: string;
+  ID?: string;
   'PRODUCT ID': string;
   'PRODUCT BARCODE': string | null;
   'PRODUCT NAME': string;
@@ -40,6 +50,21 @@ type MixCountTable =
   | 'bhs_PRODUCTS'
   | 'mix_INVENTORY_COUNT_DETAILS'
   | 'mix_INVENTORY_COUNT_TOTALS';
+
+type MixCountDetailRow = {
+  ID: string;
+  DATE: string | null;
+  USER: string | null;
+  WAREHOUSE: string | null;
+  'PRODUCT ID': string;
+  'QTY IN BOX': number | null;
+  'COUNT DETAILS': string | null;
+  'COUNTED QTY': number | null;
+};
+
+const PRODUCT_SELECT = '"PRODUCT ID","PRODUCT BARCODE","PRODUCT NAME","QTY IN BOX"';
+const DETAIL_SELECT =
+  'ID,DATE,USER,WAREHOUSE,"PRODUCT ID","QTY IN BOX","COUNT DETAILS","COUNTED QTY"';
 
 function parseNum(val: unknown): number {
   const n = parseFloat(String(val ?? '').replace(/,/g, ''));
@@ -58,11 +83,11 @@ async function fetchAllMixCountRows<T>(
   while (true) {
     let query = bhs_supabase.from(table).select(select);
     if (filter) query = query.eq(filter.column, filter.value);
-    
+
     if (table === 'bhs_PRODUCTS') {
       query = query.eq('IS_COUNTABLE', true);
     }
-    
+
     const { data, error } = await query.range(from, from + pageSize - 1);
     if (error) throw error;
     if (!data || data.length === 0) break;
@@ -74,43 +99,177 @@ async function fetchAllMixCountRows<T>(
   return allRows;
 }
 
-async function loadMixCountProductMap(): Promise<Map<string, MixCountProductRow>> {
-  const products = await fetchAllMixCountRows<MixCountProductRow>('bhs_PRODUCTS', '*');
+function buildProductMap(products: MixCountProductRow[]): Map<string, MixCountProductRow> {
   return new Map(products.map((p) => [p['PRODUCT ID']?.toString().trim(), p]));
 }
 
-export async function fetchICTotal(countType: CountType) {
+async function loadAvailableQtyMap(): Promise<Map<string, number>> {
   try {
-    const [products, totals, liveStockMap] = await Promise.all([
-      fetchAllMixCountRows<MixCountProductRow>('bhs_PRODUCTS', '*'),
+    const { data, error } = await bhs_supabase.rpc('get_live_available_quantities');
+    if (!error && Array.isArray(data)) {
+      const map = new Map<string, number>();
+      for (const row of data) {
+        const record = row as Record<string, unknown>;
+        const productId = String(record.product_id ?? record.productId ?? '').trim();
+        if (!productId) continue;
+        map.set(productId, parseNum(record.available_qty ?? record.availableQty));
+      }
+      if (map.size > 0) return map;
+    }
+    if (error) console.warn('RPC get_live_available_quantities failed:', error.message);
+  } catch (err) {
+    console.warn('RPC get_live_available_quantities error:', err);
+  }
+
+  return getLiveAvailableQuantitiesFromMoves();
+}
+
+function buildICTotalItems(
+  products: MixCountProductRow[],
+  totals: { 'PRODUCT ID': string; 'COUNTED QTY': number | null }[],
+  liveStockMap: Map<string, number>
+): ICItem[] {
+  const totalMap = new Map(
+    totals.map((t) => [t['PRODUCT ID']?.toString().trim(), parseNum(t['COUNTED QTY'])])
+  );
+
+  return products
+    .map((p) => {
+      const pid = p['PRODUCT ID']?.toString().trim() || '';
+      return {
+        productId: pid,
+        barcodeName: p['PRODUCT BARCODE']?.toString().trim() || '',
+        productName: p['PRODUCT NAME']?.toString().trim() || '',
+        availableQty: liveStockMap.get(pid) || 0,
+        qtyInBox: parseNum(p['QTY IN BOX']),
+        countedQty: totalMap.get(pid) || 0,
+      };
+    })
+    .filter((item) => item.productName)
+    .sort((a, b) => a.productName.localeCompare(b.productName));
+}
+
+function buildICRecords(
+  details: MixCountDetailRow[],
+  productMap: Map<string, MixCountProductRow>
+): ICRecord[] {
+  return details
+    .map((row) => {
+      const productId = row['PRODUCT ID']?.toString().trim() || '';
+      const product = productMap.get(productId);
+      return {
+        rowId: row.ID || '',
+        date: row.DATE || '',
+        user: row.USER?.toString().trim() || '',
+        warehouse: row.WAREHOUSE?.toString().trim() || '',
+        productId,
+        barcodeName: product?.['PRODUCT BARCODE']?.toString().trim() || '',
+        productName: product?.['PRODUCT NAME']?.toString().trim() || '',
+        qtyInBox: parseNum(row['QTY IN BOX'] ?? product?.['QTY IN BOX']),
+        countDetails: row['COUNT DETAILS']?.toString() || '',
+        countedQty: parseNum(row['COUNTED QTY']),
+      };
+    })
+    .filter((record) => record.productId);
+}
+
+/** Combined Normal + Damage totals with live available stock. */
+export async function fetchICTotalCountData() {
+  try {
+    const [products, normalTotals, damageTotals, liveStockMap] = await Promise.all([
+      fetchAllMixCountRows<MixCountProductRow>('bhs_PRODUCTS', PRODUCT_SELECT),
+      fetchAllMixCountRows<{ 'PRODUCT ID': string; 'COUNTED QTY': number | null }>(
+        'mix_INVENTORY_COUNT_TOTALS',
+        '"PRODUCT ID","COUNTED QTY"',
+        { column: 'COUNT_TYPE', value: 'Normal' }
+      ),
+      fetchAllMixCountRows<{ 'PRODUCT ID': string; 'COUNTED QTY': number | null }>(
+        'mix_INVENTORY_COUNT_TOTALS',
+        '"PRODUCT ID","COUNTED QTY"',
+        { column: 'COUNT_TYPE', value: 'DamageExpire' }
+      ),
+      loadAvailableQtyMap(),
+    ]);
+
+    const normalMap = new Map(
+      normalTotals.map((t) => [t['PRODUCT ID']?.toString().trim(), parseNum(t['COUNTED QTY'])])
+    );
+    const damageMap = new Map(
+      damageTotals.map((t) => [t['PRODUCT ID']?.toString().trim(), parseNum(t['COUNTED QTY'])])
+    );
+
+    const data: ICTotalCountItem[] = products
+      .map((p) => {
+        const pid = p['PRODUCT ID']?.toString().trim() || '';
+        const normalQty = normalMap.get(pid) || 0;
+        const damageQty = damageMap.get(pid) || 0;
+        const totalCountedQty = normalQty + damageQty;
+        const availableQty = liveStockMap.get(pid) || 0;
+        return {
+          productId: pid,
+          barcodeName: p['PRODUCT BARCODE']?.toString().trim() || '',
+          productName: p['PRODUCT NAME']?.toString().trim() || '',
+          availableQty,
+          totalCountedQty,
+          normalQty,
+          damageQty,
+          difference: totalCountedQty - availableQty,
+        };
+      })
+      .filter((item) => item.productName)
+      .sort((a, b) => a.productName.localeCompare(b.productName));
+
+    return { success: true, data };
+  } catch (error: any) {
+    console.error('Error in fetchICTotalCountData:', error);
+    return { success: false, error: 'Failed to fetch total count data', details: error.message };
+  }
+}
+
+/** Single fetch for Count tabs — products loaded once, parallel DB reads. */
+export async function fetchICCountTabData(countType: CountType) {
+  try {
+    const [products, totals, details, liveStockMap] = await Promise.all([
+      fetchAllMixCountRows<MixCountProductRow>('bhs_PRODUCTS', PRODUCT_SELECT),
       fetchAllMixCountRows<{ 'PRODUCT ID': string; 'COUNTED QTY': number | null }>(
         'mix_INVENTORY_COUNT_TOTALS',
         '"PRODUCT ID","COUNTED QTY"',
         { column: 'COUNT_TYPE', value: countType }
       ),
-      getLiveAvailableQuantitiesFromMoves(),
+      fetchAllMixCountRows<MixCountDetailRow>(
+        'mix_INVENTORY_COUNT_DETAILS',
+        DETAIL_SELECT,
+        { column: 'COUNT_TYPE', value: countType }
+      ),
+      loadAvailableQtyMap(),
     ]);
 
-    const totalMap = new Map(
-      totals.map((t) => [t['PRODUCT ID']?.toString().trim(), parseNum(t['COUNTED QTY'])])
-    );
+    const productMap = buildProductMap(products);
 
-    const data = products
-      .map((p) => {
-        const pid = p['PRODUCT ID']?.toString().trim() || '';
-        return {
-          productId: pid,
-          barcodeName: p['PRODUCT BARCODE']?.toString().trim() || '',
-          productName: p['PRODUCT NAME']?.toString().trim() || '',
-          availableQty: liveStockMap.get(pid) || 0,
-          qtyInBox: parseNum(p['QTY IN BOX']),
-          countedQty: totalMap.get(pid) || 0,
-        };
-      })
-      .filter((item) => item.productName)
-      .sort((a, b) => a.productName.localeCompare(b.productName));
-      
-    return { success: true, data };
+    return {
+      success: true,
+      data: buildICTotalItems(products, totals, liveStockMap),
+      records: buildICRecords(details, productMap),
+    };
+  } catch (error: any) {
+    console.error('Error in fetchICCountTabData:', error);
+    return { success: false, error: 'Failed to fetch IC count data', details: error.message };
+  }
+}
+
+export async function fetchICTotal(countType: CountType) {
+  try {
+    const [products, totals, liveStockMap] = await Promise.all([
+      fetchAllMixCountRows<MixCountProductRow>('bhs_PRODUCTS', PRODUCT_SELECT),
+      fetchAllMixCountRows<{ 'PRODUCT ID': string; 'COUNTED QTY': number | null }>(
+        'mix_INVENTORY_COUNT_TOTALS',
+        '"PRODUCT ID","COUNTED QTY"',
+        { column: 'COUNT_TYPE', value: countType }
+      ),
+      loadAvailableQtyMap(),
+    ]);
+
+    return { success: true, data: buildICTotalItems(products, totals, liveStockMap) };
   } catch (error: any) {
     console.error('Error in fetchICTotal:', error);
     return { success: false, error: 'Failed to fetch IC total', details: error.message };
@@ -119,40 +278,19 @@ export async function fetchICTotal(countType: CountType) {
 
 export async function fetchICDetails(countType: CountType) {
   try {
-    const [details, productMap] = await Promise.all([
-      fetchAllMixCountRows<{
-        ID: string;
-        DATE: string | null;
-        USER: string | null;
-        WAREHOUSE: string | null;
-        'PRODUCT ID': string;
-        'QTY IN BOX': number | null;
-        'COUNT DETAILS': string | null;
-        'COUNTED QTY': number | null;
-      }>('mix_INVENTORY_COUNT_DETAILS', '*', { column: 'COUNT_TYPE', value: countType }),
-      loadMixCountProductMap(),
+    const [details, products] = await Promise.all([
+      fetchAllMixCountRows<MixCountDetailRow>(
+        'mix_INVENTORY_COUNT_DETAILS',
+        DETAIL_SELECT,
+        { column: 'COUNT_TYPE', value: countType }
+      ),
+      fetchAllMixCountRows<MixCountProductRow>('bhs_PRODUCTS', PRODUCT_SELECT),
     ]);
 
-    const data = details
-      .map((row) => {
-        const productId = row['PRODUCT ID']?.toString().trim() || '';
-        const product = productMap.get(productId);
-        return {
-          rowId: row.ID || '',
-          date: row.DATE || '',
-          user: row.USER?.toString().trim() || '',
-          warehouse: row.WAREHOUSE?.toString().trim() || '',
-          productId,
-          barcodeName: product?.['PRODUCT BARCODE']?.toString().trim() || '',
-          productName: product?.['PRODUCT NAME']?.toString().trim() || '',
-          qtyInBox: parseNum(row['QTY IN BOX'] ?? product?.['QTY IN BOX']),
-          countDetails: row['COUNT DETAILS']?.toString() || '',
-          countedQty: parseNum(row['COUNTED QTY']),
-        };
-      })
-      .filter((record) => record.productId);
-      
-    return { success: true, data };
+    return {
+      success: true,
+      data: buildICRecords(details, buildProductMap(products)),
+    };
   } catch (error: any) {
     console.error('Error in fetchICDetails:', error);
     return { success: false, error: 'Failed to fetch IC details', details: error.message };
@@ -176,7 +314,7 @@ export async function updateICItem(
       .select('ID');
 
     if (error) throw error;
-    
+
     return { success: true, data: !!(data && data.length > 0) };
   } catch (error: any) {
     console.error('Error in updateICItem:', error);

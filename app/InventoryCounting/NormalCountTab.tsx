@@ -7,7 +7,7 @@ import TabLoader from '@/app/Components/TabLoader';
 import NoData from '@/app/Components/NoDataTab';
 import { ICItem, ICRecord } from './EditICItemModal';
 import EditICItemModal from './EditICItemModal';
-import { fetchICTotal, fetchICDetails, updateICItem } from './Service/inventory_counting_service';
+import { fetchICCountTabData, updateICItem } from './Service/inventory_counting_service';
 
 export default function NormalCountTab() {
     const [data, setData] = useState<ICItem[]>([]);
@@ -31,20 +31,17 @@ export default function NormalCountTab() {
 
         setError(null);
         try {
-            const [totalJson, recordJson] = await Promise.all([
-                fetchICTotal('Normal'),
-                fetchICDetails('Normal')
-            ]);
+            const result = await fetchICCountTabData('Normal');
 
-            if (totalJson.success && totalJson.data) {
-                setData(totalJson.data);
+            if (result.success && result.data) {
+                setData(result.data);
             }
-            if (recordJson.success && recordJson.data) {
-                setRecords(recordJson.data);
+            if (result.success && result.records) {
+                setRecords(result.records);
             }
 
-            if (!totalJson.data && !recordJson.data) {
-                throw new Error(totalJson.error || recordJson.error || 'Failed to load data');
+            if (!result.success || (!result.data && !result.records)) {
+                throw new Error(result.error || 'Failed to load data');
             }
         } catch (e: any) {
             console.error('Failed to load normal IC data', e);
