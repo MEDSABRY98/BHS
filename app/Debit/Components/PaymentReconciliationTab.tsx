@@ -796,7 +796,18 @@ export default function PaymentReconciliationTab({ data = [] }: PaymentReconcili
 
           <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
             {filteredRows.length === 0 ? (
-              <NoData />
+              <NoData
+                title={
+                  openRows.length === 0
+                    ? 'NO OPEN INVOICES FOUND'
+                    : debouncedTableSearch.trim() ||
+                        dateFromFilter ||
+                        dateToFilter ||
+                        selectedOverdueMonthFilter.length > 0
+                      ? 'NO INVOICES MATCH YOUR FILTERS'
+                      : undefined
+                }
+              />
             ) : (
               <>
                 <div className="overflow-x-auto">
@@ -878,9 +889,7 @@ export default function PaymentReconciliationTab({ data = [] }: PaymentReconcili
       )}
 
       {groupCustomers.length === 0 && (
-        <div className="text-center py-16 text-slate-400">
-          Select one or more customers to view open invoices and allocate the payment.
-        </div>
+        <NoData title="NO CUSTOMERS ADDED" />
       )}
     </div>
   );

@@ -78,6 +78,113 @@ function getRemainderStyle(remainder: number): {
   return { textColor: RECON_COLORS.slate };
 }
 
+const PDF_FOOTER_RESERVE = 16;
+
+function getContentBottom(doc: { internal: { pageSize: { getHeight: () => number } } }): number {
+  return doc.internal.pageSize.getHeight() - PDF_FOOTER_RESERVE;
+}
+
+function ensurePdfSpace(
+  doc: { addPage: () => void; internal: { pageSize: { getHeight: () => number } } },
+  y: number,
+  requiredHeight: number,
+  topOnNewPage: number,
+): number {
+  if (y + requiredHeight <= getContentBottom(doc)) return y;
+  doc.addPage();
+  return topOnNewPage;
+}
+
+function drawRemainderNoteSection(
+  doc: any,
+  input: PaymentReconciliationPdfInput,
+  startY: number,
+  margin: number,
+  usableWidth: number,
+  pageWidth: number,
+  topOnNewPage: number,
+): number {
+  const noteText = input.remainderNote?.trim();
+  if (!noteText) return startY;
+
+  doc.setFont('Amiri', 'normal');
+  doc.setFontSize(9);
+  const noteLines = doc.splitTextToSize(noteText, usableWidth - 8) as string[];
+  const lineHeight = 5;
+  const headerHeight = 8;
+  const boxPadding = 4;
+
+  let y = startY;
+  let lineIndex = 0;
+  let isFirstChunk = true;
+
+  while (lineIndex < noteLines.length) {
+    const minChunkHeight = headerHeight + lineHeight + boxPadding * 2;
+    y = ensurePdfSpace(doc, y, minChunkHeight, topOnNewPage);
+
+    const availableHeight = getContentBottom(doc) - y;
+    const maxLines = Math.max(
+      1,
+      Math.floor((availableHeight - headerHeight - boxPadding * 2) / lineHeight),
+    );
+    const chunk = noteLines.slice(lineIndex, lineIndex + maxLines);
+    const boxHeight = headerHeight + chunk.length * lineHeight + boxPadding * 2;
+
+    doc.setFillColor(255, 251, 235);
+    doc.setDrawColor(253, 230, 138);
+    doc.setLineWidth(0.4);
+    doc.roundedRect(margin, y, usableWidth, boxHeight, 2, 2, 'FD');
+
+    if (isFirstChunk) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      doc.setTextColor(...RECON_COLORS.amber);
+      doc.text('Remainder Note:', margin + boxPadding, y + boxPadding + 3);
+      isFirstChunk = false;
+    }
+
+    doc.setFont('Amiri', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(68, 64, 60);
+    doc.text(chunk, margin + boxPadding, y + headerHeight + boxPadding);
+
+    lineIndex += chunk.length;
+    y += boxHeight + 6;
+
+    if (lineIndex < noteLines.length) {
+      doc.addPage();
+      y = topOnNewPage;
+    }
+  }
+
+  return y;
+}
+
+function buildNoCustomerColumnStyles(tableWidth: number, isPortrait: boolean) {
+  const rowNumShare = isPortrait ? 8 : tableWidth * 0.05;
+  const invoiceShare = isPortrait ? Math.round(tableWidth * 0.32) : tableWidth * 0.28;
+  const equalWidth = (tableWidth - rowNumShare - invoiceShare) / 5;
+
+  return {
+    0: { cellWidth: rowNumShare, halign: 'center' as const },
+    1: { cellWidth: equalWidth, halign: 'center' as const },
+    2: {
+      cellWidth: invoiceShare,
+      font: 'Amiri',
+      halign: 'center' as const,
+      overflow: 'linebreak' as const,
+    },
+    3: { cellWidth: equalWidth, halign: 'center' as const, fontStyle: 'bold' as const },
+    4: { cellWidth: equalWidth, halign: 'center' as const, fontStyle: 'bold' as const },
+    5: { cellWidth: equalWidth, halign: 'center' as const, fontStyle: 'bold' as const },
+    6: {
+      cellWidth: equalWidth,
+      halign: 'center' as const,
+      overflow: 'linebreak' as const,
+    },
+  };
+}
+
 export async function generatePaymentReconciliationPDF(
   input: PaymentReconciliationPdfInput,
   options?: { print?: boolean; download?: boolean },
@@ -87,7 +194,7 @@ export async function generatePaymentReconciliationPDF(
   const autoTableModule = await import('jspdf-autotable');
   const autoTable = autoTableModule.default || autoTableModule;
 
-  const doc = new jsPDF('l', 'mm', 'a4');
+  const doc = new jsPDF('p', 'mm', 'a4');
   doc.setProperties({ title: 'Payment Reconciliation Memo' });
 
   try {
@@ -97,7 +204,11 @@ export async function generatePaymentReconciliationPDF(
   }
 
   const pageWidth = doc.internal.pageSize.getWidth();
-  const margin = 15;
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const isPortrait = pageWidth < pageHeight;
+  const margin = isPortrait ? 10 : 15;
+  const tableMargin = isPortrait ? 5 : 12;
+  const tableWidth = pageWidth - tableMargin * 2;
   let yPosition = 20;
 
   doc.setFontSize(18);
@@ -150,7 +261,7 @@ export async function generatePaymentReconciliationPDF(
   doc.setFontSize(11);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...RECON_COLORS.slate);
-  doc.text('Customers:', margin, yPosition);
+  doc.text(input.customers.length === 1 ? 'Customer:' : 'Customers:', margin, yPosition);
   yPosition += 6;
 
   doc.setFont('Amiri', 'normal');
@@ -186,57 +297,167 @@ export async function generatePaymentReconciliationPDF(
   yPosition += 8;
 
   const usableWidth = pageWidth - margin * 2;
+  const sectionTopOnNewPage = tableMargin + 10;
 
-  const tableData = input.lines.map((line, index) => [
-    String(index + 1),
-    line.customerName,
-    formatDisplayDate(line.date),
-    (line.number || '').split(' ')[0],
-    line.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-    line.appliedAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-    line.openAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-    line.matching || '-',
-  ]);
+  const showCustomerColumn = input.customers.length > 1;
+
+  const buildTableRow = (line: PaymentReconciliationLine, index: number) => {
+    const row = [
+      String(index + 1),
+      formatDisplayDate(line.date),
+      (line.number || '').split(' ')[0],
+      line.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      line.appliedAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      line.openAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      line.matching || '-',
+    ];
+    if (showCustomerColumn) {
+      row.splice(1, 0, line.customerName);
+    }
+    return row;
+  };
+
+  const tableHead = showCustomerColumn
+    ? ['#', 'Customer', 'Date', 'Invoice', 'Total Amount', 'Applied', 'Open Amount', 'Matching']
+    : ['#', 'Date', 'Invoice', 'Total Amount', 'Applied', 'Open Amount', 'Matching'];
+
+  const colTotal = showCustomerColumn ? 4 : 3;
+  const colApplied = showCustomerColumn ? 5 : 4;
+  const colOpen = showCustomerColumn ? 6 : 5;
+  const colMatching = showCustomerColumn ? 7 : 6;
+
+  const portraitFixedWidth = 7 + 50 + 24 + 38 + 21 + 21 + 21;
+
+  const portraitColumnStyles = showCustomerColumn
+    ? {
+        0: { cellWidth: 7, halign: 'center' as const },
+        1: { cellWidth: 50, font: 'Amiri', halign: 'center' as const, overflow: 'linebreak' as const },
+        2: { cellWidth: 24, halign: 'center' as const },
+        3: { cellWidth: 38, font: 'Amiri', halign: 'center' as const, overflow: 'linebreak' as const },
+        4: { cellWidth: 21, halign: 'center' as const, fontStyle: 'bold' as const },
+        5: { cellWidth: 21, halign: 'center' as const, fontStyle: 'bold' as const },
+        6: { cellWidth: 21, halign: 'center' as const, fontStyle: 'bold' as const },
+        7: {
+          cellWidth: tableWidth - portraitFixedWidth,
+          halign: 'center' as const,
+          overflow: 'linebreak' as const,
+        },
+      }
+    : buildNoCustomerColumnStyles(tableWidth, true);
+
+  const landscapeColumnStyles = showCustomerColumn
+    ? {
+        0: { cellWidth: tableWidth * 0.04, halign: 'center' as const },
+        1: { cellWidth: tableWidth * 0.24, font: 'Amiri', halign: 'center' as const, overflow: 'linebreak' as const },
+        2: { cellWidth: tableWidth * 0.09, halign: 'center' as const },
+        3: { cellWidth: tableWidth * 0.18, font: 'Amiri', halign: 'center' as const, overflow: 'linebreak' as const },
+        4: { cellWidth: tableWidth * 0.11, halign: 'center' as const, fontStyle: 'bold' as const },
+        5: { cellWidth: tableWidth * 0.11, halign: 'center' as const, fontStyle: 'bold' as const },
+        6: { cellWidth: tableWidth * 0.11, halign: 'center' as const, fontStyle: 'bold' as const },
+        7: { cellWidth: tableWidth * 0.12, halign: 'center' as const, overflow: 'linebreak' as const },
+      }
+    : buildNoCustomerColumnStyles(tableWidth, false);
+
+  const sumTotalAmount = input.lines.reduce((sum, line) => sum + line.totalAmount, 0);
+  const sumAppliedAmount = input.lines.reduce((sum, line) => sum + line.appliedAmount, 0);
+  const sumOpenAmount = input.lines.reduce((sum, line) => sum + line.openAmount, 0);
+
+  const tableData = input.lines.map((line, index) => buildTableRow(line, index));
+
+  const tableFootRow = [
+    '',
+    'TOTAL',
+    '',
+    formatMoney(sumTotalAmount),
+    formatMoney(sumAppliedAmount),
+    formatMoney(sumOpenAmount),
+    '',
+  ];
+  if (showCustomerColumn) {
+    tableFootRow.splice(2, 0, '');
+  }
+
+  const tableFoot = [tableFootRow];
 
   const tableOptions = {
     startY: yPosition,
-    tableWidth: usableWidth,
-    margin: { left: margin, right: margin },
-    head: [['#', 'Customer', 'Date', 'Invoice', 'Total Amount', 'Applied', 'Open Amount', 'Matching']],
+    tableWidth,
+    margin: { left: tableMargin, right: tableMargin, bottom: PDF_FOOTER_RESERVE },
+    head: [tableHead],
     body: tableData,
+    foot: tableFoot,
     theme: 'plain' as const,
-    styles: { font: 'helvetica', fontStyle: 'normal', valign: 'middle', halign: 'center', overflow: 'linebreak', lineColor: [226, 232, 240], lineWidth: 0.1 },
+    styles: {
+      font: 'helvetica',
+      fontStyle: 'normal',
+      valign: 'middle',
+      halign: 'center',
+      overflow: 'visible',
+      lineColor: [226, 232, 240],
+      lineWidth: 0.1,
+      cellPadding: isPortrait ? 2.2 : 2,
+    },
     headStyles: {
       fillColor: RECON_COLORS.emeraldHeader,
       textColor: [255, 255, 255],
       fontStyle: 'bold',
-      fontSize: 9,
+      fontSize: isPortrait ? 8 : 9,
       halign: 'center',
+      minCellHeight: isPortrait ? 8 : 7,
     },
-    bodyStyles: { fontSize: 8, halign: 'center', textColor: [30, 41, 59] },
+    bodyStyles: {
+      fontSize: isPortrait ? 8 : 8,
+      halign: 'center',
+      textColor: [30, 41, 59],
+      minCellHeight: isPortrait ? 7.5 : 7,
+    },
     alternateRowStyles: { fillColor: [248, 250, 252] },
-    columnStyles: {
-      0: { cellWidth: usableWidth * 0.04, halign: 'center' },
-      1: { cellWidth: usableWidth * 0.24, font: 'Amiri', halign: 'center' },
-      2: { cellWidth: usableWidth * 0.09, halign: 'center' },
-      3: { cellWidth: usableWidth * 0.18, font: 'Amiri', halign: 'center' },
-      4: { cellWidth: usableWidth * 0.11, halign: 'center', fontStyle: 'bold' },
-      5: { cellWidth: usableWidth * 0.11, halign: 'center', fontStyle: 'bold' },
-      6: { cellWidth: usableWidth * 0.11, halign: 'center', fontStyle: 'bold' },
-      7: { cellWidth: usableWidth * 0.12, halign: 'center' },
+    footStyles: {
+      fillColor: [241, 245, 249],
+      textColor: [30, 41, 59],
+      fontStyle: 'bold',
+      fontSize: isPortrait ? 8 : 9,
+      halign: 'center',
+      minCellHeight: isPortrait ? 8 : 7,
     },
+    columnStyles: isPortrait ? portraitColumnStyles : landscapeColumnStyles,
     didParseCell: (data: {
       section: string;
       row: { index: number };
       column: { index: number };
-      cell: { styles: Record<string, unknown> };
+      cell: { styles: Record<string, unknown>; text?: string | string[]; width?: number };
     }) => {
       if (data.section === 'head') {
-        if (data.column.index === 5) {
+        if (data.column.index === colApplied) {
           data.cell.styles.fillColor = [29, 78, 216];
         }
-        if (data.column.index === 6) {
+        if (data.column.index === colOpen) {
           data.cell.styles.fillColor = RECON_COLORS.emeraldDark;
+        }
+        if (data.column.index === colMatching) {
+          data.cell.styles.overflow = 'visible';
+          data.cell.styles.fontSize = isPortrait ? 7.5 : 8;
+          data.cell.text = ['Matching'];
+        }
+        return;
+      }
+
+      if (data.section === 'body' && data.column.index === colMatching) {
+        data.cell.styles.overflow = 'linebreak';
+      }
+
+      if (data.section === 'foot') {
+        if (data.column.index === colTotal) {
+          data.cell.styles.textColor = RECON_COLORS.slateDark;
+        }
+        if (data.column.index === colApplied) {
+          data.cell.styles.textColor = RECON_COLORS.indigo;
+          data.cell.styles.fillColor = RECON_COLORS.indigoBg;
+        }
+        if (data.column.index === colOpen) {
+          const openStyle = getOpenAmountCellStyle(sumOpenAmount);
+          data.cell.styles.textColor = openStyle.textColor;
+          data.cell.styles.fillColor = openStyle.fillColor;
         }
         return;
       }
@@ -246,16 +467,16 @@ export async function generatePaymentReconciliationPDF(
       const line = input.lines[data.row.index];
       if (!line) return;
 
-      if (data.column.index === 4) {
+      if (data.column.index === colTotal) {
         data.cell.styles.textColor = RECON_COLORS.slateDark;
       }
 
-      if (data.column.index === 5) {
+      if (data.column.index === colApplied) {
         data.cell.styles.textColor = RECON_COLORS.indigo;
         data.cell.styles.fillColor = RECON_COLORS.indigoBg;
       }
 
-      if (data.column.index === 6) {
+      if (data.column.index === colOpen) {
         const openStyle = getOpenAmountCellStyle(line.openAmount);
         data.cell.styles.textColor = openStyle.textColor;
         data.cell.styles.fillColor = openStyle.fillColor;
@@ -270,70 +491,56 @@ export async function generatePaymentReconciliationPDF(
   }
 
   let finalY = (doc as any).lastAutoTable?.finalY || yPosition + 40;
-  finalY += 4;
-
-  doc.setFontSize(7);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(...RECON_COLORS.slate);
-  doc.text('Open Amount:', margin, finalY);
-  doc.setTextColor(...RECON_COLORS.emerald);
-  doc.text('Closed', margin + 22, finalY);
-  doc.setTextColor(...RECON_COLORS.amber);
-  doc.text('| Partial', margin + 36, finalY);
-  doc.setTextColor(...RECON_COLORS.red);
-  doc.text('| Over-applied', margin + 52, finalY);
   finalY += 6;
 
-  const summaryBoxHeight = input.remainderNote?.trim() ? 22 : 18;
+  const summaryBoxHeight = isPortrait ? 32 : 20;
+  finalY = ensurePdfSpace(doc, finalY, summaryBoxHeight + 6, sectionTopOnNewPage);
+
   doc.setFillColor(...RECON_COLORS.emeraldBg);
   doc.setDrawColor(...RECON_COLORS.emeraldBorder);
   doc.setLineWidth(0.4);
-  doc.roundedRect(margin, finalY, usableWidth, summaryBoxHeight, 2, 2, 'FD');
+  doc.roundedRect(tableMargin, finalY, tableWidth, summaryBoxHeight, 2, 2, 'FD');
 
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...RECON_COLORS.emeraldHeader);
-  doc.text('Summary', margin + 4, finalY + 6);
+  doc.text('Summary', tableMargin + 4, finalY + 6);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
   doc.setTextColor(...RECON_COLORS.slateDark);
-  doc.text(`Payment: ${formatMoney(input.paymentAmount)} AED`, margin + 4, finalY + 12);
+  doc.text(`Payment: ${formatMoney(input.paymentAmount)} AED`, tableMargin + 4, finalY + 13);
 
   doc.setTextColor(...RECON_COLORS.indigo);
   doc.setFont('helvetica', 'bold');
-  doc.text(`Applied: ${formatMoney(input.totalApplied)} AED`, margin + 62, finalY + 12);
+  doc.text(
+    `Applied: ${formatMoney(input.totalApplied)} AED`,
+    tableMargin + 4,
+    finalY + (isPortrait ? 20 : 13),
+  );
 
   const remainderStyle = getRemainderStyle(input.remainder);
   doc.setTextColor(...remainderStyle.textColor);
-  doc.text(
-    `Remainder: ${formatMoney(input.remainder)} AED${remainderStyle.suffix || ''}`,
-    margin + 122,
-    finalY + 12,
-  );
+  const remainderLabel = `Remainder: ${formatMoney(input.remainder)} AED${remainderStyle.suffix || ''}`;
+  if (isPortrait) {
+    const remainderLines = doc.splitTextToSize(remainderLabel, tableWidth - 8) as string[];
+    doc.text(remainderLines, tableMargin + 4, finalY + 27);
+  } else {
+    const remainderLines = doc.splitTextToSize(remainderLabel, tableWidth / 2 - 8) as string[];
+    doc.text(remainderLines, tableMargin + 140, finalY + 13);
+  }
 
   finalY += summaryBoxHeight + 6;
 
-  if (input.remainderNote?.trim()) {
-    doc.setFillColor(255, 251, 235);
-    doc.setDrawColor(253, 230, 138);
-    const noteText = input.remainderNote.trim();
-    doc.setFont('Amiri', 'normal');
-    doc.setFontSize(9);
-    const noteLines = doc.splitTextToSize(noteText, pageWidth - margin * 2 - 8);
-    const noteBoxHeight = noteLines.length * 5 + 10;
-    doc.roundedRect(margin, finalY, usableWidth, noteBoxHeight, 2, 2, 'FD');
-
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
-    doc.setTextColor(...RECON_COLORS.amber);
-    doc.text('Remainder Note:', margin + 4, finalY + 6);
-
-    doc.setFont('Amiri', 'normal');
-    doc.setTextColor(68, 64, 60);
-    doc.text(noteLines, margin + 4, finalY + 12);
-    finalY += noteBoxHeight + 4;
-  }
+  finalY = drawRemainderNoteSection(
+    doc,
+    input,
+    finalY,
+    tableMargin,
+    tableWidth,
+    pageWidth,
+    sectionTopOnNewPage,
+  );
 
   const totalPages = doc.getNumberOfPages();
   for (let i = 1; i <= totalPages; i++) {
@@ -341,7 +548,11 @@ export async function generatePaymentReconciliationPDF(
     doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(100, 100, 100);
-    doc.text(`Page ${i} of ${totalPages}`, margin, doc.internal.pageSize.getHeight() - 10);
+    doc.text(
+      `Page ${i} of ${totalPages}`,
+      margin,
+      doc.internal.pageSize.getHeight() - 8,
+    );
   }
 
   if (options?.print) {
