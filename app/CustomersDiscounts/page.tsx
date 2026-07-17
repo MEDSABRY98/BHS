@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from "react";
 import { CheckCircle } from "lucide-react";
 import { bhs_supabase, fetchAllData, getAllCustomerEmails } from "@/lib/supabase";
+import { buildCustomerEmailMap, getCustomerEmail } from "@/lib/customerEmailLookup";
 import Sidebar from "./Utils/Sidebar";
 import ConfirmModal from "./ConfirmModal";
 import { toast, NotificationContainer } from "@/app/Components/Notification";
@@ -185,8 +186,7 @@ export default function CustomerDiscountsPage() {
 
   const downloadTaxRebateEml = async (customerId: string, customerName: string) => {
     try {
-      const normalize = (s: any) => String(s || '').toLowerCase().trim().replace(/\s+/g, ' ');
-      const targetEmail = customersWithEmails.get(normalize(customerId)) || '';
+      const targetEmail = getCustomerEmail(customersWithEmails, customerId, customerName);
       
       const { data: settlementsData, error } = await bhs_supabase
         .from("web_CUSTOMERS_DISCOUNTS_SETTLEMENTS")
@@ -197,13 +197,23 @@ export default function CustomerDiscountsPage() {
       if (error) throw error;
       
       const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-      
+      const now = new Date();
+      const currentYear = now.getFullYear();
+      const currentMonth = now.getMonth() + 1;
+
+      const isEligiblePendingMonth = (month: number, year: number) => {
+        if (year < currentYear) return true;
+        if (year === currentYear && month < currentMonth) return true;
+        return false;
+      };
+
       // Deduplicate pending months and sort chronologically
       const uniqueMonths = new Set<string>();
       const pendingPeriods: { month: number; year: number }[] = [];
-      
+
       if (settlementsData) {
         settlementsData.forEach((s: any) => {
+          if (!isEligiblePendingMonth(s.MONTH, s.YEAR)) return;
           const key = `${s.MONTH}-${s.YEAR}`;
           if (!uniqueMonths.has(key)) {
             uniqueMonths.add(key);
@@ -217,9 +227,14 @@ export default function CustomerDiscountsPage() {
         return a.month - b.month;
       });
 
-      const pendingMonthsHtml = pendingPeriods.length > 0
-        ? pendingPeriods.map((p) => `  <li style="margin-bottom: 6px;">${monthNames[p.month - 1]} ${p.year}</li>`).join("\n")
-        : "  <li>Past months</li>";
+      if (pendingPeriods.length === 0) {
+        toast.warning("No outstanding pending months before the current month.");
+        return;
+      }
+
+      const pendingMonthsHtml = pendingPeriods
+        .map((p) => `  <li style="margin-bottom: 6px;">${monthNames[p.month - 1]} ${p.year}</li>`)
+        .join("\n");
 
       const subject = "Request for Outstanding Tax Rebate Invoices - Al Marai Al Arabia Trading Sole Proprietorship L.L.C";
       const htmlBody = `
@@ -268,27 +283,23 @@ export default function CustomerDiscountsPage() {
     try {
       setLoading(true);
 
-      // Load customer emails
-      let emailMap = new Map<string, string>();
-      try {
-        const emailsData = await getAllCustomerEmails();
-        const normalize = (s: any) => String(s || '').toLowerCase().trim().replace(/\s+/g, ' ');
-        if (emailsData) {
-          emailsData.forEach((item: any) => {
-            if (item && item.customerId && item.email) {
-              emailMap.set(normalize(item.customerId), item.email);
-            }
-          });
-        }
-      } catch (err) {
-        console.error("Error loading customer emails:", err);
-      }
-      setCustomersWithEmails(emailMap);
+      const [emailsData, discountsData, customersData] = await Promise.all([
+        getAllCustomerEmails().catch((err) => {
+          console.error("Error loading customer emails:", err);
+          return [];
+        }),
+        fetchAllData(() => bhs_supabase.from("web_CUSTOMERS_DISCOUNTS").select("*")),
+        fetchAllData(() =>
+          bhs_supabase.from("bhs_CUSTOMERS").select('"CUSTOMER ID", "CUSTOMER MAIN NAME", "CUSTOMER CITY"')
+        ),
+      ]);
 
-      // Fetch discounts
-      const discountsData = await fetchAllData(() =>
-        bhs_supabase.from("web_CUSTOMERS_DISCOUNTS").select("*")
-      );
+      const customerRows = customersData.map((row: any) => ({
+        id: row["CUSTOMER ID"]?.toString().trim() || "",
+        name: row["CUSTOMER MAIN NAME"]?.toString().trim() || "",
+      })).filter((row) => row.id);
+
+      setCustomersWithEmails(buildCustomerEmailMap(emailsData || [], customerRows));
 
       // Group discounts by customer ID
       const discountsByCustomer: Record<string, Discount[]> = {};
@@ -312,11 +323,6 @@ export default function CustomerDiscountsPage() {
         setFilteredCustomers([]);
         return;
       }
-
-      // Fetch customer details from bhs_CUSTOMERS
-      const customersData = await fetchAllData(() =>
-        bhs_supabase.from("bhs_CUSTOMERS").select('"CUSTOMER ID", "CUSTOMER MAIN NAME", "CUSTOMER CITY"')
-      );
 
       const customerNameMap = new Map<string, string>();
       const customerCityMap = new Map<string, string>();

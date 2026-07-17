@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Search, User, ChevronRight, FileSpreadsheet, Loader2, Mail } from "lucide-react";
 import { exportCustomersExcel } from "./ExportExcel";
+import { hasCustomerEmail } from "@/lib/customerEmailLookup";
 
 type Discount = {
   id: string;
@@ -124,7 +125,7 @@ export default function CustomersList({
                     <User className="w-7 h-7 text-[#D4AF37]" />
                   </div>
                   <div className="flex items-center gap-2">
-                    {customersWithEmails.has(String(c.customerId || '').toLowerCase().trim().replace(/\s+/g, ' ')) && (
+                    {hasCustomerEmail(customersWithEmails, c.customerId, c.customerName) && (
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
