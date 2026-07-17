@@ -4,6 +4,7 @@ import { bhs_supabase } from '@/lib/supabase';
 import {
   getNetQtyEffect,
   INTERNAL_WAREHOUSES_SET,
+  formatProductCategory,
 } from '../Components/locationTypes';
 
 // Shared Types
@@ -187,6 +188,15 @@ export async function getProductOrdersData() {
     const { data: rpcData, error: rpcError } = await bhs_supabase.rpc('get_inventory_product_orders');
 
     if (!rpcError && rpcData && rpcData.success) {
+      if (Array.isArray(rpcData.data)) {
+        return {
+          ...rpcData,
+          data: rpcData.data.map((row: { tags?: string }) => ({
+            ...row,
+            tags: formatProductCategory(row.tags || ''),
+          })),
+        };
+      }
       return rpcData;
     }
 
@@ -226,7 +236,7 @@ export async function getProductOrdersData() {
           productId,
           barcode: row['PRODUCT BARCODE']?.toString().trim() || '',
           productName: row['PRODUCT NAME']?.toString().trim() || '',
-          tags: row['PRODUCT CATEGORY']?.toString().trim() || '',
+          tags: formatProductCategory(row['PRODUCT CATEGORY']?.toString().trim() || ''),
           qty: stockMap.get(productId) || 0,
           salesQty: salesMap.get(productId) || 0,
           salesBreakdown,
@@ -650,6 +660,8 @@ export async function fetchMoveMonthsSummary() {
       return { success: true, data: mapped };
     }
 
+    console.warn('RPC get_inventory_moves_months_summary failed, falling back to JS:', error?.message);
+
     const rows = await fetchAllMoveDates();
     return { success: true, data: aggregateMonthsFromDates(rows) };
   } catch (error: any) {
@@ -676,6 +688,8 @@ export async function fetchMoveDaysSummary(year: number, month: number) {
       }));
       return { success: true, data: mapped };
     }
+
+    console.warn('RPC get_inventory_moves_days_summary failed, falling back to JS:', error?.message);
 
     const { start, end } = monthDateRange(year, month);
     const rows = await fetchAllMoveDates({ dateStart: start, dateEnd: end });
@@ -759,12 +773,6 @@ export async function deleteAllInventoryMovesDb(): Promise<{ success: boolean; e
 // ----------------------------------------------------------------------
 // Products Balance & Period Movement Calculation
 // ----------------------------------------------------------------------
-
-const formatCategory = (tag: string) => {
-  if (!tag || tag === 'All' || tag === 'Uncategorized') return tag;
-  const parts = tag.split('/');
-  return parts[parts.length - 1].trim();
-};
 
 export interface PeriodMovement {
   date: string;
@@ -861,10 +869,17 @@ export async function getProductsBalanceReportData(filters?: { dateFrom?: string
     });
 
     if (!rpcError && rpcData && rpcData.success) {
+      if (Array.isArray(rpcData.data)) {
+        return {
+          ...rpcData,
+          data: rpcData.data.map((row: { category?: string }) => ({
+            ...row,
+            category: formatProductCategory(row.category || '') || 'Uncategorized',
+          })),
+        };
+      }
       return rpcData;
     }
-
-    console.warn('RPC get_inventory_balance_report failed, falling back to JS:', rpcError?.message);
 
     const [products, moveRows] = await Promise.all([
       fetchInventoryProducts(),
@@ -949,7 +964,7 @@ export async function getProductsBalanceReportData(filters?: { dateFrom?: string
       const productId = row['PRODUCT ID']?.toString().trim() || '';
       const barcode = row['PRODUCT BARCODE']?.toString().trim() || '';
       const productName = row['PRODUCT NAME']?.toString().trim() || '';
-      const category = formatCategory(row['PRODUCT CATEGORY']?.toString().trim() || '');
+      const category = formatProductCategory(row['PRODUCT CATEGORY']?.toString().trim() || '') || 'Uncategorized';
 
       const calcData = productDataMap.get(productId) || {
         openingStock: 0,

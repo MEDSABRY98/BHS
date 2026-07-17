@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState } from 'react';
 import { InvoiceRow, CustomerAnalysis } from '@/types';
 import {
   parseDate,
@@ -6,7 +6,7 @@ import {
   getPaymentAmount,
   calculateDebtRating,
 } from './CstomersUtils';
-import { getCustomerEmails, getLuluCustomerEmails } from '@/app/Emails/Service/email_service';
+import { useDebitData } from '../../Context/DebitDataContext';
 
 interface UseCustomerDataProps {
   data: InvoiceRow[];
@@ -16,39 +16,7 @@ interface UseCustomerDataProps {
 }
 
 export const useCustomerData = (data: InvoiceRow[] = [], filters: any, mode: any, yearlySorting: any) => {
-    const [luluEmails, setLuluEmails] = useState<any[]>([]);
-  const [customersWithEmails, setCustomersWithEmails] = useState<Map<string, string>>(new Map());
-  useEffect(() => {
-    const fetchDependencies = async () => {
-      try {
-        const [emailsData, luluData] = await Promise.all([
-          getCustomerEmails(),
-          getLuluCustomerEmails()
-        ]);
-
-        if (luluData) {
-          setLuluEmails(luluData.customers || []);
-        }
-        if (emailsData) {
-          const normalizeId = (id: any) => String(id || '').toLowerCase().trim().replace(/\s+/g, ' ');
-          const emailMap = new Map<string, string>();
-          
-          // Regular emails API returns { customerId, email }[]
-          (emailsData.customers || []).forEach((item: any) => {
-            if (item && item.customerId && item.email) {
-              emailMap.set(normalizeId(item.customerId), item.email);
-            }
-          });
-
-          setCustomersWithEmails(emailMap);
-        }
-      } catch (error) {
-        console.error('Error fetching dependencies:', error);
-      }
-    };
-    fetchDependencies();
-  }, []);
-
+  const { customersWithEmails, luluEmails, invoicesByCustomer } = useDebitData();
   const customerAnalysis = useMemo(() => {
     type CustomerData = CustomerAnalysis & {
       customerId: string;
@@ -428,7 +396,7 @@ export const useCustomerData = (data: InvoiceRow[] = [], filters: any, mode: any
       };
 
       result = result.filter(c => {
-        const customerInvoices = data.filter(row => row.customerName === c.customerName);
+        const customerInvoices = invoicesByCustomer.get(c.customerName) || [];
         const matchingGroups = new Map<string, InvoiceRow[]>();
         customerInvoices.forEach(inv => {
           const key = inv.matching || 'UNMATCHED';
@@ -477,7 +445,7 @@ export const useCustomerData = (data: InvoiceRow[] = [], filters: any, mode: any
 
     if (overdueYear && Array.isArray(overdueYear) && overdueYear.length > 0) {
       result = result.filter(c => {
-        const customerInvoices = data.filter(row => row.customerName === c.customerName);
+        const customerInvoices = invoicesByCustomer.get(c.customerName) || [];
         const matchingGroups = new Map<string, InvoiceRow[]>();
         customerInvoices.forEach(inv => {
           const key = inv.matching || 'UNMATCHED';
@@ -525,7 +493,7 @@ export const useCustomerData = (data: InvoiceRow[] = [], filters: any, mode: any
     }
 
     return result;
-  }, [customerAnalysis, filters, mode, customersWithEmails, luluEmails]);
+  }, [customerAnalysis, filters, mode, customersWithEmails, luluEmails, invoicesByCustomer]);
 
   const yearlyPivotData = useMemo(() => {
     const customerPivotMap = new Map<string, { customerName: string; region: string; totalNetDebt: number; yearlyAmounts: Record<string, number>; }>();

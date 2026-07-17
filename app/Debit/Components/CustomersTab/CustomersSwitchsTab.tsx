@@ -33,9 +33,9 @@ export default function CustomersLandingTab({ data, initialCustomer }: Customers
     };
 
     return (
-        <div className="relative min-h-screen bg-white">
+        <div className="flex flex-col gap-4">
             {/* Sticky Sub-Header for Navigation */}
-            <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-sm px-4 py-2 flex items-center justify-between border-b border-slate-100 transition-all h-14">
+            <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-sm px-4 py-2 flex items-center justify-between border border-slate-200 rounded-xl shadow-sm transition-all h-14">
                 <div className="flex items-center gap-6">
                     <span className="font-bold text-lg text-slate-800 flex items-center gap-2">
                         {view === 'normal' && <><Users className="w-5 h-5 text-blue-600" /> Customers Debit Analysis</>}

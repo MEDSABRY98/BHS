@@ -76,6 +76,21 @@ function monthRange(year: number, month: number) {
 
 export async function getSuppliersMonthsSummary(type: SupplierInvoiceType) {
   try {
+    const { data, error } = await bhs_supabas.rpc('get_suppliers_invoices_months_summary', {
+      p_type: type,
+    });
+
+    if (!error && Array.isArray(data)) {
+      const summary = data.map((row: { year: number; month: number; count: number }) => ({
+        year: Number(row.year),
+        month: Number(row.month),
+        count: Number(row.count),
+      }));
+      return { data: summary };
+    }
+
+    console.warn('RPC get_suppliers_invoices_months_summary failed, falling back to JS:', error?.message);
+
     const pageSize = 1000;
     let from = 0;
     const counts = new Map<string, number>();

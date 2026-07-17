@@ -1,19 +1,22 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { Menu } from 'lucide-react';
 
 import InventoryProductsBalanceTab from './Components/InventoryProductsBalanceTab';
+import InventoryCountReconciliationTab from './Components/InventoryCountReconciliationTab';
 import InventoryProductOrdersTab from './Components/InventoryCategoriesTab';
+import InventorySidebar, { type InventoryTabId } from './Utils/Sidebar';
 import Login from '@/app/Components/Login';
 import Loading from '@/app/Components/Loading';
-import { ArrowLeft, Box, Package, Layers } from 'lucide-react';
 
 export default function InventoryPage() {
-  const [activeTab, setActiveTab] = useState<'products_balance' | 'categories'>('products_balance');
+  const [activeTab, setActiveTab] = useState<InventoryTabId>('products_balance');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
-  // Shared state for Orders
   const [orderItems, setOrderItems] = useState<any[]>([]);
 
   useEffect(() => {
@@ -22,7 +25,7 @@ export default function InventoryPage() {
       try {
         JSON.parse(savedUser);
         setIsAuthenticated(true);
-      } catch (e) {
+      } catch {
         localStorage.removeItem('currentUser');
       } finally {
         setIsChecking(false);
@@ -32,9 +35,35 @@ export default function InventoryPage() {
     }
   }, []);
 
+  useEffect(() => {
+    const stored = localStorage.getItem('inventorySidebarCollapsed');
+    if (stored === 'false') {
+      setIsSidebarCollapsed(false);
+    }
+  }, []);
+
+  const toggleSidebar = () => {
+    const nextState = !isSidebarCollapsed;
+    setIsSidebarCollapsed(nextState);
+    localStorage.setItem('inventorySidebarCollapsed', String(nextState));
+  };
+
   const handleLogin = (user: any) => {
     setIsAuthenticated(true);
     localStorage.setItem('currentUser', JSON.stringify(user));
+  };
+
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'products_balance':
+        return <InventoryProductsBalanceTab />;
+      case 'inventory_count':
+        return <InventoryCountReconciliationTab />;
+      case 'categories':
+        return <InventoryProductOrdersTab orderItems={orderItems} setOrderItems={setOrderItems} />;
+      default:
+        return null;
+    }
   };
 
   if (isChecking) {
@@ -46,62 +75,47 @@ export default function InventoryPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans selection:bg-indigo-100 selection:text-indigo-900 pb-12">
-      {/* --- Top Navigation Bar --- */}
-      <div className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-slate-200">
-        <div className="max-w-[95%] 2xl:max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-6">
-            <button
-              onClick={() => window.location.href = '/'}
-              className="p-2 -ml-2 text-slate-400 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-all"
-              title="Back to Dashboard"
-            >
-              <ArrowLeft className="w-6 h-6" />
-            </button>
-            <div className="flex items-center gap-3">
-              <div className="bg-gradient-to-br from-indigo-600 to-blue-600 text-white p-2.5 rounded-xl shadow-lg shadow-indigo-200">
-                <Box className="w-6 h-6" />
-              </div>
-              <h1 className="text-2xl font-black text-slate-800 tracking-tight">Inventory Analysis</h1>
-            </div>
-          </div>
+    <div className="flex min-h-screen bg-[#F8F9FA] text-black">
+      <aside className={`hidden lg:flex flex-col ${isSidebarCollapsed ? 'w-20' : 'w-72'} bg-[#0f172a] text-white shadow-2xl fixed h-screen left-0 top-0 z-50 transition-all duration-300`}>
+        <InventorySidebar
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          isCollapsed={isSidebarCollapsed}
+          onToggleCollapse={toggleSidebar}
+        />
+      </aside>
 
-          {/* Header Navigation Tabs */}
-          <div className="flex items-center bg-slate-100 p-1.5 rounded-2xl border border-slate-200/80 shadow-xs">
-            <button
-              onClick={() => setActiveTab('products_balance')}
-              className={`flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-bold transition-all ${
-                activeTab === 'products_balance'
-                  ? 'bg-white text-indigo-700 shadow-sm border border-slate-100'
-                  : 'text-slate-500 hover:text-slate-800'
-              }`}
-            >
-              <Package className="w-4 h-4" />
-              <span>Products Balance</span>
-            </button>
+      {isMobileSidebarOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm lg:hidden"
+          onClick={() => setIsMobileSidebarOpen(false)}
+        />
+      )}
 
-            <button
-              onClick={() => setActiveTab('categories')}
-              className={`flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-bold transition-all ${
-                activeTab === 'categories'
-                  ? 'bg-white text-indigo-700 shadow-sm border border-slate-100'
-                  : 'text-slate-500 hover:text-slate-800'
-              }`}
-            >
-              <Layers className="w-4 h-4" />
-              <span>Categories Analysis</span>
-            </button>
-          </div>
+      <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-[#0f172a] text-white transition-transform duration-300 transform lg:hidden ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'} flex flex-col`}>
+        <InventorySidebar
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          isCollapsed={false}
+          onToggleCollapse={() => {}}
+          onCloseMobile={() => setIsMobileSidebarOpen(false)}
+        />
+      </aside>
+
+      <div className={`flex-1 flex flex-col min-w-0 ${isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-72'} transition-all duration-300`}>
+        <div className="lg:hidden p-4 flex items-center bg-white border-b border-slate-200">
+          <button
+            type="button"
+            onClick={() => setIsMobileSidebarOpen(true)}
+            className="p-2.5 text-slate-600 hover:text-slate-900 rounded-xl hover:bg-slate-100 transition-all"
+          >
+            <Menu className="w-6 h-6" />
+          </button>
+          <span className="ml-3 font-bold text-slate-800">Inventory Analysis</span>
         </div>
-      </div>
 
-      {/* Main Tab Content */}
-      <div className="max-w-[95%] 2xl:max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 pt-8">
-        <div className={activeTab === 'products_balance' ? 'block' : 'hidden'}>
-          <InventoryProductsBalanceTab />
-        </div>
-        <div className={activeTab === 'categories' ? 'block' : 'hidden'}>
-          <InventoryProductOrdersTab orderItems={orderItems} setOrderItems={setOrderItems} />
+        <div className="max-w-[95%] 2xl:max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-12 flex-1 w-full">
+          {renderTabContent()}
         </div>
       </div>
     </div>

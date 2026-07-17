@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { InvoiceRow } from '@/types';
 import { useCustomerData } from './CustomersTab/CustomersData';
 import { exportDebitExcelTable } from '../Utils/ExcelExport';
+import { useDebouncedValue } from '../Hooks/useDebouncedValue';
 import { 
   ShieldAlert, 
   Search, 
@@ -18,6 +19,7 @@ interface CreditLimitTabProps {
 
 export default function CreditLimitTab({ data }: CreditLimitTabProps) {
   const [searchTerm, setSearchTerm] = useState('');
+  const debouncedSearchTerm = useDebouncedValue(searchTerm);
 
   // Initial dummy filters to pass to useCustomerData
   const filters = useMemo(() => ({
@@ -90,14 +92,14 @@ export default function CreditLimitTab({ data }: CreditLimitTabProps) {
 
   // Filter exceeded customers by search term
   const filteredCustomers = useMemo(() => {
-    if (!searchTerm.trim()) return exceededCustomers;
-    const term = searchTerm.toLowerCase().trim();
+    if (!debouncedSearchTerm.trim()) return exceededCustomers;
+    const term = debouncedSearchTerm.toLowerCase().trim();
     return exceededCustomers.filter(c => 
       c.customerName.toLowerCase().includes(term) ||
       c.city.toLowerCase().includes(term) ||
       c.customerId.toLowerCase().includes(term)
     );
-  }, [exceededCustomers, searchTerm]);
+  }, [exceededCustomers, debouncedSearchTerm]);
 
   // Export to Excel
   const handleExportExcel = async () => {

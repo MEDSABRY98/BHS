@@ -23,7 +23,7 @@ function loadEnv(path) {
 loadEnv('.env.local');
 
 async function main() {
-  const sql = fs.readFileSync('scratch/inventory_rpc.sql', 'utf8');
+  const sql = fs.readFileSync('scratch/debit_rpc.sql', 'utf8');
   const client = new Client({
     connectionString: process.env.DATABASE_URL,
     ssl: { rejectUnauthorized: false },
@@ -33,7 +33,7 @@ async function main() {
 
   try {
     await client.query(sql);
-    console.log('Applied inventory_rpc.sql successfully');
+    console.log('Applied debit_rpc.sql successfully');
 
     const fnCheck = await client.query(`
       SELECT p.proname, pg_get_function_identity_arguments(p.oid) AS args
@@ -41,10 +41,10 @@ async function main() {
       JOIN pg_namespace n ON n.oid = p.pronamespace
       WHERE n.nspname = 'public'
         AND p.proname IN (
-          'get_inventory_balance_report',
-          'get_inventory_product_period_movements',
-          'get_inventory_moves_months_summary',
-          'get_inventory_moves_days_summary'
+          'get_debit_metadata',
+          'get_debit_transactions',
+          'get_debit_customers_aggregated',
+          'get_debit_payments_summary'
         )
       ORDER BY p.proname, args
     `);
@@ -54,24 +54,8 @@ async function main() {
       console.log(`- ${row.proname}(${row.args})`);
     }
 
-    const test = await client.query(
-      'SELECT get_inventory_balance_report(NULL, NULL, false) AS result',
-    );
-    const parsed = test.rows[0]?.result;
-    const count = Array.isArray(parsed?.data) ? parsed.data.length : 0;
-    console.log(
-      `Smoke test get_inventory_balance_report(false): success=${parsed?.success}, products=${count}`,
-    );
-
-    const monthsTest = await client.query(
-      'SELECT COUNT(*) AS n FROM get_inventory_moves_months_summary()',
-    );
-    console.log(`Smoke test get_inventory_moves_months_summary: months=${monthsTest.rows[0]?.n}`);
-
-    const daysTest = await client.query(
-      'SELECT COUNT(*) AS n FROM get_inventory_moves_days_summary(2025, 1)',
-    );
-    console.log(`Smoke test get_inventory_moves_days_summary(2025,1): days=${daysTest.rows[0]?.n}`);
+    const meta = await client.query('SELECT get_debit_metadata() AS result');
+    console.log('Smoke test get_debit_metadata:', JSON.stringify(meta.rows[0]?.result));
 
     await client.query("NOTIFY pgrst, 'reload schema'");
     console.log('Requested PostgREST schema reload');

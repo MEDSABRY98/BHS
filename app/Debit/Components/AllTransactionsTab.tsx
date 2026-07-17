@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, Fragment } from 'react';
+import { useMemo, useState, useEffect, Fragment } from 'react';
 import { exportDebitExcelTable } from '@/app/Debit/Utils/ExcelExport';
 import {
   useReactTable,
@@ -13,9 +13,10 @@ import {
 import { FileSpreadsheet } from 'lucide-react';
 import { InvoiceRow } from '@/types';
 import NoData from '@/app/Components/NoDataTab';
+import { useDebouncedValue } from '../Hooks/useDebouncedValue';
 
 interface AllTransactionsTabProps {
-  data: InvoiceRow[];
+  data?: InvoiceRow[];
 }
 
 interface TransactionItem {
@@ -48,8 +49,46 @@ const parseDate = (dateStr: string): Date | null => {
   return null;
 };
 
-export default function AllTransactionsTab({ data }: AllTransactionsTabProps) {
+function classifyTransaction(inv: InvoiceRow): TransactionItem | null {
+  const num = inv.number?.toString().toUpperCase() || '';
+  const rowDate = parseDate(inv.date);
+  if (!rowDate) return null;
+
+  let type: TransactionItem['type'];
+  if (num.startsWith('OB')) {
+    type = 'OB';
+  } else if (num.startsWith('BNK')) {
+    type = inv.debit > 0.01 ? 'R-Payment' : 'Payment';
+  } else if (num.startsWith('PBNK') && inv.debit > 0.01) {
+    type = 'Our-Paid';
+  } else if (num.startsWith('SAL')) {
+    type = 'Sales';
+  } else if (num.startsWith('RSAL')) {
+    type = 'Return';
+  } else if (num.startsWith('JV') || num.startsWith('BIL')) {
+    type = 'Discount';
+  } else if (inv.credit > 0.01) {
+    type = 'Payment';
+  } else {
+    type = 'Sales';
+  }
+
+  return {
+    customerName: inv.customerName || 'Unknown',
+    date: rowDate,
+    number: inv.number || '',
+    debit: inv.debit,
+    credit: inv.credit,
+    netAmount: inv.debit - inv.credit,
+    type,
+    matching: inv.matching,
+  };
+}
+
+export default function AllTransactionsTab({ data = [] }: AllTransactionsTabProps) {
+  const safeData = Array.isArray(data) ? data : [];
   const [searchQuery, setSearchQuery] = useState('');
+  const debouncedSearch = useDebouncedValue(searchQuery);
   const [dateFrom, setDateFrom] = useState<string>('');
   const [dateTo, setDateTo] = useState<string>('');
   const [typeFilter, setTypeFilter] = useState<'ALL' | 'Payment' | 'R-Payment' | 'Discount' | 'Return' | 'Sales' | 'OB' | 'Our-Paid'>('ALL');
@@ -61,65 +100,28 @@ export default function AllTransactionsTab({ data }: AllTransactionsTabProps) {
   const [viewMode, setViewMode] = useState<'details' | 'byCustomer'>('details');
   const [expandedCustomer, setExpandedCustomer] = useState<string | null>(null);
 
-  // Get ALL transactions (not just open ones)
+  useEffect(() => {
+    setPagination((p) => ({ ...p, pageIndex: 0 }));
+  }, [debouncedSearch, dateFrom, dateTo, typeFilter]);
+
   const allTransactions = useMemo(() => {
     const items: TransactionItem[] = [];
-
-    data.forEach(inv => {
-      const num = inv.number?.toString().toUpperCase() || '';
-      const rowDate = parseDate(inv.date);
-      if (!rowDate) return;
-
-      let type: TransactionItem['type'] | null = null;
-
-      if (num.startsWith('OB')) {
-        type = 'OB';
-      } else if (num.startsWith('BNK')) {
-        // BNK with Debit is a 'R-Payment' (Refund/Bounced), otherwise Payment
-        type = inv.debit > 0.01 ? 'R-Payment' : 'Payment';
-      } else if (num.startsWith('PBNK') && inv.debit > 0.01) {
-        type = 'Our-Paid';
-      } else if (num.startsWith('SAL')) {
-        type = 'Sales';
-      } else if (num.startsWith('RSAL')) {
-        type = 'Return';
-      } else if (num.startsWith('JV') || num.startsWith('BIL')) {
-        type = 'Discount';
-      } else if (inv.credit > 0.01) {
-        type = 'Payment';
-      } else {
-        type = 'Sales'; // Default for other invoice types
-      }
-
-      const netAmount = inv.debit - inv.credit;
-
-      items.push({
-        customerName: inv.customerName || 'Unknown',
-        date: rowDate,
-        number: inv.number || '',
-        debit: inv.debit,
-        credit: inv.credit,
-        netAmount: netAmount,
-        type,
-        matching: inv.matching
-      });
-    });
-
-    // Sort by date descending
+    for (const inv of safeData) {
+      const item = classifyTransaction(inv);
+      if (item) items.push(item);
+    }
     return items.sort((a, b) => b.date.getTime() - a.date.getTime());
-  }, [data]);
+  }, [safeData]);
 
   const filteredItems = useMemo(() => {
     let filtered = allTransactions;
 
-    // Type filter
     if (typeFilter !== 'ALL') {
-      filtered = filtered.filter(item => item.type === typeFilter);
+      filtered = filtered.filter((item) => item.type === typeFilter);
     }
 
-    // Date range filter
     if (dateFrom || dateTo) {
-      filtered = filtered.filter(item => {
+      filtered = filtered.filter((item) => {
         const itemDate = new Date(item.date);
         itemDate.setHours(0, 0, 0, 0);
 
@@ -139,22 +141,22 @@ export default function AllTransactionsTab({ data }: AllTransactionsTabProps) {
       });
     }
 
-    // Search query filter
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(item =>
-        item.customerName.toLowerCase().includes(query) ||
-        item.number.toLowerCase().includes(query) ||
-        item.date.toLocaleDateString('en-GB').toLowerCase().includes(query) ||
-        item.debit.toString().includes(query) ||
-        item.credit.toString().includes(query) ||
-        item.netAmount.toString().includes(query) ||
-        item.matching?.toLowerCase().includes(query)
+    if (debouncedSearch.trim()) {
+      const query = debouncedSearch.toLowerCase();
+      filtered = filtered.filter(
+        (item) =>
+          item.customerName.toLowerCase().includes(query) ||
+          item.number.toLowerCase().includes(query) ||
+          item.date.toLocaleDateString('en-GB').toLowerCase().includes(query) ||
+          item.debit.toString().includes(query) ||
+          item.credit.toString().includes(query) ||
+          item.netAmount.toString().includes(query) ||
+          item.matching?.toLowerCase().includes(query),
       );
     }
 
     return filtered;
-  }, [allTransactions, typeFilter, dateFrom, dateTo, searchQuery]);
+  }, [allTransactions, typeFilter, dateFrom, dateTo, debouncedSearch]);
 
   const groupedByCustomer = useMemo(() => {
     const map = new Map<
@@ -333,8 +335,8 @@ export default function AllTransactionsTab({ data }: AllTransactionsTabProps) {
         <div className="flex items-center gap-3">
           <p className="text-lg">
             <span className="font-semibold">Total Transactions:</span>{' '}
-            <span className="text-blue-600">{filteredItems.length}</span>
-            {searchQuery && ` of ${allTransactions.length}`}
+            <span className="text-blue-600">{filteredItems.length.toLocaleString()}</span>
+            {debouncedSearch && ` of ${allTransactions.length.toLocaleString()}`}
           </p>
           <button
             onClick={exportToExcel}

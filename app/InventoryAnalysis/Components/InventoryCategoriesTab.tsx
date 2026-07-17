@@ -11,12 +11,7 @@ import TabLoader from '@/app/Components/TabLoader';
 import InventoryProductOrdersDetailsTab from './InventoryCategoriesDetailsTab';
 import { getProductOrdersData, getProductMovementsData } from '../Service/inventory_service';
 import { exportAllCategoriesZip } from './ExcelExport';
-
-const formatCategory = (tag: string) => {
-    if (!tag || tag === 'All' || tag === 'Uncategorized') return '';
-    const parts = tag.split('/');
-    return parts[parts.length - 1].trim();
-};
+import { formatProductCategory } from './locationTypes';
 
 export interface BaseProductOrder {
     productId: string;
@@ -60,7 +55,7 @@ export default function InventoryProductOrdersTab({ orderItems, setOrderItems }:
 
             const data = (json.data || []).map((p: any) => ({
                 ...p,
-                formattedTag: formatCategory(p.tags),
+                formattedTag: formatProductCategory(p.tags),
                 onHand: p.qty ?? 0,
             }));
             setProducts(data);

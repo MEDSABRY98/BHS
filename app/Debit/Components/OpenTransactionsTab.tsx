@@ -13,6 +13,7 @@ import {
 import { FileSpreadsheet } from 'lucide-react';
 import { InvoiceRow } from '@/types';
 import NoData from '@/app/Components/NoDataTab';
+import { useDebouncedValue } from '../Hooks/useDebouncedValue';
 
 interface CustomersOpenMatchesTabProps {
   data: InvoiceRow[];
@@ -50,6 +51,7 @@ const parseDate = (dateStr: string): Date | null => {
 
 export default function OpenTransactionsTab({ data }: CustomersOpenMatchesTabProps) {
   const [searchQuery, setSearchQuery] = useState('');
+  const debouncedSearch = useDebouncedValue(searchQuery);
   const [dateFrom, setDateFrom] = useState<string>('');
   const [dateTo, setDateTo] = useState<string>('');
   const [typeFilter, setTypeFilter] = useState<string>('ALL');
@@ -201,8 +203,8 @@ export default function OpenTransactionsTab({ data }: CustomersOpenMatchesTabPro
     }
 
     // Search query filter
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
+    if (debouncedSearch.trim()) {
+      const query = debouncedSearch.toLowerCase();
       filtered = filtered.filter(item =>
         item.customerName.toLowerCase().includes(query) ||
         item.number.toLowerCase().includes(query) ||
@@ -215,7 +217,7 @@ export default function OpenTransactionsTab({ data }: CustomersOpenMatchesTabPro
     }
 
     return filtered;
-  }, [openMatches, typeFilter, dateFrom, dateTo, searchQuery]);
+  }, [openMatches, typeFilter, dateFrom, dateTo, debouncedSearch]);
 
   const groupedByCustomer = useMemo(() => {
     const map = new Map<
@@ -395,7 +397,7 @@ export default function OpenTransactionsTab({ data }: CustomersOpenMatchesTabPro
           <p className="text-lg">
             <span className="font-semibold">Total Open Items:</span>{' '}
             <span className="text-blue-600">{filteredItems.length}</span>
-            {searchQuery && ` of ${openMatches.length}`}
+            {debouncedSearch && ` of ${openMatches.length}`}
           </p>
           <button
             onClick={exportToExcel}

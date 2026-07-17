@@ -40,6 +40,8 @@ import {
   parseDate
 } from './CstomersUtils';
 import { generateSingleCustomerExcelBlob } from '../ExcelEmails';
+import { useDebouncedValue } from '../../Hooks/useDebouncedValue';
+import { useDebitData } from '../../Context/DebitDataContext';
 
 interface CustomersTabProps {
   data: InvoiceRow[];
@@ -58,6 +60,7 @@ export default function CustomersTab({
   initialCustomer,
   onCustomerToggle,
 }: CustomersTabProps) {
+  const { getCustomerInvoices } = useDebitData();
   // --- States ---
   const [sorting, setSorting] = useState<SortingState>([]);
   const [viewMode, setViewMode] = useState<'DEFAULT' | 'SUMMARY' | 'YEARLY'>('DEFAULT');
@@ -111,6 +114,12 @@ export default function CustomersTab({
     overdueYear: [] as string[],
   });
 
+  const debouncedSearch = useDebouncedValue(filters.search);
+  const queryFilters = useMemo(
+    () => ({ ...filters, search: debouncedSearch }),
+    [filters, debouncedSearch],
+  );
+
   const {
     customerAnalysis,
     filteredData,
@@ -118,7 +127,7 @@ export default function CustomersTab({
     luluEmails,
     yearlyPivotData,
     allSalesReps
-  } = useCustomerData(data, filters, mode, yearlySorting);
+  } = useCustomerData(data, queryFilters, mode, yearlySorting);
 
   const totalNetDebt = useMemo(() => {
     return filteredData.reduce((sum, c) => sum + c.netDebt, 0);
@@ -195,7 +204,7 @@ export default function CustomersTab({
       let count = 0;
 
       for (const customerName of selectedCustomersForDownload) {
-        const customerInvoices = data.filter(row => row.customerName === customerName);
+        const customerInvoices = getCustomerInvoices(customerName);
         if (customerInvoices.length === 0) continue;
 
         const invoicesWithNetDebt = buildInvoicesWithNetDebtForExport(customerInvoices);
@@ -259,7 +268,7 @@ export default function CustomersTab({
       let count = 0;
 
       for (const customerName of selectedCustomersForDownload) {
-        const customerInvoices = data.filter(row => row.customerName === customerName);
+        const customerInvoices = getCustomerInvoices(customerName);
         if (customerInvoices.length === 0) continue;
 
         const invoicesWithNetDebt = buildInvoicesWithNetDebtForExport(customerInvoices);
@@ -403,7 +412,7 @@ export default function CustomersTab({
 
         console.log(`Processing Lulu email for: ${customerName}`, email);
 
-        const customerInvoices = data.filter(row => row.customerName === customerName);
+        const customerInvoices = getCustomerInvoices(customerName);
         if (customerInvoices.length === 0) continue;
 
         const invoicesWithNetDebt = buildInvoicesWithNetDebtForExport(customerInvoices);
@@ -526,7 +535,7 @@ export default function CustomersTab({
 
       const statements: Array<{ customerName: string; invoices: any[] }> = [];
       for (const custName of customersToPrint) {
-        const customerRows = data.filter(r => r.customerName === custName);
+        const customerRows = getCustomerInvoices(custName);
         if (customerRows.length === 0) continue;
 
         const invoicesWithNetDebt = buildInvoicesWithNetDebtForExport(customerRows);
@@ -712,9 +721,7 @@ export default function CustomersTab({
           setSelectedCustomer(null);
           if (onCustomerToggle) onCustomerToggle(false);
         }}
-        invoices={data.filter(inv =>
-          inv.customerName?.toString().toLowerCase().trim() === selectedCustomer.toLowerCase().trim()
-        )}
+        invoices={getCustomerInvoices(selectedCustomer)}
       />
     );
   }

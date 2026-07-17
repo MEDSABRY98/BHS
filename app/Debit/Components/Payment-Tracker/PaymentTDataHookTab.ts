@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { InvoiceRow } from '@/types';
 import { getInvoiceType } from '@/app/Debit/Utils/InvoiceType';
+import { useDebouncedValue } from '../../Hooks/useDebouncedValue';
 import {
   PaymentEntry,
   PaymentByCustomer,
@@ -29,6 +30,7 @@ export function usePaymentTDataTab(data: InvoiceRow[]) {
   const [chartYear, setChartYear] = useState<string>('');
   const [chartMonth, setChartMonth] = useState<string>('');
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search);
   const [dateFrom, setDateFrom] = useState<string>('');
   const [dateTo, setDateTo] = useState<string>('');
   const [selectedSalesRep, setSelectedSalesRep] = useState<string>('');
@@ -205,7 +207,7 @@ export function usePaymentTDataTab(data: InvoiceRow[]) {
       }
     }
 
-    const searchLower = search.toLowerCase().trim();
+    const searchLower = debouncedSearch.toLowerCase().trim();
     let filteredData = searchLower ? data.filter(row => row.customerName?.toLowerCase().includes(searchLower) || row.number?.toLowerCase().includes(searchLower)) : data;
     if (selectedSalesRep) filteredData = filteredData.filter(row => row.salesRep?.trim() === selectedSalesRep);
 
@@ -277,10 +279,10 @@ export function usePaymentTDataTab(data: InvoiceRow[]) {
         netPaymentCount: result.reduce((sum, i) => sum + i.paymentCount, 0)
       }
     };
-  }, [data, dateFrom, dateTo, search, selectedSalesRep, chartPeriodType, chartYear, chartMonth]);
+  }, [data, dateFrom, dateTo, debouncedSearch, selectedSalesRep, chartPeriodType, chartYear, chartMonth]);
 
   const averageCollections = useMemo(() => {
-    const searchLower = search.toLowerCase().trim();
+    const searchLower = debouncedSearch.toLowerCase().trim();
     const yearNum = chartYear.trim() ? parseInt(chartYear.trim(), 10) : null;
     const monthNum = chartMonth.trim() ? parseInt(chartMonth.trim(), 10) : null;
     let startDate, endDate;
@@ -330,7 +332,7 @@ export function usePaymentTDataTab(data: InvoiceRow[]) {
     const totalWeekly = Array.from(weeklyTotals.values()).reduce((s, v) => s + v, 0);
     const monthsCount = Math.max(1, monthlyTotals.size), weeksCount = Math.max(1, weeklyTotals.size);
     return { averageMonthly: totalMonthly / monthsCount, averageWeekly: totalWeekly / weeksCount, monthsCount, weeksCount };
-  }, [data, selectedSalesRep, search, dateFrom, dateTo, chartYear, chartMonth]);
+  }, [data, selectedSalesRep, debouncedSearch, dateFrom, dateTo, chartYear, chartMonth]);
 
 
 
@@ -356,10 +358,10 @@ export function usePaymentTDataTab(data: InvoiceRow[]) {
   }, [data, dateFrom, dateTo, selectedSalesRep, chartYear, chartMonth]);
 
   const visiblePayments = useMemo<PaymentEntry[]>(() => {
-    const searchLower = search.trim().toLowerCase();
+    const searchLower = debouncedSearch.trim().toLowerCase();
     if (!searchLower) return payments;
     return payments.filter(p => (p.customerName || '').toLowerCase().includes(searchLower) || (p.number || '').toLowerCase().includes(searchLower));
-  }, [payments, search]);
+  }, [payments, debouncedSearch]);
 
   const paymentsByCustomer = useMemo<PaymentByCustomer[]>(() => {
     if (activeSubTab !== 'customer') return [];
@@ -388,7 +390,7 @@ export function usePaymentTDataTab(data: InvoiceRow[]) {
 
   const filteredByCustomer = useMemo(() => {
     let filtered = paymentsByCustomer;
-    if (search) { const s = search.toLowerCase(); filtered = filtered.filter(item => item.customerName.toLowerCase().includes(s)); }
+    if (debouncedSearch) { const s = debouncedSearch.toLowerCase(); filtered = filtered.filter(item => item.customerName.toLowerCase().includes(s)); }
     return [...filtered].sort((a, b) => {
       let av, bv;
       switch (sortColumn) {
@@ -401,7 +403,7 @@ export function usePaymentTDataTab(data: InvoiceRow[]) {
       }
       return (av < bv ? -1 : 1) * (sortDirection === 'asc' ? 1 : -1);
     });
-  }, [paymentsByCustomer, search, sortColumn, sortDirection]);
+  }, [paymentsByCustomer, debouncedSearch, sortColumn, sortDirection]);
 
   const customerTotals = useMemo(() => filteredByCustomer.reduce((acc, item) => ({ totalPayments: acc.totalPayments + item.totalPayments, paymentCount: acc.paymentCount + item.paymentCount }), { totalPayments: 0, paymentCount: 0 }), [filteredByCustomer]);
   const periodTotals = useMemo(() => (paymentsByPeriod).reduce((acc, item) => ({ totalPayments: acc.totalPayments + item.totalPayments, paymentCount: acc.paymentCount + item.paymentCount, customerCount: acc.customerCount + new Set(item.payments.map(p => p.customerName.trim().toLowerCase())).size }), { totalPayments: 0, paymentCount: 0, customerCount: 0 }), [paymentsByPeriod]);
@@ -450,10 +452,10 @@ export function usePaymentTDataTab(data: InvoiceRow[]) {
   }, [visiblePayments, activeSubTab]);
 
   const totalFilteredPayments = useMemo(() => {
-    const sLower = search.toLowerCase().trim();
+    const sLower = debouncedSearch.toLowerCase().trim();
     let relevant = sLower ? visiblePayments.filter(p => p.customerName.toLowerCase().includes(sLower) || (activeSubTab !== 'customer' && p.number.toLowerCase().includes(sLower))) : visiblePayments;
     return relevant.reduce((s, p) => s + (p.credit || 0), 0);
-  }, [visiblePayments, search, activeSubTab]);
+  }, [visiblePayments, debouncedSearch, activeSubTab]);
 
   return {
     // States

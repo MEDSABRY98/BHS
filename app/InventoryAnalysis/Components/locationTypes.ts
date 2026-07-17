@@ -118,3 +118,11 @@ export const MOVEMENT_TYPE_LABELS: Record<MovementType, string> = {
   transfer:           'Internal Transfer',
   other:              'Other',
 };
+
+/** Last path segment of a category tag (e.g. "A/B/C" → "C"). */
+export function formatProductCategory(tag: string): string {
+  if (!tag || tag === 'All' || tag === 'Uncategorized') return '';
+  const trimmed = tag.trim();
+  const slashIndex = trimmed.lastIndexOf('/');
+  return slashIndex === -1 ? trimmed : trimmed.slice(slashIndex + 1).trim();
+}

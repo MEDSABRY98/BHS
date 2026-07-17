@@ -228,12 +228,15 @@ export async function getLuluEmails() {
 }
 
 // --- MIX_DEBIT ---
+const MIX_DEBIT_COLUMNS =
+  'ID, DATE, "DUE DATE", NUMBER, "CUSTOMER ID", DEBIT, CREDIT, "RESIDUAL AMOUNT", MATCHING';
+
 export async function getMixDebit() {
   // Fetch Mix Debit data
   let debitData: any[] = [];
   let debitError = null;
   try {
-    debitData = await fetchAllData(() => bhs_supabase.from('mix_DEBIT').select('*'));
+    debitData = await fetchAllData(() => bhs_supabase.from('mix_DEBIT').select(MIX_DEBIT_COLUMNS));
   } catch (err) {
     debitError = err;
   }

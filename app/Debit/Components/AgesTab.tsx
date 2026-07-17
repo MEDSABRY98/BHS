@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useEffect } from 'react';
 import { exportDebitExcelTable } from '@/app/Debit/Utils/ExcelExport';
+import { useDebouncedValue } from '../Hooks/useDebouncedValue';
 import {
   useReactTable,
   getCoreRowModel,
@@ -64,6 +65,7 @@ const columnHelper = createColumnHelper<CustomerAgingSummary>();
 export default function AgesTab({ data }: AgesTabProps) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const debouncedSearch = useDebouncedValue(searchQuery);
   const [selectedSalesRep, setSelectedSalesRep] = useState<string>('all');
 
 
@@ -219,8 +221,8 @@ export default function AgesTab({ data }: AgesTabProps) {
     }
 
     // Filter by search query
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
+    if (debouncedSearch.trim()) {
+      const query = debouncedSearch.toLowerCase();
       filtered = filtered.filter((customer) =>
         customer.customerName.toLowerCase().includes(query)
       );
@@ -230,7 +232,7 @@ export default function AgesTab({ data }: AgesTabProps) {
     filtered = filtered.filter(customer => customer.total >= 0);
 
     return filtered;
-  }, [agingData, searchQuery, selectedSalesRep]);
+  }, [agingData, debouncedSearch, selectedSalesRep]);
 
   const exportToExcel = async () => {
     const headers = ['Customer Name', 'Sales Rep', '0 - 30', '31 - 60', '61 - 90', '91 - 120', 'OLDER', 'TOTAL'];

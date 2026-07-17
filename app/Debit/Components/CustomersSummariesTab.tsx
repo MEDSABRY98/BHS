@@ -14,6 +14,7 @@ import { FileSpreadsheet, FileText, Filter, LayoutGrid, PieChart } from 'lucide-
 import { InvoiceRow } from '@/types';
 import { SalesInvoice } from '@/lib/supabase';;
 import NoData from '@/app/Components/NoDataTab';
+import { useDebouncedValue } from '../Hooks/useDebouncedValue';
 
 interface CustomersSummariesTabProps {
   data: InvoiceRow[];
@@ -61,6 +62,7 @@ const columnHelper = createColumnHelper<CustomerSummary>();
 export default function CustomersSummariesTab({ data, onRefresh }: CustomersSummariesTabProps) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const debouncedSearch = useDebouncedValue(searchQuery);
   const [hideNegative, setHideNegative] = useState(false);
   // dynamic years
   const { currentYear, previousYear } = useMemo(() => {
@@ -188,14 +190,14 @@ export default function CustomersSummariesTab({ data, onRefresh }: CustomersSumm
       filtered = filtered.filter(item => item.totalAging >= -0.01);
     }
 
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
+    if (debouncedSearch.trim()) {
+      const query = debouncedSearch.toLowerCase();
       filtered = filtered.filter((customer) =>
         customer.customerName.toLowerCase().includes(query)
       );
     }
     return filtered;
-  }, [summaryData, searchQuery, hideNegative]);
+  }, [summaryData, debouncedSearch, hideNegative]);
 
   const exportToExcel = async () => {
     const headers = ['Customer Name', `Sale ${previousYear}`, `GRV ${previousYear}`, `Sale ${currentYear}`, `GRV ${currentYear}`, '0 - 30', '31 - 60', '61 - 90', '91 - 120', 'OLDER', 'TOTAL'];

@@ -15,7 +15,8 @@ import {
   Wallet,
   X,
   RefreshCcw,
-  ShieldAlert
+  ShieldAlert,
+  ClipboardCheck
 } from 'lucide-react';
 
 interface DebitSidebarProps {
@@ -46,6 +47,7 @@ export default function DebitSidebar({
     { id: 'customers', label: 'Customers', icon: Users },
     { id: 'credit-limit', label: 'Credit Limit', icon: ShieldAlert },
     { id: 'customers-group', label: 'Customers Group', icon: Layers },
+    { id: 'payment-reconciliation', label: 'Payment Reconciliation', icon: ClipboardCheck },
     { id: 'all-transactions', label: 'All Transactions', icon: FileText },
     { id: 'customers-open-matches', label: 'Open Transactions', icon: Activity },
     { id: 'payment-tracker', label: 'Payment Tracker', icon: CreditCard },

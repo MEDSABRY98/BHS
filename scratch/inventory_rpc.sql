@@ -114,7 +114,10 @@ BEGIN
       p."PRODUCT ID"       AS "productId",
       p."PRODUCT BARCODE"  AS "barcode",
       p."PRODUCT NAME"     AS "productName",
-      COALESCE(NULLIF(TRIM(p."PRODUCT CATEGORY"), ''), 'Uncategorized') AS "category",
+      COALESCE(
+        NULLIF(TRIM(regexp_replace(TRIM(COALESCE(p."PRODUCT CATEGORY", '')), '^.*\/', '')), ''),
+        'Uncategorized'
+      ) AS "category",
       COALESCE(o.opening_stock, 0)  AS "openingStock",
       COALESCE(pa.net_vendors, 0)   AS "netVendors",
       COALESCE(pa.net_customers, 0) AS "netCustomers",
@@ -523,7 +526,7 @@ BEGIN
     'productId',      p."PRODUCT ID",
     'barcode',        COALESCE(p."PRODUCT BARCODE", ''),
     'productName',    p."PRODUCT NAME",
-    'tags',           COALESCE(p."PRODUCT CATEGORY", ''),
+    'tags',           COALESCE(NULLIF(TRIM(regexp_replace(TRIM(COALESCE(p."PRODUCT CATEGORY", '')), '^.*\/', '')), ''), ''),
     'qty',            COALESCE(pb.ending_stock, 0),
     'salesQty',       COALESCE(ps.sales_qty, 0),
     'salesBreakdown', json_build_array(
@@ -542,6 +545,66 @@ BEGIN
   IF v_result IS NULL THEN v_result := '[]'::json; END IF;
 
   RETURN json_build_object('success', true, 'data', v_result);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER
+SET statement_timeout = '30s';
+
+-- ============================================================
+-- RPC 4: Inventory Moves DB — month/day card summaries
+-- Replaces fetchAllMoveDates() JS fallback (~90k row paginated fetch)
+-- ============================================================
+
+CREATE INDEX IF NOT EXISTS idx_web_inventory_moves_date
+  ON "web_INVENTORY_MOVES" ("DATE");
+
+DROP FUNCTION IF EXISTS get_inventory_moves_months_summary();
+CREATE OR REPLACE FUNCTION get_inventory_moves_months_summary()
+RETURNS TABLE(year int, month int, count bigint) AS $$
+BEGIN
+  RETURN QUERY
+  SELECT
+    EXTRACT(YEAR FROM m."DATE" AT TIME ZONE 'UTC')::int AS year,
+    EXTRACT(MONTH FROM m."DATE" AT TIME ZONE 'UTC')::int AS month,
+    COUNT(*)::bigint AS count
+  FROM "web_INVENTORY_MOVES" m
+  WHERE m."DATE" IS NOT NULL
+  GROUP BY 1, 2
+  ORDER BY year DESC, month DESC;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER
+SET statement_timeout = '30s';
+
+DROP FUNCTION IF EXISTS get_inventory_moves_days_summary(int, int);
+CREATE OR REPLACE FUNCTION get_inventory_moves_days_summary(
+  p_year int,
+  p_month int
+)
+RETURNS TABLE(date text, day int, count bigint) AS $$
+DECLARE
+  v_start timestamptz;
+  v_end timestamptz;
+BEGIN
+  v_start := make_timestamptz(p_year, p_month, 1, 0, 0, 0, 'UTC');
+  IF p_month = 12 THEN
+    v_end := make_timestamptz(p_year + 1, 1, 1, 0, 0, 0, 'UTC');
+  ELSE
+    v_end := make_timestamptz(p_year, p_month + 1, 1, 0, 0, 0, 'UTC');
+  END IF;
+
+  RETURN QUERY
+  WITH day_counts AS (
+    SELECT (m."DATE" AT TIME ZONE 'UTC')::date AS move_day
+    FROM "web_INVENTORY_MOVES" m
+    WHERE m."DATE" >= v_start
+      AND m."DATE" < v_end
+  )
+  SELECT
+    to_char(move_day, 'YYYY-MM-DD') AS date,
+    EXTRACT(DAY FROM move_day)::int AS day,
+    COUNT(*)::bigint AS count
+  FROM day_counts
+  GROUP BY move_day
+  ORDER BY move_day DESC;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER
 SET statement_timeout = '30s';

@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { FileText, X } from 'lucide-react';
 import { InvoiceRow } from '@/types';
 import { generatePaymentAnalysisPDF } from '@/app/Debit/Pdf/PaymentUtils';
@@ -13,14 +13,43 @@ import PaymentTCustomerTab from './PaymentTCustomerTab';
 import PaymentTPeriodTab from './PaymentTPeriodTab';
 import PaymentTAreaTab from './PaymentTAreaTab';
 import PaymentTExportTab from './PaymentTExportTab';
+import { useDebitPaymentsSummary } from '../../Hooks/useDebitPaymentsSummary';
 
 interface PaymentTrackerTabProps {
   data: InvoiceRow[];
+  dataVersion: number;
 }
 
-export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
+export default function PaymentTrackerTab({ data, dataVersion }: PaymentTrackerTabProps) {
   // Use our modular hook for all logic
   const p = usePaymentTDataTab(data);
+
+  const rpcSummary = useDebitPaymentsSummary({
+    dateFrom: p.dateFrom || undefined,
+    dateTo: p.dateTo || undefined,
+    dataVersion,
+    enabled: p.activeSubTab === 'dashboard',
+  });
+
+  const dashboardData = useMemo(() => {
+    const useRpcTotals =
+      rpcSummary.fromRpc &&
+      !p.search &&
+      !p.selectedSalesRep &&
+      !p.chartYear.trim() &&
+      !p.chartMonth.trim();
+
+    if (!useRpcTotals) return p.dashboardData;
+
+    return {
+      ...p.dashboardData,
+      totals: {
+        ...p.dashboardData.totals,
+        totalCollections: rpcSummary.totalAmount,
+        netPaymentCount: rpcSummary.totalPayments,
+      },
+    };
+  }, [p.dashboardData, p.search, p.selectedSalesRep, p.chartYear, p.chartMonth, rpcSummary]);
 
   const inputClass = 'w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-300 text-sm';
   const labelClass = 'text-xs font-medium text-gray-500 mb-1 block';
@@ -116,7 +145,7 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
       <div className="min-h-0 pb-12 px-2 sm:px-6 lg:px-8 mt-4">
         {p.activeSubTab === 'dashboard' && (
           <PaymentTDashboardTab
-            dashboardData={p.dashboardData}
+            dashboardData={dashboardData}
             chartPeriodType={p.chartPeriodType}
             setChartPeriodType={p.setChartPeriodType}
             chartYear={p.chartYear}

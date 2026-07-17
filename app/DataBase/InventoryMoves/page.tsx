@@ -100,7 +100,6 @@ export default function InventoryMovesPage() {
 
   useEffect(() => {
     fetchMoveMonths();
-    fetchProductOptions();
   }, []);
 
   useEffect(() => {
@@ -231,6 +230,7 @@ export default function InventoryMovesPage() {
   };
 
   const openModal = (row: InventoryMoveRow | null = null) => {
+    if (productOptions.length === 0) fetchProductOptions();
     setEditing(row);
     if (row) {
       setFormValues({
