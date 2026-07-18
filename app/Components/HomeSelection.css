@@ -1,5 +1,5 @@
 .home-scene {
-  background: linear-gradient(160deg, #faf8f3 0%, #f5f7fb 45%, #eef2f8 100%);
+  background: #f4f6f9;
 }
 
 .home-aurora {
@@ -16,7 +16,7 @@
   position: absolute;
   border-radius: 50%;
   filter: blur(100px);
-  opacity: 0.45;
+  opacity: 0.28;
   animation: home-drift 20s ease-in-out infinite alternate;
 }
 
@@ -25,7 +25,7 @@
   height: 45vw;
   top: -12%;
   right: -8%;
-  background: radial-gradient(circle, rgba(212, 175, 55, 0.16) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(148, 163, 184, 0.12) 0%, transparent 70%);
 }
 
 .home-aurora::after {
@@ -33,7 +33,7 @@
   height: 40vw;
   bottom: -15%;
   left: -10%;
-  background: radial-gradient(circle, rgba(99, 102, 241, 0.1) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(148, 163, 184, 0.1) 0%, transparent 70%);
   animation-delay: -8s;
 }
 
@@ -94,6 +94,28 @@
   box-shadow:
     0 20px 40px -20px rgba(212, 175, 55, 0.2),
     0 0 0 1px rgba(212, 175, 55, 0.15);
+}
+
+.home-letter-box {
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.home-letter-mark {
+  font-family: Georgia, 'Times New Roman', Times, serif;
+  font-weight: 700;
+  font-style: normal;
+  letter-spacing: -0.05em;
+  line-height: 1;
+  user-select: none;
+  color: transparent;
+  -webkit-text-stroke-width: 1.75px;
+  -webkit-text-stroke-color: #1e293b;
+  paint-order: stroke fill;
+}
+
+.group:hover .home-letter-mark {
+  -webkit-text-stroke-width: 2px;
+  -webkit-text-stroke-color: #0f172a;
 }
 
 .home-enter {

@@ -1,27 +1,10 @@
 'use client';
 
 import {
-  DollarSign,
-  TrendingUp,
   ArrowRight,
-  FileText,
-  Package,
-  Receipt,
-  Wallet,
-  FileSpreadsheet,
   LogOut,
-  LayoutGrid,
-  Truck,
-  Database,
-  Trash2,
-  ClipboardList,
-  ShieldCheck,
-  Hash,
-  Shield,
-  ShoppingCart,
   Search,
   Sparkles,
-  type LucideIcon,
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import './HomeSelection.css';
@@ -38,38 +21,44 @@ type CardColor =
 interface SystemItem {
   id: string;
   title: string;
-  icon: LucideIcon;
   path: string;
   color: CardColor;
 }
 
 interface SystemCardProps {
   title: string;
-  icon: LucideIcon;
   onClick: () => void;
   color: CardColor;
   delay?: number;
   admin?: boolean;
 }
 
-const COLOR_MAP: Record<CardColor, { stripe: string; icon: string; glow: string }> = {
-  blue:    { stripe: 'bg-blue-500',    icon: 'from-blue-500 to-blue-600',    glow: 'group-hover:shadow-blue-200/60' },
-  green:   { stripe: 'bg-emerald-500', icon: 'from-emerald-500 to-green-600', glow: 'group-hover:shadow-emerald-200/60' },
-  red:     { stripe: 'bg-red-500',     icon: 'from-red-500 to-rose-600',     glow: 'group-hover:shadow-red-200/60' },
-  yellow:  { stripe: 'bg-amber-500',   icon: 'from-amber-400 to-yellow-500', glow: 'group-hover:shadow-amber-200/60' },
-  purple:  { stripe: 'bg-purple-500',  icon: 'from-purple-500 to-violet-600', glow: 'group-hover:shadow-purple-200/60' },
-  pink:    { stripe: 'bg-pink-500',    icon: 'from-pink-500 to-rose-500',    glow: 'group-hover:shadow-pink-200/60' },
-  indigo:  { stripe: 'bg-indigo-500',  icon: 'from-indigo-500 to-blue-600', glow: 'group-hover:shadow-indigo-200/60' },
-  orange:  { stripe: 'bg-orange-500',  icon: 'from-orange-500 to-amber-500', glow: 'group-hover:shadow-orange-200/60' },
-  teal:    { stripe: 'bg-teal-500',    icon: 'from-teal-500 to-cyan-600',    glow: 'group-hover:shadow-teal-200/60' },
-  cyan:    { stripe: 'bg-cyan-500',    icon: 'from-cyan-500 to-sky-500',     glow: 'group-hover:shadow-cyan-200/60' },
-  emerald: { stripe: 'bg-emerald-500', icon: 'from-emerald-500 to-teal-600', glow: 'group-hover:shadow-emerald-200/60' },
-  sky:     { stripe: 'bg-sky-500',     icon: 'from-sky-500 to-blue-500',     glow: 'group-hover:shadow-sky-200/60' },
-  violet:  { stripe: 'bg-violet-500',  icon: 'from-violet-500 to-purple-600', glow: 'group-hover:shadow-violet-200/60' },
+const COLOR_MAP: Record<CardColor, { stripe: string; boxBorder: string }> = {
+  blue:    { stripe: 'bg-blue-500',    boxBorder: 'border-blue-300/70' },
+  green:   { stripe: 'bg-emerald-500', boxBorder: 'border-emerald-300/70' },
+  red:     { stripe: 'bg-red-500',     boxBorder: 'border-red-300/70' },
+  yellow:  { stripe: 'bg-amber-500',   boxBorder: 'border-amber-300/70' },
+  purple:  { stripe: 'bg-purple-500',  boxBorder: 'border-purple-300/70' },
+  pink:    { stripe: 'bg-pink-500',    boxBorder: 'border-pink-300/70' },
+  indigo:  { stripe: 'bg-indigo-500',  boxBorder: 'border-indigo-300/70' },
+  orange:  { stripe: 'bg-orange-500',  boxBorder: 'border-orange-300/70' },
+  teal:    { stripe: 'bg-teal-500',    boxBorder: 'border-teal-300/70' },
+  cyan:    { stripe: 'bg-cyan-500',    boxBorder: 'border-cyan-300/70' },
+  emerald: { stripe: 'bg-emerald-500', boxBorder: 'border-emerald-300/70' },
+  sky:     { stripe: 'bg-sky-500',     boxBorder: 'border-sky-300/70' },
+  violet:  { stripe: 'bg-violet-500',  boxBorder: 'border-violet-300/70' },
 };
 
-function SystemCard({ title, icon: Icon, onClick, color, delay = 0, admin = false }: SystemCardProps) {
+function getModuleLetter(title: string): string {
+  const cleaned = title.replace(/['']/g, '').trim();
+  const words = cleaned.split(/\s+/).filter(Boolean);
+  if (words.length === 0) return '?';
+  return words[0].charAt(0).toUpperCase();
+}
+
+function SystemCard({ title, onClick, color, delay = 0, admin = false }: SystemCardProps) {
   const styles = COLOR_MAP[color] ?? COLOR_MAP.blue;
+  const letter = getModuleLetter(title);
 
   return (
     <button
@@ -87,12 +76,16 @@ function SystemCard({ title, icon: Icon, onClick, color, delay = 0, admin = fals
 
       <div className="flex flex-col h-full justify-between pl-3 relative z-10">
         <div className="flex items-start justify-between gap-2">
-          <div className={`
-            w-10 h-10 sm:w-11 sm:h-11 rounded-xl flex items-center justify-center text-white shadow-lg
-            bg-gradient-to-br transition-transform duration-300 group-hover:scale-105
-            ${admin ? 'from-[#d4af37] to-[#a8861e]' : styles.icon} ${styles.glow}
-          `}>
-            <Icon className="w-5 h-5" strokeWidth={1.75} />
+          <div
+            className={`
+              home-letter-box w-11 h-11 sm:w-12 sm:h-12 rounded-lg flex items-center justify-center
+              bg-white/90 border-2 transition-transform duration-300 group-hover:scale-105
+              ${admin ? 'border-[#d4af37]/60' : styles.boxBorder}
+            `}
+          >
+            <span className="home-letter-mark text-[24px] sm:text-[28px]">
+              {letter}
+            </span>
           </div>
 
           <div className="w-7 h-7 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300">
@@ -130,23 +123,23 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
   };
 
   const ALL_SYSTEMS: SystemItem[] = [
-    { id: 'cash-receipt', title: 'Cash Receipt', icon: Receipt, path: '/CashReceipt', color: 'teal' },
-    { id: 'cash-handover', title: 'Cash Handover', icon: ClipboardList, path: '/CashHandover', color: 'purple' },
-    { id: 'petty-cash', title: 'Petty Cash', icon: Wallet, path: '/PettyCash', color: 'cyan' },
-    { id: 'documents-tracking', title: 'Documents Tracking', icon: FileSpreadsheet, path: '/DocumentsTracking', color: 'orange' },
-    { id: 'customers-summaries', title: 'Customers Summaries', icon: FileSpreadsheet, path: '/CustomersSummaries', color: 'sky' },
-    { id: 'debit', title: 'Debit Analysis', icon: DollarSign, path: '/Debit', color: 'red' },
-    { id: 'customers-documents', title: 'Customers Documents', icon: FileText, path: '/CustomersDocuments', color: 'indigo' },
-    { id: 'inventory', title: 'Inventory Analysis', icon: Package, path: '/InventoryAnalysis', color: 'indigo' },
-    { id: 'inventory-item-code', title: 'Inventory Item Code', icon: Hash, path: '/InventoryItemCode', color: 'blue' },
-    { id: 'inventory-counting', title: 'Inventory Counting', icon: ClipboardList, path: '/InventoryCounting', color: 'blue' },
-    { id: 'inventory-scrap', title: 'Inventory Scrap', icon: Trash2, path: '/InventoryScrap', color: 'orange' },
-    { id: 'suppliers', title: 'Suppliers', icon: Truck, path: '/Suppliers', color: 'emerald' },
-    { id: 'purchase-price-tracking', title: 'Purchase Price Tracking', icon: TrendingUp, path: '/PurchasePriceTracking', color: 'yellow' },
-    { id: 'sales', title: 'Sales Analysis', icon: LayoutGrid, path: '/Sales', color: 'green' },
-    { id: 'lpo-management', title: "LPO's", icon: ShoppingCart, path: '/LPOs', color: 'yellow' },
-    { id: 'database', title: 'Database', icon: Database, path: '/DataBase', color: 'sky' },
-    { id: 'customers-discounts', title: 'Customers Discounts', icon: ShieldCheck, path: '/CustomersDiscounts', color: 'yellow' },
+    { id: 'cash-receipt', title: 'Cash Receipt', path: '/CashReceipt', color: 'teal' },
+    { id: 'cash-handover', title: 'Cash Handover', path: '/CashHandover', color: 'purple' },
+    { id: 'petty-cash', title: 'Petty Cash', path: '/PettyCash', color: 'cyan' },
+    { id: 'documents-tracking', title: 'Documents Tracking', path: '/DocumentsTracking', color: 'orange' },
+    { id: 'customers-summaries', title: 'Customers Summaries', path: '/CustomersSummaries', color: 'sky' },
+    { id: 'debit', title: 'Debit Analysis', path: '/Debit', color: 'red' },
+    { id: 'customers-documents', title: 'Customers Documents', path: '/CustomersDocuments', color: 'indigo' },
+    { id: 'inventory', title: 'Inventory Analysis', path: '/InventoryAnalysis', color: 'indigo' },
+    { id: 'inventory-item-code', title: 'Inventory Item Code', path: '/InventoryItemCode', color: 'blue' },
+    { id: 'inventory-counting', title: 'Inventory Counting', path: '/InventoryCounting', color: 'blue' },
+    { id: 'inventory-scrap', title: 'Inventory Scrap', path: '/InventoryScrap', color: 'orange' },
+    { id: 'suppliers', title: 'Suppliers', path: '/Suppliers', color: 'emerald' },
+    { id: 'purchase-price-tracking', title: 'Purchase Price Tracking', path: '/PurchasePriceTracking', color: 'yellow' },
+    { id: 'sales', title: 'Sales Analysis', path: '/Sales', color: 'green' },
+    { id: 'lpo-management', title: "LPO's", path: '/LPOs', color: 'yellow' },
+    { id: 'database', title: 'Database', path: '/DataBase', color: 'sky' },
+    { id: 'customers-discounts', title: 'Customers Discounts', path: '/CustomersDiscounts', color: 'yellow' },
   ];
 
   const allowedSystems = useMemo(
@@ -169,7 +162,6 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
       <div className="home-grid" />
 
       <div className="relative z-10 max-w-[1480px] mx-auto px-4 sm:px-6 lg:px-8 pb-12">
-        {/* Header */}
         <header className="home-enter pt-6 sm:pt-8 pb-6">
           <div className="home-header rounded-2xl px-4 sm:px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3 sm:gap-4">
@@ -211,7 +203,6 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
           </div>
         </header>
 
-        {/* Search */}
         <div className="home-enter mb-6 sm:mb-8" style={{ animationDelay: '80ms' }}>
           <div className="relative max-w-md">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-slate-400 pointer-events-none" />
@@ -228,12 +219,10 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
           </p>
         </div>
 
-        {/* Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
           {showAdmin && adminMatches && (
             <SystemCard
               title="Admin Control"
-              icon={Shield}
               onClick={nav('/AdminControl')}
               color="indigo"
               delay={50}
@@ -245,7 +234,6 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
             <SystemCard
               key={sys.id}
               title={sys.title}
-              icon={sys.icon}
               onClick={nav(sys.path)}
               color={sys.color}
               delay={80 + index * 30}
