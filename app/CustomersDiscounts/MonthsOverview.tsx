@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { fetchAllData, bhs_supabase } from "@/lib/supabase";
 import {
-  Loader2,
   Clock,
   CheckCircle,
   CircleDashed,
@@ -265,8 +264,33 @@ export default function MonthsOverview({ customers, handleSelectCustomer }: Mont
   if (loading) {
     return (
       <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-gray-50 animate-in fade-in duration-300">
-        <div className="max-w-7xl mx-auto flex items-center justify-center py-32">
-          <Loader2 className="w-10 h-10 animate-spin text-[#D4AF37]" />
+        <div className="max-w-7xl mx-auto space-y-8">
+          <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4 animate-pulse">
+            <div className="flex items-center gap-3 w-full sm:w-auto">
+              <div className="bg-gray-200 w-12 h-12 rounded-2xl" />
+              <div className="bg-gray-200 w-48 h-7 rounded-lg" />
+            </div>
+            <div className="bg-gray-100 w-full sm:w-96 h-12 rounded-2xl" />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {[...Array(8)].map((_, i) => (
+              <div
+                key={i}
+                className="bg-white border border-gray-100 border-t-4 border-t-gray-200 rounded-3xl p-6 shadow-sm flex flex-col gap-6 animate-pulse min-h-[220px]"
+              >
+                <div className="space-y-2">
+                  <div className="bg-gray-200 w-2/3 h-7 rounded-lg" />
+                  <div className="bg-gray-100 w-1/3 h-5 rounded-lg" />
+                </div>
+                <div className="mt-auto space-y-3">
+                  <div className="bg-gray-100 w-full h-11 rounded-xl" />
+                  <div className="bg-gray-100 w-full h-11 rounded-xl" />
+                  <div className="bg-gray-100 w-full h-11 rounded-xl" />
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     );

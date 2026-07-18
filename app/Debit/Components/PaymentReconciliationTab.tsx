@@ -21,6 +21,8 @@ import {
   Calendar,
   ChevronLeft,
   ChevronRight,
+  AlignLeft,
+  AlignRight,
 } from 'lucide-react';
 import { InvoiceRow } from '@/types';
 import NoData from '@/app/Components/NoDataTab';
@@ -118,6 +120,7 @@ export default function PaymentReconciliationTab({ data = [] }: PaymentReconcili
   const [isOverdueMonthDropdownOpen, setIsOverdueMonthDropdownOpen] = useState(false);
   const [appliedByRow, setAppliedByRow] = useState<Map<string, number>>(new Map());
   const [remainderNote, setRemainderNote] = useState('');
+  const [remainderNoteAlign, setRemainderNoteAlign] = useState<'left' | 'right'>('left');
   const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 50 });
 
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -335,6 +338,7 @@ export default function PaymentReconciliationTab({ data = [] }: PaymentReconcili
     totalApplied,
     remainder,
     remainderNote: remainderNote || undefined,
+    remainderNoteAlign,
   });
 
   const handlePdf = async (print: boolean) => {
@@ -874,15 +878,47 @@ export default function PaymentReconciliationTab({ data = [] }: PaymentReconcili
           </div>
 
           <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm space-y-3">
-            <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest">
-              Remainder Note (optional)
-            </label>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest">
+                Remainder Note (optional)
+              </label>
+              <div className="inline-flex rounded-lg border border-slate-200 overflow-hidden bg-slate-50">
+                <button
+                  type="button"
+                  onClick={() => setRemainderNoteAlign('left')}
+                  title="Left to right"
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold transition-colors ${
+                    remainderNoteAlign === 'left'
+                      ? 'bg-white text-slate-800 shadow-sm'
+                      : 'text-slate-500 hover:text-slate-700 hover:bg-white/70'
+                  }`}
+                >
+                  <AlignLeft className="w-3.5 h-3.5" />
+                  LTR
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRemainderNoteAlign('right')}
+                  title="Right to left"
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold transition-colors border-l border-slate-200 ${
+                    remainderNoteAlign === 'right'
+                      ? 'bg-white text-slate-800 shadow-sm'
+                      : 'text-slate-500 hover:text-slate-700 hover:bg-white/70'
+                  }`}
+                >
+                  RTL
+                  <AlignRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
             <textarea
               rows={3}
               value={remainderNote}
               onChange={(e) => setRemainderNote(e.target.value)}
               placeholder="e.g. Partial allocation on INV-123 / over-applied 500 AED on SAL-456 — advance balance / remainder held on account"
-              className="w-full px-4 py-3 border border-slate-300 rounded-xl text-sm resize-y"
+              className={`w-full px-4 py-3 border border-slate-300 rounded-xl text-sm resize-y ${
+                remainderNoteAlign === 'right' ? 'text-right' : 'text-left'
+              }`}
             />
           </div>
         </>

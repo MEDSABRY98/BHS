@@ -29,6 +29,16 @@ import MergeProductsModal from './Components/MergeProductsModal';
 import { exportDatabaseExcel } from '../Utils/ExcelExport';
 import { downloadUploadIssuesReport, normalizeExcelId } from '../Utils/ExcelUploadUtils';
 
+function roundProductCost(value: unknown): number {
+  const n = typeof value === 'number' ? value : Number(String(value ?? '').replace(/,/g, ''));
+  if (!Number.isFinite(n)) return 0;
+  return Math.round(n * 1000) / 1000;
+}
+
+function formatProductCost(value: unknown): string {
+  if (value === null || value === undefined || value === '') return '';
+  return roundProductCost(value).toFixed(3);
+}
 
 export default function ProductsPage() {
   const { canEdit, canDelete, isLoaded } = usePermissions();
@@ -113,11 +123,11 @@ export default function ProductsPage() {
   const handleOpenModal = (product: any = null) => {
     setEditingProduct(product);
     setName(product ? product["PRODUCT NAME"] : '');
-    setBarcode(product ? product["PRODUCT BARCODE"] : '');
+    setBarcode(product ? product["PRODUCT BARCODE"] || '' : '');
     setProductId(product ? product["PRODUCT ID"] : '');
     setItemCode(product ? (product["ITEM CODE"] ?? '').toString() : '');
     setProductCategory(product ? product["PRODUCT CATEGORY"] || '' : '');
-    setProductCost(product ? (product["PRODUCT COST"] ?? '').toString() : '');
+    setProductCost(product ? formatProductCost(product["PRODUCT COST"]) : '');
     setQtyInBox(product ? (product["QTY IN BOX"] ?? '0').toString() : '0');
     setIsCountable(product ? (product["IS_COUNTABLE"] ?? false) : false);
     setIsModalOpen(true);
@@ -151,16 +161,17 @@ export default function ProductsPage() {
       }
 
       const itemCodeValue = itemCode !== '' ? Number(itemCode) : null;
+      const costValue = productCost !== '' ? roundProductCost(productCost) : 0;
       if (editingProduct) {
         const { error } = await bhs_supabas
           .from('bhs_PRODUCTS')
           .update({
             "PRODUCT NAME": name,
-            "PRODUCT BARCODE": barcode,
+            "PRODUCT BARCODE": barcode.trim(),
             "PRODUCT ID": productId,
             "ITEM CODE": itemCodeValue,
             "PRODUCT CATEGORY": productCategory,
-            "PRODUCT COST": productCost !== '' ? Number(productCost) : 0,
+            "PRODUCT COST": costValue,
             "QTY IN BOX": qtyInBox !== '' ? Number(qtyInBox) : 0,
             "IS_COUNTABLE": isCountable
           })
@@ -191,11 +202,11 @@ export default function ProductsPage() {
           .insert({
             ID: nextId,
             "PRODUCT NAME": name,
-            "PRODUCT BARCODE": barcode,
+            "PRODUCT BARCODE": barcode.trim(),
             "PRODUCT ID": productId,
             "ITEM CODE": itemCodeValue,
             "PRODUCT CATEGORY": productCategory,
-            "PRODUCT COST": productCost !== '' ? Number(productCost) : 0,
+            "PRODUCT COST": costValue,
             "QTY IN BOX": qtyInBox !== '' ? Number(qtyInBox) : 0,
             "IS_COUNTABLE": isCountable
           });
@@ -350,7 +361,7 @@ export default function ProductsPage() {
         'PRODUCT NAME': p['PRODUCT NAME'],
         'PRODUCT CATEGORY': p['PRODUCT CATEGORY'],
         'ITEM CODE': p['ITEM CODE'],
-        'PRODUCT COST': p['PRODUCT COST'],
+        'PRODUCT COST': roundProductCost(p['PRODUCT COST']),
         'QTY IN BOX': p['QTY IN BOX'] || 0,
         'IS_COUNTABLE': p['IS_COUNTABLE'] ? 'Yes' : 'No'
       }));
@@ -492,7 +503,10 @@ export default function ProductsPage() {
           'PRODUCT ID': normalizeExcelId(row['PRODUCT ID']),
           'ITEM CODE': row['ITEM CODE'] ? Number(row['ITEM CODE']) : null,
           'PRODUCT CATEGORY': row['PRODUCT CATEGORY']?.toString().trim() || '',
-          'PRODUCT COST': row['PRODUCT COST'] !== undefined && row['PRODUCT COST'] !== '' ? Number(row['PRODUCT COST']) : 0,
+          'PRODUCT COST':
+            row['PRODUCT COST'] !== undefined && row['PRODUCT COST'] !== ''
+              ? roundProductCost(row['PRODUCT COST'])
+              : 0,
           'QTY IN BOX': row['QTY IN BOX'] !== undefined && row['QTY IN BOX'] !== '' ? Number(row['QTY IN BOX']) : 0,
           'IS_COUNTABLE': String(row['IS_COUNTABLE'] || '').toLowerCase() === 'yes',
         };
@@ -712,7 +726,7 @@ export default function ProductsPage() {
                       )}
                       {product['PRODUCT COST'] != null && (
                         <span className="inline-flex items-center px-2.5 py-1 bg-green-50 text-green-600 rounded-xl text-[9px] font-black font-mono tracking-widest">
-                          AED {product['PRODUCT COST']}
+                          AED {formatProductCost(product['PRODUCT COST'])}
                         </span>
                       )}
                       {product['IS_COUNTABLE'] && (
@@ -924,8 +938,7 @@ export default function ProductsPage() {
                       type="text"
                       value={barcode}
                       onChange={(e) => setBarcode(e.target.value)}
-                      placeholder="Barcode..."
-                      required
+                      placeholder="Barcode (optional)"
                       className="w-full pl-14 pr-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold font-mono"
                     />
                   </div>
@@ -946,11 +959,14 @@ export default function ProductsPage() {
                   <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">PRODUCT COST (AED)</label>
                   <input
                     type="number"
-                    step="0.01"
+                    step="0.001"
                     min="0"
                     value={productCost}
                     onChange={(e) => setProductCost(e.target.value)}
-                    placeholder="0.00"
+                    onBlur={() => {
+                      if (productCost !== '') setProductCost(formatProductCost(productCost));
+                    }}
+                    placeholder="0.000"
                     className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold"
                   />
                 </div>

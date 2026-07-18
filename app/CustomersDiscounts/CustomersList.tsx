@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Search, User, ChevronRight, FileSpreadsheet, Loader2, Mail } from "lucide-react";
 import { exportCustomersExcel } from "./ExportExcel";
-import ExportExcelModal from "./ExportExcelModal";
+import ExportExcelModal, { type ExportExcelOptions } from "./ExportExcelModal";
 import { hasCustomerEmail } from "@/lib/customerEmailLookup";
 
 type Discount = {
@@ -49,19 +49,41 @@ export default function CustomersList({
 
   const exportCities = Array.from(new Set(safeCustomers.map((c) => c.city || "Unknown"))).filter(Boolean);
 
-  const handleExport = async (city: string | null) => {
+  const filterCustomersForExport = (options: ExportExcelOptions) => {
+    let filtered = safeCustomers;
+    const { settlementTypes } = options;
+
+    if (settlementTypes.length === 1) {
+      if (settlementTypes[0] === "monthly") {
+        filtered = filtered.filter(
+          (c) => !c.discounts.some((d) => d.settlementType === "with_payment")
+        );
+      } else {
+        filtered = filtered.filter((c) =>
+          c.discounts.some((d) => d.settlementType === "with_payment")
+        );
+      }
+    }
+
+    if (options.cities && options.cities.length > 0) {
+      const citySet = new Set(options.cities);
+      filtered = filtered.filter((c) => citySet.has(c.city || "Unknown"));
+    }
+
+    return filtered;
+  };
+
+  const handleExport = async (options: ExportExcelOptions) => {
     try {
       setExporting(true);
-      const customersToExport = city
-        ? safeCustomers.filter((c) => (c.city || "Unknown") === city)
-        : safeCustomers;
+      const customersToExport = filterCustomersForExport(options);
 
       if (customersToExport.length === 0) {
-        alert(city ? `No customers found in ${city}.` : "No customers to export.");
+        alert("No customers match the selected options.");
         return;
       }
 
-      await exportCustomersExcel(customersToExport, city);
+      await exportCustomersExcel(customersToExport, options);
       setExportModalOpen(false);
     } catch (error) {
       console.error("Export failed", error);

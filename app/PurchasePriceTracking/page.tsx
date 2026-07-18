@@ -67,17 +67,18 @@ export default function PurchasePriceTrackingPage() {
         return allowedProductIds.has(pId);
       });
 
-      setPurchases(
-        filteredPurchasesData.map((p: any) => ({
-          id: p.ID,
-          date: p.DATE ? String(p.DATE).split('T')[0] : '',
-          invoiceNumber: p['INVOICE NUMBER'],
-          supplierId: String(p['SUPPLIER ID'] || '').trim(),
-          productId: String(p['PRODUCT ID'] || '').trim(),
-          unitPrice: Number(p['UNIT PRICE']) || 0,
-          qty: Number(p['QTY']) || 0,
-        }))
-      );
+      const mappedPurchases: PurchaseRecord[] = filteredPurchasesData.map((p: any) => ({
+        id: p.ID,
+        date: p.DATE ? String(p.DATE).split('T')[0] : '',
+        invoiceNumber: p['INVOICE NUMBER'],
+        supplierId: String(p['SUPPLIER ID'] || '').trim(),
+        productId: String(p['PRODUCT ID'] || '').trim(),
+        unitPrice: Number(p['UNIT PRICE']) || 0,
+        qty: Number(p['QTY']) || 0,
+      }));
+
+      // Free/sample lines (unit price 0) stay in DB but skew price analytics — skip those rows only.
+      setPurchases(mappedPurchases.filter((p) => p.unitPrice > 0));
 
       setSuppliers(
         suppliersData.map((s: any) => ({

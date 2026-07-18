@@ -237,7 +237,11 @@ function DebitPageShell({
           ref={mainContentRef}
           className="max-w-[95%] 2xl:max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-12 flex-1 w-full"
         >
-          {renderBody()}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm">
+            <div className="p-4 sm:p-6 lg:p-8">
+              {renderBody()}
+            </div>
+          </div>
         </div>
       </div>
     </div>

@@ -224,10 +224,41 @@ function addDataSheet(
   applyWorksheetStyles(worksheet, keys);
 }
 
+type ExportLabelOptions = {
+  settlementTypes?: ("monthly" | "with_payment")[];
+  cities?: string[] | null;
+};
+
+function buildExportFilename(options?: ExportLabelOptions | null): string {
+  const date = new Date().toISOString().split("T")[0];
+  const parts = ["Customers_Discounts"];
+  const types = options?.settlementTypes ?? [];
+
+  if (types.length === 1) {
+    parts.push(types[0] === "monthly" ? "Monthly" : "WithPayment");
+  }
+
+  if (options?.cities && options.cities.length > 0) {
+    const cityPart = options.cities
+      .map((city) => city.replace(/[^a-zA-Z0-9\u0600-\u06FF]/g, "_"))
+      .join("_");
+    parts.push(cityPart);
+  } else {
+    parts.push("All_Cities");
+  }
+
+  parts.push(date);
+  return `${parts.join("_")}.xlsx`;
+}
+
 export async function exportCustomersExcel(
   filteredCustomers: CustomerView[],
-  cityFilter: string | null = null
+  exportOptions: ExportLabelOptions | string | null = null
 ) {
+  const labelOptions: ExportLabelOptions | null =
+    typeof exportOptions === "string"
+      ? { cities: [exportOptions] }
+      : exportOptions;
   if (filteredCustomers.length === 0) {
     alert("No customers to export.");
     return;
@@ -280,10 +311,5 @@ export async function exportCustomersExcel(
   const blob = new Blob([buffer], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   });
-  saveAs(
-    blob,
-    cityFilter
-      ? `Customers_Discounts_${cityFilter.replace(/[^a-zA-Z0-9\u0600-\u06FF]/g, "_")}_${new Date().toISOString().split("T")[0]}.xlsx`
-      : `Customers_Discounts_All_Cities_${new Date().toISOString().split("T")[0]}.xlsx`
-  );
+  saveAs(blob, buildExportFilename(labelOptions));
 }

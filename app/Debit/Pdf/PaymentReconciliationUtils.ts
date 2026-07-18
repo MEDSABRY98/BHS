@@ -22,6 +22,7 @@ export interface PaymentReconciliationPdfInput {
   totalApplied: number;
   remainder: number;
   remainderNote?: string;
+  remainderNoteAlign?: 'left' | 'right';
 }
 
 function formatDisplayDate(dateStr?: string): string {
@@ -76,6 +77,30 @@ function getRemainderStyle(remainder: number): {
     return { textColor: RECON_COLORS.emeraldDark };
   }
   return { textColor: RECON_COLORS.slate };
+}
+
+const LABEL_VALUE_GAP = 2;
+
+function drawLabelValueRow(
+  doc: {
+    setFont: (font: string, style: string) => void;
+    setTextColor: (...args: number[]) => void;
+    text: (text: string, x: number, y: number) => void;
+    getTextWidth: (text: string) => number;
+  },
+  label: string,
+  value: string,
+  x: number,
+  y: number,
+  valueColor: [number, number, number] = [0, 0, 0],
+) {
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...RECON_COLORS.slate);
+  doc.text(label, x, y);
+  const valueX = x + doc.getTextWidth(label) + LABEL_VALUE_GAP;
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(...valueColor);
+  doc.text(value, valueX, y);
 }
 
 const PDF_FOOTER_RESERVE = 16;
@@ -146,7 +171,11 @@ function drawRemainderNoteSection(
     doc.setFont('Amiri', 'normal');
     doc.setFontSize(9);
     doc.setTextColor(68, 64, 60);
-    doc.text(chunk, margin + boxPadding, y + headerHeight + boxPadding);
+    const alignRight = input.remainderNoteAlign === 'right';
+    const textX = alignRight ? margin + usableWidth - boxPadding : margin + boxPadding;
+    doc.text(chunk, textX, y + headerHeight + boxPadding, {
+      align: alignRight ? 'right' : 'left',
+    });
 
     lineIndex += chunk.length;
     y += boxHeight + 6;
@@ -230,31 +259,35 @@ export async function generatePaymentReconciliationPDF(
   yPosition += 10;
 
   doc.setFontSize(11);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(...RECON_COLORS.slate);
-  doc.text('Payment Amount:', margin, yPosition);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(...RECON_COLORS.emeraldDark);
-  doc.text(`${formatMoney(input.paymentAmount)} AED`, margin + 38, yPosition);
+  drawLabelValueRow(
+    doc,
+    'Payment Amount:',
+    `${formatMoney(input.paymentAmount)} AED`,
+    margin,
+    yPosition,
+    RECON_COLORS.emeraldDark,
+  );
   yPosition += 6;
 
   if (input.paymentDate) {
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(...RECON_COLORS.slate);
-    doc.text('Reconcile Date:', margin, yPosition);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(0, 0, 0);
-    doc.text(formatDisplayDate(input.paymentDate), margin + 32, yPosition);
+    drawLabelValueRow(
+      doc,
+      'Reconcile Date:',
+      formatDisplayDate(input.paymentDate),
+      margin,
+      yPosition,
+    );
     yPosition += 6;
   }
 
   if (input.paymentReference?.trim()) {
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(...RECON_COLORS.slate);
-    doc.text('Reference:', margin, yPosition);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(0, 0, 0);
-    doc.text(input.paymentReference.trim(), margin + 26, yPosition);
+    drawLabelValueRow(
+      doc,
+      'Reference:',
+      input.paymentReference.trim(),
+      margin,
+      yPosition,
+    );
     yPosition += 6;
   }
 

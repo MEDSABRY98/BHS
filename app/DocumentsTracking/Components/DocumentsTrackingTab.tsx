@@ -626,7 +626,9 @@ export default function DocumentsTrackingTab() {
                     <ReceiversTab
                         checks={checks}
                         onExportExcelTrigger={setExportReceiverModalData}
-                        onTrackingModal={setTrackingCheck}
+                        onExportDateExcel={(name, dateLabel, items) => {
+                            exportReceiverToExcel(`${name}_${dateLabel.replace(/\//g, '-')}`, items);
+                        }}
                     />
                 )}
             </div>

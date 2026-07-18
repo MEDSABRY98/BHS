@@ -5,7 +5,7 @@ import { Search, Package, AlertCircle, ChevronDown, Filter, Check } from 'lucide
 import Loading from '@/app/Components/Loading';
 import NoData from '@/app/Components/NoDataTab';
 import * as XLSX from 'xlsx';
-import { getItemCodesData } from '../Service/inventory_service';
+import { getItemCodesData } from '@/app/InventoryAnalysis/Service/inventory_service';
 
 interface ItemCodeEntry {
     tags: string;

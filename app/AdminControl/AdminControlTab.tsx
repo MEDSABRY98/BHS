@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import {
     Shield, Check, X, Search, Settings, Save, AlertCircle, ChevronRight, Layers,
     CreditCard, Wallet, BarChart3, TrendingUp, Package, Truck, FileCheck,
-    ClipboardList, ShoppingCart, Database, Users, Sparkles, Trash2, ListChecks, FileSpreadsheet, ArrowLeft, CheckCheck, Ban
+    ClipboardList, ShoppingCart, Database, Users, Sparkles, Trash2, ListChecks, FileSpreadsheet, ArrowLeft, CheckCheck, Ban, Hash
 } from 'lucide-react';
 import Loading from '@/app/Components/Loading';
 import NoData from '@/app/Components/NoDataTab';
@@ -18,22 +18,29 @@ interface UserPermissions {
 const INVENTORY_COUNTING_TAB_IDS = ['total_count', 'normal_total', 'normal_record', 'damage_total', 'damage_record'];
 const LEGACY_INVENTORY_COUNTING_IDS = ['counting', ...INVENTORY_COUNTING_TAB_IDS];
 
+const LEGACY_DB_TAB_IDS: Record<string, string> = {
+    'db-inv-count-products': 'db-products',
+    'db-inv-products': 'db-products',
+    'db-suppliers-purchase': 'db-suppliers-purchase-details',
+};
+
 const SYSTEMS = [
     { id: 'cash-receipt', label: 'Cash Receipt' },
+    { id: 'cash-handover', label: 'Cash Handover' },
     { id: 'petty-cash', label: 'Petty Cash' },
     { id: 'documents-tracking', label: 'Documents Tracking' },
     { id: 'customers-summaries', label: 'Customers Summaries' },
     { id: 'debit', label: 'Debit Analysis' },
     { id: 'customers-documents', label: 'Customers Documents' },
-    { id: 'sales', label: 'Sales Analysis' },
-    { id: 'sales-reports-tables', label: 'Sales Reports Tables' },
-    { id: 'inventory', label: 'Inventory' },
+    { id: 'inventory', label: 'Inventory Analysis' },
+    { id: 'inventory-item-code', label: 'Inventory Item Code' },
     { id: 'inventory-counting', label: 'Inventory Counting' },
     { id: 'inventory-scrap', label: 'Inventory Scrap' },
     { id: 'suppliers', label: 'Suppliers' },
-    { id: 'lpo-management', label: "LPO's" },
-    { id: 'cash-handover', label: 'Cash Handover' },
     { id: 'purchase-price-tracking', label: 'Purchase Price Tracking' },
+    { id: 'sales', label: 'Sales Analysis' },
+    { id: 'lpo-management', label: "LPO's" },
+    { id: 'sales-reports-tables', label: 'Sales Reports Tables' },
     { id: 'customers-discounts', label: 'Customers Discounts' },
     { id: 'database', label: 'Database' },
 ];
@@ -69,7 +76,7 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
     ],
     'sales-reports-tables': [
         { id: 'sales-invoices', label: 'Sales Invoices' },
-        { id: 'return-invoices', label: 'Return Invoices' },
+        { id: 'return-invoices', label: 'Returns' },
         { id: 'top-customers', label: 'Top Customers' },
         { id: 'top-return-customers', label: 'Return Customers' },
         { id: 'growing', label: 'Growing' },
@@ -80,6 +87,7 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
     ],
     'inventory': [
         { id: 'products_balance', label: 'Products Balance' },
+        { id: 'inventory_count', label: 'Inventory Count' },
         { id: 'categories', label: 'Categories Analysis' },
     ],
     'inventory-counting': [
@@ -97,7 +105,8 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
     ],
     'cash-receipt': [
         { id: 'new', label: 'New Receipt' },
-        { id: 'saved', label: 'Saved Receipts' }
+        { id: 'saved', label: 'Saved Receipts' },
+        { id: 'stats', label: 'Statistics' },
     ],
     'cash-handover': [
         { id: 'new', label: 'New Handover' },
@@ -115,9 +124,9 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
         { id: 'matching', label: 'Matching' },
     ],
     'documents-tracking': [
-        { id: 'register', label: 'Register Check' },
-        { id: 'list', label: 'View Checks' },
-        { id: 'receivers', label: 'Office Receivers' },
+        { id: 'register', label: 'تسجيل شيك جديد' },
+        { id: 'list', label: 'استعراض الشيكات' },
+        { id: 'receivers', label: 'مستلمي المكتب' },
     ],
     'lpo-management': [
         { id: 'lpo-dashboard', label: 'Dashboard' },
@@ -127,34 +136,35 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
     ],
     'database': [
         { id: 'db-customers', label: 'Customers DB' },
-        { id: 'db-inv-count-products', label: 'Inventory Count Products' },
-        { id: 'db-inv-itemcode', label: 'Inventory Item Code' },
-        { id: 'db-inv-moves', label: 'Inventory Moves' },
-        { id: 'db-inv-products', label: 'Inventory Products' },
-        { id: 'db-products', label: 'Products DB' },
-        { id: 'db-sales', label: 'Sales DB' },
         { id: 'db-debit', label: 'Debit DB' },
         { id: 'db-emails', label: 'Emails DB' },
         { id: 'db-lulu-emails', label: 'Lulu Emails DB' },
-        { id: 'db-suppliers-purchase', label: 'Suppliers Purchase' },
+        { id: 'db-products', label: 'Products DB' },
+        { id: 'db-inv-itemcode', label: 'Inventory Item Code' },
+        { id: 'db-inv-moves', label: 'Inventory Moves' },
+        { id: 'db-sales', label: 'Sales DB' },
+        { id: 'db-suppliers', label: 'Suppliers DB' },
+        { id: 'db-suppliers-invoices', label: 'Suppliers Invoices' },
         { id: 'db-suppliers-refund', label: 'Suppliers Refund' },
+        { id: 'db-suppliers-purchase-details', label: 'Suppliers Purchase Details' },
+        { id: 'db-personnel', label: 'Personnel DB' },
         { id: 'db-users', label: 'Users DB' },
     ],
     'purchase-price-tracking': [
         { id: 'product-history', label: 'Product History' },
         { id: 'supplier-comparison', label: 'Supplier Comparison' },
         { id: 'supplier-history', label: 'Supplier History' },
-        { id: 'reports', label: 'Reports' }
+        { id: 'reports', label: 'Excel Reports' },
     ],
     'customers-discounts': [
         { id: 'grid', label: 'Customers List' },
         { id: 'months', label: 'Monthly Overview' },
         { id: 'stats', label: 'Statistics' },
-        { id: 'add', label: 'Add Config' },
+        { id: 'add', label: 'Add New Config' },
         { id: 'details', label: 'Discount Details' },
-        { id: 'pending', label: 'Pending Months' },
+        { id: 'pending', label: 'Pending' },
         { id: 'semi', label: 'Semi Settled' },
-        { id: 'settled', label: 'Settled Months' },
+        { id: 'settled', label: 'Settled' },
     ],
 };
 
@@ -182,6 +192,7 @@ const getSystemIcon = (id: string) => {
         case 'sales': return <TrendingUp className="w-5 h-5 text-blue-500" />;
         case 'sales-reports-tables': return <FileSpreadsheet className="w-5 h-5 text-emerald-600" />;
         case 'inventory': return <Package className="w-5 h-5 text-amber-500" />;
+        case 'inventory-item-code': return <Hash className="w-5 h-5 text-blue-500" />;
         case 'inventory-counting': return <ListChecks className="w-5 h-5 text-blue-500" />;
         case 'inventory-scrap': return <Trash2 className="w-5 h-5 text-orange-500" />;
         case 'suppliers': return <Truck className="w-5 h-5 text-purple-500" />;
@@ -277,6 +288,14 @@ export default function AdminControlTab() {
                     next.systems = [...systems, 'inventory-counting'];
                 }
             }
+        }
+
+        if (Array.isArray(next.database)) {
+            next.database = [
+                ...new Set(
+                    next.database.map((id: string) => LEGACY_DB_TAB_IDS[id] || id),
+                ),
+            ];
         }
 
         return next;

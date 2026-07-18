@@ -1827,10 +1827,10 @@
 }
 
 .receivers-grid {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-    max-width: 1100px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 20px;
+    max-width: 1200px;
     margin: 0 auto;
 }
 
@@ -1838,9 +1838,247 @@
     background: white;
     border: 1px solid var(--gray-200);
     border-radius: 16px;
-    overflow: hidden;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+}
+
+.receiver-card-clickable {
+    width: 100%;
+    text-align: inherit;
+    cursor: pointer;
+    padding: 0;
+    overflow: hidden;
+}
+
+.receiver-card-clickable:hover {
+    border-color: var(--gold-light);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+    transform: translateY(-2px);
+}
+
+.receiver-card-body {
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    height: 100%;
+}
+
+.receiver-card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    margin-top: 4px;
+}
+
+.receiver-card-metrics {
+    display: flex;
+    align-items: stretch;
+    background: #f8fafc;
+    border: 1px solid #eef2f7;
+    border-radius: 14px;
+    overflow: hidden;
+}
+
+.receiver-metric {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 12px 10px;
+    white-space: nowrap;
+    min-width: 0;
+}
+
+.receiver-metric-icon {
+    color: #64748b;
+    flex-shrink: 0;
+}
+
+.receiver-metric-value {
+    font-size: 15px;
+    font-weight: 800;
+    color: var(--black);
+    line-height: 1;
+}
+
+.receiver-metric-label {
+    font-size: 12px;
+    font-weight: 700;
+    color: #94a3b8;
+    line-height: 1;
+}
+
+.receiver-metric-divider {
+    width: 1px;
+    align-self: stretch;
+    background: #e2e8f0;
+    flex-shrink: 0;
+}
+
+.receiver-metric-amount .receiver-metric-value {
+    color: #b45309;
+    font-size: 14px;
+}
+
+.receiver-metric-amount .receiver-metric-label {
+    color: #d97706;
+}
+
+.receiver-card-arrow {
+    color: var(--gray-400);
+    flex-shrink: 0;
+}
+
+.receiver-card-clickable:hover .receiver-card-arrow {
+    color: var(--gold);
+    transform: translateX(-3px);
+    transition: all 0.2s ease;
+}
+
+.receiver-detail-view {
+    max-width: 1200px;
+    margin: 0 auto;
+    animation: fadeIn 0.3s ease;
+}
+
+.receiver-detail-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 20px 24px;
+    background: white;
+    border: 1px solid var(--gray-200);
+    border-radius: 16px;
+    margin-bottom: 24px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+}
+
+.receiver-back-btn {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    border: 1px solid var(--gray-200);
+    background: #f8fafc;
+    color: #475569;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+
+.receiver-back-btn:hover {
+    background: var(--black);
+    color: white;
+    border-color: var(--black);
+}
+
+.receiver-detail-title {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex: 1;
+    min-width: 0;
+}
+
+.receiver-detail-title h2 {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 800;
+    color: var(--black);
+}
+
+.receiver-detail-title p {
+    margin: 4px 0 0;
+    font-size: 13px;
+    color: var(--gray-400);
+    font-weight: 600;
+}
+
+.receiver-avatar-lg {
+    width: 56px;
+    height: 56px;
+    font-size: 22px;
+}
+
+.receiver-excel-btn {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    border: none;
+    background: #ecfdf5;
+    color: #059669;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+
+.receiver-excel-btn:hover {
+    background: #059669;
+    color: white;
+}
+
+.receiver-excel-btn-sm {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+}
+
+.receiver-dates-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 16px;
+}
+
+.receiver-date-card {
+    background: white;
+    border: 1px solid var(--gray-200);
+    border-radius: 16px;
+    padding: 20px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+    transition: all 0.25s ease;
+}
+
+.receiver-date-card:hover {
+    border-color: var(--gold-light);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.06);
+}
+
+.receiver-date-card-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+}
+
+.receiver-date-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    background: #eff6ff;
+    color: #2563eb;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.receiver-date-label {
+    margin: 0 0 16px;
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--black);
+}
+
+.receiver-date-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
 }
 
 .receiver-card:hover {

@@ -19,7 +19,7 @@ import { toast } from '@/app/Components/Notification';
 import { normalizeExcelId } from '@/app/DataBase/Utils/ExcelUploadUtils';
 import { exportDatabaseExcelTable } from '@/app/DataBase/Utils/ExcelExport';
 import { exportSalesExcelTable } from '@/app/Sales/Utils/ExcelExport';
-import { getProductsBalanceReportData, ProductBalanceRow } from '../Service/inventory_service';
+import { getProductsBalanceReportData, getProductNamesByIds, ProductBalanceRow } from '../Service/inventory_service';
 
 const REQUIRED_COLUMNS = ['Product ID', 'Product Name', 'Counted Quantity'] as const;
 
@@ -79,15 +79,17 @@ function aggregateUploadRows(rows: { productId: string; productName: string; cou
 function buildReconciliationRows(
   uploaded: { productId: string; productName: string; countedQty: number; mergedRows: number }[],
   balanceRows: ProductBalanceRow[],
+  productNameById: Record<string, string>,
 ): ReconciliationRow[] {
   const balanceMap = new Map(balanceRows.map((row) => [row.productId.trim(), row]));
 
   return uploaded.map((row) => {
+    const dbProductName = productNameById[row.productId] || balanceMap.get(row.productId)?.productName || '';
     const balance = balanceMap.get(row.productId);
     if (!balance) {
       return {
         productId: row.productId,
-        productName: row.productName,
+        productName: dbProductName || '-',
         countedQty: row.countedQty,
         endingBalance: null,
         difference: null,
@@ -99,7 +101,7 @@ function buildReconciliationRows(
     const endingBalance = balance.endingStock;
     return {
       productId: row.productId,
-      productName: row.productName || balance.productName,
+      productName: dbProductName || balance.productName || '-',
       countedQty: row.countedQty,
       endingBalance,
       difference: row.countedQty - endingBalance,
@@ -107,6 +109,39 @@ function buildReconciliationRows(
       mergedRows: row.mergedRows,
     };
   });
+}
+
+function CountedQtyInput({
+  value,
+  onCommit,
+}: {
+  value: number;
+  onCommit: (raw: string) => void;
+}) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+
+  const displayValue = isEditing ? draft : value.toLocaleString();
+
+  return (
+    <div className="flex justify-center">
+      <input
+        type="text"
+        inputMode="decimal"
+        value={displayValue}
+        onFocus={() => {
+          setIsEditing(true);
+          setDraft(String(value));
+        }}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => {
+          onCommit(draft);
+          setIsEditing(false);
+        }}
+        className="w-28 px-2 py-1.5 text-sm border border-slate-300 rounded-lg text-center font-black text-slate-800 tabular-nums focus:outline-none focus:ring-2 focus:ring-indigo-100"
+      />
+    </div>
+  );
 }
 
 export default function InventoryCountReconciliationTab() {
@@ -197,7 +232,6 @@ export default function InventoryCountReconciliationTab() {
 
       const missingColumns = [
         !productIdKey ? 'Product ID' : null,
-        !productNameKey ? 'Product Name' : null,
         !countedQtyKey ? 'Counted Quantity' : null,
       ].filter(Boolean);
 
@@ -210,7 +244,7 @@ export default function InventoryCountReconciliationTab() {
 
       jsonData.forEach((row, index) => {
         const productId = normalizeExcelId(row[productIdKey!]);
-        const productName = String(row[productNameKey!] ?? '').trim();
+        const productName = productNameKey ? String(row[productNameKey] ?? '').trim() : '';
         const countedQty = parseQuantity(row[countedQtyKey!]);
 
         if (!productId) return;
@@ -234,12 +268,22 @@ export default function InventoryCountReconciliationTab() {
       const aggregated = aggregateUploadRows(parsedRows);
 
       setLoading(true);
-      const balanceRes = await getProductsBalanceReportData({ dateTo: appliedCountDate });
+      const [balanceRes, namesRes] = await Promise.all([
+        getProductsBalanceReportData({ dateTo: appliedCountDate }),
+        getProductNamesByIds(aggregated.map((row) => row.productId)),
+      ]);
       if (!balanceRes.success) {
         throw new Error(balanceRes.error || 'Failed to fetch ending balances');
       }
+      if (!namesRes.success) {
+        throw new Error(namesRes.error || 'Failed to fetch product names');
+      }
 
-      const reconciled = buildReconciliationRows(aggregated, balanceRes.data || []);
+      const reconciled = buildReconciliationRows(
+        aggregated,
+        balanceRes.data || [],
+        namesRes.data || {},
+      );
       setRows(reconciled);
       setUploadFileName(file.name);
 
@@ -264,6 +308,22 @@ export default function InventoryCountReconciliationTab() {
     event.target.value = '';
     if (!file) return;
     await reconcileUpload(file);
+  };
+
+  const handleCountedQtyChange = (productId: string, raw: string) => {
+    const parsed = parseQuantity(raw);
+    if (parsed === null) return;
+
+    setRows((prev) =>
+      prev.map((row) => {
+        if (row.productId !== productId) return row;
+        return {
+          ...row,
+          countedQty: parsed,
+          difference: row.endingBalance !== null ? parsed - row.endingBalance : null,
+        };
+      }),
+    );
   };
 
   const handleExportExcel = async () => {
@@ -452,9 +512,12 @@ export default function InventoryCountReconciliationTab() {
                     <td className="px-4 py-4 text-sm font-black text-slate-800 text-center">{row.productId}</td>
                     <td className="px-4 py-4 text-sm font-bold text-slate-700 text-center">{row.productName || '-'}</td>
                     <td className="px-4 py-4 text-sm font-black text-slate-800 text-center">
-                      {row.countedQty.toLocaleString()}
+                      <CountedQtyInput
+                        value={row.countedQty}
+                        onCommit={(raw) => handleCountedQtyChange(row.productId, raw)}
+                      />
                       {row.mergedRows > 1 && (
-                        <span className="block text-[10px] font-bold text-indigo-500">
+                        <span className="block text-[10px] font-bold text-indigo-500 mt-1">
                           merged {row.mergedRows} rows
                         </span>
                       )}
