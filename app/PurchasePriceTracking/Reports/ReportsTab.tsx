@@ -1,10 +1,12 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { FileSpreadsheet, Download, Building2, Package, Search, ChevronDown, Calendar, TrendingUp, AlertTriangle } from 'lucide-react';
+import { FileSpreadsheet, Download, Building2, Package, Search, ChevronDown, Calendar, TrendingUp, AlertTriangle, ListOrdered, Filter } from 'lucide-react';
 import { PurchaseRecord, Product, Supplier } from '../page';
 import { generateSupplierPriceHistoryReport } from './SupplierPriceHistoryReport';
 import { generateProductSupplierComparisonReport } from './ProductSupplierComparisonReport';
 import { generatePriceInflationReport } from './PriceInflationReport';
 import { generateSupplierDependencyReport } from './SupplierDependencyReport';
+import { generateProductPriceSequenceReport } from './ProductPriceSequenceReport';
+import { ReportFilters } from './ReportFilters';
 
 interface SearchableSelectProps {
   options: { id: string; label: string }[];
@@ -25,8 +27,8 @@ function SearchableSelect({ options, value, onChange, placeholder, colorTheme = 
         setIsOpen(false);
       }
     }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   const filteredOptions = options.filter(opt => opt.label.toLowerCase().includes(search.toLowerCase()));
@@ -35,11 +37,11 @@ function SearchableSelect({ options, value, onChange, placeholder, colorTheme = 
 
   return (
     <div className="relative" ref={selectRef}>
-      <div 
+      <div
         onClick={() => setIsOpen(!isOpen)}
-        className={`w-full bg-slate-50 border border-slate-200 p-4 rounded-xl cursor-pointer flex justify-between items-center transition-all hover:bg-slate-100 outline-none tabindex-0 ${isOpen ? focusRing : ''}`}
+        className={`w-full bg-slate-50 border border-slate-200 p-3.5 rounded-xl cursor-pointer flex justify-between items-center transition-all hover:bg-slate-100 outline-none ${isOpen ? focusRing : ''}`}
       >
-        <span className={selectedOption ? "text-slate-900 font-bold truncate pr-2" : "text-slate-400 font-medium truncate pr-2"}>
+        <span className={selectedOption ? 'text-slate-900 font-bold truncate pr-2' : 'text-slate-400 font-medium truncate pr-2'}>
           {selectedOption ? selectedOption.label : placeholder}
         </span>
         <ChevronDown className={`w-5 h-5 shrink-0 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
@@ -50,7 +52,7 @@ function SearchableSelect({ options, value, onChange, placeholder, colorTheme = 
           <div className="p-2 border-b border-slate-100 bg-slate-50/50 sticky top-0">
             <div className="relative">
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input 
+              <input
                 type="text"
                 autoFocus
                 value={search}
@@ -66,15 +68,15 @@ function SearchableSelect({ options, value, onChange, placeholder, colorTheme = 
             ) : (
               filteredOptions.map(opt => (
                 <div
-                  key={opt.id}
+                  key={opt.id || '__all__'}
                   onClick={() => {
                     onChange(opt.id);
                     setIsOpen(false);
                     setSearch('');
                   }}
                   className={`p-3 text-sm rounded-lg cursor-pointer transition-colors ${
-                    opt.id === value 
-                      ? 'bg-[#D4AF37]/10 text-[#b8962e] font-bold' 
+                    opt.id === value
+                      ? 'bg-[#D4AF37]/10 text-[#b8962e] font-bold'
                       : 'hover:bg-slate-50 text-slate-700 font-medium hover:text-slate-900'
                   }`}
                 >
@@ -104,23 +106,74 @@ export default function ReportsTab({ purchases, products, suppliers }: Props) {
   const [isGenerating2, setIsGenerating2] = useState(false);
   const [isGenerating3, setIsGenerating3] = useState(false);
   const [isGenerating4, setIsGenerating4] = useState(false);
+  const [isGenerating5, setIsGenerating5] = useState(false);
 
   const activeSuppliers = useMemo(() => {
     const supplierIds = new Set(purchases.map(p => p.supplierId));
-    return suppliers.filter(s => supplierIds.has(s.id)).sort((a, b) => a.name.localeCompare(b.name)).map(s => ({ id: s.id, label: s.name }));
+    return suppliers
+      .filter(s => supplierIds.has(s.id))
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map(s => ({ id: s.id, label: s.name }));
   }, [purchases, suppliers]);
 
+  const supplierOptions = useMemo(
+    () => [{ id: '', label: 'All Suppliers' }, ...activeSuppliers],
+    [activeSuppliers]
+  );
+
+  const filteredProductIds = useMemo(() => {
+    const relevant = selectedSupplierId
+      ? purchases.filter(p => p.supplierId === selectedSupplierId)
+      : purchases;
+    return new Set(relevant.map(p => p.productId));
+  }, [purchases, selectedSupplierId]);
+
   const activeProducts = useMemo(() => {
-    const productIds = new Set(purchases.map(p => p.productId));
-    return products.filter(p => productIds.has(p.id)).sort((a, b) => a.name.localeCompare(b.name)).map(p => ({ id: p.id, label: p.barcode ? `[${p.barcode}] ${p.name}` : p.name }));
-  }, [purchases, products]);
+    return products
+      .filter(p => filteredProductIds.has(p.id))
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map(p => ({ id: p.id, label: p.barcode ? `[${p.barcode}] ${p.name}` : p.name }));
+  }, [products, filteredProductIds]);
+
+  const productOptions = useMemo(
+    () => [{ id: '', label: 'All Products' }, ...activeProducts],
+    [activeProducts]
+  );
+
+  useEffect(() => {
+    if (selectedProductId && !filteredProductIds.has(selectedProductId)) {
+      setSelectedProductId('');
+    }
+  }, [selectedProductId, filteredProductIds]);
+
+  const filters: ReportFilters = useMemo(() => ({
+    supplierId: selectedSupplierId || undefined,
+    productId: selectedProductId || undefined,
+    fromDate: fromDate || undefined,
+    toDate: toDate || undefined,
+  }), [selectedSupplierId, selectedProductId, fromDate, toDate]);
+
+  const filterSummary = useMemo(() => {
+    const parts: string[] = [];
+    if (selectedSupplierId) {
+      parts.push(suppliers.find(s => s.id === selectedSupplierId)?.name || 'Supplier');
+    } else {
+      parts.push('All Suppliers');
+    }
+    if (selectedProductId) {
+      parts.push(products.find(p => p.id === selectedProductId)?.name || 'Product');
+    } else {
+      parts.push('All Products');
+    }
+    return parts.join(' · ');
+  }, [selectedSupplierId, selectedProductId, suppliers, products]);
 
   const handleDownloadSupplierReport = async () => {
     if (!selectedSupplierId) return;
     setIsGenerating1(true);
     const supplier = suppliers.find(s => s.id === selectedSupplierId);
     if (supplier) {
-      await generateSupplierPriceHistoryReport(supplier.id, supplier.name, purchases, products, fromDate, toDate);
+      await generateSupplierPriceHistoryReport(supplier.name, purchases, products, filters);
     }
     setIsGenerating1(false);
   };
@@ -130,191 +183,190 @@ export default function ReportsTab({ purchases, products, suppliers }: Props) {
     setIsGenerating2(true);
     const product = products.find(p => p.id === selectedProductId);
     if (product) {
-      await generateProductSupplierComparisonReport(product.id, product.name, purchases, suppliers, fromDate, toDate);
+      await generateProductSupplierComparisonReport(product.name, purchases, suppliers, filters);
     }
     setIsGenerating2(false);
   };
 
   const handleDownloadInflationReport = async () => {
     setIsGenerating3(true);
-    await generatePriceInflationReport(purchases, products, fromDate, toDate);
+    await generatePriceInflationReport(purchases, products, filters);
     setIsGenerating3(false);
   };
 
   const handleDownloadDependencyReport = async () => {
     setIsGenerating4(true);
-    await generateSupplierDependencyReport(purchases, products, suppliers, fromDate, toDate);
+    await generateSupplierDependencyReport(purchases, products, suppliers, filters);
     setIsGenerating4(false);
   };
 
+  const handleDownloadPriceSequenceReport = async () => {
+    setIsGenerating5(true);
+    await generateProductPriceSequenceReport(purchases, products, filters);
+    setIsGenerating5(false);
+  };
+
+  const reportCards = [
+    {
+      title: 'Supplier History',
+      icon: Building2,
+      accent: 'border-t-blue-500',
+      iconClass: 'text-blue-500 bg-blue-50',
+      onClick: handleDownloadSupplierReport,
+      disabled: !selectedSupplierId || isGenerating1,
+      loading: isGenerating1,
+    },
+    {
+      title: 'Product Comparison',
+      icon: Package,
+      accent: 'border-t-emerald-500',
+      iconClass: 'text-emerald-500 bg-emerald-50',
+      onClick: handleDownloadProductReport,
+      disabled: !selectedProductId || isGenerating2,
+      loading: isGenerating2,
+    },
+    {
+      title: 'Supplier Dependency',
+      icon: AlertTriangle,
+      accent: 'border-t-purple-500',
+      iconClass: 'text-purple-500 bg-purple-50',
+      onClick: handleDownloadDependencyReport,
+      disabled: isGenerating4,
+      loading: isGenerating4,
+    },
+    {
+      title: 'Price Inflation',
+      icon: TrendingUp,
+      accent: 'border-t-rose-500',
+      iconClass: 'text-rose-500 bg-rose-50',
+      onClick: handleDownloadInflationReport,
+      disabled: isGenerating3,
+      loading: isGenerating3,
+    },
+    {
+      title: 'Price Sequence',
+      icon: ListOrdered,
+      accent: 'border-t-amber-500',
+      iconClass: 'text-amber-600 bg-amber-50',
+      onClick: handleDownloadPriceSequenceReport,
+      disabled: isGenerating5,
+      loading: isGenerating5,
+    },
+  ];
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
-        <div>
-          <h2 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
-            <FileSpreadsheet className="w-8 h-8 text-[#D4AF37]" />
-            Excel Reports
-          </h2>
-          <p className="text-slate-500 font-medium mt-1">Generate and download detailed Excel reports for analysis.</p>
-        </div>
-
-        <div className="flex flex-row items-center gap-4 bg-white p-3 rounded-2xl border border-slate-100 shadow-sm">
-          <div className="flex items-center gap-2">
-            <Calendar className="w-4 h-4 text-[#D4AF37]" />
-            <input 
-              type="date" 
-              value={fromDate}
-              onChange={(e) => setFromDate(e.target.value)}
-              title="From Date"
-              className="bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#D4AF37]/50 focus:border-[#D4AF37] font-medium transition-all"
-            />
-          </div>
-          <span className="text-slate-300 font-bold">-</span>
-          <div className="flex items-center gap-2">
-            <Calendar className="w-4 h-4 text-[#D4AF37]" />
-            <input 
-              type="date" 
-              value={toDate}
-              onChange={(e) => setToDate(e.target.value)}
-              title="To Date"
-              className="bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#D4AF37]/50 focus:border-[#D4AF37] font-medium transition-all"
-            />
-          </div>
-        </div>
+      <div>
+        <h2 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
+          <FileSpreadsheet className="w-8 h-8 text-[#D4AF37]" />
+          Excel Reports
+        </h2>
+        <p className="text-slate-500 font-medium mt-1">Set filters once, then download any report below.</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        
-        {/* Report 1: Supplier Price History */}
-        <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm border-t-4 border-t-blue-500 flex flex-col hover:shadow-lg transition-shadow">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="p-3 bg-blue-50 rounded-xl">
-              <Building2 className="w-6 h-6 text-blue-500" />
-            </div>
-            <div>
-              <h3 className="text-lg font-bold text-slate-800 leading-tight">Supplier History</h3>
-              <p className="text-xs text-slate-500 mt-1">Product price changes over time</p>
-            </div>
-          </div>
-          
-          <div className="space-y-4 flex-1">
-            <div>
-              <label className="block text-sm font-bold text-slate-700 mb-2">Select Supplier</label>
-              <SearchableSelect 
-                options={activeSuppliers}
-                value={selectedSupplierId}
-                onChange={setSelectedSupplierId}
-                placeholder="Search supplier..."
-                colorTheme="blue"
-              />
-            </div>
+      {/* Global Filters */}
+      <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-5">
+        <div className="flex items-center gap-2 text-slate-800">
+          <Filter className="w-5 h-5 text-[#D4AF37]" />
+          <h3 className="font-bold text-lg">Report Filters</h3>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+          <div>
+            <label className="flex items-center gap-1.5 text-sm font-bold text-slate-700 mb-2">
+              <Building2 className="w-4 h-4 text-blue-500" />
+              Supplier
+            </label>
+            <SearchableSelect
+              options={supplierOptions}
+              value={selectedSupplierId}
+              onChange={setSelectedSupplierId}
+              placeholder="All Suppliers"
+              colorTheme="blue"
+            />
           </div>
 
-          <div className="mt-8">
-            <button
-              onClick={handleDownloadSupplierReport}
-              disabled={!selectedSupplierId || isGenerating1}
-              className="w-full bg-slate-900 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 hover:bg-[#D4AF37] hover:text-black hover:shadow-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isGenerating1 ? <span className="animate-pulse">Generating...</span> : <><Download className="w-5 h-5" /> Download Excel</>}
-            </button>
+          <div>
+            <label className="flex items-center gap-1.5 text-sm font-bold text-slate-700 mb-2">
+              <Package className="w-4 h-4 text-emerald-500" />
+              Product
+            </label>
+            <SearchableSelect
+              options={productOptions}
+              value={selectedProductId}
+              onChange={setSelectedProductId}
+              placeholder="All Products"
+              colorTheme="emerald"
+            />
+          </div>
+
+          <div>
+            <label className="flex items-center gap-1.5 text-sm font-bold text-slate-700 mb-2">
+              <Calendar className="w-4 h-4 text-[#D4AF37]" />
+              From Date
+            </label>
+            <input
+              type="date"
+              value={fromDate}
+              onChange={(e) => setFromDate(e.target.value)}
+              className="w-full bg-slate-50 border border-slate-200 px-3 py-3.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#D4AF37]/50 focus:border-[#D4AF37] font-medium transition-all"
+            />
+          </div>
+
+          <div>
+            <label className="flex items-center gap-1.5 text-sm font-bold text-slate-700 mb-2">
+              <Calendar className="w-4 h-4 text-[#D4AF37]" />
+              To Date
+            </label>
+            <input
+              type="date"
+              value={toDate}
+              onChange={(e) => setToDate(e.target.value)}
+              className="w-full bg-slate-50 border border-slate-200 px-3 py-3.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#D4AF37]/50 focus:border-[#D4AF37] font-medium transition-all"
+            />
           </div>
         </div>
 
-        {/* Report 2: Product Supplier Comparison */}
-        <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm border-t-4 border-t-emerald-500 flex flex-col hover:shadow-lg transition-shadow">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="p-3 bg-emerald-50 rounded-xl">
-              <Package className="w-6 h-6 text-emerald-500" />
-            </div>
-            <div>
-              <h3 className="text-lg font-bold text-slate-800 leading-tight">Product Comparison</h3>
-              <p className="text-xs text-slate-500 mt-1">Compare prices across suppliers</p>
-            </div>
-          </div>
-          
-          <div className="space-y-4 flex-1">
-            <div>
-              <label className="block text-sm font-bold text-slate-700 mb-2">Select Product</label>
-              <SearchableSelect 
-                options={activeProducts}
-                value={selectedProductId}
-                onChange={setSelectedProductId}
-                placeholder="Search product..."
-                colorTheme="emerald"
-              />
-            </div>
-          </div>
+        <p className="text-sm font-medium text-slate-500 bg-slate-50 rounded-xl px-4 py-3 border border-slate-100">
+          Active scope: <span className="font-bold text-slate-700">{filterSummary}</span>
+          {(fromDate || toDate) && (
+            <span className="text-slate-500"> · {fromDate || '…'} → {toDate || '…'}</span>
+          )}
+        </p>
+      </div>
 
-          <div className="mt-8">
-            <button
-              onClick={handleDownloadProductReport}
-              disabled={!selectedProductId || isGenerating2}
-              className="w-full bg-slate-900 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 hover:bg-[#D4AF37] hover:text-black hover:shadow-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {reportCards.map((report) => {
+          const Icon = report.icon;
+          return (
+            <div
+              key={report.title}
+              className={`bg-white px-4 py-4 rounded-xl border border-slate-100 shadow-sm border-t-[3px] ${report.accent} flex items-center justify-between gap-3 hover:shadow-md transition-shadow min-h-[68px]`}
             >
-              {isGenerating2 ? <span className="animate-pulse">Generating...</span> : <><Download className="w-5 h-5" /> Download Excel</>}
-            </button>
-          </div>
-        </div>
-
-        {/* Report 3: Supplier Dependency */}
-        <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm border-t-4 border-t-purple-500 flex flex-col hover:shadow-lg transition-shadow">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="p-3 bg-purple-50 rounded-xl">
-              <AlertTriangle className="w-6 h-6 text-purple-500" />
+              <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                <div className={`p-2 rounded-lg shrink-0 ${report.iconClass}`}>
+                  <Icon className="w-5 h-5" />
+                </div>
+                <h3 className="text-[15px] font-bold text-slate-800 leading-tight truncate">
+                  {report.title}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={report.onClick}
+                disabled={report.disabled}
+                title={`Download ${report.title}`}
+                className="shrink-0 w-10 h-10 rounded-lg bg-slate-900 text-white flex items-center justify-center hover:bg-[#D4AF37] hover:text-black transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {report.loading ? (
+                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <Download className="w-[18px] h-[18px]" />
+                )}
+              </button>
             </div>
-            <div>
-              <h3 className="text-lg font-bold text-slate-800 leading-tight">Supplier Dependency</h3>
-              <p className="text-xs text-slate-500 mt-1">Identify high-risk single sourcing</p>
-            </div>
-          </div>
-          
-          <div className="flex-1 flex items-center justify-center text-center p-4">
-            <p className="text-sm font-medium text-slate-500">
-              Analyzes all products to find which ones are heavily dependent on a single supplier, highlighting sourcing risks.
-            </p>
-          </div>
-
-          <div className="mt-8">
-            <button
-              onClick={handleDownloadDependencyReport}
-              disabled={isGenerating4}
-              className="w-full bg-slate-900 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 hover:bg-[#D4AF37] hover:text-black hover:shadow-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isGenerating4 ? <span className="animate-pulse">Generating...</span> : <><Download className="w-5 h-5" /> Download Excel</>}
-            </button>
-          </div>
-        </div>
-
-        {/* Report 4: Price Inflation */}
-        <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm border-t-4 border-t-rose-500 flex flex-col hover:shadow-lg transition-shadow">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="p-3 bg-rose-50 rounded-xl">
-              <TrendingUp className="w-6 h-6 text-rose-500" />
-            </div>
-            <div>
-              <h3 className="text-lg font-bold text-slate-800 leading-tight">Price Inflation</h3>
-              <p className="text-xs text-slate-500 mt-1">Global price increases/decreases</p>
-            </div>
-          </div>
-          
-          <div className="flex-1 flex items-center justify-center text-center p-4">
-            <p className="text-sm font-medium text-slate-500">
-              Generates a comprehensive report showing the inflation or deflation percentage for all products across the selected date range.
-            </p>
-          </div>
-
-          <div className="mt-8">
-            <button
-              onClick={handleDownloadInflationReport}
-              disabled={isGenerating3}
-              className="w-full bg-slate-900 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 hover:bg-[#D4AF37] hover:text-black hover:shadow-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isGenerating3 ? <span className="animate-pulse">Generating...</span> : <><Download className="w-5 h-5" /> Download Excel</>}
-            </button>
-          </div>
-        </div>
-
+          );
+        })}
       </div>
     </div>
   );

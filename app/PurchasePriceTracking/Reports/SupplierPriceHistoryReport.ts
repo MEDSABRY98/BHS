@@ -1,22 +1,14 @@
-import { PurchaseRecord, Product, Supplier } from '../page';
+import { PurchaseRecord, Product } from '../page';
 import { exportStyledExcel } from '@/app/Components/Export/ExcelExport';
+import { filterPurchases, filterSuffix, ReportFilters } from './ReportFilters';
 
 export async function generateSupplierPriceHistoryReport(
-  supplierId: string,
   supplierName: string,
   purchases: PurchaseRecord[],
   products: Product[],
-  fromDate?: string,
-  toDate?: string
+  filters: ReportFilters
 ) {
-  let supplierPurchases = purchases.filter(p => p.supplierId === supplierId);
-
-  if (fromDate) {
-    supplierPurchases = supplierPurchases.filter(p => new Date(p.date) >= new Date(fromDate));
-  }
-  if (toDate) {
-    supplierPurchases = supplierPurchases.filter(p => new Date(p.date) <= new Date(toDate));
-  }
+  const supplierPurchases = filterPurchases(purchases, filters);
   
   const purchasesByProduct = new Map<string, PurchaseRecord[]>();
   supplierPurchases.forEach(p => {

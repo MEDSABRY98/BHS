@@ -1,43 +1,22 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { User, Lock, ChevronDown, Check, Loader2, ArrowRight } from 'lucide-react';
-import Loading from '@/app/Components/Loading';
-import { fetchUsersList, verifyUserCredentials } from '@/app/DataBase/Service/database_service';
+import { useState, useEffect } from 'react';
+import { User, Lock, Loader2, ArrowRight, Eye, EyeOff, Sparkles, ShieldCheck } from 'lucide-react';
+import { verifyUserCredentials } from '@/app/DataBase/Service/database_service';
+import './Login.css';
 
 interface LoginProps {
   onLogin: (user: any) => void;
 }
 
 export default function Login({ onLogin }: LoginProps) {
-  const [users, setUsers] = useState<{ name: string }[]>([]);
-  const [selectedUser, setSelectedUser] = useState('');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [fetchingUsers, setFetchingUsers] = useState(true);
-  const [openUserDropdown, setOpenUserDropdown] = useState(false);
-  const userDropdownRef = useRef<HTMLDivElement>(null);
-
-  const filteredUsers = searchQuery.trim() === ''
-    ? []
-    : users.filter(user =>
-        user.name.toLowerCase().includes(searchQuery.toLowerCase())
-      );
 
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (userDropdownRef.current && !userDropdownRef.current.contains(event.target as Node)) {
-        setOpenUserDropdown(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  useEffect(() => {
-    fetchUsers();
     autoLoginIfSaved();
   }, []);
 
@@ -53,198 +32,116 @@ export default function Login({ onLogin }: LoginProps) {
             onLogin(result.user);
             localStorage.setItem('userPassword', savedPassword);
             return;
-          } else {
-            localStorage.removeItem('currentUser');
-            localStorage.removeItem('userPassword');
           }
+          localStorage.removeItem('currentUser');
+          localStorage.removeItem('userPassword');
         }
       }
-    } catch (err) {
+    } catch {
       localStorage.removeItem('currentUser');
       localStorage.removeItem('userPassword');
-    }
-  };
-
-  const fetchUsers = async () => {
-    try {
-      const data = await fetchUsersList();
-      if (data.success && data.users) setUsers(data.users);
-    } catch (err) {
-      console.error('Error fetching users:', err);
-      setError('Failed to load users');
-    } finally {
-      setFetchingUsers(false);
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    
-    let userToLogin = selectedUser;
-    if (!userToLogin && searchQuery) {
-      const exactMatch = users.find(u => u.name.toLowerCase() === searchQuery.trim().toLowerCase());
-      if (exactMatch) {
-        userToLogin = exactMatch.name;
-      }
-    }
 
-    if (!userToLogin) {
-      setError('Please select a valid user account');
+    const trimmedUsername = username.trim();
+    if (!trimmedUsername) {
+      setError('Please enter your account name');
       return;
     }
+
     setLoading(true);
     try {
-      const result = await verifyUserCredentials(userToLogin, password);
+      const result = await verifyUserCredentials(trimmedUsername, password);
       if (result.success && result.user) {
         localStorage.setItem('userPassword', password);
-        setTimeout(() => onLogin(result.user), 500);
+        setTimeout(() => onLogin(result.user), 400);
       } else {
         setError(result.error || 'Invalid credentials');
       }
-    } catch (err) {
+    } catch {
       setError('Connection error. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
-  if (fetchingUsers) {
-    return <Loading message="Loading Accounts..." />;
-  }
-
   return (
-    <div className="min-h-screen flex w-full bg-white overflow-hidden" dir="ltr">
+    <div className="login-scene min-h-screen relative overflow-hidden flex items-center justify-center p-4 sm:p-8" dir="ltr">
+      <div className="login-aurora" />
+      <div className="login-grid" />
 
-      {/* Left Side: Brand / Visuals */}
-      <div className="hidden lg:flex lg:w-1/2 relative bg-[#0f172a] items-center justify-center overflow-hidden">
-        {/* Abstract geometric shapes */}
-        <div className="absolute top-0 left-0 w-full h-full opacity-30">
-          <div className="absolute top-[-20%] right-[-10%] w-[600px] h-[600px] rounded-full bg-blue-600 blur-[120px] mix-blend-screen animate-pulse" style={{ animationDuration: '8s' }}></div>
-          <div className="absolute bottom-[-10%] left-[-10%] w-[500px] h-[500px] rounded-full bg-indigo-600 blur-[100px] mix-blend-screen animate-pulse" style={{ animationDuration: '10s', animationDelay: '1s' }}></div>
-        </div>
-
-        <div className="relative z-10 text-center px-12">
-          <div className="mb-8 inline-flex items-center justify-center w-24 h-24 rounded-3xl bg-white/10 backdrop-blur-md border border-white/20 shadow-2xl">
-            <span className="text-4xl font-extrabold text-white tracking-tighter">BH</span>
-          </div>
-          <h1 className="text-5xl font-bold text-white mb-6 tracking-tight leading-tight">
-            Financial <span className="text-blue-400">Excellence</span> <br /> redefined.
-          </h1>
-        </div>
-
-        <div className="absolute bottom-10 left-0 w-full text-center">
-          <p className="text-slate-600 text-sm font-medium">© {new Date().getFullYear()} BH Group. All rights reserved.</p>
-        </div>
-      </div>
-
-      {/* Right Side: Login Form */}
-      <div className="w-full lg:w-1/2 flex flex-col items-center justify-center p-8 sm:p-12 lg:p-24 bg-white relative">
-        <div className="w-full max-w-md space-y-10">
-
-          <div className="text-center lg:text-left">
-            <div className="lg:hidden mb-6 inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-slate-900 shadow-lg">
-              <span className="text-2xl font-bold text-white tracking-tighter">BH</span>
+      <div className="relative z-10 w-full max-w-[440px] login-enter">
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-[72px] h-[72px] rounded-2xl bg-white border border-slate-200 shadow-lg mb-5 relative">
+            <span className="text-2xl font-black tracking-tight bg-gradient-to-br from-[#f5e6a8] via-[#d4af37] to-[#a8861e] bg-clip-text text-transparent">
+              BHS
+            </span>
+            <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-emerald-500 border-2 border-white flex items-center justify-center">
+              <Sparkles className="w-2.5 h-2.5 text-white" />
             </div>
-            <h2 className="text-3xl sm:text-4xl font-bold text-slate-900 tracking-tight">
-              Welcome back
-            </h2>
           </div>
+          <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 tracking-tight mb-2">
+            Welcome back
+          </h1>
+          <p className="text-slate-500 text-sm font-medium">
+            Sign in to access your workspace
+          </p>
+        </div>
 
-          <form className="space-y-6" onSubmit={handleSubmit}>
-            <div className="space-y-5">
-              {/* Account Selection */}
-              <div ref={userDropdownRef} className="space-y-1.5">
-                <label className="text-sm font-semibold text-slate-700 ml-1">Account</label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setSearchQuery(val);
-                      setOpenUserDropdown(val.trim() !== '');
-                      const match = users.find(u => u.name.toLowerCase() === val.trim().toLowerCase());
-                      if (match) {
-                        setSelectedUser(match.name);
-                      } else {
-                        setSelectedUser('');
-                      }
-                    }}
-                    onFocus={() => {
-                      if (searchQuery.trim() !== '') {
-                        setOpenUserDropdown(true);
-                      }
-                    }}
-                    placeholder="Type to search your account..."
-                    className={`w-full h-14 pl-4 pr-12 bg-slate-50 border-2 rounded-xl text-base font-medium text-slate-900 placeholder-slate-400 transition-all duration-200 outline-none hover:border-slate-300 focus:border-indigo-600 focus:ring-4 focus:ring-indigo-500/10 ${openUserDropdown && filteredUsers.length > 0 ? 'border-indigo-600 ring-4 ring-indigo-500/10' : 'border-slate-100'}`}
-                  />
-                  <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2">
-                    {searchQuery && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSearchQuery('');
-                          setSelectedUser('');
-                          setOpenUserDropdown(false);
-                        }}
-                        className="p-1 hover:bg-slate-200 rounded-full transition-colors"
-                      >
-                        <svg className="w-4 h-4 text-slate-400 hover:text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
-                    )}
-                    <User className="w-5 h-5 text-slate-400" />
-                  </div>
+        <div className="login-card relative rounded-3xl p-7 sm:p-8">
 
-                  {openUserDropdown && filteredUsers.length > 0 && (
-                    <div className="absolute z-50 w-full mt-2 bg-white border border-slate-100 rounded-xl shadow-2xl max-h-80 overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
-                      <div className="p-2 space-y-1">
-                        {filteredUsers.map((user) => (
-                          <button
-                            key={user.name}
-                            type="button"
-                            onClick={() => {
-                              setSelectedUser(user.name);
-                              setSearchQuery(user.name);
-                              setOpenUserDropdown(false);
-                            }}
-                            className={`w-full px-4 py-3.5 rounded-lg flex items-center justify-between text-base transition-colors ${selectedUser === user.name ? 'bg-indigo-50 text-indigo-700 font-semibold' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}
-                          >
-                            <div className="flex items-center gap-3">
-                              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${selectedUser === user.name ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-500'}`}>
-                                {user.name.charAt(0).toUpperCase()}
-                              </div>
-                              {user.name}
-                            </div>
-                            {selectedUser === user.name && <Check className="w-5 h-5 text-indigo-600" />}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
+          <form className="relative space-y-5" onSubmit={handleSubmit}>
+            <div className="space-y-2">
+              <label className="text-xs font-bold uppercase tracking-[0.15em] text-slate-500 ml-1">
+                Account
+              </label>
+              <div className="relative">
+                <User className="absolute left-4 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-slate-400 pointer-events-none" />
+                <input
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  autoComplete="username"
+                  className="login-input w-full h-[52px] pl-11 rounded-2xl text-[15px] font-medium text-slate-800 placeholder-slate-400"
+                  placeholder="Enter your account name"
+                />
               </div>
+            </div>
 
-              {/* Password Input */}
-              <div className="space-y-1.5">
-                <label className="text-sm font-semibold text-slate-700 ml-1">Password</label>
-                <div className="relative">
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="block w-full h-14 px-4 bg-slate-50 border-2 border-slate-100 rounded-xl text-slate-900 placeholder-slate-400 focus:border-indigo-600 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-200 outline-none text-base font-medium"
-                    placeholder="••••••••"
-                  />
-                </div>
+            <div className="space-y-2">
+              <label className="text-xs font-bold uppercase tracking-[0.15em] text-slate-500 ml-1">
+                Password
+              </label>
+              <div className="relative">
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-slate-400 pointer-events-none" />
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="current-password"
+                  className="login-input w-full h-[52px] pl-11 pr-12 rounded-2xl text-[15px] font-medium text-slate-800 placeholder-slate-400"
+                  placeholder="Enter your password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(v => !v)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 transition-colors"
+                  tabIndex={-1}
+                >
+                  {showPassword ? <EyeOff className="w-[18px] h-[18px]" /> : <Eye className="w-[18px] h-[18px]" />}
+                </button>
               </div>
             </div>
 
             {error && (
-              <div className="p-4 bg-red-50 border border-red-100 rounded-xl flex items-center gap-3 text-red-600 animate-in fade-in slide-in-from-top-2">
-                <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+              <div className="p-3.5 bg-red-50 border border-red-100 rounded-2xl flex items-center gap-3 text-red-600 animate-in fade-in slide-in-from-top-2">
+                <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
                 <p className="text-sm font-medium">{error}</p>
               </div>
             )}
@@ -252,17 +149,25 @@ export default function Login({ onLogin }: LoginProps) {
             <button
               type="submit"
               disabled={loading}
-              className="w-full h-14 bg-slate-900 hover:bg-slate-800 text-white text-base font-bold rounded-xl transition-all duration-200 shadow-xl shadow-slate-900/20 hover:shadow-slate-900/30 hover:-translate-y-0.5 disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center gap-2"
+              className="login-btn w-full h-[52px] mt-2 text-[15px] font-bold rounded-2xl disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
-              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <>Sign In <ArrowRight className="w-5 h-5" /></>}
+              {loading ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <>
+                  Sign In
+                  <ArrowRight className="w-5 h-5" />
+                </>
+              )}
             </button>
           </form>
 
-          <div className="pt-8 border-t border-slate-100 text-center lg:text-left">
-            <p className="text-slate-500 font-medium mb-1">Having trouble accessing?</p>
-            <p className="text-lg font-bold text-slate-900">Contact Mohamed Sabry</p>
+          <div className="relative mt-6 pt-5 border-t border-slate-100 flex items-center justify-center gap-2 text-slate-400">
+            <ShieldCheck className="w-4 h-4 text-[#d4af37]" />
+            <span className="text-xs font-medium">Secure internal access</span>
           </div>
         </div>
+
       </div>
     </div>
   );

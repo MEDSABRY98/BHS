@@ -1,20 +1,13 @@
 import { PurchaseRecord, Product } from '../page';
 import { exportStyledExcel } from '@/app/Components/Export/ExcelExport';
+import { filterPurchases, filterSuffix, ReportFilters } from './ReportFilters';
 
 export async function generatePriceInflationReport(
   purchases: PurchaseRecord[],
   products: Product[],
-  fromDate?: string,
-  toDate?: string
+  filters: ReportFilters
 ) {
-  let filteredPurchases = purchases;
-
-  if (fromDate) {
-    filteredPurchases = filteredPurchases.filter(p => new Date(p.date) >= new Date(fromDate));
-  }
-  if (toDate) {
-    filteredPurchases = filteredPurchases.filter(p => new Date(p.date) <= new Date(toDate));
-  }
+  const filteredPurchases = filterPurchases(purchases, filters);
 
   if (filteredPurchases.length === 0) {
     alert("No purchases found for the selected date range.");
@@ -67,7 +60,7 @@ export async function generatePriceInflationReport(
   // Sort by highest inflation first
   reportData.sort((a: any, b: any) => b['Variance (%)'] - a['Variance (%)']);
 
-  const fileName = `Price_Inflation_Report_${new Date().toISOString().split('T')[0]}`;
+  const fileName = `Price_Inflation_Report${filterSuffix(filters)}_${new Date().toISOString().split('T')[0]}`;
   
   await exportStyledExcel(reportData, fileName, {
     sheetName: 'Price Inflation',

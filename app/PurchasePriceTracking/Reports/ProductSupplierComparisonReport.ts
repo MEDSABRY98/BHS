@@ -1,22 +1,14 @@
 import { PurchaseRecord, Product, Supplier } from '../page';
 import { exportStyledExcel } from '@/app/Components/Export/ExcelExport';
+import { filterPurchases, filterSuffix, ReportFilters } from './ReportFilters';
 
 export async function generateProductSupplierComparisonReport(
-  productId: string,
   productName: string,
   purchases: PurchaseRecord[],
   suppliers: Supplier[],
-  fromDate?: string,
-  toDate?: string
+  filters: ReportFilters
 ) {
-  let productPurchases = purchases.filter(p => p.productId === productId);
-
-  if (fromDate) {
-    productPurchases = productPurchases.filter(p => new Date(p.date) >= new Date(fromDate));
-  }
-  if (toDate) {
-    productPurchases = productPurchases.filter(p => new Date(p.date) <= new Date(toDate));
-  }
+  const productPurchases = filterPurchases(purchases, filters);
   
   if (productPurchases.length === 0) {
     alert("No purchases found for this product.");

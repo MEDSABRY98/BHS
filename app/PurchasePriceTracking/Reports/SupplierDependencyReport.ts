@@ -1,21 +1,14 @@
 import { PurchaseRecord, Product, Supplier } from '../page';
 import { exportStyledExcel } from '@/app/Components/Export/ExcelExport';
+import { filterPurchases, filterSuffix, ReportFilters } from './ReportFilters';
 
 export async function generateSupplierDependencyReport(
   purchases: PurchaseRecord[],
   products: Product[],
   suppliers: Supplier[],
-  fromDate?: string,
-  toDate?: string
+  filters: ReportFilters
 ) {
-  let filteredPurchases = purchases;
-
-  if (fromDate) {
-    filteredPurchases = filteredPurchases.filter(p => new Date(p.date) >= new Date(fromDate));
-  }
-  if (toDate) {
-    filteredPurchases = filteredPurchases.filter(p => new Date(p.date) <= new Date(toDate));
-  }
+  const filteredPurchases = filterPurchases(purchases, filters);
 
   if (filteredPurchases.length === 0) {
     alert("No purchases found for the selected date range.");
@@ -87,7 +80,7 @@ export async function generateSupplierDependencyReport(
     return (b['Dependency (%)'] as number) - (a['Dependency (%)'] as number);
   });
 
-  const fileName = `Supplier_Dependency_Report_${new Date().toISOString().split('T')[0]}`;
+  const fileName = `Supplier_Dependency_Report${filterSuffix(filters)}_${new Date().toISOString().split('T')[0]}`;
   
   await exportStyledExcel(reportData, fileName, {
     sheetName: 'Dependency Risk',
