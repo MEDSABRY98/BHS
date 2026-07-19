@@ -29,14 +29,30 @@ import {
   PaginationState,
 } from '@tanstack/react-table';
 import { InvoiceRow } from '@/types';
-import { Mail, FileText, Calendar, ArrowLeft, FileSpreadsheet, ListFilter, CheckSquare, BarChart3, Download, X, Settings2 } from 'lucide-react';
+import { Mail, FileText, Calendar, ArrowLeft, FileSpreadsheet, ListFilter, CheckSquare, BarChart3, Download, X, Settings2, CircleAlert } from 'lucide-react';
 import { getInvoiceType } from '@/app/Debit/Utils/InvoiceType';
 import { useSearchParams } from 'next/navigation';
 import NoData from '@/app/Components/NoDataTab';
 import { generateAnalyticalPDF as generateAnalyticalPDFUtil } from '@/app/Debit/Pdf/AnalysisByCustomerUtils';
-import { getDebitData } from '../../Service/debit_service';
 import { getCustomerNotes, createNote, updateCustomerNote, deleteCustomerNote } from '../../Service/notes_service';
+import { useDebitData } from '../../Context/DebitDataContext';
 import { getCustomerEmails } from '@/app/Emails/Service/email_service';
+import EmailStatementModal from '../CustomersTab/Modals/EmailStatementModal';
+import CustomerEmailsModal from './Modals/CustomerEmailsModal';
+import { formatDmy, parseDate, buildInvoicesWithNetDebtForExport, toNetOnlyOpenInvoicesForExport } from '../CustomersTab/CstomersUtils';
+
+const parseCustomerEmailList = (items: string[]) =>
+  Array.from(
+    new Set(
+      items.flatMap((item) =>
+        item
+          .split(/[,;]+/)
+          .map((email) => email.trim())
+          .filter(Boolean),
+      ),
+    ),
+  );
+import { generateSingleCustomerExcelBlob } from '../ExcelEmails';
 
 interface CustomerDetailsProps {
   customerName: string;
@@ -53,7 +69,6 @@ import AgesTab from './Tabs/AgesTab';
 import NotesTab from './Tabs/NotesTab';
 import { SharedTabProps, InvoiceWithNetDebt, MonthlyDebt, AgingSummary, OverdueInvoice } from './Types';
 import {
-  normalizeCustomerKey,
   isPaymentTxn,
   getPaymentAmount,
   parseInvoiceDate,
@@ -141,18 +156,8 @@ const toNetOnlyOpenInvoices = (invList: InvoiceWithNetDebt[]): InvoiceWithNetDeb
     });
 };
 
-const blobToBase64 = (blob: Blob): Promise<string> =>
-  new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error('Failed to read blob'));
-    reader.onloadend = () => {
-      const result = reader.result as string;
-      resolve(result.split(',')[1] || '');
-    };
-    reader.readAsDataURL(blob);
-  });
-
 export default function CustomerDetails({ customerName, invoices, onBack, initialTab = 'dashboard' }: CustomerDetailsProps) {
+  const { customersWithEmails } = useDebitData();
   const MATCHING_FILTER_ALL_OPEN = 'All Open Matchings';
   const MATCHING_FILTER_ALL_UNMATCHED = 'All Unmatched';
   const searchParams = useSearchParams();
@@ -213,7 +218,10 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
   const [currentUserName, setCurrentUserName] = useState('');
 
   const [customerEmails, setCustomerEmails] = useState<string[]>([]);
-  const [emailCustomers, setEmailCustomers] = useState<string[]>([]);
+  const [showEmailModal, setShowEmailModal] = useState(false);
+  const [showCustomerEmailsModal, setShowCustomerEmailsModal] = useState(false);
+  const [emailStatementDate, setEmailStatementDate] = useState(new Date().toISOString().split('T')[0]);
+  const [isProcessingEmail, setIsProcessingEmail] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [isGeneratingAutoReport, setIsGeneratingAutoReport] = useState(!!downloadAction);
 
@@ -242,19 +250,41 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
   }, []);
 
   useEffect(() => {
-    const fetchEmail = async () => {
+    let cancelled = false;
+
+    const loadEmails = async () => {
+      const customerId = invoices.find((inv) => inv.customerId)?.customerId;
+      const lookupKey = customerId || customerName;
+
       try {
-        const data = await getCustomerEmails(customerName);
-        const emails = Array.isArray((data as any)?.emails) ? (data as any).emails.filter(Boolean) : ((data as any)?.email ? [(data as any).email] : []);
-        const customers = Array.isArray((data as any)?.customers) ? (data as any).customers.filter(Boolean) : [];
-        setCustomerEmails(emails);
-        setEmailCustomers(customers.length > 0 ? customers : [customerName]);
+        const data = await getCustomerEmails(lookupKey);
+        const emails = Array.isArray((data as { emails?: string[] })?.emails)
+          ? (data as { emails: string[] }).emails.filter(Boolean)
+          : ((data as { email?: string })?.email ? [(data as { email: string }).email] : []);
+
+        if (!cancelled && emails.length > 0) {
+          setCustomerEmails(parseCustomerEmailList(emails));
+          return;
+        }
       } catch (error) {
-        console.error('Error fetching customer email:', error);
+        console.error('Error fetching customer emails:', error);
       }
+
+      if (cancelled) return;
+
+      const normalize = (s: unknown) => String(s || '').toLowerCase().trim().replace(/\s+/g, ' ');
+      const email =
+        customersWithEmails.get(normalize(customerId)) ||
+        customersWithEmails.get(normalize(customerName)) ||
+        '';
+      setCustomerEmails(email ? parseCustomerEmailList([email]) : []);
     };
-    fetchEmail();
-  }, [customerName]);
+
+    loadEmails();
+    return () => {
+      cancelled = true;
+    };
+  }, [customerName, invoices, customersWithEmails]);
 
   // Fetch Closed Customers for Rating
 
@@ -267,154 +297,112 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
     }
   }, [initialTab]);
 
-  const handleEmail = async () => {
+  const handleEmail = () => {
+    if (customerEmails.length === 0) return;
+    setShowEmailModal(true);
+  };
+
+  const handleEmailConfirm = async (overrideDate: string, isShort: boolean) => {
     if (customerEmails.length === 0) return;
 
+    const effectiveDate = overrideDate || emailStatementDate;
+    setShowEmailModal(false);
+    setIsProcessingEmail(true);
+
     try {
-      const toEmails = customerEmails.join(', ');
-      const ccEmails = '';
+      let netOnlyInvoices = toNetOnlyOpenInvoicesForExport(buildInvoicesWithNetDebtForExport(invoices));
 
-      // Determine which customers we should include (supports "A & B" grouping coming from the sheet resolver)
-      const targets = (emailCustomers && emailCustomers.length > 0 ? emailCustomers : [customerName]).filter(Boolean);
-      const uniqueTargets = Array.from(new Set(targets.map(t => t.trim()))).filter(Boolean);
-
-      // We only fetch all sheet data if we need more than the current customer's invoices
-      const invoicesByCustomer = new Map<string, InvoiceRow[]>();
-      if (uniqueTargets.length <= 1) {
-        invoicesByCustomer.set(customerName, invoices);
-      } else {
-        const payload = await getDebitData();
-        const allRows: InvoiceRow[] = Array.isArray(payload?.data) ? payload.data : [];
-
-        uniqueTargets.forEach((cust) => {
-          const key = normalizeCustomerKey(cust);
-          const rows = allRows.filter(r => normalizeCustomerKey(r.customerName) === key);
-          invoicesByCustomer.set(cust, rows);
+      if (effectiveDate) {
+        const limitDate = new Date(effectiveDate);
+        limitDate.setHours(23, 59, 59, 999);
+        netOnlyInvoices = netOnlyInvoices.filter(inv => {
+          const rowDate = parseDate(inv.date);
+          return !rowDate || rowDate <= limitDate;
         });
       }
 
-      // Build PDFs + per-customer net debt lines
-      const monthsLabel = 'All Months (Net Only)';
-      const { generateAccountStatementPDF } = await import('@/app/Debit/Pdf/StatementUtils');
-
-      const attachments: Array<{ fileName: string; base64: string }> = [];
-      const debtByCustomer: Array<{ customer: string; netDebt: number }> = [];
-
-      for (const cust of uniqueTargets) {
-        const rows = invoicesByCustomer.get(cust) || [];
-        const withNet = buildInvoicesWithNetDebt(rows);
-        const finalInvoices = toNetOnlyOpenInvoices(withNet);
-
-        const netDebt = finalInvoices.reduce((sum, inv) => sum + inv.netDebt, 0);
-        debtByCustomer.push({ customer: cust, netDebt });
-
-        if (finalInvoices.length === 0) {
-          continue; // still list debt=0, but skip attachment
-        }
-
-        const dates = finalInvoices
-          .map(inv => inv.date ? new Date(inv.date).getTime() : 0)
-          .filter(t => t > 0);
-        const latestDate = dates.length > 0 ? new Date(Math.max(...dates)) : null;
-        const currentMonthsLabel = latestDate
-          ? `Up To ${latestDate.getDate()}/${latestDate.getMonth() + 1}/${latestDate.getFullYear()} (Net Only)`
-          : 'All Months (Net Only)';
-
-        const pdfBlob = await generateAccountStatementPDF(cust, finalInvoices, true, currentMonthsLabel);
-        if (!pdfBlob) throw new Error('Failed to generate PDF blob');
-
-        const pdfBase64 = await blobToBase64(pdfBlob as Blob);
-        const pdfFileName = `${cust.replace(/[^a-zA-Z0-9\u0600-\u06FF \-_]/g, '').trim()}.pdf`;
-        attachments.push({ fileName: pdfFileName, base64: pdfBase64 });
-      }
-
-      const hasAnyAttachment = attachments.length > 0;
-      if (!hasAnyAttachment) {
+      if (netOnlyInvoices.length === 0) {
         alert('No open invoices to send.');
         return;
       }
 
-      const boundary = "----=_NextPart_000_0001_01C2A9A1.12345678";
-      const subject = 'Statement of Account - Al Marai Al Arabia Trading Sole Proprietorship L.L.C';
+      const netDebt = netOnlyInvoices.reduce((sum, inv) => sum + (inv.netDebt || 0), 0);
+      const dateLabel = effectiveDate ? `Up To ${formatDmy(new Date(effectiveDate))}` : 'All Months (Net Only)';
+      const { generateAccountStatementPDF } = await import('@/app/Debit/Pdf/StatementUtils');
+      const pdfBlob = await generateAccountStatementPDF(customerName, netOnlyInvoices, true, dateLabel, isShort ?? true);
+      if (!pdfBlob) throw new Error('Failed to generate PDF');
 
-      const debtSectionHtml =
-        uniqueTargets.length > 1
-          ? `<p style="margin: 0 0 10px 0; line-height: 1.5;">Your current balance details:</p>
-<ul style="margin: 0 0 10px 0; padding-left: 20px; line-height: 1.5;">
-${debtByCustomer
-            .map(
-              (d) =>
-                `<li style="line-height: 1.5; margin-bottom: 5px;"><b>${d.customer}</b>: <span style="color: blue; font-weight: bold; font-size: 16px;">${d.netDebt.toLocaleString(
-                  'en-US',
-                )} AED</span></li>`,
-            )
-            .join('')}
-</ul>`
-          : `<p style="margin: 0 0 10px 0; line-height: 1.5;">Please find attached your account statement.</p>
-<ul style="margin: 0 0 10px 0; padding-left: 20px; line-height: 1.5;">
-<li style="line-height: 1.5; margin-bottom: 5px;"><b>Your current balance is:</b> <span style="color: blue; font-weight: bold; font-size: 16px;">${debtByCustomer[0]?.netDebt.toLocaleString(
-            'en-US',
-          )} AED</span></li>
-</ul>`;
-
-      const htmlBody = `<!DOCTYPE html>
-<html>
-<body style="font-family: Arial, sans-serif; font-size: 14px; line-height: 1.5;">
-<p style="margin: 0 0 10px 0; line-height: 1.5;">Dear Team,</p>
-<p style="margin: 0 0 10px 0; line-height: 1.5;">We hope this message finds you well.</p>
-${debtSectionHtml}
-<p style="margin: 0 0 10px 0; line-height: 1.5;">Kindly provide us with your statement of account and any discount invoices for reconciliation.</p>
-<p style="margin: 0; line-height: 1.5;">Best regards,</p>
-<p style="margin: 0; line-height: 1.5;">Accounts</p>
-<p style="margin: 0; line-height: 1.5;">Al Marai Al Arabia Trading Sole Proprietorship L.L.C</p>
-</body>
-</html>`;
-      const emlLines: string[] = [];
-      emlLines.push('From: accounting@marae.ae');
-      emlLines.push('To: ' + toEmails);
-      emlLines.push('Cc: ' + ccEmails);
-      emlLines.push('Subject: ' + subject);
-      emlLines.push('X-Unsent: 1');
-      emlLines.push('Content-Type: multipart/mixed; boundary="' + boundary + '"');
-      emlLines.push('');
-
-      // Body part
-      emlLines.push('--' + boundary);
-      emlLines.push('Content-Type: text/html; charset="UTF-8"');
-      emlLines.push('Content-Transfer-Encoding: 7bit');
-      emlLines.push('');
-      emlLines.push(htmlBody);
-      emlLines.push('');
-
-      // Attachments
-      attachments.forEach((att) => {
-        emlLines.push('--' + boundary);
-        emlLines.push(`Content-Type: application/pdf; name="${att.fileName}"`);
-        emlLines.push('Content-Transfer-Encoding: base64');
-        emlLines.push(`Content-Disposition: attachment; filename="${att.fileName}"`);
-        emlLines.push('');
-        emlLines.push(att.base64);
-        emlLines.push('');
+      const pdfBase64 = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
+        reader.readAsDataURL(pdfBlob as Blob);
       });
 
-      emlLines.push('--' + boundary + '--');
+      const excelBlob = await generateSingleCustomerExcelBlob(customerName, netOnlyInvoices, isShort ?? true);
+      const excelBase64 = await new Promise<string>((resolve) => {
+        const excelReader = new FileReader();
+        excelReader.onloadend = () => resolve((excelReader.result as string).split(',')[1]);
+        excelReader.readAsDataURL(excelBlob);
+      });
 
-      const emlContent = emlLines.join('\r\n');
+      const cleanName = customerName.replace(/[^a-zA-Z0-9\u0600-\u06FF \-_]/g, '').trim();
+      const boundary = "----=_NextPart_000_0001_01C2A9A1.12345678";
+      const subject = 'Statement of Account - Al Marai Al Arabia Trading Sole Proprietorship L.L.C';
+      const htmlBody = `
+<div style="font-family: Arial, sans-serif; font-size: 14px; color: #333; line-height: 1.6;">
+  <p>Dear Team,</p>
+  <p>We hope this message finds you well.</p>
+  <p>Please find attached your account statement.</p>
+  <p><strong style="color: #dc2626; font-size: 15px;">Your current balance ${effectiveDate ? 'as of ' + formatDmy(new Date(effectiveDate)) : ''} is: ${netDebt.toLocaleString('en-US')} AED</strong></p>
+  <p>Kindly provide us with your statement of account and any Tax-Rebeat invoices for reconciliation.</p>
+  <p>Best regards,<br><br>Accounts<br>Al Marai Al Arabia Trading Sole Proprietorship L.L.C</p>
+</div>
+      `.trim();
 
-      // Download .eml file
-      const blob = new Blob([emlContent], { type: 'message/rfc822' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `Email_to_${customerName.replace(/\s+/g, '_')}.eml`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+      const targetEmail = customerEmails.join(', ');
+      const emlLines = [
+        `Date: ${new Date().toUTCString()}`,
+        `To: ${targetEmail}`,
+        'From: accounting@marae.ae',
+        'Subject: ' + subject,
+        'MIME-Version: 1.0',
+        'X-Unsent: 1',
+        'Content-Type: multipart/mixed; boundary="' + boundary + '"',
+        '',
+        '--' + boundary,
+        'Content-Type: text/html; charset="UTF-8"',
+        'Content-Transfer-Encoding: 7bit',
+        '',
+        htmlBody,
+        '',
+        '--' + boundary,
+        `Content-Type: application/pdf; name="${cleanName}.pdf"`,
+        'Content-Transfer-Encoding: base64',
+        `Content-Disposition: attachment; filename="${cleanName}.pdf"`,
+        '',
+        pdfBase64,
+        '',
+        '--' + boundary,
+        `Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet; name="${cleanName}.xlsx"`,
+        'Content-Transfer-Encoding: base64',
+        `Content-Disposition: attachment; filename="${cleanName}.xlsx"`,
+        '',
+        excelBase64,
+        '',
+        '--' + boundary + '--',
+      ];
 
+      const JSZip = (await import('jszip')).default;
+      const { saveAs } = await import('file-saver');
+      const zip = new JSZip();
+      zip.file(`${cleanName}.eml`, emlLines.join('\r\n'));
+      const content = await zip.generateAsync({ type: 'blob' });
+      saveAs(content, `Customer_Emails_${new Date().toISOString().split('T')[0]}.zip`);
     } catch (error) {
       console.error('Error in email flow:', error);
-      alert('Error preparing email.');
+      alert('Error generating email.');
+    } finally {
+      setIsProcessingEmail(false);
     }
   };
 
@@ -2191,7 +2179,6 @@ ${debtSectionHtml}
     setEditingNoteContent,
     currentUserName,
     customerEmails,
-    emailCustomers,
     closedCustomers: new Set<string>(),
     selectedInvoice,
     setSelectedInvoice,
@@ -2261,6 +2248,22 @@ ${debtSectionHtml}
           toggleYearSelection={toggleYearSelection}
         />
 
+        <EmailStatementModal
+          isOpen={showEmailModal}
+          onClose={() => setShowEmailModal(false)}
+          emailStatementDate={emailStatementDate}
+          setEmailStatementDate={setEmailStatementDate}
+          onConfirm={handleEmailConfirm}
+          isProcessing={isProcessingEmail}
+        />
+
+        <CustomerEmailsModal
+          isOpen={showCustomerEmailsModal}
+          onClose={() => setShowCustomerEmailsModal(false)}
+          customerName={customerName}
+          emails={customerEmails}
+        />
+
         <div className="mb-6 flex items-center gap-4">
           <div className="flex items-center gap-3">
             <button onClick={onBack} className="p-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center" title="Back to Customers">
@@ -2273,9 +2276,18 @@ ${debtSectionHtml}
               <BarChart3 className="h-5 w-5 transition-transform group-hover:scale-110" />
             </button>
             {customerEmails.length > 0 && (
-              <button onClick={handleEmail} className="h-10 w-10 flex items-center justify-center bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition-all shadow-sm group" title="Email Statement">
-                <Mail className="h-5 w-5 transition-transform group-hover:scale-110" />
-              </button>
+              <>
+                <button onClick={handleEmail} className="h-10 w-10 flex items-center justify-center bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition-all shadow-sm group" title="Email Statement">
+                  <Mail className="h-5 w-5 transition-transform group-hover:scale-110" />
+                </button>
+                <button
+                  onClick={() => setShowCustomerEmailsModal(true)}
+                  className="h-10 w-10 flex items-center justify-center bg-amber-500 text-white rounded-xl hover:bg-amber-600 transition-all shadow-sm group"
+                  title="View customer emails"
+                >
+                  <CircleAlert className="h-5 w-5 transition-transform group-hover:scale-110" />
+                </button>
+              </>
             )}
           </div>
           <div>

@@ -35,6 +35,7 @@ import {
   calculateCustomerMonthlyBreakdown,
   calculateDebtRating,
   buildInvoicesWithNetDebtForExport,
+  toNetOnlyOpenInvoicesForExport,
   exportToExcel,
   exportToPDF,
   parseDate
@@ -207,10 +208,7 @@ export default function CustomersTab({
         const customerInvoices = getCustomerInvoices(customerName);
         if (customerInvoices.length === 0) continue;
 
-        const invoicesWithNetDebt = buildInvoicesWithNetDebtForExport(customerInvoices);
-        let netOnlyInvoices = invoicesWithNetDebt
-          .filter(inv => !inv.matching || (inv.residual !== undefined && Math.abs(inv.residual) > 0.01))
-          .map(inv => inv.matching && inv.residual !== undefined ? { ...inv, credit: inv.debit - inv.residual, netDebt: inv.residual } : inv);
+        let netOnlyInvoices = toNetOnlyOpenInvoicesForExport(buildInvoicesWithNetDebtForExport(customerInvoices));
 
         if (effectiveDate) {
           const limitDate = new Date(effectiveDate);
@@ -271,10 +269,7 @@ export default function CustomersTab({
         const customerInvoices = getCustomerInvoices(customerName);
         if (customerInvoices.length === 0) continue;
 
-        const invoicesWithNetDebt = buildInvoicesWithNetDebtForExport(customerInvoices);
-        let netOnlyInvoices = invoicesWithNetDebt
-          .filter(inv => !inv.matching || (inv.residual !== undefined && Math.abs(inv.residual) > 0.01))
-          .map(inv => inv.matching && inv.residual !== undefined ? { ...inv, credit: inv.debit - inv.residual, netDebt: inv.residual } : inv);
+        let netOnlyInvoices = toNetOnlyOpenInvoicesForExport(buildInvoicesWithNetDebtForExport(customerInvoices));
 
         if (effectiveDate) {
           const limitDate = new Date(effectiveDate);
@@ -415,10 +410,7 @@ export default function CustomersTab({
         const customerInvoices = getCustomerInvoices(customerName);
         if (customerInvoices.length === 0) continue;
 
-        const invoicesWithNetDebt = buildInvoicesWithNetDebtForExport(customerInvoices);
-        let netOnlyInvoices = invoicesWithNetDebt
-          .filter(inv => !inv.matching || (inv.residual !== undefined && Math.abs(inv.residual) > 0.01))
-          .map(inv => inv.matching && inv.residual !== undefined ? { ...inv, credit: inv.debit - inv.residual, netDebt: inv.residual } : inv);
+        let netOnlyInvoices = toNetOnlyOpenInvoicesForExport(buildInvoicesWithNetDebtForExport(customerInvoices));
 
         if (effectiveDate) {
           const limitDate = new Date(effectiveDate);

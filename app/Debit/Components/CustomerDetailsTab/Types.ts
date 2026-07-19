@@ -152,7 +152,6 @@ export interface SharedTabProps {
   currentUserName: string;
   
   customerEmails: string[];
-  emailCustomers: string[];
   closedCustomers: Set<string>;
   
   selectedInvoice: InvoiceWithNetDebt | OverdueInvoice | null;

@@ -7,11 +7,7 @@ import {
 
 // Helper function to copy text to clipboard
 export const copyToClipboard = async (text: string): Promise<boolean> => {
-  try {
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      await navigator.clipboard.writeText(text);
-      return true;
-    }
+  const copyWithTextarea = (): boolean => {
     const textArea = document.createElement('textarea');
     textArea.value = text;
     textArea.style.position = 'fixed';
@@ -24,10 +20,23 @@ export const copyToClipboard = async (text: string): Promise<boolean> => {
       const successful = document.execCommand('copy');
       document.body.removeChild(textArea);
       return successful;
-    } catch (err) {
+    } catch {
       document.body.removeChild(textArea);
       return false;
     }
+  };
+
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch (err) {
+    console.warn('Clipboard API failed, using fallback:', err);
+  }
+
+  try {
+    return copyWithTextarea();
   } catch (err) {
     console.error('Failed to copy:', err);
     return false;
@@ -341,6 +350,27 @@ export const buildInvoicesWithNetDebtForExport = (invList: InvoiceRow[]) => {
     }
     return { ...invoice, netDebt: invoice.debit - invoice.credit, residual };
   });
+};
+
+/** Keep open invoices only; hide rows where net is exactly zero. */
+export const toNetOnlyOpenInvoicesForExport = (
+  invList: ReturnType<typeof buildInvoicesWithNetDebtForExport>,
+) => {
+  return invList
+    .filter((inv) => {
+      if (!inv.matching) return Math.abs(inv.netDebt) > 0.01;
+      return inv.residual !== undefined && Math.abs(inv.residual) > 0.01;
+    })
+    .map((inv) => {
+      if (inv.matching && inv.residual !== undefined) {
+        return {
+          ...inv,
+          credit: inv.debit - inv.residual,
+          netDebt: inv.residual,
+        };
+      }
+      return inv;
+    });
 };
 
 export const exportToPDF = async (data: CustomerAnalysis[], filename: string = 'customers_report') => {
