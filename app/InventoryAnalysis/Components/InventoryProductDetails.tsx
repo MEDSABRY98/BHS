@@ -6,12 +6,12 @@ import {
     ChevronLeft, TrendingDown,
     RefreshCw, Box, ShoppingCart,
     Truck,
-    Calendar, CalendarDays, Filter,
+    CalendarDays,
 } from 'lucide-react';
 import {
     BarChart, Bar, XAxis, YAxis,
     CartesianGrid, Tooltip, ResponsiveContainer,
-    LabelList, Cell
+    Cell
 } from 'recharts';
 
 interface AnalysisData {
@@ -47,8 +47,6 @@ export default function ProductDetails({ productId, productName, barcode, onBack
     const [loading, setLoading] = useState(true);
 
     // Filter States
-    const [year, setYear] = useState('');
-    const [month, setMonth] = useState('');
     const [fromDate, setFromDate] = useState('');
     const [toDate, setToDate] = useState('');
     const [preset, setPreset] = useState('6months');
@@ -59,8 +57,6 @@ export default function ProductDetails({ productId, productName, barcode, onBack
                 setLoading(true);
 
                 const json = await getSingleProductAnalysis(productId, {
-                    year: year || undefined,
-                    month: month || undefined,
                     from: fromDate || undefined,
                     to: toDate || undefined,
                     preset: preset || undefined
@@ -75,13 +71,11 @@ export default function ProductDetails({ productId, productName, barcode, onBack
             }
         };
         fetchData();
-    }, [productId, year, month, fromDate, toDate, preset]);
+    }, [productId, fromDate, toDate, preset]);
 
     const handlePreset = (p: string) => {
         setPreset(p);
         if (p !== 'all') {
-            setYear('');
-            setMonth('');
             setFromDate('');
             setToDate('');
         }
@@ -131,27 +125,6 @@ export default function ProductDetails({ productId, productName, barcode, onBack
         return null;
     };
 
-    const RenderBarLabel = (props: any) => {
-        const { x, y, width, value, fill } = props;
-        if (!value || value === 0) return null;
-        
-        return (
-            <text 
-                x={x + width / 2} 
-                y={y - 18} 
-                fill={fill} 
-                textAnchor="middle" 
-                style={{ 
-                    fontSize: '16px', 
-                    fontWeight: 900,
-                    fontFamily: 'inherit'
-                }}
-            >
-                {value.toLocaleString()}
-            </text>
-        );
-    };
-
     // Charts expect oldest to newest
     const chartData = [...monthlyData].reverse().map(m => ({
         month: m.label,
@@ -159,6 +132,16 @@ export default function ProductDetails({ productId, productName, barcode, onBack
         Returns: m.returns,
         Purchases: m.purchases
     }));
+
+    const breakdownTotals = monthlyData.reduce(
+        (acc, m) => {
+            acc.sales += m.sales;
+            acc.returns += m.returns;
+            acc.purchases += m.purchases;
+            return acc;
+        },
+        { sales: 0, returns: 0, purchases: 0 }
+    );
 
     const StatCard = ({ title, value, color, subValue, isAvg, suffix }: any) => {
         const textColorClass = color.replace('bg-', 'text-');
@@ -230,38 +213,6 @@ export default function ProductDetails({ productId, productName, barcode, onBack
 
                     {/* Manual Filters */}
                     <div className="h-10 w-[1px] bg-slate-200 mx-2" />
-
-                    <div className="flex items-center gap-3 bg-white px-4 py-1.5 rounded-2xl border border-slate-100 shadow-sm">
-                        <Filter className="w-4 h-4 text-slate-300" />
-                        <div className="flex flex-col border-r border-slate-100 pr-3 w-14">
-                            <span className="text-[8px] font-black text-slate-400 uppercase leading-none mb-1 text-center">Year</span>
-                            <input
-                                type="text"
-                                inputMode="numeric"
-                                value={year}
-                                onChange={(e) => { setYear(e.target.value.replace(/[^0-9]/g, '')); setPreset(''); }}
-                                placeholder="YYYY"
-                                className="bg-transparent border-none p-0 focus:ring-0 text-xs font-black text-slate-700 w-full text-center placeholder:text-slate-200"
-                            />
-                        </div>
-                        <div className="flex flex-col w-14 pl-1">
-                            <span className="text-[8px] font-black text-slate-400 uppercase leading-none mb-1 text-center">Mon</span>
-                            <input
-                                type="text"
-                                inputMode="numeric"
-                                value={month}
-                                onChange={(e) => {
-                                    const val = e.target.value.replace(/[^0-9]/g, '');
-                                    if (val === '' || (parseInt(val) >= 1 && parseInt(val) <= 12)) {
-                                        setMonth(val);
-                                        setPreset('');
-                                    }
-                                }}
-                                placeholder="MM"
-                                className="bg-transparent border-none p-0 focus:ring-0 text-xs font-black text-slate-700 w-full text-center placeholder:text-slate-200"
-                            />
-                        </div>
-                    </div>
 
                     <div className="flex items-center gap-3 bg-white px-4 py-1.5 rounded-2xl border border-slate-100 shadow-sm">
                         <CalendarDays className="w-4 h-4 text-slate-300" />
@@ -371,7 +322,7 @@ export default function ProductDetails({ productId, productName, barcode, onBack
                     <ResponsiveContainer width="100%" height="100%">
                         <BarChart
                             data={chartData}
-                            margin={{ top: 40, right: 30, left: 10, bottom: 20 }}
+                            margin={{ top: 24, right: 30, left: 10, bottom: 20 }}
                             barGap={12}
                         >
                             <CartesianGrid strokeDasharray="5 5" vertical={false} stroke="#f1f5f9" />
@@ -391,21 +342,18 @@ export default function ProductDetails({ productId, productName, barcode, onBack
                             <Tooltip content={<CustomTooltip />} cursor={{ fill: '#f8fafc' }} />
 
                             <Bar dataKey="Sales" fill="#10b981" radius={[6, 6, 0, 0]} barSize={28} minPointSize={35}>
-                                <LabelList dataKey="Sales" content={<RenderBarLabel />} />
                                 {chartData.map((entry, index) => (
                                     <Cell key={`sales-${index}`} fill={entry.Sales === 0 ? 'transparent' : '#10b981'} />
                                 ))}
                             </Bar>
                             
                             <Bar dataKey="Purchases" fill="#0ea5e9" radius={[6, 6, 0, 0]} barSize={28} minPointSize={35}>
-                                <LabelList dataKey="Purchases" content={<RenderBarLabel />} />
                                 {chartData.map((entry, index) => (
                                     <Cell key={`purchases-${index}`} fill={entry.Purchases === 0 ? 'transparent' : '#0ea5e9'} />
                                 ))}
                             </Bar>
                             
                             <Bar dataKey="Returns" fill="#ef4444" radius={[6, 6, 0, 0]} barSize={28} minPointSize={35}>
-                                <LabelList dataKey="Returns" content={<RenderBarLabel />} />
                                 {chartData.map((entry, index) => (
                                     <Cell key={`returns-${index}`} fill={entry.Returns === 0 ? 'transparent' : '#ef4444'} />
                                 ))}
@@ -452,6 +400,22 @@ export default function ProductDetails({ productId, productName, barcode, onBack
                                 </tr>
                             ))}
                         </tbody>
+                        {monthlyData.length > 0 && (
+                            <tfoot>
+                                <tr className="bg-slate-50 border-t-2 border-slate-200">
+                                    <td className="px-10 py-6" />
+                                    <td className="px-10 py-6 text-center text-slate-900 font-black text-xl tracking-tighter">
+                                        {breakdownTotals.sales.toLocaleString()}
+                                    </td>
+                                    <td className="px-10 py-6 text-center text-amber-500 font-black text-xl tracking-tighter">
+                                        {breakdownTotals.returns.toLocaleString()}
+                                    </td>
+                                    <td className="px-10 py-6 text-center text-emerald-600 font-black text-xl tracking-tighter">
+                                        {breakdownTotals.purchases.toLocaleString()}
+                                    </td>
+                                </tr>
+                            </tfoot>
+                        )}
                     </table>
                 </div>
             </div>

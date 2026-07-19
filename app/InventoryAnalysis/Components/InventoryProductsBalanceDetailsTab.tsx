@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Box, ArrowLeft, FileSpreadsheet, Search, Filter, ChevronDown, Check, X, RefreshCcw } from 'lucide-react';
+import { Box, ArrowLeft, FileSpreadsheet, Search, Filter, ChevronDown, Check, X, RefreshCcw, ChevronLeft, ChevronRight } from 'lucide-react';
 import { ProductBalanceRow, PeriodMovement, getProductPeriodMovements } from '../Service/inventory_service';
 import NoData from '@/app/Components/NoDataTab';
 import { exportSalesExcelTable } from '@/app/Sales/Utils/ExcelExport';
@@ -28,12 +28,48 @@ const MOVEMENT_TYPES = [
   { value: 'transfer',          label: 'Internal Transfer' },
 ];
 
+function getMovementStockChange(move: PeriodMovement): number {
+  switch (move.type) {
+    case 'vendor_in':
+    case 'customer_return':
+    case 'production_in':
+    case 'subcontracting_in':
+    case 'adjustment_in':
+      return move.qty;
+    case 'customer_sale':
+    case 'vendor_return':
+    case 'production_out':
+    case 'subcontracting_out':
+    case 'adjustment_out':
+      return -move.qty;
+    default:
+      return 0;
+  }
+}
+
+function sortMovementsAsc(movements: PeriodMovement[]) {
+  return [...movements].sort((a, b) => {
+    const timeA = a.date ? new Date(a.date).getTime() : 0;
+    const timeB = b.date ? new Date(b.date).getTime() : 0;
+    if (timeA !== timeB) return timeA - timeB;
+    return (a.moveId || a.reference).localeCompare(b.moveId || b.reference);
+  });
+}
+
+interface LedgerRow {
+  move: PeriodMovement;
+  stockChange: number;
+  runningBalance: number;
+}
+
 export default function InventoryProductsBalanceDetailsTab({ selectedProduct, dateFrom, dateTo, onBack }: Props) {
   const [ledgerSearch, setLedgerSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('All');
   const [periodMovements, setPeriodMovements] = useState<PeriodMovement[]>([]);
   const [movementsLoading, setMovementsLoading] = useState(true);
   const [movementsError, setMovementsError] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 50;
 
   // Custom Dropdown State
   const [isTypeOpen, setIsTypeOpen] = useState(false);
@@ -90,30 +126,61 @@ export default function InventoryProductsBalanceDetailsTab({ selectedProduct, da
     return MOVEMENT_TYPES.find(t => t.value === typeFilter)?.label || 'All Movement Types';
   }, [typeFilter]);
 
-  // Filtered & sorted movements for the selected product (Newest first)
-  const filteredMovements = useMemo(() => {
-    const list = periodMovements.filter(move => {
-      // Type Filter
-      if (typeFilter !== 'All' && move.type !== typeFilter) return false;
+  // Build chronological ledger with running balance attached to each row
+  const ledgerRows = useMemo((): LedgerRow[] => {
+    let balance = selectedProduct.openingStock;
 
-      // Search Filter
-      if (ledgerSearch.trim()) {
-        const q = ledgerSearch.toLowerCase().trim();
-        const matchesRef = move.reference.toLowerCase().includes(q);
-        const matchesFrom = move.locationFrom.toLowerCase().includes(q);
-        const matchesTo = move.locationTo.toLowerCase().includes(q);
-        if (!matchesRef && !matchesFrom && !matchesTo) return false;
-      }
-      return true;
+    return sortMovementsAsc(periodMovements).map(move => {
+      const stockChange = getMovementStockChange(move);
+      balance += stockChange;
+      return { move, stockChange, runningBalance: balance };
     });
+  }, [periodMovements, selectedProduct.openingStock]);
 
-    // Sort descending by Date (Newest first)
-    return list.sort((a, b) => {
-      const timeA = a.date ? new Date(a.date).getTime() : 0;
-      const timeB = b.date ? new Date(b.date).getTime() : 0;
-      return timeB - timeA;
-    });
-  }, [periodMovements, ledgerSearch, typeFilter]);
+  const filteredLedgerRows = useMemo(() => {
+    return ledgerRows
+      .filter(({ move }) => {
+        if (typeFilter !== 'All' && move.type !== typeFilter) return false;
+
+        if (ledgerSearch.trim()) {
+          const q = ledgerSearch.toLowerCase().trim();
+          const matchesRef = move.reference.toLowerCase().includes(q);
+          const matchesFrom = move.locationFrom.toLowerCase().includes(q);
+          const matchesTo = move.locationTo.toLowerCase().includes(q);
+          if (!matchesRef && !matchesFrom && !matchesTo) return false;
+        }
+
+        return true;
+      })
+      .sort((a, b) => {
+        const timeA = a.move.date ? new Date(a.move.date).getTime() : 0;
+        const timeB = b.move.date ? new Date(b.move.date).getTime() : 0;
+        if (timeA !== timeB) return timeB - timeA;
+        return (b.move.moveId || b.move.reference).localeCompare(a.move.moveId || a.move.reference);
+      });
+  }, [ledgerRows, ledgerSearch, typeFilter]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [ledgerSearch, typeFilter, selectedProduct.productId, dateFrom, dateTo]);
+
+  const tableTotals = useMemo(() => {
+    const totalQty = filteredLedgerRows.reduce((sum, row) => sum + row.move.qty, 0);
+    const chronRows = sortMovementsAsc(filteredLedgerRows.map(row => row.move))
+      .map(move => filteredLedgerRows.find(row => row.move === move)!)
+      .filter(Boolean);
+    const endingBalance = chronRows.length > 0
+      ? chronRows[chronRows.length - 1].runningBalance
+      : selectedProduct.openingStock;
+
+    return { totalQty, endingBalance };
+  }, [filteredLedgerRows, selectedProduct.openingStock]);
+
+  const totalPages = Math.ceil(filteredLedgerRows.length / itemsPerPage);
+  const paginatedLedgerRows = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredLedgerRows.slice(start, start + itemsPerPage);
+  }, [filteredLedgerRows, currentPage]);
 
   // Export ledger to Excel
   const handleExportLedgerExcel = async () => {
@@ -125,22 +192,27 @@ export default function InventoryProductsBalanceDetailsTab({ selectedProduct, da
       'Location To',
       'Movement Type',
       'Quantity',
+      'Running Balance',
     ];
 
-    const rows = filteredMovements.map((move, index) => [
+    const filteredSet = new Set(filteredLedgerRows.map(row => row.move));
+    const exportRows = ledgerRows.filter(row => filteredSet.has(row.move));
+
+    const rows = exportRows.map((row, index) => [
       index + 1,
-      move.date ? new Date(move.date).toLocaleDateString('en-US') : '-',
-      move.reference,
-      move.locationFrom,
-      move.locationTo,
-      move.type,
-      move.qty,
+      row.move.date ? new Date(row.move.date).toLocaleDateString('en-US') : '-',
+      row.move.reference,
+      row.move.locationFrom,
+      row.move.locationTo,
+      row.move.type,
+      row.move.qty,
+      row.runningBalance,
     ]);
 
     const filename = `movement_ledger_${selectedProduct.productId}_${new Date().toISOString().split('T')[0]}.xlsx`;
     await exportSalesExcelTable(headers, rows, filename, {
       sheetName: 'Movement Ledger',
-      numericColumns: ['Quantity'],
+      numericColumns: ['Quantity', 'Running Balance'],
     });
   };
 
@@ -267,7 +339,7 @@ export default function InventoryProductsBalanceDetailsTab({ selectedProduct, da
       </div>
 
       {/* KPI Metrics Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
           <p className="text-[10px] font-bold text-slate-400 uppercase">Opening Stock</p>
           <p className="text-lg font-black text-slate-800 mt-1">{selectedProduct.openingStock.toLocaleString('en-US')}</p>
@@ -285,6 +357,20 @@ export default function InventoryProductsBalanceDetailsTab({ selectedProduct, da
         <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
           <p className="text-[10px] font-bold text-slate-400 uppercase">Net Production & Sub.</p>
           <p className="text-lg font-black text-indigo-600 mt-1">{selectedProduct.netProduction.toLocaleString('en-US')}</p>
+        </div>
+        <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs bg-amber-50/20">
+          <p className="text-[10px] font-bold text-amber-600 uppercase">Net Adjustment</p>
+          <p className={`text-lg font-black mt-1 ${
+            selectedProduct.netAdjustment > 0
+              ? 'text-emerald-600'
+              : selectedProduct.netAdjustment < 0
+                ? 'text-rose-600'
+                : 'text-slate-500'
+          }`}>
+            {selectedProduct.netAdjustment >= 0
+              ? `+${selectedProduct.netAdjustment.toLocaleString('en-US')}`
+              : selectedProduct.netAdjustment.toLocaleString('en-US')}
+          </p>
         </div>
         <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs bg-indigo-50/20">
           <p className="text-[10px] font-bold text-indigo-500 uppercase">Ending Stock</p>
@@ -328,6 +414,7 @@ export default function InventoryProductsBalanceDetailsTab({ selectedProduct, da
                   <th className="py-3.5 px-3 text-center w-56">Location To</th>
                   <th className="py-3.5 px-3 text-center w-44">Movement Type</th>
                   <th className="py-3.5 px-3 text-center w-32">Quantity</th>
+                  <th className="py-3.5 px-3 text-center w-32 bg-indigo-50/50 text-indigo-900">Running Balance</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-700">
@@ -341,16 +428,19 @@ export default function InventoryProductsBalanceDetailsTab({ selectedProduct, da
                       <td className="py-3.5 px-3"><div className="h-3 w-32 bg-slate-100 rounded mx-auto" /></td>
                       <td className="py-3.5 px-3"><div className="h-6 w-24 bg-slate-100 rounded-lg mx-auto" /></td>
                       <td className="py-3.5 px-3"><div className="h-3 w-12 bg-slate-100 rounded mx-auto" /></td>
+                      <td className="py-3.5 px-3"><div className="h-3 w-12 bg-slate-100 rounded mx-auto" /></td>
                     </tr>
                   ))
-                ) : filteredMovements.length === 0 ? (
+                ) : filteredLedgerRows.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="py-12">
+                    <td colSpan={8} className="py-12">
                       <NoData />
                     </td>
                   </tr>
                 ) : (
-                  filteredMovements.map((move, idx) => {
+                  paginatedLedgerRows.map((row, idx) => {
+                  const move = row.move;
+                  const globalIdx = (currentPage - 1) * itemsPerPage + idx + 1;
                   const dateStr = move.date ? new Date(move.date).toLocaleDateString('en-US', {
                     year: 'numeric',
                     month: 'short',
@@ -370,21 +460,74 @@ export default function InventoryProductsBalanceDetailsTab({ selectedProduct, da
                   else if (move.type === 'adjustment_out')     typeBadge = <span className="px-2.5 py-1 bg-yellow-100 text-yellow-800 rounded-lg font-bold">Adjustment (−)</span>;
                   else if (move.type === 'transfer')           typeBadge = <span className="px-2.5 py-1 bg-slate-200 text-slate-700 rounded-lg font-bold">Internal Transfer</span>;
 
+                  const { runningBalance } = row;
+
                   return (
-                    <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
-                      <td className="py-3.5 px-3 text-center text-slate-400 font-bold">{idx + 1}</td>
+                    <tr key={`${move.moveId || move.reference}-${globalIdx}`} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="py-3.5 px-3 text-center text-slate-400 font-bold">{globalIdx}</td>
                       <td className="py-3.5 px-3 text-center font-medium text-slate-500">{dateStr}</td>
                       <td className="py-3.5 px-3 text-center font-mono text-slate-600 text-[11px]">{move.reference}</td>
                       <td className="py-3.5 px-3 text-center truncate max-w-[220px]" title={move.locationFrom}>{move.locationFrom}</td>
                       <td className="py-3.5 px-3 text-center truncate max-w-[220px]" title={move.locationTo}>{move.locationTo}</td>
                       <td className="py-3.5 px-3 text-center">{typeBadge}</td>
                       <td className="py-3.5 px-3 text-center font-bold text-slate-800 text-sm">{move.qty.toLocaleString('en-US')}</td>
+                      <td className="py-3.5 px-3 text-center bg-indigo-50/20">
+                        <span className={`font-black text-sm ${
+                          runningBalance < 0 ? 'text-rose-700' : runningBalance > 0 ? 'text-indigo-900' : 'text-slate-500'
+                        }`}>
+                          {runningBalance.toLocaleString('en-US')}
+                        </span>
+                      </td>
                     </tr>
                   );
                   })
                 )}
               </tbody>
+              {!movementsLoading && filteredLedgerRows.length > 0 && (
+                <tfoot>
+                  <tr className="bg-slate-50 border-t-2 border-slate-200 text-xs font-black uppercase">
+                    <td colSpan={6} className="py-3.5 px-3" />
+                    <td className="py-3.5 px-3 text-center text-slate-800 text-sm">
+                      {tableTotals.totalQty.toLocaleString('en-US')}
+                    </td>
+                    <td className="py-3.5 px-3 text-center bg-indigo-50/40">
+                      <span className={`text-sm ${
+                        tableTotals.endingBalance < 0 ? 'text-rose-700' : tableTotals.endingBalance > 0 ? 'text-indigo-900' : 'text-slate-500'
+                      }`}>
+                        {tableTotals.endingBalance.toLocaleString('en-US')}
+                      </span>
+                    </td>
+                  </tr>
+                </tfoot>
+              )}
             </table>
+          </div>
+        )}
+
+        {!movementsError && !movementsLoading && totalPages > 1 && (
+          <div className="p-4 border-t border-slate-200 flex items-center justify-between text-xs font-semibold text-slate-600">
+            <div>
+              Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, filteredLedgerRows.length)} of {filteredLedgerRows.length} movements
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
+                disabled={currentPage === 1}
+                className="p-2 border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <span>Page {currentPage} of {totalPages}</span>
+              <button
+                type="button"
+                onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))}
+                disabled={currentPage === totalPages}
+                className="p-2 border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         )}
       </div>

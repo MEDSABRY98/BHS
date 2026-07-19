@@ -809,6 +809,7 @@ export async function deleteAllInventoryMovesDb(): Promise<{ success: boolean; e
 // ----------------------------------------------------------------------
 
 export interface PeriodMovement {
+  moveId?: string;
   date: string;
   reference: string;
   locationFrom: string;
@@ -1078,6 +1079,7 @@ export async function getProductPeriodMovements(
       if (!classified) return;
 
       movements.push({
+        moveId: String(row.ID ?? ''),
         date: dateStr,
         reference: ref,
         locationFrom: locFrom,
@@ -1090,7 +1092,8 @@ export async function getProductPeriodMovements(
     movements.sort((a, b) => {
       const timeA = a.date ? new Date(a.date).getTime() : 0;
       const timeB = b.date ? new Date(b.date).getTime() : 0;
-      return timeB - timeA;
+      if (timeA !== timeB) return timeA - timeB;
+      return (a.moveId || '').localeCompare(b.moveId || '');
     });
 
     return { success: true, data: movements };

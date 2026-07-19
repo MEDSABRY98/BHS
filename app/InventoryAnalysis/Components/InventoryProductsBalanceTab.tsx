@@ -4,13 +4,22 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Search, Package, TrendingUp, TrendingDown, RefreshCcw,
   FileSpreadsheet, Calendar, Eye, X, ArrowUpRight, ArrowDownLeft,
-  Layers, Filter, Box, ChevronLeft, ChevronRight, ChevronDown, Check
+  Layers, Filter, Box, ChevronLeft, ChevronRight, ChevronDown, Check, CalendarCheck
 } from 'lucide-react';
 import TabLoader from '@/app/Components/TabLoader';
 import NoData from '@/app/Components/NoDataTab';
 import { getProductsBalanceReportData, ProductBalanceRow } from '../Service/inventory_service';
 import { exportSalesExcelTable } from '@/app/Sales/Utils/ExcelExport';
 import InventoryProductsBalanceDetailsTab from './InventoryProductsBalanceDetailsTab';
+
+type BalanceFilter = 'All' | 'Positive' | 'Negative' | 'Zero';
+
+const BALANCE_FILTER_OPTIONS: { value: BalanceFilter; label: string }[] = [
+  { value: 'All', label: 'All Balances' },
+  { value: 'Positive', label: 'Positive (> 0)' },
+  { value: 'Negative', label: 'Negative (< 0)' },
+  { value: 'Zero', label: 'Zero (= 0)' },
+];
 
 export default function InventoryProductsBalanceTab() {
   const [data, setData] = useState<ProductBalanceRow[]>([]);
@@ -20,6 +29,7 @@ export default function InventoryProductsBalanceTab() {
   // Filters State
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
+  const [selectedBalanceFilter, setSelectedBalanceFilter] = useState<BalanceFilter>('All');
   const [dateFrom, setDateFrom] = useState<string>('');
   const [dateTo, setDateTo] = useState<string>('');
   const [appliedDateFrom, setAppliedDateFrom] = useState<string>('');
@@ -72,10 +82,16 @@ export default function InventoryProductsBalanceTab() {
   const [categorySearch, setCategorySearch] = useState('');
   const categoryRef = useRef<HTMLDivElement>(null);
 
+  const [isBalanceFilterOpen, setIsBalanceFilterOpen] = useState(false);
+  const balanceFilterRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (categoryRef.current && !categoryRef.current.contains(event.target as Node)) {
         setIsCategoryOpen(false);
+      }
+      if (balanceFilterRef.current && !balanceFilterRef.current.contains(event.target as Node)) {
+        setIsBalanceFilterOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -103,6 +119,16 @@ export default function InventoryProductsBalanceTab() {
       if (selectedCategory !== 'All' && item.category !== selectedCategory) {
         return false;
       }
+      // Ending balance filter
+      if (selectedBalanceFilter === 'Positive' && item.endingStock <= 0) {
+        return false;
+      }
+      if (selectedBalanceFilter === 'Negative' && item.endingStock >= 0) {
+        return false;
+      }
+      if (selectedBalanceFilter === 'Zero' && item.endingStock !== 0) {
+        return false;
+      }
       // Search filter
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
@@ -116,7 +142,7 @@ export default function InventoryProductsBalanceTab() {
       }
       return true;
     });
-  }, [data, selectedCategory, searchQuery]);
+  }, [data, selectedCategory, selectedBalanceFilter, searchQuery]);
 
   // KPI Metrics Calculation
   const metrics = useMemo(() => {
@@ -242,37 +268,17 @@ export default function InventoryProductsBalanceTab() {
     <div className="space-y-6">
       {/* Top Controls & Filters */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-6 space-y-4">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <div>
-            <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-              <Box className="w-5 h-5 text-indigo-600" />
-              Products Inventory Balance & Period Movement
-            </h2>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => fetchReport()}
-              disabled={loading}
-              className="p-2.5 rounded-xl border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all shadow-sm disabled:opacity-50"
-              title="Refresh Data"
-            >
-              <RefreshCcw className={`w-4 h-4 ${loading ? 'animate-spin text-indigo-600' : ''}`} />
-            </button>
-            <button
-              onClick={handleExportExcel}
-              className="h-10 w-10 flex items-center justify-center bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition-all shadow-sm group shrink-0"
-              title="Export to Excel"
-            >
-              <FileSpreadsheet className="w-5 h-5 transition-transform group-hover:scale-110" />
-            </button>
-          </div>
+        <div className="text-center">
+          <h2 className="text-xl font-bold text-slate-800 flex items-center justify-center gap-2">
+            <Box className="w-5 h-5 text-indigo-600" />
+            Products Inventory Balance & Period Movement
+          </h2>
         </div>
 
         {/* Filter Toolbar */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 pt-2">
+        <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
           {/* Search Bar */}
-          <div className="relative flex items-center h-11 bg-slate-50/80 hover:bg-slate-100/60 focus-within:bg-white border border-slate-200/90 rounded-xl px-3.5 transition-all shadow-xs focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-500">
+          <div className="relative flex items-center h-11 w-full sm:w-64 bg-slate-50/80 hover:bg-slate-100/60 focus-within:bg-white border border-slate-200/90 rounded-xl px-3.5 transition-all shadow-xs focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-500">
             <Search className="w-4 h-4 text-slate-400 shrink-0 mr-2.5" />
             <input
               type="text"
@@ -296,7 +302,7 @@ export default function InventoryProductsBalanceTab() {
           </div>
 
           {/* Custom Searchable Category Dropdown */}
-          <div className="relative" ref={categoryRef}>
+          <div className="relative w-full sm:w-56" ref={categoryRef}>
             <button
               type="button"
               onClick={() => setIsCategoryOpen(!isCategoryOpen)}
@@ -372,8 +378,56 @@ export default function InventoryProductsBalanceTab() {
             )}
           </div>
 
+          {/* Ending Balance Filter */}
+          <div className="relative w-full sm:w-52" ref={balanceFilterRef}>
+            <button
+              type="button"
+              onClick={() => setIsBalanceFilterOpen(!isBalanceFilterOpen)}
+              className={`w-full flex items-center justify-between h-11 bg-slate-50/80 hover:bg-slate-100/60 border border-slate-200/90 rounded-xl px-3.5 transition-all shadow-xs cursor-pointer ${
+                isBalanceFilterOpen ? 'bg-white border-indigo-500 ring-2 ring-indigo-500/20' : ''
+              }`}
+            >
+              <div className="flex items-center gap-2.5 truncate">
+                <Layers className="w-4 h-4 text-slate-400 shrink-0" />
+                <span className="text-xs font-semibold text-slate-700 truncate">
+                  Balance: <strong className="text-indigo-900 font-bold">{selectedBalanceFilter}</strong>
+                </span>
+              </div>
+              <ChevronDown className={`w-4 h-4 text-slate-400 shrink-0 transition-transform duration-200 ${isBalanceFilterOpen ? 'rotate-180 text-indigo-600' : ''}`} />
+            </button>
+
+            {isBalanceFilterOpen && (
+              <div className="absolute left-0 right-0 top-12 z-50 bg-white border border-slate-200 shadow-2xl rounded-2xl p-2 animate-in fade-in slide-in-from-top-2 duration-150">
+                <div className="space-y-0.5 text-xs">
+                  {BALANCE_FILTER_OPTIONS.map(option => {
+                    const isSelected = selectedBalanceFilter === option.value;
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => {
+                          setSelectedBalanceFilter(option.value);
+                          setCurrentPage(1);
+                          setIsBalanceFilterOpen(false);
+                        }}
+                        className={`w-full text-left px-3 py-2 rounded-xl text-xs font-bold flex items-center justify-between transition-colors ${
+                          isSelected
+                            ? 'bg-indigo-50 text-indigo-700'
+                            : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                        }`}
+                      >
+                        <span className="truncate">{option.label}</span>
+                        {isSelected && <Check className="w-4 h-4 text-indigo-600 shrink-0 ml-2" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Date From */}
-          <div className="relative flex items-center h-11 bg-slate-50/80 hover:bg-slate-100/60 focus-within:bg-white border border-slate-200/90 rounded-xl px-3.5 transition-all shadow-xs focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-500">
+          <div className="relative flex items-center h-11 w-full sm:w-56 bg-slate-50/80 hover:bg-slate-100/60 focus-within:bg-white border border-slate-200/90 rounded-xl px-3.5 transition-all shadow-xs focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-500">
             <Calendar className="w-4 h-4 text-slate-400 shrink-0 mr-2" />
             <span className="text-[11px] font-bold text-slate-400 shrink-0 mr-1.5 uppercase">From:</span>
             <input
@@ -385,7 +439,7 @@ export default function InventoryProductsBalanceTab() {
           </div>
 
           {/* Date To */}
-          <div className="relative flex items-center h-11 bg-slate-50/80 hover:bg-slate-100/60 focus-within:bg-white border border-slate-200/90 rounded-xl px-3.5 transition-all shadow-xs focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-500">
+          <div className="relative flex items-center h-11 w-full sm:w-56 bg-slate-50/80 hover:bg-slate-100/60 focus-within:bg-white border border-slate-200/90 rounded-xl px-3.5 transition-all shadow-xs focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-500">
             <Calendar className="w-4 h-4 text-slate-400 shrink-0 mr-2" />
             <span className="text-[11px] font-bold text-slate-400 shrink-0 mr-1.5 uppercase">To:</span>
             <input
@@ -396,15 +450,35 @@ export default function InventoryProductsBalanceTab() {
             />
           </div>
 
-          {/* Apply Date Filter */}
-          <button
-            type="button"
-            onClick={handleApplyDateFilter}
-            disabled={loading || !hasPendingDateChanges}
-            className="h-11 px-4 rounded-xl text-xs font-bold transition-all shadow-sm border disabled:opacity-50 disabled:cursor-not-allowed bg-indigo-600 hover:bg-indigo-700 text-white border-indigo-600"
-          >
-            Apply Dates
-          </button>
+          {/* Action Buttons */}
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={handleApplyDateFilter}
+              disabled={loading || !hasPendingDateChanges}
+              className="h-11 w-11 flex items-center justify-center rounded-xl transition-all shadow-sm border disabled:opacity-50 disabled:cursor-not-allowed bg-indigo-600 hover:bg-indigo-700 text-white border-indigo-600"
+              title="Apply Dates"
+            >
+              <CalendarCheck className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={handleExportExcel}
+              className="h-11 w-11 flex items-center justify-center bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition-all shadow-sm group shrink-0"
+              title="Export to Excel"
+            >
+              <FileSpreadsheet className="w-4 h-4 transition-transform group-hover:scale-110" />
+            </button>
+            <button
+              type="button"
+              onClick={() => fetchReport()}
+              disabled={loading}
+              className="h-11 w-11 flex items-center justify-center rounded-xl border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all shadow-sm disabled:opacity-50"
+              title="Refresh Data"
+            >
+              <RefreshCcw className={`w-4 h-4 ${loading ? 'animate-spin text-indigo-600' : ''}`} />
+            </button>
+          </div>
         </div>
 
         {loading && data.length > 0 && (
