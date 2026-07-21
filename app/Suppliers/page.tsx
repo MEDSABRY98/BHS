@@ -139,35 +139,17 @@ export default function SuppliersPage() {
 
             {/* Main Content Area */}
             <div className={`flex-1 flex flex-col min-w-0 ${isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-72'} transition-all duration-300`}>
-                {/* Header */}
-                <header className="sticky top-0 z-30 bg-white/85 backdrop-blur-md border-b border-slate-200 shadow-sm transition-all duration-300">
-                    <div className="max-w-[98%] mx-auto px-4 py-3 flex items-center justify-between gap-4 min-h-[5rem]">
-                        {/* Left section: Hamburger for Mobile */}
-                        <div className="flex items-center gap-4">
-                            <button
-                                onClick={() => setIsMobileSidebarOpen(true)}
-                                className="p-2.5 text-slate-600 hover:text-slate-900 lg:hidden rounded-xl hover:bg-slate-100 transition-all"
-                                title="Open Navigation Menu"
-                            >
-                                <Menu className="w-6 h-6" />
-                            </button>
-                        </div>
-
-                        {/* Middle Section: Display Active Tab Label */}
-                        <div className="hidden md:flex items-center gap-2">
-                            <span className="text-lg font-extrabold text-slate-800 tracking-tight">
-                                {activeTab === 'statements' ? 'Statements' : 'Matching'}
-                            </span>
-                        </div>
-
-                        {/* Right Section: Spacer */}
-                        <div className="w-10 h-10" />
-                    </div>
-                </header>
+                <button
+                    onClick={() => setIsMobileSidebarOpen(true)}
+                    className="fixed top-4 left-4 z-40 p-2.5 bg-white text-slate-600 hover:text-slate-900 lg:hidden rounded-xl border border-slate-200 shadow-sm hover:bg-slate-50 transition-all"
+                    title="Open Navigation Menu"
+                >
+                    <Menu className="w-6 h-6" />
+                </button>
 
                 {/* Main Content */}
                 <div className="max-w-[98%] mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-12 flex-1 w-full">
-                    <main className="bg-white rounded-2xl shadow-sm border border-slate-200 min-h-[calc(100vh-8rem)]">
+                    <main className="bg-white rounded-2xl shadow-sm border border-slate-200 min-h-[calc(100vh-3rem)]">
                         <SuppliersTab data={transactions} activeTab={activeTab} />
                     </main>
                 </div>
