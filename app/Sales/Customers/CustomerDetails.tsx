@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { SalesInvoice } from '@/lib/supabase';;
 import { ArrowLeft, DollarSign, Package, TrendingUp, BarChart3, Search, Calendar, Download, Percent, X, ShoppingBag, FileSpreadsheet } from 'lucide-react';
 import NoData from '@/app/Components/NoDataTab';
@@ -56,6 +56,8 @@ export default function SalesCustomerDetails({
   const [invoicesPage, setInvoicesPage] = useState(1);
   const invoicesPerPage = 50;
   const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
+  const fetchRequestId = useRef(0);
+  const debitLoadedRef = useRef(false);
 
   // Debounce search query
   useEffect(() => {
@@ -65,8 +67,10 @@ export default function SalesCustomerDetails({
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Fetch customer details from API
+  // Fetch customer details when panel opens
   useEffect(() => {
+    const requestId = ++fetchRequestId.current;
+
     const fetchCustomerDetails = async () => {
       if (!userId) {
         setLoading(false);
@@ -75,36 +79,56 @@ export default function SalesCustomerDetails({
       setLoading(true);
       try {
         const result = await getCustomerDetailsData(userId, filters, customerName, customerId || '', customerType);
+        if (requestId !== fetchRequestId.current) return;
         setData(result.data || []);
         setAllData(result.allData || []);
       } catch (err) {
+        if (requestId !== fetchRequestId.current) return;
         console.error('Error fetching Customer Details:', err);
       } finally {
-        setLoading(false);
+        if (requestId === fetchRequestId.current) {
+          setLoading(false);
+        }
       }
     };
 
     fetchCustomerDetails();
+    return () => {
+      fetchRequestId.current += 1;
+    };
   }, [userId, filters, customerName, customerId, customerType]);
 
-  // Fetch invoices data for discounts calculation
+  // Lazy-load debit invoices only when dashboard/discounts need them
   useEffect(() => {
+    const needsDebitData = activeTab === 'dashboard' || showDiscountsModal;
+    if (!needsDebitData || debitLoadedRef.current) return;
+
+    let cancelled = false;
     const fetchInvoices = async () => {
       setLoadingInvoices(true);
       try {
         const response = await fetch('/api/Debit');
-        if (response.ok) {
-          const result = await response.json();
-          setInvoicesData(result.data || []);
-        }
+        if (!response.ok || cancelled) return;
+        const result = await response.json();
+        if (cancelled) return;
+        setInvoicesData(result.data || []);
+        debitLoadedRef.current = true;
       } catch (error) {
-        console.error('Error fetching invoices:', error);
+        if (!cancelled) {
+          console.error('Error fetching invoices:', error);
+        }
       } finally {
-        setLoadingInvoices(false);
+        if (!cancelled) {
+          setLoadingInvoices(false);
+        }
       }
     };
     fetchInvoices();
-  }, []);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, showDiscountsModal]);
 
   // Get unfiltered customer data (for lastInvoiceDate calculation)
   const unfilteredCustomerData = useMemo(() => {

@@ -3,51 +3,32 @@
 import { useState, useEffect } from 'react';
 import { SalesInvoice } from '@/lib/supabase';;
 import { Users, Tag, Percent } from 'lucide-react';
-import { useSalesModuleFilters } from '@/app/Sales/Model/SalesFilters';
+import { useSalesRawData } from '@/app/Sales/Context/SalesRawDataContext';
 import SalesST_ByCustomers from './ST_ByCustomersTab';
 import SalesST_ByProduct from './ST_ByProductTab';
 import SalesST_CustomerMarginTab from './ST_CustomerMarginTab';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
-import { getStockReportData } from '../Service/sales_reports_service';
 
 interface SalesStockReportTabProps {
-  refreshTrigger?: number;
   userId: string;
   showCosts?: boolean;
 }
 
 type TabMode = 'customers' | 'products' | 'margin';
 
-export default function SalesStockReportTab({ userId, refreshTrigger, showCosts = true }: SalesStockReportTabProps) {
-  const { commonFilters: filters } = useSalesModuleFilters();
+export default function SalesStockReportTab({ userId, showCosts = true }: SalesStockReportTabProps) {
+  const { stockReport, loading, ensureRawData } = useSalesRawData();
   const [activeTab, setActiveTab] = useState<TabMode>('customers');
-  const [loading, setLoading] = useState(true);
-  const [customersData, setCustomersData] = useState<any[]>([]);
-  const [subCustomersData, setSubCustomersData] = useState<any[]>([]);
-  const [productList, setProductList] = useState<any[]>([]);
 
   useEffect(() => {
-    const fetchStockData = async () => {
-      if (!userId) {
-        setLoading(false);
-        return;
-      }
-      setLoading(true);
-      try {
-        const result = await getStockReportData(userId, filters);
-        setCustomersData(result.customersData || []);
-        setSubCustomersData(result.subCustomersData || []);
-        setProductList(result.productList || []);
-      } catch (error) {
-        console.error('Error fetching stock report data:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchStockData();
-  }, [filters, userId, refreshTrigger]);
+    void ensureRawData();
+  }, [ensureRawData]);
 
-  if (loading) {
+  const customersData = stockReport?.customersData ?? [];
+  const subCustomersData = stockReport?.subCustomersData ?? [];
+  const productList = stockReport?.productList ?? [];
+
+  if (loading && !stockReport) {
     return <SalesTabLoader />;
   }
 

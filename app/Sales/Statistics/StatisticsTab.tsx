@@ -4,71 +4,50 @@ import { useState, useMemo, useEffect } from 'react';
 import { SalesInvoice } from '@/lib/supabase';;
 import { MapPin, ShoppingBag, UserCircle, DollarSign, Package, Store } from 'lucide-react';
 import { useSalesModuleFilters } from '@/app/Sales/Model/SalesFilters';
-import { getStatisticsData } from '@/app/Sales/Service/sales_core_service';
+import { useSalesRawData } from '@/app/Sales/Context/SalesRawDataContext';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
 
 interface SalesStatisticsTabProps {
-  refreshTrigger?: number;
   userId: string;
   showCosts?: boolean;
 }
 
-export default function SalesStatisticsTab({ userId, refreshTrigger, showCosts = true }: SalesStatisticsTabProps) {
-  const { commonFilters: filters } = useSalesModuleFilters();
-  const [loading, setLoading] = useState(true);
+const convertMonthlyDataToMap = (monthlyDataObj: any) => {
+  if (!monthlyDataObj) return new Map();
+  const map = new Map();
+  for (const [dim, monthsMapObj] of Object.entries(monthlyDataObj)) {
+    map.set(dim, new Map(Object.entries(monthsMapObj as object)));
+  }
+  return map;
+};
+
+export default function SalesStatisticsTab({ userId, showCosts = true }: SalesStatisticsTabProps) {
+  const { ensureRawData, statistics, loading } = useSalesRawData();
   const [activeSubTab, setActiveSubTab] = useState<'area' | 'market' | 'merchandiser' | 'salesrep'>('area');
 
-  const [areaStats, setAreaStats] = useState<{ stats: any[], monthlyData: any }>({ stats: [], monthlyData: {} });
-  const [marketStats, setMarketStats] = useState<{ stats: any[], monthlyData: any }>({ stats: [], monthlyData: {} });
-  const [merchandiserStats, setMerchandiserStats] = useState<{ stats: any[], monthlyData: any }>({ stats: [], monthlyData: {} });
-  const [salesRepStats, setSalesRepStats] = useState<{ stats: any[], monthlyData: any }>({ stats: [], monthlyData: {} });
-
-  // Fetch data
   useEffect(() => {
-    const fetchStatistics = async () => {
-      if (!userId) {
-        setLoading(false);
-        return;
-      }
-      setLoading(true);
-      try {
-        const result = await getStatisticsData(userId, filters);
+    void ensureRawData();
+  }, [ensureRawData]);
 
-        // Helper to convert plain object back to Map for monthlyData
-        const convertMonthlyDataToMap = (monthlyDataObj: any) => {
-          if (!monthlyDataObj) return new Map();
-          const map = new Map();
-          for (const [dim, monthsMapObj] of Object.entries(monthlyDataObj)) {
-            map.set(dim, new Map(Object.entries(monthsMapObj as object)));
-          }
-          return map;
-        };
+  const areaStats = useMemo(() => ({
+    stats: statistics?.areaStats?.stats || [],
+    monthlyData: convertMonthlyDataToMap(statistics?.areaStats?.monthlyData),
+  }), [statistics]);
 
-        setAreaStats({
-          stats: result.areaStats?.stats || [],
-          monthlyData: convertMonthlyDataToMap(result.areaStats?.monthlyData)
-        });
-        setMarketStats({
-          stats: result.marketStats?.stats || [],
-          monthlyData: convertMonthlyDataToMap(result.marketStats?.monthlyData)
-        });
-        setMerchandiserStats({
-          stats: result.merchandiserStats?.stats || [],
-          monthlyData: convertMonthlyDataToMap(result.merchandiserStats?.monthlyData)
-        });
-        setSalesRepStats({
-          stats: result.salesRepStats?.stats || [],
-          monthlyData: convertMonthlyDataToMap(result.salesRepStats?.monthlyData)
-        });
+  const marketStats = useMemo(() => ({
+    stats: statistics?.marketStats?.stats || [],
+    monthlyData: convertMonthlyDataToMap(statistics?.marketStats?.monthlyData),
+  }), [statistics]);
 
-      } catch (err) {
-        console.error('Error fetching Statistics Data:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchStatistics();
-  }, [filters, userId, refreshTrigger]);
+  const merchandiserStats = useMemo(() => ({
+    stats: statistics?.merchandiserStats?.stats || [],
+    monthlyData: convertMonthlyDataToMap(statistics?.merchandiserStats?.monthlyData),
+  }), [statistics]);
+
+  const salesRepStats = useMemo(() => ({
+    stats: statistics?.salesRepStats?.stats || [],
+    monthlyData: convertMonthlyDataToMap(statistics?.salesRepStats?.monthlyData),
+  }), [statistics]);
 
   const getCurrentStats = () => {
     switch (activeSubTab) {
@@ -137,7 +116,7 @@ export default function SalesStatisticsTab({ userId, refreshTrigger, showCosts =
     );
   };
 
-  if (loading) {
+  if (loading && !statistics) {
     return <SalesTabLoader />;
   }
 

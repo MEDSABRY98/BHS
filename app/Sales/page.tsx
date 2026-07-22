@@ -20,6 +20,9 @@ import SalesTargetsTab from './Targets/TargetsTab';
 import { fetchUsersList } from '@/app/DataBase/Service/database_service';
 import SalesNewListingsTab from './NewListings/NewListingsTab';
 import { SalesFiltersProvider, SalesFilterButton } from './Model/SalesFilters';
+import { SalesDataProvider } from '@/app/Sales/Context/SalesDataContext';
+import { SalesRawDataBridge } from '@/app/Sales/Context/SalesRawDataBridge';
+import { SalesRefreshBridge } from '@/app/Sales/Context/SalesRefreshBridge';
 
 import Login from '@/app/Components/Login';
 import Loading from '@/app/Components/Loading';
@@ -422,51 +425,50 @@ export default function SalesPage() {
     return (
       <div className="relative w-full">
         <SalesTabPanel tabId="sales-overview" activeTab={activeTab} isVisited={visitedTabs.has('sales-overview')}>
-          <SalesOverviewTab userId={salesUserId} refreshTrigger={refreshTrigger} showCosts={showCosts} />
+          <SalesOverviewTab userId={salesUserId} showCosts={showCosts} />
         </SalesTabPanel>
         <SalesTabPanel tabId="sales-top10" activeTab={activeTab} isVisited={visitedTabs.has('sales-top10')}>
-          <SalesTop10Tab userId={salesUserId} refreshTrigger={refreshTrigger} />
+          <SalesTop10Tab userId={salesUserId} />
         </SalesTabPanel>
         <SalesTabPanel tabId="sales-customers" activeTab={activeTab} isVisited={visitedTabs.has('sales-customers')}>
-          <SalesCustomersTab userId={salesUserId} onUploadMapping={handleUploadMapping} showCosts={showCosts} refreshTrigger={refreshTrigger} />
+          <SalesCustomersTab userId={salesUserId} onUploadMapping={handleUploadMapping} showCosts={showCosts} />
         </SalesTabPanel>
         <SalesTabPanel tabId="sales-customers-comparison" activeTab={activeTab} isVisited={visitedTabs.has('sales-customers-comparison')}>
-          <SalesCustomersComparisonTab userId={salesUserId} refreshTrigger={refreshTrigger} />
+          <SalesCustomersComparisonTab userId={salesUserId} />
         </SalesTabPanel>
         <SalesTabPanel tabId="sales-inactive-customers" activeTab={activeTab} isVisited={visitedTabs.has('sales-inactive-customers')}>
-          <SalesInactiveCustomersTab userId={salesUserId} refreshTrigger={refreshTrigger} />
+          <SalesInactiveCustomersTab userId={salesUserId} />
         </SalesTabPanel>
         <SalesTabPanel tabId="sales-statistics" activeTab={activeTab} isVisited={visitedTabs.has('sales-statistics')}>
-          <SalesStatisticsTab userId={salesUserId} refreshTrigger={refreshTrigger} showCosts={showCosts} />
+          <SalesStatisticsTab userId={salesUserId} showCosts={showCosts} />
         </SalesTabPanel>
         <SalesTabPanel tabId="sales-reports" activeTab={activeTab} isVisited={visitedTabs.has('sales-reports')}>
           <SalesReportsTab
             userId={salesUserId}
-            refreshTrigger={refreshTrigger}
             allowedReportTableTabIds={allowedReportTableTabIds}
             showCosts={showCosts}
           />
         </SalesTabPanel>
         <SalesTabPanel tabId="sales-targets" activeTab={activeTab} isVisited={visitedTabs.has('sales-targets')}>
-          <SalesTargetsTab userId={salesUserId} refreshTrigger={refreshTrigger} />
+          <SalesTargetsTab userId={salesUserId} />
         </SalesTabPanel>
         <SalesTabPanel tabId="sales-daily-sales" activeTab={activeTab} isVisited={visitedTabs.has('sales-daily-sales')}>
-          <SalesDailySalesTab userId={salesUserId} showCosts={showCosts} refreshTrigger={refreshTrigger} />
+          <SalesDailySalesTab userId={salesUserId} showCosts={showCosts} />
         </SalesTabPanel>
         <SalesTabPanel tabId="sales-products" activeTab={activeTab} isVisited={visitedTabs.has('sales-products')}>
-          <SalesProductsTab userId={salesUserId} refreshTrigger={refreshTrigger} showCosts={showCosts} />
+          <SalesProductsTab userId={salesUserId} showCosts={showCosts} />
         </SalesTabPanel>
         <SalesTabPanel tabId="sales-new-listings" activeTab={activeTab} isVisited={visitedTabs.has('sales-new-listings')}>
-          <SalesNewListingsTab userId={salesUserId} refreshTrigger={refreshTrigger} />
+          <SalesNewListingsTab userId={salesUserId} />
         </SalesTabPanel>
         <SalesTabPanel tabId="sales-categories" activeTab={activeTab} isVisited={visitedTabs.has('sales-categories')}>
-          <SalesCategoriesTab userId={salesUserId} refreshTrigger={refreshTrigger} />
+          <SalesCategoriesTab userId={salesUserId} />
         </SalesTabPanel>
         <SalesTabPanel tabId="sales-download-form" activeTab={activeTab} isVisited={visitedTabs.has('sales-download-form')}>
-          <SalesStockReportTab userId={salesUserId} refreshTrigger={refreshTrigger} showCosts={showCosts} />
+          <SalesStockReportTab userId={salesUserId} showCosts={showCosts} />
         </SalesTabPanel>
         <SalesTabPanel tabId="sales-my-customers" activeTab={activeTab} isVisited={visitedTabs.has('sales-my-customers')}>
-          <SalesSetCustomersTab userId={salesUserId} refreshTrigger={refreshTrigger} />
+          <SalesSetCustomersTab userId={salesUserId} />
         </SalesTabPanel>
       </div>
     );
@@ -482,6 +484,9 @@ export default function SalesPage() {
 
   return (
     <SalesFiltersProvider uniqueValues={uniqueValues} activeTab={activeTab}>
+      <SalesDataProvider initialVersion={refreshTrigger}>
+        <SalesRefreshBridge refreshTrigger={refreshTrigger}>
+          <SalesRawDataBridge userId={salesUserId}>
       <div className="flex min-h-screen bg-[#F8F9FA] text-black">
         {/* Sidebar - Desktop */}
         <aside className={`hidden lg:flex flex-col ${isSidebarCollapsed ? 'w-20' : 'w-72'} bg-[#0d1e16] text-white shadow-2xl fixed h-screen left-0 top-0 z-50 transition-all duration-300`}>
@@ -630,6 +635,9 @@ export default function SalesPage() {
       )}
 
     </div>
+          </SalesRawDataBridge>
+        </SalesRefreshBridge>
+      </SalesDataProvider>
     </SalesFiltersProvider>
   );
 }

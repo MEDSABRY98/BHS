@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import { TrendingUp, Package, Users, DollarSign, BarChart3, Calendar, MapPin, ShoppingBag, UserCircle, ChevronDown, Download, Filter, X, FileSpreadsheet } from 'lucide-react';
 import { useSalesModuleFilters } from '@/app/Sales/Model/SalesFilters';
+import { useSalesDataContext } from '@/app/Sales/Context/SalesDataContext';
+import { useSalesTabFetch } from '@/app/Sales/Hooks/useSalesTabFetch';
 import { exportSalesExcelTable } from '@/app/Sales/Utils/ExcelExport';
 import { getOverviewData } from '@/app/Sales/Service/sales_core_service';
 import NoData from '@/app/Components/NoDataTab';
@@ -22,47 +23,25 @@ import {
 } from 'recharts';
 
 interface SalesOverviewTabProps {
-  refreshTrigger?: number;
   userId: string;
   showCosts?: boolean;
 }
 
-export default function SalesOverviewTab({ refreshTrigger, userId, showCosts = true }: SalesOverviewTabProps) {
+export default function SalesOverviewTab({ userId, showCosts = true }: SalesOverviewTabProps) {
   const { commonFilters: filters } = useSalesModuleFilters();
-  const [loading, setLoading] = useState(true);
-  const [data, setData] = useState<{
+  const { dataVersion } = useSalesDataContext();
+  const { data, isInitialLoading, isRefreshing } = useSalesTabFetch<{
     metrics: any;
     chartData: any[];
     yearlyTableData: any[];
     monthlyTableData: any[];
-  } | null>(null);
-
-  useEffect(() => {
-    if (!userId) {
-      setLoading(false);
-      setData(null);
-      return;
-    }
-
-    let isMounted = true;
-    const fetchOverview = async () => {
-      setLoading(true);
-      try {
-        const json = await getOverviewData(userId, filters);
-
-        if (isMounted) {
-          setData(json);
-        }
-      } catch (err) {
-        console.error(err);
-      } finally {
-        if (isMounted) setLoading(false);
-      }
-    };
-
-    fetchOverview();
-    return () => { isMounted = false; };
-  }, [filters, refreshTrigger, userId]);
+  } | null>({
+    tabKey: 'overview',
+    userId,
+    filters,
+    dataVersion,
+    fetcher: () => getOverviewData(userId, filters),
+  });
 
   const exportYearlyTableToExcel = async () => {
     if (!data) return;
@@ -108,7 +87,7 @@ export default function SalesOverviewTab({ refreshTrigger, userId, showCosts = t
     });
   };
 
-  if (loading || !data) {
+  if (isInitialLoading || !data) {
     return <SalesTabLoader />;
   }
 

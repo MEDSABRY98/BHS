@@ -9,9 +9,10 @@ import SalesCustomerDetails from '@/app/Sales/Customers/CustomerDetails';
 import NoData from '@/app/Components/NoDataTab';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
 import { getInactiveCustomersData, getInactiveCustomerExceptions, hideInactiveCustomer, restoreInactiveCustomer } from '../Service/sales_customers_service';
+import { useSalesDataContext } from '@/app/Sales/Context/SalesDataContext';
+import { useSalesTabFetch } from '@/app/Sales/Hooks/useSalesTabFetch';
 
 interface SalesInactiveCustomersTabProps {
-  refreshTrigger?: number;
   userId: string;
 }
 
@@ -80,9 +81,9 @@ const InactiveCustomerRow = memo(({ item, rowNumber, onCustomerClick, onExclude,
 
 InactiveCustomerRow.displayName = 'InactiveCustomerRow';
 
-export default function SalesInactiveCustomersTab({ userId, refreshTrigger }: SalesInactiveCustomersTabProps) {
+export default function SalesInactiveCustomersTab({ userId }: SalesInactiveCustomersTabProps) {
   const { commonFilters: filters, inactiveDays: days, inactiveMinAmount: minAmount } = useSalesModuleFilters();
-  const [loading, setLoading] = useState(true);
+  const { dataVersion } = useSalesDataContext();
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -96,7 +97,17 @@ export default function SalesInactiveCustomersTab({ userId, refreshTrigger }: Sa
   const [restoringId, setRestoringId] = useState<string | null>(null);
   const [customerToExclude, setCustomerToExclude] = useState<{ id: string, name: string } | null>(null);
 
-  const [serverInactiveCustomersData, setServerInactiveCustomersData] = useState<any[]>([]);
+  const { data: serverInactiveCustomersData, isInitialLoading } = useSalesTabFetch<any[]>({
+    tabKey: 'inactive-customers',
+    userId,
+    filters,
+    dataVersion,
+    extraKey: `${days}-${minAmount}`,
+    fetcher: () => getInactiveCustomersData(userId, filters, days, minAmount),
+    initialData: [] as any[],
+  });
+
+  const inactiveRows = serverInactiveCustomersData ?? [];
 
   // Fetch excluded customers
   useEffect(() => {
@@ -114,27 +125,7 @@ export default function SalesInactiveCustomersTab({ userId, refreshTrigger }: Sa
       }
     };
     fetchExceptions();
-  }, [refreshTrigger]);
-
-  // Fetch inactive customers from server
-  useEffect(() => {
-    const fetchInactiveCustomers = async () => {
-      if (!userId) {
-        setLoading(false);
-        return;
-      }
-      setLoading(true);
-      try {
-        const result = await getInactiveCustomersData(userId, filters, days, minAmount);
-        setServerInactiveCustomersData(result || []);
-      } catch (error) {
-        console.error('Error fetching inactive customers:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchInactiveCustomers();
-  }, [filters, userId, days, minAmount, refreshTrigger]);
+  }, [dataVersion]);
 
   // Debounce search
   useEffect(() => {
@@ -147,7 +138,7 @@ export default function SalesInactiveCustomersTab({ userId, refreshTrigger }: Sa
 
   // Main data processing - filter excluded on client side
   const inactiveCustomersData = useMemo(() => {
-    return serverInactiveCustomersData.filter(item => !excludedCustomerIds.has(item.customerId));
+    return inactiveRows.filter(item => !excludedCustomerIds.has(item.customerId));
   }, [serverInactiveCustomersData, excludedCustomerIds]);
 
   // Search & Sort
@@ -241,7 +232,7 @@ export default function SalesInactiveCustomersTab({ userId, refreshTrigger }: Sa
     });
   };
 
-  if (loading) {
+  if (isInitialLoading) {
     return <SalesTabLoader />;
   } if (selectedCustomer) return (
     <SalesCustomerDetails customerName={selectedCustomer} userId={userId} onBack={() => setSelectedCustomer(null)} initialTab="dashboard" />

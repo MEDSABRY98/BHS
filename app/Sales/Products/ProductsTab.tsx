@@ -9,9 +9,10 @@ import NoData from '@/app/Components/NoDataTab';
 import SalesProductDetails from './ProductDetails';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
 import { getProductsData } from '../Service/sales_products_service';
+import { useSalesDataContext } from '@/app/Sales/Context/SalesDataContext';
+import { useSalesTabFetch } from '@/app/Sales/Hooks/useSalesTabFetch';
 
 interface SalesProductsTabProps {
-  refreshTrigger?: number;
   userId: string;
   showCosts?: boolean;
 }
@@ -43,14 +44,24 @@ const ProductRow = memo(({ item, rowNumber, onProductClick }: { item: { productI
 
 ProductRow.displayName = 'ProductRow';
 
-export default function SalesProductsTab({ userId, refreshTrigger, showCosts = true }: SalesProductsTabProps) {
+export default function SalesProductsTab({ userId, showCosts = true }: SalesProductsTabProps) {
   const { commonFilters: filters } = useSalesModuleFilters();
-  const [loading, setLoading] = useState(true);
-  const [productsData, setProductsData] = useState<any[]>([]);
+  const { dataVersion } = useSalesDataContext();
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
+
+  const { data: productsData, isInitialLoading } = useSalesTabFetch({
+    tabKey: 'products',
+    userId,
+    filters,
+    dataVersion,
+    fetcher: () => getProductsData(userId, filters),
+    initialData: [] as any[],
+  });
+
+  const productRows = productsData ?? [];
 
   // Debounce search query
   useEffect(() => {
@@ -61,29 +72,9 @@ export default function SalesProductsTab({ userId, refreshTrigger, showCosts = t
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Fetch data
-  useEffect(() => {
-    const fetchProducts = async () => {
-      if (!userId) {
-        setLoading(false);
-        return;
-      }
-      setLoading(true);
-      try {
-        const result = await getProductsData(userId, filters);
-        setProductsData(result || []);
-      } catch (err) {
-        console.error('Error fetching Products Data:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchProducts();
-  }, [filters, userId, refreshTrigger]);
-
   // Filter and sort products
   const filteredProducts = useMemo(() => {
-    let filtered = [...productsData];
+    let filtered = [...productRows];
 
     if (debouncedSearchQuery.trim()) {
       const query = debouncedSearchQuery.toLowerCase().trim();
@@ -100,7 +91,7 @@ export default function SalesProductsTab({ userId, refreshTrigger, showCosts = t
     filtered.sort((a, b) => b.amount - a.amount);
 
     return filtered;
-  }, [productsData, debouncedSearchQuery]);
+  }, [productRows, debouncedSearchQuery]);
 
   // Pagination calculations
   const totalPages = Math.ceil(filteredProducts.length / ITEMS_PER_PAGE);
@@ -145,7 +136,7 @@ export default function SalesProductsTab({ userId, refreshTrigger, showCosts = t
     });
   };
 
-  if (loading) {
+  if (isInitialLoading) {
     return <SalesTabLoader />;
   }
 

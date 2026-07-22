@@ -5,10 +5,12 @@ import { Package, Users, ArrowUp, ArrowDown, FileSpreadsheet, LayoutGrid, Layers
 import { useSalesModuleFilters } from '@/app/Sales/Model/SalesFilters';
 import { exportSalesExcelWorkbook, recordsFromTable } from '@/app/Sales/Utils/ExcelExport';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
+import NoData from '@/app/Components/NoDataTab';
+import { useSalesDataContext } from '@/app/Sales/Context/SalesDataContext';
+import { useSalesTabFetch } from '@/app/Sales/Hooks/useSalesTabFetch';
 import { getTop10Data } from '../Service/sales_reports_service';
 
 interface SalesTop10TabProps {
-  refreshTrigger?: number;
   userId: string;
 }
 
@@ -57,9 +59,9 @@ function calculateTotals(rows: Top10Row[]) {
   };
 }
 
-export default function SalesTop10Tab({ userId, refreshTrigger }: SalesTop10TabProps) {
+export default function SalesTop10Tab({ userId }: SalesTop10TabProps) {
   const { commonFilters: filters } = useSalesModuleFilters();
-  const [loading, setLoading] = useState(true);
+  const { dataVersion } = useSalesDataContext();
   const [topCount, setTopCount] = useState<number>(10);
   const [activeSubTab, setActiveSubTab] = useState<Top10SubTab>('main');
 
@@ -69,31 +71,22 @@ export default function SalesTop10Tab({ userId, refreshTrigger }: SalesTop10TabP
   const [customerSortBy, setCustomerSortBy] = useState<'amount' | 'qty'>('amount');
   const [customerSortDirection, setCustomerSortDirection] = useState<SortDirection>('desc');
 
-  const [productsData, setProductsData] = useState<Top10Row[]>([]);
-  const [mainCustomersData, setMainCustomersData] = useState<Top10Row[]>([]);
-  const [subCustomersData, setSubCustomersData] = useState<Top10Row[]>([]);
+  const { data: top10Bundle, isInitialLoading } = useSalesTabFetch<{
+    productsData: Top10Row[];
+    mainCustomersData: Top10Row[];
+    subCustomersData: Top10Row[];
+  }>({
+    tabKey: 'top10',
+    userId,
+    filters,
+    dataVersion,
+    fetcher: () => getTop10Data(userId, filters),
+    initialData: { productsData: [] as Top10Row[], mainCustomersData: [] as Top10Row[], subCustomersData: [] as Top10Row[] },
+  });
 
-  useEffect(() => {
-    const fetchTop10Data = async () => {
-      if (!userId) {
-        setLoading(false);
-        return;
-      }
-      setLoading(true);
-      try {
-        const data = await getTop10Data(userId, filters);
-        setProductsData(data.productsData || []);
-        setMainCustomersData(data.mainCustomersData || []);
-        setSubCustomersData(data.subCustomersData || []);
-      } catch (err) {
-        console.error('Error fetching Top 10:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchTop10Data();
-  }, [filters, userId, refreshTrigger]);
+  const productsData = top10Bundle?.productsData ?? [];
+  const mainCustomersData = top10Bundle?.mainCustomersData ?? [];
+  const subCustomersData = top10Bundle?.subCustomersData ?? [];
 
   const sortedMainCustomers = useMemo(
     () => sortAndLimitRows(mainCustomersData, customerSortBy, customerSortDirection, topCount),
@@ -196,6 +189,9 @@ export default function SalesTop10Tab({ userId, refreshTrigger }: SalesTop10TabP
           </button>
         </div>
       </div>
+      {rows.length === 0 ? (
+        <NoData />
+      ) : (
       <div className="overflow-x-auto">
         <table className="w-full table-fixed">
           <thead>
@@ -221,34 +217,26 @@ export default function SalesTop10Tab({ userId, refreshTrigger }: SalesTop10TabP
                 <td className="py-3 px-4 text-sm text-gray-800 font-semibold text-center">{item.transactions}</td>
               </tr>
             ))}
-            {rows.length === 0 && (
-              <tr>
-                <td colSpan={5} className="py-8 text-center text-gray-500">
-                  No data available
-                </td>
-              </tr>
-            )}
-            {rows.length > 0 && (
-              <tr className="border-t-2 border-gray-300 bg-gray-100 font-bold">
-                <td className="py-3 px-4 text-sm text-gray-800 text-center" colSpan={2}>Total</td>
-                <td className="py-3 px-4 text-sm text-gray-800 text-center">
-                  {totals.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </td>
-                <td className="py-3 px-4 text-sm text-gray-800 text-center">
-                  {totals.totalQty.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                </td>
-                <td className="py-3 px-4 text-sm text-gray-800 text-center">
-                  {totals.totalTransactions}
-                </td>
-              </tr>
-            )}
+            <tr className="border-t-2 border-gray-300 bg-gray-100 font-bold">
+              <td className="py-3 px-4 text-sm text-gray-800 text-center" colSpan={2}>Total</td>
+              <td className="py-3 px-4 text-sm text-gray-800 text-center">
+                {totals.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </td>
+              <td className="py-3 px-4 text-sm text-gray-800 text-center">
+                {totals.totalQty.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+              </td>
+              <td className="py-3 px-4 text-sm text-gray-800 text-center">
+                {totals.totalTransactions}
+              </td>
+            </tr>
           </tbody>
         </table>
       </div>
+      )}
     </div>
   );
 
-  if (loading) {
+  if (isInitialLoading) {
     return <SalesTabLoader />;
   }
 
@@ -349,6 +337,9 @@ export default function SalesTop10Tab({ userId, refreshTrigger }: SalesTop10TabP
               </button>
             </div>
           </div>
+          {sortedProducts.length === 0 ? (
+            <NoData />
+          ) : (
           <div className="overflow-x-auto">
             <table className="w-full table-fixed">
               <thead>
@@ -382,30 +373,22 @@ export default function SalesTop10Tab({ userId, refreshTrigger }: SalesTop10TabP
                     <td className="py-3 px-4 text-sm text-gray-800 font-semibold text-center">{item.transactions}</td>
                   </tr>
                 ))}
-                {sortedProducts.length === 0 && (
-                  <tr>
-                    <td colSpan={6} className="py-8 text-center text-gray-500">
-                      No data available
-                    </td>
-                  </tr>
-                )}
-                {sortedProducts.length > 0 && (
-                  <tr className="border-t-2 border-gray-300 bg-gray-100 font-bold">
-                    <td className="py-3 px-4 text-sm text-gray-800 text-center" colSpan={3}>Total</td>
-                    <td className="py-3 px-4 text-sm text-gray-800 text-center">
-                      {productTotals.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </td>
-                    <td className="py-3 px-4 text-sm text-gray-800 text-center">
-                      {productTotals.totalQty.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                    </td>
-                    <td className="py-3 px-4 text-sm text-gray-800 text-center">
-                      {productTotals.totalTransactions}
-                    </td>
-                  </tr>
-                )}
+                <tr className="border-t-2 border-gray-300 bg-gray-100 font-bold">
+                  <td className="py-3 px-4 text-sm text-gray-800 text-center" colSpan={3}>Total</td>
+                  <td className="py-3 px-4 text-sm text-gray-800 text-center">
+                    {productTotals.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </td>
+                  <td className="py-3 px-4 text-sm text-gray-800 text-center">
+                    {productTotals.totalQty.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                  </td>
+                  <td className="py-3 px-4 text-sm text-gray-800 text-center">
+                    {productTotals.totalTransactions}
+                  </td>
+                </tr>
               </tbody>
             </table>
           </div>
+          )}
         </div>
       )}
     </div>

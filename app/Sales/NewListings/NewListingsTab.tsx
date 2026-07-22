@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { ChevronLeft, Calendar, Package, Users, Search } from 'lucide-react';
 import { useSalesModuleFilters } from '@/app/Sales/Model/SalesFilters';
 import NoData from '@/app/Components/NoDataTab';
@@ -8,43 +8,34 @@ import SalesNewListingsProducts from './NewListingsProducts';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
 import SalesNewListingsCustomers from './NewListingsCustomers';
 import { getNewListingsData } from '../Service/sales_reports_service';
+import { useSalesDataContext } from '@/app/Sales/Context/SalesDataContext';
+import { useSalesTabFetch } from '@/app/Sales/Hooks/useSalesTabFetch';
 
 interface SalesNewListingsTabProps {
   userId: string;
-  refreshTrigger?: number;
 }
 
-export default function SalesNewListingsTab({ userId, refreshTrigger }: SalesNewListingsTabProps) {
+export default function SalesNewListingsTab({ userId }: SalesNewListingsTabProps) {
   const { commonFilters: filters } = useSalesModuleFilters();
-  const [loading, setLoading] = useState(true);
-  const [data, setData] = useState<any[]>([]);
+  const { dataVersion } = useSalesDataContext();
+
+  const { data, isInitialLoading } = useSalesTabFetch<any[]>({
+    tabKey: 'new-listings',
+    userId,
+    filters,
+    dataVersion,
+    fetcher: () => getNewListingsData(userId, filters),
+    initialData: [] as any[],
+  });
+
+  const listingRows = data ?? [];
 
   // Navigation State
   const [selectedMonth, setSelectedMonth] = useState<any>(null);
   const [subTab, setSubTab] = useState<'products' | 'customers'>('products');
   const [searchQuery, setSearchQuery] = useState('');
 
-  useEffect(() => {
-    const fetchNewListings = async () => {
-      if (!userId) {
-        setLoading(false);
-        return;
-      }
-      setLoading(true);
-      try {
-        const result = await getNewListingsData(userId, filters);
-        setData(result || []);
-      } catch (err) {
-        console.error('Error fetching new listings:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchNewListings();
-  }, [userId, filters, refreshTrigger]);
-
-  if (loading) {
+  if (isInitialLoading) {
     return <SalesTabLoader />;
   }
 
@@ -105,11 +96,11 @@ export default function SalesNewListingsTab({ userId, refreshTrigger }: SalesNew
       {/* Main View: Months Grid */}
       {!selectedMonth && (
         <>
-          {data.length === 0 ? (
+          {listingRows.length === 0 ? (
             <NoData />
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {data.map((month) => (
+              {listingRows.map((month) => (
                 <div
                   key={month.monthKey}
                   onClick={() => setSelectedMonth(month)}

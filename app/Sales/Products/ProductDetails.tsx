@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { SalesInvoice } from '@/lib/supabase';;
 import { ArrowLeft, DollarSign, Package, TrendingUp, BarChart3, Search, Calendar, Download } from 'lucide-react';
 import { useSalesModuleFilters } from '@/app/Sales/Model/SalesFilters';
@@ -39,9 +39,12 @@ export default function SalesProductDetails({ productId, userId, onBack, initial
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [customerTypeView, setCustomerTypeView] = useState<'main' | 'sub'>('sub');
+  const fetchRequestId = useRef(0);
 
-  // Fetch product details from API
+  // Fetch product details when panel opens
   useEffect(() => {
+    const requestId = ++fetchRequestId.current;
+
     const fetchProductDetails = async () => {
       if (!userId) {
         setLoading(false);
@@ -50,16 +53,23 @@ export default function SalesProductDetails({ productId, userId, onBack, initial
       setLoading(true);
       try {
         const result = await getProductDetailsData(userId, filters, productId);
+        if (requestId !== fetchRequestId.current) return;
         setData(result.data || []);
         setAllData(result.allData || []);
       } catch (err) {
+        if (requestId !== fetchRequestId.current) return;
         console.error('Error fetching Product Details:', err);
       } finally {
-        setLoading(false);
+        if (requestId === fetchRequestId.current) {
+          setLoading(false);
+        }
       }
     };
 
     fetchProductDetails();
+    return () => {
+      fetchRequestId.current += 1;
+    };
   }, [userId, filters, productId]);
 
   // Debounce search query

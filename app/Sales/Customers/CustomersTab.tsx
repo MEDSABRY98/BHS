@@ -7,11 +7,12 @@ import { useSalesModuleFilters } from '@/app/Sales/Model/SalesFilters';
 import { exportSalesExcelTable } from '@/app/Sales/Utils/ExcelExport';
 import SalesCustomerDetails from './CustomerDetails';
 import { getCustomersData } from '@/app/Sales/Service/sales_customers_service';
+import { useSalesDataContext } from '@/app/Sales/Context/SalesDataContext';
+import { useSalesTabFetch } from '@/app/Sales/Hooks/useSalesTabFetch';
 import NoData from '@/app/Components/NoDataTab';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
 
 interface SalesCustomersTabProps {
-  refreshTrigger?: number;
   userId: string;
   onUploadMapping?: (mapping: Record<string, any>) => void;
   showCosts?: boolean;
@@ -47,9 +48,9 @@ const CustomerRow = memo(({ item, rowNumber, onCustomerClick }: { item: { custom
 
 CustomerRow.displayName = 'CustomerRow';
 
-export default function SalesCustomersTab({ userId, onUploadMapping, showCosts = true, refreshTrigger }: SalesCustomersTabProps) {
+export default function SalesCustomersTab({ userId, onUploadMapping, showCosts = true }: SalesCustomersTabProps) {
   const { commonFilters: filters } = useSalesModuleFilters();
-  const [loading, setLoading] = useState(true);
+  const { dataVersion } = useSalesDataContext();
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -59,7 +60,15 @@ export default function SalesCustomersTab({ userId, onUploadMapping, showCosts =
   const [sortField, setSortField] = useState<'customer' | 'totalAmount' | 'averageAmount' | 'totalQty' | 'productsCount'>('totalAmount');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
-  const [customersData, setCustomersData] = useState<any[]>([]);
+  const { data: customersData, isInitialLoading } = useSalesTabFetch<any[]>({
+    tabKey: 'customers',
+    userId,
+    filters,
+    dataVersion,
+    extraKey: activeTab,
+    fetcher: () => getCustomersData(userId, filters, activeTab),
+    initialData: [] as any[],
+  });
 
   // Debounce search query
   useEffect(() => {
@@ -70,30 +79,11 @@ export default function SalesCustomersTab({ userId, onUploadMapping, showCosts =
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Fetch Data from API
-  useEffect(() => {
-    const fetchCustomersData = async () => {
-      if (!userId) {
-        setLoading(false);
-        return;
-      }
-      setLoading(true);
-      try {
-        const data = await getCustomersData(userId, filters, activeTab);
-        setCustomersData(data || []);
-      } catch (err) {
-        console.error('Error fetching Customers:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchCustomersData();
-  }, [filters, userId, activeTab, refreshTrigger]);
+  const customerRows = customersData ?? [];
 
   const filteredCustomers = useMemo(() => {
-    if (customersData.length === 0) return [];
-    let filtered = [...customersData];
+    if (customerRows.length === 0) return [];
+    let filtered = [...customerRows];
 
     if (debouncedSearchQuery.trim()) {
       const query = debouncedSearchQuery.toLowerCase().trim();
@@ -109,7 +99,7 @@ export default function SalesCustomersTab({ userId, onUploadMapping, showCosts =
       return 0;
     });
     return filtered;
-  }, [customersData, debouncedSearchQuery, sortField, sortDirection]);
+  }, [customerRows, debouncedSearchQuery, sortField, sortDirection]);
 
   const handleSort = (field: typeof sortField) => {
     if (sortField === field) setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
@@ -141,7 +131,7 @@ export default function SalesCustomersTab({ userId, onUploadMapping, showCosts =
   const exportToExcel = async (mode: 'standard' | 'months') => {
     if (mode === 'months') {
       const allMonths = new Set<string>();
-      customersData.forEach(item => {
+      customerRows.forEach(item => {
         if (item.monthlyData) {
           Object.keys(item.monthlyData).forEach(m => allMonths.add(m));
         }
@@ -151,7 +141,7 @@ export default function SalesCustomersTab({ userId, onUploadMapping, showCosts =
       const monthHeaders = sortedMonths.map(m => new Date(m).toLocaleDateString('en-US', { month: 'short', year: '2-digit' }));
       const headers = ['Customer', 'Area', 'Market', ...monthHeaders, 'Total'];
 
-      const amountRows = customersData.map(item => {
+      const amountRows = customerRows.map(item => {
         const row: unknown[] = [item.customer, item.area || '', item.market || ''];
         let total = 0;
         sortedMonths.forEach(m => {
@@ -182,7 +172,7 @@ export default function SalesCustomersTab({ userId, onUploadMapping, showCosts =
     setShowExportModal(false);
   };
 
-  if (loading) {
+  if (isInitialLoading) {
     return <SalesTabLoader />;
   } if (selectedCustomer) return (
     <SalesCustomerDetails

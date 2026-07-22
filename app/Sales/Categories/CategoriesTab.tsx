@@ -1,16 +1,17 @@
 'use client';
 
-import { useState, useMemo, useEffect, memo } from 'react';
+import { useState, useMemo, memo } from 'react';
 import { SalesInvoice } from '@/lib/supabase';;
 import { Search, Download, FileSpreadsheet } from 'lucide-react';
 import { useSalesModuleFilters } from '@/app/Sales/Model/SalesFilters';
 import { exportSalesExcelTable } from '@/app/Sales/Utils/ExcelExport';
 import { getCategoriesData } from '@/app/Sales/Service/sales_products_service';
+import { useSalesDataContext } from '@/app/Sales/Context/SalesDataContext';
+import { useSalesTabFetch } from '@/app/Sales/Hooks/useSalesTabFetch';
 import NoData from '@/app/Components/NoDataTab';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
 
 interface SalesCategoriesTabProps {
-  refreshTrigger?: number;
   userId: string;
 }
 
@@ -32,35 +33,24 @@ const CategoryRow = memo(({ item, rowNumber }: { item: { category: string; amoun
 
 CategoryRow.displayName = 'CategoryRow';
 
-export default function SalesCategoriesTab({ userId, refreshTrigger }: SalesCategoriesTabProps) {
+export default function SalesCategoriesTab({ userId }: SalesCategoriesTabProps) {
   const { commonFilters: filters } = useSalesModuleFilters();
-  const [loading, setLoading] = useState(true);
-  const [categoriesData, setCategoriesData] = useState<any[]>([]);
+  const { dataVersion } = useSalesDataContext();
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Fetch data
-  useEffect(() => {
-    const fetchCategories = async () => {
-      if (!userId) {
-        setLoading(false);
-        return;
-      }
-      setLoading(true);
-      try {
-        const result = await getCategoriesData(userId, filters);
-        setCategoriesData(result || []);
-      } catch (err) {
-        console.error('Error fetching Categories Data:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchCategories();
-  }, [filters, userId, refreshTrigger]);
+  const { data: categoriesData, isInitialLoading } = useSalesTabFetch({
+    tabKey: 'categories',
+    userId,
+    filters,
+    dataVersion,
+    fetcher: () => getCategoriesData(userId, filters),
+    initialData: [] as any[],
+  });
 
-  // Filter and sort categories
+  const categoryRows = categoriesData ?? [];
+
   const filteredCategories = useMemo(() => {
-    let filtered = [...categoriesData];
+    let filtered = [...categoryRows];
 
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase().trim();
@@ -73,7 +63,7 @@ export default function SalesCategoriesTab({ userId, refreshTrigger }: SalesCate
     filtered.sort((a, b) => b.amount - a.amount);
 
     return filtered;
-  }, [categoriesData, searchQuery]);
+  }, [categoryRows, searchQuery]);
 
   // Calculate totals
   const totals = useMemo(() => {
@@ -119,7 +109,7 @@ export default function SalesCategoriesTab({ userId, refreshTrigger }: SalesCate
     });
   };
 
-  if (loading) {
+  if (isInitialLoading) {
     return <SalesTabLoader />;
   }
 

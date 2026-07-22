@@ -1,6 +1,7 @@
 'use server';
 
 import { bhs_supabas } from '@/lib/supabase';
+import { getFilteredSalesData } from '@/app/Sales/Utils/SalesMappingCache';
 import {
   augmentWithDates,
   applyGeoFilters,
@@ -143,28 +144,271 @@ function kpiBlock(value: number, change: number, sparkline: number[], changeIsPc
 // 1. Reports Data
 // -------------------------------------------------------------
 export async function getReportsData(userId: string, filters: any) {
-  const { invoiceType, year, month, dateFrom, dateTo, area, market, merchandiser, salesRep, productTag } = filters || {};
+  const rawData = await getFilteredSalesData(userId);
+  const geoData = applyGeoFilters(augmentWithDates(rawData), filters);
+  const reportingMode = resolveReportingMode(filters?.invoiceType);
 
-  const { data, error } = await bhs_supabas.rpc('get_sales_reports_data', {
-    p_user_id: userId,
-    p_year: year ? parseInt(year, 10) : null,
-    p_month: month ? parseInt(month, 10) : null,
-    p_date_from: dateFrom || null,
-    p_date_to: dateTo || null,
-    p_invoice_type: invoiceType || 'all',
-    p_area: area || null,
-    p_market: market || null,
-    p_merchandiser: merchandiser || null,
-    p_sales_rep: salesRep || null,
-    p_product_tag: productTag || null
-  });
+  const period = resolveReportPeriod(filters);
+  const prevPeriod = getPrevPeriod(period.fromTime, period.toTime);
+  const smlyPeriod = getSamePeriodLastYear(period.fromTime, period.toTime);
+  const prevPrevPeriod = getPrevPeriod(prevPeriod.fromTime, prevPeriod.toTime);
 
-  if (error) {
-    console.error('RPC Error in getReportsData:', error);
-    throw error;
+  const currentData = periodData(geoData, period.fromTime, period.toTime);
+  const prevMonthData = periodData(geoData, prevPeriod.fromTime, prevPeriod.toTime);
+  const smlyData = periodData(geoData, smlyPeriod.fromTime, smlyPeriod.toTime);
+  const prevPrevData = periodData(geoData, prevPrevPeriod.fromTime, prevPrevPeriod.toTime);
+
+  const smlyPrevPeriod = getPrevPeriod(smlyPeriod.fromTime, smlyPeriod.toTime);
+  const smlyPrevData = periodData(geoData, smlyPrevPeriod.fromTime, smlyPrevPeriod.toTime);
+
+  const currentMetrics = computePeriodMetrics(currentData, [], filters?.invoiceType);
+  const primaryCurrent = getPrimaryAmount(currentMetrics, reportingMode);
+
+  const targetMap = await fetchTargets();
+  const isManager = await checkIsManager(userId);
+
+  let targetUserIds: string[] | null = null;
+  let targetType: 'sales_rep' | 'merchandiser' | null = null;
+  if (filters?.salesRep) {
+    const rid = await resolveUserIdByName(filters.salesRep);
+    targetUserIds = rid ? [rid] : [];
+    targetType = 'sales_rep';
+  } else if (filters?.merchandiser) {
+    const mid = await resolveUserIdByName(filters.merchandiser);
+    targetUserIds = mid ? [mid] : [];
+    targetType = 'merchandiser';
+  } else if (!isManager) {
+    targetUserIds = [String(userId).trim().toUpperCase()];
+    targetType = 'sales_rep';
   }
 
-  return data;
+  const getTarget = (y: number, m: number) =>
+    isManager && !filters?.salesRep && !filters?.merchandiser
+      ? sumTargetsForMonth(targetMap, y, m, null, 'sales_rep')
+      : sumTargetsForMonth(targetMap, y, m, targetUserIds, targetType);
+
+  const monthlyComparison = buildLast6MonthsComparison(
+    geoData,
+    period.year,
+    period.month,
+    getTarget,
+    { showTarget: shouldShowTargetInChart(reportingMode), invoiceType: filters?.invoiceType }
+  );
+
+  const dailySalesCalendars = buildDailySalesCalendars(currentData, period);
+
+  const sparkPrimary = buildMonthlySparkline(geoData, period.year, period.month, 8, (items) =>
+    getPrimaryAmount(computePeriodMetrics(items, [], filters?.invoiceType), reportingMode)
+  );
+  const sparkInvoices = buildMonthlySparkline(geoData, period.year, period.month, 8, (items) =>
+    computePeriodMetrics(items, [], filters?.invoiceType).invoices
+  );
+  const sparkCustomers = buildMonthlySparkline(geoData, period.year, period.month, 8, (items) => {
+    const set = new Set<string>();
+    items.forEach((i) => set.add(i.customerId || i.customerName || ''));
+    return set.size;
+  });
+  const sparkAvgInv = buildMonthlySparkline(geoData, period.year, period.month, 8, (items) =>
+    computePeriodMetrics(items, [], filters?.invoiceType).avgInvoiceValue
+  );
+  const sparkNewCust = buildMonthlySparkline(geoData, period.year, period.month, 8, (items) => {
+    const y = items[0]?.yr ?? period.year;
+    const m = items[0]?.mn ?? period.month;
+    const pp = getPrevMonthPeriod(y, m);
+    const prevItems = periodData(geoData, pp.fromTime, pp.toTime);
+    return computePeriodMetrics(items, prevItems, filters?.invoiceType).newCustomers;
+  });
+  const sparkReturns = shouldShowReturnAmountKpi(reportingMode)
+    ? buildMonthlySparkline(geoData, period.year, period.month, 8, (items) =>
+        computePeriodMetrics(items, [], filters?.invoiceType).returnsRate
+      )
+    : [];
+  const sparkReturnInvoices = shouldShowReturnAmountKpi(reportingMode)
+    ? buildMonthlySparkline(geoData, period.year, period.month, 8, (items) =>
+        computePeriodMetrics(items, [], filters?.invoiceType).grvInvoices
+      )
+    : [];
+  const sparkAvgReturn = shouldShowReturnAmountKpi(reportingMode)
+    ? buildMonthlySparkline(geoData, period.year, period.month, 8, (items) =>
+        computePeriodMetrics(items, [], filters?.invoiceType).avgGrvValue
+      )
+    : [];
+  const sparkTarget = shouldShowTargetAchievement(reportingMode)
+    ? buildMonthlySparkline(geoData, period.year, period.month, 8, (items) => {
+        const y = items[0]?.yr;
+        const m = items[0]?.mn;
+        if (!y || !m) return 0;
+        const actual = getPrimaryAmount(
+          computePeriodMetrics(items, [], filters?.invoiceType),
+          reportingMode
+        );
+        const tgt = getTarget(y, m);
+        return tgt > 0 ? (actual / tgt) * 100 : 0;
+      })
+    : [];
+
+  const fixedNewCustomers = computePeriodMetrics(
+    currentData,
+    prevMonthData,
+    filters?.invoiceType
+  ).newCustomers;
+
+  const buildKpiView = (
+    compareData: typeof currentData,
+    compareBaselineData: typeof currentData,
+    compareTargetYear: number,
+    compareTargetMonth: number
+  ) => {
+    const metrics = computePeriodMetrics(currentData, compareData, filters?.invoiceType);
+    const baselineMetrics = computePeriodMetrics(compareData, compareBaselineData, filters?.invoiceType);
+    const compareOnlyMetrics = computePeriodMetrics(compareData, [], filters?.invoiceType);
+
+    const primary = getPrimaryAmount(metrics, reportingMode);
+    const primaryCompare = getPrimaryAmount(compareOnlyMetrics, reportingMode);
+
+    const tgt = getTarget(period.year, period.month);
+    const compareTgt = getTarget(compareTargetYear, compareTargetMonth);
+    const tgtAch =
+      shouldShowTargetAchievement(reportingMode) && tgt > 0 ? (primary / tgt) * 100 : 0;
+    const compareTgtAch =
+      shouldShowTargetAchievement(reportingMode) && compareTgt > 0
+        ? (primaryCompare / compareTgt) * 100
+        : 0;
+
+    return {
+      totalSales: {
+        ...kpiBlock(primary, pctChange(primary, primaryCompare), sparkPrimary),
+        salesAmount: metrics.salesAmount,
+        returnsAmount: metrics.grvAmount,
+      },
+      ...(shouldShowTargetAchievement(reportingMode)
+        ? {
+            targetAchievement: {
+              value: tgtAch,
+              targetAmount: tgt,
+              actualAmount: primary,
+              changePct: pctChange(tgtAch, compareTgtAch),
+              sparkline: sparkTarget,
+            },
+          }
+        : {}),
+      invoices: kpiBlock(
+        metrics.invoices,
+        absChange(metrics.invoices, compareOnlyMetrics.invoices),
+        sparkInvoices,
+        false
+      ),
+      activeCustomers: kpiBlock(
+        metrics.activeCustomers,
+        absChange(metrics.activeCustomers, compareOnlyMetrics.activeCustomers),
+        sparkCustomers,
+        false
+      ),
+      avgInvoiceValue: kpiBlock(
+        metrics.avgInvoiceValue,
+        pctChange(metrics.avgInvoiceValue, compareOnlyMetrics.avgInvoiceValue),
+        sparkAvgInv
+      ),
+      newCustomers: kpiBlock(
+        fixedNewCustomers,
+        absChange(fixedNewCustomers, baselineMetrics.newCustomers),
+        sparkNewCust,
+        false
+      ),
+      ...(shouldShowReturnAmountKpi(reportingMode)
+        ? {
+            returnsRate: {
+              value: metrics.returnsRate,
+              changePct: pctChange(metrics.returnsRate, compareOnlyMetrics.returnsRate),
+              grvAmount: metrics.grvAmount,
+              salesAmount: metrics.salesAmount,
+              sparkline: sparkReturns,
+            },
+            returnInvoices: kpiBlock(
+              metrics.grvInvoices,
+              absChange(metrics.grvInvoices, compareOnlyMetrics.grvInvoices),
+              sparkReturnInvoices,
+              false
+            ),
+            avgReturnValue: kpiBlock(
+              metrics.avgGrvValue,
+              pctChange(metrics.avgGrvValue, compareOnlyMetrics.avgGrvValue),
+              sparkAvgReturn
+            ),
+          }
+        : {}),
+    };
+  };
+
+  const kpiViews = {
+    prevMonth: buildKpiView(prevMonthData, prevPrevData, prevPeriod.year, prevPeriod.month),
+    sameMonthLastYear: buildKpiView(smlyData, smlyPrevData, smlyPeriod.year, smlyPeriod.month),
+  };
+
+  const comparePrevRowsMain = buildCustomerChangeRows(currentData, prevMonthData, 'main');
+  const compareSmlyRowsMain = buildCustomerChangeRows(currentData, smlyData, 'main');
+  const comparePrevRowsSub = buildCustomerChangeRows(currentData, prevMonthData, 'sub');
+  const compareSmlyRowsSub = buildCustomerChangeRows(currentData, smlyData, 'sub');
+
+  const buildCompareBlock = (
+    rows: ReturnType<typeof buildCustomerChangeRows>,
+    comparePeriodData: typeof prevMonthData,
+    groupBy: 'main' | 'sub'
+  ) => ({
+    topCustomers: buildTopCustomers(
+      currentData,
+      rows,
+      primaryCurrent,
+      groupBy,
+      filters?.invoiceType
+    ),
+    topReturnCustomers: buildTopReturnCustomers(
+      currentData,
+      comparePeriodData,
+      currentMetrics.grvAmount,
+      groupBy
+    ),
+    topDeclining: buildDeclining(rows).map((r, i) => ({ ...r, rank: i + 1 })),
+    topGrowing: buildGrowing(rows).map((r, i) => ({ ...r, rank: i + 1 })),
+    atRisk: buildAtRisk(rows),
+  });
+
+  const customerViews = {
+    main: {
+      prevMonth: buildCompareBlock(comparePrevRowsMain, prevMonthData, 'main'),
+      sameMonthLastYear: buildCompareBlock(compareSmlyRowsMain, smlyData, 'main'),
+    },
+    sub: {
+      prevMonth: buildCompareBlock(comparePrevRowsSub, prevMonthData, 'sub'),
+      sameMonthLastYear: buildCompareBlock(compareSmlyRowsSub, smlyData, 'sub'),
+    },
+  };
+
+  let repDisplayName = await fetchUserName(userId);
+  if (filters?.salesRep) repDisplayName = filters.salesRep;
+  else if (filters?.merchandiser) repDisplayName = filters.merchandiser;
+  else if (isManager) repDisplayName = 'All Sales Reps';
+
+  return {
+    repDisplayName,
+    periodLabel: period.label,
+    reportingMode,
+    reportingModeLabel: REPORTING_MODE_LABELS[reportingMode],
+    primaryAmountLabel: PRIMARY_AMOUNT_LABELS[reportingMode],
+    compareModes: {
+      prevMonth: { label: prevPeriod.label },
+      sameMonthLastYear: { label: smlyPeriod.label },
+    },
+    kpis: kpiViews.prevMonth,
+    kpiViews,
+    monthlyComparison,
+    dailySalesCalendars,
+    customerViews,
+    topProducts: buildTopProducts(currentData, primaryCurrent),
+    topCategories: buildTopCategories(currentData, primaryCurrent),
+    topSalesInvoices: buildTopInvoicesByValue(currentData, 'sales'),
+    topReturnInvoices: buildTopInvoicesByValue(currentData, 'returns'),
+  };
 }
 
 // -------------------------------------------------------------
@@ -187,28 +431,32 @@ const calculateMode = (numbers: number[]): number => {
 };
 
 export async function getStockReportData(userId: string, filters: any) {
-  const { invoiceType, year, month, dateFrom, dateTo, area, market, merchandiser, salesRep, productTag } = filters || {};
+  const augmentedData = await getFilteredSalesData(userId);
 
-  const { data: globallyFilteredData, error } = await bhs_supabas.rpc('get_sales_stock_raw_data', {
-    p_user_id: userId,
-    p_invoice_type: invoiceType || 'all',
-    p_year: year || null,
-    p_month: month || null,
-    p_date_from: dateFrom || null,
-    p_date_to: dateTo || null,
-    p_area: area || null,
-    p_market: market || null,
-    p_merchandiser: merchandiser || null,
-    p_sales_rep: salesRep || null,
-    p_product_tag: productTag || null
-  });
+  let globallyFilteredData = augmentedData;
+  if (filters) {
+    const { invoiceType, year, month, dateFrom, dateTo, area, market, merchandiser, salesRep, productTag } = filters;
 
-  if (error) {
-    console.error('RPC Error in getStockReportData:', error);
-    return { customersData: [], subCustomersData: [], productList: [] };
+    if (invoiceType && invoiceType !== 'all') {
+      globallyFilteredData = globallyFilteredData.filter(item => {
+        const num = item.invoiceNumber?.trim().toUpperCase() || '';
+        if (invoiceType === 'sales') return num.startsWith('SAL');
+        if (invoiceType === 'returns') return num.startsWith('RSAL');
+        return true;
+      });
+    }
+    if (year && year !== 'All') globallyFilteredData = globallyFilteredData.filter(i => new Date(i.invoiceDate).getFullYear().toString() === year);
+    if (month && month !== 'All') globallyFilteredData = globallyFilteredData.filter(i => (new Date(i.invoiceDate).getMonth() + 1).toString() === month);
+    if (dateFrom) globallyFilteredData = globallyFilteredData.filter(i => new Date(i.invoiceDate) >= new Date(dateFrom));
+    if (dateTo) globallyFilteredData = globallyFilteredData.filter(i => new Date(i.invoiceDate) <= new Date(dateTo));
+    if (productTag) globallyFilteredData = globallyFilteredData.filter(i => i.productTag === productTag);
+    if (area) globallyFilteredData = globallyFilteredData.filter(i => i.area === area);
+    if (market) globallyFilteredData = globallyFilteredData.filter(i => i.market === market);
+    if (merchandiser) globallyFilteredData = globallyFilteredData.filter(i => i.merchandiser === merchandiser);
+    if (salesRep) globallyFilteredData = globallyFilteredData.filter(i => i.salesRep === salesRep);
   }
 
-  const sortedData = [...(globallyFilteredData || [])].sort((a, b) => {
+  const sortedData = [...globallyFilteredData].sort((a, b) => {
     const dateA = a.invoiceDate ? new Date(a.invoiceDate).getTime() : 0;
     const dateB = b.invoiceDate ? new Date(b.invoiceDate).getTime() : 0;
     return dateB - dateA;
@@ -307,7 +555,7 @@ export async function getStockReportData(userId: string, filters: any) {
 
   sortedData.forEach(item => {
     const itemAny = item as any;
-    let price = itemAny.productPrice || 0;
+    let price = itemAny.price || itemAny.unitPrice || 0;
     if (!price && itemAny.amount && itemAny.qty) price = itemAny.amount / itemAny.qty;
     const pNum = parseFloat(price);
 
@@ -394,53 +642,250 @@ export async function getStockReportData(userId: string, filters: any) {
 // 3. Top 10 Data
 // -------------------------------------------------------------
 export async function getTop10Data(userId: string, filters: any) {
-  const { invoiceType, year, month, dateFrom, dateTo, area, market, merchandiser, salesRep, productTag } = filters || {};
+  const augmentedData = await getFilteredSalesData(userId);
 
-  const { data, error } = await bhs_supabas.rpc('get_sales_top_10', {
-    p_user_id: userId,
-    p_invoice_type: invoiceType || 'all',
-    p_year: year ? parseInt(year, 10) : null,
-    p_month: month ? parseInt(month, 10) : null,
-    p_date_from: dateFrom || null,
-    p_date_to: dateTo || null,
-    p_area: area || null,
-    p_market: market || null,
-    p_merchandiser: merchandiser || null,
-    p_sales_rep: salesRep || null,
-    p_product_tag: productTag || null
-  });
+  let globallyFilteredData = augmentedData;
+  if (filters) {
+    const { invoiceType, year, month, dateFrom, dateTo, area, market, merchandiser, salesRep, productTag } = filters;
 
-  if (error) {
-    console.error('RPC Error in getTop10Data:', error);
-    return { productsData: [], mainCustomersData: [], subCustomersData: [] };
+    if (invoiceType && invoiceType !== 'all') {
+      globallyFilteredData = globallyFilteredData.filter(item => {
+        const num = item.invoiceNumber?.trim().toUpperCase() || '';
+        if (invoiceType === 'sales') return num.startsWith('SAL');
+        if (invoiceType === 'returns') return num.startsWith('RSAL');
+        return true;
+      });
+    }
+    if (productTag) globallyFilteredData = globallyFilteredData.filter(i => i.productTag === productTag);
+    if (area) globallyFilteredData = globallyFilteredData.filter(i => i.area === area);
+    if (market) globallyFilteredData = globallyFilteredData.filter(i => i.market === market);
+    if (merchandiser) globallyFilteredData = globallyFilteredData.filter(i => i.merchandiser === merchandiser);
+    if (salesRep) globallyFilteredData = globallyFilteredData.filter(i => i.salesRep === salesRep);
+    if (year) {
+      const yearNum = parseInt(year, 10);
+      globallyFilteredData = globallyFilteredData.filter(item => {
+        if (!item.invoiceDate) return false;
+        const d = new Date(item.invoiceDate);
+        return !isNaN(d.getTime()) && d.getFullYear() === yearNum;
+      });
+    }
+    if (month) {
+      const monthNum = parseInt(month, 10);
+      globallyFilteredData = globallyFilteredData.filter(item => {
+        if (!item.invoiceDate) return false;
+        const d = new Date(item.invoiceDate);
+        return !isNaN(d.getTime()) && d.getMonth() + 1 === monthNum;
+      });
+    }
+    if (dateFrom || dateTo) {
+      globallyFilteredData = globallyFilteredData.filter(item => {
+        if (!item.invoiceDate) return false;
+        const itemDate = new Date(item.invoiceDate);
+        if (isNaN(itemDate.getTime())) return false;
+        if (dateFrom && itemDate < new Date(dateFrom)) return false;
+        if (dateTo) {
+          const toDate = new Date(dateTo);
+          toDate.setHours(23, 59, 59, 999);
+          if (itemDate > toDate) return false;
+        }
+        return true;
+      });
+    }
   }
 
-  return data || { productsData: [], mainCustomersData: [], subCustomersData: [] };
+  const productMap = new Map<string, any>();
+  const mainCustomerMap = new Map<string, any>();
+  const subCustomerMap = new Map<string, any>();
+
+  globallyFilteredData.forEach(item => {
+    const pKey = item.productId || item.product;
+    const exP = productMap.get(pKey) || { productId: item.productId || '', barcodes: new Set(), products: new Set(), totalAmount: 0, totalQty: 0, invoiceNumbers: new Set() };
+    if (item.barcode) exP.barcodes.add(item.barcode);
+    if (item.product) exP.products.add(item.product);
+    exP.totalAmount += Number(item.amount) || 0;
+    exP.totalQty += Number(item.qty) || 0;
+    if (item.invoiceNumber) exP.invoiceNumbers.add(item.invoiceNumber);
+    productMap.set(pKey, exP);
+
+    const mainKey = item.customerMainName || item.customerName || 'Unknown';
+    const mainDisplay = item.customerMainName || item.customerName || 'Unknown';
+    const exMain = mainCustomerMap.get(mainKey) || { customer: mainDisplay, totalAmount: 0, totalQty: 0, invoiceNumbers: new Set() };
+    exMain.totalAmount += Number(item.amount) || 0;
+    exMain.totalQty += Number(item.qty) || 0;
+    if (item.invoiceNumber) exMain.invoiceNumbers.add(item.invoiceNumber);
+    mainCustomerMap.set(mainKey, exMain);
+
+    const subKey = item.customerId || item.customerName || 'Unknown';
+    const subDisplay = item.customerName || 'Unknown';
+    const exSub = subCustomerMap.get(subKey) || { customer: subDisplay, totalAmount: 0, totalQty: 0, invoiceNumbers: new Set() };
+    exSub.totalAmount += Number(item.amount) || 0;
+    exSub.totalQty += Number(item.qty) || 0;
+    if (item.invoiceNumber) exSub.invoiceNumbers.add(item.invoiceNumber);
+    subCustomerMap.set(subKey, exSub);
+  });
+
+  const productsData = Array.from(productMap.values()).map(p => ({
+    productId: p.productId,
+    barcode: Array.from(p.barcodes).join(', ') || '-',
+    products: Array.from(p.products) as string[],
+    totalAmount: p.totalAmount,
+    totalQty: p.totalQty,
+    transactions: p.invoiceNumbers.size
+  }));
+
+  const mapCustomers = (map: Map<string, any>) =>
+    Array.from(map.values()).map(c => ({
+      customer: c.customer,
+      totalAmount: c.totalAmount,
+      totalQty: c.totalQty,
+      transactions: c.invoiceNumbers.size
+    }));
+
+  const mainCustomersData = mapCustomers(mainCustomerMap);
+  const subCustomersData = mapCustomers(subCustomerMap);
+
+  return { productsData, mainCustomersData, subCustomersData };
 }
 
 // -------------------------------------------------------------
 // 4. New Listings Data
 // -------------------------------------------------------------
 export async function getNewListingsData(userId: string, filters: any) {
-  const { year, month, dateFrom, dateTo, area, market, merchandiser, salesRep, productTag } = filters || {};
+  const augmentedData = await getFilteredSalesData(userId);
 
-  const { data, error } = await bhs_supabas.rpc('get_sales_new_listings', {
-    p_user_id: userId,
-    p_year: year ? parseInt(year, 10) : null,
-    p_month: month ? parseInt(month, 10) : null,
-    p_date_from: dateFrom || null,
-    p_date_to: dateTo || null,
-    p_area: area || null,
-    p_market: market || null,
-    p_merchandiser: merchandiser || null,
-    p_sales_rep: salesRep || null,
-    p_product_tag: productTag || null
-  });
-
-  if (error) {
-    console.error('RPC Error in getNewListingsData:', error);
-    return [];
+  // Find the absolute FIRST purchase date for each (Customer, Product) pair.
+  // We apply non-date global filters FIRST (Area, Market, etc)
+  let preFilteredData = augmentedData;
+  if (filters) {
+    const { area, market, merchandiser, salesRep, productTag } = filters;
+    if (productTag) preFilteredData = preFilteredData.filter(i => i.productTag === productTag);
+    if (area) preFilteredData = preFilteredData.filter(i => i.area === area);
+    if (market) preFilteredData = preFilteredData.filter(i => i.market === market);
+    if (merchandiser) preFilteredData = preFilteredData.filter(i => i.merchandiser === merchandiser);
+    if (salesRep) preFilteredData = preFilteredData.filter(i => i.salesRep === salesRep);
   }
 
-  return data || [];
+  // Step 1: Find first purchase date for each Customer+Product pair
+  const firstPurchaseMap = new Map<string, { time: number, invoiceItem: any }>();
+
+  for (const item of preFilteredData) {
+    // ONLY consider SALES invoices
+    if (!item.invoiceNumber || typeof item.invoiceNumber !== 'string') continue;
+
+    const invNum = item.invoiceNumber;
+    // Fast check for 'SAL' prefix (ignoring case, avoiding trim/toUpperCase for speed)
+    if (!(invNum[0] === 'S' || invNum[0] === 's') || !(invNum[1] === 'A' || invNum[1] === 'a') || !(invNum[2] === 'L' || invNum[2] === 'l')) {
+      continue;
+    }
+
+    if (!item.invoiceDate) continue;
+
+    const customerId = item.customerId || item.customerName;
+    const productId = item.productId || item.product;
+
+    if (!customerId || !productId) continue;
+
+    const key = `${customerId}|||${productId}`;
+    const itemTime = Date.parse(item.invoiceDate);
+
+    if (isNaN(itemTime)) continue;
+
+    const existing = firstPurchaseMap.get(key);
+    if (!existing || itemTime < existing.time) {
+      firstPurchaseMap.set(key, { time: itemTime, invoiceItem: item });
+    }
+  }
+
+  // Step 2: Group by Month and apply date filters
+  const monthlyListings: Record<string, any> = {};
+
+  for (const [key, data] of firstPurchaseMap.entries()) {
+    const { time, invoiceItem } = data;
+    const date = new Date(time);
+
+    // Apply date filters to the "First Purchase Event"
+    if (filters) {
+      const { year, month, dateFrom, dateTo } = filters;
+      if (year && date.getFullYear() !== parseInt(year, 10)) continue;
+      if (month && date.getMonth() + 1 !== parseInt(month, 10)) continue;
+      if (dateFrom && time < Date.parse(dateFrom)) continue;
+      if (dateTo) {
+        const tDate = new Date(dateTo);
+        tDate.setHours(23, 59, 59, 999);
+        if (time > tDate.getTime()) continue;
+      }
+    }
+
+    const yearStr = date.getFullYear();
+    const monthStr = date.getMonth() + 1;
+    const monthKey = `${yearStr}-${monthStr < 10 ? '0' : ''}${monthStr}`;
+
+    if (!monthlyListings[monthKey]) {
+      monthlyListings[monthKey] = {
+        products: {}
+      };
+    }
+
+    const productId = invoiceItem.productId || invoiceItem.product;
+    const barcode = invoiceItem.barcode || '-';
+    const productName = invoiceItem.product;
+    const customerId = invoiceItem.customerId || invoiceItem.customerName;
+    const customerName = invoiceItem.customerName || invoiceItem.customerMainName || 'Unknown';
+
+    if (!monthlyListings[monthKey].products[productId]) {
+      monthlyListings[monthKey].products[productId] = {
+        barcode,
+        productName,
+        customersMap: new Map() // to ensure unique customers
+      };
+    }
+
+    monthlyListings[monthKey].products[productId].customersMap.set(customerId, customerName);
+  }
+
+  // Transform to Array
+  const result: any[] = [];
+  const sortedMonths = Object.keys(monthlyListings).sort().reverse(); // Newest first
+
+  for (const monthKey of sortedMonths) {
+    const productsData = monthlyListings[monthKey].products;
+    const productsArr: any[] = [];
+    const uniqueCustomersInMonth = new Set<string>();
+
+    for (const [productId, pData] of Object.entries(productsData)) {
+      const customersArr = Array.from((pData as any).customersMap.entries()).map(([id, name]: any) => {
+        uniqueCustomersInMonth.add(id as string);
+        return { id, name };
+      }).sort((a: any, b: any) => a.name.localeCompare(b.name));
+
+      productsArr.push({
+        productId,
+        barcode: (pData as any).barcode,
+        productName: (pData as any).productName,
+        customers: customersArr,
+        customersCount: customersArr.length
+      });
+    }
+
+    productsArr.sort((a, b) => {
+      if (b.customersCount !== a.customersCount) {
+        return b.customersCount - a.customersCount;
+      }
+      return (a.productName || '').localeCompare(b.productName || '');
+    });
+
+    // Parse month name for UI convenience
+    const [y, m] = monthKey.split('-');
+    const monthName = new Date(parseInt(y), parseInt(m) - 1).toLocaleString('default', { month: 'long' });
+
+    result.push({
+      monthKey,
+      monthName: `${monthName} ${y}`,
+      uniqueProductsCount: productsArr.length,
+      uniqueCustomersCount: uniqueCustomersInMonth.size,
+      products: productsArr
+    });
+  }
+
+  return result;
 }

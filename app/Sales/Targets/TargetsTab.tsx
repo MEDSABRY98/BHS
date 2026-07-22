@@ -6,6 +6,7 @@ import { toast } from '@/app/Components/Notification';
 import NoData from '@/app/Components/NoDataTab';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
 import { getTargetYears, getTargetsData, batchSaveTargets } from '../Service/sales_targets_service';
+import { useSalesDataContext } from '@/app/Sales/Context/SalesDataContext';
 
 type TargetRow = {
   userId: string;
@@ -19,7 +20,6 @@ type TargetRow = {
 
 interface SalesTargetsTabProps {
   userId: string;
-  refreshTrigger?: number;
 }
 
 const MONTH_NAMES = [
@@ -119,7 +119,8 @@ function PeriodSelect({
   );
 }
 
-export default function SalesTargetsTab({ userId, refreshTrigger }: SalesTargetsTabProps) {
+export default function SalesTargetsTab({ userId }: SalesTargetsTabProps) {
+  const { dataVersion } = useSalesDataContext();
   const now = new Date();
   const [year, setYear] = useState(Math.max(2025, now.getFullYear()));
   const [month, setMonth] = useState(now.getMonth() + 1);
@@ -152,7 +153,7 @@ export default function SalesTargetsTab({ userId, refreshTrigger }: SalesTargets
 
   useEffect(() => {
     fetchYearsWithData();
-  }, [fetchYearsWithData, refreshTrigger]);
+  }, [fetchYearsWithData, dataVersion]);
 
   useEffect(() => {
     if (yearOptions.length && !yearOptions.includes(year)) {
@@ -180,7 +181,7 @@ export default function SalesTargetsTab({ userId, refreshTrigger }: SalesTargets
 
   useEffect(() => {
     fetchTargets();
-  }, [fetchTargets, refreshTrigger]);
+  }, [fetchTargets, dataVersion]);
 
   const filteredReps = useMemo(() => {
     if (!searchQuery.trim()) return salesReps;

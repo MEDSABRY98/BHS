@@ -6,6 +6,7 @@ import { toast } from '@/app/Components/Notification';
 import NoData from '@/app/Components/NoDataTab';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
 import { getCustomersList, getMyCustomersData, saveCustomerMapping, deleteCustomerMapping } from '../Service/sales_customers_service';
+import { useSalesDataContext } from '@/app/Sales/Context/SalesDataContext';
 import { fetchUsersList } from '@/app/DataBase/Service/database_service';
 
 // Custom Premium Filter Dropdown Component
@@ -79,11 +80,11 @@ function FilterDropdown({ value, onChange, options, placeholder }: FilterDropdow
 }
 
 interface SalesSetCustomersTabProps {
-  userId: string; // The logged-in manager's User ID
-  refreshTrigger?: number;
+  userId: string;
 }
 
-export default function SalesSetCustomersTab({ userId, refreshTrigger }: SalesSetCustomersTabProps) {
+export default function SalesSetCustomersTab({ userId }: SalesSetCustomersTabProps) {
+  const { dataVersion } = useSalesDataContext();
   const [loading, setLoading] = useState(true);
   const [myCustomers, setMyCustomers] = useState<any[]>([]);
   const [globalCustomers, setGlobalCustomers] = useState<any[]>([]);
@@ -163,7 +164,7 @@ export default function SalesSetCustomersTab({ userId, refreshTrigger }: SalesSe
 
   useEffect(() => {
     fetchMyCustomers();
-  }, [userId, refreshTrigger]);
+  }, [userId, dataVersion]);
 
   // Merge list of all customers with their assignments
   const mergedCustomers = useMemo(() => {

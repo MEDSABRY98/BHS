@@ -1,7 +1,8 @@
 'use server';
 
 import { 
-  getMappingServer, 
+  getMappingServer,
+  getFilteredSalesData,
   invalidateMappingCache, 
   checkIsManager, 
   isLegacyMappingRowId, 
@@ -12,24 +13,10 @@ import {
   resolveSalesRepUserId 
 } from '@/app/Sales/Utils/SalesMappingCache';
 import { buildAndSaveCache, invalidateMemoryCache } from '@/app/Sales/Utils/SalesCache';
+import { buildDailySalesFromRaw, buildStatisticsFromRaw } from '@/app/Sales/Utils/SalesRawAggregations';
+import { applySalesCommonFilters } from '@/app/Sales/Utils/SalesDataFilters';
+import { buildOverviewFromFilteredData } from '@/app/Sales/Utils/SalesOverviewAggregation';
 import { bhs_supabas } from '@/lib/supabase';
-
-// -------------------------------------------------------------
-// Helper functions
-// -------------------------------------------------------------
-const formatDate = (dateString: string) => {
-  if (!dateString) return '';
-  try {
-    const date = new Date(dateString);
-    if (isNaN(date.getTime())) return '';
-    const day = String(date.getDate()).padStart(2, '0');
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const year = date.getFullYear();
-    return `${day}/${month}/${year}`;
-  } catch (e) {
-    return '';
-  }
-};
 
 // -------------------------------------------------------------
 // 0. Cache & Metadata (From api/Sales/route.ts, Build, Metadata, Mapping)
@@ -133,42 +120,56 @@ export async function getSalesMetadata(userId: string, forceRefresh: boolean = f
   if (forceRefresh) {
     invalidateMemoryCache();
     invalidateMappingCache();
+    await buildAndSaveCache();
   }
 
-  const { data, error } = await bhs_supabas.rpc('get_sales_metadata', {
-    p_user_id: userId
+  const augmentedData = await getFilteredSalesData(userId);
+  const myMappings = await getMappingServer(userId);
+
+  const areas = new Set<string>();
+  const markets = new Set<string>();
+  const merchandisers = new Set<string>();
+  const salesReps = new Set<string>();
+  const productTags = new Set<string>();
+  const years = new Set<string>();
+
+  myMappings.forEach(m => {
+    if (m.area) areas.add(m.area);
+    if (m.market) markets.add(m.market);
+    if (m.merchandiser) merchandisers.add(m.merchandiser);
+    if (m.salesRep) salesReps.add(m.salesRep);
   });
 
-  if (error) {
-    console.error('RPC Error in getSalesMetadata:', error);
-    return {
-      uniqueValues: {
-        areas: [],
-        markets: [],
-        merchandisers: [],
-        salesReps: [],
-        productTags: [],
-        years: []
-      },
-      lastUpdated: null
-    };
-  }
+  let latestDate = 0;
 
-  const result = data || {};
-  const uv = result.uniqueValues || {};
+  augmentedData.forEach(item => {
+    if (item.area) areas.add(item.area);
+    if (item.market) markets.add(item.market);
+    if (item.merchandiser) merchandisers.add(item.merchandiser);
+    if (item.salesRep) salesReps.add(item.salesRep);
+    if (item.productTag) productTags.add(item.productTag);
 
-  const lastUpdated = result.lastUpdated
-    ? new Date(result.lastUpdated).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+    if (item.invoiceDate) {
+      const d = new Date(item.invoiceDate);
+      if (!isNaN(d.getTime())) {
+        years.add(d.getFullYear().toString());
+        if (d.getTime() > latestDate) latestDate = d.getTime();
+      }
+    }
+  });
+
+  const lastUpdated = latestDate > 0
+    ? new Date(latestDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
     : null;
 
   return {
     uniqueValues: {
-      areas: uv.areas || [],
-      markets: uv.markets || [],
-      merchandisers: uv.merchandisers || [],
-      salesReps: uv.salesReps || [],
-      productTags: uv.productTags || [],
-      years: uv.years || []
+      areas: Array.from(areas).sort(),
+      markets: Array.from(markets).sort(),
+      merchandisers: Array.from(merchandisers).sort(),
+      salesReps: Array.from(salesReps).sort(),
+      productTags: Array.from(productTags).sort(),
+      years: Array.from(years).sort((a, b) => b.localeCompare(a))
     },
     lastUpdated
   };
@@ -242,393 +243,27 @@ export async function uploadSalesMappingsBulk(userId: string, mapping: any) {
 // 1. Overview Data
 // -------------------------------------------------------------
 export async function getOverviewData(userId: string, filters: any) {
-  const { invoiceType, year, month, dateFrom, dateTo, area, market, merchandiser, salesRep, productTag } = filters || {};
-
-  const { data, error } = await bhs_supabas.rpc('get_sales_overview_data', {
-    p_user_id: userId,
-    p_year: year ? parseInt(year, 10) : null,
-    p_month: month ? parseInt(month, 10) : null,
-    p_date_from: dateFrom || null,
-    p_date_to: dateTo || null,
-    p_invoice_type: invoiceType || 'all',
-    p_area: area || null,
-    p_market: market || null,
-    p_merchandiser: merchandiser || null,
-    p_sales_rep: salesRep || null,
-    p_product_tag: productTag || null
-  });
-
-  if (error) {
-    console.error('RPC Error in getOverviewData:', error);
-    throw error;
-  }
-
-  if (!data) return data;
-
-  const normalizeNumeric = (val: any) => Number(val) || 0;
-
-  if (data.metrics) {
-      data.metrics.totalAmount = normalizeNumeric(data.metrics.totalAmount);
-      data.metrics.avgMonthlyAmount = normalizeNumeric(data.metrics.avgMonthlyAmount);
-      data.metrics.totalQty = normalizeNumeric(data.metrics.totalQty);
-      data.metrics.avgMonthlyQty = normalizeNumeric(data.metrics.avgMonthlyQty);
-  }
-
-  if (data.chartData) {
-      data.chartData = data.chartData.map((d: any) => ({
-          ...d,
-          prevAmount: normalizeNumeric(d.prevAmount),
-          currentAmount: normalizeNumeric(d.currentAmount),
-          diff: normalizeNumeric(d.diff)
-      }));
-  }
-
-  if (data.yearlyTableData) {
-      data.yearlyTableData = data.yearlyTableData.map((d: any) => ({
-          ...d,
-          amount: normalizeNumeric(d.amount),
-          amountDiff: normalizeNumeric(d.amountDiff),
-          qty: normalizeNumeric(d.qty),
-          grossSales: normalizeNumeric(d.grossSales),
-          grvAmount: normalizeNumeric(d.grvAmount)
-      }));
-  }
-
-  if (data.monthlyTableData) {
-      data.monthlyTableData = data.monthlyTableData.map((d: any) => ({
-          ...d,
-          amount: normalizeNumeric(d.amount),
-          amountDiff: normalizeNumeric(d.amountDiff),
-          qty: normalizeNumeric(d.qty),
-          grossSales: normalizeNumeric(d.grossSales),
-          grvAmount: normalizeNumeric(d.grvAmount)
-      }));
-  }
-
-  return data;
+  const augmentedData = await getFilteredSalesData(userId);
+  return buildOverviewFromFilteredData(augmentedData, filters);
 }
 
 // -------------------------------------------------------------
 // 2. Daily Sales Data
 // -------------------------------------------------------------
+export async function fetchSalesStockRawData(userId: string, filters: any) {
+  const data = await getFilteredSalesData(userId);
+  return applySalesCommonFilters(data, filters);
+}
+
 export async function getDailySalesData(userId: string, filters: any, invoiceTypeFilter: string) {
-  const { invoiceType, year, month, dateFrom, dateTo, area, market, merchandiser, salesRep, productTag } = filters || {};
-
-  const { data: globallyFilteredData, error } = await bhs_supabas.rpc('get_sales_stock_raw_data', {
-    p_user_id: userId,
-    p_invoice_type: invoiceType || 'all',
-    p_year: year || null,
-    p_month: month || null,
-    p_date_from: dateFrom || null,
-    p_date_to: dateTo || null,
-    p_area: area || null,
-    p_market: market || null,
-    p_merchandiser: merchandiser || null,
-    p_sales_rep: salesRep || null,
-    p_product_tag: productTag || null
-  });
-
-  if (error) {
-    console.error('RPC Error in getDailySalesData:', error);
-    return { dailySalesData: [], salesByDayData: [], avgSalesByDayData: [] };
-  }
-
-  const invoiceMap = new Map<string, any>();
-  globallyFilteredData.forEach((item: any) => {
-    if (!item.invoiceNumber) return;
-
-    const existing = invoiceMap.get(item.invoiceNumber) || {
-      invoiceDate: item.invoiceDate || '',
-      invoiceNumber: item.invoiceNumber,
-      customerName: item.customerName || '',
-      amount: 0,
-      qty: 0,
-      products: new Set<string>(),
-      searchTerms: new Set<string>(),
-      totalCost: 0,
-      totalPrice: 0,
-      costCount: 0,
-      priceCount: 0,
-      items: []
-    };
-
-    existing.items.push(item);
-    existing.amount += Number(item.amount) || 0;
-    existing.qty += Number(item.qty) || 0;
-
-    if (item.product) existing.searchTerms.add(item.product.toLowerCase());
-    if (item.barcode) existing.searchTerms.add(item.barcode.toLowerCase());
-    if (item.productId) existing.searchTerms.add(item.productId.toLowerCase());
-
-    const productKey = item.productId || item.barcode || item.product;
-    if (productKey) existing.products.add(productKey);
-
-    if (item.productCost) {
-      existing.totalCost += Number(item.productCost);
-      existing.costCount += 1;
-    }
-    if (item.productPrice) {
-      existing.totalPrice += Number(item.productPrice);
-      existing.priceCount += 1;
-    }
-
-    invoiceMap.set(item.invoiceNumber, existing);
-  });
-
-  const allInvoices = Array.from(invoiceMap.values()).map(invoice => {
-    const avgCost = invoice.costCount > 0 ? invoice.totalCost / invoice.costCount : 0;
-    const avgPrice = invoice.priceCount > 0 ? invoice.totalPrice / invoice.priceCount : 0;
-
-    return {
-      ...invoice,
-      productsCount: invoice.products.size,
-      searchTerms: Array.from(invoice.searchTerms),
-      avgCost,
-      avgPrice,
-      products: undefined, 
-    };
-  }).sort((a, b) => {
-    const dateA = new Date(a.invoiceDate).getTime();
-    const dateB = new Date(b.invoiceDate).getTime();
-    if (dateA !== dateB) return dateB - dateA;
-    return b.invoiceNumber.localeCompare(a.invoiceNumber);
-  });
-
-  let filteredInvoices = allInvoices;
-  if (invoiceTypeFilter && invoiceTypeFilter !== 'all') {
-    filteredInvoices = allInvoices.filter(inv => {
-      const num = inv.invoiceNumber.trim().toUpperCase();
-      if (invoiceTypeFilter === 'sales') return num.startsWith('SAL');
-      if (invoiceTypeFilter === 'returns') return num.startsWith('RSAL');
-      return true;
-    });
-  }
-
-  const dateMap = new Map<string, any>();
-  globallyFilteredData.forEach((item: any) => {
-    if (!item.invoiceDate) return;
-    const dateKey = formatDate(item.invoiceDate);
-    if (!dateKey) return;
-
-    const existing = dateMap.get(dateKey) || {
-      date: dateKey,
-      amount: 0,
-      qty: 0,
-      invoiceNumbers: new Set<string>(),
-      products: new Set<string>(),
-      customers: new Set<string>(),
-      salInvoiceNumbers: new Set<string>(),
-      salProducts: new Set<string>(),
-      salCustomers: new Set<string>()
-    };
-
-    existing.amount += Number(item.amount) || 0;
-    existing.qty += Number(item.qty) || 0;
-
-    if (item.invoiceNumber) {
-      existing.invoiceNumbers.add(item.invoiceNumber);
-      if (item.invoiceNumber.trim().toUpperCase().startsWith('SAL')) {
-        existing.salInvoiceNumbers.add(item.invoiceNumber);
-        const pKey = item.productId || item.barcode || item.product;
-        if (pKey) existing.salProducts.add(pKey);
-        const cKey = item.customerId || item.customerName;
-        if (cKey) existing.salCustomers.add(cKey);
-      }
-    }
-
-    const pKey = item.productId || item.barcode || item.product;
-    if (pKey) existing.products.add(pKey);
-    const cKey = item.customerId || item.customerName;
-    if (cKey) existing.customers.add(cKey);
-
-    dateMap.set(dateKey, existing);
-  });
-
-  const salesByDayData = Array.from(dateMap.values()).map(item => ({
-    date: item.date,
-    amount: item.amount,
-    qty: item.qty,
-    invoicesCount: item.invoiceNumbers.size,
-    productsCount: item.products.size,
-    customersCount: item.customers.size,
-    salInvoicesCount: item.salInvoiceNumbers.size,
-    salProductsCount: item.salProducts.size,
-    salCustomersCount: item.salCustomers.size
-  })).sort((a, b) => {
-    const dateA = new Date(a.date.split('/').reverse().join('-')).getTime();
-    const dateB = new Date(b.date.split('/').reverse().join('-')).getTime();
-    return dateB - dateA;
-  });
-
-  const monthMap = new Map<string, any>();
-  salesByDayData.forEach((item: any) => {
-    if (!item.date) return;
-    const [day, month, year] = item.date.split('/');
-    if (!day || !month || !year) return;
-
-    const monthKey = `${year}-${month.padStart(2, '0')}`;
-    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const monthName = monthNames[parseInt(month, 10) - 1] || month;
-    const monthYear = `${monthName.toUpperCase()} ${year}`;
-
-    const existing = monthMap.get(monthKey) || {
-      monthKey,
-      monthYear,
-      totalAmount: 0,
-      totalQty: 0,
-      totalInvoices: 0,
-      totalCustomers: 0,
-      totalProducts: 0,
-      daysCount: 0
-    };
-
-    existing.totalAmount += item.amount;
-    existing.totalQty += item.qty;
-    existing.totalInvoices += item.salInvoicesCount;
-    existing.totalCustomers += item.salCustomersCount;
-    existing.totalProducts += item.salProductsCount;
-    existing.daysCount += 1;
-
-    monthMap.set(monthKey, existing);
-  });
-
-  const avgSalesByDayData = Array.from(monthMap.values()).map(item => ({
-    monthKey: item.monthKey,
-    monthYear: item.monthYear,
-    avgAmount: item.daysCount > 0 ? item.totalAmount / item.daysCount : 0,
-    avgQty: item.daysCount > 0 ? item.totalQty / item.daysCount : 0,
-    avgInvoices: item.daysCount > 0 ? item.totalInvoices / item.daysCount : 0,
-    avgCustomers: item.daysCount > 0 ? item.totalCustomers / item.daysCount : 0,
-    avgProducts: item.daysCount > 0 ? item.totalProducts / item.daysCount : 0
-  })).sort((a, b) => b.monthKey.localeCompare(a.monthKey));
-
-  return { dailySalesData: filteredInvoices, salesByDayData, avgSalesByDayData };
+  const raw = await fetchSalesStockRawData(userId, filters);
+  return buildDailySalesFromRaw(raw, invoiceTypeFilter);
 }
 
 // -------------------------------------------------------------
 // 3. Statistics Data
 // -------------------------------------------------------------
-function calculateStatsForDimension(data: any[], dimensionKey: string) {
-  const dimensionMap = new Map<string, { amount: number; qty: number; count: number }>();
-  const dimensionCustomersMap = new Map<string, Set<string>>();
-  const dimensionMonthsMap = new Map<string, Set<string>>();
-  const monthlyData = new Map<string, Map<string, { amount: number; qty: number }>>();
-
-  data.forEach((item: any) => {
-    const dimValue = item[dimensionKey];
-    if (!dimValue) return;
-
-    const existing = dimensionMap.get(dimValue) || { amount: 0, qty: 0, count: 0 };
-    dimensionMap.set(dimValue, {
-      amount: existing.amount + (Number(item.amount) || 0),
-      qty: existing.qty + (Number(item.qty) || 0),
-      count: existing.count + 1
-    });
-
-    const customerKey = item.customerId || item.customerName;
-    if (customerKey) {
-      if (!dimensionCustomersMap.has(dimValue)) {
-        dimensionCustomersMap.set(dimValue, new Set());
-      }
-      dimensionCustomersMap.get(dimValue)!.add(String(customerKey));
-    }
-
-    if (!item.invoiceDate) return;
-    const date = new Date(item.invoiceDate);
-    if (isNaN(date.getTime())) return;
-    const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-
-    if (!dimensionMonthsMap.has(dimValue)) {
-      dimensionMonthsMap.set(dimValue, new Set());
-    }
-    dimensionMonthsMap.get(dimValue)!.add(monthKey);
-
-    if (!monthlyData.has(dimValue)) {
-      monthlyData.set(dimValue, new Map());
-    }
-    const dimMonths = monthlyData.get(dimValue)!;
-
-    if (!dimMonths.has(monthKey)) {
-      dimMonths.set(monthKey, { amount: 0, qty: 0 });
-    }
-    const monthData = dimMonths.get(monthKey)!;
-    monthData.amount += Number(item.amount) || 0;
-    monthData.qty += Number(item.qty) || 0;
-  });
-
-  const totalAmountAll = Array.from(dimensionMap.values()).reduce((sum, v) => sum + v.amount, 0);
-
-  const stats = Array.from(dimensionMap.entries()).map(([dim, values]) => {
-    const monthsCount = dimensionMonthsMap.get(dim)?.size || 1;
-    const averageMonthly = values.amount / monthsCount;
-
-    const dimMonthlyData = monthlyData.get(dim);
-    let averageMonthlyGrowth = 0;
-    if (dimMonthlyData && dimMonthlyData.size > 1) {
-      const sortedMonths = Array.from(dimMonthlyData.entries())
-        .sort((a, b) => a[0].localeCompare(b[0]));
-      const growths: number[] = [];
-      for (let i = 1; i < sortedMonths.length; i++) {
-        const prevAmount = sortedMonths[i - 1][1].amount;
-        const currAmount = sortedMonths[i][1].amount;
-        growths.push(currAmount - prevAmount);
-      }
-      if (growths.length > 0) {
-        averageMonthlyGrowth = growths.reduce((sum, g) => sum + g, 0) / growths.length;
-      }
-    }
-
-    return {
-      name: dim,
-      totalAmount: values.amount,
-      totalQty: values.qty,
-      invoiceCount: values.count,
-      customerCount: dimensionCustomersMap.get(dim)?.size || 0,
-      averageMonthly: averageMonthly,
-      averageMonthlyGrowth: averageMonthlyGrowth,
-      percentageOfTotal: totalAmountAll > 0 ? (values.amount / totalAmountAll) * 100 : 0
-    };
-  }).sort((a, b) => b.totalAmount - a.totalAmount);
-
-  const serializedMonthlyData: Record<string, any> = {};
-  for (const [dim, monthsMap] of monthlyData.entries()) {
-    serializedMonthlyData[dim] = Object.fromEntries(monthsMap);
-  }
-
-  return { stats, monthlyData: serializedMonthlyData };
-}
-
 export async function getStatisticsData(userId: string, filters: any) {
-  const { invoiceType, year, month, dateFrom, dateTo, area, market, merchandiser, salesRep, productTag } = filters || {};
-
-  const { data: globallyFilteredData, error } = await bhs_supabas.rpc('get_sales_stock_raw_data', {
-    p_user_id: userId,
-    p_invoice_type: invoiceType || 'all',
-    p_year: year || null,
-    p_month: month || null,
-    p_date_from: dateFrom || null,
-    p_date_to: dateTo || null,
-    p_area: area || null,
-    p_market: market || null,
-    p_merchandiser: merchandiser || null,
-    p_sales_rep: salesRep || null,
-    p_product_tag: productTag || null
-  });
-
-  if (error) {
-    console.error('RPC Error in getStatisticsData:', error);
-    return {
-      areaStats: { stats: [], monthlyData: {} },
-      marketStats: { stats: [], monthlyData: {} },
-      merchandiserStats: { stats: [], monthlyData: {} },
-      salesRepStats: { stats: [], monthlyData: {} }
-    };
-  }
-
-  const areaStats = calculateStatsForDimension(globallyFilteredData, 'area');
-  const marketStats = calculateStatsForDimension(globallyFilteredData, 'market');
-  const merchandiserStats = calculateStatsForDimension(globallyFilteredData, 'merchandiser');
-  const salesRepStats = calculateStatsForDimension(globallyFilteredData, 'salesRep');
-
-  return { areaStats, marketStats, merchandiserStats, salesRepStats };
+  const raw = await fetchSalesStockRawData(userId, filters);
+  return buildStatisticsFromRaw(raw);
 }

@@ -1,4 +1,5 @@
 import { bhs_supabas, parseBoolFlag } from '@/lib/supabase';
+import { getSalesDataServer } from '@/app/Sales/Utils/SalesCache';
 
 // ─────────────────────────────────────────────────────────────
 //  Mapping Cache — Global, memory-level
@@ -199,6 +200,44 @@ export function applyMapping(item: any, mappingMap: Map<string, any>): any {
   };
 }
 
+/**
+ * Loads sales rows from web_Sales_DB (via cache), applies customer mapping,
+ * and filters by user permissions (manager vs assigned sales rep).
+ */
+export async function getFilteredSalesData(userId: string): Promise<any[]> {
+  const userContext = await resolveSalesUserContext(userId);
+  if (!userContext) {
+    return [];
+  }
+
+  const rawSales = await getSalesDataServer();
+  const allMappings = await getGlobalMappings();
+  const { cleanUserId, cleanUserName, isManager } = userContext;
+
+  const processed: any[] = [];
+  rawSales.forEach((item: any) => {
+    const cId = String(item.customerId || '').trim().toUpperCase();
+    const mapping = allMappings.get(cId);
+
+    const isAssigned = isMappingAssignedToUser(mapping, cleanUserId, cleanUserName);
+
+    if (isManager || isAssigned) {
+      processed.push({
+        ...item,
+        customerMainName: mapping?.customerMainName || item.customerMainName,
+        customerName: mapping?.customerSubName || item.customerName,
+        area: mapping?.area || '',
+        market: mapping?.market || '',
+        merchandiser: mapping?.merchandiser || '',
+        merchandiserId: mapping?.merchandiserId || '',
+        salesRep: mapping?.salesRep || '',
+        salesRepId: mapping?.userId || '',
+      });
+    }
+  });
+
+  return processed;
+}
 
 /** Internal helper to check manager rights */
 async function checkIsManager(userId: string): Promise<boolean> {

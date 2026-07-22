@@ -3,24 +3,26 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { SalesInvoice } from '@/lib/supabase';;
 import { Download, Calendar, MapPin, ShoppingBag, UserCircle, ChevronDown, ChevronLeft, ChevronRight, Search, X, Filter, FileSpreadsheet } from 'lucide-react';
-import { useSalesModuleFilters } from '@/app/Sales/Model/SalesFilters';
+import { useSalesRawData } from '@/app/Sales/Context/SalesRawDataContext';
 import { exportSalesExcel, exportSalesExcelTable } from '@/app/Sales/Utils/ExcelExport';
-import { getDailySalesData } from '@/app/Sales/Service/sales_core_service';
 import NoData from '@/app/Components/NoDataTab';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
 
 interface SalesDailySalesTabProps {
-  refreshTrigger?: number;
   userId: string;
   showCosts?: boolean;
 }
 
-export default function SalesDailySalesTab({ userId, showCosts = true, refreshTrigger }: SalesDailySalesTabProps) {
-  const { commonFilters: filters, invoiceTypeFilter } = useSalesModuleFilters();
-  const [loading, setLoading] = useState(true);
-  const [dailySalesData, setDailySalesData] = useState<any[]>([]);
-  const [salesByDayData, setSalesByDayData] = useState<any[]>([]);
-  const [avgSalesByDayData, setAvgSalesByDayData] = useState<any[]>([]);
+export default function SalesDailySalesTab({ userId, showCosts = true }: SalesDailySalesTabProps) {
+  const { ensureRawData, dailySales, loading } = useSalesRawData();
+
+  useEffect(() => {
+    void ensureRawData();
+  }, [ensureRawData]);
+
+  const dailySalesData = dailySales?.dailySalesData ?? [];
+  const salesByDayData = dailySales?.salesByDayData ?? [];
+  const avgSalesByDayData = dailySales?.avgSalesByDayData ?? [];
 
   const [searchQuery1, setSearchQuery1] = useState('');
   const [searchQuery2, setSearchQuery2] = useState('');
@@ -132,27 +134,9 @@ export default function SalesDailySalesTab({ userId, showCosts = true, refreshTr
 
   const itemsPerPage = 50;
 
-  // Fetch data
-  useEffect(() => {
-    const fetchDailySales = async () => {
-      if (!userId) {
-        setLoading(false);
-        return;
-      }
-      setLoading(true);
-      try {
-        const result = await getDailySalesData(userId, filters, invoiceTypeFilter);
-        setDailySalesData(result.dailySalesData || []);
-        setSalesByDayData(result.salesByDayData || []);
-        setAvgSalesByDayData(result.avgSalesByDayData || []);
-      } catch (err) {
-        console.error('Error fetching Daily Sales Data:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchDailySales();
-  }, [filters, invoiceTypeFilter, userId, refreshTrigger]);
+  if (loading && !dailySales) {
+    return <SalesTabLoader />;
+  }
 
   // Calculate statistics for All Invoices tab
   const allInvoicesStats = useMemo(() => {

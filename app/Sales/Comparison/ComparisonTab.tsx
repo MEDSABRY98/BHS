@@ -8,10 +8,11 @@ import { exportSalesExcelWorkbook, recordsFromTable } from '@/app/Sales/Utils/Ex
 import NoData from '@/app/Components/NoDataTab';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
 import { getCustomersComparisonData } from '../Service/sales_customers_service';
+import { useSalesDataContext } from '@/app/Sales/Context/SalesDataContext';
+import { useSalesTabFetch } from '@/app/Sales/Hooks/useSalesTabFetch';
 
 interface Props {
   userId: string;
-  refreshTrigger?: number;
 }
 
 const ITEMS_PER_PAGE = 50;
@@ -78,9 +79,9 @@ const CompRow = memo(({ row, rowNum, prevLabel, currLabel }: {
 });
 CompRow.displayName = 'CompRow';
 
-export default function SalesCustomersComparisonTab({ userId, refreshTrigger }: Props) {
+export default function SalesCustomersComparisonTab({ userId }: Props) {
   const { commonFilters: filters } = useSalesModuleFilters();
-  const [loading, setLoading] = useState(true);
+  const { dataVersion } = useSalesDataContext();
   const today = new Date();
   const currentYear = today.getFullYear();
   const prevYear = currentYear - 1;
@@ -93,29 +94,18 @@ export default function SalesCustomersComparisonTab({ userId, refreshTrigger }: 
   const [currentPage, setCurrentPage] = useState(1);
   const [customerType, setCustomerType] = useState<'sub' | 'main'>('sub');
 
-  const [mainComparisonData, setMainComparisonData] = useState<ComparisonRow[]>([]);
-  const [subComparisonData, setSubComparisonData] = useState<ComparisonRow[]>([]);
+  const { data: comparisonBundle, isInitialLoading } = useSalesTabFetch({
+    tabKey: 'comparison',
+    userId,
+    filters,
+    dataVersion,
+    extraKey: `${selectedMonth}-${currentYear}-${prevYear}`,
+    fetcher: () => getCustomersComparisonData(userId, filters, currentYear, prevYear, selectedMonth),
+    initialData: { mainComparison: [] as ComparisonRow[], subComparison: [] as ComparisonRow[] },
+  });
 
-  // Fetch from server
-  useEffect(() => {
-    const fetchComparison = async () => {
-      if (!userId) {
-        setLoading(false);
-        return;
-      }
-      setLoading(true);
-      try {
-        const result = await getCustomersComparisonData(userId, filters, currentYear, prevYear, selectedMonth);
-        setMainComparisonData(result.mainComparison || []);
-        setSubComparisonData(result.subComparison || []);
-      } catch (error) {
-        console.error('Error fetching customers comparison:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchComparison();
-  }, [filters, userId, selectedMonth, currentYear, prevYear, refreshTrigger]);
+  const mainComparisonData = comparisonBundle?.mainComparison ?? [];
+  const subComparisonData = comparisonBundle?.subComparison ?? [];
 
   // Debounce
   useEffect(() => {
@@ -308,7 +298,7 @@ export default function SalesCustomersComparisonTab({ userId, refreshTrigger }: 
     );
   };
 
-  if (loading) {
+  if (isInitialLoading) {
     return <SalesTabLoader />;
   } return (
     <div className="space-y-5">

@@ -23,6 +23,8 @@ import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
 import NoData from '@/app/Components/NoDataTab';
 import ReportsDailyCalendar from './DailyCalendar';
 import { getReportsData } from '../Service/sales_reports_service';
+import { useSalesDataContext } from '@/app/Sales/Context/SalesDataContext';
+import { useSalesTabFetch } from '@/app/Sales/Hooks/useSalesTabFetch';
 import type { DailySalesCalendar } from '@/app/Sales/Reports/ReportsAggregation';
 import {
   getAmountTableSubtitle,
@@ -95,7 +97,6 @@ type ReportsPayload = {
 
 interface SalesReportsTabProps {
   userId: string;
-  refreshTrigger?: number;
   allowedReportTableTabIds?: SalesReportsTableTabId[] | null;
   showCosts?: boolean;
 }
@@ -392,7 +393,7 @@ function InvoiceRankTable({
   );
 }
 
-export default function SalesReportsTab({ userId, refreshTrigger, allowedReportTableTabIds = null, showCosts = true }: SalesReportsTabProps) {
+export default function SalesReportsTab({ userId, allowedReportTableTabIds = null, showCosts = true }: SalesReportsTabProps) {
   const {
     commonFilters: filters,
     dateFrom,
@@ -402,29 +403,19 @@ export default function SalesReportsTab({ userId, refreshTrigger, allowedReportT
     setFilterYear,
     setFilterMonth,
   } = useSalesModuleFilters();
-  const [loading, setLoading] = useState(true);
-  const [data, setData] = useState<ReportsPayload | null>(null);
+  const { dataVersion } = useSalesDataContext();
+  const { data, isInitialLoading } = useSalesTabFetch<ReportsPayload | null>({
+    tabKey: 'reports',
+    userId,
+    filters,
+    dataVersion,
+    fetcher: () => getReportsData(userId, filters),
+    initialData: null,
+  });
   const [exportingPdf, setExportingPdf] = useState(false);
   const [compareMode, setCompareMode] = useState<CompareMode>('prevMonth');
   const [customerView, setCustomerView] = useState<CustomerView>('main');
   const [activeTableTab, setActiveTableTab] = useState<ReportsTableTab>('top-customers');
-
-  useEffect(() => {
-    const fetchReports = async () => {
-      if (!userId) { setLoading(false); return; }
-      setLoading(true);
-      try {
-        const result = await getReportsData(userId, filters);
-        setData(result);
-      } catch (err) {
-        console.error('Reports fetch error:', err);
-        setData(null);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchReports();
-  }, [userId, filters, refreshTrigger]);
 
   const compareBlock = data?.customerViews?.[customerView]?.[compareMode];
   const compareLabel = data?.compareModes?.[compareMode]?.label ?? '';
@@ -816,7 +807,7 @@ export default function SalesReportsTab({ userId, refreshTrigger, allowedReportT
     </div>
   );
 
-  if (loading) {
+  if (isInitialLoading) {
     return (
       <div className="min-h-full w-full bg-white">
         {toolbar}

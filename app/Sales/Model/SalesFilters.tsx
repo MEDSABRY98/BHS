@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useMemo, createContext, useContext } from 'react';
+import { useState, useEffect, useRef, useMemo, createContext, useContext, useCallback } from 'react';
 import {
   Filter,
   ChevronDown,
@@ -48,6 +48,34 @@ const MONTH_OPTIONS = [
     value: (i + 1).toString(),
   })),
 ];
+
+export const DEFAULT_SALES_COMMON_FILTERS: SalesCommonFilters = {
+  invoiceType: 'all',
+  year: '',
+  month: '',
+  dateFrom: '',
+  dateTo: '',
+  area: '',
+  market: '',
+  merchandiser: '',
+  salesRep: '',
+  productTag: '',
+};
+
+function filtersEqual(a: SalesCommonFilters, b: SalesCommonFilters): boolean {
+  return (
+    a.invoiceType === b.invoiceType &&
+    a.year === b.year &&
+    a.month === b.month &&
+    a.dateFrom === b.dateFrom &&
+    a.dateTo === b.dateTo &&
+    a.area === b.area &&
+    a.market === b.market &&
+    a.merchandiser === b.merchandiser &&
+    a.salesRep === b.salesRep &&
+    a.productTag === b.productTag
+  );
+}
 
 function ModernSelect({
   value,
@@ -159,108 +187,127 @@ function ModernSelect({
 }
 
 export function useSalesFilters() {
-  const [invoiceTypeFilter, setInvoiceTypeFilter] = useState<InvoiceTypeFilter>('all');
-  const [filterYear, setFilterYear] = useState('');
-  const [filterMonth, setFilterMonth] = useState('');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
-  const [filterArea, setFilterArea] = useState('');
-  const [filterMarket, setFilterMarket] = useState('');
-  const [filterMerchandiser, setFilterMerchandiser] = useState('');
-  const [filterSalesRep, setFilterSalesRep] = useState('');
-  const [filterProductTag, setFilterProductTag] = useState('');
-  const [inactiveDays, setInactiveDays] = useState('30');
-  const [inactiveMinAmount, setInactiveMinAmount] = useState('');
+  const [appliedFilters, setAppliedFilters] = useState<SalesCommonFilters>(DEFAULT_SALES_COMMON_FILTERS);
+  const [draftFilters, setDraftFilters] = useState<SalesCommonFilters>(DEFAULT_SALES_COMMON_FILTERS);
+  const [appliedInactiveDays, setAppliedInactiveDays] = useState('30');
+  const [draftInactiveDays, setDraftInactiveDays] = useState('30');
+  const [appliedInactiveMinAmount, setAppliedInactiveMinAmount] = useState('');
+  const [draftInactiveMinAmount, setDraftInactiveMinAmount] = useState('');
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [isFiltering, setIsFiltering] = useState(false);
   const [activeFilterTab, setActiveFilterTab] = useState<SalesFilterTab>('mode');
 
+  const syncDraftFromApplied = useCallback(() => {
+    setDraftFilters({ ...appliedFilters });
+    setDraftInactiveDays(appliedInactiveDays);
+    setDraftInactiveMinAmount(appliedInactiveMinAmount);
+  }, [appliedFilters, appliedInactiveDays, appliedInactiveMinAmount]);
+
+  const openFilterModal = useCallback(() => {
+    syncDraftFromApplied();
+    setIsFilterOpen(true);
+  }, [syncDraftFromApplied]);
+
+  const closeFilterModal = useCallback(() => {
+    syncDraftFromApplied();
+    setIsFilterOpen(false);
+  }, [syncDraftFromApplied]);
+
+  const applyFilters = useCallback(() => {
+    setAppliedFilters({ ...draftFilters });
+    setAppliedInactiveDays(draftInactiveDays);
+    setAppliedInactiveMinAmount(draftInactiveMinAmount);
+    setIsFilterOpen(false);
+  }, [draftFilters, draftInactiveDays, draftInactiveMinAmount]);
+
   const hasAnyFilter = useMemo(() => {
+    const f = appliedFilters;
     return (
-      invoiceTypeFilter !== 'all' ||
-      filterYear ||
-      filterMonth ||
-      dateFrom ||
-      dateTo ||
-      filterArea ||
-      filterMarket ||
-      filterMerchandiser ||
-      filterSalesRep ||
-      filterProductTag
+      f.invoiceType !== 'all' ||
+      !!f.year ||
+      !!f.month ||
+      !!f.dateFrom ||
+      !!f.dateTo ||
+      !!f.area ||
+      !!f.market ||
+      !!f.merchandiser ||
+      !!f.salesRep ||
+      !!f.productTag
+    );
+  }, [appliedFilters]);
+
+  const hasPendingFilterChanges = useMemo(() => {
+    return (
+      !filtersEqual(draftFilters, appliedFilters) ||
+      draftInactiveDays !== appliedInactiveDays ||
+      draftInactiveMinAmount !== appliedInactiveMinAmount
     );
   }, [
-    invoiceTypeFilter,
-    filterYear,
-    filterMonth,
-    dateFrom,
-    dateTo,
-    filterArea,
-    filterMarket,
-    filterMerchandiser,
-    filterSalesRep,
-    filterProductTag,
+    draftFilters,
+    appliedFilters,
+    draftInactiveDays,
+    appliedInactiveDays,
+    draftInactiveMinAmount,
+    appliedInactiveMinAmount,
   ]);
 
-  const resetFilters = () => {
-    setInvoiceTypeFilter('all');
-    setFilterYear('');
-    setFilterMonth('');
-    setDateFrom('');
-    setDateTo('');
-    setFilterArea('');
-    setFilterMarket('');
-    setFilterMerchandiser('');
-    setFilterSalesRep('');
-    setFilterProductTag('');
-  };
+  const resetFilters = useCallback(() => {
+    setAppliedFilters(DEFAULT_SALES_COMMON_FILTERS);
+    setDraftFilters(DEFAULT_SALES_COMMON_FILTERS);
+    setAppliedInactiveDays('30');
+    setDraftInactiveDays('30');
+    setAppliedInactiveMinAmount('');
+    setDraftInactiveMinAmount('');
+  }, []);
 
-  const getCommonFilters = (): SalesCommonFilters => {
-    return {
-      invoiceType: invoiceTypeFilter,
-      year: filterYear,
-      month: filterMonth,
-      dateFrom: dateFrom,
-      dateTo: dateTo,
-      area: filterArea,
-      market: filterMarket,
-      merchandiser: filterMerchandiser,
-      salesRep: filterSalesRep,
-      productTag: filterProductTag,
-    };
-  };
+  const updateDraftFilter = useCallback(<K extends keyof SalesCommonFilters>(key: K, value: SalesCommonFilters[K]) => {
+    setDraftFilters((prev) => ({ ...prev, [key]: value }));
+  }, []);
+
+  const getCommonFilters = (): SalesCommonFilters => appliedFilters;
 
   return {
-    invoiceTypeFilter,
-    setInvoiceTypeFilter,
-    filterYear,
-    setFilterYear,
-    filterMonth,
-    setFilterMonth,
-    dateFrom,
-    setDateFrom,
-    dateTo,
-    setDateTo,
-    filterArea,
-    setFilterArea,
-    filterMarket,
-    setFilterMarket,
-    filterMerchandiser,
-    setFilterMerchandiser,
-    filterSalesRep,
-    setFilterSalesRep,
-    filterProductTag,
-    setFilterProductTag,
-    inactiveDays,
-    setInactiveDays,
-    inactiveMinAmount,
-    setInactiveMinAmount,
+    appliedFilters,
+    draftFilters,
+    updateDraftFilter,
+    applyFilters,
+    openFilterModal,
+    closeFilterModal,
+    invoiceTypeFilter: appliedFilters.invoiceType,
+    draftInvoiceTypeFilter: draftFilters.invoiceType,
+    setDraftInvoiceTypeFilter: (value: InvoiceTypeFilter) => updateDraftFilter('invoiceType', value),
+    filterYear: draftFilters.year,
+    setFilterYear: (value: string) => updateDraftFilter('year', value),
+    filterMonth: draftFilters.month,
+    setFilterMonth: (value: string) => updateDraftFilter('month', value),
+    dateFrom: draftFilters.dateFrom,
+    setDateFrom: (value: string) => updateDraftFilter('dateFrom', value),
+    dateTo: draftFilters.dateTo,
+    setDateTo: (value: string) => updateDraftFilter('dateTo', value),
+    filterArea: draftFilters.area,
+    setFilterArea: (value: string) => updateDraftFilter('area', value),
+    filterMarket: draftFilters.market,
+    setFilterMarket: (value: string) => updateDraftFilter('market', value),
+    filterMerchandiser: draftFilters.merchandiser,
+    setFilterMerchandiser: (value: string) => updateDraftFilter('merchandiser', value),
+    filterSalesRep: draftFilters.salesRep,
+    setFilterSalesRep: (value: string) => updateDraftFilter('salesRep', value),
+    filterProductTag: draftFilters.productTag,
+    setFilterProductTag: (value: string) => updateDraftFilter('productTag', value),
+    inactiveDays: appliedInactiveDays,
+    draftInactiveDays,
+    setInactiveDays: setDraftInactiveDays,
+    inactiveMinAmount: appliedInactiveMinAmount,
+    draftInactiveMinAmount,
+    setInactiveMinAmount: setDraftInactiveMinAmount,
     isFilterOpen,
-    setIsFilterOpen,
+    setIsFilterOpen: openFilterModal,
     isFiltering,
     setIsFiltering,
     activeFilterTab,
     setActiveFilterTab,
     hasAnyFilter,
+    hasPendingFilterChanges,
     resetFilters,
     getCommonFilters,
   };
@@ -269,6 +316,8 @@ export function useSalesFilters() {
 export type SalesFilterModalProps = {
   isOpen: boolean;
   onClose: () => void;
+  onApply: () => void;
+  hasPendingFilterChanges: boolean;
   activeTab: string;
   uniqueValues: SalesFilterOptions;
   invoiceTypeFilter: InvoiceTypeFilter;
@@ -305,6 +354,8 @@ export type SalesFilterModalProps = {
 export function SalesFilterModal({
   isOpen,
   onClose,
+  onApply,
+  hasPendingFilterChanges,
   activeTab,
   uniqueValues,
   invoiceTypeFilter,
@@ -353,20 +404,29 @@ export function SalesFilterModal({
             </div>
             <div>
               <h3 className="text-2xl font-black text-slate-900 tracking-tight">Search & Filters</h3>
+              {hasPendingFilterChanges && (
+                <p className="text-xs font-bold text-amber-600 uppercase tracking-widest mt-1">
+                  Pending changes — click Apply to refresh data
+                </p>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-3">
             <button
-              onClick={resetFilters}
+              onClick={() => resetFilters()}
               title="Reset All Filters"
               className="p-3 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
             >
               <RotateCcw className="w-5 h-5" />
             </button>
             <button
-              onClick={onClose}
+              onClick={onApply}
               title="Apply Filters"
-              className="p-3 bg-green-600 text-white rounded-xl shadow-lg shadow-green-100 hover:bg-green-700 hover:scale-[1.05] active:scale-95 transition-all"
+              className={`p-3 rounded-xl shadow-lg transition-all hover:scale-[1.05] active:scale-95 ${
+                hasPendingFilterChanges
+                  ? 'bg-amber-500 text-white shadow-amber-100 hover:bg-amber-600'
+                  : 'bg-green-600 text-white shadow-green-100 hover:bg-green-700'
+              }`}
             >
               <CheckCircle2 className="w-6 h-6" />
             </button>
@@ -693,22 +753,23 @@ export function SalesFilterButton({
   inSidebar?: boolean;
   isCollapsed?: boolean;
 }) {
-  const { hasAnyFilter, setIsFilterOpen } = useSalesModuleFilters();
+  const { hasAnyFilter, hasPendingFilterChanges, setIsFilterOpen } = useSalesModuleFilters();
+  const showBadge = hasAnyFilter || hasPendingFilterChanges;
 
   if (inSidebar) {
     return (
       <button
         type="button"
-        onClick={() => setIsFilterOpen(true)}
+        onClick={() => setIsFilterOpen()}
         className={`flex items-center justify-center w-10 h-10 hover:bg-white/10 rounded-xl transition-all duration-200 group relative ${
-          hasAnyFilter ? 'text-amber-400 bg-white/5 border border-amber-500/30' : 'text-emerald-400'
+          showBadge ? 'text-amber-400 bg-white/5 border border-amber-500/30' : 'text-emerald-400'
         }`}
         title="Open Global Filters"
       >
         <Filter
-          className={`w-5 h-5 transition-transform group-hover:scale-110 ${hasAnyFilter ? 'animate-pulse' : ''}`}
+          className={`w-5 h-5 transition-transform group-hover:scale-110 ${showBadge ? 'animate-pulse' : ''}`}
         />
-        {hasAnyFilter && (
+        {showBadge && (
           <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full" />
         )}
         {!isCollapsed && (
@@ -723,20 +784,22 @@ export function SalesFilterButton({
   return (
     <button
       type="button"
-      onClick={() => setIsFilterOpen(true)}
+      onClick={() => setIsFilterOpen()}
       className={`group relative p-3 rounded-xl transition-all duration-300 border shadow-sm ${
-        !hasAnyFilter
+        !showBadge
           ? 'bg-white border-slate-200 text-slate-400 hover:border-green-200 hover:text-green-600 hover:bg-green-50'
-          : 'bg-green-600 border-green-700 text-white shadow-lg shadow-green-200'
+          : hasPendingFilterChanges
+            ? 'bg-amber-500 border-amber-600 text-white shadow-lg shadow-amber-200'
+            : 'bg-green-600 border-green-700 text-white shadow-lg shadow-green-200'
       }`}
       title="Open Global Filters"
     >
       <div className="flex items-center gap-2">
         <Filter
-          className={`w-5 h-5 transition-transform group-hover:scale-110 ${hasAnyFilter ? 'animate-pulse' : ''}`}
+          className={`w-5 h-5 transition-transform group-hover:scale-110 ${showBadge ? 'animate-pulse' : ''}`}
         />
       </div>
-      {hasAnyFilter && (
+      {showBadge && (
         <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-red-500 rounded-full border-2 border-white shadow-sm" />
       )}
     </button>
@@ -753,21 +816,7 @@ export function SalesFiltersProvider({
   activeTab: string;
 }) {
   const filterState = useSalesFilters();
-  const commonFilters = useMemo(
-    () => filterState.getCommonFilters(),
-    [
-      filterState.invoiceTypeFilter,
-      filterState.filterYear,
-      filterState.filterMonth,
-      filterState.dateFrom,
-      filterState.dateTo,
-      filterState.filterArea,
-      filterState.filterMarket,
-      filterState.filterMerchandiser,
-      filterState.filterSalesRep,
-      filterState.filterProductTag,
-    ]
-  );
+  const commonFilters = filterState.appliedFilters;
 
   const value = useMemo(
     () => ({
@@ -784,11 +833,13 @@ export function SalesFiltersProvider({
       {children}
       <SalesFilterModal
         isOpen={filterState.isFilterOpen}
-        onClose={() => filterState.setIsFilterOpen(false)}
+        onClose={filterState.closeFilterModal}
+        onApply={filterState.applyFilters}
+        hasPendingFilterChanges={filterState.hasPendingFilterChanges}
         activeTab={activeTab}
         uniqueValues={uniqueValues}
-        invoiceTypeFilter={filterState.invoiceTypeFilter}
-        setInvoiceTypeFilter={filterState.setInvoiceTypeFilter}
+        invoiceTypeFilter={filterState.draftInvoiceTypeFilter}
+        setInvoiceTypeFilter={filterState.setDraftInvoiceTypeFilter}
         filterYear={filterState.filterYear}
         setFilterYear={filterState.setFilterYear}
         filterMonth={filterState.filterMonth}
@@ -807,9 +858,9 @@ export function SalesFiltersProvider({
         setFilterSalesRep={filterState.setFilterSalesRep}
         filterProductTag={filterState.filterProductTag}
         setFilterProductTag={filterState.setFilterProductTag}
-        inactiveDays={filterState.inactiveDays}
+        inactiveDays={filterState.draftInactiveDays}
         setInactiveDays={filterState.setInactiveDays}
-        inactiveMinAmount={filterState.inactiveMinAmount}
+        inactiveMinAmount={filterState.draftInactiveMinAmount}
         setInactiveMinAmount={filterState.setInactiveMinAmount}
         isFiltering={filterState.isFiltering}
         setIsFiltering={filterState.setIsFiltering}
