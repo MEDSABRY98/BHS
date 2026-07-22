@@ -15,7 +15,7 @@ import {
 import { buildAndSaveCache, invalidateMemoryCache } from '@/app/Sales/Utils/SalesCache';
 import { buildDailySalesFromRaw, buildStatisticsFromRaw } from '@/app/Sales/Utils/SalesRawAggregations';
 import { applySalesCommonFilters } from '@/app/Sales/Utils/SalesDataFilters';
-import { buildOverviewFromFilteredData } from '@/app/Sales/Utils/SalesOverviewAggregation';
+import { buildOverviewFromFilteredData } from '@/app/Sales/Overview/SalesOverviewAggregation';
 import { bhs_supabas } from '@/lib/supabase';
 
 // -------------------------------------------------------------

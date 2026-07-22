@@ -5,9 +5,10 @@ import { Search, Edit, Trash2, Save, X, User, AlertTriangle, Loader2, ChevronDow
 import { toast } from '@/app/Components/Notification';
 import NoData from '@/app/Components/NoDataTab';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
-import { getCustomersList, getMyCustomersData, saveCustomerMapping, deleteCustomerMapping } from '../Service/sales_customers_service';
+import { getSetCustomersTabData, saveCustomerMapping, deleteCustomerMapping } from '../Service/sales_customers_service';
 import { useSalesDataContext } from '@/app/Sales/Context/SalesDataContext';
-import { fetchUsersList } from '@/app/DataBase/Service/database_service';
+import { useSalesModuleFilters } from '@/app/Sales/Model/SalesFilters';
+import { useSalesTabFetch } from '@/app/Sales/Hooks/useSalesTabFetch';
 
 // Custom Premium Filter Dropdown Component
 interface FilterDropdownProps {
@@ -85,11 +86,21 @@ interface SalesSetCustomersTabProps {
 
 export default function SalesSetCustomersTab({ userId }: SalesSetCustomersTabProps) {
   const { dataVersion } = useSalesDataContext();
-  const [loading, setLoading] = useState(true);
-  const [myCustomers, setMyCustomers] = useState<any[]>([]);
-  const [globalCustomers, setGlobalCustomers] = useState<any[]>([]);
-  const [usersList, setUsersList] = useState<any[]>([]);
+  const { commonFilters: filters } = useSalesModuleFilters();
   const [tableSearchQuery, setTableSearchQuery] = useState('');
+
+  const { data: tabData, isInitialLoading, reload } = useSalesTabFetch({
+    tabKey: 'set-customers',
+    userId,
+    filters,
+    dataVersion,
+    fetcher: () => getSetCustomersTabData(userId),
+    initialData: { globalCustomers: [], myCustomers: [], usersList: [] },
+  });
+
+  const globalCustomers = tabData?.globalCustomers ?? [];
+  const myCustomers = tabData?.myCustomers ?? [];
+  const usersList = tabData?.usersList ?? [];
 
   // Modal states
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -118,53 +129,6 @@ export default function SalesSetCustomersTab({ userId }: SalesSetCustomersTabPro
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
-
-  // Fetch initial data: customers list & users list
-  useEffect(() => {
-    const fetchGlobalCustomers = async () => {
-      try {
-        const result = await getCustomersList();
-        setGlobalCustomers(result || []);
-      } catch (err) {
-        console.error('Error fetching global customers:', err);
-      }
-    };
-
-    const fetchUsers = async () => {
-      try {
-        const data = await fetchUsersList();
-        if (data.success && data.users) {
-          setUsersList(data.users);
-        }
-      } catch (err) {
-        console.error('Error fetching users:', err);
-      }
-    };
-
-    fetchGlobalCustomers();
-    fetchUsers();
-  }, []);
-
-  const fetchMyCustomers = async () => {
-    if (!userId) {
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    try {
-      const data = await getMyCustomersData(userId);
-      setMyCustomers(data || []);
-    } catch (error) {
-      console.error('Error fetching mappings:', error);
-      toast.error('Failed to load customer assignments');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchMyCustomers();
-  }, [userId, dataVersion]);
 
   // Merge list of all customers with their assignments
   const mergedCustomers = useMemo(() => {
@@ -270,7 +234,7 @@ export default function SalesSetCustomersTab({ userId }: SalesSetCustomersTabPro
       toast.success('Assignment saved successfully!');
       setIsEditModalOpen(false);
       setEditingCustomer(null);
-      fetchMyCustomers();
+      reload();
     } catch (error: any) {
       console.error('Save assignment error:', error);
       toast.error(error.message || 'Failed to save customer assignment');
@@ -289,7 +253,7 @@ export default function SalesSetCustomersTab({ userId }: SalesSetCustomersTabPro
       await deleteCustomerMapping(userId, customerId);
 
       toast.success('Assignment cleared successfully!');
-      fetchMyCustomers();
+      reload();
       setCustomerToDelete(null);
     } catch (error) {
       console.error('Delete assignment error:', error);
@@ -299,7 +263,7 @@ export default function SalesSetCustomersTab({ userId }: SalesSetCustomersTabPro
     }
   };
 
-  if (loading) {
+  if (isInitialLoading) {
     return <SalesTabLoader />;
   }
 

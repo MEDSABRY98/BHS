@@ -1,13 +1,14 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { User, Home, ArrowUpDown, Search, Package, RefreshCw, AlertCircle, ChevronDown, FileSpreadsheet } from 'lucide-react';
+import { ArrowUpDown, Search, Package, RefreshCw, AlertCircle, ChevronDown, FileSpreadsheet } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import TabLoader from '@/app/Components/TabLoader';
 import NoData from '@/app/Components/NoDataTab';
 import { ICItem, ICRecord } from './EditICItemModal';
 import EditICItemModal from './EditICItemModal';
 import { fetchICCountTabData, updateICItem } from './Service/inventory_counting_service';
+import { useInventoryCountingFilters, matchesICUser, matchesICWarehouse, hasICScopeFilter } from './InventoryCountingFiltersContext';
 
 export default function DamageExpireCountTab() {
     const [data, setData] = useState<ICItem[]>([]);
@@ -16,11 +17,8 @@ export default function DamageExpireCountTab() {
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState<'All' | 'Counted' | 'Pending'>('All');
-    const [userFilter, setUserFilter] = useState('All Users');
-    const [warehouseFilter, setWarehouseFilter] = useState('All Warehouses');
+    const { selectedUsers, selectedWarehouses } = useInventoryCountingFilters();
     const [isStatusOpen, setIsStatusOpen] = useState(false);
-    const [isUserOpen, setIsUserOpen] = useState(false);
-    const [isWarehouseOpen, setIsWarehouseOpen] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [sortConfig, setSortConfig] = useState<{ key: keyof ICItem | '#'; direction: 'asc' | 'desc' } | null>(null);
     const [editingItem, setEditingItem] = useState<ICItem | null>(null);
@@ -56,20 +54,15 @@ export default function DamageExpireCountTab() {
         fetchData();
     }, []);
 
-    // Filter options
-    const uniqueUsers = ['All Users', ...Array.from(new Set(records.map(r => r.user)))];
-    const uniqueWarehouses = ['All Warehouses', ...Array.from(new Set(records.map(r => r.warehouse)))];
-
     // Aggregation Logic
     const getAggregatedData = (): ICItem[] => {
-        if (userFilter === 'All Users' && warehouseFilter === 'All Warehouses') {
+        if (!hasICScopeFilter(selectedUsers, selectedWarehouses)) {
             return data;
         }
 
-        // Filter records first
         const filteredRecords = records.filter(r => {
-            const matchesUser = userFilter === 'All Users' || r.user === userFilter;
-            const matchesWarehouse = warehouseFilter === 'All Warehouses' || r.warehouse === warehouseFilter;
+            const matchesUser = matchesICUser(r.user, selectedUsers);
+            const matchesWarehouse = matchesICWarehouse(r.warehouse, selectedWarehouses);
             return matchesUser && matchesWarehouse;
         });
 
@@ -231,80 +224,6 @@ export default function DamageExpireCountTab() {
                         placeholder="Search by Product Name or Barcode..."
                         className="w-full pl-11 pr-4 py-3 bg-slate-50/50 border border-transparent rounded-xl text-sm font-bold text-slate-700 placeholder:text-gray-300 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all outline-none"
                     />
-                </div>
-
-                {/* User Filter Dropdown */}
-                <div className="relative">
-                    <button
-                        onClick={() => setIsUserOpen(!isUserOpen)}
-                        className="w-[160px] bg-slate-50 border border-slate-200 text-slate-700 text-xs font-black rounded-xl px-4 py-3 flex items-center justify-between hover:bg-slate-100 transition-all outline-none group shadow-sm"
-                    >
-                        <div className="flex items-center gap-2">
-                            <User className="w-4 h-4 text-slate-400" />
-                            <span className="truncate">{userFilter}</span>
-                        </div>
-                        <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-300 ${isUserOpen ? 'rotate-180' : ''}`} />
-                    </button>
-
-                    {isUserOpen && (
-                        <>
-                            <div className="fixed inset-0 z-10" onClick={() => setIsUserOpen(false)}></div>
-                            <div className="absolute right-0 mt-3 min-w-[160px] bg-white border border-slate-100 rounded-2xl shadow-2xl shadow-slate-200/60 py-2 z-20 animate-in fade-in zoom-in-95 duration-200 origin-top-right overflow-hidden max-h-[300px] overflow-y-auto">
-                                {uniqueUsers.map((u) => (
-                                    <button
-                                        key={u}
-                                        onClick={() => {
-                                            setUserFilter(u);
-                                            setIsUserOpen(false);
-                                        }}
-                                        className={`w-full text-left px-5 py-3 text-xs font-bold transition-all ${userFilter === u
-                                            ? 'bg-slate-900 text-white'
-                                            : 'text-slate-600 hover:bg-slate-50'
-                                            }`}
-                                    >
-                                        {u}
-                                    </button>
-                                ))}
-                            </div>
-                        </>
-                    )}
-                </div>
-
-                {/* Warehouse Filter Dropdown */}
-                <div className="relative">
-                    <button
-                        onClick={() => setIsWarehouseOpen(!isWarehouseOpen)}
-                        className="w-[160px] bg-slate-50 border border-slate-200 text-slate-700 text-xs font-black rounded-xl px-4 py-3 flex items-center justify-between hover:bg-slate-100 transition-all outline-none group shadow-sm"
-                    >
-                        <div className="flex items-center gap-2">
-                            <Home className="w-4 h-4 text-slate-400" />
-                            <span className="truncate">{warehouseFilter}</span>
-                        </div>
-                        <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-300 ${isWarehouseOpen ? 'rotate-180' : ''}`} />
-                    </button>
-
-                    {isWarehouseOpen && (
-                        <>
-                            <div className="fixed inset-0 z-10" onClick={() => setIsWarehouseOpen(false)}></div>
-                            <div className="absolute right-0 mt-3 min-w-[160px] bg-white border border-slate-100 rounded-2xl shadow-2xl shadow-slate-200/60 py-2 z-20 animate-in fade-in zoom-in-95 duration-200 origin-top-right overflow-hidden max-h-[300px] overflow-y-auto">
-                                {uniqueWarehouses.map((w) => (
-                                    <button
-                                        key={w}
-                                        onClick={() => {
-                                            setWarehouseFilter(w);
-                                            setIsWarehouseOpen(false);
-                                        }}
-                                        className={`w-full text-left px-5 py-3 text-xs font-bold transition-all ${warehouseFilter === w
-                                            ? 'bg-red-600 text-white'
-                                            : 'text-slate-600 hover:bg-slate-50'
-                                            }`}
-                                    >
-                                        {w}
-                                    </button>
-                                ))}
-                            </div>
-                        </>
-                    )}
                 </div>
 
                 {/* Custom Modern Dropdown */}

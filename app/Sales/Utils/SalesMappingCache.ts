@@ -8,6 +8,7 @@ import { getSalesDataServer } from '@/app/Sales/Utils/SalesCache';
 // ─────────────────────────────────────────────────────────────
 
 let globalMappingCache: Map<string, any> | null = null;
+let cachedUsersList: { id: string; name: string }[] | null = null;
 
 /**
  * Fetches and builds the global customer mappings.
@@ -40,6 +41,11 @@ export async function getGlobalMappings(): Promise<Map<string, any>> {
       userMap.set(u.ID, u.NAME);
       userMapByName.set(String(u.NAME || '').trim().toUpperCase(), u.ID);
     });
+    cachedUsersList = users
+      .map(u => ({ id: u.ID, name: u.NAME }))
+      .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+  } else {
+    cachedUsersList = [];
   }
 
   // 3. Fetch customers
@@ -176,7 +182,14 @@ export async function getMappingServer(userId: string): Promise<Map<string, any>
  */
 export function invalidateMappingCache(userId?: string) {
   globalMappingCache = null;
+  cachedUsersList = null;
   console.log('🗑️ Global mapping cache invalidated');
+}
+
+/** Users list built alongside global mappings — avoids duplicate bhs_USERS queries. */
+export async function getCachedUsersList(): Promise<{ id: string; name: string }[]> {
+  await getGlobalMappings();
+  return cachedUsersList || [];
 }
 
 /**

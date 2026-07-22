@@ -1,22 +1,20 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Search, History, RefreshCw, AlertCircle, User, Home, ChevronDown, FileSpreadsheet } from 'lucide-react';
+import { Search, History, RefreshCw, AlertCircle, FileSpreadsheet } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import TabLoader from '@/app/Components/TabLoader';
 import NoData from '@/app/Components/NoDataTab';
 import { ICRecord } from './EditICItemModal';
 import { fetchICDetails } from './Service/inventory_counting_service';
+import { useInventoryCountingFilters, matchesICUser, matchesICWarehouse } from './InventoryCountingFiltersContext';
 
 export default function DamageExpireRecordTab() {
     const [data, setData] = useState<ICRecord[]>([]);
     const [loading, setLoading] = useState(true);
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
-    const [userFilter, setUserFilter] = useState('All Users');
-    const [warehouseFilter, setWarehouseFilter] = useState('All Warehouses');
-    const [isUserOpen, setIsUserOpen] = useState(false);
-    const [isWarehouseOpen, setIsWarehouseOpen] = useState(false);
+    const { selectedUsers, selectedWarehouses } = useInventoryCountingFilters();
     const [error, setError] = useState<string | null>(null);
 
     const fetchData = async (isSilent = false) => {
@@ -44,9 +42,6 @@ export default function DamageExpireRecordTab() {
         fetchData();
     }, []);
 
-    const uniqueUsers = ['All Users', ...Array.from(new Set(data.map(item => item.user)))];
-    const uniqueWarehouses = ['All Warehouses', ...Array.from(new Set(data.map(item => item.warehouse)))];
-
     const filteredData = data.filter(item => {
         const query = searchQuery.toLowerCase().trim();
         const matchesSearch = !query || (
@@ -57,8 +52,8 @@ export default function DamageExpireRecordTab() {
             item.warehouse.toLowerCase().includes(query)
         );
 
-        const matchesUser = userFilter === 'All Users' || item.user === userFilter;
-        const matchesWarehouse = warehouseFilter === 'All Warehouses' || item.warehouse === warehouseFilter;
+        const matchesUser = matchesICUser(item.user, selectedUsers);
+        const matchesWarehouse = matchesICWarehouse(item.warehouse, selectedWarehouses);
 
         return matchesSearch && matchesUser && matchesWarehouse;
     });
@@ -116,80 +111,6 @@ export default function DamageExpireRecordTab() {
                     />
                 </div>
 
-                {/* User Filter Dropdown */}
-                <div className="relative">
-                    <button
-                        onClick={() => setIsUserOpen(!isUserOpen)}
-                        className="w-[160px] bg-slate-50 border border-slate-200 text-slate-700 text-xs font-black rounded-xl px-4 py-3.5 flex items-center justify-between hover:bg-slate-100 transition-all outline-none group shadow-sm"
-                    >
-                        <div className="flex items-center gap-2">
-                            <User className="w-4 h-4 text-slate-400" />
-                            <span className="truncate">{userFilter}</span>
-                        </div>
-                        <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-300 ${isUserOpen ? 'rotate-180' : ''}`} />
-                    </button>
-
-                    {isUserOpen && (
-                        <>
-                            <div className="fixed inset-0 z-10" onClick={() => setIsUserOpen(false)}></div>
-                            <div className="absolute right-0 mt-3 min-w-[160px] bg-white border border-slate-100 rounded-2xl shadow-2xl shadow-slate-200/60 py-2 z-20 animate-in fade-in zoom-in-95 duration-200 origin-top-right overflow-hidden max-h-[300px] overflow-y-auto">
-                                {uniqueUsers.map((u) => (
-                                    <button
-                                        key={u}
-                                        onClick={() => {
-                                            setUserFilter(u);
-                                            setIsUserOpen(false);
-                                        }}
-                                        className={`w-full text-left px-5 py-3 text-xs font-bold transition-all ${userFilter === u
-                                            ? 'bg-slate-900 text-white'
-                                            : 'text-slate-600 hover:bg-slate-50'
-                                            }`}
-                                    >
-                                        {u}
-                                    </button>
-                                ))}
-                            </div>
-                        </>
-                    )}
-                </div>
-
-                {/* Warehouse Filter Dropdown */}
-                <div className="relative">
-                    <button
-                        onClick={() => setIsWarehouseOpen(!isWarehouseOpen)}
-                        className="w-[160px] bg-slate-50 border border-slate-200 text-slate-700 text-xs font-black rounded-xl px-4 py-3.5 flex items-center justify-between hover:bg-slate-100 transition-all outline-none group shadow-sm"
-                    >
-                        <div className="flex items-center gap-2">
-                            <Home className="w-4 h-4 text-slate-400" />
-                            <span className="truncate">{warehouseFilter}</span>
-                        </div>
-                        <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-300 ${isWarehouseOpen ? 'rotate-180' : ''}`} />
-                    </button>
-
-                    {isWarehouseOpen && (
-                        <>
-                            <div className="fixed inset-0 z-10" onClick={() => setIsWarehouseOpen(false)}></div>
-                            <div className="absolute right-0 mt-3 min-w-[160px] bg-white border border-slate-100 rounded-2xl shadow-2xl shadow-slate-200/60 py-2 z-20 animate-in fade-in zoom-in-95 duration-200 origin-top-right overflow-hidden max-h-[300px] overflow-y-auto">
-                                {uniqueWarehouses.map((w) => (
-                                    <button
-                                        key={w}
-                                        onClick={() => {
-                                            setWarehouseFilter(w);
-                                            setIsWarehouseOpen(false);
-                                        }}
-                                        className={`w-full text-left px-5 py-3 text-sm font-bold transition-all ${warehouseFilter === w
-                                            ? 'bg-rose-600 text-white'
-                                            : 'text-slate-600 hover:bg-slate-50'
-                                            }`}
-                                    >
-                                        {w}
-                                    </button>
-                                ))}
-                            </div>
-                        </>
-                    )}
-                </div>
-
                 <div className="flex items-center gap-2">
                     {/* Refresh Button */}
                     <button
@@ -244,8 +165,8 @@ export default function DamageExpireRecordTab() {
                         <tbody className="divide-y divide-gray-100">
                                 {filteredData.map((item, idx) => (
                                     <tr key={idx} className="hover:bg-red-50/30 transition-all group border-b border-gray-50">
-                                        <td className="px-4 py-4 text-center">
-                                            <span className="text-[11px] font-bold text-slate-800">{item.date}</span>
+                                        <td className="px-4 py-4 text-center whitespace-nowrap">
+                                            <span className="text-[11px] font-semibold text-slate-700 tabular-nums">{item.date}</span>
                                         </td>
                                         <td className="px-4 py-4 text-center">
                                             <div className="flex items-center justify-center gap-2">

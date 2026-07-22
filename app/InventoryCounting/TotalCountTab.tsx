@@ -5,12 +5,17 @@ import { ArrowUpDown, Search, Package, RefreshCw, AlertCircle, ChevronDown, File
 import * as XLSX from 'xlsx';
 import TabLoader from '@/app/Components/TabLoader';
 import NoData from '@/app/Components/NoDataTab';
-import { fetchICTotalCountData, ICTotalCountItem } from './Service/inventory_counting_service';
+import { fetchICTotalCountData, fetchICCountTabData, ICTotalCountItem } from './Service/inventory_counting_service';
+import { ICRecord } from './EditICItemModal';
+import { useInventoryCountingFilters, matchesICUser, matchesICWarehouse, hasICScopeFilter } from './InventoryCountingFiltersContext';
 
 type SortKey = keyof ICTotalCountItem | '#';
 
 export default function TotalCountTab() {
   const [data, setData] = useState<ICTotalCountItem[]>([]);
+  const [normalRecords, setNormalRecords] = useState<ICRecord[]>([]);
+  const [damageRecords, setDamageRecords] = useState<ICRecord[]>([]);
+  const { selectedUsers, selectedWarehouses } = useInventoryCountingFilters();
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -25,11 +30,23 @@ export default function TotalCountTab() {
 
     setError(null);
     try {
-      const result = await fetchICTotalCountData();
+      const [result, normalResult, damageResult] = await Promise.all([
+        fetchICTotalCountData(),
+        fetchICCountTabData('Normal'),
+        fetchICCountTabData('DamageExpire'),
+      ]);
+
       if (result.success && result.data) {
         setData(result.data);
       } else {
         throw new Error(result.error || 'Failed to load data');
+      }
+
+      if (normalResult.success && normalResult.records) {
+        setNormalRecords(normalResult.records);
+      }
+      if (damageResult.success && damageResult.records) {
+        setDamageRecords(damageResult.records);
       }
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : 'Failed to load data';
@@ -45,10 +62,6 @@ export default function TotalCountTab() {
     fetchData();
   }, []);
 
-  const totalItems = data.length;
-  const countedItems = data.filter((item) => item.totalCountedQty > 0).length;
-  const pendingItems = data.filter((item) => item.totalCountedQty === 0).length;
-
   const statusOptions = [
     { value: 'All', label: 'All Items' },
     { value: 'Counted', label: 'Counted' },
@@ -56,7 +69,46 @@ export default function TotalCountTab() {
   ] as const;
   const currentStatus = statusOptions.find((opt) => opt.value === statusFilter);
 
-  let filteredData = data.filter((item) => {
+  const scopedData = (() => {
+    if (!hasICScopeFilter(selectedUsers, selectedWarehouses)) {
+      return data;
+    }
+
+    const matchesScope = (record: ICRecord) => {
+      const matchesUser = matchesICUser(record.user, selectedUsers);
+      const matchesWarehouse = matchesICWarehouse(record.warehouse, selectedWarehouses);
+      return matchesUser && matchesWarehouse;
+    };
+
+    const normalMap = new Map<string, number>();
+    const damageMap = new Map<string, number>();
+
+    normalRecords.filter(matchesScope).forEach((record) => {
+      normalMap.set(record.productId, (normalMap.get(record.productId) || 0) + record.countedQty);
+    });
+    damageRecords.filter(matchesScope).forEach((record) => {
+      damageMap.set(record.productId, (damageMap.get(record.productId) || 0) + record.countedQty);
+    });
+
+    return data.map((item) => {
+      const normalQty = normalMap.get(item.productId) || 0;
+      const damageQty = damageMap.get(item.productId) || 0;
+      const totalCountedQty = normalQty + damageQty;
+      return {
+        ...item,
+        normalQty,
+        damageQty,
+        totalCountedQty,
+        difference: totalCountedQty - item.availableQty,
+      };
+    });
+  })();
+
+  const totalItems = scopedData.length;
+  const countedItems = scopedData.filter((item) => item.totalCountedQty > 0).length;
+  const pendingItems = scopedData.filter((item) => item.totalCountedQty === 0).length;
+
+  let filteredData = scopedData.filter((item) => {
     const query = searchQuery.toLowerCase().trim();
     const matchesSearch =
       !query ||

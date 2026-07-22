@@ -8,6 +8,8 @@ import NormalCountTab from './NormalCountTab';
 import NormalRecordTab from './NormalRecordTab';
 import DamageExpireCountTab from './DamageExpireCountTab';
 import DamageExpireRecordTab from './DamageExpireRecordTab';
+import { InventoryCountingFiltersProvider } from './InventoryCountingFiltersContext';
+import ICUserWarehouseDropdowns from './ICUserWarehouseDropdowns';
 
 type SubTab = 'total_count' | 'normal_total' | 'normal_record' | 'damage_total' | 'damage_record';
 
@@ -60,47 +62,53 @@ export default function InventoryCountingTab() {
     }, [activeSubTab]);
 
     return (
-        <div className="flex flex-col gap-8">
-            <div className="bg-white p-3 rounded-3xl border border-gray-100 shadow-xl shadow-slate-200/50 flex flex-wrap gap-2">
-                {subTabs.map((tab) => {
-                    const Icon = tab.icon;
-                    const isActive = activeSubTab === tab.id;
+        <InventoryCountingFiltersProvider>
+            <div className="flex flex-col gap-6">
+                <div className="bg-white p-4 rounded-3xl border border-gray-100 shadow-xl shadow-slate-200/50">
+                    <ICUserWarehouseDropdowns />
+                </div>
 
-                    return (
-                        <button
-                            key={tab.id}
-                            onClick={() => handleTabChange(tab.id as SubTab)}
-                            className={`
-                                flex-1 min-w-[140px] flex items-center justify-center gap-3 px-6 py-4 rounded-2xl font-black text-sm transition-all duration-300
-                                ${isActive
-                                    ? `bg-slate-900 text-white shadow-lg shadow-slate-200 scale-[1.02]`
-                                    : 'bg-slate-50 text-slate-400 hover:bg-slate-100 hover:text-slate-600'}
-                            `}
-                        >
-                            <Icon className={`w-5 h-5 ${isActive ? 'text-blue-400' : 'text-slate-300'}`} />
-                            {tab.label}
-                        </button>
-                    );
-                })}
-            </div>
+                <div className="bg-white p-3 rounded-3xl border border-gray-100 shadow-xl shadow-slate-200/50 flex flex-wrap gap-2">
+                    {subTabs.map((tab) => {
+                        const Icon = tab.icon;
+                        const isActive = activeSubTab === tab.id;
 
-            <div className="min-h-[400px]">
-                <TabPanel tabId="total_count" activeTab={activeSubTab} isVisited={visitedTabs.has('total_count')}>
-                    <TotalCountTab />
-                </TabPanel>
-                <TabPanel tabId="normal_total" activeTab={activeSubTab} isVisited={visitedTabs.has('normal_total')}>
-                    <NormalCountTab />
-                </TabPanel>
-                <TabPanel tabId="normal_record" activeTab={activeSubTab} isVisited={visitedTabs.has('normal_record')}>
-                    <NormalRecordTab />
-                </TabPanel>
-                <TabPanel tabId="damage_total" activeTab={activeSubTab} isVisited={visitedTabs.has('damage_total')}>
-                    <DamageExpireCountTab />
-                </TabPanel>
-                <TabPanel tabId="damage_record" activeTab={activeSubTab} isVisited={visitedTabs.has('damage_record')}>
-                    <DamageExpireRecordTab />
-                </TabPanel>
+                        return (
+                            <button
+                                key={tab.id}
+                                onClick={() => handleTabChange(tab.id as SubTab)}
+                                className={`
+                                    flex-1 min-w-[140px] flex items-center justify-center gap-3 px-6 py-4 rounded-2xl font-black text-sm transition-all duration-300
+                                    ${isActive
+                                        ? `bg-slate-900 text-white shadow-lg shadow-slate-200 scale-[1.02]`
+                                        : 'bg-slate-50 text-slate-400 hover:bg-slate-100 hover:text-slate-600'}
+                                `}
+                            >
+                                <Icon className={`w-5 h-5 ${isActive ? 'text-blue-400' : 'text-slate-300'}`} />
+                                {tab.label}
+                            </button>
+                        );
+                    })}
+                </div>
+
+                <div className="min-h-[400px]">
+                    <TabPanel tabId="total_count" activeTab={activeSubTab} isVisited={visitedTabs.has('total_count')}>
+                        <TotalCountTab />
+                    </TabPanel>
+                    <TabPanel tabId="normal_total" activeTab={activeSubTab} isVisited={visitedTabs.has('normal_total')}>
+                        <NormalCountTab />
+                    </TabPanel>
+                    <TabPanel tabId="normal_record" activeTab={activeSubTab} isVisited={visitedTabs.has('normal_record')}>
+                        <NormalRecordTab />
+                    </TabPanel>
+                    <TabPanel tabId="damage_total" activeTab={activeSubTab} isVisited={visitedTabs.has('damage_total')}>
+                        <DamageExpireCountTab />
+                    </TabPanel>
+                    <TabPanel tabId="damage_record" activeTab={activeSubTab} isVisited={visitedTabs.has('damage_record')}>
+                        <DamageExpireRecordTab />
+                    </TabPanel>
+                </div>
             </div>
-        </div>
+        </InventoryCountingFiltersProvider>
     );
 }

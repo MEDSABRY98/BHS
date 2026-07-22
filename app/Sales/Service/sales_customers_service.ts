@@ -5,10 +5,9 @@ import {
   getFilteredSalesData,
   checkIsManager,
   getMappingServer,
+  getCachedUsersList,
   invalidateMappingCache,
   loadUserMaps,
-  migrateLegacyMappingRowIds,
-  migrateLegacyMerchandiserNames,
   normalizeMappingCustomerId,
   resolveMerchandiserUserId,
   resolveSalesRepUserId,
@@ -391,65 +390,57 @@ export async function getCustomersComparisonData(userId: string, filters: any, c
 // -------------------------------------------------------------
 // 5. My Customers (Mappings)
 // -------------------------------------------------------------
-export async function getMyCustomersData(userId: string) {
-  await migrateLegacyMappingRowIds();
-  await migrateLegacyMerchandiserNames();
-
-  const filteredMappings = await getMappingServer(userId);
-  const rawMappings = Array.from(filteredMappings.values()).map((m) => ({
+function mapMappingToCustomerRow(m: {
+  id: string;
+  customerId: string;
+  userId?: string;
+  merchandiserId?: string;
+  customerMainName?: string;
+  customerSubName?: string;
+  area?: string;
+  market?: string;
+  salesRep?: string;
+  merchandiser?: string;
+}) {
+  return {
     ID: m.id,
     'CUSTOMER ID': m.customerId,
-    'SALES_REP': m.userId,
-    'MERCHANDISER': m.merchandiserId,
-    'AREA': m.area,
-    'MARKET': m.market,
-  }));
+    'USER_ID': m.userId || '',
+    'MERCHANDISER_ID': m.merchandiserId || '',
+    'CUSTOMER MAIN NAME': m.customerMainName || '',
+    'CUSTOMER SUB NAME': m.customerSubName || '',
+    'AREA': m.area || '',
+    'MARKET': m.market || '',
+    'SALES_REP': m.salesRep || '',
+    'MERCHANDISER': m.merchandiser || '',
+  };
+}
 
-  const { data: customers, error: custError } = await bhs_supabas
-    .from('bhs_CUSTOMERS')
-    .select('"CUSTOMER ID", "CUSTOMER MAIN NAME", "CUSTOMER SUB NAME"');
-  if (custError) throw custError;
+export async function getMyCustomersData(userId: string) {
+  const filteredMappings = await getMappingServer(userId);
+  return Array.from(filteredMappings.values())
+    .map(mapMappingToCustomerRow)
+    .sort((a, b) => a['CUSTOMER MAIN NAME'].localeCompare(b['CUSTOMER MAIN NAME']));
+}
 
-  const custMap = new Map<string, { mainName: string; subName: string }>();
-  if (customers) {
-    customers.forEach((c) => {
-      const cId = String(c['CUSTOMER ID']).trim().toUpperCase();
-      custMap.set(cId, {
-        mainName: c['CUSTOMER MAIN NAME'] || '',
-        subName: c['CUSTOMER SUB NAME'] || '',
-      });
-    });
-  }
+export type SetCustomersTabData = {
+  globalCustomers: { id: string; mainName: string; subName: string }[];
+  myCustomers: ReturnType<typeof mapMappingToCustomerRow>[];
+  usersList: { id: string; name: string }[];
+};
 
-  const { data: users, error: userError } = await bhs_supabas
-    .from('bhs_USERS')
-    .select('ID, NAME');
-  if (userError) throw userError;
+export async function getSetCustomersTabData(userId: string): Promise<SetCustomersTabData> {
+  const [globalCustomers, filteredMappings, usersList] = await Promise.all([
+    getCustomersList(),
+    getMappingServer(userId),
+    getCachedUsersList(),
+  ]);
 
-  const userMap = new Map<string, string>();
-  if (users) {
-    users.forEach((u) => userMap.set(u.ID, u.NAME));
-  }
+  const myCustomers = Array.from(filteredMappings.values())
+    .map(mapMappingToCustomerRow)
+    .sort((a, b) => a['CUSTOMER MAIN NAME'].localeCompare(b['CUSTOMER MAIN NAME']));
 
-  const enrichedData = (rawMappings || []).map((m: any) => {
-    const cId = String(m['CUSTOMER ID']).trim().toUpperCase();
-    const cInfo = custMap.get(cId);
-    return {
-      ID: m.ID,
-      'CUSTOMER ID': m['CUSTOMER ID'],
-      'USER_ID': m['SALES_REP'],
-      'MERCHANDISER_ID': m['MERCHANDISER'],
-      'CUSTOMER MAIN NAME': cInfo?.mainName || '',
-      'CUSTOMER SUB NAME': cInfo?.subName || '',
-      'AREA': m['AREA'] || '',
-      'MARKET': m['MARKET'] || '',
-      'SALES_REP': userMap.get(m['SALES_REP']) || '',
-      'MERCHANDISER': userMap.get(m['MERCHANDISER']) || '',
-    };
-  });
-
-  enrichedData.sort((a, b) => a['CUSTOMER MAIN NAME'].localeCompare(b['CUSTOMER MAIN NAME']));
-  return enrichedData;
+  return { globalCustomers, myCustomers, usersList };
 }
 
 export async function saveCustomerMapping(userId: string, mapping: any) {

@@ -71,6 +71,25 @@ function parseNum(val: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+function formatICDateTime(value: unknown): string {
+  if (value === null || value === undefined) return '';
+  const raw = String(value).trim();
+  if (!raw) return '';
+
+  // Use wall-clock parts from ISO string — DB stores local time without offset correction.
+  const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/);
+  if (isoMatch) {
+    const [, year, month, day, hour, minute] = isoMatch;
+    return `${day}/${month}/${year} ${hour}:${minute}`;
+  }
+
+  const d = new Date(raw);
+  if (Number.isNaN(d.getTime())) return raw;
+
+  const fmt = (n: number) => String(n).padStart(2, '0');
+  return `${fmt(d.getUTCDate())}/${fmt(d.getUTCMonth() + 1)}/${d.getUTCFullYear()} ${fmt(d.getUTCHours())}:${fmt(d.getUTCMinutes())}`;
+}
+
 async function fetchAllMixCountRows<T>(
   table: MixCountTable,
   select: string,
@@ -159,7 +178,7 @@ function buildICRecords(
       const product = productMap.get(productId);
       return {
         rowId: row.ID || '',
-        date: row.DATE || '',
+        date: formatICDateTime(row.DATE),
         user: row.USER?.toString().trim() || '',
         warehouse: row.WAREHOUSE?.toString().trim() || '',
         productId,
@@ -319,5 +338,42 @@ export async function updateICItem(
   } catch (error: any) {
     console.error('Error in updateICItem:', error);
     return { success: false, error: 'Failed to update item', details: error.message };
+  }
+}
+
+/** Users & warehouses for shared parent-level filters. */
+export async function fetchICFilterOptions() {
+  try {
+    const { data: details, error } = await bhs_supabase
+      .from('mix_INVENTORY_COUNT_DETAILS')
+      .select('USER, WAREHOUSE');
+
+    if (error) throw error;
+
+    const userNames = new Set<string>();
+    (details || []).forEach((row) => {
+      const name = String(row.USER || '').trim();
+      if (name) userNames.add(name);
+    });
+
+    const warehouseNames = new Set<string>();
+    (details || []).forEach((row) => {
+      const name = String(row.WAREHOUSE || '').trim();
+      if (name) warehouseNames.add(name);
+    });
+
+    return {
+      success: true,
+      users: Array.from(userNames).sort((a, b) => a.localeCompare(b)),
+      warehouses: Array.from(warehouseNames).sort((a, b) => a.localeCompare(b)),
+    };
+  } catch (error: any) {
+    console.error('Error in fetchICFilterOptions:', error);
+    return {
+      success: false,
+      users: [],
+      warehouses: [],
+      error: error.message,
+    };
   }
 }
