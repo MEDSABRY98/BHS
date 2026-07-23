@@ -32,7 +32,18 @@ export function useSalesTabFetch<T>(options: {
   const [error, setError] = useState<string | null>(null);
   const fetchRequestId = useRef(0);
   const fetcherRef = useRef(fetcher);
+  const hasLoadedOnceRef = useRef(false);
   fetcherRef.current = fetcher;
+
+  const cacheKey = buildSalesFetchKey(tabKey, userId, filters, dataVersion, extraKey);
+  const prevCacheKeyRef = useRef(cacheKey);
+
+  useEffect(() => {
+    if (prevCacheKeyRef.current !== cacheKey) {
+      hasLoadedOnceRef.current = false;
+      prevCacheKeyRef.current = cacheKey;
+    }
+  }, [cacheKey]);
 
   const reload = useCallback(async () => {
     if (!userId) return;
@@ -62,6 +73,7 @@ export function useSalesTabFetch<T>(options: {
       console.error(`Error fetching ${tabKey}:`, err);
     } finally {
       if (requestId === fetchRequestId.current) {
+        hasLoadedOnceRef.current = true;
         setLoading(false);
       }
     }
@@ -75,8 +87,8 @@ export function useSalesTabFetch<T>(options: {
     reload();
   }, [enabled, userId, reload]);
 
-  const isInitialLoading = loading && data === null;
-  const isRefreshing = loading && data !== null;
+  const isInitialLoading = loading && !hasLoadedOnceRef.current;
+  const isRefreshing = loading && hasLoadedOnceRef.current;
 
   return {
     data,

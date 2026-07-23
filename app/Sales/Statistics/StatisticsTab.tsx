@@ -22,7 +22,7 @@ const convertMonthlyDataToMap = (monthlyDataObj: any) => {
 };
 
 export default function SalesStatisticsTab({ userId, showCosts = true }: SalesStatisticsTabProps) {
-  const { ensureRawData, statistics, loading } = useSalesRawData();
+  const { ensureRawData, statistics, isInitialLoading } = useSalesRawData();
   const [activeSubTab, setActiveSubTab] = useState<'area' | 'market' | 'merchandiser' | 'salesrep'>('area');
 
   useEffect(() => {
@@ -116,7 +116,7 @@ export default function SalesStatisticsTab({ userId, showCosts = true }: SalesSt
     );
   };
 
-  if (loading && !statistics) {
+  if (isInitialLoading) {
     return <SalesTabLoader />;
   }
 

@@ -106,6 +106,7 @@ function buildCustomerRows(
     const row: Record<string, string | number> = {
       "#": index + 1,
       "Customer Name": customer.customerName,
+      City: customer.city || "Unknown",
     };
 
     let totalDiscount = 0;
@@ -135,7 +136,7 @@ function buildCustomerRows(
 }
 
 function buildColumnKeys(monthColumns: MonthColumn[]): string[] {
-  return ["#", "Customer Name", "Discount (%)", "Rent (AED)", ...monthColumns.map((col) => col.key)];
+  return ["#", "Customer Name", "City", "Discount (%)", "Rent (AED)", ...monthColumns.map((col) => col.key)];
 }
 
 function applyWorksheetStyles(worksheet: Worksheet, keys: string[]) {
@@ -215,7 +216,8 @@ function addDataSheet(
 
   worksheet.columns = keys.map((key) => {
     let width = 14;
-    if (key === "Customer Name") width = 50;
+    if (key === "Customer Name") width = 40;
+    if (key === "City") width = 22;
     if (key === "#") width = 9;
     return { header: key, key, width };
   });

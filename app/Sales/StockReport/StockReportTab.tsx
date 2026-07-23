@@ -17,7 +17,7 @@ interface SalesStockReportTabProps {
 type TabMode = 'customers' | 'products' | 'margin';
 
 export default function SalesStockReportTab({ userId, showCosts = true }: SalesStockReportTabProps) {
-  const { stockReport, loading, ensureRawData } = useSalesRawData();
+  const { stockReport, loading, isInitialLoading, ensureRawData } = useSalesRawData();
   const [activeTab, setActiveTab] = useState<TabMode>('customers');
 
   useEffect(() => {
@@ -28,7 +28,7 @@ export default function SalesStockReportTab({ userId, showCosts = true }: SalesS
   const subCustomersData = stockReport?.subCustomersData ?? [];
   const productList = stockReport?.productList ?? [];
 
-  if (loading && !stockReport) {
+  if (isInitialLoading) {
     return <SalesTabLoader />;
   }
 

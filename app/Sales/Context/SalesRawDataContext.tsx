@@ -39,6 +39,7 @@ export interface SalesRawDataContextValue {
   stockReport: SalesStockReportBundle | null;
   loading: boolean;
   isRefreshing: boolean;
+  isInitialLoading: boolean;
   error: string | null;
   ensureRawData: () => Promise<void>;
   invalidateRawData: () => void;
@@ -150,6 +151,7 @@ export function SalesRawDataProvider({
   }, [userId, currentKey, loadRawData, dailySales]);
 
   const isRefreshing = loading && (dailySales !== null || statistics !== null || stockReport !== null);
+  const isInitialLoading = loading && dailySales === null && statistics === null && stockReport === null;
 
   const value = useMemo(
     () => ({
@@ -158,11 +160,12 @@ export function SalesRawDataProvider({
       stockReport,
       loading,
       isRefreshing,
+      isInitialLoading,
       error,
       ensureRawData,
       invalidateRawData,
     }),
-    [dailySales, statistics, stockReport, loading, isRefreshing, error, ensureRawData, invalidateRawData]
+    [dailySales, statistics, stockReport, loading, isRefreshing, isInitialLoading, error, ensureRawData, invalidateRawData]
   );
 
   return <SalesRawDataContext.Provider value={value}>{children}</SalesRawDataContext.Provider>;

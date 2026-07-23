@@ -38,6 +38,15 @@ export interface ICTotalCountItem {
   difference: number;
 }
 
+export interface ICUserComparisonRow {
+  productId: string;
+  barcodeName: string;
+  productName: string;
+  availableQty: number;
+  grandTotal: number;
+  userQtys: Record<string, number>;
+}
+
 type MixCountProductRow = {
   ID?: string;
   'PRODUCT ID': string;
@@ -242,6 +251,88 @@ export async function fetchICTotalCountData() {
   } catch (error: any) {
     console.error('Error in fetchICTotalCountData:', error);
     return { success: false, error: 'Failed to fetch total count data', details: error.message };
+  }
+}
+
+/** Per-user comparison — official grand total + detail sums by USER (Normal + Damage). */
+export async function fetchICUserComparisonData() {
+  try {
+    const [products, normalTotals, damageTotals, normalDetails, damageDetails, liveStockMap] =
+      await Promise.all([
+        fetchAllMixCountRows<MixCountProductRow>('bhs_PRODUCTS', PRODUCT_SELECT),
+        fetchAllMixCountRows<{ 'PRODUCT ID': string; 'COUNTED QTY': number | null }>(
+          'mix_INVENTORY_COUNT_TOTALS',
+          '"PRODUCT ID","COUNTED QTY"',
+          { column: 'COUNT_TYPE', value: 'Normal' }
+        ),
+        fetchAllMixCountRows<{ 'PRODUCT ID': string; 'COUNTED QTY': number | null }>(
+          'mix_INVENTORY_COUNT_TOTALS',
+          '"PRODUCT ID","COUNTED QTY"',
+          { column: 'COUNT_TYPE', value: 'DamageExpire' }
+        ),
+        fetchAllMixCountRows<MixCountDetailRow>(
+          'mix_INVENTORY_COUNT_DETAILS',
+          DETAIL_SELECT,
+          { column: 'COUNT_TYPE', value: 'Normal' }
+        ),
+        fetchAllMixCountRows<MixCountDetailRow>(
+          'mix_INVENTORY_COUNT_DETAILS',
+          DETAIL_SELECT,
+          { column: 'COUNT_TYPE', value: 'DamageExpire' }
+        ),
+        loadAvailableQtyMap(),
+      ]);
+
+    const productMap = buildProductMap(products);
+    const normalMap = new Map(
+      normalTotals.map((t) => [t['PRODUCT ID']?.toString().trim(), parseNum(t['COUNTED QTY'])])
+    );
+    const damageMap = new Map(
+      damageTotals.map((t) => [t['PRODUCT ID']?.toString().trim(), parseNum(t['COUNTED QTY'])])
+    );
+
+    const normalRecords = buildICRecords(normalDetails, productMap);
+    const damageRecords = buildICRecords(damageDetails, productMap);
+    const allRecords = [...normalRecords, ...damageRecords];
+
+    const userSet = new Set<string>();
+    allRecords.forEach((r) => {
+      if (r.user) userSet.add(r.user);
+    });
+    const users = Array.from(userSet).sort((a, b) => a.localeCompare(b));
+
+    const userQtyByProduct = new Map<string, Record<string, number>>();
+    allRecords.forEach((record) => {
+      if (!record.productId || !record.user) return;
+      const byUser = userQtyByProduct.get(record.productId) || {};
+      byUser[record.user] = (byUser[record.user] || 0) + record.countedQty;
+      userQtyByProduct.set(record.productId, byUser);
+    });
+
+    const data: ICUserComparisonRow[] = products
+      .map((p) => {
+        const pid = p['PRODUCT ID']?.toString().trim() || '';
+        const grandTotal = (normalMap.get(pid) || 0) + (damageMap.get(pid) || 0);
+        return {
+          productId: pid,
+          barcodeName: p['PRODUCT BARCODE']?.toString().trim() || '',
+          productName: p['PRODUCT NAME']?.toString().trim() || '',
+          availableQty: liveStockMap.get(pid) || 0,
+          grandTotal,
+          userQtys: userQtyByProduct.get(pid) || {},
+        };
+      })
+      .filter((item) => item.productName)
+      .sort((a, b) => a.productName.localeCompare(b.productName));
+
+    return { success: true, data, users, normalRecords, damageRecords };
+  } catch (error: any) {
+    console.error('Error in fetchICUserComparisonData:', error);
+    return {
+      success: false,
+      error: 'Failed to fetch user comparison data',
+      details: error.message,
+    };
   }
 }
 

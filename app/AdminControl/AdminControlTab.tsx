@@ -15,7 +15,7 @@ interface UserPermissions {
     role: string;
 }
 
-const INVENTORY_COUNTING_TAB_IDS = ['total_count', 'normal_total', 'normal_record', 'damage_total', 'damage_record'];
+const INVENTORY_COUNTING_TAB_IDS = ['total_count', 'user_comparison', 'normal_total', 'normal_record', 'damage_total', 'damage_record'];
 const LEGACY_INVENTORY_COUNTING_IDS = ['counting', ...INVENTORY_COUNTING_TAB_IDS];
 
 const LEGACY_DB_TAB_IDS: Record<string, string> = {
@@ -92,6 +92,7 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
     ],
     'inventory-counting': [
         { id: 'total_count', label: 'Total Count' },
+        { id: 'user_comparison', label: 'User Comparison' },
         { id: 'normal_total', label: 'Normal Count' },
         { id: 'normal_record', label: 'Normal Record' },
         { id: 'damage_total', label: 'Damage & Expire Count' },

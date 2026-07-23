@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { ClipboardList, History, AlertTriangle, FileText, Layers } from 'lucide-react';
+import { ClipboardList, History, AlertTriangle, FileText, Layers, Users } from 'lucide-react';
 import TabPanel from '@/app/Components/TabPanel';
 import TotalCountTab from './TotalCountTab';
+import UserComparisonTab from './UserComparisonTab';
 import NormalCountTab from './NormalCountTab';
 import NormalRecordTab from './NormalRecordTab';
 import DamageExpireCountTab from './DamageExpireCountTab';
@@ -11,7 +12,7 @@ import DamageExpireRecordTab from './DamageExpireRecordTab';
 import { InventoryCountingFiltersProvider } from './InventoryCountingFiltersContext';
 import ICUserWarehouseDropdowns from './ICUserWarehouseDropdowns';
 
-type SubTab = 'total_count' | 'normal_total' | 'normal_record' | 'damage_total' | 'damage_record';
+type SubTab = 'total_count' | 'user_comparison' | 'normal_total' | 'normal_record' | 'damage_total' | 'damage_record';
 
 function isCountingTabAllowed(tabId: string): boolean {
     try {
@@ -40,6 +41,7 @@ function isCountingTabAllowed(tabId: string): boolean {
 export default function InventoryCountingTab() {
     const subTabs = [
         { id: 'total_count', label: 'Total Count', icon: Layers, color: 'indigo' },
+        { id: 'user_comparison', label: 'User Comparison', icon: Users, color: 'violet' },
         { id: 'normal_total', label: 'Normal Count', icon: ClipboardList, color: 'blue' },
         { id: 'normal_record', label: 'Normal Record', icon: History, color: 'slate' },
         { id: 'damage_total', label: 'Damage & Expire Count', icon: AlertTriangle, color: 'red' },
@@ -94,6 +96,9 @@ export default function InventoryCountingTab() {
                 <div className="min-h-[400px]">
                     <TabPanel tabId="total_count" activeTab={activeSubTab} isVisited={visitedTabs.has('total_count')}>
                         <TotalCountTab />
+                    </TabPanel>
+                    <TabPanel tabId="user_comparison" activeTab={activeSubTab} isVisited={visitedTabs.has('user_comparison')}>
+                        <UserComparisonTab />
                     </TabPanel>
                     <TabPanel tabId="normal_total" activeTab={activeSubTab} isVisited={visitedTabs.has('normal_total')}>
                         <NormalCountTab />

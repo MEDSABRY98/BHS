@@ -14,7 +14,7 @@ interface SalesDailySalesTabProps {
 }
 
 export default function SalesDailySalesTab({ userId, showCosts = true }: SalesDailySalesTabProps) {
-  const { ensureRawData, dailySales, loading } = useSalesRawData();
+  const { ensureRawData, dailySales, loading, isInitialLoading } = useSalesRawData();
 
   useEffect(() => {
     void ensureRawData();
@@ -134,7 +134,7 @@ export default function SalesDailySalesTab({ userId, showCosts = true }: SalesDa
 
   const itemsPerPage = 50;
 
-  if (loading && !dailySales) {
+  if (isInitialLoading) {
     return <SalesTabLoader />;
   }
 
