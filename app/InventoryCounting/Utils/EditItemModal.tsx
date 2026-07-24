@@ -21,15 +21,16 @@ export interface ICRecord {
     qtyInBox: number;
     countDetails: string;
     countedQty: number;
+    countType?: 'Normal' | 'DamageExpire';
 }
 
-interface EditICItemModalProps {
+interface EditItemModalProps {
     item: ICItem;
     onSave: (updatedItem: Partial<ICItem>) => Promise<void>;
     onClose: () => void;
 }
 
-export default function EditICItemModal({ item, onSave, onClose }: EditICItemModalProps) {
+export default function EditItemModal({ item, onSave, onClose }: EditItemModalProps) {
     const [barcodeName, setBarcodeName] = useState(item.barcodeName);
     const [productName, setProductName] = useState(item.productName);
     const [availableQty, setAvailableQty] = useState(item.availableQty);

@@ -1,18 +1,17 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { ClipboardList, History, AlertTriangle, FileText, Layers, Users } from 'lucide-react';
+import { ClipboardList, History, AlertTriangle, Layers, Users } from 'lucide-react';
 import TabPanel from '@/app/Components/TabPanel';
 import TotalCountTab from './TotalCountTab';
 import UserComparisonTab from './UserComparisonTab';
 import NormalCountTab from './NormalCountTab';
-import NormalRecordTab from './NormalRecordTab';
 import DamageExpireCountTab from './DamageExpireCountTab';
-import DamageExpireRecordTab from './DamageExpireRecordTab';
+import RecordTab from './RecordTab';
 import { InventoryCountingFiltersProvider } from './InventoryCountingFiltersContext';
-import ICUserWarehouseDropdowns from './ICUserWarehouseDropdowns';
+import UserWarehouseDropdowns from './Utils/UserWarehouseDropdowns';
 
-type SubTab = 'total_count' | 'user_comparison' | 'normal_total' | 'normal_record' | 'damage_total' | 'damage_record';
+type SubTab = 'total_count' | 'user_comparison' | 'normal_total' | 'damage_total' | 'record';
 
 function isCountingTabAllowed(tabId: string): boolean {
     try {
@@ -23,13 +22,25 @@ function isCountingTabAllowed(tabId: string): boolean {
         const perms = JSON.parse(currentUser?.role || '{}');
         const countingTabs = perms['inventory-counting'];
         if (Array.isArray(countingTabs)) {
-            return countingTabs.includes(tabId);
+            if (countingTabs.includes(tabId)) return true;
+            if (
+                tabId === 'record' &&
+                (countingTabs.includes('normal_record') || countingTabs.includes('damage_record'))
+            ) {
+                return true;
+            }
         }
 
         const inventoryTabs = perms.inventory;
         if (Array.isArray(inventoryTabs)) {
             if (inventoryTabs.includes('counting')) return true;
-            return inventoryTabs.includes(tabId);
+            if (inventoryTabs.includes(tabId)) return true;
+            if (
+                tabId === 'record' &&
+                (inventoryTabs.includes('normal_record') || inventoryTabs.includes('damage_record'))
+            ) {
+                return true;
+            }
         }
 
         return true;
@@ -43,9 +54,8 @@ export default function InventoryCountingTab() {
         { id: 'total_count', label: 'Total Count', icon: Layers, color: 'indigo' },
         { id: 'user_comparison', label: 'User Comparison', icon: Users, color: 'violet' },
         { id: 'normal_total', label: 'Normal Count', icon: ClipboardList, color: 'blue' },
-        { id: 'normal_record', label: 'Normal Record', icon: History, color: 'slate' },
         { id: 'damage_total', label: 'Damage & Expire Count', icon: AlertTriangle, color: 'red' },
-        { id: 'damage_record', label: 'Damage & Expire Record', icon: FileText, color: 'rose' },
+        { id: 'record', label: 'Record', icon: History, color: 'slate' },
     ].filter(tab => isCountingTabAllowed(tab.id));
 
     const [activeSubTab, setActiveSubTab] = useState<SubTab>(
@@ -67,7 +77,7 @@ export default function InventoryCountingTab() {
         <InventoryCountingFiltersProvider>
             <div className="flex flex-col gap-6">
                 <div className="bg-white p-4 rounded-3xl border border-gray-100 shadow-xl shadow-slate-200/50">
-                    <ICUserWarehouseDropdowns />
+                    <UserWarehouseDropdowns />
                 </div>
 
                 <div className="bg-white p-3 rounded-3xl border border-gray-100 shadow-xl shadow-slate-200/50 flex flex-wrap gap-2">
@@ -103,14 +113,11 @@ export default function InventoryCountingTab() {
                     <TabPanel tabId="normal_total" activeTab={activeSubTab} isVisited={visitedTabs.has('normal_total')}>
                         <NormalCountTab />
                     </TabPanel>
-                    <TabPanel tabId="normal_record" activeTab={activeSubTab} isVisited={visitedTabs.has('normal_record')}>
-                        <NormalRecordTab />
-                    </TabPanel>
                     <TabPanel tabId="damage_total" activeTab={activeSubTab} isVisited={visitedTabs.has('damage_total')}>
                         <DamageExpireCountTab />
                     </TabPanel>
-                    <TabPanel tabId="damage_record" activeTab={activeSubTab} isVisited={visitedTabs.has('damage_record')}>
-                        <DamageExpireRecordTab />
+                    <TabPanel tabId="record" activeTab={activeSubTab} isVisited={visitedTabs.has('record')}>
+                        <RecordTab />
                     </TabPanel>
                 </div>
             </div>

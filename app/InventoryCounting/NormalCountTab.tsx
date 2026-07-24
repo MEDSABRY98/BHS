@@ -5,8 +5,8 @@ import { ArrowUpDown, Search, Package, RefreshCw, AlertCircle, ChevronDown, File
 import * as XLSX from 'xlsx';
 import TabLoader from '@/app/Components/TabLoader';
 import NoData from '@/app/Components/NoDataTab';
-import { ICItem, ICRecord } from './EditICItemModal';
-import EditICItemModal from './EditICItemModal';
+import { ICItem, ICRecord } from './Utils/EditItemModal';
+import EditItemModal from './Utils/EditItemModal';
 import { fetchICCountTabData, updateICItem } from './Service/inventory_counting_service';
 import { useInventoryCountingFilters, matchesICUser, matchesICWarehouse, hasICScopeFilter } from './InventoryCountingFiltersContext';
 
@@ -298,40 +298,40 @@ export default function NormalCountTab() {
                             <col style={{ width: '100px' }} />
                             <col style={{ width: '100px' }} />
                         </colgroup>
-                        <thead className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
+                        <thead className="bg-black text-white sticky top-0 z-10">
                             <tr>
-                                <th className="px-4 py-5 text-center text-xs font-black uppercase tracking-widest text-white/90">#</th>
-                                <th onClick={() => handleSort('barcodeName')} className="px-4 py-5 text-center text-xs font-black uppercase tracking-widest text-white/90 cursor-pointer hover:bg-white/10 transition-colors">
+                                <th className="px-4 py-5 text-center text-xs font-black uppercase tracking-widest text-white">#</th>
+                                <th onClick={() => handleSort('barcodeName')} className="px-4 py-5 text-center text-xs font-black uppercase tracking-widest text-white cursor-pointer hover:bg-white/10 transition-colors">
                                     <div className="flex items-center justify-center gap-2">
                                         Barcode
                                         <ArrowUpDown className="w-3 h-3 text-white/50" />
                                     </div>
                                 </th>
-                                <th onClick={() => handleSort('productName')} className="px-4 py-5 text-center text-xs font-black uppercase tracking-widest text-white/90 cursor-pointer hover:bg-white/10 transition-colors">
+                                <th onClick={() => handleSort('productName')} className="px-4 py-5 text-center text-xs font-black uppercase tracking-widest text-white cursor-pointer hover:bg-white/10 transition-colors">
                                     <div className="flex items-center justify-center gap-2">
                                         Product Name
                                         <ArrowUpDown className="w-3 h-3 text-white/50" />
                                     </div>
                                 </th>
-                                <th onClick={() => handleSort('availableQty')} className="px-4 py-5 text-center text-xs font-black uppercase tracking-widest text-white/90 cursor-pointer hover:bg-white/10 transition-colors">
+                                <th onClick={() => handleSort('availableQty')} className="px-4 py-5 text-center text-xs font-black uppercase tracking-widest text-white cursor-pointer hover:bg-white/10 transition-colors">
                                     <div className="flex items-center justify-center gap-2">
                                         Available
                                         <ArrowUpDown className="w-3 h-3 text-white/50" />
                                     </div>
                                 </th>
-                                <th onClick={() => handleSort('qtyInBox')} className="px-4 py-5 text-center text-xs font-black uppercase tracking-widest text-white/90 cursor-pointer hover:bg-white/10 transition-colors">
+                                <th onClick={() => handleSort('qtyInBox')} className="px-4 py-5 text-center text-xs font-black uppercase tracking-widest text-white cursor-pointer hover:bg-white/10 transition-colors">
                                     <div className="flex items-center justify-center gap-2">
                                         In Box
                                         <ArrowUpDown className="w-3 h-3 text-white/50" />
                                     </div>
                                 </th>
-                                <th onClick={() => handleSort('countedQty')} className="px-4 py-5 text-center text-xs font-black uppercase tracking-widest text-white/90 cursor-pointer hover:bg-white/10 transition-colors">
+                                <th onClick={() => handleSort('countedQty')} className="px-4 py-5 text-center text-xs font-black uppercase tracking-widest text-white cursor-pointer hover:bg-white/10 transition-colors">
                                     <div className="flex items-center justify-center gap-2">
                                         Counted
                                         <ArrowUpDown className="w-3 h-3 text-white/50" />
                                     </div>
                                 </th>
-                                <th className="px-4 py-5 text-center text-xs font-black uppercase tracking-widest text-white/90">
+                                <th className="px-4 py-5 text-center text-xs font-black uppercase tracking-widest text-white">
                                     Diff
                                 </th>
                             </tr>
@@ -398,7 +398,7 @@ export default function NormalCountTab() {
             )}
 
             {editingItem && (
-                <EditICItemModal
+                <EditItemModal
                     item={editingItem}
                     onSave={handleSaveItem}
                     onClose={() => setEditingItem(null)}

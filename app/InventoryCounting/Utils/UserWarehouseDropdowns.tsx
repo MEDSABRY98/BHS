@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState } from 'react';
 import { User, Home, ChevronDown } from 'lucide-react';
-import { useInventoryCountingFilters } from './InventoryCountingFiltersContext';
+import { useInventoryCountingFilters } from '../InventoryCountingFiltersContext';
 
 function CheckboxFilterDropdown({
   items,
@@ -95,7 +95,7 @@ function CheckboxFilterDropdown({
   );
 }
 
-export default function ICUserWarehouseDropdowns() {
+export default function UserWarehouseDropdowns() {
   const {
     selectedUsers,
     selectedWarehouses,

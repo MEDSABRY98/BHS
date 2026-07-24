@@ -22,7 +22,7 @@ function hasInventoryCountingAccess(user: any): boolean {
 
     const inventoryTabs = perms.inventory;
     if (Array.isArray(inventoryTabs)) {
-      const legacyCountingIds = ['counting', 'total_count', 'user_comparison', 'normal_total', 'normal_record', 'damage_total', 'damage_record'];
+      const legacyCountingIds = ['counting', 'total_count', 'user_comparison', 'normal_total', 'damage_total', 'record', 'normal_record', 'damage_record'];
       if (inventoryTabs.some((tabId: string) => legacyCountingIds.includes(tabId))) {
         return true;
       }

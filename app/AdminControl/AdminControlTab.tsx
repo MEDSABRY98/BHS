@@ -15,8 +15,8 @@ interface UserPermissions {
     role: string;
 }
 
-const INVENTORY_COUNTING_TAB_IDS = ['total_count', 'user_comparison', 'normal_total', 'normal_record', 'damage_total', 'damage_record'];
-const LEGACY_INVENTORY_COUNTING_IDS = ['counting', ...INVENTORY_COUNTING_TAB_IDS];
+const INVENTORY_COUNTING_TAB_IDS = ['total_count', 'user_comparison', 'normal_total', 'damage_total', 'record'];
+const LEGACY_INVENTORY_COUNTING_IDS = ['counting', 'normal_record', 'damage_record', ...INVENTORY_COUNTING_TAB_IDS];
 
 const LEGACY_DB_TAB_IDS: Record<string, string> = {
     'db-inv-count-products': 'db-products',
@@ -94,9 +94,8 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
         { id: 'total_count', label: 'Total Count' },
         { id: 'user_comparison', label: 'User Comparison' },
         { id: 'normal_total', label: 'Normal Count' },
-        { id: 'normal_record', label: 'Normal Record' },
         { id: 'damage_total', label: 'Damage & Expire Count' },
-        { id: 'damage_record', label: 'Damage & Expire Record' },
+        { id: 'record', label: 'Record' },
     ],
     'inventory-scrap': [
         { id: 'record', label: 'Log Scrap' },
@@ -269,6 +268,20 @@ export default function AdminControlTab() {
 
     const normalizePermissions = (perms: Record<string, any>) => {
         const next = { ...perms };
+
+        if (Array.isArray(next['inventory-counting'])) {
+            const countingTabs = next['inventory-counting'] as string[];
+            const hasLegacyRecord =
+                countingTabs.includes('normal_record') || countingTabs.includes('damage_record');
+
+            if (hasLegacyRecord) {
+                const migratedTabs = countingTabs.filter(
+                    (id) => id !== 'normal_record' && id !== 'damage_record'
+                );
+                if (!migratedTabs.includes('record')) migratedTabs.push('record');
+                next['inventory-counting'] = migratedTabs;
+            }
+        }
 
         if (Array.isArray(next.inventory)) {
             const legacyCounting = next.inventory.filter((id: string) => LEGACY_INVENTORY_COUNTING_IDS.includes(id));

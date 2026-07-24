@@ -6,7 +6,7 @@ import * as XLSX from 'xlsx';
 import TabLoader from '@/app/Components/TabLoader';
 import NoData from '@/app/Components/NoDataTab';
 import { fetchICTotalCountData, fetchICCountTabData, ICTotalCountItem } from './Service/inventory_counting_service';
-import { ICRecord } from './EditICItemModal';
+import { ICRecord } from './Utils/EditItemModal';
 import { useInventoryCountingFilters, matchesICUser, matchesICWarehouse, hasICScopeFilter } from './InventoryCountingFiltersContext';
 
 type SortKey = keyof ICTotalCountItem | '#';
@@ -279,9 +279,9 @@ export default function TotalCountTab() {
                 <col style={{ width: '90px' }} />
                 <col style={{ width: '100px' }} />
               </colgroup>
-              <thead className="bg-gradient-to-r from-indigo-600 to-violet-600 text-white">
+              <thead className="bg-black text-white sticky top-0 z-10">
                 <tr>
-                  <th className="px-4 py-5 text-center text-xs font-black uppercase tracking-widest text-white/90">#</th>
+                  <th className="px-4 py-5 text-center text-xs font-black uppercase tracking-widest text-white">#</th>
                   {(
                     [
                       ['barcodeName', 'Barcode'],
@@ -296,7 +296,7 @@ export default function TotalCountTab() {
                     <th
                       key={key}
                       onClick={() => handleSort(key)}
-                      className="px-4 py-5 text-center text-xs font-black uppercase tracking-widest text-white/90 cursor-pointer hover:bg-white/10 transition-colors"
+                      className="px-4 py-5 text-center text-xs font-black uppercase tracking-widest text-white cursor-pointer hover:bg-white/10 transition-colors"
                     >
                       <div className="flex items-center justify-center gap-2">
                         {label}

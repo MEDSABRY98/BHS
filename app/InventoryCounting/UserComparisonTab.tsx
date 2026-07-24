@@ -9,7 +9,7 @@ import {
   fetchICUserComparisonData,
   ICUserComparisonRow,
 } from './Service/inventory_counting_service';
-import { ICRecord } from './EditICItemModal';
+import { ICRecord } from './Utils/EditItemModal';
 import { useInventoryCountingFilters, matchesICWarehouse } from './InventoryCountingFiltersContext';
 
 type ComparisonRow = ICUserComparisonRow & { userQtys: Record<string, number> };
@@ -186,7 +186,7 @@ export default function UserComparisonTab() {
   };
 
   const sortableHeaderClass =
-    'px-4 py-5 text-center text-xs font-black uppercase tracking-widest text-white/90 cursor-pointer hover:bg-white/10 transition-colors';
+    'px-4 py-5 text-center text-xs font-black uppercase tracking-widest text-white cursor-pointer hover:bg-white/10 transition-colors';
 
   const renderSortableHeader = (key: SortKey, label: string, className = '') => (
     <th key={key} onClick={() => handleSort(key)} className={`${sortableHeaderClass} ${className}`}>
@@ -326,9 +326,9 @@ export default function UserComparisonTab() {
         <div className="bg-white rounded-[2rem] shadow-xl shadow-slate-200/50 border border-gray-100 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[900px]">
-              <thead className="bg-gradient-to-r from-violet-600 to-purple-600 text-white">
+              <thead className="bg-black text-white sticky top-0 z-10">
                 <tr>
-                  <th className="px-4 py-5 text-center text-xs font-black uppercase tracking-widest text-white/90 w-[50px]">
+                  <th className="px-4 py-5 text-center text-xs font-black uppercase tracking-widest text-white w-[50px]">
                     #
                   </th>
                   {renderSortableHeader('barcodeName', 'Barcode', 'min-w-[120px]')}
