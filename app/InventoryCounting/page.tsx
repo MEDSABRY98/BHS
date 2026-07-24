@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { Menu, Lock, ArrowLeft } from 'lucide-react';
 import InventoryCountingTab from './InventoryCountingTab';
+import Sidebar, { getAllowedCountingTabs, type InventoryCountingTabId } from './Utils/Sidebar';
 import Login from '@/app/Components/Login';
 import Loading from '@/app/Components/Loading';
-import { ArrowLeft, ClipboardList, Lock } from 'lucide-react';
 
 function hasInventoryCountingAccess(user: any): boolean {
   const userName = user?.name?.toLowerCase() || '';
@@ -22,7 +23,18 @@ function hasInventoryCountingAccess(user: any): boolean {
 
     const inventoryTabs = perms.inventory;
     if (Array.isArray(inventoryTabs)) {
-      const legacyCountingIds = ['counting', 'total_count', 'user_comparison', 'normal_total', 'damage_total', 'record', 'normal_record', 'damage_record'];
+      const legacyCountingIds = [
+        'counting',
+        'total_count',
+        'reconciliation',
+        'inventory_count',
+        'user_comparison',
+        'normal_total',
+        'damage_total',
+        'record',
+        'normal_record',
+        'damage_record',
+      ];
       if (inventoryTabs.some((tabId: string) => legacyCountingIds.includes(tabId))) {
         return true;
       }
@@ -40,6 +52,12 @@ export default function InventoryCountingPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
   const [isAllowed, setIsAllowed] = useState(true);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<InventoryCountingTabId>('total_count');
+  const [visitedTabs, setVisitedTabs] = useState<Set<InventoryCountingTabId>>(new Set(['total_count']));
+
+  const allowedTabs = useMemo(() => getAllowedCountingTabs(), [isAuthenticated, isAllowed]);
 
   useEffect(() => {
     const savedUser = localStorage.getItem('currentUser');
@@ -57,6 +75,35 @@ export default function InventoryCountingPage() {
       setIsChecking(false);
     }
   }, []);
+
+  useEffect(() => {
+    const stored = localStorage.getItem('inventoryCountingSidebarCollapsed');
+    if (stored === 'false') {
+      setIsSidebarCollapsed(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const tabs = getAllowedCountingTabs();
+    if (tabs.length === 0) return;
+
+    const allowedIds = tabs.map((t) => t.id);
+    if (!allowedIds.includes(activeTab)) {
+      const firstTab = allowedIds[0];
+      setActiveTab(firstTab);
+      setVisitedTabs(new Set([firstTab]));
+    }
+  }, [activeTab, isAuthenticated, isAllowed]);
+
+  useEffect(() => {
+    setVisitedTabs((prev) => new Set([...prev, activeTab]));
+  }, [activeTab]);
+
+  const toggleSidebar = () => {
+    const nextState = !isSidebarCollapsed;
+    setIsSidebarCollapsed(nextState);
+    localStorage.setItem('inventoryCountingSidebarCollapsed', String(nextState));
+  };
 
   const handleLogin = (user: any) => {
     setIsAuthenticated(true);
@@ -94,29 +141,53 @@ export default function InventoryCountingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans selection:bg-blue-100 selection:text-blue-900 pb-12">
-      <div className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-slate-200">
-        <div className="max-w-[95%] 2xl:max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
-          <div className="flex items-center gap-6">
-            <button
-              onClick={() => { window.location.href = '/'; }}
-              className="p-2 -ml-2 text-slate-400 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-all"
-            >
-              <ArrowLeft className="w-6 h-6" />
-            </button>
-            <div className="flex items-center gap-3">
-              <div className="bg-gradient-to-br from-blue-600 to-indigo-600 text-white p-2.5 rounded-xl shadow-lg shadow-blue-200">
-                <ClipboardList className="w-6 h-6" />
-              </div>
-              <h1 className="text-2xl font-black text-slate-800 tracking-tight">Inventory Counting</h1>
-            </div>
-          </div>
-        </div>
-      </div>
+    <div className="flex min-h-screen bg-[#F8F9FA] text-black">
+      <aside className={`hidden lg:flex flex-col ${isSidebarCollapsed ? 'w-20' : 'w-72'} bg-[#0f172a] text-white shadow-2xl fixed h-screen left-0 top-0 z-50 transition-all duration-300`}>
+        <Sidebar
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          isCollapsed={isSidebarCollapsed}
+          onToggleCollapse={toggleSidebar}
+        />
+      </aside>
 
-      <div className="max-w-[95%] 2xl:max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 pt-8">
-        <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-          <InventoryCountingTab />
+      {isMobileSidebarOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm lg:hidden"
+          onClick={() => setIsMobileSidebarOpen(false)}
+        />
+      )}
+
+      <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-[#0f172a] text-white transition-transform duration-300 transform lg:hidden ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'} flex flex-col`}>
+        <Sidebar
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          isCollapsed={false}
+          onToggleCollapse={() => {}}
+          onCloseMobile={() => setIsMobileSidebarOpen(false)}
+        />
+      </aside>
+
+      <div className={`flex-1 flex flex-col min-w-0 ${isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-72'} transition-all duration-300`}>
+        <div className="lg:hidden p-4 flex items-center bg-white border-b border-slate-200">
+          <button
+            type="button"
+            onClick={() => setIsMobileSidebarOpen(true)}
+            className="p-2.5 text-slate-600 hover:text-slate-900 rounded-xl hover:bg-slate-100 transition-all"
+          >
+            <Menu className="w-6 h-6" />
+          </button>
+          <span className="ml-3 font-bold text-slate-800">Inventory Counting</span>
+        </div>
+
+        <div className="max-w-[95%] 2xl:max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-12 flex-1 w-full">
+          {allowedTabs.length > 0 ? (
+            <InventoryCountingTab activeTab={activeTab} visitedTabs={visitedTabs} />
+          ) : (
+            <div className="bg-white rounded-3xl p-8 text-center border border-slate-100 shadow-sm">
+              <p className="text-slate-500 font-bold">No counting tabs are enabled for your account.</p>
+            </div>
+          )}
         </div>
       </div>
     </div>

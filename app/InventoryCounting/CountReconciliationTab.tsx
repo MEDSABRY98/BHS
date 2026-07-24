@@ -19,7 +19,7 @@ import { toast } from '@/app/Components/Notification';
 import { normalizeExcelId } from '@/app/DataBase/Utils/ExcelUploadUtils';
 import { exportDatabaseExcelTable } from '@/app/DataBase/Utils/ExcelExport';
 import { exportSalesExcelTable } from '@/app/Sales/Utils/ExcelExport';
-import { getProductsBalanceReportData, getProductNamesByIds, ProductBalanceRow } from '../Service/inventory_service';
+import { getProductsBalanceReportData, getProductNamesByIds, ProductBalanceRow } from '@/app/InventoryAnalysis/Service/inventory_service';
 
 const REQUIRED_COLUMNS = ['Product ID', 'Product Name', 'Counted Quantity'] as const;
 
@@ -144,7 +144,7 @@ function CountedQtyInput({
   );
 }
 
-export default function InventoryCountReconciliationTab() {
+export default function CountReconciliationTab() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [countDate, setCountDate] = useState(todayInputValue());
   const [appliedCountDate, setAppliedCountDate] = useState('');
@@ -494,8 +494,8 @@ export default function InventoryCountReconciliationTab() {
         <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-center">
-              <thead>
-                <tr className="bg-slate-900 text-white text-[10px] font-black uppercase tracking-wider">
+              <thead className="bg-black text-white sticky top-0 z-10">
+                <tr className="text-[10px] font-black uppercase tracking-wider">
                   <th className="px-4 py-4 text-center">#</th>
                   <th className="px-4 py-4 text-center">Product ID</th>
                   <th className="px-4 py-4 text-center">Product Name</th>

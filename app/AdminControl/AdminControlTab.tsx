@@ -15,8 +15,8 @@ interface UserPermissions {
     role: string;
 }
 
-const INVENTORY_COUNTING_TAB_IDS = ['total_count', 'user_comparison', 'normal_total', 'damage_total', 'record'];
-const LEGACY_INVENTORY_COUNTING_IDS = ['counting', 'normal_record', 'damage_record', ...INVENTORY_COUNTING_TAB_IDS];
+const INVENTORY_COUNTING_TAB_IDS = ['total_count', 'reconciliation', 'user_comparison', 'normal_total', 'damage_total', 'record'];
+const LEGACY_INVENTORY_COUNTING_IDS = ['counting', 'normal_record', 'damage_record', 'inventory_count', ...INVENTORY_COUNTING_TAB_IDS];
 
 const LEGACY_DB_TAB_IDS: Record<string, string> = {
     'db-inv-count-products': 'db-products',
@@ -87,11 +87,11 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
     ],
     'inventory': [
         { id: 'products_balance', label: 'Products Balance' },
-        { id: 'inventory_count', label: 'Inventory Count' },
         { id: 'categories', label: 'Categories Analysis' },
     ],
     'inventory-counting': [
         { id: 'total_count', label: 'Total Count' },
+        { id: 'reconciliation', label: 'Count Reconciliation' },
         { id: 'user_comparison', label: 'User Comparison' },
         { id: 'normal_total', label: 'Normal Count' },
         { id: 'damage_total', label: 'Damage & Expire Count' },
@@ -280,6 +280,24 @@ export default function AdminControlTab() {
                 );
                 if (!migratedTabs.includes('record')) migratedTabs.push('record');
                 next['inventory-counting'] = migratedTabs;
+            }
+        }
+
+        if (Array.isArray(next.inventory)) {
+            const inventoryTabs = next.inventory as string[];
+            const hasLegacyInventoryCount = inventoryTabs.includes('inventory_count');
+
+            if (hasLegacyInventoryCount) {
+                const currentCounting = Array.isArray(next['inventory-counting']) ? next['inventory-counting'] : [];
+                const migratedCounting = [...currentCounting];
+                if (!migratedCounting.includes('reconciliation')) migratedCounting.push('reconciliation');
+                next['inventory-counting'] = [...new Set(migratedCounting)];
+                next.inventory = inventoryTabs.filter((id) => id !== 'inventory_count');
+
+                const systems = Array.isArray(next.systems) ? next.systems : SYSTEMS.map(s => s.id);
+                if (!systems.includes('inventory-counting')) {
+                    next.systems = [...systems, 'inventory-counting'];
+                }
             }
         }
 

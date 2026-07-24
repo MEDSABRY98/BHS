@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import { Menu } from 'lucide-react';
 
 import InventoryProductsBalanceTab from './Components/InventoryProductsBalanceTab';
-import InventoryCountReconciliationTab from './Components/InventoryCountReconciliationTab';
 import InventoryProductOrdersTab from './Components/InventoryCategoriesTab';
 import InventorySidebar, { type InventoryTabId } from './Utils/Sidebar';
 import Login from '@/app/Components/Login';
@@ -57,8 +56,6 @@ export default function InventoryPage() {
     switch (activeTab) {
       case 'products_balance':
         return <InventoryProductsBalanceTab />;
-      case 'inventory_count':
-        return <InventoryCountReconciliationTab />;
       case 'categories':
         return <InventoryProductOrdersTab orderItems={orderItems} setOrderItems={setOrderItems} />;
       default:

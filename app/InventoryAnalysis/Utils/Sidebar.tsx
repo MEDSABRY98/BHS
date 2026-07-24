@@ -5,13 +5,12 @@ import {
   Box,
   ChevronLeft,
   ChevronRight,
-  ClipboardCheck,
   Layers,
   Package,
   X,
 } from 'lucide-react';
 
-export type InventoryTabId = 'products_balance' | 'inventory_count' | 'categories';
+export type InventoryTabId = 'products_balance' | 'categories';
 
 interface InventorySidebarProps {
   activeTab: InventoryTabId;
@@ -23,7 +22,6 @@ interface InventorySidebarProps {
 
 const TABS: { id: InventoryTabId; label: string; icon: typeof Package }[] = [
   { id: 'products_balance', label: 'Products Balance', icon: Package },
-  { id: 'inventory_count', label: 'Inventory Count', icon: ClipboardCheck },
   { id: 'categories', label: 'Categories Analysis', icon: Layers },
 ];
 
