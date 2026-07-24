@@ -87,7 +87,7 @@ export default function SalesOverviewTab({ userId, showCosts = true }: SalesOver
     });
   };
 
-  if (isInitialLoading) {
+  if (isInitialLoading || !data) {
     return <SalesTabLoader />;
   }
 
