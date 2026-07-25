@@ -5,24 +5,122 @@ import { ArrowUpDown, Search, Package, RefreshCw, AlertCircle, ChevronDown, File
 import * as XLSX from 'xlsx';
 import TabLoader from '@/app/Components/TabLoader';
 import NoData from '@/app/Components/NoDataTab';
-import {
-  fetchICTotalCountData,
-  fetchICCountTabData,
-  fetchArchivedICTotalCountData,
-  fetchArchivedICCountTabData,
-  updateICItem,
-  ICTotalCountItem,
-} from './Service/inventory_counting_service';
-import { ICItem, ICRecord } from './Utils/EditItemModal';
-import EditItemModal from './Utils/EditItemModal';
+import { fetchICCountTabData, fetchArchivedICCountTabData } from './Service/inventory_counting_service';
 import { useInventoryCountingArchive } from './InventoryCountingArchiveContext';
+import { ICItem, ICRecord } from './Utils/EditItemModal';
 import { useInventoryCountingFilters, matchesICUser, matchesICWarehouse, hasICScopeFilter } from './InventoryCountingFiltersContext';
 
-type SortKey = keyof ICTotalCountItem | '#';
+type CountRow = {
+  productId: string;
+  barcodeName: string;
+  productName: string;
+  availableQty: number;
+  qtyInBox: number;
+  normalQty: number;
+  damageQty: number;
+  totalCountedQty: number;
+  difference: number;
+};
 
-export default function TotalCountTab() {
-  const { archiveId, isReadOnly, sessionVersion } = useInventoryCountingArchive();
-  const [data, setData] = useState<ICTotalCountItem[]>([]);
+type SortKey = keyof CountRow | '#';
+
+function buildRowsFromTotals(normalData: ICItem[], damageData: ICItem[]): CountRow[] {
+  const damageMap = new Map(damageData.map((item) => [item.productId, item.countedQty]));
+
+  return normalData.map((item) => {
+    const normalQty = item.countedQty;
+    const damageQty = damageMap.get(item.productId) || 0;
+    const totalCountedQty = normalQty + damageQty;
+    return {
+      productId: item.productId,
+      barcodeName: item.barcodeName,
+      productName: item.productName,
+      availableQty: item.availableQty,
+      qtyInBox: item.qtyInBox,
+      normalQty,
+      damageQty,
+      totalCountedQty,
+      difference: totalCountedQty - item.availableQty,
+    };
+  });
+}
+
+function buildRowsFromRecords(
+  normalData: ICItem[],
+  normalRecords: ICRecord[],
+  damageRecords: ICRecord[],
+  selectedUsers: string[],
+  selectedWarehouses: string[]
+): CountRow[] {
+  const matchesScope = (record: ICRecord) =>
+    matchesICUser(record.user, selectedUsers) && matchesICWarehouse(record.warehouse, selectedWarehouses);
+
+  const normalMap = new Map<string, number>();
+  const damageMap = new Map<string, number>();
+
+  normalRecords.filter(matchesScope).forEach((record) => {
+    normalMap.set(record.productId, (normalMap.get(record.productId) || 0) + record.countedQty);
+  });
+  damageRecords.filter(matchesScope).forEach((record) => {
+    damageMap.set(record.productId, (damageMap.get(record.productId) || 0) + record.countedQty);
+  });
+
+  const productMap = new Map<string, CountRow>();
+  normalData.forEach((item) => {
+    productMap.set(item.productId, {
+      productId: item.productId,
+      barcodeName: item.barcodeName,
+      productName: item.productName,
+      availableQty: item.availableQty,
+      qtyInBox: item.qtyInBox,
+      normalQty: 0,
+      damageQty: 0,
+      totalCountedQty: 0,
+      difference: 0,
+    });
+  });
+
+  const ensureProduct = (record: ICRecord): CountRow => {
+    const existing = productMap.get(record.productId);
+    if (existing) return existing;
+    const row: CountRow = {
+      productId: record.productId,
+      barcodeName: record.barcodeName,
+      productName: record.productName,
+      availableQty: 0,
+      qtyInBox: record.qtyInBox,
+      normalQty: 0,
+      damageQty: 0,
+      totalCountedQty: 0,
+      difference: 0,
+    };
+    productMap.set(record.productId, row);
+    return row;
+  };
+
+  normalRecords.filter(matchesScope).forEach((record) => {
+    const row = ensureProduct(record);
+    row.normalQty += record.countedQty;
+  });
+  damageRecords.filter(matchesScope).forEach((record) => {
+    const row = ensureProduct(record);
+    row.damageQty += record.countedQty;
+  });
+
+  return Array.from(productMap.values()).map((row) => {
+    const totalCountedQty = row.normalQty + row.damageQty;
+    return {
+      ...row,
+      totalCountedQty,
+      difference: totalCountedQty - row.availableQty,
+    };
+  });
+}
+
+export default function CountTab() {
+  const { archiveId, sessionVersion } = useInventoryCountingArchive();
+  const [normalData, setNormalData] = useState<ICItem[]>([]);
+  const [damageData, setDamageData] = useState<ICItem[]>([]);
   const [normalRecords, setNormalRecords] = useState<ICRecord[]>([]);
   const [damageRecords, setDamageRecords] = useState<ICRecord[]>([]);
   const { selectedUsers, selectedWarehouses } = useInventoryCountingFilters();
@@ -33,16 +131,6 @@ export default function TotalCountTab() {
   const [isStatusOpen, setIsStatusOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: 'asc' | 'desc' } | null>(null);
-  const [editingItem, setEditingItem] = useState<ICItem | null>(null);
-
-  const toICItem = (item: ICTotalCountItem): ICItem => ({
-    productId: item.productId,
-    barcodeName: item.barcodeName,
-    productName: item.productName,
-    availableQty: item.availableQty,
-    qtyInBox: item.qtyInBox,
-    countedQty: item.totalCountedQty,
-  });
 
   const fetchData = async (isSilent = false) => {
     if (isSilent) setIsRefreshing(true);
@@ -50,33 +138,30 @@ export default function TotalCountTab() {
 
     setError(null);
     try {
-      const [result, normalResult, damageResult] = archiveId
+      const [normalResult, damageResult] = archiveId
         ? await Promise.all([
-            fetchArchivedICTotalCountData(archiveId),
             fetchArchivedICCountTabData(archiveId, 'Normal'),
             fetchArchivedICCountTabData(archiveId, 'DamageExpire'),
           ])
         : await Promise.all([
-            fetchICTotalCountData(),
             fetchICCountTabData('Normal'),
             fetchICCountTabData('DamageExpire'),
           ]);
 
-      if (result.success && result.data) {
-        setData(result.data);
-      } else {
-        throw new Error(result.error || 'Failed to load data');
+      if (!normalResult.success || !normalResult.data) {
+        throw new Error(normalResult.error || 'Failed to load normal count data');
+      }
+      if (!damageResult.success || !damageResult.data) {
+        throw new Error(damageResult.error || 'Failed to load damage count data');
       }
 
-      if (normalResult.success && normalResult.records) {
-        setNormalRecords(normalResult.records);
-      }
-      if (damageResult.success && damageResult.records) {
-        setDamageRecords(damageResult.records);
-      }
+      setNormalData(normalResult.data);
+      setDamageData(damageResult.data);
+      setNormalRecords(normalResult.records || []);
+      setDamageRecords(damageResult.records || []);
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : 'Failed to load data';
-      console.error('Failed to load total count data', e);
+      console.error('Failed to load count data', e);
       setError(message);
     } finally {
       setLoading(false);
@@ -88,6 +173,14 @@ export default function TotalCountTab() {
     fetchData();
   }, [archiveId, sessionVersion]);
 
+  const rows: CountRow[] = hasICScopeFilter(selectedUsers, selectedWarehouses)
+    ? buildRowsFromRecords(normalData, normalRecords, damageRecords, selectedUsers, selectedWarehouses)
+    : buildRowsFromTotals(normalData, damageData);
+
+  const totalItems = rows.length;
+  const countedItems = rows.filter((item) => item.totalCountedQty > 0).length;
+  const pendingItems = rows.filter((item) => item.totalCountedQty === 0).length;
+
   const statusOptions = [
     { value: 'All', label: 'All Items' },
     { value: 'Counted', label: 'Counted' },
@@ -95,46 +188,7 @@ export default function TotalCountTab() {
   ] as const;
   const currentStatus = statusOptions.find((opt) => opt.value === statusFilter);
 
-  const scopedData = (() => {
-    if (!hasICScopeFilter(selectedUsers, selectedWarehouses)) {
-      return data;
-    }
-
-    const matchesScope = (record: ICRecord) => {
-      const matchesUser = matchesICUser(record.user, selectedUsers);
-      const matchesWarehouse = matchesICWarehouse(record.warehouse, selectedWarehouses);
-      return matchesUser && matchesWarehouse;
-    };
-
-    const normalMap = new Map<string, number>();
-    const damageMap = new Map<string, number>();
-
-    normalRecords.filter(matchesScope).forEach((record) => {
-      normalMap.set(record.productId, (normalMap.get(record.productId) || 0) + record.countedQty);
-    });
-    damageRecords.filter(matchesScope).forEach((record) => {
-      damageMap.set(record.productId, (damageMap.get(record.productId) || 0) + record.countedQty);
-    });
-
-    return data.map((item) => {
-      const normalQty = normalMap.get(item.productId) || 0;
-      const damageQty = damageMap.get(item.productId) || 0;
-      const totalCountedQty = normalQty + damageQty;
-      return {
-        ...item,
-        normalQty,
-        damageQty,
-        totalCountedQty,
-        difference: totalCountedQty - item.availableQty,
-      };
-    });
-  })();
-
-  const totalItems = scopedData.length;
-  const countedItems = scopedData.filter((item) => item.totalCountedQty > 0).length;
-  const pendingItems = scopedData.filter((item) => item.totalCountedQty === 0).length;
-
-  let filteredData = scopedData.filter((item) => {
+  let filteredData = rows.filter((item) => {
     const query = searchQuery.toLowerCase().trim();
     const matchesSearch =
       !query ||
@@ -151,8 +205,8 @@ export default function TotalCountTab() {
 
   if (sortConfig && sortConfig.key !== '#') {
     filteredData = [...filteredData].sort((a, b) => {
-      const aVal = a[sortConfig.key as keyof ICTotalCountItem];
-      const bVal = b[sortConfig.key as keyof ICTotalCountItem];
+      const aVal = a[sortConfig.key as keyof CountRow];
+      const bVal = b[sortConfig.key as keyof CountRow];
       if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
       if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
       return 0;
@@ -175,31 +229,15 @@ export default function TotalCountTab() {
       'Product Name': item.productName,
       'Available Qty': item.availableQty,
       'Total Counted': item.totalCountedQty,
-      Difference: item.difference,
+      Diff: item.difference,
       Normal: item.normalQty,
       'Damage & Expire': item.damageQty,
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(exportData);
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Total Count');
-    XLSX.writeFile(workbook, `Total_Count_${new Date().toISOString().split('T')[0]}.xlsx`);
-  };
-
-  const handleSaveItem = async (updatedValues: Partial<ICItem>) => {
-    if (!editingItem) return;
-
-    const res = await updateICItem('IC Total', editingItem.productId, updatedValues as ICItem);
-
-    if (!res.success) {
-      throw new Error(res.error || res.details || 'Failed to update item');
-    }
-
-    setData((prev) =>
-      prev.map((p) =>
-        p.productId === editingItem.productId ? { ...p, ...updatedValues } : p
-      )
-    );
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Count');
+    XLSX.writeFile(workbook, `Inventory_Count_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
   const diffClass = (diff: number, hasCount: boolean) => {
@@ -231,7 +269,7 @@ export default function TotalCountTab() {
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="bg-white rounded-[2rem] shadow-xl shadow-slate-200/50 border border-gray-100 p-4 flex flex-wrap items-center gap-4">
         <div className="flex gap-2">
-          <div className="px-3 py-2 bg-indigo-50 text-indigo-700 rounded-xl border border-indigo-100 flex items-center gap-2 font-bold text-xs whitespace-nowrap">
+          <div className="px-3 py-2 bg-blue-50 text-blue-700 rounded-xl border border-blue-100 flex items-center gap-2 font-bold text-xs whitespace-nowrap">
             <span className="text-slate-400">Total:</span> {totalItems}
           </div>
           <div className="px-3 py-2 bg-emerald-50 text-emerald-700 rounded-xl border border-emerald-100 flex items-center gap-2 font-bold text-xs whitespace-nowrap">
@@ -243,13 +281,13 @@ export default function TotalCountTab() {
         </div>
 
         <div className="relative flex-1 min-w-[200px] group">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-300 group-focus-within:text-indigo-500 transition-colors" />
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-300 group-focus-within:text-blue-500 transition-colors" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search by Product Name or Barcode..."
-            className="w-full pl-11 pr-4 py-3 bg-slate-50/50 border border-transparent rounded-xl text-sm font-bold text-slate-700 placeholder:text-gray-300 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all outline-none"
+            className="w-full pl-11 pr-4 py-3 bg-slate-50/50 border border-transparent rounded-xl text-sm font-bold text-slate-700 placeholder:text-gray-300 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all outline-none"
           />
         </div>
 
@@ -274,7 +312,7 @@ export default function TotalCountTab() {
                       setIsStatusOpen(false);
                     }}
                     className={`w-full text-left px-5 py-3 text-[11px] font-bold transition-all ${
-                      statusFilter === opt.value ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-50'
+                      statusFilter === opt.value ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50'
                     }`}
                   >
                     {opt.label}
@@ -289,7 +327,7 @@ export default function TotalCountTab() {
           <button
             onClick={() => fetchData(true)}
             disabled={isRefreshing}
-            className="w-12 h-12 flex items-center justify-center bg-indigo-600 text-white rounded-xl shadow-lg shadow-indigo-200/50 hover:bg-indigo-700 hover:scale-110 active:scale-95 transition-all disabled:opacity-50 disabled:scale-100"
+            className="w-12 h-12 flex items-center justify-center bg-blue-600 text-white rounded-xl shadow-lg shadow-blue-200/50 hover:bg-blue-700 hover:scale-110 active:scale-95 transition-all disabled:opacity-50 disabled:scale-100"
             title="Refresh Data"
           >
             <RefreshCw className={`w-6 h-6 ${isRefreshing ? 'animate-spin' : ''}`} />
@@ -318,7 +356,7 @@ export default function TotalCountTab() {
                 <col style={{ width: '100px' }} />
                 <col style={{ width: '90px' }} />
                 <col style={{ width: '90px' }} />
-                <col style={{ width: '100px' }} />
+                <col style={{ width: '90px' }} />
               </colgroup>
               <thead className="bg-black text-white sticky top-0 z-10">
                 <tr>
@@ -328,7 +366,7 @@ export default function TotalCountTab() {
                       ['barcodeName', 'Barcode'],
                       ['productName', 'Product Name'],
                       ['availableQty', 'Available'],
-                      ['totalCountedQty', 'Total Count'],
+                      ['totalCountedQty', 'Total'],
                       ['difference', 'Diff'],
                       ['normalQty', 'Normal'],
                       ['damageQty', 'Damage'],
@@ -351,28 +389,16 @@ export default function TotalCountTab() {
                 {filteredData.map((item, idx) => {
                   const hasCount = item.totalCountedQty > 0;
                   return (
-                    <tr
-                      key={item.productId}
-                      onClick={() => !isReadOnly && setEditingItem(toICItem(item))}
-                      className={`hover:bg-indigo-50/40 transition-all group ${isReadOnly ? '' : 'cursor-pointer'}`}
-                    >
-                      <td className="px-4 py-4 text-center text-sm font-bold text-slate-400 group-hover:text-indigo-600">
-                        {idx + 1}
-                      </td>
-                      <td className="px-4 py-4 text-center text-sm font-black text-slate-600 truncate">
-                        {item.barcodeName || '-'}
-                      </td>
-                      <td className="px-4 py-4 text-center text-xs font-black text-slate-800 truncate">
-                        {item.productName}
-                      </td>
-                      <td className="px-4 py-4 text-center text-sm font-bold text-slate-600">
-                        {item.availableQty.toLocaleString()}
-                      </td>
+                    <tr key={item.productId} className="hover:bg-slate-50 transition-all group">
+                      <td className="px-4 py-4 text-center text-sm font-bold text-slate-400">{idx + 1}</td>
+                      <td className="px-4 py-4 text-center text-sm font-black text-slate-600 truncate">{item.barcodeName || '-'}</td>
+                      <td className="px-4 py-4 text-center text-xs font-black text-slate-800 truncate">{item.productName}</td>
+                      <td className="px-4 py-4 text-center text-sm font-bold text-slate-600">{item.availableQty.toLocaleString()}</td>
                       <td className="px-4 py-4 text-center">
                         <span
                           className={`inline-flex px-3 py-1.5 rounded-xl text-sm font-black border shadow-sm ${
                             hasCount
-                              ? 'bg-indigo-50 text-indigo-700 border-indigo-100'
+                              ? 'bg-blue-50 text-blue-700 border-blue-100'
                               : 'bg-slate-50 text-slate-400 border-slate-100'
                           }`}
                         >
@@ -411,7 +437,7 @@ export default function TotalCountTab() {
           <div className="bg-slate-50/50 px-8 py-5 border-t border-gray-100">
             <div className="flex items-center gap-3 text-slate-500">
               <div className="p-2 bg-white rounded-lg border border-slate-200 shadow-sm">
-                <Package className="w-5 h-5 text-indigo-500" />
+                <Package className="w-5 h-5 text-blue-500" />
               </div>
               <span className="text-sm font-bold">
                 Showing <span className="text-slate-900">{filteredData.length}</span> items
@@ -419,14 +445,6 @@ export default function TotalCountTab() {
             </div>
           </div>
         </div>
-      )}
-
-      {editingItem && !isReadOnly && (
-        <EditItemModal
-          item={editingItem}
-          onSave={handleSaveItem}
-          onClose={() => setEditingItem(null)}
-        />
       )}
     </div>
   );

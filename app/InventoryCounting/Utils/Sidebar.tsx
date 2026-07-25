@@ -1,7 +1,6 @@
 'use client';
 
 import {
-  AlertTriangle,
   ArrowLeft,
   ChevronLeft,
   ChevronRight,
@@ -18,8 +17,7 @@ export type InventoryCountingTabId =
   | 'total_count'
   | 'reconciliation'
   | 'user_comparison'
-  | 'normal_total'
-  | 'damage_total'
+  | 'count'
   | 'record';
 
 const INVENTORY_COUNTING_TABS: {
@@ -28,10 +26,9 @@ const INVENTORY_COUNTING_TABS: {
   icon: LucideIcon;
 }[] = [
   { id: 'total_count', label: 'Total Count', icon: Layers },
+  { id: 'count', label: 'Count', icon: ClipboardList },
   { id: 'reconciliation', label: 'Count Reconciliation', icon: ClipboardCheck },
   { id: 'user_comparison', label: 'User Comparison', icon: Users },
-  { id: 'normal_total', label: 'Normal Count', icon: ClipboardList },
-  { id: 'damage_total', label: 'Damage & Expire Count', icon: AlertTriangle },
   { id: 'record', label: 'Record', icon: History },
 ];
 
@@ -54,6 +51,12 @@ export function isCountingTabAllowed(tabId: string): boolean {
       if (tabId === 'reconciliation' && countingTabs.includes('inventory_count')) {
         return true;
       }
+      if (
+        tabId === 'count' &&
+        (countingTabs.includes('normal_total') || countingTabs.includes('damage_total'))
+      ) {
+        return true;
+      }
     }
 
     const inventoryTabs = perms.inventory;
@@ -69,6 +72,12 @@ export function isCountingTabAllowed(tabId: string): boolean {
       if (tabId === 'reconciliation' && inventoryTabs.includes('inventory_count')) {
         return true;
       }
+      if (
+        tabId === 'count' &&
+        (inventoryTabs.includes('normal_total') || inventoryTabs.includes('damage_total'))
+      ) {
+        return true;
+      }
     }
 
     return true;
@@ -79,6 +88,10 @@ export function isCountingTabAllowed(tabId: string): boolean {
 
 export function getAllowedCountingTabs() {
   return INVENTORY_COUNTING_TABS.filter((tab) => isCountingTabAllowed(tab.id));
+}
+
+export function getCountingTabLabel(tabId: InventoryCountingTabId): string {
+  return INVENTORY_COUNTING_TABS.find((tab) => tab.id === tabId)?.label ?? 'Inventory Counting';
 }
 
 export function usesWarehouseFilters(tabId: InventoryCountingTabId): boolean {

@@ -1,7 +1,11 @@
 'use client';
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { fetchICFilterOptions } from './Service/inventory_counting_service';
+import {
+  fetchICFilterOptions,
+  fetchArchivedICFilterOptions,
+} from './Service/inventory_counting_service';
+import { useInventoryCountingArchive } from './InventoryCountingArchiveContext';
 
 type InventoryCountingFiltersContextValue = {
   selectedUsers: string[];
@@ -30,6 +34,7 @@ export function hasICScopeFilter(selectedUsers: string[], selectedWarehouses: st
 }
 
 export function InventoryCountingFiltersProvider({ children }: { children: React.ReactNode }) {
+  const { archiveId, sessionVersion } = useInventoryCountingArchive();
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [selectedWarehouses, setSelectedWarehouses] = useState<string[]>([]);
   const [users, setUsers] = useState<string[]>([]);
@@ -54,7 +59,9 @@ export function InventoryCountingFiltersProvider({ children }: { children: React
     const loadOptions = async () => {
       setLoadingOptions(true);
       try {
-        const result = await fetchICFilterOptions();
+        const result = archiveId
+          ? await fetchArchivedICFilterOptions(archiveId)
+          : await fetchICFilterOptions();
         if (cancelled || !result.success) return;
         setUsers(result.users || []);
         setWarehouses(result.warehouses || []);
@@ -69,7 +76,7 @@ export function InventoryCountingFiltersProvider({ children }: { children: React
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [archiveId, sessionVersion]);
 
   return (
     <InventoryCountingFiltersContext.Provider

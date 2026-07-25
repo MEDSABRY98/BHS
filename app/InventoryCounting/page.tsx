@@ -3,7 +3,12 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Menu, Lock, ArrowLeft } from 'lucide-react';
 import InventoryCountingTab from './InventoryCountingTab';
-import Sidebar, { getAllowedCountingTabs, type InventoryCountingTabId } from './Utils/Sidebar';
+import Sidebar, {
+  getAllowedCountingTabs,
+  getCountingTabLabel,
+  type InventoryCountingTabId,
+} from './Utils/Sidebar';
+import { InventoryCountingArchiveProvider, useInventoryCountingArchive } from './InventoryCountingArchiveContext';
 import Login from '@/app/Components/Login';
 import Loading from '@/app/Components/Loading';
 
@@ -29,8 +34,7 @@ function hasInventoryCountingAccess(user: any): boolean {
         'reconciliation',
         'inventory_count',
         'user_comparison',
-        'normal_total',
-        'damage_total',
+        'count',
         'record',
         'normal_record',
         'damage_record',
@@ -141,6 +145,44 @@ export default function InventoryCountingPage() {
   }
 
   return (
+    <InventoryCountingArchiveProvider>
+      <InventoryCountingPageContent
+        isSidebarCollapsed={isSidebarCollapsed}
+        isMobileSidebarOpen={isMobileSidebarOpen}
+        setIsMobileSidebarOpen={setIsMobileSidebarOpen}
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        toggleSidebar={toggleSidebar}
+        allowedTabs={allowedTabs}
+        visitedTabs={visitedTabs}
+      />
+    </InventoryCountingArchiveProvider>
+  );
+}
+
+function InventoryCountingPageContent({
+  isSidebarCollapsed,
+  isMobileSidebarOpen,
+  setIsMobileSidebarOpen,
+  activeTab,
+  setActiveTab,
+  toggleSidebar,
+  allowedTabs,
+  visitedTabs,
+}: {
+  isSidebarCollapsed: boolean;
+  isMobileSidebarOpen: boolean;
+  setIsMobileSidebarOpen: (open: boolean) => void;
+  activeTab: InventoryCountingTabId;
+  setActiveTab: (tab: InventoryCountingTabId) => void;
+  toggleSidebar: () => void;
+  allowedTabs: ReturnType<typeof getAllowedCountingTabs>;
+  visitedTabs: Set<InventoryCountingTabId>;
+}) {
+  const { isArchiveView, archiveMeta } = useInventoryCountingArchive();
+  const pageTitle = getCountingTabLabel(activeTab);
+
+  return (
     <div className="flex min-h-screen bg-[#F8F9FA] text-black">
       <aside className={`hidden lg:flex flex-col ${isSidebarCollapsed ? 'w-20' : 'w-72'} bg-[#0f172a] text-white shadow-2xl fixed h-screen left-0 top-0 z-50 transition-all duration-300`}>
         <Sidebar
@@ -169,18 +211,48 @@ export default function InventoryCountingPage() {
       </aside>
 
       <div className={`flex-1 flex flex-col min-w-0 ${isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-72'} transition-all duration-300`}>
-        <div className="lg:hidden p-4 flex items-center bg-white border-b border-slate-200">
-          <button
-            type="button"
-            onClick={() => setIsMobileSidebarOpen(true)}
-            className="p-2.5 text-slate-600 hover:text-slate-900 rounded-xl hover:bg-slate-100 transition-all"
-          >
-            <Menu className="w-6 h-6" />
-          </button>
-          <span className="ml-3 font-bold text-slate-800">Inventory Counting</span>
+        <div className="lg:hidden bg-white border-b border-slate-200">
+          <div className="max-w-[95%] 2xl:max-w-[1800px] mx-auto px-4 sm:px-6 py-4">
+            <div className="flex items-center gap-3 min-w-0">
+              <button
+                type="button"
+                onClick={() => setIsMobileSidebarOpen(true)}
+                className="p-2.5 -ml-2.5 text-slate-600 hover:text-slate-900 rounded-xl hover:bg-slate-100 transition-all shrink-0"
+              >
+                <Menu className="w-6 h-6" />
+              </button>
+              <div className="flex items-center gap-2 min-w-0 flex-1">
+                <span className="font-bold text-slate-800 shrink-0">{pageTitle}</span>
+                {isArchiveView && archiveMeta && (
+                  <>
+                    <span className="text-slate-300 shrink-0">·</span>
+                    <span className="text-xs font-bold text-amber-800 truncate">
+                      Viewing archive {archiveMeta.archiveId} (read-only)
+                      {archiveMeta.label ? ` — ${archiveMeta.label}` : ''}
+                    </span>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
 
         <div className="max-w-[95%] 2xl:max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-12 flex-1 w-full">
+          <div className="hidden lg:flex items-center gap-4 pb-4 min-w-0">
+            <h1 className="text-2xl font-black text-slate-900 tracking-tight shrink-0">
+              {pageTitle}
+            </h1>
+            {isArchiveView && archiveMeta && (
+              <>
+                <span className="text-slate-300 shrink-0">·</span>
+                <p className="text-sm font-bold text-amber-800 truncate min-w-0">
+                  Viewing archive {archiveMeta.archiveId} (read-only)
+                  {archiveMeta.label ? ` — ${archiveMeta.label}` : ''}
+                </p>
+              </>
+            )}
+          </div>
+
           {allowedTabs.length > 0 ? (
             <InventoryCountingTab activeTab={activeTab} visitedTabs={visitedTabs} />
           ) : (

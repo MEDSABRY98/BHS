@@ -7,8 +7,10 @@ import TabLoader from '@/app/Components/TabLoader';
 import NoData from '@/app/Components/NoDataTab';
 import {
   fetchICUserComparisonData,
+  fetchArchivedICUserComparisonData,
   ICUserComparisonRow,
 } from './Service/inventory_counting_service';
+import { useInventoryCountingArchive } from './InventoryCountingArchiveContext';
 import { ICRecord } from './Utils/EditItemModal';
 import { useInventoryCountingFilters, matchesICWarehouse } from './InventoryCountingFiltersContext';
 
@@ -67,6 +69,7 @@ function diffClass(diff: number, hasCount: boolean) {
 }
 
 export default function UserComparisonTab() {
+  const { archiveId, sessionVersion } = useInventoryCountingArchive();
   const { selectedUsers, selectedWarehouses } = useInventoryCountingFilters();
   const [baseData, setBaseData] = useState<ICUserComparisonRow[]>([]);
   const [allUsers, setAllUsers] = useState<string[]>([]);
@@ -86,7 +89,9 @@ export default function UserComparisonTab() {
 
     setError(null);
     try {
-      const result = await fetchICUserComparisonData();
+      const result = archiveId
+        ? await fetchArchivedICUserComparisonData(archiveId)
+        : await fetchICUserComparisonData();
       if (!result.success || !result.data) {
         throw new Error(result.error || 'Failed to load data');
       }
@@ -106,7 +111,7 @@ export default function UserComparisonTab() {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [archiveId, sessionVersion]);
 
   const statusOptions = [
     { value: 'All', label: 'All Items' },
@@ -201,7 +206,6 @@ export default function UserComparisonTab() {
     const exportData = sortedData.map((item, idx) => {
       const row: Record<string, string | number> = {
         '#': idx + 1,
-        'Product ID': item.productId,
         Barcode: item.barcodeName,
         'Product Name': item.productName,
         'Available Qty': item.availableQty,

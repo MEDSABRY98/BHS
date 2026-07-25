@@ -8,11 +8,13 @@ import NoData from '@/app/Components/NoDataTab';
 import EditRecordModal from './Utils/EditRecordModal';
 import {
   fetchAllICDetails,
+  fetchArchivedAllICDetails,
   updateICRecord,
   deleteICRecord,
   type ICRecord,
   type CountType,
 } from './Service/inventory_counting_service';
+import { useInventoryCountingArchive } from './InventoryCountingArchiveContext';
 import { useInventoryCountingFilters, matchesICUser, matchesICWarehouse } from './InventoryCountingFiltersContext';
 
 function formatCountType(countType: CountType): string {
@@ -20,6 +22,7 @@ function formatCountType(countType: CountType): string {
 }
 
 export default function RecordTab() {
+  const { archiveId, isReadOnly, sessionVersion } = useInventoryCountingArchive();
   const [data, setData] = useState<ICRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -36,7 +39,9 @@ export default function RecordTab() {
 
     setError(null);
     try {
-      const json = await fetchAllICDetails();
+      const json = archiveId
+        ? await fetchArchivedAllICDetails(archiveId)
+        : await fetchAllICDetails();
       if (json.success && json.data) {
         setData(json.data);
       } else {
@@ -53,7 +58,7 @@ export default function RecordTab() {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [archiveId, sessionVersion]);
 
   const filteredData = data.filter((item) => {
     const query = searchQuery.toLowerCase().trim();
@@ -81,7 +86,6 @@ export default function RecordTab() {
       Type: formatCountType(item.countType),
       User: item.user,
       Warehouse: item.warehouse,
-      'Product ID': item.productId,
       Barcode: item.barcodeName,
       'Product Name': item.productName,
       'Qty in Box': item.qtyInBox,
@@ -251,9 +255,11 @@ export default function RecordTab() {
                   <th className="px-3 py-5 text-center text-[10px] font-black uppercase tracking-widest text-white">
                     Counted
                   </th>
+                  {!isReadOnly && (
                   <th className="px-3 py-5 text-center text-[10px] font-black uppercase tracking-widest text-white">
                     Actions
                   </th>
+                  )}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -312,6 +318,7 @@ export default function RecordTab() {
                         {item.countedQty === 0 ? '-' : item.countedQty.toLocaleString()}
                       </span>
                     </td>
+                    {!isReadOnly && (
                     <td className="px-3 py-4 text-center">
                       <div className="flex items-center justify-center gap-1">
                         <button
@@ -330,6 +337,7 @@ export default function RecordTab() {
                         </button>
                       </div>
                     </td>
+                    )}
                   </tr>
                 ))}
               </tbody>

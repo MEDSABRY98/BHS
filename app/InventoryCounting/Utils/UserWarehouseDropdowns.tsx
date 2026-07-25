@@ -3,6 +3,8 @@
 import React, { useMemo, useState } from 'react';
 import { User, Home, ChevronDown } from 'lucide-react';
 import { useInventoryCountingFilters } from '../InventoryCountingFiltersContext';
+import ArchiveSelector from './ArchiveSelector';
+import CloseSessionButton from './CloseSessionButton';
 
 function CheckboxFilterDropdown({
   items,
@@ -95,7 +97,7 @@ function CheckboxFilterDropdown({
   );
 }
 
-export default function UserWarehouseDropdowns() {
+export default function UserWarehouseDropdowns({ showFilters = true }: { showFilters?: boolean }) {
   const {
     selectedUsers,
     selectedWarehouses,
@@ -110,26 +112,32 @@ export default function UserWarehouseDropdowns() {
 
   return (
     <div className="flex flex-wrap items-center gap-3">
-      <CheckboxFilterDropdown
-        items={users}
-        selectedItems={selectedUsers}
-        toggleItem={toggleUser}
-        setSelectedItems={setSelectedUsers}
-        disabled={loadingOptions}
-        allLabel="All Users"
-        emptyLabel="No counted users yet"
-        icon={<User className="w-4 h-4 text-slate-400 shrink-0" />}
-      />
-      <CheckboxFilterDropdown
-        items={warehouses}
-        selectedItems={selectedWarehouses}
-        toggleItem={toggleWarehouse}
-        setSelectedItems={setSelectedWarehouses}
-        disabled={loadingOptions}
-        allLabel="All Warehouses"
-        emptyLabel="No counted warehouses yet"
-        icon={<Home className="w-4 h-4 text-slate-400 shrink-0" />}
-      />
+      {showFilters && (
+        <>
+          <CheckboxFilterDropdown
+            items={users}
+            selectedItems={selectedUsers}
+            toggleItem={toggleUser}
+            setSelectedItems={setSelectedUsers}
+            disabled={loadingOptions}
+            allLabel="All Users"
+            emptyLabel="No counted users yet"
+            icon={<User className="w-4 h-4 text-slate-400 shrink-0" />}
+          />
+          <CheckboxFilterDropdown
+            items={warehouses}
+            selectedItems={selectedWarehouses}
+            toggleItem={toggleWarehouse}
+            setSelectedItems={setSelectedWarehouses}
+            disabled={loadingOptions}
+            allLabel="All Warehouses"
+            emptyLabel="No counted warehouses yet"
+            icon={<Home className="w-4 h-4 text-slate-400 shrink-0" />}
+          />
+        </>
+      )}
+      <ArchiveSelector />
+      <CloseSessionButton />
     </div>
   );
 }

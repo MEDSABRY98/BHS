@@ -15,8 +15,86 @@ interface UserPermissions {
     role: string;
 }
 
-const INVENTORY_COUNTING_TAB_IDS = ['total_count', 'reconciliation', 'user_comparison', 'normal_total', 'damage_total', 'record'];
-const LEGACY_INVENTORY_COUNTING_IDS = ['counting', 'normal_record', 'damage_record', 'inventory_count', ...INVENTORY_COUNTING_TAB_IDS];
+const INVENTORY_COUNTING_VIEW_TAB_IDS = [
+    'total_count',
+    'count',
+    'reconciliation',
+    'user_comparison',
+    'record',
+] as const;
+
+const INVENTORY_COUNTING_TAB_IDS = [
+    ...INVENTORY_COUNTING_VIEW_TAB_IDS,
+    'close_session',
+] as const;
+
+const LEGACY_INVENTORY_COUNTING_IDS = [
+    'counting',
+    'inventory_count',
+    'normal_record',
+    'damage_record',
+    'normal_total',
+    'damage_total',
+] as const;
+
+function migrateInventoryCountingTabs(tabs: string[]): string[] {
+    let result = [...tabs];
+
+    if (result.some((id) => id === 'normal_record' || id === 'damage_record')) {
+        result = result.filter((id) => id !== 'normal_record' && id !== 'damage_record');
+        if (!result.includes('record')) result.push('record');
+    }
+
+    if (result.some((id) => id === 'normal_total' || id === 'damage_total')) {
+        result = result.filter((id) => id !== 'normal_total' && id !== 'damage_total');
+        if (!result.includes('count')) result.push('count');
+    }
+
+    if (result.includes('inventory_count')) {
+        result = result.filter((id) => id !== 'inventory_count');
+        if (!result.includes('reconciliation')) result.push('reconciliation');
+    }
+
+    if (result.includes('counting')) {
+        result = result.filter((id) => id !== 'counting');
+        result = [...new Set([...result, ...INVENTORY_COUNTING_VIEW_TAB_IDS])];
+    }
+
+    result = result.filter((id) => !LEGACY_INVENTORY_COUNTING_IDS.includes(id as typeof LEGACY_INVENTORY_COUNTING_IDS[number]));
+    result = result.filter((id) => INVENTORY_COUNTING_TAB_IDS.includes(id as typeof INVENTORY_COUNTING_TAB_IDS[number]));
+
+    return [...new Set(result)];
+}
+
+function migrateInventoryPermissionsFromLegacyInventory(inventoryTabs: string[], countingTabs: string[]) {
+    let migratedCounting = [...countingTabs];
+    const legacyInInventory = inventoryTabs.filter((id) =>
+        LEGACY_INVENTORY_COUNTING_IDS.includes(id as typeof LEGACY_INVENTORY_COUNTING_IDS[number])
+        || INVENTORY_COUNTING_TAB_IDS.includes(id as typeof INVENTORY_COUNTING_TAB_IDS[number])
+    );
+
+    if (legacyInInventory.length === 0) {
+        return { countingTabs: migratedCounting, inventoryTabs };
+    }
+
+    migratedCounting = [
+        ...migratedCounting,
+        ...legacyInInventory.filter((id) => INVENTORY_COUNTING_TAB_IDS.includes(id as typeof INVENTORY_COUNTING_TAB_IDS[number])),
+    ];
+
+    if (legacyInInventory.includes('counting')) {
+        migratedCounting = [...new Set([...migratedCounting, ...INVENTORY_COUNTING_VIEW_TAB_IDS])];
+    }
+
+    return {
+        countingTabs: migrateInventoryCountingTabs(migratedCounting),
+        inventoryTabs: inventoryTabs.filter(
+            (id) =>
+                !LEGACY_INVENTORY_COUNTING_IDS.includes(id as typeof LEGACY_INVENTORY_COUNTING_IDS[number])
+                && !INVENTORY_COUNTING_TAB_IDS.includes(id as typeof INVENTORY_COUNTING_TAB_IDS[number])
+        ),
+    };
+}
 
 const LEGACY_DB_TAB_IDS: Record<string, string> = {
     'db-inv-count-products': 'db-products',
@@ -91,11 +169,11 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
     ],
     'inventory-counting': [
         { id: 'total_count', label: 'Total Count' },
+        { id: 'count', label: 'Count' },
         { id: 'reconciliation', label: 'Count Reconciliation' },
         { id: 'user_comparison', label: 'User Comparison' },
-        { id: 'normal_total', label: 'Normal Count' },
-        { id: 'damage_total', label: 'Damage & Expire Count' },
         { id: 'record', label: 'Record' },
+        { id: 'close_session', label: 'Close Count Session' },
     ],
     'inventory-scrap': [
         { id: 'record', label: 'Log Scrap' },
@@ -270,52 +348,25 @@ export default function AdminControlTab() {
         const next = { ...perms };
 
         if (Array.isArray(next['inventory-counting'])) {
-            const countingTabs = next['inventory-counting'] as string[];
-            const hasLegacyRecord =
-                countingTabs.includes('normal_record') || countingTabs.includes('damage_record');
-
-            if (hasLegacyRecord) {
-                const migratedTabs = countingTabs.filter(
-                    (id) => id !== 'normal_record' && id !== 'damage_record'
-                );
-                if (!migratedTabs.includes('record')) migratedTabs.push('record');
-                next['inventory-counting'] = migratedTabs;
-            }
+            next['inventory-counting'] = migrateInventoryCountingTabs(next['inventory-counting'] as string[]);
         }
 
         if (Array.isArray(next.inventory)) {
             const inventoryTabs = next.inventory as string[];
-            const hasLegacyInventoryCount = inventoryTabs.includes('inventory_count');
+            const currentCounting = Array.isArray(next['inventory-counting'])
+                ? (next['inventory-counting'] as string[])
+                : [];
 
-            if (hasLegacyInventoryCount) {
-                const currentCounting = Array.isArray(next['inventory-counting']) ? next['inventory-counting'] : [];
-                const migratedCounting = [...currentCounting];
-                if (!migratedCounting.includes('reconciliation')) migratedCounting.push('reconciliation');
-                next['inventory-counting'] = [...new Set(migratedCounting)];
-                next.inventory = inventoryTabs.filter((id) => id !== 'inventory_count');
+            const migrated = migrateInventoryPermissionsFromLegacyInventory(inventoryTabs, currentCounting);
+            next['inventory-counting'] = migrated.countingTabs;
+            next.inventory = migrated.inventoryTabs;
 
-                const systems = Array.isArray(next.systems) ? next.systems : SYSTEMS.map(s => s.id);
-                if (!systems.includes('inventory-counting')) {
-                    next.systems = [...systems, 'inventory-counting'];
-                }
-            }
-        }
+            const hadLegacyCounting =
+                inventoryTabs.length !== migrated.inventoryTabs.length
+                || currentCounting.length !== migrated.countingTabs.length;
 
-        if (Array.isArray(next.inventory)) {
-            const legacyCounting = next.inventory.filter((id: string) => LEGACY_INVENTORY_COUNTING_IDS.includes(id));
-
-            if (legacyCounting.length > 0) {
-                const currentCounting = Array.isArray(next['inventory-counting']) ? next['inventory-counting'] : [];
-                const migratedTabs = [
-                    ...currentCounting,
-                    ...legacyCounting.filter((id: string) => INVENTORY_COUNTING_TAB_IDS.includes(id)),
-                    ...(legacyCounting.includes('counting') ? INVENTORY_COUNTING_TAB_IDS : []),
-                ];
-
-                next['inventory-counting'] = [...new Set(migratedTabs)];
-                next.inventory = next.inventory.filter((id: string) => !LEGACY_INVENTORY_COUNTING_IDS.includes(id));
-
-                const systems = Array.isArray(next.systems) ? next.systems : SYSTEMS.map(s => s.id);
+            if (hadLegacyCounting && migrated.countingTabs.length > 0) {
+                const systems = Array.isArray(next.systems) ? next.systems : SYSTEMS.map((s) => s.id);
                 if (!systems.includes('inventory-counting')) {
                     next.systems = [...systems, 'inventory-counting'];
                 }
@@ -470,7 +521,10 @@ export default function AdminControlTab() {
     const renderSubTabModal = () => {
         if (!modalSystem || !selectedUser) return null;
         const system = SYSTEMS.find(s => s.id === modalSystem);
-        const subTabs = [...(SYSTEM_SUBTABS[modalSystem] || [])].sort((a, b) => a.label.localeCompare(b.label));
+        const subTabsRaw = SYSTEM_SUBTABS[modalSystem] || [];
+        const subTabs = modalSystem === 'inventory-counting'
+            ? subTabsRaw
+            : [...subTabsRaw].sort((a, b) => a.label.localeCompare(b.label));
         const perms = parsePermissions(selectedUser.role);
         const key = modalSystem;
         const subTabIds = subTabs.map(t => t.id);
