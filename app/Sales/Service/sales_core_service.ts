@@ -195,7 +195,7 @@ export async function uploadSalesMappingsBulk(userId: string, mapping: any) {
   }
 
   const { userMapById, userMapByName } = await loadUserMaps();
-  const { custMapById, custMapByName } = await loadCustomerMaps();
+  const { custMapById, custMapByName, custCityById } = await loadCustomerMaps();
 
   const rowsByCustomer = new Map<string, Record<string, string>>();
   for (const rawCustomerId of Object.keys(mapping)) {
@@ -210,12 +210,13 @@ export async function uploadSalesMappingsBulk(userId: string, mapping: any) {
     const repId = resolveSalesRepUserId(repRaw, userMapById, userMapByName);
     const merchRaw = String(data.merchandiserId || data.merchandiser || '').trim();
     const merchId = resolveMerchandiserUserId(merchRaw, userMapById, userMapByName);
+    const city = custCityById.get(customerId.toUpperCase()) || '';
 
     rowsByCustomer.set(customerId, {
       ID: customerId,
       SALES_REP: repId,
       'CUSTOMER ID': customerId,
-      AREA: data.area || '',
+      AREA: city || data.area || '',
       MARKET: data.market || '',
       MERCHANDISER: merchId,
     });

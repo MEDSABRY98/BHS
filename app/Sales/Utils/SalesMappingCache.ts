@@ -51,15 +51,16 @@ export async function getGlobalMappings(): Promise<Map<string, any>> {
   // 3. Fetch customers
   const { data: customers, error: custErr } = await bhs_supabas
     .from('bhs_CUSTOMERS')
-    .select('"CUSTOMER ID", "CUSTOMER MAIN NAME", "CUSTOMER SUB NAME"');
+    .select('"CUSTOMER ID", "CUSTOMER MAIN NAME", "CUSTOMER SUB NAME", "CUSTOMER CITY"');
 
-  const custMap = new Map<string, { mainName: string; subName: string }>();
+  const custMap = new Map<string, { mainName: string; subName: string; city: string }>();
   if (!custErr && customers) {
     customers.forEach(c => {
       const cId = String(c['CUSTOMER ID']).trim().toUpperCase();
       custMap.set(cId, {
         mainName: c['CUSTOMER MAIN NAME'] || '',
         subName: c['CUSTOMER SUB NAME'] || '',
+        city: String(c['CUSTOMER CITY'] || '').trim(),
       });
     });
   }
@@ -84,7 +85,7 @@ export async function getGlobalMappings(): Promise<Map<string, any>> {
         customerId: m['CUSTOMER ID'],
         userId: repId,
         salesRep: userMap.get(repId) || (userMapByName.has(rawRep.toUpperCase()) ? rawRep : ''),
-        area: m['AREA'] || '',
+        area: custMap.get(cId)?.city || m['AREA'] || '',
         market: m['MARKET'] || '',
         merchandiserId: merchId,
         merchandiser: userMap.get(merchId) || (userMapByName.has(rawMerch.toUpperCase()) ? rawMerch : ''),
@@ -346,16 +347,18 @@ export async function loadUserMaps() {
 export async function loadCustomerMaps() {
   const { data: customers, error } = await bhs_supabas
     .from('bhs_CUSTOMERS')
-    .select('"CUSTOMER ID", "CUSTOMER MAIN NAME", "CUSTOMER SUB NAME"');
+    .select('"CUSTOMER ID", "CUSTOMER MAIN NAME", "CUSTOMER SUB NAME", "CUSTOMER CITY"');
   if (error) throw error;
 
   const custMapById = new Map<string, string>();
   const custMapByName = new Map<string, string>();
+  const custCityById = new Map<string, string>();
   
   (customers || []).forEach(c => {
     const id = String(c['CUSTOMER ID'] || '').trim();
     if (!id) return;
     custMapById.set(id.toUpperCase(), id);
+    custCityById.set(id.toUpperCase(), String(c['CUSTOMER CITY'] || '').trim());
     
     const mainName = String(c['CUSTOMER MAIN NAME'] || '').trim().toUpperCase();
     if (mainName) custMapByName.set(mainName, id);
@@ -364,7 +367,7 @@ export async function loadCustomerMaps() {
     if (subName) custMapByName.set(subName, id);
   });
   
-  return { custMapById, custMapByName };
+  return { custMapById, custMapByName, custCityById };
 }
 
 export function resolveCustomerId(

@@ -22,6 +22,8 @@ interface CustomerDoc {
   passportDate: string;
   id: string;
   idDate: string;
+  contract: string;
+  contractDate: string;
 }
 
 export default function CustomersDocumentsTab({
@@ -100,7 +102,7 @@ export default function CustomersDocumentsTab({
       ) : (
       <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
         <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
-          <table className="w-full text-left border-collapse table-fixed min-w-[1800px]">
+          <table className="w-full text-left border-collapse table-fixed min-w-[2100px]">
             <thead>
               <tr className="bg-slate-50/80 border-b border-slate-200">
                 <th className="py-5 px-4 font-semibold text-slate-400 text-xs uppercase tracking-wider text-center w-[60px]">#</th>
@@ -117,6 +119,9 @@ export default function CustomersDocumentsTab({
                 <th className="py-5 px-2 font-semibold text-slate-500 text-xs uppercase tracking-wider text-center w-[110px]">ID Card</th>
                 <th className="py-5 px-2 font-semibold text-slate-500 text-xs uppercase tracking-wider text-center w-[180px]">ID Date</th>
                 <th className="py-5 px-2 font-semibold text-indigo-500 text-xs uppercase tracking-wider text-center bg-indigo-50/30 w-[130px]">I. Days</th>
+                <th className="py-5 px-2 font-semibold text-slate-500 text-xs uppercase tracking-wider text-center w-[110px]">Contract</th>
+                <th className="py-5 px-2 font-semibold text-slate-500 text-xs uppercase tracking-wider text-center w-[180px]">Contract Date</th>
+                <th className="py-5 px-2 font-semibold text-indigo-500 text-xs uppercase tracking-wider text-center bg-indigo-50/30 w-[130px]">C. Days</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -124,6 +129,7 @@ export default function CustomersDocumentsTab({
                 const licenceDays = getDaysRemaining(item.licenceDate);
                 const passportDays = getDaysRemaining(item.passportDate);
                 const idDays = getDaysRemaining(item.idDate);
+                const contractDays = getDaysRemaining(item.contractDate);
 
                 const renderToggle = (field: keyof CustomerDoc, value: string) => {
                   const status = getDocStatus(value);
@@ -183,6 +189,10 @@ export default function CustomersDocumentsTab({
                     <td className="py-4 px-2 text-center">{renderToggle('id', item.id)}</td>
                     <td className="py-4 px-2 text-center">{renderDateInput('idDate', item.idDate)}</td>
                     <td className="py-4 px-2 text-center bg-indigo-50/10 border-x border-indigo-50/20">{renderDays(idDays)}</td>
+
+                    <td className="py-4 px-2 text-center">{renderToggle('contract', item.contract)}</td>
+                    <td className="py-4 px-2 text-center">{renderDateInput('contractDate', item.contractDate)}</td>
+                    <td className="py-4 px-2 text-center bg-indigo-50/10 border-x border-indigo-50/20">{renderDays(contractDays)}</td>
                   </tr>
                 );
               })}

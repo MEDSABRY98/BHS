@@ -272,7 +272,7 @@ export async function getCustomerDetailsData(userId: string, filters: any, custo
 export async function getCustomersList() {
   const { data, error } = await bhs_supabas
     .from('bhs_CUSTOMERS')
-    .select('"CUSTOMER ID", "CUSTOMER MAIN NAME", "CUSTOMER SUB NAME"')
+    .select('"CUSTOMER ID", "CUSTOMER MAIN NAME", "CUSTOMER SUB NAME", "CUSTOMER CITY"')
     .order('CUSTOMER MAIN NAME', { ascending: true });
 
   if (error) throw error;
@@ -280,7 +280,8 @@ export async function getCustomersList() {
   return (data || []).map((c: any) => ({
     id: c['CUSTOMER ID'],
     mainName: c['CUSTOMER MAIN NAME'] || '',
-    subName: c['CUSTOMER SUB NAME'] || ''
+    subName: c['CUSTOMER SUB NAME'] || '',
+    city: String(c['CUSTOMER CITY'] || '').trim(),
   }));
 }
 
@@ -424,12 +425,69 @@ export async function getMyCustomersData(userId: string) {
 }
 
 export type SetCustomersTabData = {
-  globalCustomers: { id: string; mainName: string; subName: string }[];
+  globalCustomers: { id: string; mainName: string; subName: string; city: string }[];
   myCustomers: ReturnType<typeof mapMappingToCustomerRow>[];
   usersList: { id: string; name: string }[];
 };
 
+async function resolveCustomerArea(customerId: string, fallbackArea = ''): Promise<string> {
+  const { data, error } = await bhs_supabas
+    .from('bhs_CUSTOMERS')
+    .select('"CUSTOMER CITY"')
+    .eq('CUSTOMER ID', customerId)
+    .maybeSingle();
+
+  if (error) throw error;
+  const city = String(data?.['CUSTOMER CITY'] || '').trim();
+  return city || fallbackArea;
+}
+
+/** Backfill mapping AREA from bhs_CUSTOMERS.CUSTOMER CITY for rows that are empty or outdated. */
+export async function syncCustomerMappingAreasFromCity(): Promise<number> {
+  const { custCityById } = await loadCustomerMaps();
+
+  const { data: mappings, error } = await bhs_supabas
+    .from('web_Sales_DB_CUSTOMERSMAPPING')
+    .select('ID, "CUSTOMER ID", AREA');
+
+  if (error) throw error;
+
+  const toUpdate = (mappings || []).filter((m) => {
+    const cId = String(m['CUSTOMER ID'] || '').trim().toUpperCase();
+    const city = custCityById.get(cId);
+    return city && String(m.AREA || '').trim() !== city;
+  });
+
+  if (toUpdate.length === 0) return 0;
+
+  const chunkSize = 50;
+  for (let i = 0; i < toUpdate.length; i += chunkSize) {
+    const chunk = toUpdate.slice(i, i + chunkSize);
+    const results = await Promise.all(
+      chunk.map((m) => {
+        const cId = String(m['CUSTOMER ID'] || '').trim().toUpperCase();
+        const city = custCityById.get(cId)!;
+        return bhs_supabas
+          .from('web_Sales_DB_CUSTOMERSMAPPING')
+          .update({ AREA: city })
+          .eq('ID', m.ID);
+      })
+    );
+
+    const failed = results.find((r) => r.error);
+    if (failed?.error) throw failed.error;
+  }
+
+  invalidateMappingCache();
+  return toUpdate.length;
+}
+
 export async function getSetCustomersTabData(userId: string): Promise<SetCustomersTabData> {
+  const isManager = await checkIsManager(userId);
+  if (isManager) {
+    await syncCustomerMappingAreasFromCity();
+  }
+
   const [globalCustomers, filteredMappings, usersList] = await Promise.all([
     getCustomersList(),
     getMappingServer(userId),
@@ -457,6 +515,7 @@ export async function saveCustomerMapping(userId: string, mapping: any) {
     userMapById,
     userMapByName
   );
+  const area = await resolveCustomerArea(customerId, mapping.area || '');
 
   const { data: existing } = await bhs_supabas
     .from('web_Sales_DB_CUSTOMERSMAPPING')
@@ -469,7 +528,7 @@ export async function saveCustomerMapping(userId: string, mapping: any) {
       .from('web_Sales_DB_CUSTOMERSMAPPING')
       .update({
         SALES_REP: salesRepId,
-        AREA: mapping.area || '',
+        AREA: area,
         MARKET: mapping.market || '',
         MERCHANDISER: merchandiserId,
       })
@@ -482,7 +541,7 @@ export async function saveCustomerMapping(userId: string, mapping: any) {
         ID: customerId,
         SALES_REP: salesRepId,
         'CUSTOMER ID': customerId,
-        AREA: mapping.area || '',
+        AREA: area,
         MARKET: mapping.market || '',
         MERCHANDISER: merchandiserId,
       });
@@ -514,7 +573,7 @@ export async function batchSaveCustomerMapping(userId: string, mapping: Record<s
   }
 
   const { userMapById, userMapByName } = await loadUserMaps();
-  const { custMapById, custMapByName } = await loadCustomerMaps();
+  const { custMapById, custMapByName, custCityById } = await loadCustomerMaps();
 
   const rowsByCustomer = new Map<string, Record<string, string>>();
   for (const rawCustomerId of Object.keys(mapping)) {
@@ -529,12 +588,13 @@ export async function batchSaveCustomerMapping(userId: string, mapping: Record<s
     const repId = resolveSalesRepUserId(repRaw, userMapById, userMapByName);
     const merchRaw = String(data.merchandiserId || data.merchandiser || '').trim();
     const merchId = resolveMerchandiserUserId(merchRaw, userMapById, userMapByName);
+    const city = custCityById.get(customerId.toUpperCase()) || '';
 
     rowsByCustomer.set(customerId, {
       ID: customerId,
       SALES_REP: repId,
       'CUSTOMER ID': customerId,
-      AREA: data.area || '',
+      AREA: city || data.area || '',
       MARKET: data.market || '',
       MERCHANDISER: merchId,
     });

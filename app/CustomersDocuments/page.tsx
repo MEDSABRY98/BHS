@@ -23,7 +23,8 @@ export default function CustomersDocumentsPage() {
     licence: false,
     trn: false,
     passport: false,
-    id: false
+    id: false,
+    contract: false,
   });
 
   useEffect(() => {
@@ -125,12 +126,29 @@ export default function CustomersDocumentsPage() {
   };
 
   const exportToExcel = async () => {
-    const headers = ['Customer Name', 'Credit App', 'Licence', 'Licence Date', 'L. Days', 'TRN', 'Passport', 'Passport Date', 'P. Days', 'ID', 'ID Date', 'I. Days'];
+    const headers = ['Customer Name', 'Credit App', 'Licence', 'Licence Date', 'L. Days', 'TRN', 'Passport', 'Passport Date', 'P. Days', 'ID', 'ID Date', 'I. Days', 'Contract', 'Contract Date', 'C. Days'];
     const rows = filteredData.map((item) => {
       const lDays = getDaysRemaining(item.licenceDate);
       const pDays = getDaysRemaining(item.passportDate);
       const iDays = getDaysRemaining(item.idDate);
-      return [item.customerName, item.creditApp, item.licence, item.licenceDate, lDays !== null ? (lDays < 0 ? `${Math.abs(lDays)}d Expired` : `${lDays}d Left`) : '', item.trn, item.passport, item.passportDate, pDays !== null ? (pDays < 0 ? `${Math.abs(pDays)}d Expired` : `${pDays}d Left`) : '', item.id, item.idDate, iDays !== null ? (iDays < 0 ? `${Math.abs(iDays)}d Expired` : `${iDays}d Left`) : ''];
+      const cDays = getDaysRemaining(item.contractDate);
+      return [
+        item.customerName,
+        item.creditApp,
+        item.licence,
+        item.licenceDate,
+        lDays !== null ? (lDays < 0 ? `${Math.abs(lDays)}d Expired` : `${lDays}d Left`) : '',
+        item.trn,
+        item.passport,
+        item.passportDate,
+        pDays !== null ? (pDays < 0 ? `${Math.abs(pDays)}d Expired` : `${pDays}d Left`) : '',
+        item.id,
+        item.idDate,
+        iDays !== null ? (iDays < 0 ? `${Math.abs(iDays)}d Expired` : `${iDays}d Left`) : '',
+        item.contract,
+        item.contractDate,
+        cDays !== null ? (cDays < 0 ? `${Math.abs(cDays)}d Expired` : `${cDays}d Left`) : '',
+      ];
     });
     
     await exportDebitExcelTable(
@@ -225,7 +243,8 @@ export default function CustomersDocumentsPage() {
               { id: 'licence', label: 'Missing Licence' },
               { id: 'trn', label: 'Missing TRN' },
               { id: 'passport', label: 'Missing Passport' },
-              { id: 'id', label: 'Missing ID Card' }
+              { id: 'id', label: 'Missing ID Card' },
+              { id: 'contract', label: 'Missing Contract' },
             ].map((filter) => (
               <button
                 key={filter.id}

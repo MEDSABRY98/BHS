@@ -1,24 +1,28 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Search, Edit, Trash2, Save, X, User, AlertTriangle, Loader2, ChevronDown } from 'lucide-react';
+import { Search, Edit, Trash2, Save, X, User, AlertTriangle, Loader2, ChevronDown, FileSpreadsheet } from 'lucide-react';
 import { toast } from '@/app/Components/Notification';
 import NoData from '@/app/Components/NoDataTab';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
+import { exportSalesExcelTable } from '@/app/Sales/Utils/ExcelExport';
 import { getSetCustomersTabData, saveCustomerMapping, deleteCustomerMapping } from '../Service/sales_customers_service';
 import { useSalesDataContext } from '@/app/Sales/Context/SalesDataContext';
 import { useSalesModuleFilters } from '@/app/Sales/Model/SalesFilters';
 import { useSalesTabFetch } from '@/app/Sales/Hooks/useSalesTabFetch';
 
 // Custom Premium Filter Dropdown Component
+const NO_CITY_FILTER = '__NO_CITY__';
+
 interface FilterDropdownProps {
   value: string;
   onChange: (val: string) => void;
   options: string[];
   placeholder: string;
+  optionLabels?: Record<string, string>;
 }
 
-function FilterDropdown({ value, onChange, options, placeholder }: FilterDropdownProps) {
+function FilterDropdown({ value, onChange, options, placeholder, optionLabels }: FilterDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -40,7 +44,7 @@ function FilterDropdown({ value, onChange, options, placeholder }: FilterDropdow
         className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:border-green-500 outline-none transition-all shadow-sm text-sm font-medium text-slate-700 flex items-center justify-between cursor-pointer"
       >
         <span className={!value ? "text-slate-400 font-normal" : "truncate font-bold text-slate-800"}>
-          {value || placeholder}
+          {(value && optionLabels?.[value]) || value || placeholder}
         </span>
         <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${isOpen ? 'rotate-180 text-slate-600' : ''}`} />
       </button>
@@ -71,7 +75,7 @@ function FilterDropdown({ value, onChange, options, placeholder }: FilterDropdow
                 value === opt ? 'bg-green-50 text-green-700' : 'text-slate-600 hover:bg-slate-50'
               }`}
             >
-              {opt}
+              {optionLabels?.[opt] ?? opt}
             </button>
           ))}
         </div>
@@ -144,7 +148,8 @@ export default function SalesSetCustomersTab({ userId }: SalesSetCustomersTabPro
         'CUSTOMER ID': gc.id,
         'CUSTOMER MAIN NAME': gc.mainName,
         'CUSTOMER SUB NAME': gc.subName,
-        'AREA': m ? m['AREA'] : '',
+        'CUSTOMER CITY': gc.city,
+        'AREA': gc.city || (m ? m['AREA'] : ''),
         'MARKET': m ? m['MARKET'] : '',
         'USER_ID': m ? m['USER_ID'] : '',
         'SALES_REP': m ? m['SALES_REP'] : '',
@@ -169,6 +174,16 @@ export default function SalesSetCustomersTab({ userId }: SalesSetCustomersTabPro
     });
     return Array.from(areas).sort();
   }, [mergedCustomers]);
+
+  const areaFilterOptions = useMemo(() => {
+    const hasNoCityCustomers = mergedCustomers.some(c => !String(c['CUSTOMER CITY'] || '').trim());
+    return hasNoCityCustomers ? [NO_CITY_FILTER, ...uniqueAreas] : uniqueAreas;
+  }, [mergedCustomers, uniqueAreas]);
+
+  const areaOptionLabels = useMemo(
+    () => ({ [NO_CITY_FILTER]: 'No City' }),
+    []
+  );
 
   const uniqueMarkets = useMemo(() => {
     const markets = new Set<string>();
@@ -197,7 +212,13 @@ export default function SalesSetCustomersTab({ userId }: SalesSetCustomersTabPro
   // Filter merged list by search query and dropdown filters
   const filteredCustomers = useMemo(() => {
     return mergedCustomers.filter(c => {
-      if (filterArea && c['AREA'] !== filterArea) return false;
+      if (filterArea) {
+        if (filterArea === NO_CITY_FILTER) {
+          if (String(c['CUSTOMER CITY'] || '').trim()) return false;
+        } else if (c['AREA'] !== filterArea) {
+          return false;
+        }
+      }
       if (filterMarket && c['MARKET'] !== filterMarket) return false;
       if (filterRep && c['SALES_REP'] !== filterRep) return false;
       if (filterMerchandiser && c['MERCHANDISER'] !== filterMerchandiser) return false;
@@ -216,6 +237,29 @@ export default function SalesSetCustomersTab({ userId }: SalesSetCustomersTabPro
     });
   }, [mergedCustomers, tableSearchQuery, filterArea, filterMarket, filterRep, filterMerchandiser]);
 
+  const exportToExcel = async () => {
+    if (filteredCustomers.length === 0) {
+      toast.warning('No data to export');
+      return;
+    }
+
+    const headers = ['ID', 'Customer Name', 'Area', 'Market', 'Sales Rep', 'Merchandiser'];
+    const rows = filteredCustomers.map((c) => [
+      c['CUSTOMER ID'] ?? '',
+      c['CUSTOMER SUB NAME'] ?? '',
+      c['AREA'] ?? '',
+      c['MARKET'] ?? '',
+      c['SALES_REP'] || 'Unassigned',
+      c['MERCHANDISER'] ?? '',
+    ]);
+
+    const filename = `set_customers_${new Date().toISOString().split('T')[0]}.xlsx`;
+    await exportSalesExcelTable(headers, rows, filename, {
+      sheetName: 'Set Customers',
+    });
+    toast.success('Exported successfully');
+  };
+
   const handleSaveEdit = async () => {
     if (!editingCustomer) return;
     setIsSaving(true);
@@ -224,7 +268,6 @@ export default function SalesSetCustomersTab({ userId }: SalesSetCustomersTabPro
       const mappingData = {
         customerId: editingCustomer['CUSTOMER ID'],
         salesRepId: editingCustomer['USER_ID'], // representative user ID
-        area: editingCustomer['AREA'],
         market: editingCustomer['MARKET'],
         merchandiserId: editingCustomer['MERCHANDISER_ID'],
       };
@@ -277,6 +320,15 @@ export default function SalesSetCustomersTab({ userId }: SalesSetCustomersTabPro
               {filteredCustomers.length} {filteredCustomers.length === 1 ? 'Customer' : 'Customers'}
             </span>
           </div>
+          <button
+            type="button"
+            onClick={() => void exportToExcel()}
+            disabled={filteredCustomers.length === 0}
+            className="h-10 w-10 flex items-center justify-center bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-all shadow-sm group disabled:opacity-40 disabled:cursor-not-allowed"
+            title="Export current table to Excel"
+          >
+            <FileSpreadsheet className="h-5 w-5 transition-transform group-hover:scale-110" />
+          </button>
         </div>
 
         {/* Search & 4 Equal Width Dropdown Filters */}
@@ -312,8 +364,9 @@ export default function SalesSetCustomersTab({ userId }: SalesSetCustomersTabPro
           <FilterDropdown
             value={filterArea}
             onChange={setFilterArea}
-            options={uniqueAreas}
+            options={areaFilterOptions}
             placeholder="All Areas"
+            optionLabels={areaOptionLabels}
           />
 
           {/* Market Filter */}
@@ -426,12 +479,10 @@ export default function SalesSetCustomersTab({ userId }: SalesSetCustomersTabPro
             <div className="p-6 space-y-4 overflow-visible">
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Area</label>
-                <input
-                  type="text"
-                  value={editingCustomer['AREA'] || ''}
-                  onChange={e => setEditingCustomer({ ...editingCustomer, 'AREA': e.target.value })}
-                  className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:border-green-500 focus:ring-1 focus:ring-green-500 outline-none text-sm font-medium"
-                />
+                <div className="w-full px-4 py-2.5 border border-slate-100 rounded-xl bg-slate-50 text-sm font-medium text-slate-700">
+                  {editingCustomer['CUSTOMER CITY'] || editingCustomer['AREA'] || <span className="text-slate-400">No city set</span>}
+                </div>
+                <p className="mt-1 text-[11px] text-slate-400">Auto-filled from customer city in the main database.</p>
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Market</label>

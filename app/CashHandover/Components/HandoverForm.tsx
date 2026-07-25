@@ -17,7 +17,17 @@ function SearchableCustomerSelect({ customers, value, onChange }: { customers: C
   const selectedCustomer = customers.find(c => c.id === value);
   const displayValue = isOpen ? searchTerm : (selectedCustomer ? selectedCustomer.name : '');
 
-  const filteredCustomers = customers.filter(c => c.name.toLowerCase().includes(searchTerm.toLowerCase()));
+  const filteredCustomers = useMemo(() => {
+    const term = searchTerm.toLowerCase();
+    const seen = new Set<string>();
+    return customers.filter((c) => {
+      if (!c.name.toLowerCase().includes(term)) return false;
+      const key = c.name.trim().toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [customers, searchTerm]);
 
   return (
     <div className="relative">
@@ -149,10 +159,24 @@ export default function HandoverForm({
           .order('CUSTOMER MAIN NAME');
           
         if (data) {
-          setCustomers(data.map(d => ({
-            id: d['CUSTOMER ID'],
-            name: d['CUSTOMER MAIN NAME']
-          })));
+          const seen = new Set<string>();
+          const uniqueCustomers: Customer[] = [];
+
+          for (const d of data) {
+            const name = String(d['CUSTOMER MAIN NAME'] || '').trim();
+            if (!name) continue;
+
+            const key = name.toLowerCase();
+            if (seen.has(key)) continue;
+
+            seen.add(key);
+            uniqueCustomers.push({
+              id: d['CUSTOMER ID'],
+              name,
+            });
+          }
+
+          setCustomers(uniqueCustomers);
         }
       } catch (err) {
         console.error('Error fetching customers:', err);

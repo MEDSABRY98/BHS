@@ -37,7 +37,9 @@ async function syncCustomersFromBhs() {
         PASSPORT: 'No',
         PASSPORT_DATE: '',
         ID_CARD: 'No',
-        ID_DATE: ''
+        ID_DATE: '',
+        CONTRACT: 'No',
+        CONTRACT_DATE: '',
       }));
 
     if (newCustomersToInsert.length > 0) {
@@ -88,7 +90,9 @@ export async function getCustomersDocuments() {
       passport: r.PASSPORT || 'No',
       passportDate: r.PASSPORT_DATE || '',
       id: r.ID_CARD || 'No',
-      idDate: r.ID_DATE || ''
+      idDate: r.ID_DATE || '',
+      contract: r.CONTRACT || 'No',
+      contractDate: r.CONTRACT_DATE || '',
     }));
 
     return { success: true, data: mapped };
@@ -113,6 +117,8 @@ export async function updateCustomerDocument(rowIndex: number | string, data: an
     if (data.passportDate !== undefined) updateFields.PASSPORT_DATE = data.passportDate;
     if (data.id !== undefined) updateFields.ID_CARD = data.id;
     if (data.idDate !== undefined) updateFields.ID_DATE = data.idDate;
+    if (data.contract !== undefined) updateFields.CONTRACT = data.contract;
+    if (data.contractDate !== undefined) updateFields.CONTRACT_DATE = data.contractDate;
 
     updateFields.UPDATED_AT = new Date().toISOString();
 
