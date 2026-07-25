@@ -76,8 +76,8 @@ type MixCountDetailRow = {
 type MixCountDetailRowWithType = MixCountDetailRow & { COUNT_TYPE: string };
 
 type ArchiveTable =
-  | 'web_inventory_count_details_archive'
-  | 'web_inventory_count_totals_archive';
+  | 'mix_INVENTORY_COUNT_DETAILS_ARCHIVE'
+  | 'mix_INVENTORY_COUNT_TOTALS_ARCHIVE';
 
 export interface ICArchiveHeader {
   archiveId: string;
@@ -186,14 +186,14 @@ async function bulkInsertChunks(
 
 async function deleteArchiveSession(archiveId: string): Promise<void> {
   await bhs_supabase
-    .from('web_inventory_count_details_archive')
+    .from('mix_INVENTORY_COUNT_DETAILS_ARCHIVE')
     .delete()
     .eq('ARCHIVE_ID', archiveId);
   await bhs_supabase
-    .from('web_inventory_count_totals_archive')
+    .from('mix_INVENTORY_COUNT_TOTALS_ARCHIVE')
     .delete()
     .eq('ARCHIVE_ID', archiveId);
-  await bhs_supabase.from('web_inventory_count_archive').delete().eq('ARCHIVE_ID', archiveId);
+  await bhs_supabase.from('mix_INVENTORY_COUNT_ARCHIVE').delete().eq('ARCHIVE_ID', archiveId);
 }
 
 async function deleteAllLiveICRows(): Promise<void> {
@@ -792,7 +792,7 @@ export async function generateNextArchiveId(): Promise<string> {
   const prefix = `IC-${year}-`;
 
   const { data, error } = await bhs_supabase
-    .from('web_inventory_count_archive')
+    .from('mix_INVENTORY_COUNT_ARCHIVE')
     .select('ARCHIVE_ID')
     .like('ARCHIVE_ID', `${prefix}%`)
     .order('ARCHIVE_ID', { ascending: false })
@@ -814,7 +814,7 @@ export async function generateNextArchiveId(): Promise<string> {
 export async function fetchInventoryCountArchives() {
   try {
     const { data, error } = await bhs_supabase
-      .from('web_inventory_count_archive')
+      .from('mix_INVENTORY_COUNT_ARCHIVE')
       .select(
         'ARCHIVE_ID,COUNT_DATE,LABEL,DETAIL_ROW_COUNT,TOTAL_ROW_COUNT,RESET_LIVE,CLOSED_AT'
       )
@@ -858,7 +858,7 @@ export async function closeInventoryCountSession(input: {
     const countDate = input.countDate?.trim() || new Date().toISOString().split('T')[0];
     const label = input.label?.trim() || null;
 
-    const { error: headerError } = await bhs_supabase.from('web_inventory_count_archive').insert({
+    const { error: headerError } = await bhs_supabase.from('mix_INVENTORY_COUNT_ARCHIVE').insert({
       ARCHIVE_ID: archiveId,
       COUNT_DATE: countDate,
       LABEL: label,
@@ -892,10 +892,10 @@ export async function closeInventoryCountSession(input: {
       }));
 
       if (detailRows.length > 0) {
-        await bulkInsertChunks('web_inventory_count_details_archive', detailRows);
+        await bulkInsertChunks('mix_INVENTORY_COUNT_DETAILS_ARCHIVE', detailRows);
       }
       if (totalRows.length > 0) {
-        await bulkInsertChunks('web_inventory_count_totals_archive', totalRows);
+        await bulkInsertChunks('mix_INVENTORY_COUNT_TOTALS_ARCHIVE', totalRows);
       }
 
       if (input.resetLive) {
@@ -925,13 +925,13 @@ export async function fetchArchivedICTotalCountData(archiveId: string) {
     const [products, normalTotals, damageTotals, liveStockMap] = await Promise.all([
       fetchAllMixCountRows<MixCountProductRow>('bhs_PRODUCTS', PRODUCT_SELECT),
       fetchAllArchiveRows<{ 'PRODUCT ID': string; 'COUNTED QTY': number | null }>(
-        'web_inventory_count_totals_archive',
+        'mix_INVENTORY_COUNT_TOTALS_ARCHIVE',
         archiveId,
         '"PRODUCT ID","COUNTED QTY"',
         { column: 'COUNT_TYPE', value: 'Normal' }
       ),
       fetchAllArchiveRows<{ 'PRODUCT ID': string; 'COUNTED QTY': number | null }>(
-        'web_inventory_count_totals_archive',
+        'mix_INVENTORY_COUNT_TOTALS_ARCHIVE',
         archiveId,
         '"PRODUCT ID","COUNTED QTY"',
         { column: 'COUNT_TYPE', value: 'DamageExpire' }
@@ -981,25 +981,25 @@ export async function fetchArchivedICUserComparisonData(archiveId: string) {
       await Promise.all([
         fetchAllMixCountRows<MixCountProductRow>('bhs_PRODUCTS', PRODUCT_SELECT),
         fetchAllArchiveRows<{ 'PRODUCT ID': string; 'COUNTED QTY': number | null }>(
-          'web_inventory_count_totals_archive',
+          'mix_INVENTORY_COUNT_TOTALS_ARCHIVE',
           archiveId,
           '"PRODUCT ID","COUNTED QTY"',
           { column: 'COUNT_TYPE', value: 'Normal' }
         ),
         fetchAllArchiveRows<{ 'PRODUCT ID': string; 'COUNTED QTY': number | null }>(
-          'web_inventory_count_totals_archive',
+          'mix_INVENTORY_COUNT_TOTALS_ARCHIVE',
           archiveId,
           '"PRODUCT ID","COUNTED QTY"',
           { column: 'COUNT_TYPE', value: 'DamageExpire' }
         ),
         fetchAllArchiveRows<MixCountDetailRow>(
-          'web_inventory_count_details_archive',
+          'mix_INVENTORY_COUNT_DETAILS_ARCHIVE',
           archiveId,
           DETAIL_SELECT,
           { column: 'COUNT_TYPE', value: 'Normal' }
         ),
         fetchAllArchiveRows<MixCountDetailRow>(
-          'web_inventory_count_details_archive',
+          'mix_INVENTORY_COUNT_DETAILS_ARCHIVE',
           archiveId,
           DETAIL_SELECT,
           { column: 'COUNT_TYPE', value: 'DamageExpire' }
@@ -1065,13 +1065,13 @@ export async function fetchArchivedICCountTabData(archiveId: string, countType: 
     const [products, totals, details, liveStockMap] = await Promise.all([
       fetchAllMixCountRows<MixCountProductRow>('bhs_PRODUCTS', PRODUCT_SELECT),
       fetchAllArchiveRows<{ 'PRODUCT ID': string; 'COUNTED QTY': number | null }>(
-        'web_inventory_count_totals_archive',
+        'mix_INVENTORY_COUNT_TOTALS_ARCHIVE',
         archiveId,
         '"PRODUCT ID","COUNTED QTY"',
         { column: 'COUNT_TYPE', value: countType }
       ),
       fetchAllArchiveRows<MixCountDetailRow>(
-        'web_inventory_count_details_archive',
+        'mix_INVENTORY_COUNT_DETAILS_ARCHIVE',
         archiveId,
         DETAIL_SELECT,
         { column: 'COUNT_TYPE', value: countType }
@@ -1096,13 +1096,13 @@ export async function fetchArchivedAllICDetails(archiveId: string) {
   try {
     const [normalDetails, damageDetails, products] = await Promise.all([
       fetchAllArchiveRows<MixCountDetailRow>(
-        'web_inventory_count_details_archive',
+        'mix_INVENTORY_COUNT_DETAILS_ARCHIVE',
         archiveId,
         DETAIL_SELECT,
         { column: 'COUNT_TYPE', value: 'Normal' }
       ),
       fetchAllArchiveRows<MixCountDetailRow>(
-        'web_inventory_count_details_archive',
+        'mix_INVENTORY_COUNT_DETAILS_ARCHIVE',
         archiveId,
         DETAIL_SELECT,
         { column: 'COUNT_TYPE', value: 'DamageExpire' }
@@ -1138,7 +1138,7 @@ export async function fetchArchivedICFilterOptions(archiveId: string) {
     const details = await fetchAllArchiveRows<{
       USER: string | null;
       WAREHOUSE: string | null;
-    }>('web_inventory_count_details_archive', archiveId, 'USER,WAREHOUSE');
+    }>('mix_INVENTORY_COUNT_DETAILS_ARCHIVE', archiveId, 'USER,WAREHOUSE');
 
     const userNames = new Set<string>();
     details.forEach((row) => {

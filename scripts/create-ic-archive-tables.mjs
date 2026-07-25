@@ -28,7 +28,7 @@ try {
     SELECT tablename
     FROM pg_tables
     WHERE schemaname = 'public'
-      AND tablename ILIKE '%inventory_count%archive%'
+      AND (tablename ILIKE 'mix_%inventory_count%archive%' OR tablename ILIKE 'web_%inventory_count%archive%')
     ORDER BY tablename
   `);
 
