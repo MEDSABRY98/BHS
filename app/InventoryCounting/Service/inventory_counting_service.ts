@@ -1167,3 +1167,308 @@ export async function fetchArchivedICFilterOptions(archiveId: string) {
     };
   }
 }
+
+// ─── Reconciliation sessions (independent from count archive) ───────────────
+
+export type ICReconciliationSourceType = 'none' | 'user' | 'manual';
+export type ICReconciliationMatchStatus = 'Matched' | 'Not Found';
+
+export interface ICReconciliationSaveLine {
+  productId: string;
+  sourceType: ICReconciliationSourceType;
+  sourceUser: string | null;
+  resultQty: number;
+  endingBalance: number | null;
+  difference: number | null;
+  matchStatus: ICReconciliationMatchStatus;
+  isManuallyAdded: boolean;
+}
+
+export interface ICReconciliationSessionSummary {
+  reconciliationId: string;
+  countDate: string | null;
+  label: string | null;
+  savedAt: string;
+  rowCount: number;
+}
+
+export interface ICReconciliationLoadedRow {
+  productId: string;
+  barcodeName: string;
+  productName: string;
+  sourceType: ICReconciliationSourceType;
+  sourceUser: string | null;
+  resultQty: number;
+  endingBalance: number | null;
+  difference: number | null;
+  matchStatus: ICReconciliationMatchStatus;
+  isManuallyAdded: boolean;
+}
+
+type MixReconciliationDbRow = {
+  RECONCILIATION_ID: string;
+  LINE_NO: number;
+  COUNT_DATE: string | null;
+  LABEL: string | null;
+  'PRODUCT ID': string;
+  SOURCE_TYPE: string;
+  SOURCE_USER: string | null;
+  RESULT_QTY: number | null;
+  ENDING_BALANCE: number | null;
+  DIFFERENCE: number | null;
+  MATCH_STATUS: string;
+  IS_MANUALLY_ADDED: boolean;
+  SAVED_AT: string;
+};
+
+const RECONCILIATION_SELECT =
+  'RECONCILIATION_ID,LINE_NO,COUNT_DATE,LABEL,"PRODUCT ID",SOURCE_TYPE,SOURCE_USER,RESULT_QTY,ENDING_BALANCE,DIFFERENCE,MATCH_STATUS,IS_MANUALLY_ADDED,SAVED_AT';
+
+async function fetchAllReconciliationRows(
+  reconciliationId?: string
+): Promise<MixReconciliationDbRow[]> {
+  const pageSize = 1000;
+  let from = 0;
+  const allRows: MixReconciliationDbRow[] = [];
+
+  while (true) {
+    let query = bhs_supabase.from('mix_INVENTORY_COUNT_RECONCILIATION').select(RECONCILIATION_SELECT);
+    if (reconciliationId) {
+      query = query.eq('RECONCILIATION_ID', reconciliationId.trim());
+    }
+
+    const { data, error } = await query
+      .order('LINE_NO', { ascending: true })
+      .range(from, from + pageSize - 1);
+
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    allRows.push(...(data as MixReconciliationDbRow[]));
+    if (data.length < pageSize) break;
+    from += pageSize;
+  }
+
+  return allRows;
+}
+
+export async function generateNextReconciliationId(): Promise<string> {
+  const year = new Date().getFullYear();
+  const prefix = `ICR-${year}-`;
+
+  const { data, error } = await bhs_supabase
+    .from('mix_INVENTORY_COUNT_RECONCILIATION')
+    .select('RECONCILIATION_ID')
+    .like('RECONCILIATION_ID', `${prefix}%`)
+    .order('RECONCILIATION_ID', { ascending: false })
+    .limit(1);
+
+  if (error) throw error;
+
+  let nextNum = 1;
+  const latest = data?.[0]?.RECONCILIATION_ID;
+  if (latest) {
+    const parts = String(latest).split('-');
+    const num = parseInt(parts[2] || '', 10);
+    if (Number.isFinite(num)) nextNum = num + 1;
+  }
+
+  return `${prefix}${String(nextNum).padStart(4, '0')}`;
+}
+
+export async function saveReconciliationSession(input: {
+  countDate: string;
+  label?: string;
+  lines: ICReconciliationSaveLine[];
+  reconciliationId?: string;
+}) {
+  try {
+    const lines = input.lines.filter((line) => line.productId.trim() && line.resultQty !== null);
+    if (lines.length === 0) {
+      return { success: false as const, error: 'No rows with result quantity to save' };
+    }
+
+    const existingId = input.reconciliationId?.trim() || '';
+    const isUpdate = Boolean(existingId);
+    const reconciliationId = isUpdate ? existingId : await generateNextReconciliationId();
+    const countDate = input.countDate.trim() || new Date().toISOString().split('T')[0];
+    const label = input.label?.trim() || null;
+    const savedAt = new Date().toISOString();
+
+    if (isUpdate) {
+      const { error: deleteError } = await bhs_supabase
+        .from('mix_INVENTORY_COUNT_RECONCILIATION')
+        .delete()
+        .eq('RECONCILIATION_ID', reconciliationId);
+
+      if (deleteError) throw deleteError;
+    }
+
+    const dbRows = lines.map((line, index) => ({
+      RECONCILIATION_ID: reconciliationId,
+      LINE_NO: index + 1,
+      COUNT_DATE: countDate,
+      LABEL: label,
+      'PRODUCT ID': line.productId.trim(),
+      SOURCE_TYPE: line.sourceType,
+      SOURCE_USER: line.sourceType === 'user' ? line.sourceUser?.trim() || null : null,
+      RESULT_QTY: line.resultQty,
+      ENDING_BALANCE: line.endingBalance,
+      DIFFERENCE: line.difference,
+      MATCH_STATUS: line.matchStatus,
+      IS_MANUALLY_ADDED: line.isManuallyAdded,
+      SAVED_AT: savedAt,
+    }));
+
+    await bulkInsertChunks('mix_INVENTORY_COUNT_RECONCILIATION', dbRows);
+
+    return {
+      success: true as const,
+      reconciliationId,
+      rowCount: dbRows.length,
+      savedAt,
+      updated: isUpdate,
+    };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Failed to save reconciliation';
+    console.error('Error in saveReconciliationSession:', error);
+    return { success: false as const, error: message };
+  }
+}
+
+export async function fetchReconciliationSessions() {
+  try {
+    const rows = await fetchAllReconciliationRows();
+    const sessionMap = new Map<string, ICReconciliationSessionSummary>();
+
+    for (const row of rows) {
+      const id = String(row.RECONCILIATION_ID || '').trim();
+      if (!id) continue;
+
+      const existing = sessionMap.get(id);
+      const countDateRaw = row.COUNT_DATE;
+      const countDate = countDateRaw ? String(countDateRaw).split('T')[0] : null;
+      const savedAt = String(row.SAVED_AT || '');
+
+      if (!existing) {
+        sessionMap.set(id, {
+          reconciliationId: id,
+          countDate,
+          label: row.LABEL ? String(row.LABEL) : null,
+          savedAt,
+          rowCount: 1,
+        });
+        continue;
+      }
+
+      existing.rowCount += 1;
+      if (savedAt && savedAt > existing.savedAt) {
+        existing.savedAt = savedAt;
+      }
+    }
+
+    const data = Array.from(sessionMap.values()).sort((a, b) =>
+      b.savedAt.localeCompare(a.savedAt)
+    );
+
+    return { success: true as const, data };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Failed to fetch reconciliation sessions';
+    console.error('Error in fetchReconciliationSessions:', error);
+    return { success: false as const, error: message, data: [] as ICReconciliationSessionSummary[] };
+  }
+}
+
+export async function fetchReconciliationSession(reconciliationId: string) {
+  try {
+    const id = reconciliationId.trim();
+    if (!id) {
+      return { success: false as const, error: 'Reconciliation ID is required' };
+    }
+
+    const rows = await fetchAllReconciliationRows(id);
+    if (rows.length === 0) {
+      return { success: false as const, error: 'Reconciliation session not found' };
+    }
+
+    const first = rows[0];
+    const countDateRaw = first.COUNT_DATE;
+    const productIds = rows.map((row) => String(row['PRODUCT ID'] || '').trim()).filter(Boolean);
+    const uniqueProductIds = [...new Set(productIds)];
+
+    const nameMap = new Map<string, string>();
+    const barcodeFromProducts = new Map<string, string>();
+    const chunkSize = 200;
+
+    for (let i = 0; i < uniqueProductIds.length; i += chunkSize) {
+      const chunk = uniqueProductIds.slice(i, i + chunkSize);
+      const { data, error } = await bhs_supabase
+        .from('bhs_PRODUCTS')
+        .select('"PRODUCT ID","PRODUCT NAME","PRODUCT BARCODE"')
+        .in('PRODUCT ID', chunk);
+
+      if (error) throw error;
+
+      (data || []).forEach((row: Record<string, unknown>) => {
+        const pid = String(row['PRODUCT ID'] || '').trim();
+        if (!pid) return;
+        nameMap.set(pid, String(row['PRODUCT NAME'] || '').trim());
+        barcodeFromProducts.set(pid, String(row['PRODUCT BARCODE'] || '').trim());
+      });
+    }
+
+    const barcodesRes = await getICProductBarcodesByIds(productIds);
+    const barcodeLookup = barcodesRes.success ? barcodesRes.data : {};
+
+    const data: ICReconciliationLoadedRow[] = rows.map((row) => {
+      const productId = String(row['PRODUCT ID'] || '').trim();
+      const sourceType = (row.SOURCE_TYPE || 'none') as ICReconciliationSourceType;
+      return {
+        productId,
+        barcodeName: barcodeFromProducts.get(productId) || barcodeLookup[productId] || '',
+        productName: nameMap.get(productId) || productId,
+        sourceType,
+        sourceUser: row.SOURCE_USER ? String(row.SOURCE_USER) : null,
+        resultQty: parseNum(row.RESULT_QTY),
+        endingBalance: row.ENDING_BALANCE !== null ? parseNum(row.ENDING_BALANCE) : null,
+        difference: row.DIFFERENCE !== null ? parseNum(row.DIFFERENCE) : null,
+        matchStatus: (row.MATCH_STATUS === 'Matched' ? 'Matched' : 'Not Found') as ICReconciliationMatchStatus,
+        isManuallyAdded: Boolean(row.IS_MANUALLY_ADDED),
+      };
+    });
+
+    return {
+      success: true as const,
+      reconciliationId: id,
+      countDate: countDateRaw ? String(countDateRaw).split('T')[0] : null,
+      label: first.LABEL ? String(first.LABEL) : null,
+      savedAt: String(first.SAVED_AT || ''),
+      data,
+    };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Failed to load reconciliation session';
+    console.error('Error in fetchReconciliationSession:', error);
+    return { success: false as const, error: message };
+  }
+}
+
+export async function deleteReconciliationSession(reconciliationId: string) {
+  try {
+    const id = reconciliationId.trim();
+    if (!id) {
+      return { success: false as const, error: 'Reconciliation ID is required' };
+    }
+
+    const { error } = await bhs_supabase
+      .from('mix_INVENTORY_COUNT_RECONCILIATION')
+      .delete()
+      .eq('RECONCILIATION_ID', id);
+
+    if (error) throw error;
+
+    return { success: true as const };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Failed to delete reconciliation session';
+    console.error('Error in deleteReconciliationSession:', error);
+    return { success: false as const, error: message };
+  }
+}

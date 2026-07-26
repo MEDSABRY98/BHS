@@ -97,7 +97,13 @@ function CheckboxFilterDropdown({
   );
 }
 
-export default function UserWarehouseDropdowns({ showFilters = true }: { showFilters?: boolean }) {
+export default function UserWarehouseDropdowns({
+  showFilters = true,
+  showReconciliationToolbar = false,
+}: {
+  showFilters?: boolean;
+  showReconciliationToolbar?: boolean;
+}) {
   const {
     selectedUsers,
     selectedWarehouses,
@@ -138,6 +144,10 @@ export default function UserWarehouseDropdowns({ showFilters = true }: { showFil
       )}
       <ArchiveSelector />
       <CloseSessionButton />
+      <div
+        id="ic-reconciliation-toolbar-host"
+        className={`flex flex-wrap items-center gap-3 flex-1 min-w-0 ${showReconciliationToolbar ? '' : 'hidden'}`}
+      />
     </div>
   );
 }

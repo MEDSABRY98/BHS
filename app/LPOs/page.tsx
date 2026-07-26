@@ -10,18 +10,15 @@ import {
   ArrowUpRight,
   Activity,
   Calendar,
-  ChevronRight,
   User,
   AlertCircle,
   XCircle,
   Package,
   Trophy,
-  Eye,
   Truck,
   FileCheck,
   FileText
 } from 'lucide-react';
-import Link from 'next/link';
 import NoData from '@/app/Components/NoDataTab';
 
 interface Stats {
@@ -44,7 +41,6 @@ interface DriverPerformance {
 
 export default function DashboardPage() {
   const [stats, setStats] = useState<Stats>({ total: 0, delivered: 0, officeConfirmed: 0, pending: 0, cancelled: 0 });
-  const [recentInvoices, setRecentInvoices] = useState<any[]>([]);
   const [driverPerformance, setDriverPerformance] = useState<DriverPerformance[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -116,8 +112,6 @@ export default function DashboardPage() {
         pending,
         cancelled
       });
-
-      setRecentInvoices(drivers.slice(0, 10));
 
       const performanceArray = Object.values(performanceMap)
         .sort((a, b) => b.total - a.total) as DriverPerformance[];
@@ -262,102 +256,6 @@ export default function DashboardPage() {
                   </tr>
                 );
               })}
-            </tbody>
-          </table>
-        </div>
-        )}
-      </div>
-
-      {/* Recent Invoices Table */}
-      <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-gray-100">
-        <div className="flex items-center justify-between mb-8">
-          <h3 className="text-2xl font-black text-black flex items-center gap-3">
-            <Activity className="w-6 h-6 text-[#D4AF37]" />
-            Recent Invoices Activity
-          </h3>
-          <Link href="/LPOs/Orders" className="bg-black text-white px-5 py-2.5 rounded-2xl text-xs font-black hover:bg-gray-800 transition-all flex items-center gap-2">
-            VIEW ALL ORDERS <ChevronRight className="w-4 h-4 text-[#D4AF37]" />
-          </Link>
-        </div>
-
-        {recentInvoices.length === 0 ? (
-          <NoData title="NO RECENT ACTIVITY FOUND" />
-        ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-center border-collapse table-fixed">
-            <thead>
-              <tr className="border-b border-gray-100">
-                <th className="w-[15%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Order ID</th>
-                <th className="w-[15%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Dispatch Date</th>
-                <th className="w-[20%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Driver</th>
-                <th className="w-[15%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Status</th>
-                <th className="w-[15%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Office Handover</th>
-                <th className="w-[10%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-                {recentInvoices.map((inv) => {
-                  const isCancelled = inv.TRACKING_NOTES === 'SYSTEM_CANCELLED';
-                  const isDelivered = inv.STATUS === 'Delivered' && !isCancelled;
-                  const isPending = inv.STATUS !== 'Delivered' && !isCancelled;
-                  const isOfficeConfirmed = inv.OFFICE_HANDOVER_STATUS === 'Confirmed' && !isCancelled;
-
-                  return (
-                    <tr key={inv.ID} className="group hover:bg-gray-50/50 transition-all">
-                      {/* 1. Order ID */}
-                      <td className="px-6 py-6 truncate">
-                        <span className="font-black text-black text-sm">{inv.ORDER_ID}</span>
-                      </td>
-
-                      {/* 2. Date */}
-                      <td className="px-6 py-6">
-                        <p className="text-sm text-gray-500 font-bold">
-                          {inv.DISPATCH_TIME ? new Date(inv.DISPATCH_TIME).toLocaleDateString('en-GB') : '-'}
-                        </p>
-                      </td>
-
-                      {/* 3. Driver */}
-                      <td className="px-6 py-6 overflow-hidden">
-                        <div className="flex items-center justify-center">
-                          <span className="text-sm font-bold text-gray-700 truncate">
-                            {inv.DRIVERS_NAME ? (driverPerformance.find(d => d.id === inv.DRIVERS_NAME)?.name || inv.DRIVERS_NAME) : 'Unassigned'}
-                          </span>
-                        </div>
-                      </td>
-
-                      {/* 4. Status */}
-                      <td className="px-6 py-6">
-                        <div className={`inline-flex items-center px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider ${isCancelled ? 'bg-red-50 text-red-600' :
-                          isDelivered ? 'bg-emerald-50 text-emerald-600' :
-                            'bg-orange-50 text-orange-600'
-                          }`}>
-                          {isCancelled ? 'Cancelled' : isDelivered ? 'Delivered' : inv.STATUS || 'Pending'}
-                        </div>
-                      </td>
-
-                      {/* 5. Office Handover */}
-                      <td className="px-6 py-6">
-                        <div className={`inline-flex items-center px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider ${isOfficeConfirmed ? 'bg-blue-50 text-blue-600' : 'bg-gray-100 text-gray-400'
-                          }`}>
-                          {isOfficeConfirmed ? 'Confirmed' : 'Pending'}
-                        </div>
-                      </td>
-
-                      {/* 6. Action (Icon Only) */}
-                      <td className="px-6 py-6">
-                        <div className="flex justify-center">
-                          <Link
-                            href={`/LPOs/OrderDetails?id=${inv.ORDER_ID}`}
-                            className="flex items-center justify-center w-10 h-10 bg-black text-[#D4AF37] rounded-xl hover:bg-gray-900 hover:scale-110 transition-all shadow-lg shadow-black/10"
-                            title="View Details"
-                          >
-                            <Eye className="w-5 h-5" />
-                          </Link>
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })}
             </tbody>
           </table>
         </div>

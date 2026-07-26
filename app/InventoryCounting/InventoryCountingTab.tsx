@@ -21,7 +21,10 @@ export default function InventoryCountingTab({ activeTab, visitedTabs }: Invento
     <InventoryCountingFiltersProvider>
       <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
         <div className="bg-white p-4 rounded-3xl border border-gray-100 shadow-xl shadow-slate-200/50">
-          <UserWarehouseDropdowns showFilters={usesWarehouseFilters(activeTab)} />
+          <UserWarehouseDropdowns
+            showFilters={usesWarehouseFilters(activeTab)}
+            showReconciliationToolbar={activeTab === 'reconciliation'}
+          />
         </div>
 
         <div className="min-h-[400px]">

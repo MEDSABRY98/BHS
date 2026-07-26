@@ -1,15 +1,17 @@
 'use client';
 
 import React, { useMemo, useRef, useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import * as XLSX from 'xlsx';
 import {
   Calendar,
   Check,
-  ClipboardCheck,
   Download,
+  FilePlus2,
   FileSpreadsheet,
   Loader2,
   RefreshCw,
+  Save,
   Search,
   Trash2,
   Upload,
@@ -23,10 +25,22 @@ import { normalizeExcelId } from '@/app/DataBase/Utils/ExcelUploadUtils';
 import { exportDatabaseExcelTable } from '@/app/DataBase/Utils/ExcelExport';
 import { exportSalesExcelTable } from '@/app/Sales/Utils/ExcelExport';
 import { getProductsBalanceReportData, getProductNamesByIds, ProductBalanceRow } from '@/app/InventoryAnalysis/Service/inventory_service';
-import { fetchICUserComparisonData, fetchArchivedICUserComparisonData, getICProductBarcodesByIds, searchICProducts, type ICProductSearchResult } from './Service/inventory_counting_service';
+import {
+  fetchICUserComparisonData,
+  fetchArchivedICUserComparisonData,
+  fetchReconciliationSession,
+  getICProductBarcodesByIds,
+  searchICProducts,
+  type ICProductSearchResult,
+  type ICReconciliationLoadedRow,
+  type ICReconciliationSaveLine,
+  type ICReconciliationSessionSummary,
+} from './Service/inventory_counting_service';
 import { useInventoryCountingArchive } from './InventoryCountingArchiveContext';
 import SourcePickerModal from './Utils/SourcePickerModal';
 import RemoveManualRowModal from './Utils/RemoveManualRowModal';
+import SaveReconciliationModal from './Utils/SaveReconciliationModal';
+import ReconciliationSessionPicker from './Utils/ReconciliationSessionPicker';
 
 const REQUIRED_COLUMNS = ['Product ID', 'Product Name', 'Counted Quantity'] as const;
 
@@ -88,6 +102,43 @@ function parseQuantity(value: unknown): number | null {
   if (cleaned === '') return null;
   const parsed = Number(cleaned);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function mapRowToSaveLine(row: ReconciliationRow): ICReconciliationSaveLine | null {
+  if (row.resultQty === null) return null;
+
+  return {
+    productId: row.productId,
+    sourceType: row.source.type,
+    sourceUser: row.source.type === 'user' ? row.source.user : null,
+    resultQty: row.resultQty,
+    endingBalance: row.endingBalance,
+    difference: row.difference,
+    matchStatus: row.matchStatus,
+    isManuallyAdded: Boolean(row.isManuallyAdded),
+  };
+}
+
+function mapLoadedRowToReconciliationRow(row: ICReconciliationLoadedRow): ReconciliationRow {
+  let source: ResultSource = { type: 'none' };
+  if (row.sourceType === 'user' && row.sourceUser) {
+    source = { type: 'user', user: row.sourceUser };
+  } else if (row.sourceType === 'manual') {
+    source = { type: 'manual' };
+  }
+
+  return {
+    productId: row.productId,
+    barcodeName: row.barcodeName,
+    productName: row.productName,
+    userQtys: {},
+    source,
+    resultQty: row.resultQty,
+    endingBalance: row.endingBalance,
+    difference: row.difference,
+    matchStatus: row.matchStatus,
+    isManuallyAdded: row.isManuallyAdded,
+  };
 }
 
 function buildReconciliationRows(
@@ -198,6 +249,10 @@ export default function CountReconciliationTab() {
   const [addingProduct, setAddingProduct] = useState(false);
   const [sourcePickerRow, setSourcePickerRow] = useState<ReconciliationRow | null>(null);
   const [rowToRemove, setRowToRemove] = useState<{ productId: string; productName: string } | null>(null);
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [loadedSessionId, setLoadedSessionId] = useState<string | null>(null);
+  const [loadedSessionLabel, setLoadedSessionLabel] = useState<string | null>(null);
+  const [sessionsRefreshKey, setSessionsRefreshKey] = useState(0);
   const productSearchRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -596,7 +651,6 @@ export default function CountReconciliationTab() {
   };
 
   const handleRemoveManualRow = (productId: string, productName: string) => {
-    if (isReadOnly) return;
     setRowToRemove({ productId, productName });
   };
 
@@ -613,7 +667,6 @@ export default function CountReconciliationTab() {
   };
 
   const handleAddProduct = async (productId: string, barcodeName = '') => {
-    if (isReadOnly) return;
     if (!appliedCountDate) {
       toast.warning('Select a count date and click Apply Date first');
       return;
@@ -631,10 +684,14 @@ export default function CountReconciliationTab() {
     setError(null);
 
     try {
+      const icFetch = archiveId
+        ? fetchArchivedICUserComparisonData(archiveId)
+        : fetchICUserComparisonData();
+
       const [namesRes, balanceRes, icRes] = await Promise.all([
         getProductNamesByIds([trimmedId]),
         getProductsBalanceReportData({ dateTo: appliedCountDate }),
-        fetchICUserComparisonData(),
+        icFetch,
       ]);
 
       if (!namesRes.success) {
@@ -684,6 +741,76 @@ export default function CountReconciliationTab() {
     await handleAddProduct(product.productId, product.barcodeName);
   };
 
+  const saveLines = useMemo(
+    () =>
+      rows
+        .map(mapRowToSaveLine)
+        .filter((line): line is ICReconciliationSaveLine => line !== null),
+    [rows],
+  );
+
+  const handleOpenSaveModal = () => {
+    if (!appliedCountDate) {
+      toast.warning('Select a count date and click Apply Date first');
+      return;
+    }
+    if (saveLines.length === 0) {
+      toast.warning('Fill at least one result before saving');
+      return;
+    }
+    setShowSaveModal(true);
+  };
+
+  const handleSaveSuccess = (reconciliationId: string, label: string | null) => {
+    setLoadedSessionId(reconciliationId);
+    setLoadedSessionLabel(label);
+    setSessionsRefreshKey((key) => key + 1);
+  };
+
+  const handleLoadSavedSession = async (session: ICReconciliationSessionSummary) => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const res = await fetchReconciliationSession(session.reconciliationId);
+      if (!res.success || !res.data) {
+        throw new Error(res.error || 'Failed to load saved session');
+      }
+
+      const loadedRows = sortRowsAlphabetically(res.data.map(mapLoadedRowToReconciliationRow));
+      const nextCountDate = res.countDate || todayInputValue();
+
+      setRows(loadedRows);
+      setCountDate(nextCountDate);
+      setAppliedCountDate(nextCountDate);
+      setLoadedSessionId(res.reconciliationId);
+      setLoadedSessionLabel(res.label);
+      setUsers([]);
+      setUploadFileName(null);
+      toast.success(`Loaded ${loadedRows.length} row(s) from ${res.reconciliationId}`);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to load saved session';
+      setError(message);
+      toast.error(message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleNewSession = () => {
+    setRows([]);
+    setUsers([]);
+    setAppliedCountDate('');
+    setCountDate(todayInputValue());
+    setUploadFileName(null);
+    setLoadedSessionId(null);
+    setLoadedSessionLabel(null);
+    setError(null);
+    setProductSearchQuery('');
+    setProductSearchResults([]);
+    toast.info('Started a new reconciliation session');
+  };
+
   const handleExportExcel = async () => {
     const exportable = rows.filter((row) => row.resultQty !== null);
     if (exportable.length === 0) {
@@ -705,6 +832,7 @@ export default function CountReconciliationTab() {
 
     const headers = [
       '#',
+      'Product ID',
       'Barcode',
       'Product Name',
       'Source',
@@ -715,6 +843,7 @@ export default function CountReconciliationTab() {
 
     const exportRows = exportable.map((row, index) => [
       index + 1,
+      row.productId,
       row.barcodeName?.trim() || barcodeLookup[row.productId] || '',
       row.productName,
       row.source.type === 'user' ? row.source.user : row.source.type === 'manual' ? 'Manual' : '',
@@ -724,6 +853,7 @@ export default function CountReconciliationTab() {
     ]);
 
     exportRows.push([
+      '',
       '',
       '',
       'TOTALS (Filled & Matched)',
@@ -756,144 +886,175 @@ export default function CountReconciliationTab() {
     return activeUsers;
   };
 
-  return (
-    <div className="space-y-6">
-      <h2 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-3">
-        <ClipboardCheck className="w-7 h-7 text-indigo-600" />
-        Inventory Count Reconciliation
-      </h2>
+  const [toolbarHost, setToolbarHost] = useState<HTMLElement | null>(null);
 
-      <div className="bg-white rounded-2xl border border-slate-100 p-4 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-3 flex-1 min-w-0">
-            <div className="relative shrink-0">
-              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-              <input
-                type="date"
-                value={countDate}
-                onChange={(e) => setCountDate(e.target.value)}
-                disabled={isReadOnly}
-                className="pl-10 pr-3 py-2.5 bg-slate-50 border border-slate-100 rounded-xl text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-100 disabled:opacity-60"
-              />
-            </div>
+  useEffect(() => {
+    setToolbarHost(document.getElementById('ic-reconciliation-toolbar-host'));
+  }, []);
 
-            {appliedCountDate && !isReadOnly && (
-              <div ref={productSearchRef} className="relative flex-1 min-w-[220px] max-w-xl">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-                <input
-                  type="text"
-                  value={productSearchQuery}
-                  onChange={(e) => {
-                    setProductSearchQuery(e.target.value);
-                    setIsProductSearchOpen(true);
-                  }}
-                  onFocus={() => setIsProductSearchOpen(true)}
-                  placeholder="Search product name or barcode..."
-                  disabled={addingProduct}
-                  className="w-full pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-100 rounded-xl text-sm font-bold text-slate-700 placeholder:text-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-100 disabled:opacity-50"
-                />
-                {(searchingProducts || addingProduct) && (
-                  <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 animate-spin" />
-                )}
-
-                {isProductSearchOpen && productSearchQuery.trim().length >= 2 && (
-                  <div className="absolute left-0 right-0 mt-2 bg-white border border-slate-100 rounded-2xl shadow-2xl shadow-slate-200/60 py-2 z-30 max-h-72 overflow-y-auto">
-                    {searchingProducts ? (
-                      <p className="px-4 py-3 text-xs font-bold text-slate-400">Searching...</p>
-                    ) : visibleSearchResults.length === 0 ? (
-                      <p className="px-4 py-3 text-xs font-bold text-slate-400">No products found</p>
-                    ) : (
-                      visibleSearchResults.map((product) => (
-                        <button
-                          key={product.productId}
-                          type="button"
-                          onClick={() => handleSelectSearchProduct(product)}
-                          disabled={addingProduct}
-                          className="w-full text-left px-4 py-3 hover:bg-amber-50 transition-colors disabled:opacity-50"
-                        >
-                          <p className="text-sm font-black text-slate-800 truncate">{product.productName}</p>
-                          <p className="text-[11px] font-bold text-slate-400 mt-0.5">
-                            {product.barcodeName ? `Barcode: ${product.barcodeName}` : 'No barcode'} · ID: {product.productId}
-                          </p>
-                        </button>
-                      ))
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleApplyCountDate}
-              disabled={isBusy || isReadOnly}
-              title="Apply Date & Load Counted Products"
-              className="p-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-all disabled:opacity-40"
-            >
-              {loading && !uploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Check className="w-5 h-5" />}
-            </button>
-
-            <button
-              type="button"
-              onClick={handleRefresh}
-              disabled={isBusy || !appliedCountDate || isReadOnly}
-              title="Refresh Counted Products"
-              className="p-2.5 bg-white border border-slate-200 rounded-xl text-slate-700 hover:border-indigo-200 hover:text-indigo-700 transition-all disabled:opacity-40"
-            >
-              <RefreshCw className={`w-5 h-5 ${loading && !uploading ? 'animate-spin' : ''}`} />
-            </button>
-
-            <button
-              type="button"
-              onClick={handleDownloadTemplate}
-              title="Download Template"
-              className="p-2.5 bg-white border border-slate-200 rounded-xl text-slate-700 hover:border-indigo-200 hover:text-indigo-700 transition-all"
-            >
-              <Download className="w-5 h-5" />
-            </button>
-
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".xlsx,.xls"
-              className="hidden"
-              onChange={handleFileChange}
-              disabled={isBusy}
-            />
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isBusy || !appliedCountDate || isReadOnly}
-              title="Import Excel (optional)"
-              className="p-2.5 bg-slate-900 text-white rounded-xl hover:bg-black transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              {uploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Upload className="w-5 h-5" />}
-            </button>
-
-            <button
-              type="button"
-              onClick={handleExportExcel}
-              disabled={!hasResults || isBusy || metrics.filledCount === 0}
-              title="Export Results"
-              className="p-2.5 bg-black text-[#D4AF37] rounded-xl disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-            >
-              <FileSpreadsheet className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
-
-        {(appliedCountDate || uploadFileName) && (
-          <p className="text-[11px] font-bold text-slate-400 mt-2">
-            {appliedCountDate && `Count date: ${appliedCountDate}`}
-            {appliedCountDate && uploadFileName && ' · '}
-            {uploadFileName && `File: ${uploadFileName}`}
-            {appliedCountDate && !uploadFileName && hasResults && ` · ${rows.length} product(s)`}
-          </p>
-        )}
+  const toolbar = (
+    <>
+      <div className="relative shrink-0">
+        <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+        <input
+          type="date"
+          value={countDate}
+          onChange={(e) => setCountDate(e.target.value)}
+          disabled={isReadOnly}
+          className="pl-10 pr-3 py-3 bg-white border border-slate-200 rounded-xl text-xs font-black text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-100 disabled:opacity-60"
+        />
       </div>
 
+      {appliedCountDate && (
+        <div ref={productSearchRef} className="relative flex-1 min-w-[200px] max-w-xl">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+          <input
+            type="text"
+            value={productSearchQuery}
+            onChange={(e) => {
+              setProductSearchQuery(e.target.value);
+              setIsProductSearchOpen(true);
+            }}
+            onFocus={() => setIsProductSearchOpen(true)}
+            placeholder="Search product name or barcode..."
+            disabled={addingProduct}
+            className="w-full pl-10 pr-10 py-3 bg-white border border-slate-200 rounded-xl text-xs font-black text-slate-700 placeholder:text-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-100 disabled:opacity-50"
+          />
+          {(searchingProducts || addingProduct) && (
+            <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 animate-spin" />
+          )}
+
+          {isProductSearchOpen && productSearchQuery.trim().length >= 2 && (
+            <div className="absolute left-0 right-0 mt-2 bg-white border border-slate-100 rounded-2xl shadow-2xl shadow-slate-200/60 py-2 z-30 max-h-72 overflow-y-auto">
+              {searchingProducts ? (
+                <p className="px-4 py-3 text-xs font-bold text-slate-400">Searching...</p>
+              ) : visibleSearchResults.length === 0 ? (
+                <p className="px-4 py-3 text-xs font-bold text-slate-400">No products found</p>
+              ) : (
+                visibleSearchResults.map((product) => (
+                  <button
+                    key={product.productId}
+                    type="button"
+                    onClick={() => handleSelectSearchProduct(product)}
+                    disabled={addingProduct}
+                    className="w-full text-left px-4 py-3 hover:bg-amber-50 transition-colors disabled:opacity-50"
+                  >
+                    <p className="text-sm font-black text-slate-800 truncate">{product.productName}</p>
+                    <p className="text-[11px] font-bold text-slate-400 mt-0.5">
+                      {product.barcodeName ? `Barcode: ${product.barcodeName}` : 'No barcode'} · ID: {product.productId}
+                    </p>
+                  </button>
+                ))
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="flex items-center gap-2 shrink-0">
+        <button
+          type="button"
+          onClick={handleApplyCountDate}
+          disabled={isBusy || isReadOnly}
+          title="Apply Date & Load Counted Products"
+          className="p-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-all disabled:opacity-40"
+        >
+          {loading && !uploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Check className="w-5 h-5" />}
+        </button>
+
+        <button
+          type="button"
+          onClick={handleRefresh}
+          disabled={isBusy || !appliedCountDate || isReadOnly}
+          title="Refresh Counted Products"
+          className="p-3 bg-white border border-slate-200 rounded-xl text-slate-700 hover:border-indigo-200 hover:text-indigo-700 transition-all disabled:opacity-40"
+        >
+          <RefreshCw className={`w-5 h-5 ${loading && !uploading ? 'animate-spin' : ''}`} />
+        </button>
+
+        <button
+          type="button"
+          onClick={handleDownloadTemplate}
+          title="Download Template"
+          className="p-3 bg-white border border-slate-200 rounded-xl text-slate-700 hover:border-indigo-200 hover:text-indigo-700 transition-all"
+        >
+          <Download className="w-5 h-5" />
+        </button>
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".xlsx,.xls"
+          className="hidden"
+          onChange={handleFileChange}
+          disabled={isBusy}
+        />
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={isBusy || !appliedCountDate || isReadOnly}
+          title="Import Excel (optional)"
+          className="p-3 bg-slate-900 text-white rounded-xl hover:bg-black transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          {uploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Upload className="w-5 h-5" />}
+        </button>
+
+        <button
+          type="button"
+          onClick={handleExportExcel}
+          disabled={!hasResults || isBusy || metrics.filledCount === 0}
+          title="Export Results"
+          className="p-3 bg-black text-[#D4AF37] rounded-xl disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+        >
+          <FileSpreadsheet className="w-5 h-5" />
+        </button>
+
+        <button
+          type="button"
+          onClick={handleOpenSaveModal}
+          disabled={isBusy || saveLines.length === 0}
+          title="Save Reconciliation"
+          className="p-3 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          <Save className="w-5 h-5" />
+        </button>
+
+        <ReconciliationSessionPicker
+          selectedId={loadedSessionId}
+          refreshKey={sessionsRefreshKey}
+          onSelect={handleLoadSavedSession}
+          onClear={() => {
+            setLoadedSessionId(null);
+            setLoadedSessionLabel(null);
+          }}
+        />
+
+        <button
+          type="button"
+          onClick={handleNewSession}
+          disabled={isBusy}
+          title="New Session"
+          className="p-3 bg-white border border-slate-200 rounded-xl text-slate-700 hover:border-indigo-200 hover:text-indigo-700 transition-all disabled:opacity-40"
+        >
+          <FilePlus2 className="w-5 h-5" />
+        </button>
+      </div>
+    </>
+  );
+
+  return (
+    <div className="space-y-6">
+      {toolbarHost ? createPortal(toolbar, toolbarHost) : null}
+
+      {(appliedCountDate || uploadFileName || loadedSessionId) && (
+        <p className="text-[11px] font-bold text-slate-400">
+          {appliedCountDate && `Count date: ${appliedCountDate}`}
+          {loadedSessionId && ` · Loaded: ${loadedSessionId}`}
+          {appliedCountDate && uploadFileName && ' · '}
+          {uploadFileName && `File: ${uploadFileName}`}
+          {appliedCountDate && !uploadFileName && hasResults && ` · ${rows.length} product(s)`}
+        </p>
+      )}
       {error && (
         <div className="flex items-start gap-3 bg-red-50 border border-red-100 text-red-700 rounded-2xl p-4">
           <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
@@ -970,9 +1131,8 @@ export default function CountReconciliationTab() {
                       <td className="px-4 py-4 text-center">
                         <button
                           type="button"
-                          onClick={() => !isReadOnly && setSourcePickerRow(row)}
-                          disabled={isReadOnly}
-                          className={`inline-flex items-center justify-center gap-2 min-w-[160px] max-w-[220px] px-3 py-2.5 text-xs font-black border rounded-xl transition-all ${sourceButtonClass(row.source)} ${isReadOnly ? 'opacity-70 cursor-default' : ''}`}
+                          onClick={() => setSourcePickerRow(row)}
+                          className={`inline-flex items-center justify-center gap-2 min-w-[160px] max-w-[220px] px-3 py-2.5 text-xs font-black border rounded-xl transition-all ${sourceButtonClass(row.source)}`}
                         >
                           <span className="truncate">{getSourceLabel(row.source)}</span>
                           <ChevronDown className="w-3.5 h-3.5 shrink-0 opacity-60" />
@@ -981,7 +1141,7 @@ export default function CountReconciliationTab() {
                       <td className="px-4 py-4 text-sm font-black text-slate-800 text-center">
                         <ResultQtyInput
                           value={row.resultQty}
-                          disabled={isReadOnly || !isManual}
+                          disabled={!isManual}
                           onCommit={(raw) => handleResultQtyChange(row.productId, raw)}
                         />
                         {isUserSource && row.resultQty === null && (
@@ -1016,7 +1176,7 @@ export default function CountReconciliationTab() {
                         </span>
                       </td>
                       <td className="px-2 py-4 text-center">
-                        {!isReadOnly && row.isManuallyAdded && (
+                        {row.isManuallyAdded && (
                           <button
                             type="button"
                             onClick={() => handleRemoveManualRow(row.productId, row.productName)}
@@ -1036,7 +1196,7 @@ export default function CountReconciliationTab() {
         </div>
       )}
 
-      {sourcePickerRow && !isReadOnly && (
+      {sourcePickerRow && (
         <SourcePickerModal
           row={sourcePickerRow}
           userOptions={getUserOptions(sourcePickerRow)}
@@ -1051,6 +1211,17 @@ export default function CountReconciliationTab() {
           productName={rowToRemove.productName}
           onClose={() => setRowToRemove(null)}
           onConfirm={confirmRemoveManualRow}
+        />
+      )}
+
+      {showSaveModal && appliedCountDate && (
+        <SaveReconciliationModal
+          countDate={appliedCountDate}
+          lines={saveLines}
+          reconciliationId={loadedSessionId}
+          initialLabel={loadedSessionLabel}
+          onClose={() => setShowSaveModal(false)}
+          onSuccess={handleSaveSuccess}
         />
       )}
     </div>
