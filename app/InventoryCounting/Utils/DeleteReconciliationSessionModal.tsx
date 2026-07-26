@@ -49,14 +49,8 @@ export default function DeleteReconciliationSessionModal({
         </h3>
         <p className="text-sm text-slate-500 font-medium mt-2 leading-relaxed">
           Delete saved session{' '}
-          <strong className="text-slate-800">{session.reconciliationId}</strong>?
-          {session.label ? (
-            <>
-              {' '}
-              (<span className="text-slate-700">{session.label}</span>)
-            </>
-          ) : null}{' '}
-          This will permanently remove {session.rowCount.toLocaleString()} saved row
+          <strong className="text-slate-800">{session.reconciliationId}</strong>? This will
+          permanently remove {session.rowCount.toLocaleString()} saved row
           {session.rowCount === 1 ? '' : 's'}.
         </p>
 

@@ -785,6 +785,97 @@ export async function searchICProducts(query: string, limit = 12) {
   }
 }
 
+export interface ICProductCategory {
+  name: string;
+  count: number;
+}
+
+async function fetchAllCountableProductsByCategory(categoryName: string): Promise<ICProductSearchResult[]> {
+  const pageSize = 1000;
+  let from = 0;
+  const allRows: ICProductSearchResult[] = [];
+  const normalized = categoryName.trim();
+
+  while (true) {
+    let query = bhs_supabase
+      .from('bhs_PRODUCTS')
+      .select('"PRODUCT ID","PRODUCT BARCODE","PRODUCT NAME"')
+      .eq('IS_COUNTABLE', true);
+
+    if (normalized === 'Uncategorized') {
+      query = query.or('"PRODUCT CATEGORY".eq."","PRODUCT CATEGORY".is.null');
+    } else {
+      query = query.eq('PRODUCT CATEGORY', normalized);
+    }
+
+    const { data, error } = await query.order('PRODUCT NAME').range(from, from + pageSize - 1);
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+
+    allRows.push(
+      ...data
+        .map((row) => ({
+          productId: row['PRODUCT ID']?.toString().trim() || '',
+          barcodeName: row['PRODUCT BARCODE']?.toString().trim() || '',
+          productName: row['PRODUCT NAME']?.toString().trim() || '',
+        }))
+        .filter((row) => row.productId && row.productName)
+    );
+
+    if (data.length < pageSize) break;
+    from += pageSize;
+  }
+
+  return allRows;
+}
+
+/** Distinct product categories for countable products. */
+export async function fetchICProductCategories() {
+  try {
+    const products = await fetchAllMixCountRows<{ 'PRODUCT CATEGORY': string | null }>(
+      'bhs_PRODUCTS',
+      '"PRODUCT CATEGORY"'
+    );
+
+    const counts = new Map<string, number>();
+    for (const product of products) {
+      const name = product['PRODUCT CATEGORY']?.toString().trim() || 'Uncategorized';
+      counts.set(name, (counts.get(name) || 0) + 1);
+    }
+
+    const data: ICProductCategory[] = Array.from(counts.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+
+    return { success: true as const, data };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Failed to fetch product categories';
+    console.error('Error in fetchICProductCategories:', error);
+    return { success: false as const, error: message, data: [] as ICProductCategory[] };
+  }
+}
+
+/** All countable products in a category. */
+export async function fetchICProductsByCategory(categoryName: string) {
+  try {
+    const name = categoryName.trim();
+    if (!name) {
+      return { success: true as const, data: [] as ICProductSearchResult[] };
+    }
+
+    const data = await fetchAllCountableProductsByCategory(name);
+    return { success: true as const, data };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Failed to fetch products by category';
+    console.error('Error in fetchICProductsByCategory:', error);
+    return {
+      success: false as const,
+      error: message,
+      data: [] as ICProductSearchResult[],
+    };
+  }
+}
+
 // ─── Archive session ───────────────────────────────────────────────────────
 
 export async function generateNextArchiveId(): Promise<string> {
@@ -1187,7 +1278,6 @@ export interface ICReconciliationSaveLine {
 export interface ICReconciliationSessionSummary {
   reconciliationId: string;
   countDate: string | null;
-  label: string | null;
   savedAt: string;
   rowCount: number;
 }
@@ -1209,7 +1299,6 @@ type MixReconciliationDbRow = {
   RECONCILIATION_ID: string;
   LINE_NO: number;
   COUNT_DATE: string | null;
-  LABEL: string | null;
   'PRODUCT ID': string;
   SOURCE_TYPE: string;
   SOURCE_USER: string | null;
@@ -1222,7 +1311,7 @@ type MixReconciliationDbRow = {
 };
 
 const RECONCILIATION_SELECT =
-  'RECONCILIATION_ID,LINE_NO,COUNT_DATE,LABEL,"PRODUCT ID",SOURCE_TYPE,SOURCE_USER,RESULT_QTY,ENDING_BALANCE,DIFFERENCE,MATCH_STATUS,IS_MANUALLY_ADDED,SAVED_AT';
+  'RECONCILIATION_ID,LINE_NO,COUNT_DATE,"PRODUCT ID",SOURCE_TYPE,SOURCE_USER,RESULT_QTY,ENDING_BALANCE,DIFFERENCE,MATCH_STATUS,IS_MANUALLY_ADDED,SAVED_AT';
 
 async function fetchAllReconciliationRows(
   reconciliationId?: string
@@ -1277,7 +1366,6 @@ export async function generateNextReconciliationId(): Promise<string> {
 
 export async function saveReconciliationSession(input: {
   countDate: string;
-  label?: string;
   lines: ICReconciliationSaveLine[];
   reconciliationId?: string;
 }) {
@@ -1291,7 +1379,6 @@ export async function saveReconciliationSession(input: {
     const isUpdate = Boolean(existingId);
     const reconciliationId = isUpdate ? existingId : await generateNextReconciliationId();
     const countDate = input.countDate.trim() || new Date().toISOString().split('T')[0];
-    const label = input.label?.trim() || null;
     const savedAt = new Date().toISOString();
 
     if (isUpdate) {
@@ -1307,7 +1394,6 @@ export async function saveReconciliationSession(input: {
       RECONCILIATION_ID: reconciliationId,
       LINE_NO: index + 1,
       COUNT_DATE: countDate,
-      LABEL: label,
       'PRODUCT ID': line.productId.trim(),
       SOURCE_TYPE: line.sourceType,
       SOURCE_USER: line.sourceType === 'user' ? line.sourceUser?.trim() || null : null,
@@ -1353,7 +1439,6 @@ export async function fetchReconciliationSessions() {
         sessionMap.set(id, {
           reconciliationId: id,
           countDate,
-          label: row.LABEL ? String(row.LABEL) : null,
           savedAt,
           rowCount: 1,
         });
@@ -1440,7 +1525,6 @@ export async function fetchReconciliationSession(reconciliationId: string) {
       success: true as const,
       reconciliationId: id,
       countDate: countDateRaw ? String(countDateRaw).split('T')[0] : null,
-      label: first.LABEL ? String(first.LABEL) : null,
       savedAt: String(first.SAVED_AT || ''),
       data,
     };

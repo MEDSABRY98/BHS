@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Loader2, Save, X } from 'lucide-react';
 import { toast } from '@/app/Components/Notification';
 import {
@@ -12,33 +12,25 @@ interface SaveReconciliationModalProps {
   countDate: string;
   lines: ICReconciliationSaveLine[];
   reconciliationId?: string | null;
-  initialLabel?: string | null;
   onClose: () => void;
-  onSuccess: (reconciliationId: string, label: string | null) => void;
+  onSuccess: (reconciliationId: string) => void;
 }
 
 export default function SaveReconciliationModal({
   countDate,
   lines,
   reconciliationId,
-  initialLabel,
   onClose,
   onSuccess,
 }: SaveReconciliationModalProps) {
   const isUpdate = Boolean(reconciliationId?.trim());
-  const [label, setLabel] = useState(initialLabel || '');
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  useEffect(() => {
-    setLabel(initialLabel || '');
-  }, [initialLabel, reconciliationId]);
 
   const handleSubmit = async () => {
     setIsSubmitting(true);
     try {
       const result = await saveReconciliationSession({
         countDate,
-        label: label.trim() || undefined,
         lines,
         reconciliationId: isUpdate ? reconciliationId!.trim() : undefined,
       });
@@ -47,13 +39,12 @@ export default function SaveReconciliationModal({
         throw new Error(result.error || 'Failed to save reconciliation');
       }
 
-      const nextLabel = label.trim() || null;
       if (result.updated) {
         toast.success(`Updated ${result.reconciliationId} (${result.rowCount} row(s))`);
       } else {
         toast.success(`Saved as ${result.reconciliationId} (${result.rowCount} row(s))`);
       }
-      onSuccess(result.reconciliationId, nextLabel);
+      onSuccess(result.reconciliationId);
       onClose();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to save reconciliation';
@@ -91,20 +82,7 @@ export default function SaveReconciliationModal({
           </button>
         </div>
 
-        <div className="px-6 py-5 space-y-4">
-          <div>
-            <label className="block text-xs font-black uppercase tracking-wide text-slate-500 mb-2">
-              Label (optional)
-            </label>
-            <input
-              type="text"
-              value={label}
-              onChange={(e) => setLabel(e.target.value)}
-              placeholder="e.g. March stock check"
-              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500"
-            />
-          </div>
-
+        <div className="px-6 py-5">
           <p className="text-xs font-medium text-slate-500">
             {isUpdate
               ? 'Changes will overwrite the loaded session. Only rows with a filled result quantity are saved.'

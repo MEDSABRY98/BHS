@@ -29,6 +29,7 @@ import {
   fetchICUserComparisonData,
   fetchArchivedICUserComparisonData,
   fetchReconciliationSession,
+  fetchICProductsByCategory,
   getICProductBarcodesByIds,
   searchICProducts,
   type ICProductSearchResult,
@@ -41,6 +42,7 @@ import SourcePickerModal from './Utils/SourcePickerModal';
 import RemoveManualRowModal from './Utils/RemoveManualRowModal';
 import SaveReconciliationModal from './Utils/SaveReconciliationModal';
 import ReconciliationSessionPicker from './Utils/ReconciliationSessionPicker';
+import AddCategoryProductsPicker from './Utils/AddCategoryProductsPicker';
 
 const REQUIRED_COLUMNS = ['Product ID', 'Product Name', 'Counted Quantity'] as const;
 
@@ -138,6 +140,26 @@ function mapLoadedRowToReconciliationRow(row: ICReconciliationLoadedRow): Reconc
     difference: row.difference,
     matchStatus: row.matchStatus,
     isManuallyAdded: row.isManuallyAdded,
+  };
+}
+
+function buildManualReconciliationRow(
+  product: ICProductSearchResult,
+  balance: ProductBalanceRow | undefined,
+  icRow: { barcodeName?: string; userQtys?: Record<string, number> } | undefined,
+): ReconciliationRow {
+  const endingBalance = balance?.endingStock ?? null;
+  return {
+    productId: product.productId,
+    barcodeName: product.barcodeName || icRow?.barcodeName || balance?.barcode || '',
+    productName: product.productName,
+    userQtys: icRow?.userQtys || {},
+    source: { type: 'manual' },
+    resultQty: 0,
+    endingBalance,
+    difference: endingBalance !== null ? 0 - endingBalance : null,
+    matchStatus: balance ? 'Matched' : 'Not Found',
+    isManuallyAdded: true,
   };
 }
 
@@ -247,11 +269,11 @@ export default function CountReconciliationTab() {
   const [isProductSearchOpen, setIsProductSearchOpen] = useState(false);
   const [searchingProducts, setSearchingProducts] = useState(false);
   const [addingProduct, setAddingProduct] = useState(false);
+  const [addingCategory, setAddingCategory] = useState(false);
   const [sourcePickerRow, setSourcePickerRow] = useState<ReconciliationRow | null>(null);
   const [rowToRemove, setRowToRemove] = useState<{ productId: string; productName: string } | null>(null);
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [loadedSessionId, setLoadedSessionId] = useState<string | null>(null);
-  const [loadedSessionLabel, setLoadedSessionLabel] = useState<string | null>(null);
   const [sessionsRefreshKey, setSessionsRefreshKey] = useState(0);
   const productSearchRef = useRef<HTMLDivElement>(null);
 
@@ -710,18 +732,11 @@ export default function CountReconciliationTab() {
       const balance = balanceMap.get(trimmedId);
       const icRow = (icRes.data || []).find((row) => row.productId === trimmedId);
 
-      const newRow: ReconciliationRow = {
-        productId: trimmedId,
-        barcodeName: barcodeName || icRow?.barcodeName || balance?.barcode || '',
-        productName,
-        userQtys: icRow?.userQtys || {},
-        source: { type: 'none' },
-        resultQty: null,
-        endingBalance: balance?.endingStock ?? null,
-        difference: null,
-        matchStatus: balance ? 'Matched' : 'Not Found',
-        isManuallyAdded: true,
-      };
+      const newRow = buildManualReconciliationRow(
+        { productId: trimmedId, barcodeName, productName },
+        balance,
+        icRow,
+      );
 
       setRows((prev) => sortRowsAlphabetically([...prev, newRow]));
       setProductSearchQuery('');
@@ -739,6 +754,68 @@ export default function CountReconciliationTab() {
 
   const handleSelectSearchProduct = async (product: ICProductSearchResult) => {
     await handleAddProduct(product.productId, product.barcodeName);
+  };
+
+  const handleAddCategoryProducts = async (categoryName: string) => {
+    if (!appliedCountDate) {
+      toast.warning('Select a count date and click Apply Date first');
+      return;
+    }
+
+    setAddingCategory(true);
+    setError(null);
+
+    try {
+      const productsRes = await fetchICProductsByCategory(categoryName);
+      if (!productsRes.success) {
+        throw new Error(productsRes.error || 'Failed to fetch category products');
+      }
+
+      const existingIds = new Set(rows.map((row) => row.productId));
+      const toAdd = productsRes.data.filter((product) => !existingIds.has(product.productId));
+
+      if (toAdd.length === 0) {
+        toast.info('All products in this category are already in the list');
+        return;
+      }
+
+      const icFetch = archiveId
+        ? fetchArchivedICUserComparisonData(archiveId)
+        : fetchICUserComparisonData();
+
+      const [balanceRes, icRes] = await Promise.all([
+        getProductsBalanceReportData({ dateTo: appliedCountDate }),
+        icFetch,
+      ]);
+
+      if (!balanceRes.success) {
+        throw new Error(balanceRes.error || 'Failed to fetch ending balances');
+      }
+
+      const balanceMap = new Map<string, ProductBalanceRow>(
+        (balanceRes.data || []).map((row: ProductBalanceRow) => [row.productId.trim(), row]),
+      );
+      const icByProduct = new Map(
+        (icRes.data || []).map((row) => [row.productId, row]),
+      );
+
+      const newRows = toAdd.map((product) =>
+        buildManualReconciliationRow(
+          product,
+          balanceMap.get(product.productId),
+          icByProduct.get(product.productId),
+        ),
+      );
+
+      setRows((prev) => sortRowsAlphabetically([...prev, ...newRows]));
+      toast.success(`Added ${newRows.length} product(s) from "${categoryName}"`);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to add category products';
+      setError(message);
+      toast.error(message);
+    } finally {
+      setAddingCategory(false);
+    }
   };
 
   const saveLines = useMemo(
@@ -761,9 +838,8 @@ export default function CountReconciliationTab() {
     setShowSaveModal(true);
   };
 
-  const handleSaveSuccess = (reconciliationId: string, label: string | null) => {
+  const handleSaveSuccess = (reconciliationId: string) => {
     setLoadedSessionId(reconciliationId);
-    setLoadedSessionLabel(label);
     setSessionsRefreshKey((key) => key + 1);
   };
 
@@ -784,7 +860,6 @@ export default function CountReconciliationTab() {
       setCountDate(nextCountDate);
       setAppliedCountDate(nextCountDate);
       setLoadedSessionId(res.reconciliationId);
-      setLoadedSessionLabel(res.label);
       setUsers([]);
       setUploadFileName(null);
       toast.success(`Loaded ${loadedRows.length} row(s) from ${res.reconciliationId}`);
@@ -804,7 +879,6 @@ export default function CountReconciliationTab() {
     setCountDate(todayInputValue());
     setUploadFileName(null);
     setLoadedSessionId(null);
-    setLoadedSessionLabel(null);
     setError(null);
     setProductSearchQuery('');
     setProductSearchResults([]);
@@ -873,6 +947,7 @@ export default function CountReconciliationTab() {
   };
 
   const isBusy = loading || uploading;
+  const isAddingProducts = addingProduct || addingCategory;
   const hasResults = rows.length > 0;
 
   const getUserOptions = (row: ReconciliationRow) => {
@@ -906,48 +981,55 @@ export default function CountReconciliationTab() {
       </div>
 
       {appliedCountDate && (
-        <div ref={productSearchRef} className="relative flex-1 min-w-[200px] max-w-xl">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-          <input
-            type="text"
-            value={productSearchQuery}
-            onChange={(e) => {
-              setProductSearchQuery(e.target.value);
-              setIsProductSearchOpen(true);
-            }}
-            onFocus={() => setIsProductSearchOpen(true)}
-            placeholder="Search product name or barcode..."
-            disabled={addingProduct}
-            className="w-full pl-10 pr-10 py-3 bg-white border border-slate-200 rounded-xl text-xs font-black text-slate-700 placeholder:text-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-100 disabled:opacity-50"
-          />
-          {(searchingProducts || addingProduct) && (
-            <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 animate-spin" />
-          )}
+        <div className="flex items-stretch gap-2 flex-1 min-w-[240px] max-w-2xl">
+          <div ref={productSearchRef} className="relative flex-1 min-w-0">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+            <input
+              type="text"
+              value={productSearchQuery}
+              onChange={(e) => {
+                setProductSearchQuery(e.target.value);
+                setIsProductSearchOpen(true);
+              }}
+              onFocus={() => setIsProductSearchOpen(true)}
+              placeholder="Search product name or barcode..."
+              disabled={isAddingProducts}
+              className="w-full pl-10 pr-10 py-3 bg-white border border-slate-200 rounded-xl text-xs font-black text-slate-700 placeholder:text-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-100 disabled:opacity-50"
+            />
+            {isAddingProducts && (
+              <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 animate-spin" />
+            )}
 
-          {isProductSearchOpen && productSearchQuery.trim().length >= 2 && (
-            <div className="absolute left-0 right-0 mt-2 bg-white border border-slate-100 rounded-2xl shadow-2xl shadow-slate-200/60 py-2 z-30 max-h-72 overflow-y-auto">
-              {searchingProducts ? (
-                <p className="px-4 py-3 text-xs font-bold text-slate-400">Searching...</p>
-              ) : visibleSearchResults.length === 0 ? (
-                <p className="px-4 py-3 text-xs font-bold text-slate-400">No products found</p>
-              ) : (
-                visibleSearchResults.map((product) => (
-                  <button
-                    key={product.productId}
-                    type="button"
-                    onClick={() => handleSelectSearchProduct(product)}
-                    disabled={addingProduct}
-                    className="w-full text-left px-4 py-3 hover:bg-amber-50 transition-colors disabled:opacity-50"
-                  >
-                    <p className="text-sm font-black text-slate-800 truncate">{product.productName}</p>
-                    <p className="text-[11px] font-bold text-slate-400 mt-0.5">
-                      {product.barcodeName ? `Barcode: ${product.barcodeName}` : 'No barcode'} · ID: {product.productId}
-                    </p>
-                  </button>
-                ))
-              )}
-            </div>
-          )}
+            {isProductSearchOpen && productSearchQuery.trim().length >= 2 && (
+              <div className="absolute left-0 right-0 mt-2 bg-white border border-slate-100 rounded-2xl shadow-2xl shadow-slate-200/60 py-2 z-30 max-h-72 overflow-y-auto">
+                {searchingProducts ? (
+                  <p className="px-4 py-3 text-xs font-bold text-slate-400">Searching...</p>
+                ) : visibleSearchResults.length === 0 ? (
+                  <p className="px-4 py-3 text-xs font-bold text-slate-400">No products found</p>
+                ) : (
+                  visibleSearchResults.map((product) => (
+                    <button
+                      key={product.productId}
+                      type="button"
+                      onClick={() => handleSelectSearchProduct(product)}
+                      disabled={isAddingProducts}
+                      className="w-full text-left px-4 py-3 hover:bg-amber-50 transition-colors disabled:opacity-50"
+                    >
+                      <p className="text-sm font-black text-slate-800 truncate">{product.productName}</p>
+                      <p className="text-[11px] font-bold text-slate-400 mt-0.5">
+                        {product.barcodeName ? `Barcode: ${product.barcodeName}` : 'No barcode'} · ID: {product.productId}
+                      </p>
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+
+          <AddCategoryProductsPicker
+            disabled={isAddingProducts || isReadOnly}
+            onSelectCategory={handleAddCategoryProducts}
+          />
         </div>
       )}
 
@@ -1023,10 +1105,7 @@ export default function CountReconciliationTab() {
           selectedId={loadedSessionId}
           refreshKey={sessionsRefreshKey}
           onSelect={handleLoadSavedSession}
-          onClear={() => {
-            setLoadedSessionId(null);
-            setLoadedSessionLabel(null);
-          }}
+          onClear={() => setLoadedSessionId(null)}
         />
 
         <button
@@ -1219,7 +1298,6 @@ export default function CountReconciliationTab() {
           countDate={appliedCountDate}
           lines={saveLines}
           reconciliationId={loadedSessionId}
-          initialLabel={loadedSessionLabel}
           onClose={() => setShowSaveModal(false)}
           onSuccess={handleSaveSuccess}
         />

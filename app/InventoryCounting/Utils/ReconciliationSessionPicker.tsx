@@ -26,7 +26,6 @@ function formatSavedAt(value: string): string {
 function sessionLabel(session: ICReconciliationSessionSummary): string {
   const parts = [session.reconciliationId];
   if (session.countDate) parts.push(session.countDate);
-  if (session.label) parts.push(session.label);
   parts.push(`(${session.rowCount})`);
   return parts.join(' · ');
 }
@@ -170,7 +169,6 @@ export default function ReconciliationSessionPicker({
                 <p className="text-sm font-black text-slate-800 truncate">{session.reconciliationId}</p>
                 <p className="text-[11px] font-bold text-slate-400 mt-0.5 truncate">
                   {session.countDate || 'No date'}
-                  {session.label ? ` · ${session.label}` : ''}
                   {` · ${session.rowCount} row(s)`}
                 </p>
                 <p className="text-[10px] font-medium text-slate-400 mt-0.5">

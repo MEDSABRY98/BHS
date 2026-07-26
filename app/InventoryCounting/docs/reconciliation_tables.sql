@@ -1,11 +1,9 @@
 -- Inventory Count Reconciliation — single flat table (independent from count archive)
--- Example: mix_INVENTORY_COUNT_RECONCILIATION
 
 CREATE TABLE IF NOT EXISTS "mix_INVENTORY_COUNT_RECONCILIATION" (
   "RECONCILIATION_ID" text NOT NULL,
   "LINE_NO" integer NOT NULL,
   "COUNT_DATE" date,
-  "LABEL" text,
   "PRODUCT ID" text NOT NULL,
   "SOURCE_TYPE" text NOT NULL DEFAULT 'none',
   "SOURCE_USER" text,
@@ -17,6 +15,10 @@ CREATE TABLE IF NOT EXISTS "mix_INVENTORY_COUNT_RECONCILIATION" (
   "SAVED_AT" timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY ("RECONCILIATION_ID", "LINE_NO")
 );
+
+-- One-time: drop legacy LABEL column if present
+ALTER TABLE "mix_INVENTORY_COUNT_RECONCILIATION"
+  DROP COLUMN IF EXISTS "LABEL";
 
 CREATE INDEX IF NOT EXISTS idx_mix_ic_reconciliation_id
   ON "mix_INVENTORY_COUNT_RECONCILIATION" ("RECONCILIATION_ID");
