@@ -1,20 +1,54 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { PurchaseRecord, Product, Supplier } from './page';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Search, TrendingUp, TrendingDown, Minus, Calendar, Building2, Package, ArrowLeft, ChevronLeft, ChevronRight, FileText } from 'lucide-react';
+import { Search, TrendingUp, TrendingDown, Minus, Calendar, Building2, Package, ArrowLeft, ChevronLeft, ChevronRight, FileText, X, Pencil, Loader2 } from 'lucide-react';
+import { updatePurchaseUnitPrice } from '@/app/Suppliers/Service/purchase_details_service';
+import { toast } from '@/app/Components/Notification';
 
 interface Props {
   purchases: PurchaseRecord[];
   products: Product[];
   suppliers: Supplier[];
+  onPurchasePriceUpdated?: (id: string, unitPrice: number) => void;
 }
 
-export default function ProductPriceHistory({ purchases, products, suppliers }: Props) {
+function canEditPurchaseLinePrice(roleStr?: string, userName?: string): boolean {
+  if (userName?.trim().toLowerCase() === 'med sabry') return true;
+  if (!roleStr) return false;
+  if (roleStr === 'Admin') return true;
+
+  try {
+    const actions = JSON.parse(roleStr)['purchase-price-tracking-actions'];
+    return Array.isArray(actions) && actions.includes('edit-price');
+  } catch {
+    return false;
+  }
+}
+
+export default function ProductPriceHistory({ purchases, products, suppliers, onPurchasePriceUpdated }: Props) {
+  const [canEditPrice, setCanEditPrice] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [tableSearchTerm, setTableSearchTerm] = useState('');
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [tablePage, setTablePage] = useState(1);
+  const [editingPurchase, setEditingPurchase] = useState<PurchaseRecord | null>(null);
+  const [editPrice, setEditPrice] = useState('');
+  const [isSavingPrice, setIsSavingPrice] = useState(false);
   const itemsPerPage = 50;
+
+  useEffect(() => {
+    try {
+      const mainUserStr = localStorage.getItem('currentUser');
+      if (!mainUserStr) {
+        setCanEditPrice(false);
+        return;
+      }
+      const user = JSON.parse(mainUserStr);
+      setCanEditPrice(canEditPurchaseLinePrice(user.role, user.name));
+    } catch {
+      setCanEditPrice(false);
+    }
+  }, []);
 
   const getSupplierName = (id: string) => {
     return suppliers.find(s => s.id === id)?.name || id;
@@ -209,6 +243,47 @@ export default function ProductPriceHistory({ purchases, products, suppliers }: 
   const recommendedSupplierName = recommendedSupplierId ? getSupplierName(recommendedSupplierId) : 'N/A';
 
   const selectedProduct = products.find(p => p.id === selectedProductId);
+
+  const openEditPriceModal = (purchase: PurchaseRecord) => {
+    if (!canEditPrice) return;
+    setEditingPurchase(purchase);
+    setEditPrice(purchase.unitPrice.toFixed(2));
+  };
+
+  const closeEditPriceModal = () => {
+    if (isSavingPrice) return;
+    setEditingPurchase(null);
+    setEditPrice('');
+  };
+
+  const handleSavePrice = async () => {
+    if (!editingPurchase || !canEditPrice) return;
+
+    const parsedPrice = Number(editPrice);
+    if (!Number.isFinite(parsedPrice) || parsedPrice <= 0) {
+      toast.error('Please enter a valid unit price greater than zero.');
+      return;
+    }
+
+    setIsSavingPrice(true);
+    try {
+      const result = await updatePurchaseUnitPrice(editingPurchase.id, parsedPrice);
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+
+      onPurchasePriceUpdated?.(editingPurchase.id, parsedPrice);
+      toast.success('Unit price updated successfully.');
+      setEditingPurchase(null);
+      setEditPrice('');
+    } catch (error) {
+      console.error('Failed to update unit price:', error);
+      toast.error('Failed to update unit price.');
+    } finally {
+      setIsSavingPrice(false);
+    }
+  };
 
   // If no product is selected, show the Grid View
   if (!selectedProductId) {
@@ -441,7 +516,12 @@ export default function ProductPriceHistory({ purchases, products, suppliers }: 
                     </tr>
                   ) : (
                     paginatedTablePurchases.map((p) => (
-                    <tr key={p.id} className="hover:bg-slate-50 transition-colors">
+                    <tr
+                      key={p.id}
+                      onClick={() => openEditPriceModal(p)}
+                      className={`transition-colors ${canEditPrice ? 'hover:bg-amber-50/60 cursor-pointer group' : 'hover:bg-slate-50'}`}
+                      title={canEditPrice ? 'Click to edit unit price' : undefined}
+                    >
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center justify-center gap-2">
                           <Calendar className="w-4 h-4 text-slate-400" />
@@ -464,7 +544,12 @@ export default function ProductPriceHistory({ purchases, products, suppliers }: 
                         <span className="font-bold text-slate-900 bg-slate-100 px-3 py-1 rounded-full">{p.qty}</span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-center">
-                        <span className="font-bold text-amber-600">{p.unitPrice.toFixed(2)} AED</span>
+                        <span className={`inline-flex items-center gap-2 font-bold text-amber-600 ${canEditPrice ? 'group-hover:text-[#b8962e]' : ''}`}>
+                          {p.unitPrice.toFixed(2)} AED
+                          {canEditPrice && (
+                            <Pencil className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                          )}
+                        </span>
                       </td>
                     </tr>
                   )))}
@@ -498,6 +583,102 @@ export default function ProductPriceHistory({ purchases, products, suppliers }: 
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {editingPurchase && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-100 animate-in zoom-in-95 duration-200">
+            <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-amber-100 text-[#D4AF37] rounded-xl">
+                  <Pencil className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-lg text-slate-800 leading-none mb-1">Edit Unit Price</h3>
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Invoice line</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={closeEditPriceModal}
+                disabled={isSavingPrice}
+                className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors disabled:opacity-40"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div className="bg-slate-50 rounded-xl p-3">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Date</p>
+                  <p className="font-bold text-slate-700">{editingPurchase.date}</p>
+                </div>
+                <div className="bg-slate-50 rounded-xl p-3">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Invoice</p>
+                  <p className="font-bold text-slate-700 font-mono">{editingPurchase.invoiceNumber || '-'}</p>
+                </div>
+                <div className="bg-slate-50 rounded-xl p-3 col-span-2">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Supplier</p>
+                  <p className="font-bold text-slate-700">{getSupplierName(editingPurchase.supplierId)}</p>
+                </div>
+                <div className="bg-slate-50 rounded-xl p-3">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Qty</p>
+                  <p className="font-bold text-slate-700">{editingPurchase.qty}</p>
+                </div>
+                <div className="bg-slate-50 rounded-xl p-3">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Current Price</p>
+                  <p className="font-bold text-amber-600">{editingPurchase.unitPrice.toFixed(2)} AED</p>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-2">
+                  New Unit Price (AED)
+                </label>
+                <input
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  autoFocus
+                  value={editPrice}
+                  onChange={(e) => setEditPrice(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleSavePrice();
+                    if (e.key === 'Escape') closeEditPriceModal();
+                  }}
+                  className="w-full bg-white border border-slate-200 px-4 py-3 rounded-xl outline-none focus:ring-2 focus:ring-[#D4AF37]/50 focus:border-[#D4AF37] font-bold text-slate-900"
+                />
+              </div>
+            </div>
+
+            <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={closeEditPriceModal}
+                disabled={isSavingPrice}
+                className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-bold hover:bg-white transition-colors disabled:opacity-40"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSavePrice}
+                disabled={isSavingPrice}
+                className="px-5 py-2.5 rounded-xl bg-slate-900 text-white font-bold hover:bg-[#D4AF37] hover:text-black transition-colors disabled:opacity-40 inline-flex items-center gap-2"
+              >
+                {isSavingPrice ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  'Save Price'
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}

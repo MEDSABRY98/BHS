@@ -127,7 +127,18 @@ export default function PurchasePriceTrackingPage() {
 
     switch (activeTab) {
       case 'product-history':
-        return <ProductPriceHistory purchases={purchases} suppliers={suppliers} products={products} />;
+        return (
+          <ProductPriceHistory
+            purchases={purchases}
+            suppliers={suppliers}
+            products={products}
+            onPurchasePriceUpdated={(id, unitPrice) => {
+              setPurchases((prev) =>
+                prev.map((p) => (p.id === id ? { ...p, unitPrice } : p))
+              );
+            }}
+          />
+        );
       case 'supplier-comparison':
         return <SupplierComparison purchases={purchases} suppliers={suppliers} products={products} />;
       case 'supplier-history':

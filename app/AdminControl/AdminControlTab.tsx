@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import {
     Shield, Check, X, Search, Settings, Save, AlertCircle, ChevronRight, Layers,
     CreditCard, Wallet, BarChart3, TrendingUp, Package, Truck, FileCheck,
-    ClipboardList, ShoppingCart, Database, Users, Sparkles, Trash2, ListChecks, FileSpreadsheet, ArrowLeft, CheckCheck, Ban, Hash
+    ClipboardList, ShoppingCart, Database, Users, Sparkles, Trash2, ListChecks, FileSpreadsheet, ArrowLeft, CheckCheck, Ban, Hash, UserPlus, LayoutGrid
 } from 'lucide-react';
 import Loading from '@/app/Components/Loading';
 import NoData from '@/app/Components/NoDataTab';
@@ -259,7 +259,10 @@ const SYSTEM_ACTIONS: Record<string, { id: string; label: string; icon: string }
         { id: 'view', label: 'Viewer (Read Only)', icon: '👁️' },
         { id: 'edit', label: 'Editor (Add/Edit)', icon: '✏️' },
         { id: 'delete', label: 'Admin (Add/Edit/Delete)', icon: '🗑️' }
-    ]
+    ],
+    'purchase-price-tracking': [
+        { id: 'edit-price', label: 'Edit Purchase Line Price', icon: '✏️' },
+    ],
 };
 
 const getSystemIcon = (id: string) => {
@@ -313,12 +316,97 @@ const getAvatarGradient = (name: string) => {
 
 const CARD_GRID = 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4';
 
+function isSuperAdminUser(name: string) {
+    return name.trim().toLowerCase() === 'med sabry';
+}
+
+function getUserEnabledSystems(perms: Record<string, unknown>) {
+    return Array.isArray(perms.systems) ? (perms.systems as string[]) : SYSTEMS.map((s) => s.id);
+}
+
+function userHasSystemAccess(roleStr: string, systemId: string, parsePermissions: (role: string) => Record<string, unknown>) {
+    if (roleStr === 'Admin') return true;
+    const perms = parsePermissions(roleStr);
+    return getUserEnabledSystems(perms).includes(systemId);
+}
+
+function setUserSystemAccess(
+    user: UserPermissions,
+    systemId: string,
+    enabled: boolean,
+    parsePermissions: (role: string) => Record<string, unknown>,
+) {
+    const perms = parsePermissions(user.role);
+    const currentSystems = getUserEnabledSystems(perms);
+    const nextSystems = enabled
+        ? [...new Set([...currentSystems, systemId])]
+        : currentSystems.filter((id) => id !== systemId);
+
+    return {
+        ...user,
+        role: JSON.stringify({ ...perms, systems: nextSystems }),
+    };
+}
+
+function getUserEnabledActions(
+    roleStr: string,
+    systemId: string,
+    parsePermissions: (role: string) => Record<string, unknown>,
+) {
+    const allActionIds = (SYSTEM_ACTIONS[systemId] || []).map((a) => a.id);
+    if (roleStr === 'Admin') return allActionIds;
+
+    const perms = parsePermissions(roleStr);
+    const key = `${systemId}-actions`;
+    if (Array.isArray(perms[key])) {
+        return (perms[key] as string[]).filter((id) => allActionIds.includes(id));
+    }
+    return allActionIds;
+}
+
+function userHasActionAccess(
+    roleStr: string,
+    systemId: string,
+    actionId: string,
+    parsePermissions: (role: string) => Record<string, unknown>,
+) {
+    return getUserEnabledActions(roleStr, systemId, parsePermissions).includes(actionId);
+}
+
+function setUserActionAccess(
+    user: UserPermissions,
+    systemId: string,
+    actionId: string,
+    enabled: boolean,
+    parsePermissions: (role: string) => Record<string, unknown>,
+) {
+    const perms = parsePermissions(user.role);
+    const key = `${systemId}-actions`;
+    const allActionIds = (SYSTEM_ACTIONS[systemId] || []).map((a) => a.id);
+    const currentActions = Array.isArray(perms[key])
+        ? (perms[key] as string[]).filter((id) => allActionIds.includes(id))
+        : [...allActionIds];
+    const nextActions = enabled
+        ? [...new Set([...currentActions, actionId])]
+        : currentActions.filter((id) => id !== actionId);
+
+    return {
+        ...user,
+        role: JSON.stringify({ ...perms, [key]: nextActions }),
+    };
+}
+
 export default function AdminControlTab() {
     const [users, setUsers] = useState<UserPermissions[]>([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
     const [selectedUser, setSelectedUser] = useState<UserPermissions | null>(null);
     const [view, setView] = useState<'users' | 'modules'>('users');
+    const [adminMode, setAdminMode] = useState<'by-user' | 'by-module'>('by-user');
+    const [selectedModuleId, setSelectedModuleId] = useState<string | null>(null);
+    const [moduleUserSearch, setModuleUserSearch] = useState('');
+    const [moduleUserSaving, setModuleUserSaving] = useState<string | null>(null);
+    const [moduleDetailTab, setModuleDetailTab] = useState<'access' | 'actions'>('access');
     const [saving, setSaving] = useState(false);
     const [message, setMessage] = useState({ type: '', text: '' });
     const [modalSystem, setModalSystem] = useState<string | null>(null);
@@ -516,6 +604,125 @@ export default function AdminControlTab() {
         setModalInnerTab('tabs');
     };
 
+    const backToModuleList = () => {
+        setSelectedModuleId(null);
+        setModuleUserSearch('');
+        setModuleDetailTab('access');
+        setMessage({ type: '', text: '' });
+    };
+
+    const switchAdminMode = (mode: 'by-user' | 'by-module') => {
+        setAdminMode(mode);
+        setView('users');
+        setSelectedUser(null);
+        setSelectedModuleId(null);
+        setModalSystem(null);
+        setModalInnerTab('tabs');
+        setModuleDetailTab('access');
+        setSearch('');
+        setSystemSearch('');
+        setModuleUserSearch('');
+        setMessage({ type: '', text: '' });
+    };
+
+    const openModuleUsers = (systemId: string) => {
+        setSelectedModuleId(systemId);
+        setModuleUserSearch('');
+        setModuleDetailTab('access');
+        setMessage({ type: '', text: '' });
+    };
+
+    const getModuleUsersCount = (systemId: string) =>
+        users.filter((u) => userHasSystemAccess(u.role, systemId, parsePermissions)).length;
+
+    const persistUserRole = async (user: UserPermissions) => {
+        const normalizedRole = JSON.stringify(normalizePermissions(parsePermissions(user.role)));
+        const result = await updateUserRole(user.name, normalizedRole);
+        if (!result.success) throw new Error('Failed to update');
+
+        const savedUser = { ...user, role: normalizedRole };
+        setUsers((prev) => prev.map((u) => (u.name === savedUser.name ? savedUser : u)));
+        if (selectedUser?.name === savedUser.name) setSelectedUser(savedUser);
+        return savedUser;
+    };
+
+    const handleModuleUserAccess = async (userName: string, enabled: boolean) => {
+        if (!selectedModuleId) return;
+
+        const user = users.find((u) => u.name === userName);
+        if (!user) return;
+        if (!enabled && isSuperAdminUser(user.name)) return;
+
+        setModuleUserSaving(userName);
+        setMessage({ type: '', text: '' });
+
+        try {
+            const updatedUser = setUserSystemAccess(user, selectedModuleId, enabled, parsePermissions);
+            await persistUserRole(updatedUser);
+            setMessage({
+                type: 'success',
+                text: enabled
+                    ? `${userName} added to module successfully.`
+                    : `${userName} removed from module successfully.`,
+            });
+            setTimeout(() => setMessage({ type: '', text: '' }), 4000);
+        } catch {
+            setMessage({ type: 'error', text: 'Update failed. Please try again.' });
+        } finally {
+            setModuleUserSaving(null);
+        }
+    };
+
+    const handleModuleUserAction = async (userName: string, actionId: string, enabled: boolean) => {
+        if (!selectedModuleId) return;
+
+        const user = users.find((u) => u.name === userName);
+        if (!user) return;
+        if (isSuperAdminUser(user.name)) return;
+
+        setModuleUserSaving(`${userName}:${actionId}`);
+        setMessage({ type: '', text: '' });
+
+        try {
+            const updatedUser = setUserActionAccess(user, selectedModuleId, actionId, enabled, parsePermissions);
+            await persistUserRole(updatedUser);
+            const actionLabel = SYSTEM_ACTIONS[selectedModuleId]?.find((a) => a.id === actionId)?.label || actionId;
+            setMessage({
+                type: 'success',
+                text: enabled
+                    ? `${userName} can now use "${actionLabel}".`
+                    : `${userName} can no longer use "${actionLabel}".`,
+            });
+            setTimeout(() => setMessage({ type: '', text: '' }), 4000);
+        } catch {
+            setMessage({ type: 'error', text: 'Update failed. Please try again.' });
+        } finally {
+            setModuleUserSaving(null);
+        }
+    };
+
+    const selectedModuleActions = selectedModuleId ? (SYSTEM_ACTIONS[selectedModuleId] || []) : [];
+    const selectedModuleHasActions = selectedModuleActions.length > 0;
+
+    const moduleAssignedUsers = useMemo(() => {
+        if (!selectedModuleId) return [];
+        const lower = moduleUserSearch.toLowerCase();
+        return users
+            .filter((u) => userHasSystemAccess(u.role, selectedModuleId, parsePermissions))
+            .filter((u) => u.name.toLowerCase().includes(lower))
+            .sort((a, b) => a.name.localeCompare(b.name));
+    }, [users, selectedModuleId, moduleUserSearch]);
+
+    const moduleAvailableUsers = useMemo(() => {
+        if (!selectedModuleId) return [];
+        const lower = moduleUserSearch.toLowerCase();
+        return users
+            .filter((u) => !userHasSystemAccess(u.role, selectedModuleId, parsePermissions))
+            .filter((u) => !isSuperAdminUser(u.name))
+            .filter((u) => u.name.toLowerCase().includes(lower))
+            .sort((a, b) => a.name.localeCompare(b.name));
+    }, [users, selectedModuleId, moduleUserSearch]);
+
     if (loading) return <Loading message="Loading Admin Control..." />;
 
     const renderSubTabModal = () => {
@@ -661,30 +868,69 @@ export default function AdminControlTab() {
             {/* Top bar */}
             <div className="bg-white rounded-3xl shadow-sm border border-slate-200/60 p-5 md:p-6 mb-6">
                 <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-                    <div className="flex items-center gap-4 min-w-0">
-                        {view === 'modules' && selectedUser && (
+                    <div className="flex items-center gap-4 min-w-0 flex-1">
+                        {((adminMode === 'by-user' && view === 'modules' && selectedUser)
+                            || (adminMode === 'by-module' && selectedModuleId)) && (
                             <button
-                                onClick={backToUsers}
+                                onClick={adminMode === 'by-user' ? backToUsers : backToModuleList}
                                 className="p-3 bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200 rounded-2xl transition-all shrink-0"
-                                title="Back to users"
+                                title={adminMode === 'by-user' ? 'Back to users' : 'Back to modules'}
                             >
                                 <ArrowLeft className="w-5 h-5" />
                             </button>
                         )}
-                        <div className="flex items-center gap-3 min-w-0">
+                        <div className="flex items-center gap-3 min-w-0 shrink-0">
                             <div className="bg-slate-900 text-white p-3 rounded-2xl shrink-0">
-                                {view === 'users' ? <Users className="w-6 h-6" /> : <Shield className="w-6 h-6" />}
+                                {adminMode === 'by-module'
+                                    ? <LayoutGrid className="w-6 h-6" />
+                                    : view === 'users'
+                                        ? <Users className="w-6 h-6" />
+                                        : <Shield className="w-6 h-6" />}
                             </div>
-                            <div className="min-w-0">
+                        </div>
+                        <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                                 <h2 className="text-xl md:text-2xl font-black text-slate-900 truncate">
-                                    {view === 'users' ? 'Users Management' : selectedUser?.name}
+                                    {adminMode === 'by-module'
+                                        ? (selectedModuleId
+                                            ? SYSTEMS.find((s) => s.id === selectedModuleId)?.label
+                                            : 'Modules Management')
+                                        : view === 'users'
+                                            ? 'Users Management'
+                                            : selectedUser?.name}
                                 </h2>
-                                <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider">
-                                    {view === 'users'
-                                        ? 'Select a user to configure modules'
-                                        : 'Enable modules and configure tabs'}
-                                </p>
+                                <div className="flex flex-wrap gap-2 shrink-0">
+                                    <button
+                                        type="button"
+                                        onClick={() => switchAdminMode('by-user')}
+                                        className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${
+                                            adminMode === 'by-user'
+                                                ? 'bg-slate-900 text-white shadow-md'
+                                                : 'bg-slate-50 text-slate-500 border border-slate-200 hover:border-slate-400'
+                                        }`}
+                                    >
+                                        <Users className="w-3.5 h-3.5" />
+                                        By User
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => switchAdminMode('by-module')}
+                                        className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${
+                                            adminMode === 'by-module'
+                                                ? 'bg-slate-900 text-white shadow-md'
+                                                : 'bg-slate-50 text-slate-500 border border-slate-200 hover:border-slate-400'
+                                        }`}
+                                    >
+                                        <LayoutGrid className="w-3.5 h-3.5" />
+                                        By Module
+                                    </button>
+                                </div>
                             </div>
+                            {adminMode === 'by-user' && view === 'modules' && (
+                                <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider mt-1">
+                                    Enable modules and configure tabs
+                                </p>
+                            )}
                         </div>
                     </div>
 
@@ -693,14 +939,31 @@ export default function AdminControlTab() {
                             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                             <input
                                 type="text"
-                                placeholder={view === 'users' ? 'Search users...' : 'Search modules...'}
+                                placeholder={
+                                    adminMode === 'by-module'
+                                        ? (selectedModuleId ? 'Search users...' : 'Search modules...')
+                                        : (view === 'users' ? 'Search users...' : 'Search modules...')
+                                }
                                 className="w-full pl-10 pr-4 py-3 bg-slate-50 border-2 border-slate-100 focus:border-slate-900 rounded-2xl text-sm font-semibold outline-none transition-all placeholder-slate-400"
-                                value={view === 'users' ? search : systemSearch}
-                                onChange={(e) => view === 'users' ? setSearch(e.target.value) : setSystemSearch(e.target.value)}
+                                value={
+                                    adminMode === 'by-module'
+                                        ? (selectedModuleId ? moduleUserSearch : systemSearch)
+                                        : (view === 'users' ? search : systemSearch)
+                                }
+                                onChange={(e) => {
+                                    if (adminMode === 'by-module') {
+                                        if (selectedModuleId) setModuleUserSearch(e.target.value);
+                                        else setSystemSearch(e.target.value);
+                                    } else if (view === 'users') {
+                                        setSearch(e.target.value);
+                                    } else {
+                                        setSystemSearch(e.target.value);
+                                    }
+                                }}
                             />
                         </div>
 
-                        {view === 'modules' && selectedUser && (
+                        {adminMode === 'by-user' && view === 'modules' && selectedUser && (
                             <button
                                 onClick={handleSave}
                                 disabled={saving}
@@ -717,7 +980,7 @@ export default function AdminControlTab() {
                     </div>
                 </div>
 
-                {message.text && view === 'modules' && (
+                {message.text && ((adminMode === 'by-user' && view === 'modules') || (adminMode === 'by-module' && selectedModuleId)) && (
                     <div className={`mt-4 p-4 rounded-2xl flex items-center gap-3 animate-in slide-in-from-top duration-300 ${
                         message.type === 'success'
                             ? 'bg-emerald-50 text-emerald-800 border border-emerald-100'
@@ -733,8 +996,8 @@ export default function AdminControlTab() {
                 )}
             </div>
 
-            {/* Users grid */}
-            {view === 'users' && (
+            {/* By User — users grid */}
+            {adminMode === 'by-user' && view === 'users' && (
                 filteredUsers.length === 0 ? (
                     <div className="bg-white rounded-3xl border border-slate-200/60 p-12">
                         <NoData title="No users found" />
@@ -768,8 +1031,8 @@ export default function AdminControlTab() {
                 )
             )}
 
-            {/* Modules grid */}
-            {view === 'modules' && selectedUser && (
+            {/* By User — modules grid */}
+            {adminMode === 'by-user' && view === 'modules' && selectedUser && (
                 filteredSystems.length === 0 ? (
                     <div className="bg-white rounded-3xl border border-slate-200/60 p-12">
                         <NoData title="No modules found" />
@@ -879,6 +1142,279 @@ export default function AdminControlTab() {
                         </div>
                     </>
                 )
+            )}
+
+            {/* By Module — modules grid */}
+            {adminMode === 'by-module' && !selectedModuleId && (
+                filteredSystems.length === 0 ? (
+                    <div className="bg-white rounded-3xl border border-slate-200/60 p-12">
+                        <NoData title="No modules found" />
+                    </div>
+                ) : (
+                    <div className={CARD_GRID}>
+                        {filteredSystems.map((system) => {
+                            const usersCount = getModuleUsersCount(system.id);
+                            return (
+                                <button
+                                    key={system.id}
+                                    type="button"
+                                    onClick={() => openModuleUsers(system.id)}
+                                    className="group bg-white rounded-3xl border-2 border-slate-100 hover:border-slate-900 hover:shadow-lg p-5 text-left transition-all duration-200 flex flex-col min-h-[170px]"
+                                >
+                                    <div className="w-11 h-11 rounded-xl bg-slate-50 flex items-center justify-center border border-slate-100 mb-3">
+                                        {getSystemIcon(system.id)}
+                                    </div>
+                                    <h4 className="font-black text-sm leading-snug line-clamp-2 text-slate-900 group-hover:text-slate-950">
+                                        {system.label}
+                                    </h4>
+                                    <p className="text-[10px] font-bold uppercase tracking-wider mt-1 text-slate-400">
+                                        Module access
+                                    </p>
+                                    <div className="mt-auto pt-4 flex items-center justify-between">
+                                        <span className="text-[10px] font-black text-slate-500 bg-slate-100 px-2 py-1 rounded-md uppercase tracking-wider">
+                                            {usersCount} / {users.length} Users
+                                        </span>
+                                        <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-slate-900 group-hover:translate-x-0.5 transition-all" />
+                                    </div>
+                                </button>
+                            );
+                        })}
+                    </div>
+                )
+            )}
+
+            {/* By Module — users for selected module */}
+            {adminMode === 'by-module' && selectedModuleId && (
+                <>
+                    {selectedModuleHasActions && (
+                        <div className="flex flex-wrap gap-2 mb-6">
+                            <button
+                                type="button"
+                                onClick={() => setModuleDetailTab('access')}
+                                className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${
+                                    moduleDetailTab === 'access'
+                                        ? 'bg-slate-900 text-white shadow-md'
+                                        : 'bg-white text-slate-500 border border-slate-200 hover:border-slate-400'
+                                }`}
+                            >
+                                <Users className="w-4 h-4" />
+                                Module Access
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setModuleDetailTab('actions')}
+                                className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${
+                                    moduleDetailTab === 'actions'
+                                        ? 'bg-indigo-600 text-white shadow-md'
+                                        : 'bg-white text-slate-500 border border-slate-200 hover:border-indigo-300'
+                                }`}
+                            >
+                                <ListChecks className="w-4 h-4" />
+                                Actions
+                            </button>
+                        </div>
+                    )}
+
+                    {(!selectedModuleHasActions || moduleDetailTab === 'access') && (
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-stretch">
+                    <div className="bg-white rounded-3xl border border-slate-200/60 p-5 md:p-6 flex flex-col h-full">
+                        <div className="flex items-center justify-between gap-3 mb-5 shrink-0">
+                            <div>
+                                <h3 className="text-lg font-black text-slate-900">Assigned Users</h3>
+                                <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider mt-1">
+                                    {moduleAssignedUsers.length} users with access
+                                </p>
+                            </div>
+                            <span className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md uppercase tracking-wider">
+                                Active
+                            </span>
+                        </div>
+
+                        {moduleAssignedUsers.length === 0 ? (
+                            <div className="flex-1 flex items-center justify-center py-10 text-center text-slate-400 font-bold text-sm">
+                                No users assigned to this module yet.
+                            </div>
+                        ) : (
+                            <div className="space-y-2 flex-1">
+                                {moduleAssignedUsers.map((user) => {
+                                    const isSaving = moduleUserSaving === user.name;
+                                    const locked = isSuperAdminUser(user.name);
+
+                                    return (
+                                        <div
+                                            key={user.name}
+                                            className="flex items-center justify-between gap-3 p-4 rounded-2xl border border-slate-100 bg-slate-50/50"
+                                        >
+                                            <div className="flex items-center gap-3 min-w-0">
+                                                <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${getAvatarGradient(user.name)} text-white flex items-center justify-center font-black text-xs shrink-0`}>
+                                                    {getUserInitials(user.name)}
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <p className="font-bold text-slate-900 truncate">{user.name}</p>
+                                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                                                        {locked ? 'Super Admin' : 'Has access'}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            {!locked && (
+                                                <button
+                                                    type="button"
+                                                    disabled={isSaving}
+                                                    onClick={() => handleModuleUserAccess(user.name, false)}
+                                                    className="p-2.5 bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 rounded-xl transition-all disabled:opacity-50 shrink-0"
+                                                    title="Remove from module"
+                                                >
+                                                    {isSaving ? (
+                                                        <div className="w-4 h-4 border-2 border-rose-200 border-t-rose-600 rounded-full animate-spin" />
+                                                    ) : (
+                                                        <Trash2 className="w-4 h-4" />
+                                                    )}
+                                                </button>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="bg-white rounded-3xl border border-slate-200/60 p-5 md:p-6 flex flex-col h-full">
+                        <div className="flex items-center justify-between gap-3 mb-5 shrink-0">
+                            <div>
+                                <h3 className="text-lg font-black text-slate-900">Add Users</h3>
+                                <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider mt-1">
+                                    {moduleAvailableUsers.length} users without access
+                                </p>
+                            </div>
+                            <span className="text-[10px] font-black text-slate-500 bg-slate-100 px-2.5 py-1 rounded-md uppercase tracking-wider">
+                                Available
+                            </span>
+                        </div>
+
+                        {moduleAvailableUsers.length === 0 ? (
+                            <div className="flex-1 flex items-center justify-center py-10 text-center text-slate-400 font-bold text-sm">
+                                All users already have access to this module.
+                            </div>
+                        ) : (
+                            <div className="space-y-2 flex-1">
+                                {moduleAvailableUsers.map((user) => {
+                                    const isSaving = moduleUserSaving === user.name;
+
+                                    return (
+                                        <div
+                                            key={user.name}
+                                            className="flex items-center justify-between gap-3 p-4 rounded-2xl border border-slate-100 bg-white hover:border-slate-300 transition-all"
+                                        >
+                                            <div className="flex items-center gap-3 min-w-0">
+                                                <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${getAvatarGradient(user.name)} text-white flex items-center justify-center font-black text-xs shrink-0`}>
+                                                    {getUserInitials(user.name)}
+                                                </div>
+                                                <p className="font-bold text-slate-900 truncate">{user.name}</p>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                disabled={isSaving}
+                                                onClick={() => handleModuleUserAccess(user.name, true)}
+                                                className="inline-flex items-center gap-1.5 px-3 py-2 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 rounded-xl text-xs font-black uppercase tracking-wider transition-all disabled:opacity-50 shrink-0"
+                                                title="Add to module"
+                                            >
+                                                {isSaving ? (
+                                                    <div className="w-4 h-4 border-2 border-emerald-200 border-t-emerald-600 rounded-full animate-spin" />
+                                                ) : (
+                                                    <>
+                                                        <UserPlus className="w-4 h-4" />
+                                                        Add
+                                                    </>
+                                                )}
+                                            </button>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+                </div>
+                    )}
+
+                    {selectedModuleHasActions && moduleDetailTab === 'actions' && (
+                        <div className="bg-white rounded-3xl border border-slate-200/60 p-5 md:p-6 flex flex-col">
+                            <div className="flex items-center justify-between gap-3 mb-5 shrink-0">
+                                <div>
+                                    <h3 className="text-lg font-black text-slate-900">Action Permissions</h3>
+                                </div>
+                                <span className="text-[10px] font-black text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-md uppercase tracking-wider">
+                                    {selectedModuleActions.length} Actions
+                                </span>
+                            </div>
+
+                            {moduleAssignedUsers.length === 0 ? (
+                                <div className="flex-1 flex items-center justify-center py-16 text-center text-slate-400 font-bold text-sm">
+                                    Assign users to this module first, then configure their actions.
+                                </div>
+                            ) : (
+                                <div className="space-y-3 flex-1">
+                                    {moduleAssignedUsers.map((user) => {
+                                        const locked = isSuperAdminUser(user.name);
+
+                                        return (
+                                            <div
+                                                key={user.name}
+                                                className="p-4 md:p-5 rounded-2xl border border-slate-100 bg-slate-50/50"
+                                            >
+                                                <div className="flex items-center gap-3 min-w-0 mb-4">
+                                                    <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${getAvatarGradient(user.name)} text-white flex items-center justify-center font-black text-xs shrink-0`}>
+                                                        {getUserInitials(user.name)}
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <p className="font-bold text-slate-900 truncate">{user.name}</p>
+                                                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                                                            {locked ? 'Super Admin — all actions' : 'Module user'}
+                                                        </p>
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex flex-wrap gap-2">
+                                                    {selectedModuleActions.map((action) => {
+                                                        const isEnabled = userHasActionAccess(
+                                                            user.role,
+                                                            selectedModuleId,
+                                                            action.id,
+                                                            parsePermissions,
+                                                        );
+                                                        const isSaving = moduleUserSaving === `${user.name}:${action.id}`;
+
+                                                        return (
+                                                            <button
+                                                                key={action.id}
+                                                                type="button"
+                                                                disabled={locked || isSaving}
+                                                                onClick={() => handleModuleUserAction(user.name, action.id, !isEnabled)}
+                                                                className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 text-xs font-bold transition-all disabled:opacity-60 ${
+                                                                    isEnabled
+                                                                        ? 'border-indigo-600 bg-indigo-50 text-indigo-900'
+                                                                        : 'border-slate-200 bg-white text-slate-400 hover:border-slate-300 hover:text-slate-600'
+                                                                }`}
+                                                                title={locked ? 'Super Admin always has all actions' : action.label}
+                                                            >
+                                                                <span className="text-base">{action.icon}</span>
+                                                                <span>{action.label}</span>
+                                                                {isSaving ? (
+                                                                    <div className="w-3.5 h-3.5 border-2 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
+                                                                ) : isEnabled ? (
+                                                                    <Check className="w-3.5 h-3.5 stroke-[3]" />
+                                                                ) : null}
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </>
             )}
         </div>
     );

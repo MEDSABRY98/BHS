@@ -30,10 +30,12 @@ export default function SupplierHistory({ purchases, products, suppliers }: Prop
 
   const filteredSuppliers = useMemo(() => {
     const lower = searchTerm.toLowerCase();
-    return suppliers.filter(s => 
-      s.name.toLowerCase().includes(lower) || 
-      s.id.toLowerCase().includes(lower)
-    );
+    return suppliers
+      .filter(s => 
+        s.name.toLowerCase().includes(lower) || 
+        s.id.toLowerCase().includes(lower)
+      )
+      .sort((a, b) => a.name.localeCompare(b.name));
   }, [searchTerm, suppliers]);
 
   const supplierPurchases = useMemo(() => {
@@ -53,7 +55,7 @@ export default function SupplierHistory({ purchases, products, suppliers }: Prop
 
   const supplierProductsAggregated = useMemo(() => {
     if (!selectedSupplierId) return [];
-    const map = new Map<string, { qty: number, count: number, sumPrice: number, exactTotal: number }>();
+    const map = new Map<string, { qty: number; count: number; exactTotal: number; purchases: { date: string; unitPrice: number }[] }>();
     
     supplierPurchases.forEach(p => {
       const existing = map.get(p.productId);
@@ -61,29 +63,34 @@ export default function SupplierHistory({ purchases, products, suppliers }: Prop
         map.set(p.productId, {
           qty: p.qty,
           count: 1,
-          sumPrice: p.unitPrice,
-          exactTotal: p.qty * p.unitPrice
+          exactTotal: p.qty * p.unitPrice,
+          purchases: [{ date: p.date, unitPrice: p.unitPrice }]
         });
       } else {
         existing.qty += p.qty;
         existing.count += 1;
-        existing.sumPrice += p.unitPrice;
         existing.exactTotal += (p.qty * p.unitPrice);
+        existing.purchases.push({ date: p.date, unitPrice: p.unitPrice });
       }
     });
 
     return Array.from(map.entries()).map(([productId, data]) => {
+      const sorted = [...data.purchases].sort(
+        (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+      );
       return {
         productId,
         productBarcode: getProductBarcode(productId),
         productName: getProductName(productId),
         totalQty: data.qty,
         purchaseCount: data.count,
-        avgPrice: data.sumPrice / data.count,
+        oldestPrice: sorted[0].unitPrice,
+        latestPrice: sorted[sorted.length - 1].unitPrice,
+        priceDiff: sorted[sorted.length - 1].unitPrice - sorted[0].unitPrice,
         totalSpent: data.exactTotal
       };
-    }).sort((a, b) => a.productName.localeCompare(b.productName)); // Sort alphabetically
-  }, [supplierPurchases, selectedSupplierId]);
+    }).sort((a, b) => a.productName.localeCompare(b.productName));
+  }, [supplierPurchases, selectedSupplierId, products]);
 
   const filteredAggregatedProducts = useMemo(() => {
     if (!productSearchTerm) return supplierProductsAggregated;
@@ -135,7 +142,9 @@ export default function SupplierHistory({ purchases, products, suppliers }: Prop
       'Product Name': p.productName,
       'Purchases Count': p.purchaseCount,
       'Total Qty': p.totalQty,
-      'Average Price (AED)': Number(p.avgPrice.toFixed(2))
+      'Oldest Price (AED)': Number(p.oldestPrice.toFixed(2)),
+      'Latest Price (AED)': Number(p.latestPrice.toFixed(2)),
+      'Price Diff (AED)': Number(p.priceDiff.toFixed(2))
     }));
 
     const fileName = `Supplier_Products_${selectedSupplier.name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}`;
@@ -143,7 +152,7 @@ export default function SupplierHistory({ purchases, products, suppliers }: Prop
     await exportStyledExcel(reportData, fileName, {
       sheetName: 'Products Log',
       columnWidth: 22,
-      numericColumns: ['Purchases Count', 'Total Qty', 'Average Price (AED)']
+      numericColumns: ['Purchases Count', 'Total Qty', 'Oldest Price (AED)', 'Latest Price (AED)', 'Price Diff (AED)']
     });
   };
 
@@ -294,7 +303,9 @@ export default function SupplierHistory({ purchases, products, suppliers }: Prop
                     <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-widest text-center">Product Name</th>
                     <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-widest text-center">Purchases Count</th>
                     <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-widest text-center">Total Qty</th>
-                    <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-widest text-center">Avg Price</th>
+                    <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-widest text-center">Oldest Price</th>
+                    <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-widest text-center">Latest Price</th>
+                    <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-widest text-center">Price Diff</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -322,8 +333,24 @@ export default function SupplierHistory({ purchases, products, suppliers }: Prop
                           className="font-bold text-slate-600 hover:text-amber-600 underline decoration-dashed underline-offset-4 cursor-pointer transition-colors"
                           title="Click to view price evolution"
                         >
-                          {p.avgPrice.toFixed(2)} AED
+                          {p.oldestPrice.toFixed(2)} AED
                         </button>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-center">
+                        <button
+                          onClick={() => setSelectedProductForHistory(p.productId)}
+                          className="font-bold text-slate-600 hover:text-amber-600 underline decoration-dashed underline-offset-4 cursor-pointer transition-colors"
+                          title="Click to view price evolution"
+                        >
+                          {p.latestPrice.toFixed(2)} AED
+                        </button>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-center">
+                        <span className={`font-black ${
+                          p.priceDiff > 0 ? 'text-red-500' : p.priceDiff < 0 ? 'text-emerald-600' : 'text-slate-400'
+                        }`}>
+                          {p.priceDiff > 0 ? '+' : ''}{p.priceDiff.toFixed(2)} AED
+                        </span>
                       </td>
                     </tr>
                   ))}

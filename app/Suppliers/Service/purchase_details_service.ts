@@ -238,3 +238,30 @@ export async function uploadPurchaseDetails(rows: any[]) {
     throw new Error(error instanceof Error ? error.message : 'Unknown error');
   }
 }
+
+export async function updatePurchaseUnitPrice(id: string, unitPrice: number) {
+  try {
+    const trimmedId = id?.toString().trim();
+    if (!trimmedId) {
+      return { error: 'Purchase line ID is required' };
+    }
+
+    if (!Number.isFinite(unitPrice) || unitPrice <= 0) {
+      return { error: 'Unit price must be greater than zero' };
+    }
+
+    const { error } = await bhs_supabas
+      .from('web_Suppliers_Purchase')
+      .update({ 'UNIT PRICE': unitPrice })
+      .eq('ID', trimmedId);
+
+    if (error) {
+      return { error: error.message };
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error('Service Error updating purchase unit price:', error);
+    return { error: error instanceof Error ? error.message : 'Failed to update unit price' };
+  }
+}
