@@ -28,6 +28,7 @@ export type Product = {
   id: string;
   name: string;
   barcode?: string;
+  category?: string;
 };
 
 export default function PurchasePriceTrackingPage() {
@@ -50,7 +51,7 @@ export default function PurchasePriceTrackingPage() {
       const [purchasesData, suppliersData, productsData] = await Promise.all([
         fetchAllData(() => bhs_supabase.from('web_Suppliers_Purchase').select('*').order('ID', { ascending: true })),
         fetchAllData(() => bhs_supabase.from('bhs_SUPPLIERS').select('"SUPPLIER ID", "SUPPLIER NAME"').order('SUPPLIER ID', { ascending: true })),
-        fetchAllData(() => bhs_supabase.from('bhs_PRODUCTS').select('"PRODUCT ID", "PRODUCT NAME", "PRODUCT BARCODE"').order('PRODUCT ID', { ascending: true }))
+        fetchAllData(() => bhs_supabase.from('bhs_PRODUCTS').select('"PRODUCT ID", "PRODUCT NAME", "PRODUCT BARCODE", "PRODUCT CATEGORY"').order('PRODUCT ID', { ascending: true }))
       ]);
 
       const excludedProductNames = ['PACKAGING'];
@@ -92,6 +93,7 @@ export default function PurchasePriceTrackingPage() {
           id: String(p['PRODUCT ID'] || '').trim(),
           name: p['PRODUCT NAME'] || 'Unknown Product',
           barcode: p['PRODUCT BARCODE'] ? String(p['PRODUCT BARCODE']).trim() : undefined,
+          category: p['PRODUCT CATEGORY'] ? String(p['PRODUCT CATEGORY']).trim() : undefined,
         }))
       );
 

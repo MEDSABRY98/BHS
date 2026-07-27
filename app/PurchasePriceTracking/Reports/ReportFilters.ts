@@ -1,8 +1,9 @@
-import { PurchaseRecord } from '../page';
+import { Product, PurchaseRecord } from '../page';
 
 export type ReportFilters = {
   supplierId?: string;
   productId?: string;
+  category?: string;
   fromDate?: string;
   toDate?: string;
 };
@@ -26,10 +27,16 @@ export function filterPurchases(purchases: PurchaseRecord[], filters: ReportFilt
   return result;
 }
 
+export function filterProductsByCategory(products: Product[], category?: string): Product[] {
+  if (!category) return products;
+  return products.filter(p => (p.category || '') === category);
+}
+
 export function filterSuffix(filters: ReportFilters): string {
   const parts: string[] = [];
   if (filters.supplierId) parts.push('Supplier');
   if (filters.productId) parts.push('Product');
+  if (filters.category) parts.push('Category');
   if (filters.fromDate || filters.toDate) parts.push('Dated');
   return parts.length ? `_${parts.join('_')}` : '_All';
 }

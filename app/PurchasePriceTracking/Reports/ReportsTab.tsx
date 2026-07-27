@@ -1,11 +1,12 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { FileSpreadsheet, Download, Building2, Package, Search, ChevronDown, Calendar, TrendingUp, AlertTriangle, ListOrdered, Filter } from 'lucide-react';
+import { FileSpreadsheet, Download, Building2, Package, Search, ChevronDown, Calendar, TrendingUp, AlertTriangle, ListOrdered, Filter, Grid3x3, Tag } from 'lucide-react';
 import { PurchaseRecord, Product, Supplier } from '../page';
 import { generateSupplierPriceHistoryReport } from './SupplierPriceHistoryReport';
 import { generateProductSupplierComparisonReport } from './ProductSupplierComparisonReport';
 import { generatePriceInflationReport } from './PriceInflationReport';
 import { generateSupplierDependencyReport } from './SupplierDependencyReport';
 import { generateProductPriceSequenceReport } from './ProductPriceSequenceReport';
+import { generateSupplierPriceMatrixReport } from './SupplierPriceMatrixReport';
 import { ReportFilters } from './ReportFilters';
 
 interface SearchableSelectProps {
@@ -99,6 +100,7 @@ interface Props {
 
 export default function ReportsTab({ purchases, products, suppliers }: Props) {
   const [selectedSupplierId, setSelectedSupplierId] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedProductId, setSelectedProductId] = useState('');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
@@ -107,6 +109,7 @@ export default function ReportsTab({ purchases, products, suppliers }: Props) {
   const [isGenerating3, setIsGenerating3] = useState(false);
   const [isGenerating4, setIsGenerating4] = useState(false);
   const [isGenerating5, setIsGenerating5] = useState(false);
+  const [isGenerating6, setIsGenerating6] = useState(false);
 
   const activeSuppliers = useMemo(() => {
     const supplierIds = new Set(purchases.map(p => p.supplierId));
@@ -128,12 +131,25 @@ export default function ReportsTab({ purchases, products, suppliers }: Props) {
     return new Set(relevant.map(p => p.productId));
   }, [purchases, selectedSupplierId]);
 
+  const categoryOptions = useMemo(() => {
+    const productIdsWithPurchases = new Set(purchases.map(p => p.productId));
+    const categories = new Set<string>();
+    products
+      .filter(p => productIdsWithPurchases.has(p.id) && p.category)
+      .forEach(p => categories.add(p.category!));
+    return [
+      { id: '', label: 'All Categories' },
+      ...Array.from(categories).sort((a, b) => a.localeCompare(b)).map(c => ({ id: c, label: c })),
+    ];
+  }, [products, purchases]);
+
   const activeProducts = useMemo(() => {
     return products
       .filter(p => filteredProductIds.has(p.id))
+      .filter(p => !selectedCategory || (p.category || '') === selectedCategory)
       .sort((a, b) => a.name.localeCompare(b.name))
       .map(p => ({ id: p.id, label: p.barcode ? `[${p.barcode}] ${p.name}` : p.name }));
-  }, [products, filteredProductIds]);
+  }, [products, filteredProductIds, selectedCategory]);
 
   const productOptions = useMemo(
     () => [{ id: '', label: 'All Products' }, ...activeProducts],
@@ -146,12 +162,21 @@ export default function ReportsTab({ purchases, products, suppliers }: Props) {
     }
   }, [selectedProductId, filteredProductIds]);
 
+  useEffect(() => {
+    if (!selectedProductId) return;
+    const product = products.find(p => p.id === selectedProductId);
+    if (selectedCategory && product?.category !== selectedCategory) {
+      setSelectedProductId('');
+    }
+  }, [selectedCategory, selectedProductId, products]);
+
   const filters: ReportFilters = useMemo(() => ({
     supplierId: selectedSupplierId || undefined,
     productId: selectedProductId || undefined,
+    category: selectedCategory || undefined,
     fromDate: fromDate || undefined,
     toDate: toDate || undefined,
-  }), [selectedSupplierId, selectedProductId, fromDate, toDate]);
+  }), [selectedSupplierId, selectedProductId, selectedCategory, fromDate, toDate]);
 
   const filterSummary = useMemo(() => {
     const parts: string[] = [];
@@ -160,13 +185,18 @@ export default function ReportsTab({ purchases, products, suppliers }: Props) {
     } else {
       parts.push('All Suppliers');
     }
+    if (selectedCategory) {
+      parts.push(selectedCategory);
+    } else {
+      parts.push('All Categories');
+    }
     if (selectedProductId) {
       parts.push(products.find(p => p.id === selectedProductId)?.name || 'Product');
     } else {
       parts.push('All Products');
     }
     return parts.join(' · ');
-  }, [selectedSupplierId, selectedProductId, suppliers, products]);
+  }, [selectedSupplierId, selectedCategory, selectedProductId, suppliers, products]);
 
   const handleDownloadSupplierReport = async () => {
     if (!selectedSupplierId) return;
@@ -206,15 +236,30 @@ export default function ReportsTab({ purchases, products, suppliers }: Props) {
     setIsGenerating5(false);
   };
 
+  const handleDownloadMatrixReport = async () => {
+    setIsGenerating6(true);
+    await generateSupplierPriceMatrixReport(purchases, products, suppliers, filters);
+    setIsGenerating6(false);
+  };
+
   const reportCards = [
     {
-      title: 'Supplier History',
-      icon: Building2,
-      accent: 'border-t-blue-500',
-      iconClass: 'text-blue-500 bg-blue-50',
-      onClick: handleDownloadSupplierReport,
-      disabled: !selectedSupplierId || isGenerating1,
-      loading: isGenerating1,
+      title: 'Price Inflation',
+      icon: TrendingUp,
+      accent: 'border-t-rose-500',
+      iconClass: 'text-rose-500 bg-rose-50',
+      onClick: handleDownloadInflationReport,
+      disabled: isGenerating3,
+      loading: isGenerating3,
+    },
+    {
+      title: 'Price Sequence',
+      icon: ListOrdered,
+      accent: 'border-t-amber-500',
+      iconClass: 'text-amber-600 bg-amber-50',
+      onClick: handleDownloadPriceSequenceReport,
+      disabled: isGenerating5,
+      loading: isGenerating5,
     },
     {
       title: 'Product Comparison',
@@ -235,22 +280,22 @@ export default function ReportsTab({ purchases, products, suppliers }: Props) {
       loading: isGenerating4,
     },
     {
-      title: 'Price Inflation',
-      icon: TrendingUp,
-      accent: 'border-t-rose-500',
-      iconClass: 'text-rose-500 bg-rose-50',
-      onClick: handleDownloadInflationReport,
-      disabled: isGenerating3,
-      loading: isGenerating3,
+      title: 'Supplier History',
+      icon: Building2,
+      accent: 'border-t-blue-500',
+      iconClass: 'text-blue-500 bg-blue-50',
+      onClick: handleDownloadSupplierReport,
+      disabled: !selectedSupplierId || isGenerating1,
+      loading: isGenerating1,
     },
     {
-      title: 'Price Sequence',
-      icon: ListOrdered,
-      accent: 'border-t-amber-500',
-      iconClass: 'text-amber-600 bg-amber-50',
-      onClick: handleDownloadPriceSequenceReport,
-      disabled: isGenerating5,
-      loading: isGenerating5,
+      title: 'Supplier Price Matrix',
+      icon: Grid3x3,
+      accent: 'border-t-teal-500',
+      iconClass: 'text-teal-600 bg-teal-50',
+      onClick: handleDownloadMatrixReport,
+      disabled: isGenerating6,
+      loading: isGenerating6,
     },
   ];
 
@@ -271,7 +316,7 @@ export default function ReportsTab({ purchases, products, suppliers }: Props) {
           <h3 className="font-bold text-lg">Report Filters</h3>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5 gap-4">
           <div>
             <label className="flex items-center gap-1.5 text-sm font-bold text-slate-700 mb-2">
               <Building2 className="w-4 h-4 text-blue-500" />
@@ -282,6 +327,20 @@ export default function ReportsTab({ purchases, products, suppliers }: Props) {
               value={selectedSupplierId}
               onChange={setSelectedSupplierId}
               placeholder="All Suppliers"
+              colorTheme="blue"
+            />
+          </div>
+
+          <div>
+            <label className="flex items-center gap-1.5 text-sm font-bold text-slate-700 mb-2">
+              <Tag className="w-4 h-4 text-teal-500" />
+              Category
+            </label>
+            <SearchableSelect
+              options={categoryOptions}
+              value={selectedCategory}
+              onChange={setSelectedCategory}
+              placeholder="All Categories"
               colorTheme="blue"
             />
           </div>
@@ -335,7 +394,7 @@ export default function ReportsTab({ purchases, products, suppliers }: Props) {
         </p>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
         {reportCards.map((report) => {
           const Icon = report.icon;
           return (
