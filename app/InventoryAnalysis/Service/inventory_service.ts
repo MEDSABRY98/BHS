@@ -4,6 +4,8 @@ import { bhs_supabase } from '@/lib/supabase';
 import {
   getNetQtyEffect,
   INTERNAL_WAREHOUSES_SET,
+  isInternalTransfer,
+  WA_WH_WATER,
   formatProductCategory,
 } from '../Components/locationTypes';
 
@@ -839,8 +841,17 @@ function classifyPeriodMovement(
   fromInternal: boolean,
   toInternal: boolean,
 ): { type: string; netVendors: number; netCustomers: number; netProduction: number; netAdjustment: number } | null {
-  if (fromInternal && toInternal) {
+  if (isInternalTransfer(locFrom, locTo)) {
     return { type: 'transfer', netVendors: 0, netCustomers: 0, netProduction: 0, netAdjustment: 0 };
+  }
+
+  if (fromInternal && toInternal) {
+    if (locFrom === WA_WH_WATER) {
+      return { type: 'production_out', netVendors: 0, netCustomers: 0, netProduction: 0, netAdjustment: 0 };
+    }
+    if (locTo === WA_WH_WATER) {
+      return { type: 'production_in', netVendors: 0, netCustomers: 0, netProduction: 0, netAdjustment: 0 };
+    }
   }
 
   const isIn = toInternal;
@@ -897,25 +908,7 @@ async function fetchProductInventoryMoves(productId: string): Promise<InventoryM
 
 export async function getProductsBalanceReportData(filters?: { dateFrom?: string; dateTo?: string }) {
   try {
-    const { data: rpcData, error: rpcError } = await bhs_supabase.rpc('get_inventory_balance_report', {
-      p_date_from: filters?.dateFrom || null,
-      p_date_to: filters?.dateTo || null,
-      p_include_movements: false,
-    });
-
-    if (!rpcError && rpcData && rpcData.success) {
-      if (Array.isArray(rpcData.data)) {
-        return {
-          ...rpcData,
-          data: rpcData.data.map((row: { category?: string }) => ({
-            ...row,
-            category: formatProductCategory(row.category || '') || 'Uncategorized',
-          })),
-        };
-      }
-      return rpcData;
-    }
-
+    // Compute in JS so warehouse rules in locationTypes.ts (incl. WA/WH/Water) stay authoritative.
     const [products, moveRows] = await Promise.all([
       fetchInventoryProducts(),
       fetchAllInventoryMovesStable(),
@@ -959,14 +952,8 @@ export async function getProductsBalanceReportData(filters?: { dateFrom?: string
 
       const fromInternal = INTERNAL_WAREHOUSES_SET.has(locFrom);
       const toInternal = INTERNAL_WAREHOUSES_SET.has(locTo);
-
-      if (fromInternal && toInternal) return;
-
-      const isIn = toInternal;
-      const isOut = fromInternal;
-      if (!isIn && !isOut) return;
-
-      const effect = isIn ? qty : -qty;
+      const effect = getNetQtyEffect(locFrom, locTo, qty);
+      const classified = classifyPeriodMovement(locFrom, locTo, qty, fromInternal, toInternal);
 
       if (fromDate && moveDate && moveDate < fromDate) {
         entry.openingStock += effect;
@@ -977,22 +964,12 @@ export async function getProductsBalanceReportData(filters?: { dateFrom?: string
         return;
       }
 
-      const otherLocation = isIn ? locFrom : locTo;
-      if (isIn) {
-        if (otherLocation === 'Partners/Vendors') entry.netVendors += qty;
-        else if (otherLocation === 'Partners/Customers') entry.netCustomers += qty;
-        else if (otherLocation === 'Physical Locations/Subcontracting Location') entry.netProduction += qty;
-        else if (otherLocation === 'Virtual Locations/Inventory adjustment') entry.netAdjustment += qty;
-        else if (otherLocation === 'Virtual Locations/Production') entry.netProduction += qty;
-        else entry.netProduction += qty;
-      } else {
-        if (otherLocation === 'Partners/Customers') entry.netCustomers -= qty;
-        else if (otherLocation === 'Partners/Vendors') entry.netVendors -= qty;
-        else if (otherLocation === 'Physical Locations/Subcontracting Location') entry.netProduction -= qty;
-        else if (otherLocation === 'Virtual Locations/Inventory adjustment') entry.netAdjustment -= qty;
-        else if (otherLocation === 'Virtual Locations/Production') entry.netProduction -= qty;
-        else entry.netProduction -= qty;
-      }
+      if (!classified) return;
+
+      entry.netVendors += classified.netVendors;
+      entry.netCustomers += classified.netCustomers;
+      entry.netProduction += classified.netProduction;
+      entry.netAdjustment += classified.netAdjustment;
     });
 
     const result = products.map((row) => {
@@ -1041,18 +1018,6 @@ export async function getProductPeriodMovements(
     if (!trimmedId) {
       return { success: false, error: 'Product ID is required' };
     }
-
-    const { data: rpcData, error: rpcError } = await bhs_supabase.rpc('get_inventory_product_period_movements', {
-      p_product_id: trimmedId,
-      p_date_from: filters?.dateFrom || null,
-      p_date_to: filters?.dateTo || null,
-    });
-
-    if (!rpcError && rpcData && rpcData.success) {
-      return rpcData;
-    }
-
-    console.warn('RPC get_inventory_product_period_movements failed, falling back to JS:', rpcError?.message);
 
     const dateFromStr = filters?.dateFrom ? filters.dateFrom.trim() : null;
     const dateToStr = filters?.dateTo ? filters.dateTo.trim() : null;

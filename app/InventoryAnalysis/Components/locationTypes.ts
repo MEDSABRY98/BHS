@@ -7,16 +7,29 @@
  * Logic:
  *  - INTERNAL → EXTERNAL  = Outflow  (-QTY)
  *  - EXTERNAL → INTERNAL  = Inflow   (+QTY)
- *  - INTERNAL → INTERNAL  = Transfer (0 net)
+ *  - INTERNAL → INTERNAL  = Transfer (0 net) — except Water ↔ Game/Hashi (normal WH flow)
+ *
+ * Core transfer triangle (Mazyad / S20 / Water): movements among these three = internal transfer.
+ * Water with any other location (Game area, Hashi, vendors, etc.) = normal inflow/outflow.
  */
+
+export const WA_WH_WATER = 'WA/WH/Water';
+
+// Mazyad, S20, and Water — transfers among these three only = internal (0 net).
+export const CORE_TRANSFER_WAREHOUSES: string[] = [
+  'M/WH/Mazyad',
+  'S/WH/S20',
+  WA_WH_WATER,
+];
+
+export const CORE_TRANSFER_WAREHOUSES_SET = new Set(CORE_TRANSFER_WAREHOUSES);
 
 // ─── Internal Warehouses ───────────────────────────────────────────────────────
 // These are the company's own storage locations.
 // Any movement into these = stock increase (+QTY)
 // Any movement out of these = stock decrease (-QTY)
 export const INTERNAL_WAREHOUSES: string[] = [
-  'M/WH/Mazyad',
-  'S/WH/S20',
+  ...CORE_TRANSFER_WAREHOUSES,
   'GM/WH/Game area',
   'HA/WH/Hashi',
 ];
@@ -59,16 +72,46 @@ export type MovementType =
   | 'other';            // Unrecognized movement
 
 /**
+ * True when movement is an internal transfer (0 net effect on aggregate stock).
+ * - Mazyad ↔ S20 ↔ Water = transfer
+ * - Other internal pairs (Mazyad↔Game, etc.) = transfer
+ * - Water ↔ Game area / Hashi / external = NOT transfer (normal WH flow)
+ */
+export function isInternalTransfer(locFrom: string, locTo: string): boolean {
+  const from = locFrom.trim();
+  const to = locTo.trim();
+
+  const fromInternal = INTERNAL_WAREHOUSES_SET.has(from);
+  const toInternal = INTERNAL_WAREHOUSES_SET.has(to);
+  if (!fromInternal || !toInternal) return false;
+
+  const fromCore = CORE_TRANSFER_WAREHOUSES_SET.has(from);
+  const toCore = CORE_TRANSFER_WAREHOUSES_SET.has(to);
+
+  if (fromCore && toCore) return true;
+
+  if (from === WA_WH_WATER || to === WA_WH_WATER) return false;
+
+  return true;
+}
+
+/**
  * Classifies a movement based on source and destination locations.
  */
 export function classifyMovement(locFrom: string, locTo: string): MovementType {
   const from = locFrom.trim();
   const to   = locTo.trim();
 
+  if (isInternalTransfer(from, to)) return 'transfer';
+
   const fromInternal = INTERNAL_WAREHOUSES_SET.has(from);
   const toInternal   = INTERNAL_WAREHOUSES_SET.has(to);
 
-  if (fromInternal && toInternal)                                                  return 'transfer';
+  if (fromInternal && toInternal) {
+    if (from === WA_WH_WATER) return 'production_out';
+    if (to === WA_WH_WATER) return 'production_in';
+  }
+
   if (from === 'Partners/Vendors'                            && toInternal)        return 'purchase';
   if (fromInternal && to === 'Partners/Vendors')                                   return 'vendor_return';
   if (fromInternal && to === 'Partners/Customers')                                 return 'sale';
@@ -93,12 +136,14 @@ export function getNetQtyEffect(locFrom: string, locTo: string, qty: number): nu
   const from = locFrom.trim();
   const to   = locTo.trim();
 
+  if (isInternalTransfer(from, to)) return 0;
+
   const fromInternal = INTERNAL_WAREHOUSES_SET.has(from);
   const toInternal   = INTERNAL_WAREHOUSES_SET.has(to);
 
   if (toInternal && !fromInternal)   return +qty;  // Inflow
   if (fromInternal && !toInternal)   return -qty;  // Outflow
-  return 0;                                        // Transfer or unrecognized
+  return 0;                                        // Water↔Game/Hashi or unrecognized
 }
 
 /**

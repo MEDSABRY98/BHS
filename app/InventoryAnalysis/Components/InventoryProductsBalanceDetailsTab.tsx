@@ -5,6 +5,7 @@ import { Box, ArrowLeft, FileSpreadsheet, Search, Filter, ChevronDown, Check, X,
 import { ProductBalanceRow, PeriodMovement, getProductPeriodMovements } from '../Service/inventory_service';
 import NoData from '@/app/Components/NoDataTab';
 import { exportSalesExcelTable } from '@/app/Sales/Utils/ExcelExport';
+import { getNetQtyEffect } from './locationTypes';
 
 interface Props {
   selectedProduct: ProductBalanceRow;
@@ -29,22 +30,7 @@ const MOVEMENT_TYPES = [
 ];
 
 function getMovementStockChange(move: PeriodMovement): number {
-  switch (move.type) {
-    case 'vendor_in':
-    case 'customer_return':
-    case 'production_in':
-    case 'subcontracting_in':
-    case 'adjustment_in':
-      return move.qty;
-    case 'customer_sale':
-    case 'vendor_return':
-    case 'production_out':
-    case 'subcontracting_out':
-    case 'adjustment_out':
-      return -move.qty;
-    default:
-      return 0;
-  }
+  return getNetQtyEffect(move.locationFrom, move.locationTo, move.qty);
 }
 
 function sortMovementsAsc(movements: PeriodMovement[]) {
