@@ -72,6 +72,7 @@ import {
   isPaymentTxn,
   getPaymentAmount,
   parseInvoiceDate,
+  compareInvoicesByDateAsc,
   shortenInvoiceNumber,
   renderNoteWithLinks,
   autoResizeTextarea,
@@ -165,8 +166,8 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
   const hasDownloadedReport = useRef(false);
 
   const [activeTab, setActiveTab] = useState<'dashboard' | 'invoices' | 'ages' | 'notes' | 'overdue' | 'monthly'>(initialTab);
-  const [invoiceSorting, setInvoiceSorting] = useState<SortingState>([]);
-  const [overdueSorting, setOverdueSorting] = useState<SortingState>([]);
+  const [invoiceSorting, setInvoiceSorting] = useState<SortingState>([{ id: 'date', desc: false }]);
+  const [overdueSorting, setOverdueSorting] = useState<SortingState>([{ id: 'date', desc: false }]);
   const [invoiceSearchQuery, setInvoiceSearchQuery] = useState('');
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
@@ -808,11 +809,7 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
       });
     }
 
-    // Keep the same row order as the exported PDF (which follows the original sheet order),
-    // while still allowing interactive sorting via the table headers.
-    return [...filtered].sort(
-      (a, b) => (a.originalIndex ?? 0) - (b.originalIndex ?? 0),
-    );
+    return [...filtered].sort(compareInvoicesByDateAsc);
   }, [invoicesWithNetDebt, selectedYearFilter, selectedMonthFilter, selectedOverdueMonthFilter, selectedMatchingFilter, invoiceSearchQuery, showOB, showSales, showReturns, showPayments, showDiscounts, showJV, startDateFilter, endDateFilter]);
 
 
@@ -925,10 +922,7 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
       });
     }
 
-    // Keep the same row order as the exported PDF (original sheet order).
-    return [...filtered].sort(
-      (a, b) => (a.originalIndex ?? 0) - (b.originalIndex ?? 0),
-    );
+    return [...filtered].sort(compareInvoicesByDateAsc);
   }, [overdueInvoices, selectedYearFilter, selectedMonthFilter, selectedOverdueMonthFilter, selectedMatchingFilter, invoiceSearchQuery, showOB, showSales, showReturns, showPayments, showDiscounts, showJV, startDateFilter, endDateFilter]);
 
   // Prepare monthly debt data
@@ -1256,11 +1250,10 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
       }),
       invoiceColumnHelper.accessor('date', {
         header: 'Date',
+        sortingFn: (rowA, rowB) => compareInvoicesByDateAsc(rowA.original, rowB.original),
         cell: (info) => {
-          const dateStr = info.getValue();
-          if (!dateStr) return '';
-          const date = new Date(dateStr);
-          if (isNaN(date.getTime())) return dateStr;
+          const date = info.row.original.parsedDate ?? parseInvoiceDate(info.getValue());
+          if (!date || isNaN(date.getTime())) return info.getValue() || '';
           return `${date.getDate()}-${date.toLocaleDateString('en-US', { month: 'short' })}-${date.getFullYear()}`;
         },
       }),
@@ -1398,11 +1391,10 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
       }),
       overdueColumnHelper.accessor('date', {
         header: 'Date',
+        sortingFn: (rowA, rowB) => compareInvoicesByDateAsc(rowA.original, rowB.original),
         cell: (info) => {
-          const dateStr = info.getValue();
-          if (!dateStr) return '';
-          const date = new Date(dateStr);
-          if (isNaN(date.getTime())) return dateStr;
+          const date = info.row.original.parsedDate ?? parseInvoiceDate(info.getValue());
+          if (!date || isNaN(date.getTime())) return info.getValue() || '';
           return `${date.getDate()}-${date.toLocaleDateString('en-US', { month: 'short' })}-${date.getFullYear()}`;
         },
       }),

@@ -26,6 +26,23 @@ export const getPaymentAmount = (inv: { credit?: number | null; debit?: number |
   return credit - debit;
 };
 
+export const getInvoiceDateTimestamp = (inv: {
+  parsedDate?: Date | null;
+  date?: string | null;
+}): number => {
+  const parsed = inv.parsedDate ?? parseInvoiceDate(inv.date);
+  return parsed && !isNaN(parsed.getTime()) ? parsed.getTime() : 0;
+};
+
+export const compareInvoicesByDateAsc = (
+  a: { parsedDate?: Date | null; date?: string | null; originalIndex?: number },
+  b: { parsedDate?: Date | null; date?: string | null; originalIndex?: number },
+): number => {
+  const dateDiff = getInvoiceDateTimestamp(a) - getInvoiceDateTimestamp(b);
+  if (dateDiff !== 0) return dateDiff;
+  return (a.originalIndex ?? 0) - (b.originalIndex ?? 0);
+};
+
 export const parseInvoiceDate = (dateStr?: string | null): Date | null => {
   if (!dateStr) return null;
   const parts = dateStr.trim().split(/[\/\-]/);
