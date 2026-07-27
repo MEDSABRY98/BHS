@@ -125,6 +125,216 @@ async function fetchInventoryProducts(): Promise<InventoryProductRow[]> {
   return fetchAllInventoryRows<InventoryProductRow>('bhs_PRODUCTS', '*');
 }
 
+export type InventoryReportProduct = {
+  id: string;
+  barcode: string;
+  name: string;
+  category: string;
+};
+
+export type CustomerMoveInRange = {
+  productId: string;
+  date: string;
+  qty: number;
+  isSale: boolean;
+};
+
+export type VendorMoveInRange = {
+  productId: string;
+  date: string;
+  qty: number;
+  isPurchase: boolean;
+};
+
+export async function getInventoryProductsForReports() {
+  try {
+    const products = await fetchInventoryProducts();
+    const data: InventoryReportProduct[] = products
+      .map((p) => {
+        const id = p['PRODUCT ID']?.toString().trim() || '';
+        const name = p['PRODUCT NAME']?.toString().trim() || '';
+        const rawCategory = p['PRODUCT CATEGORY']?.toString().trim() || '';
+        const formatted = formatProductCategory(rawCategory);
+        return {
+          id,
+          barcode: p['PRODUCT BARCODE'] ? String(p['PRODUCT BARCODE']).trim() : '',
+          name,
+          category: formatted || 'Uncategorized',
+        };
+      })
+      .filter((p) => p.id && p.name);
+
+    return { success: true as const, data };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Failed to fetch products';
+    console.error('Service Error getInventoryProductsForReports:', error);
+    return { success: false as const, error: message };
+  }
+}
+
+const CUSTOMERS_LOCATION = 'Partners/Customers';
+const VENDORS_LOCATION = 'Partners/Vendors';
+
+async function fetchCustomerMovesInRangeFromDb(
+  dateFrom: string,
+  dateTo: string,
+  mode: 'sale' | 'return',
+): Promise<CustomerMoveInRange[]> {
+  const pageSize = 1000;
+  const results: CustomerMoveInRange[] = [];
+  let lastId: string | null = null;
+  const SELECT = 'ID,DATE,"LOCATION FROM","LOCATION TO","PRODUCT ID",QTY';
+  const dateStart = `${dateFrom.trim()}T00:00:00.000Z`;
+  const dateEnd = `${dateTo.trim()}T23:59:59.999Z`;
+
+  while (true) {
+    let query = bhs_supabase
+      .from('web_INVENTORY_MOVES')
+      .select(SELECT)
+      .gte('DATE', dateStart)
+      .lte('DATE', dateEnd)
+      .order('ID', { ascending: true })
+      .limit(pageSize);
+
+    if (mode === 'sale') {
+      query = query.eq('LOCATION TO', CUSTOMERS_LOCATION);
+    } else {
+      query = query.eq('LOCATION FROM', CUSTOMERS_LOCATION);
+    }
+
+    if (lastId !== null) {
+      query = query.gt('ID', lastId);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+
+    for (const row of data as InventoryMoveRow[]) {
+      const productId = row['PRODUCT ID']?.toString().trim() || '';
+      const qty = parseNum(row.QTY);
+      const dateStr = row.DATE ? String(row.DATE) : '';
+      if (!productId || qty === 0 || !dateStr) continue;
+
+      results.push({
+        productId,
+        date: dateStr.split('T')[0],
+        qty,
+        isSale: mode === 'sale',
+      });
+    }
+
+    lastId = String((data[data.length - 1] as InventoryMoveRow).ID ?? '');
+    if (data.length < pageSize) break;
+  }
+
+  return results;
+}
+
+export async function fetchInventoryMovesInRange(dateFrom: string, dateTo: string) {
+  try {
+    const fromDate = new Date(`${dateFrom.trim()}T00:00:00.000Z`);
+    const toDate = new Date(`${dateTo.trim()}T23:59:59.999Z`);
+    if (isNaN(fromDate.getTime()) || isNaN(toDate.getTime())) {
+      return { success: false as const, error: 'Invalid date range' };
+    }
+    if (fromDate > toDate) {
+      return { success: false as const, error: 'From date must be before or equal to To date' };
+    }
+
+    const [sales, returns] = await Promise.all([
+      fetchCustomerMovesInRangeFromDb(dateFrom, dateTo, 'sale'),
+      fetchCustomerMovesInRangeFromDb(dateFrom, dateTo, 'return'),
+    ]);
+
+    return { success: true as const, data: [...sales, ...returns] };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Failed to fetch inventory moves';
+    console.error('Service Error fetchInventoryMovesInRange:', error);
+    return { success: false as const, error: message };
+  }
+}
+
+async function fetchVendorMovesInRangeFromDb(
+  dateFrom: string,
+  dateTo: string,
+  mode: 'purchase' | 'return',
+): Promise<VendorMoveInRange[]> {
+  const pageSize = 1000;
+  const results: VendorMoveInRange[] = [];
+  let lastId: string | null = null;
+  const SELECT = 'ID,DATE,"LOCATION FROM","LOCATION TO","PRODUCT ID",QTY';
+  const dateStart = `${dateFrom.trim()}T00:00:00.000Z`;
+  const dateEnd = `${dateTo.trim()}T23:59:59.999Z`;
+
+  while (true) {
+    let query = bhs_supabase
+      .from('web_INVENTORY_MOVES')
+      .select(SELECT)
+      .gte('DATE', dateStart)
+      .lte('DATE', dateEnd)
+      .order('ID', { ascending: true })
+      .limit(pageSize);
+
+    if (mode === 'purchase') {
+      query = query.eq('LOCATION FROM', VENDORS_LOCATION);
+    } else {
+      query = query.eq('LOCATION TO', VENDORS_LOCATION);
+    }
+
+    if (lastId !== null) {
+      query = query.gt('ID', lastId);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+
+    for (const row of data as InventoryMoveRow[]) {
+      const productId = row['PRODUCT ID']?.toString().trim() || '';
+      const qty = parseNum(row.QTY);
+      const dateStr = row.DATE ? String(row.DATE) : '';
+      if (!productId || qty === 0 || !dateStr) continue;
+
+      results.push({
+        productId,
+        date: dateStr.split('T')[0],
+        qty,
+        isPurchase: mode === 'purchase',
+      });
+    }
+
+    lastId = String((data[data.length - 1] as InventoryMoveRow).ID ?? '');
+    if (data.length < pageSize) break;
+  }
+
+  return results;
+}
+
+export async function fetchInventoryVendorMovesInRange(dateFrom: string, dateTo: string) {
+  try {
+    const fromDate = new Date(`${dateFrom.trim()}T00:00:00.000Z`);
+    const toDate = new Date(`${dateTo.trim()}T23:59:59.999Z`);
+    if (isNaN(fromDate.getTime()) || isNaN(toDate.getTime())) {
+      return { success: false as const, error: 'Invalid date range' };
+    }
+    if (fromDate > toDate) {
+      return { success: false as const, error: 'From date must be before or equal to To date' };
+    }
+
+    const [purchases, returns] = await Promise.all([
+      fetchVendorMovesInRangeFromDb(dateFrom, dateTo, 'purchase'),
+      fetchVendorMovesInRangeFromDb(dateFrom, dateTo, 'return'),
+    ]);
+
+    return { success: true as const, data: [...purchases, ...returns] };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Failed to fetch vendor inventory moves';
+    console.error('Service Error fetchInventoryVendorMovesInRange:', error);
+    return { success: false as const, error: message };
+  }
+}
+
 export async function getProductNamesByIds(productIds: string[]) {
   try {
     const uniqueIds = [...new Set(productIds.map((id) => id.trim()).filter(Boolean))];

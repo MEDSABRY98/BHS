@@ -1,16 +1,34 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type ReactNode } from 'react';
 import { Menu } from 'lucide-react';
 
 import InventoryProductsBalanceTab from './Components/InventoryProductsBalanceTab';
 import InventoryProductOrdersTab from './Components/InventoryCategoriesTab';
+import ReportsTab from './Reports/ReportsTab';
 import InventorySidebar, { type InventoryTabId } from './Utils/Sidebar';
 import Login from '@/app/Components/Login';
 import Loading from '@/app/Components/Loading';
 
+function TabPanel({
+  active,
+  children,
+}: {
+  active: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <div className={active ? undefined : 'hidden'} aria-hidden={!active}>
+      {children}
+    </div>
+  );
+}
+
 export default function InventoryPage() {
   const [activeTab, setActiveTab] = useState<InventoryTabId>('products_balance');
+  const [mountedTabs, setMountedTabs] = useState<Set<InventoryTabId>>(
+    () => new Set(['products_balance']),
+  );
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
@@ -41,6 +59,15 @@ export default function InventoryPage() {
     }
   }, []);
 
+  useEffect(() => {
+    setMountedTabs((prev) => {
+      if (prev.has(activeTab)) return prev;
+      const next = new Set(prev);
+      next.add(activeTab);
+      return next;
+    });
+  }, [activeTab]);
+
   const toggleSidebar = () => {
     const nextState = !isSidebarCollapsed;
     setIsSidebarCollapsed(nextState);
@@ -52,16 +79,25 @@ export default function InventoryPage() {
     localStorage.setItem('currentUser', JSON.stringify(user));
   };
 
-  const renderTabContent = () => {
-    switch (activeTab) {
-      case 'products_balance':
-        return <InventoryProductsBalanceTab />;
-      case 'categories':
-        return <InventoryProductOrdersTab orderItems={orderItems} setOrderItems={setOrderItems} />;
-      default:
-        return null;
-    }
-  };
+  const renderTabContent = () => (
+    <>
+      {mountedTabs.has('products_balance') && (
+        <TabPanel active={activeTab === 'products_balance'}>
+          <InventoryProductsBalanceTab />
+        </TabPanel>
+      )}
+      {mountedTabs.has('categories') && (
+        <TabPanel active={activeTab === 'categories'}>
+          <InventoryProductOrdersTab orderItems={orderItems} setOrderItems={setOrderItems} />
+        </TabPanel>
+      )}
+      {mountedTabs.has('reports') && (
+        <TabPanel active={activeTab === 'reports'}>
+          <ReportsTab />
+        </TabPanel>
+      )}
+    </>
+  );
 
   if (isChecking) {
     return <Loading />;
