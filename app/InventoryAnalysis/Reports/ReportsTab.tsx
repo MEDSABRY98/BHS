@@ -9,12 +9,14 @@ import {
   Filter,
   GitCompare,
   Loader2,
+  PackageX,
   Search,
   ShoppingCart,
   Tag,
   TrendingUp,
 } from 'lucide-react';
 import { getInventoryProductsForReports } from '../Service/inventory_service';
+import { generateDeadStockReport } from './DeadStockReport';
 import { generateMonthlyNetPurchasesReport } from './MonthlyNetPurchasesReport';
 import { generateMonthlyNetSalesReport } from './MonthlyNetSalesReport';
 import { generateMonthlySalesPurchasesReport } from './MonthlySalesPurchasesReport';
@@ -128,6 +130,7 @@ export default function ReportsTab() {
   const [isGeneratingQuarterlyPurchases, setIsGeneratingQuarterlyPurchases] = useState(false);
   const [isGeneratingMonthlyComparison, setIsGeneratingMonthlyComparison] = useState(false);
   const [isGeneratingQuarterlyComparison, setIsGeneratingQuarterlyComparison] = useState(false);
+  const [isGeneratingDeadStock, setIsGeneratingDeadStock] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -221,6 +224,15 @@ export default function ReportsTab() {
     }
   };
 
+  const handleDownloadDeadStock = async () => {
+    setIsGeneratingDeadStock(true);
+    try {
+      await generateDeadStockReport(filters);
+    } finally {
+      setIsGeneratingDeadStock(false);
+    }
+  };
+
   const reportCards = [
     {
       title: 'Monthly Net Sales',
@@ -281,6 +293,16 @@ export default function ReportsTab() {
       onClick: handleDownloadQuarterlyComparison,
       disabled: !fromDate || !toDate || isGeneratingQuarterlyComparison,
       loading: isGeneratingQuarterlyComparison,
+    },
+    {
+      title: 'Dead Stock / Slow Movers',
+      description: 'In-stock products with zero sales in the selected period',
+      icon: PackageX,
+      accent: 'border-t-rose-500',
+      iconClass: 'text-rose-600 bg-rose-50',
+      onClick: handleDownloadDeadStock,
+      disabled: !fromDate || !toDate || isGeneratingDeadStock,
+      loading: isGeneratingDeadStock,
     },
   ];
 

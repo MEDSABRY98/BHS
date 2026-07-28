@@ -1,9 +1,8 @@
 import {
   fetchInventoryVendorMovesInRange,
   getInventoryProductsForReports,
-  type InventoryReportProduct,
-  type VendorMoveInRange,
 } from '../Service/inventory_service';
+import type { InventoryReportProduct, VendorMoveInRange } from '../Service/inventory_types';
 import {
   buildMonthColumns,
   buildQuarterColumns,

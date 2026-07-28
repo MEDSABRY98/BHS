@@ -1,9 +1,8 @@
 import {
   fetchInventoryMovesInRange,
   getInventoryProductsForReports,
-  type CustomerMoveInRange,
-  type InventoryReportProduct,
 } from '../Service/inventory_service';
+import type { CustomerMoveInRange, InventoryReportProduct } from '../Service/inventory_types';
 import { ReportFilters } from './ReportFilters';
 
 export type PeriodColumn = {

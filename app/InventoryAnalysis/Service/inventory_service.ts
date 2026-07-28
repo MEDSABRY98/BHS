@@ -3,11 +3,21 @@
 import { bhs_supabase } from '@/lib/supabase';
 import {
   getNetQtyEffect,
+  getScopedQtyEffect,
+  isMoveInLocationScope,
   INTERNAL_WAREHOUSES_SET,
   isInternalTransfer,
   WA_WH_WATER,
   formatProductCategory,
 } from '../Components/locationTypes';
+import type {
+  CustomerMoveInRange,
+  InventoryReportProduct,
+  MoveDaySummary,
+  PeriodMovement,
+  ProductBalanceRow,
+  VendorMoveInRange,
+} from './inventory_types';
 
 // Shared Types
 type InventoryMoveRow = {
@@ -32,12 +42,6 @@ type InventoryProductRow = {
 interface MoveMonthSummary {
   year: number;
   month: number;
-  count: number;
-}
-
-export interface MoveDaySummary {
-  date: string;
-  day: number;
   count: number;
 }
 
@@ -124,27 +128,6 @@ async function fetchAllInventoryMovesStable(): Promise<InventoryMoveRow[]> {
 async function fetchInventoryProducts(): Promise<InventoryProductRow[]> {
   return fetchAllInventoryRows<InventoryProductRow>('bhs_PRODUCTS', '*');
 }
-
-export type InventoryReportProduct = {
-  id: string;
-  barcode: string;
-  name: string;
-  category: string;
-};
-
-export type CustomerMoveInRange = {
-  productId: string;
-  date: string;
-  qty: number;
-  isSale: boolean;
-};
-
-export type VendorMoveInRange = {
-  productId: string;
-  date: string;
-  qty: number;
-  isPurchase: boolean;
-};
 
 export async function getInventoryProductsForReports() {
   try {
@@ -1020,30 +1003,6 @@ export async function deleteAllInventoryMovesDb(): Promise<{ success: boolean; e
 // Products Balance & Period Movement Calculation
 // ----------------------------------------------------------------------
 
-export interface PeriodMovement {
-  moveId?: string;
-  date: string;
-  reference: string;
-  locationFrom: string;
-  locationTo: string;
-  qty: number;
-  type: string;
-}
-
-export interface ProductBalanceRow {
-  productId: string;
-  barcode: string;
-  productName: string;
-  category: string;
-  openingStock: number;
-  netVendors: number;
-  netCustomers: number;
-  netProduction: number;
-  netAdjustment: number;
-  endingStock: number;
-  periodMovements?: PeriodMovement[];
-}
-
 function classifyPeriodMovement(
   locFrom: string,
   locTo: string,
@@ -1116,103 +1075,147 @@ async function fetchProductInventoryMoves(productId: string): Promise<InventoryM
   return allRows;
 }
 
-export async function getProductsBalanceReportData(filters?: { dateFrom?: string; dateTo?: string }) {
-  try {
-    // Compute in JS so warehouse rules in locationTypes.ts (incl. WA/WH/Water) stay authoritative.
-    const [products, moveRows] = await Promise.all([
-      fetchInventoryProducts(),
-      fetchAllInventoryMovesStable(),
-    ]);
+async function computeProductsBalanceReportDataJs(filters?: { dateFrom?: string; dateTo?: string; location?: string }) {
+  const [products, moveRows] = await Promise.all([
+    fetchInventoryProducts(),
+    fetchAllInventoryMovesStable(),
+  ]);
 
-    const dateFromStr = filters?.dateFrom ? filters.dateFrom.trim() : null;
-    const dateToStr = filters?.dateTo ? filters.dateTo.trim() : null;
+  const dateFromStr = filters?.dateFrom ? filters.dateFrom.trim() : null;
+  const dateToStr = filters?.dateTo ? filters.dateTo.trim() : null;
+  const location = filters?.location?.trim() || null;
 
-    const fromDate = dateFromStr ? new Date(`${dateFromStr}T00:00:00.000Z`) : null;
-    const toDate = dateToStr ? new Date(`${dateToStr}T23:59:59.999Z`) : null;
+  const fromDate = dateFromStr ? new Date(`${dateFromStr}T00:00:00.000Z`) : null;
+  const toDate = dateToStr ? new Date(`${dateToStr}T23:59:59.999Z`) : null;
 
-    const productDataMap = new Map<string, {
-      openingStock: number;
-      netVendors: number;
-      netCustomers: number;
-      netProduction: number;
-      netAdjustment: number;
-    }>();
+  const productDataMap = new Map<string, {
+    openingStock: number;
+    netVendors: number;
+    netCustomers: number;
+    netProduction: number;
+    netAdjustment: number;
+  }>();
 
-    moveRows.forEach((row: any) => {
-      const productId = row['PRODUCT ID']?.toString().trim();
-      if (!productId) return;
+  moveRows.forEach((row: any) => {
+    const productId = row['PRODUCT ID']?.toString().trim();
+    if (!productId) return;
 
-      const dateStr = row.DATE ? String(row.DATE) : '';
-      const moveDate = dateStr ? new Date(dateStr) : null;
-      const qty = parseNum(row.QTY);
-      const locFrom = row['LOCATION FROM']?.toString().trim() || '';
-      const locTo = row['LOCATION TO']?.toString().trim() || '';
+    const dateStr = row.DATE ? String(row.DATE) : '';
+    const moveDate = dateStr ? new Date(dateStr) : null;
+    const qty = parseNum(row.QTY);
+    const locFrom = row['LOCATION FROM']?.toString().trim() || '';
+    const locTo = row['LOCATION TO']?.toString().trim() || '';
 
-      if (!productDataMap.has(productId)) {
-        productDataMap.set(productId, {
-          openingStock: 0,
-          netVendors: 0,
-          netCustomers: 0,
-          netProduction: 0,
-          netAdjustment: 0,
-        });
-      }
+    if (!isMoveInLocationScope(locFrom, locTo, location)) return;
 
-      const entry = productDataMap.get(productId)!;
-
-      const fromInternal = INTERNAL_WAREHOUSES_SET.has(locFrom);
-      const toInternal = INTERNAL_WAREHOUSES_SET.has(locTo);
-      const effect = getNetQtyEffect(locFrom, locTo, qty);
-      const classified = classifyPeriodMovement(locFrom, locTo, qty, fromInternal, toInternal);
-
-      if (fromDate && moveDate && moveDate < fromDate) {
-        entry.openingStock += effect;
-        return;
-      }
-
-      if (toDate && moveDate && moveDate > toDate) {
-        return;
-      }
-
-      if (!classified) return;
-
-      entry.netVendors += classified.netVendors;
-      entry.netCustomers += classified.netCustomers;
-      entry.netProduction += classified.netProduction;
-      entry.netAdjustment += classified.netAdjustment;
-    });
-
-    const result = products.map((row) => {
-      const productId = row['PRODUCT ID']?.toString().trim() || '';
-      const barcode = row['PRODUCT BARCODE']?.toString().trim() || '';
-      const productName = row['PRODUCT NAME']?.toString().trim() || '';
-      const category = formatProductCategory(row['PRODUCT CATEGORY']?.toString().trim() || '') || 'Uncategorized';
-
-      const calcData = productDataMap.get(productId) || {
+    if (!productDataMap.has(productId)) {
+      productDataMap.set(productId, {
         openingStock: 0,
         netVendors: 0,
         netCustomers: 0,
         netProduction: 0,
         netAdjustment: 0,
-      };
+      });
+    }
 
-      const endingStock = calcData.openingStock + calcData.netVendors + calcData.netCustomers + calcData.netProduction + calcData.netAdjustment;
+    const entry = productDataMap.get(productId)!;
 
-      return {
-        productId,
-        barcode,
-        productName,
-        category,
-        openingStock: calcData.openingStock,
-        netVendors: calcData.netVendors,
-        netCustomers: calcData.netCustomers,
-        netProduction: calcData.netProduction,
-        netAdjustment: calcData.netAdjustment,
-        endingStock,
-      };
-    }).filter(p => p.productName && (productDataMap.has(p.productId) || p.endingStock !== 0 || p.openingStock !== 0));
+    const fromInternal = INTERNAL_WAREHOUSES_SET.has(locFrom);
+    const toInternal = INTERNAL_WAREHOUSES_SET.has(locTo);
+    const effect = getScopedQtyEffect(locFrom, locTo, qty, location);
+    const classified = classifyPeriodMovement(locFrom, locTo, qty, fromInternal, toInternal);
 
-    return { success: true, data: result };
+    if (fromDate && moveDate && moveDate < fromDate) {
+      entry.openingStock += effect;
+      return;
+    }
+
+    if (toDate && moveDate && moveDate > toDate) {
+      return;
+    }
+
+    if (!classified) return;
+
+    entry.netVendors += classified.netVendors;
+    entry.netCustomers += classified.netCustomers;
+    entry.netProduction += classified.netProduction;
+    entry.netAdjustment += classified.netAdjustment;
+  });
+
+  return products.map((row) => {
+    const productId = row['PRODUCT ID']?.toString().trim() || '';
+    const barcode = row['PRODUCT BARCODE']?.toString().trim() || '';
+    const productName = row['PRODUCT NAME']?.toString().trim() || '';
+    const category = formatProductCategory(row['PRODUCT CATEGORY']?.toString().trim() || '') || 'Uncategorized';
+
+    const calcData = productDataMap.get(productId) || {
+      openingStock: 0,
+      netVendors: 0,
+      netCustomers: 0,
+      netProduction: 0,
+      netAdjustment: 0,
+    };
+
+    const endingStock = calcData.openingStock + calcData.netVendors + calcData.netCustomers + calcData.netProduction + calcData.netAdjustment;
+
+    return {
+      productId,
+      barcode,
+      productName,
+      category,
+      openingStock: calcData.openingStock,
+      netVendors: calcData.netVendors,
+      netCustomers: calcData.netCustomers,
+      netProduction: calcData.netProduction,
+      netAdjustment: calcData.netAdjustment,
+      endingStock,
+    };
+  }).filter(p => p.productName && (productDataMap.has(p.productId) || p.endingStock !== 0 || p.openingStock !== 0));
+}
+
+function mapRpcProductsBalanceRows(data: unknown): ProductBalanceRow[] {
+  if (!Array.isArray(data)) return [];
+
+  return data
+    .map((row: any) => ({
+      productId: String(row.productId ?? row.product_id ?? '').trim(),
+      barcode: String(row.barcode ?? '').trim(),
+      productName: String(row.productName ?? row.product_name ?? '').trim(),
+      category: String(row.category ?? 'Uncategorized').trim() || 'Uncategorized',
+      openingStock: Number(row.openingStock ?? row.opening_stock ?? 0),
+      netVendors: Number(row.netVendors ?? row.net_vendors ?? 0),
+      netCustomers: Number(row.netCustomers ?? row.net_customers ?? 0),
+      netProduction: Number(row.netProduction ?? row.net_production ?? 0),
+      netAdjustment: Number(row.netAdjustment ?? row.net_adjustment ?? 0),
+      endingStock: Number(row.endingStock ?? row.ending_stock ?? 0),
+    }))
+    .filter((row) => row.productName);
+}
+
+export async function getProductsBalanceReportData(filters?: { dateFrom?: string; dateTo?: string; location?: string }) {
+  try {
+    const dateFromStr = filters?.dateFrom?.trim() || null;
+    const dateToStr = filters?.dateTo?.trim() || null;
+    const location = filters?.location?.trim() || null;
+
+    if (!location) {
+      const { data: rpcData, error: rpcError } = await bhs_supabase.rpc('get_inventory_products_balance_report', {
+        p_date_from: dateFromStr,
+        p_date_to: dateToStr,
+      });
+
+      if (!rpcError && rpcData?.success && Array.isArray(rpcData.data)) {
+        return { success: true, data: mapRpcProductsBalanceRows(rpcData.data) };
+      }
+
+      console.warn(
+        'RPC get_inventory_products_balance_report failed, falling back to JS:',
+        rpcError?.message ?? rpcData?.error,
+      );
+    }
+
+    const data = await computeProductsBalanceReportDataJs(filters);
+    return { success: true, data };
   } catch (error: any) {
     console.error('Service Error getProductsBalanceReportData:', error);
     return { success: false, error: 'Failed to fetch products balance data', details: error.message };
@@ -1231,6 +1234,31 @@ export async function getProductPeriodMovements(
 
     const dateFromStr = filters?.dateFrom ? filters.dateFrom.trim() : null;
     const dateToStr = filters?.dateTo ? filters.dateTo.trim() : null;
+
+    const { data: rpcData, error: rpcError } = await bhs_supabase.rpc('get_inventory_product_period_movements', {
+      p_product_id: trimmedId,
+      p_date_from: dateFromStr,
+      p_date_to: dateToStr,
+    });
+
+    if (!rpcError && rpcData?.success && Array.isArray(rpcData.data)) {
+      const movements: PeriodMovement[] = rpcData.data.map((row: any) => ({
+        moveId: String(row.moveId ?? row.move_id ?? ''),
+        date: String(row.date ?? ''),
+        reference: String(row.reference ?? '-'),
+        locationFrom: String(row.locationFrom ?? row.location_from ?? ''),
+        locationTo: String(row.locationTo ?? row.location_to ?? ''),
+        qty: Number(row.qty ?? 0),
+        type: String(row.type ?? 'other'),
+      }));
+      return { success: true, data: movements };
+    }
+
+    console.warn(
+      'RPC get_inventory_product_period_movements failed, falling back to JS:',
+      rpcError?.message ?? rpcData?.error,
+    );
+
     const fromDate = dateFromStr ? new Date(`${dateFromStr}T00:00:00.000Z`) : null;
     const toDate = dateToStr ? new Date(`${dateToStr}T23:59:59.999Z`) : null;
 

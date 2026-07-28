@@ -1,8 +1,22 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { InvoiceRow } from '@/types';
 import { PdfExportSections } from './PaymentTTypesTab';
+import { generatePaymentAnalysisPDFZip, type PaymentPdfFilterContext } from '@/app/Debit/Pdf/PaymentUtils';
+
+const PDF_SECTION_LABELS: Record<keyof PdfExportSections, string> = {
+  summary: 'Summary',
+  summaryPrevious: 'Summary Previous',
+  summaryLastYear: 'Summary Last Year',
+  daily: 'Daily',
+  weekly: 'Weekly',
+  monthly: 'Monthly',
+  customerList: 'Customers Who Paid',
+  nonPayerList: 'Customers Who Did Not Pay',
+  gapAnalysis: 'Gap Analysis',
+  salesRep: 'City',
+};
 
 interface PaymentTExportTabProps {
   isPdfExportOpen: boolean;
@@ -17,7 +31,6 @@ interface PaymentTExportTabProps {
   pdfSelectedCustomers: Set<string>;
   setPdfSelectedCustomers: React.Dispatch<React.SetStateAction<Set<string>>>;
   allCustomers: string[];
-  generatePaymentAnalysisPDF: (data: InvoiceRow[], options: any) => void;
   data: InvoiceRow[];
   startDate?: Date;
   endDate?: Date;
@@ -38,13 +51,14 @@ export default function PaymentTExportTab({
   pdfSelectedCustomers,
   setPdfSelectedCustomers,
   allCustomers,
-  generatePaymentAnalysisPDF,
   data,
   startDate,
   endDate,
   salesRep,
   searchQuery
 }: PaymentTExportTabProps) {
+
+  const [isGenerating, setIsGenerating] = useState(false);
 
   if (!isPdfExportOpen) return null;
 
@@ -87,7 +101,7 @@ export default function PaymentTExportTab({
                     onChange={() => toggleSection(section)}
                     className="h-4 w-4 rounded border-gray-300 text-gray-800 focus:ring-gray-400"
                   />
-                  <span className="capitalize">{section.replace(/([A-Z])/g, ' $1').trim()}</span>
+                  <span>{PDF_SECTION_LABELS[section]}</span>
                 </label>
               ))}
             </div>
@@ -128,22 +142,33 @@ export default function PaymentTExportTab({
             Cancel
           </button>
           <button
-            onClick={() => {
-              generatePaymentAnalysisPDF(data, {
-                sections: pdfExportSections,
-                selectedCustomers: pdfSelectedCustomers.size > 0
-                  ? new Set(Array.from(pdfSelectedCustomers).map(c => c.trim().toLowerCase()))
-                  : null,
-                startDate,
-                endDate,
-                salesRep,
-                searchQuery
-              });
-              setIsPdfExportOpen(false);
+            onClick={async () => {
+              if (isGenerating) return;
+              setIsGenerating(true);
+              try {
+                const exportFilters: PaymentPdfFilterContext = {
+                  sections: pdfExportSections,
+                  selectedCustomers: pdfSelectedCustomers.size > 0
+                    ? new Set(Array.from(pdfSelectedCustomers).map(c => c.trim().toLowerCase()))
+                    : null,
+                  startDate,
+                  endDate,
+                  salesRep,
+                  searchQuery,
+                };
+                await generatePaymentAnalysisPDFZip(data, exportFilters);
+                setIsPdfExportOpen(false);
+              } catch (error) {
+                console.error('Payment analysis ZIP export failed:', error);
+                alert('Failed to generate PDF export. Please try again.');
+              } finally {
+                setIsGenerating(false);
+              }
             }}
-            className="flex-1 py-2.5 bg-gray-800 text-white rounded-lg text-sm font-medium hover:bg-gray-700"
+            disabled={isGenerating}
+            className="flex-1 py-2.5 bg-gray-800 text-white rounded-lg text-sm font-medium hover:bg-gray-700 disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            Generate PDF
+            {isGenerating ? 'Generating ZIP...' : 'Generate PDF'}
           </button>
         </div>
       </div>

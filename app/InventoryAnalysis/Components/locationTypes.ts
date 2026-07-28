@@ -146,6 +146,20 @@ export function getNetQtyEffect(locFrom: string, locTo: string, qty: number): nu
   return 0;                                        // Water↔Game/Hashi or unrecognized
 }
 
+export function getScopedQtyEffect(locFrom: string, locTo: string, qty: number, location?: string | null): number {
+  const scopedLocation = location?.trim();
+  if (!scopedLocation) return getNetQtyEffect(locFrom, locTo, qty);
+  if (locTo.trim() === scopedLocation) return qty;
+  if (locFrom.trim() === scopedLocation) return -qty;
+  return 0;
+}
+
+export function isMoveInLocationScope(locFrom: string, locTo: string, location?: string | null): boolean {
+  const scopedLocation = location?.trim();
+  if (!scopedLocation) return true;
+  return locFrom.trim() === scopedLocation || locTo.trim() === scopedLocation;
+}
+
 /**
  * Human-readable label for each movement type.
  */

@@ -1,9 +1,11 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import JSZip from 'jszip';
+import { saveAs } from 'file-saver';
 import { InvoiceRow } from '@/types';
 import { getInvoiceType } from '@/app/Debit/Utils/InvoiceType';
 
-interface FilterContext {
+export interface PaymentPdfFilterContext {
     startDate?: Date;
     endDate?: Date;
     salesRep?: string;
@@ -11,6 +13,8 @@ interface FilterContext {
     sourceFilters?: Set<string>;
     obMatchingIds?: Set<string>;
     matchIdToDateMap?: Map<string, Date[]>;
+    cityFilter?: string;
+    saveAsFile?: boolean;
     sections?: {
         summary?: boolean;
         summaryPrevious?: boolean;
@@ -19,11 +23,14 @@ interface FilterContext {
         weekly?: boolean;
         monthly?: boolean;
         customerList?: boolean;
+        nonPayerList?: boolean;
         gapAnalysis?: boolean;
         salesRep?: boolean;
     };
-    selectedCustomers?: Set<string>;
+    selectedCustomers?: Set<string> | null;
 }
+
+interface FilterContext extends PaymentPdfFilterContext {}
 
 interface PeriodMetric {
     label: string;
@@ -32,6 +39,57 @@ interface PeriodMetric {
     current: number;
     previous: number;
     lastYear: number;
+}
+
+function getPaymentCity(row: InvoiceRow): string {
+    return row.city?.trim() || row.salesRep?.trim() || 'Unknown City';
+}
+
+function sanitizeFilePart(value: string): string {
+    return value.replace(/[\\/:*?"<>|]/g, '_').replace(/\s+/g, '_');
+}
+
+function matchesCustomerExportScope(
+    inv: InvoiceRow,
+    filters: FilterContext,
+    options?: { ignoreCity?: boolean },
+): boolean {
+    if (filters.selectedCustomers && filters.selectedCustomers.size > 0) {
+        if (!filters.selectedCustomers.has(inv.customerName.trim().toLowerCase())) return false;
+    } else {
+        if (filters.salesRep && filters.salesRep !== 'All Sales Reps' && inv.salesRep?.trim() !== filters.salesRep) {
+            return false;
+        }
+        if (filters.searchQuery && !inv.customerName.toLowerCase().includes(filters.searchQuery.toLowerCase())) {
+            return false;
+        }
+    }
+
+    if (!options?.ignoreCity && filters.cityFilter) {
+        if (getPaymentCity(inv).toLowerCase() !== filters.cityFilter.trim().toLowerCase()) return false;
+    }
+
+    return true;
+}
+
+function matchesPaymentExportFilters(
+    inv: InvoiceRow,
+    filters: FilterContext,
+    options?: { ignoreCity?: boolean },
+): boolean {
+    const t = getInvoiceType(inv);
+    if (t !== 'Payment' && t !== 'R-Payment') return false;
+
+    return matchesCustomerExportScope(inv, filters, options);
+}
+
+function collectPaymentCities(allData: InvoiceRow[], filters: FilterContext): string[] {
+    const cities = new Set<string>();
+    allData.forEach((inv) => {
+        if (!matchesPaymentExportFilters(inv, filters, { ignoreCity: true })) return;
+        cities.add(getPaymentCity(inv));
+    });
+    return Array.from(cities).sort((a, b) => a.localeCompare(b));
 }
 
 const parseDate = (dateStr: string | undefined): Date | null => {
@@ -317,31 +375,16 @@ const preprocessAllocations = (rows: InvoiceRow[]) => {
     return allocMap;
 };
 
-export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: FilterContext) => {
+export const generatePaymentAnalysisPDF = (
+    allData: InvoiceRow[],
+    filters: FilterContext,
+): Blob | void => {
     const doc = new jsPDF('l', 'mm', 'a4'); // Modern Landscape for Cover Page
 
     const today = new Date();
 
     // 1. Base Filter (Strictly align with PaymentTrackerTab logic + R-Payment fix)
-    const baseData = allData.filter(inv => {
-        const t = getInvoiceType(inv);
-        // User Logic: Include R-Payment (Returns) to reduce total collections
-        if (t !== 'Payment' && t !== 'R-Payment') return false;
-
-        // Filters
-        if (filters.selectedCustomers && filters.selectedCustomers.size > 0) {
-            // If specific customers are selected, ONLY filter by customer name (ignore salesRep/searchQuery)
-            if (!filters.selectedCustomers.has(inv.customerName.trim().toLowerCase())) return false;
-        } else {
-            // Standard filters if no specific customers selected
-            if (filters.salesRep && filters.salesRep !== 'All Sales Reps' && inv.salesRep?.trim() !== filters.salesRep) return false;
-            if (filters.searchQuery && !inv.customerName.toLowerCase().includes(filters.searchQuery.toLowerCase())) return false;
-        }
-
-        // Note: Source filter is now applied at allocation fragment level, not here
-
-        return true;
-    });
+    const baseData = allData.filter((inv) => matchesPaymentExportFilters(inv, filters));
 
     // 2. Determine Date Range
     let startDate = filters.startDate;
@@ -935,14 +978,25 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
     doc.setTextColor(148, 163, 184); // Slate 400
     doc.setFont('helvetica', 'normal');
     doc.text('DATE RANGE:', 35, infoY + 22);
-    doc.text('SALES REPRESENTATIVE:', 35, infoY + 29);
-    doc.text('GENERATED ON:', 35, infoY + 36);
+    if (filters.cityFilter) {
+        doc.text('CITY:', 35, infoY + 29);
+        doc.text('GENERATED ON:', 35, infoY + 36);
 
-    doc.setTextColor(255, 255, 255);
-    doc.setFont('helvetica', 'bold');
-    doc.text(`${formatDate(startDate!)} - ${formatDate(endDate!)}`, 85, infoY + 22);
-    doc.text(`${filters.salesRep || 'All Sales Reps'}`, 85, infoY + 29);
-    doc.text(`${formatDate(new Date())}`, 85, infoY + 36);
+        doc.setTextColor(255, 255, 255);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`${formatDate(startDate!)} - ${formatDate(endDate!)}`, 85, infoY + 22);
+        doc.text(filters.cityFilter, 85, infoY + 29);
+        doc.text(`${formatDate(new Date())}`, 85, infoY + 36);
+    } else {
+        doc.text('CITY:', 35, infoY + 29);
+        doc.text('GENERATED ON:', 35, infoY + 36);
+
+        doc.setTextColor(255, 255, 255);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`${formatDate(startDate!)} - ${formatDate(endDate!)}`, 85, infoY + 22);
+        doc.text('All Cities', 85, infoY + 29);
+        doc.text(`${formatDate(new Date())}`, 85, infoY + 36);
+    }
 
 
 
@@ -1450,22 +1504,12 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
 
     // --- ALL CUSTOMERS PAGE ---
     // --- ALL CUSTOMERS PAGE / DATA PREP ---
-    const showCustomerList = (filters.sections?.customerList ?? true) !== false;
+    const showPaidCustomers = (filters.sections?.customerList ?? true) !== false;
+    const showNonPayerList = (filters.sections?.nonPayerList ?? true) !== false;
     const showGapAnalysis = (filters.sections?.gapAnalysis ?? true) !== false;
 
-    if (showCustomerList || showGapAnalysis) {
-        if (showCustomerList) {
-            doc.addPage('a4', 'landscape');
-            y = 20;
-
-            doc.setFontSize(20);
-            doc.setTextColor(15, 23, 42); // Slate 900
-            doc.setFont('helvetica', 'bold');
-            const pageW = doc.internal.pageSize.width;
-            doc.text('Customer Stats', pageW / 2, 20, { align: 'center' });
-        }
-
-        // Removed specific period text as requested
+    if (showPaidCustomers || showNonPayerList || showGapAnalysis) {
+        const pageW = doc.internal.pageSize.width;
 
         // Build Matching Map for Invoice Lookups (for Active Months)
         const matchingMapC = new Map<string, { date: Date, type: string }>();
@@ -1545,7 +1589,7 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
                         count: 0,
                         dates: [] as number[],
                         breakdown: new Map(),
-                        repName: (p as any).salesRep || (p as any).repName || 'Unknown'
+                        cityName: getPaymentCity(p)
                     };
 
                     curr.total += totalForThisPayment;
@@ -1679,26 +1723,26 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
             'No Payment Before': { count: 0, totalAmount: 0 }
         };
 
-        // First, group by rep and calculate rep totals for sorting
-        const repTotals = new Map<string, number>();
+        // First, group by city and calculate city totals for sorting
+        const cityTotals = new Map<string, number>();
         customerMap.forEach((stats) => {
-            const rep = (stats as any).repName || 'Unknown';
-            repTotals.set(rep, (repTotals.get(rep) || 0) + stats.total);
+            const city = (stats as any).cityName || 'Unknown City';
+            cityTotals.set(city, (cityTotals.get(city) || 0) + stats.total);
         });
 
         const custRows = Array.from(customerMap.entries())
             .filter(([_, stats]) => stats.total > 0.01)
             .sort((a, b) => {
-                const repA = (a[1] as any).repName || 'Unknown';
-                const repB = (b[1] as any).repName || 'Unknown';
-                const repTotalA = repTotals.get(repA) || 0;
-                const repTotalB = repTotals.get(repB) || 0;
+                const cityA = (a[1] as any).cityName || 'Unknown City';
+                const cityB = (b[1] as any).cityName || 'Unknown City';
+                const cityTotalA = cityTotals.get(cityA) || 0;
+                const cityTotalB = cityTotals.get(cityB) || 0;
 
-                // First sort by rep total (descending)
-                if (repTotalB !== repTotalA) {
-                    return repTotalB - repTotalA;
+                // First sort by city total (descending)
+                if (cityTotalB !== cityTotalA) {
+                    return cityTotalB - cityTotalA;
                 }
-                // Then sort by customer total within same rep (descending)
+                // Then sort by customer total within same city (descending)
                 return b[1].total - a[1].total;
             })
             .map(([name, s], i) => {
@@ -1751,12 +1795,12 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
                 const uniqueDates = Array.from(new Set(sortedPeriodDates.map(ms => formatDate(new Date(ms)))));
                 const paymentDatesStr = uniqueDates.join(', ');
 
-                const repName = (s as any).repName || 'Unknown';
+                const cityName = (s as any).cityName || 'Unknown City';
 
                 return [
                     i + 1,
                     name,
-                    repName,
+                    cityName,
                     `${s.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
                     s.count,
                     paymentDatesStr,
@@ -1764,10 +1808,18 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
                 ];
             });
 
-        if (showCustomerList) {
+        if (showPaidCustomers) {
+            doc.addPage('a4', 'landscape');
+            y = 20;
+
+            doc.setFontSize(20);
+            doc.setTextColor(15, 23, 42); // Slate 900
+            doc.setFont('helvetica', 'bold');
+            doc.text('Customers Who Paid', pageW / 2, 20, { align: 'center' });
+
             autoTable(doc, {
                 startY: 28,
-                head: [['#', 'Customer Name', 'Sales Rep', 'Total Paid', 'Count', 'Payment Dates', 'Gap']],
+                head: [['#', 'Customer Name', 'City', 'Total Paid', 'Count', 'Payment Dates', 'Gap']],
                 body: custRows,
                 theme: 'striped',
                 headStyles: { fillColor: [59, 130, 246], halign: 'center', valign: 'middle' },
@@ -1775,7 +1827,7 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
                 margin: { left: 8, right: 8 },
                 columnStyles: {
                     1: { halign: 'center', cellWidth: 80 }, // Customer Name (Increased)
-                    2: { halign: 'center', cellWidth: 35 }, // Sales Rep
+                    2: { halign: 'center', cellWidth: 35 }, // City
                     5: { halign: 'center', cellWidth: 50 }  // Payment Dates (Fixed Width to prevent expansion)
                 }
             });
@@ -1787,8 +1839,128 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
             doc.text("Note: 'Gap' represents the number of days between the latest payment in this period and the previous payment.", 14, finalY);
         }
 
+        if (showNonPayerList) {
+            const paidCustomerKeys = new Set(
+                Array.from(customerMap.keys()).map((name) => name.trim().toLowerCase()),
+            );
+
+            const scopedCustomerRows = new Map<string, InvoiceRow[]>();
+            allData.forEach((row) => {
+                if (!matchesCustomerExportScope(row, filters)) return;
+                const key = row.customerName.trim();
+                const list = scopedCustomerRows.get(key) || [];
+                list.push(row);
+                scopedCustomerRows.set(key, list);
+            });
+
+            const referenceDate = new Date(today);
+            referenceDate.setHours(0, 0, 0, 0);
+            const filterStartMs = startDate!.getTime();
+
+            const nonPayerRows = Array.from(scopedCustomerRows.entries())
+                .filter(([name]) => !paidCustomerKeys.has(name.trim().toLowerCase()))
+                .map(([name, rows]) => {
+                    const balanceDue = rows.reduce((sum, row) => sum + (row.debit || 0) - (row.credit || 0), 0);
+                    const cityName = getPaymentCity(rows.find((row) => getPaymentCity(row) !== 'Unknown City') || rows[0]);
+
+                    const paymentsByDay = new Map<number, number>();
+                    rows.forEach((row) => {
+                        const t = getInvoiceType(row);
+                        if (t !== 'Payment' && t !== 'R-Payment') return;
+                        const d = parseDate(row.date);
+                        if (!d || d.getTime() >= filterStartMs) return;
+                        const net = (row.credit || 0) - (row.debit || 0);
+                        if (net <= 0.01) return;
+                        const day = new Date(d);
+                        day.setHours(0, 0, 0, 0);
+                        const dayMs = day.getTime();
+                        paymentsByDay.set(dayMs, (paymentsByDay.get(dayMs) || 0) + net);
+                    });
+
+                    let lastPaymentMs: number | null = null;
+                    let lastPaymentAmount = 0;
+                    paymentsByDay.forEach((amount, dayMs) => {
+                        if (lastPaymentMs === null || dayMs > lastPaymentMs) {
+                            lastPaymentMs = dayMs;
+                            lastPaymentAmount = amount;
+                        }
+                    });
+
+                    let lastPaymentStr = 'Never';
+                    let lastPaymentAmountStr = '—';
+                    let daysSinceStr = '—';
+                    if (lastPaymentMs !== null) {
+                        const lastPaymentDate = new Date(lastPaymentMs);
+                        lastPaymentDate.setHours(0, 0, 0, 0);
+                        lastPaymentStr = formatDate(lastPaymentDate);
+                        lastPaymentAmountStr = lastPaymentAmount.toLocaleString(undefined, { minimumFractionDigits: 2 });
+                        daysSinceStr = `${Math.floor((referenceDate.getTime() - lastPaymentDate.getTime()) / 86400000)} Days`;
+                    }
+
+                    return {
+                        name,
+                        cityName,
+                        balanceDue,
+                        lastPaymentStr,
+                        lastPaymentAmountStr,
+                        daysSinceStr,
+                        sortDays: lastPaymentMs ?? -1,
+                    };
+                })
+                .filter((row) => row.balanceDue > 0.01)
+                .sort((a, b) => {
+                    if (b.balanceDue !== a.balanceDue) return b.balanceDue - a.balanceDue;
+                    return b.sortDays - a.sortDays;
+                })
+                .map((row, i) => [
+                    i + 1,
+                    row.name,
+                    row.cityName,
+                    `${row.balanceDue.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+                    row.lastPaymentStr,
+                    row.lastPaymentAmountStr,
+                    row.daysSinceStr,
+                ]);
+
+            doc.addPage('a4', 'landscape');
+            y = 20;
+
+            doc.setFontSize(20);
+            doc.setTextColor(15, 23, 42);
+            doc.setFont('helvetica', 'bold');
+            doc.text('Customers Who Did Not Pay', pageW / 2, 20, { align: 'center' });
+
+            autoTable(doc, {
+                startY: 28,
+                head: [['#', 'Customer Name', 'City', 'Balance Due', 'Last Payment', 'Last Payment Amount', 'Days Since']],
+                body: nonPayerRows.length > 0
+                    ? nonPayerRows
+                    : [['—', 'No customers with outstanding balance found', '—', '—', '—', '—', '—']],
+                theme: 'striped',
+                headStyles: { fillColor: [239, 68, 68], halign: 'center', valign: 'middle' },
+                bodyStyles: { halign: 'center', valign: 'middle' },
+                margin: { left: 8, right: 8 },
+                columnStyles: {
+                    1: { halign: 'center', cellWidth: 70 },
+                    2: { halign: 'center', cellWidth: 30 },
+                    4: { halign: 'center', cellWidth: 35 },
+                    5: { halign: 'center', cellWidth: 40 },
+                },
+            });
+
+            const nonPayerFinalY = (doc as any).lastAutoTable.finalY + 10;
+            doc.setFontSize(10);
+            doc.setTextColor(100, 116, 139);
+            doc.setFont('helvetica', 'italic');
+            doc.text(
+                "Note: Balance and last payment are based on full history before the selected date range. 'Days Since' is counted from the last payment to today.",
+                14,
+                nonPayerFinalY,
+            );
+        }
+
         // --- NEW PAGE: CUSTOMER RETENTION (GAP ANALYSIS) ---
-        if ((filters.sections?.gapAnalysis ?? true) !== false) {
+        if (showGapAnalysis) {
             doc.addPage('a4', 'landscape'); // Use landscape for better charts
             y = 20;
 
@@ -1919,7 +2091,7 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
 
 
 
-    // --- SALES REPRESENTATIVE ANALYSIS ---
+    // --- CITY ANALYSIS ---
     if (filters.sections?.salesRep !== false) {
         doc.addPage('a4', 'portrait');
         y = 20;
@@ -1927,7 +2099,7 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
         doc.setFontSize(20);
         doc.setTextColor(15, 23, 42); // Slate 900
         doc.setFont('helvetica', 'bold');
-        doc.text('Sales Representative Stats', 105, y, { align: 'center' });
+        doc.text('City Stats', 105, y, { align: 'center' });
         y += 10;
 
         // 1. Data Aggregation
@@ -1941,7 +2113,7 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
             if (startDate && d < startDate) return;
             if (endDate && d > endDate) return;
 
-            const rep = p.salesRep && p.salesRep.trim() ? p.salesRep.trim() : 'Unknown';
+            const rep = getPaymentCity(p);
             const val = (p.credit || 0) - (p.debit || 0);
 
             if (!repMap.has(rep)) repMap.set(rep, { total: 0, count: 0, customers: new Set() });
@@ -2005,7 +2177,7 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
 
         autoTable(doc, {
             startY: y,
-            head: [['#', 'Sales Rep', 'Total Collected', 'Txns', 'Clients', 'Share %']],
+            head: [['#', 'City', 'Total Collected', 'Txns', 'Clients', 'Share %']],
             body: repRows,
             theme: 'grid',
             headStyles: { fillColor: [59, 130, 246], halign: 'center', valign: 'middle' },
@@ -2044,5 +2216,43 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
         doc.text(`Page ${i} of ${pageCount}`, pWidth - 15, pHeight - 7, { align: 'right' });
     }
 
-    doc.save(`Collections_Analysis_${new Date().toISOString().split('T')[0]}.pdf`);
+    const dateStr = new Date().toISOString().split('T')[0];
+    const fileName = filters.cityFilter
+        ? `Collections_Analysis_${sanitizeFilePart(filters.cityFilter)}_${dateStr}.pdf`
+        : `Collections_Analysis_Full_${dateStr}.pdf`;
+
+    if (filters.saveAsFile === false) {
+        return doc.output('blob');
+    }
+
+    doc.save(fileName);
+};
+
+export async function generatePaymentAnalysisPDFZip(
+    allData: InvoiceRow[],
+    filters: FilterContext,
+): Promise<void> {
+    const dateStr = new Date().toISOString().split('T')[0];
+    const zip = new JSZip();
+
+    const fullBlob = generatePaymentAnalysisPDF(allData, { ...filters, saveAsFile: false });
+    if (!(fullBlob instanceof Blob)) {
+        throw new Error('Failed to generate full payment analysis PDF.');
+    }
+    zip.file(`Collections_Analysis_Full_${dateStr}.pdf`, fullBlob);
+
+    const cities = collectPaymentCities(allData, filters);
+    for (const city of cities) {
+        const cityBlob = generatePaymentAnalysisPDF(allData, {
+            ...filters,
+            cityFilter: city,
+            saveAsFile: false,
+        });
+        if (cityBlob instanceof Blob) {
+            zip.file(`Collections_Analysis_${sanitizeFilePart(city)}_${dateStr}.pdf`, cityBlob);
+        }
+    }
+
+    const zipBlob = await zip.generateAsync({ type: 'blob' });
+    saveAs(zipBlob, `Collections_Analysis_${dateStr}.zip`);
 };

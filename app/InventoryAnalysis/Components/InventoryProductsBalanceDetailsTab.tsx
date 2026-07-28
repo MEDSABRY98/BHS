@@ -2,15 +2,17 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Box, ArrowLeft, FileSpreadsheet, Search, Filter, ChevronDown, Check, X, RefreshCcw, ChevronLeft, ChevronRight } from 'lucide-react';
-import { ProductBalanceRow, PeriodMovement, getProductPeriodMovements } from '../Service/inventory_service';
+import { getProductPeriodMovements } from '../Service/inventory_service';
+import type { PeriodMovement, ProductBalanceRow } from '../Service/inventory_types';
 import NoData from '@/app/Components/NoDataTab';
 import { exportSalesExcelTable } from '@/app/Sales/Utils/ExcelExport';
-import { getNetQtyEffect } from './locationTypes';
+import { getScopedQtyEffect, isMoveInLocationScope } from './locationTypes';
 
 interface Props {
   selectedProduct: ProductBalanceRow;
   dateFrom: string;
   dateTo: string;
+  location?: string;
   onBack: () => void;
 }
 
@@ -29,8 +31,8 @@ const MOVEMENT_TYPES = [
   { value: 'transfer',          label: 'Internal Transfer' },
 ];
 
-function getMovementStockChange(move: PeriodMovement): number {
-  return getNetQtyEffect(move.locationFrom, move.locationTo, move.qty);
+function getMovementStockChange(move: PeriodMovement, location?: string): number {
+  return getScopedQtyEffect(move.locationFrom, move.locationTo, move.qty, location);
 }
 
 function sortMovementsAsc(movements: PeriodMovement[]) {
@@ -48,7 +50,7 @@ interface LedgerRow {
   runningBalance: number;
 }
 
-export default function InventoryProductsBalanceDetailsTab({ selectedProduct, dateFrom, dateTo, onBack }: Props) {
+export default function InventoryProductsBalanceDetailsTab({ selectedProduct, dateFrom, dateTo, location, onBack }: Props) {
   const [ledgerSearch, setLedgerSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('All');
   const [periodMovements, setPeriodMovements] = useState<PeriodMovement[]>([]);
@@ -112,16 +114,23 @@ export default function InventoryProductsBalanceDetailsTab({ selectedProduct, da
     return MOVEMENT_TYPES.find(t => t.value === typeFilter)?.label || 'All Movement Types';
   }, [typeFilter]);
 
+  const scopedMovements = useMemo(() => {
+    if (!location) return periodMovements;
+    return periodMovements.filter((move) =>
+      isMoveInLocationScope(move.locationFrom, move.locationTo, location),
+    );
+  }, [periodMovements, location]);
+
   // Build chronological ledger with running balance attached to each row
   const ledgerRows = useMemo((): LedgerRow[] => {
     let balance = selectedProduct.openingStock;
 
-    return sortMovementsAsc(periodMovements).map(move => {
-      const stockChange = getMovementStockChange(move);
+    return sortMovementsAsc(scopedMovements).map(move => {
+      const stockChange = getMovementStockChange(move, location);
       balance += stockChange;
       return { move, stockChange, runningBalance: balance };
     });
-  }, [periodMovements, selectedProduct.openingStock]);
+  }, [scopedMovements, selectedProduct.openingStock, location]);
 
   const filteredLedgerRows = useMemo(() => {
     return ledgerRows

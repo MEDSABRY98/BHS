@@ -43,6 +43,7 @@ export interface PdfExportSections {
   weekly: boolean;
   monthly: boolean;
   customerList: boolean;
+  nonPayerList: boolean;
   gapAnalysis: boolean;
   salesRep: boolean;
 }

@@ -4,11 +4,13 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Search, Package, TrendingUp, TrendingDown, RefreshCcw,
   FileSpreadsheet, Calendar, Eye, X, ArrowUpRight, ArrowDownLeft,
-  Layers, Filter, Box, ChevronLeft, ChevronRight, ChevronDown, Check, CalendarCheck
+  Layers, Filter, Box, ChevronLeft, ChevronRight, ChevronDown, Check, CalendarCheck, MapPin
 } from 'lucide-react';
 import TabLoader from '@/app/Components/TabLoader';
 import NoData from '@/app/Components/NoDataTab';
-import { getProductsBalanceReportData, ProductBalanceRow } from '../Service/inventory_service';
+import { getProductsBalanceReportData } from '../Service/inventory_service';
+import type { ProductBalanceRow } from '../Service/inventory_types';
+import { INTERNAL_WAREHOUSES } from './locationTypes';
 import { exportSalesExcelTable } from '@/app/Sales/Utils/ExcelExport';
 import InventoryProductsBalanceDetailsTab from './InventoryProductsBalanceDetailsTab';
 
@@ -28,6 +30,7 @@ export default function InventoryProductsBalanceTab() {
 
   // Filters State
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedLocation, setSelectedLocation] = useState<string>('All');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [selectedBalanceFilter, setSelectedBalanceFilter] = useState<BalanceFilter>('All');
   const [dateFrom, setDateFrom] = useState<string>('');
@@ -44,14 +47,18 @@ export default function InventoryProductsBalanceTab() {
   const fetchRequestId = useRef(0);
 
   useEffect(() => {
-    fetchReport(appliedDateFrom, appliedDateTo);
-  }, [appliedDateFrom, appliedDateTo]);
+    fetchReport(appliedDateFrom, appliedDateTo, selectedLocation);
+  }, [appliedDateFrom, appliedDateTo, selectedLocation]);
 
-  const fetchReport = async (from = appliedDateFrom, to = appliedDateTo) => {
+  const fetchReport = async (from = appliedDateFrom, to = appliedDateTo, location = selectedLocation) => {
     const requestId = ++fetchRequestId.current;
     try {
       setLoading(true);
-      const res = await getProductsBalanceReportData({ dateFrom: from, dateTo: to });
+      const res = await getProductsBalanceReportData({
+        dateFrom: from,
+        dateTo: to,
+        location: location !== 'All' ? location : undefined,
+      });
       if (requestId !== fetchRequestId.current) return;
       if (!res.success) {
         throw new Error(res.error || 'Failed to fetch inventory balance data');
@@ -78,6 +85,10 @@ export default function InventoryProductsBalanceTab() {
   const hasPendingDateChanges = dateFrom !== appliedDateFrom || dateTo !== appliedDateTo;
 
   // Custom Searchable Category Dropdown State
+  const [isLocationOpen, setIsLocationOpen] = useState(false);
+  const [locationSearch, setLocationSearch] = useState('');
+  const locationRef = useRef<HTMLDivElement>(null);
+
   const [isCategoryOpen, setIsCategoryOpen] = useState(false);
   const [categorySearch, setCategorySearch] = useState('');
   const categoryRef = useRef<HTMLDivElement>(null);
@@ -87,6 +98,9 @@ export default function InventoryProductsBalanceTab() {
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
+      if (locationRef.current && !locationRef.current.contains(event.target as Node)) {
+        setIsLocationOpen(false);
+      }
       if (categoryRef.current && !categoryRef.current.contains(event.target as Node)) {
         setIsCategoryOpen(false);
       }
@@ -97,6 +111,14 @@ export default function InventoryProductsBalanceTab() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  const locations = useMemo(() => ['All', ...INTERNAL_WAREHOUSES], []);
+
+  const filteredLocations = useMemo(() => {
+    if (!locationSearch.trim()) return locations;
+    const q = locationSearch.toLowerCase().trim();
+    return locations.filter((loc) => loc.toLowerCase().includes(q));
+  }, [locations, locationSearch]);
 
   // Extract unique categories for filter dropdown
   const categories = useMemo(() => {
@@ -259,6 +281,7 @@ export default function InventoryProductsBalanceTab() {
         selectedProduct={selectedProduct}
         dateFrom={appliedDateFrom}
         dateTo={appliedDateTo}
+        location={selectedLocation !== 'All' ? selectedLocation : undefined}
         onBack={() => setSelectedProduct(null)}
       />
     );
@@ -298,6 +321,82 @@ export default function InventoryProductsBalanceTab() {
               >
                 <X className="w-3.5 h-3.5" />
               </button>
+            )}
+          </div>
+
+          {/* Location Dropdown */}
+          <div className="relative w-full sm:w-56" ref={locationRef}>
+            <button
+              type="button"
+              onClick={() => setIsLocationOpen(!isLocationOpen)}
+              className={`w-full flex items-center justify-between h-11 bg-slate-50/80 hover:bg-slate-100/60 border border-slate-200/90 rounded-xl px-3.5 transition-all shadow-xs cursor-pointer ${
+                isLocationOpen ? 'bg-white border-indigo-500 ring-2 ring-indigo-500/20' : ''
+              }`}
+            >
+              <div className="flex items-center gap-2.5 truncate">
+                <MapPin className="w-4 h-4 text-slate-400 shrink-0" />
+                <span className="text-xs font-semibold text-slate-700 truncate">
+                  Location: <strong className="text-indigo-900 font-bold">{selectedLocation === 'All' ? 'All' : selectedLocation.split('/').pop()}</strong>
+                </span>
+              </div>
+              <ChevronDown className={`w-4 h-4 text-slate-400 shrink-0 transition-transform duration-200 ${isLocationOpen ? 'rotate-180 text-indigo-600' : ''}`} />
+            </button>
+
+            {isLocationOpen && (
+              <div className="absolute left-0 right-0 top-12 z-50 bg-white border border-slate-200 shadow-2xl rounded-2xl p-2.5 space-y-2 animate-in fade-in slide-in-from-top-2 duration-150">
+                <div className="relative flex items-center h-9 bg-slate-50 border border-slate-200 rounded-xl px-2.5">
+                  <Search className="w-3.5 h-3.5 text-slate-400 shrink-0 mr-2" />
+                  <input
+                    type="text"
+                    placeholder="Search location..."
+                    value={locationSearch}
+                    onChange={e => setLocationSearch(e.target.value)}
+                    className="w-full bg-transparent text-xs font-semibold text-slate-700 placeholder:text-slate-400 outline-none"
+                    autoFocus
+                  />
+                  {locationSearch && (
+                    <button
+                      onClick={() => setLocationSearch('')}
+                      className="p-0.5 text-slate-400 hover:text-slate-600 rounded"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+
+                <div className="max-h-56 overflow-y-auto space-y-0.5 pr-1 text-xs">
+                  {filteredLocations.length === 0 ? (
+                    <div className="p-3 text-center text-xs font-semibold text-slate-400">
+                      No location found
+                    </div>
+                  ) : (
+                    filteredLocations.map(loc => {
+                      const isSelected = selectedLocation === loc;
+                      const label = loc === 'All' ? 'All Locations' : loc;
+                      return (
+                        <button
+                          key={loc}
+                          type="button"
+                          onClick={() => {
+                            setSelectedLocation(loc);
+                            setCurrentPage(1);
+                            setIsLocationOpen(false);
+                            setLocationSearch('');
+                          }}
+                          className={`w-full text-left px-3 py-2 rounded-xl text-xs font-bold flex items-center justify-between transition-colors ${
+                            isSelected
+                              ? 'bg-indigo-50 text-indigo-700'
+                              : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                          }`}
+                        >
+                          <span className="truncate" title={label}>{label}</span>
+                          {isSelected && <Check className="w-4 h-4 text-indigo-600 shrink-0 ml-2" />}
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
             )}
           </div>
 

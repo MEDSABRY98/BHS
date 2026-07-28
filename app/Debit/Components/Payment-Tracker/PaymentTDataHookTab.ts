@@ -47,6 +47,7 @@ export function usePaymentTDataTab(data: InvoiceRow[]) {
     weekly: true,
     monthly: true,
     customerList: true,
+    nonPayerList: true,
     gapAnalysis: true,
     salesRep: true
   });

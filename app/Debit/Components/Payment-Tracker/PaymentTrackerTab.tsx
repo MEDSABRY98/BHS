@@ -3,7 +3,6 @@
 import React, { useMemo } from 'react';
 import { FileText, X } from 'lucide-react';
 import { InvoiceRow } from '@/types';
-import { generatePaymentAnalysisPDF } from '@/app/Debit/Pdf/PaymentUtils';
 
 // Sub-components
 import { usePaymentTDataTab } from './PaymentTDataHookTab';
@@ -223,7 +222,6 @@ export default function PaymentTrackerTab({ data, dataVersion }: PaymentTrackerT
         pdfSelectedCustomers={p.pdfSelectedCustomers}
         setPdfSelectedCustomers={p.setPdfSelectedCustomers}
         allCustomers={p.allCustomers}
-        generatePaymentAnalysisPDF={generatePaymentAnalysisPDF}
         data={data}
         startDate={p.startDate}
         endDate={p.endDate}

@@ -24,7 +24,8 @@ import { toast } from '@/app/Components/Notification';
 import { normalizeExcelId } from '@/app/DataBase/Utils/ExcelUploadUtils';
 import { exportDatabaseExcelTable } from '@/app/DataBase/Utils/ExcelExport';
 import { exportSalesExcelTable } from '@/app/Sales/Utils/ExcelExport';
-import { getProductsBalanceReportData, getProductNamesByIds, ProductBalanceRow } from '@/app/InventoryAnalysis/Service/inventory_service';
+import { getProductsBalanceReportData, getProductNamesByIds } from '@/app/InventoryAnalysis/Service/inventory_service';
+import type { ProductBalanceRow } from '@/app/InventoryAnalysis/Service/inventory_types';
 import {
   fetchICUserComparisonData,
   fetchArchivedICUserComparisonData,
