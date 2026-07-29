@@ -10,7 +10,7 @@ import TabLoader from '@/app/Components/TabLoader';
 import NoData from '@/app/Components/NoDataTab';
 import { getProductsBalanceReportData } from '../Service/inventory_service';
 import type { ProductBalanceRow } from '../Service/inventory_types';
-import { INTERNAL_WAREHOUSES_SORTED } from './locationTypes';
+import { INTERNAL_WAREHOUSES_SORTED } from '../Utils/locationTypes';
 import { exportSalesExcelTable } from '@/app/Sales/Utils/ExcelExport';
 import InventoryProductsBalanceDetailsTab from './InventoryProductsBalanceDetailsTab';
 

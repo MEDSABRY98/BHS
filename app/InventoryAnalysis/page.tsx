@@ -3,8 +3,10 @@
 import { useState, useEffect, type ReactNode } from 'react';
 import { Menu } from 'lucide-react';
 
-import InventoryProductsBalanceSection from './Components/InventoryProductsBalanceSection';
-import InventoryProductOrdersTab from './Components/InventoryCategoriesTab';
+import InventoryProductsBalanceTab from './ProductsBalance/InventoryProductsBalanceTab';
+import InventoryLocationMovementsTab from './LocationMovements/InventoryLocationMovementsTab';
+import InventoryCategoryBalanceTab from './CategoryBalance/InventoryCategoryBalanceTab';
+import InventoryProductOrdersTab from './CategoriesAnalysis/InventoryCategoriesTab';
 import ReportsTab from './Reports/ReportsTab';
 import InventorySidebar, { type InventoryTabId } from './Utils/Sidebar';
 import Login from '@/app/Components/Login';
@@ -83,7 +85,17 @@ export default function InventoryPage() {
     <>
       {mountedTabs.has('products_balance') && (
         <TabPanel active={activeTab === 'products_balance'}>
-          <InventoryProductsBalanceSection />
+          <InventoryProductsBalanceTab />
+        </TabPanel>
+      )}
+      {mountedTabs.has('location_movements') && (
+        <TabPanel active={activeTab === 'location_movements'}>
+          <InventoryLocationMovementsTab />
+        </TabPanel>
+      )}
+      {mountedTabs.has('category_balance') && (
+        <TabPanel active={activeTab === 'category_balance'}>
+          <InventoryCategoryBalanceTab />
         </TabPanel>
       )}
       {mountedTabs.has('categories') && (

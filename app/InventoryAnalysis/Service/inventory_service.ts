@@ -9,7 +9,7 @@ import {
   isInternalTransfer,
   isWaterClusterLocation,
   formatProductCategory,
-} from '../Components/locationTypes';
+} from '../Utils/locationTypes';
 import type {
   CustomerMoveInRange,
   InventoryReportProduct,

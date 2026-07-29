@@ -2,7 +2,7 @@
  * locationTypes.ts
  *
  * Single source of truth for all warehouse/location classifications.
- * Used across inventory services and components to determine stock in/out flow.
+ * Used across inventory services and tab modules under app/InventoryAnalysis/.
  *
  * Logic:
  *  - INTERNAL → EXTERNAL  = Outflow  (-QTY)

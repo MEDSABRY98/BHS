@@ -35,6 +35,12 @@ export interface PeriodMovement {
   type: string;
 }
 
+export interface CategoryBalanceRow {
+  category: string;
+  productCount: number;
+  endingStock: number;
+}
+
 export interface ProductBalanceRow {
   productId: string;
   barcode: string;

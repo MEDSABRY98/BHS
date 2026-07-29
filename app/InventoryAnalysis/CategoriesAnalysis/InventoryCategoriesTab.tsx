@@ -11,7 +11,7 @@ import TabLoader from '@/app/Components/TabLoader';
 import InventoryProductOrdersDetailsTab from './InventoryCategoriesDetailsTab';
 import { getProductOrdersData, getProductMovementsData } from '../Service/inventory_service';
 import { exportAllCategoriesZip } from './ExcelExport';
-import { formatProductCategory } from './locationTypes';
+import { formatProductCategory } from '../Utils/locationTypes';
 
 export interface BaseProductOrder {
     productId: string;

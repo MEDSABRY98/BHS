@@ -23,7 +23,7 @@ import TabLoader from '@/app/Components/TabLoader';
 import NoData from '@/app/Components/NoDataTab';
 import { getLocationPeriodMovements } from '../Service/inventory_service';
 import type { LocationMovementRow } from '../Service/inventory_types';
-import { INTERNAL_WAREHOUSES_SORTED } from './locationTypes';
+import { INTERNAL_WAREHOUSES_SORTED } from '../Utils/locationTypes';
 import { exportSalesExcelWorkbook, recordsFromTable } from '@/app/Sales/Utils/ExcelExport';
 
 type DirectionFilter = 'All' | 'in' | 'out';

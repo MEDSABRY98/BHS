@@ -2,16 +2,23 @@
 
 import {
   ArrowLeft,
+  ArrowLeftRight,
   Box,
   ChevronLeft,
   ChevronRight,
   FileSpreadsheet,
+  Grid3x3,
   Layers,
   Package,
   X,
 } from 'lucide-react';
 
-export type InventoryTabId = 'products_balance' | 'categories' | 'reports';
+export type InventoryTabId =
+  | 'products_balance'
+  | 'location_movements'
+  | 'category_balance'
+  | 'categories'
+  | 'reports';
 
 interface InventorySidebarProps {
   activeTab: InventoryTabId;
@@ -23,6 +30,8 @@ interface InventorySidebarProps {
 
 const TABS: { id: InventoryTabId; label: string; icon: typeof Package }[] = [
   { id: 'products_balance', label: 'Products Balance', icon: Package },
+  { id: 'location_movements', label: 'Location Movements In/Out', icon: ArrowLeftRight },
+  { id: 'category_balance', label: 'Categories Balance', icon: Grid3x3 },
   { id: 'categories', label: 'Categories Analysis', icon: Layers },
   { id: 'reports', label: 'Reports', icon: FileSpreadsheet },
 ];
