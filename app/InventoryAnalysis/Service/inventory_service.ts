@@ -13,6 +13,7 @@ import {
 import type {
   CustomerMoveInRange,
   InventoryReportProduct,
+  LocationMovementRow,
   MoveDaySummary,
   PeriodMovement,
   ProductBalanceRow,
@@ -1198,21 +1199,20 @@ export async function getProductsBalanceReportData(filters?: { dateFrom?: string
     const dateToStr = filters?.dateTo?.trim() || null;
     const location = filters?.location?.trim() || null;
 
-    if (!location) {
-      const { data: rpcData, error: rpcError } = await bhs_supabase.rpc('get_inventory_products_balance_report', {
-        p_date_from: dateFromStr,
-        p_date_to: dateToStr,
-      });
+    const { data: rpcData, error: rpcError } = await bhs_supabase.rpc('get_inventory_products_balance_report', {
+      p_date_from: dateFromStr,
+      p_date_to: dateToStr,
+      p_location: location,
+    });
 
-      if (!rpcError && rpcData?.success && Array.isArray(rpcData.data)) {
-        return { success: true, data: mapRpcProductsBalanceRows(rpcData.data) };
-      }
-
-      console.warn(
-        'RPC get_inventory_products_balance_report failed, falling back to JS:',
-        rpcError?.message ?? rpcData?.error,
-      );
+    if (!rpcError && rpcData?.success && Array.isArray(rpcData.data)) {
+      return { success: true, data: mapRpcProductsBalanceRows(rpcData.data) };
     }
+
+    console.warn(
+      'RPC get_inventory_products_balance_report failed, falling back to JS:',
+      rpcError?.message ?? rpcData?.error,
+    );
 
     const data = await computeProductsBalanceReportDataJs(filters);
     return { success: true, data };
@@ -1303,6 +1303,126 @@ export async function getProductPeriodMovements(
   } catch (error: any) {
     console.error('Service Error getProductPeriodMovements:', error);
     return { success: false, error: 'Failed to fetch product period movements', details: error.message };
+  }
+}
+
+function escapePostgrestValue(value: string): string {
+  return value.replace(/"/g, '""');
+}
+
+async function fetchLocationInventoryMoves(
+  location: string,
+  dateFrom?: string | null,
+  dateTo?: string | null,
+): Promise<InventoryMoveRow[]> {
+  const pageSize = 1000;
+  const allRows: InventoryMoveRow[] = [];
+  let lastId: string | null = null;
+  const SELECT = 'ID,DATE,REFERENCE,"LOCATION FROM","LOCATION TO","PRODUCT ID",QTY';
+  const scopedLocation = location.trim();
+  const locationFilter = `"LOCATION FROM".eq."${escapePostgrestValue(scopedLocation)}","LOCATION TO".eq."${escapePostgrestValue(scopedLocation)}"`;
+
+  while (true) {
+    let query = bhs_supabase
+      .from('web_INVENTORY_MOVES')
+      .select(SELECT)
+      .or(locationFilter)
+      .order('ID', { ascending: true })
+      .limit(pageSize);
+
+    if (dateFrom) query = query.gte('DATE', dateFrom);
+    if (dateTo) query = query.lte('DATE', dateTo);
+
+    if (lastId !== null) {
+      query = query.gt('ID', lastId);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+
+    allRows.push(...(data as InventoryMoveRow[]));
+    lastId = String((data[data.length - 1] as any).ID ?? '');
+    if (data.length < pageSize) break;
+  }
+
+  return allRows;
+}
+
+export async function getLocationPeriodMovements(filters: {
+  location: string;
+  dateFrom?: string;
+  dateTo?: string;
+}) {
+  try {
+    const location = filters.location?.trim();
+    if (!location) {
+      return { success: false, error: 'Location is required' };
+    }
+
+    const dateFromStr = filters.dateFrom?.trim() || null;
+    const dateToStr = filters.dateTo?.trim() || null;
+
+    const [moveRows, products] = await Promise.all([
+      fetchLocationInventoryMoves(location, dateFromStr, dateToStr),
+      fetchInventoryProducts(),
+    ]);
+
+    const productMap = new Map<string, InventoryProductRow>();
+    products.forEach((product) => {
+      const productId = product['PRODUCT ID']?.toString().trim();
+      if (productId) productMap.set(productId, product);
+    });
+
+    const rows: LocationMovementRow[] = [];
+
+    moveRows.forEach((row) => {
+      const productId = row['PRODUCT ID']?.toString().trim() || '';
+      if (!productId) return;
+
+      const locFrom = row['LOCATION FROM']?.toString().trim() || '';
+      const locTo = row['LOCATION TO']?.toString().trim() || '';
+      const qty = parseNum(row.QTY);
+
+      if (!isMoveInLocationScope(locFrom, locTo, location)) return;
+
+      const fromInternal = INTERNAL_WAREHOUSES_SET.has(locFrom);
+      const toInternal = INTERNAL_WAREHOUSES_SET.has(locTo);
+      const classified = classifyPeriodMovement(locFrom, locTo, qty, fromInternal, toInternal);
+      if (!classified) return;
+
+      const stockChange = getScopedQtyEffect(locFrom, locTo, qty, location);
+      const direction: 'in' | 'out' = locTo === location ? 'in' : 'out';
+      const product = productMap.get(productId);
+
+      rows.push({
+        moveId: String(row.ID ?? ''),
+        date: row.DATE ? String(row.DATE) : '',
+        reference: row.REFERENCE?.toString().trim() || '-',
+        productId,
+        productName: product?.['PRODUCT NAME']?.toString().trim() || productId,
+        barcode: product?.['PRODUCT BARCODE']?.toString().trim() || '',
+        category: formatProductCategory(product?.['PRODUCT CATEGORY']?.toString().trim() || '') || 'Uncategorized',
+        locationFrom: locFrom,
+        locationTo: locTo,
+        qty,
+        type: classified.type,
+        direction,
+        stockChange,
+      });
+    });
+
+    rows.sort((a, b) => {
+      const timeA = a.date ? new Date(a.date).getTime() : 0;
+      const timeB = b.date ? new Date(b.date).getTime() : 0;
+      if (timeA !== timeB) return timeB - timeA;
+      return (b.moveId || '').localeCompare(a.moveId || '');
+    });
+
+    return { success: true, data: rows };
+  } catch (error: any) {
+    console.error('Service Error getLocationPeriodMovements:', error);
+    return { success: false, error: 'Failed to fetch location movements', details: error.message };
   }
 }
 

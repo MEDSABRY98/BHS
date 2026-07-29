@@ -32,9 +32,21 @@ export const INTERNAL_WAREHOUSES: string[] = [
   ...CORE_TRANSFER_WAREHOUSES,
   'GM/WH/Game area',
   'HA/WH/Hashi',
+  'WA/WH/Ahmed Magdy',
+  'WA/WH/Omer & Salam',
 ];
 
 export const INTERNAL_WAREHOUSES_SET = new Set(INTERNAL_WAREHOUSES);
+
+function getLocationSortKey(loc: string): string {
+  const slashIndex = loc.lastIndexOf('/');
+  return slashIndex === -1 ? loc.trim() : loc.slice(slashIndex + 1).trim();
+}
+
+/** Internal warehouses sorted A–Z by display name (for dropdowns). */
+export const INTERNAL_WAREHOUSES_SORTED: string[] = [...INTERNAL_WAREHOUSES].sort((a, b) =>
+  getLocationSortKey(a).localeCompare(getLocationSortKey(b), undefined, { sensitivity: 'base' }),
+);
 
 // ─── External Inflow Sources ──────────────────────────────────────────────────
 // Movements FROM these locations TO an internal warehouse = +QTY (stock inflow)
@@ -147,10 +159,13 @@ export function getNetQtyEffect(locFrom: string, locTo: string, qty: number): nu
 }
 
 export function getScopedQtyEffect(locFrom: string, locTo: string, qty: number, location?: string | null): number {
+  const from = locFrom.trim();
+  const to = locTo.trim();
   const scopedLocation = location?.trim();
-  if (!scopedLocation) return getNetQtyEffect(locFrom, locTo, qty);
-  if (locTo.trim() === scopedLocation) return qty;
-  if (locFrom.trim() === scopedLocation) return -qty;
+
+  if (!scopedLocation) return getNetQtyEffect(from, to, qty);
+  if (to === scopedLocation) return qty;
+  if (from === scopedLocation) return -qty;
   return 0;
 }
 

@@ -11,7 +11,9 @@ AS $$
     'S/WH/S20',
     'WA/WH/Water',
     'GM/WH/Game area',
-    'HA/WH/Hashi'
+    'HA/WH/Hashi',
+    'WA/WH/Ahmed Magdy',
+    'WA/WH/Omer & Salam'
   );
 $$;
 
@@ -73,6 +75,60 @@ BEGIN
   END IF;
 
   RETURN 0;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION inventory_scoped_qty_effect(
+  loc_from text,
+  loc_to text,
+  qty numeric,
+  p_location text DEFAULT NULL
+)
+RETURNS numeric
+LANGUAGE plpgsql
+IMMUTABLE
+AS $$
+DECLARE
+  v_from text := trim(coalesce(loc_from, ''));
+  v_to text := trim(coalesce(loc_to, ''));
+  v_qty numeric := coalesce(qty, 0);
+  v_location text := trim(coalesce(p_location, ''));
+BEGIN
+  IF v_location = '' THEN
+    RETURN inventory_net_qty_effect(v_from, v_to, v_qty);
+  END IF;
+
+  IF v_to = v_location THEN
+    RETURN v_qty;
+  END IF;
+
+  IF v_from = v_location THEN
+    RETURN -v_qty;
+  END IF;
+
+  RETURN 0;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION inventory_is_move_in_location_scope(
+  loc_from text,
+  loc_to text,
+  p_location text DEFAULT NULL
+)
+RETURNS boolean
+LANGUAGE plpgsql
+IMMUTABLE
+AS $$
+DECLARE
+  v_from text := trim(coalesce(loc_from, ''));
+  v_to text := trim(coalesce(loc_to, ''));
+  v_location text := trim(coalesce(p_location, ''));
+BEGIN
+  IF v_location = '' THEN
+    RETURN true;
+  END IF;
+
+  RETURN v_from = v_location OR v_to = v_location;
 END;
 $$;
 
@@ -177,9 +233,12 @@ AS $$
   END;
 $$;
 
+DROP FUNCTION IF EXISTS get_inventory_products_balance_report(date, date);
+
 CREATE OR REPLACE FUNCTION get_inventory_products_balance_report(
   p_date_from date DEFAULT NULL,
-  p_date_to date DEFAULT NULL
+  p_date_to date DEFAULT NULL,
+  p_location text DEFAULT NULL
 )
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -201,13 +260,18 @@ BEGIN
     FROM "web_INVENTORY_MOVES" m
     WHERE m."PRODUCT ID" IS NOT NULL
       AND trim(m."PRODUCT ID") <> ''
+      AND inventory_is_move_in_location_scope(
+        trim(m."LOCATION FROM"),
+        trim(m."LOCATION TO"),
+        p_location
+      )
   ),
   move_buckets AS (
     SELECT
       pm.product_id,
       CASE
         WHEN p_date_from IS NOT NULL AND pm.move_date < p_date_from THEN
-          inventory_net_qty_effect(pm.loc_from, pm.loc_to, pm.qty)
+          inventory_scoped_qty_effect(pm.loc_from, pm.loc_to, pm.qty, p_location)
         ELSE 0
       END AS opening_delta,
       CASE
@@ -399,9 +463,11 @@ $$;
 GRANT EXECUTE ON FUNCTION inventory_is_internal(text) TO authenticated, anon, service_role;
 GRANT EXECUTE ON FUNCTION inventory_is_internal_transfer(text, text) TO authenticated, anon, service_role;
 GRANT EXECUTE ON FUNCTION inventory_net_qty_effect(text, text, numeric) TO authenticated, anon, service_role;
+GRANT EXECUTE ON FUNCTION inventory_scoped_qty_effect(text, text, numeric, text) TO authenticated, anon, service_role;
+GRANT EXECUTE ON FUNCTION inventory_is_move_in_location_scope(text, text, text) TO authenticated, anon, service_role;
 GRANT EXECUTE ON FUNCTION inventory_classify_period_buckets(text, text, numeric) TO authenticated, anon, service_role;
 GRANT EXECUTE ON FUNCTION inventory_format_product_category(text) TO authenticated, anon, service_role;
-GRANT EXECUTE ON FUNCTION get_inventory_products_balance_report(date, date) TO authenticated, anon, service_role;
+GRANT EXECUTE ON FUNCTION get_inventory_products_balance_report(date, date, text) TO authenticated, anon, service_role;
 GRANT EXECUTE ON FUNCTION get_inventory_product_period_movements(text, date, date) TO authenticated, anon, service_role;
 
 NOTIFY pgrst, 'reload schema';

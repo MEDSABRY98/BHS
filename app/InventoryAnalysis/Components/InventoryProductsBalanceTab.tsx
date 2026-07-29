@@ -10,7 +10,7 @@ import TabLoader from '@/app/Components/TabLoader';
 import NoData from '@/app/Components/NoDataTab';
 import { getProductsBalanceReportData } from '../Service/inventory_service';
 import type { ProductBalanceRow } from '../Service/inventory_types';
-import { INTERNAL_WAREHOUSES } from './locationTypes';
+import { INTERNAL_WAREHOUSES_SORTED } from './locationTypes';
 import { exportSalesExcelTable } from '@/app/Sales/Utils/ExcelExport';
 import InventoryProductsBalanceDetailsTab from './InventoryProductsBalanceDetailsTab';
 
@@ -112,7 +112,7 @@ export default function InventoryProductsBalanceTab() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const locations = useMemo(() => ['All', ...INTERNAL_WAREHOUSES], []);
+  const locations = useMemo(() => ['All', ...INTERNAL_WAREHOUSES_SORTED], []);
 
   const filteredLocations = useMemo(() => {
     if (!locationSearch.trim()) return locations;

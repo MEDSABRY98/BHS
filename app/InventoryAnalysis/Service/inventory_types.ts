@@ -48,3 +48,19 @@ export interface ProductBalanceRow {
   endingStock: number;
   periodMovements?: PeriodMovement[];
 }
+
+export interface LocationMovementRow {
+  moveId: string;
+  date: string;
+  reference: string;
+  productId: string;
+  productName: string;
+  barcode: string;
+  category: string;
+  locationFrom: string;
+  locationTo: string;
+  qty: number;
+  type: string;
+  direction: 'in' | 'out';
+  stockChange: number;
+}

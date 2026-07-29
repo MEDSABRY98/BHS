@@ -3,7 +3,7 @@
 import { useState, useEffect, type ReactNode } from 'react';
 import { Menu } from 'lucide-react';
 
-import InventoryProductsBalanceTab from './Components/InventoryProductsBalanceTab';
+import InventoryProductsBalanceSection from './Components/InventoryProductsBalanceSection';
 import InventoryProductOrdersTab from './Components/InventoryCategoriesTab';
 import ReportsTab from './Reports/ReportsTab';
 import InventorySidebar, { type InventoryTabId } from './Utils/Sidebar';
@@ -83,7 +83,7 @@ export default function InventoryPage() {
     <>
       {mountedTabs.has('products_balance') && (
         <TabPanel active={activeTab === 'products_balance'}>
-          <InventoryProductsBalanceTab />
+          <InventoryProductsBalanceSection />
         </TabPanel>
       )}
       {mountedTabs.has('categories') && (
