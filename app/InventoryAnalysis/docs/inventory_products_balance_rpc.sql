@@ -1,17 +1,51 @@
 -- Products Balance RPC (run once in Supabase SQL Editor)
 -- Mirrors warehouse rules in app/InventoryAnalysis/Components/locationTypes.ts
 
+CREATE OR REPLACE FUNCTION inventory_normalize_location(loc text)
+RETURNS text
+LANGUAGE sql
+IMMUTABLE
+AS $$
+  SELECT CASE lower(trim(coalesce(loc, '')))
+    WHEN 'm/wh/mazyad' THEN 'M/WH/Mazyad'
+    WHEN 's/wh/s20' THEN 'S/WH/S20'
+    WHEN 'wa/wh/water' THEN 'WA/WH/Water'
+    WHEN 'wa/wh/ahmed magdy' THEN 'WA/WH/Ahmed Magdy'
+    WHEN 'wa/wh/omer & salam' THEN 'WA/WH/Omer & Salam'
+    WHEN 'gm/wh/game area' THEN 'GM/WH/Game area'
+    WHEN 'ha/wh/hashi' THEN 'HA/WH/Hashi'
+    WHEN 'partners/vendors' THEN 'Partners/Vendors'
+    WHEN 'partners/customers' THEN 'Partners/Customers'
+    WHEN 'virtual locations/inventory adjustment' THEN 'Virtual Locations/Inventory adjustment'
+    WHEN 'virtual locations/production' THEN 'Virtual Locations/Production'
+    WHEN 'physical locations/subcontracting location' THEN 'Physical Locations/Subcontracting Location'
+    ELSE trim(coalesce(loc, ''))
+  END;
+$$;
+
 CREATE OR REPLACE FUNCTION inventory_is_internal(loc text)
 RETURNS boolean
 LANGUAGE sql
 IMMUTABLE
 AS $$
-  SELECT trim(coalesce(loc, '')) IN (
+  SELECT inventory_normalize_location(loc) IN (
     'M/WH/Mazyad',
     'S/WH/S20',
     'WA/WH/Water',
     'GM/WH/Game area',
     'HA/WH/Hashi',
+    'WA/WH/Ahmed Magdy',
+    'WA/WH/Omer & Salam'
+  );
+$$;
+
+CREATE OR REPLACE FUNCTION inventory_is_water_cluster(loc text)
+RETURNS boolean
+LANGUAGE sql
+IMMUTABLE
+AS $$
+  SELECT inventory_normalize_location(loc) IN (
+    'WA/WH/Water',
     'WA/WH/Ahmed Magdy',
     'WA/WH/Omer & Salam'
   );
@@ -23,13 +57,22 @@ LANGUAGE plpgsql
 IMMUTABLE
 AS $$
 DECLARE
-  v_from text := trim(coalesce(loc_from, ''));
-  v_to text := trim(coalesce(loc_to, ''));
+  v_from text := inventory_normalize_location(loc_from);
+  v_to text := inventory_normalize_location(loc_to);
   v_from_internal boolean;
   v_to_internal boolean;
   v_from_core boolean;
   v_to_core boolean;
 BEGIN
+  IF (v_from = 'WA/WH/Water' AND v_to = 'M/WH/Mazyad')
+     OR (v_from = 'M/WH/Mazyad' AND v_to = 'WA/WH/Water') THEN
+    RETURN true;
+  END IF;
+
+  IF inventory_is_water_cluster(v_from) AND inventory_is_water_cluster(v_to) THEN
+    RETURN true;
+  END IF;
+
   v_from_internal := inventory_is_internal(v_from);
   v_to_internal := inventory_is_internal(v_to);
 
@@ -37,15 +80,15 @@ BEGIN
     RETURN false;
   END IF;
 
-  v_from_core := v_from IN ('M/WH/Mazyad', 'S/WH/S20', 'WA/WH/Water');
-  v_to_core := v_to IN ('M/WH/Mazyad', 'S/WH/S20', 'WA/WH/Water');
+  IF inventory_is_water_cluster(v_from) OR inventory_is_water_cluster(v_to) THEN
+    RETURN false;
+  END IF;
+
+  v_from_core := v_from IN ('M/WH/Mazyad', 'S/WH/S20');
+  v_to_core := v_to IN ('M/WH/Mazyad', 'S/WH/S20');
 
   IF v_from_core AND v_to_core THEN
     RETURN true;
-  END IF;
-
-  IF v_from = 'WA/WH/Water' OR v_to = 'WA/WH/Water' THEN
-    RETURN false;
   END IF;
 
   RETURN true;
@@ -58,8 +101,8 @@ LANGUAGE plpgsql
 IMMUTABLE
 AS $$
 DECLARE
-  v_from text := trim(coalesce(loc_from, ''));
-  v_to text := trim(coalesce(loc_to, ''));
+  v_from text := inventory_normalize_location(loc_from);
+  v_to text := inventory_normalize_location(loc_to);
   v_qty numeric := coalesce(qty, 0);
 BEGIN
   IF inventory_is_internal_transfer(v_from, v_to) THEN
@@ -89,10 +132,10 @@ LANGUAGE plpgsql
 IMMUTABLE
 AS $$
 DECLARE
-  v_from text := trim(coalesce(loc_from, ''));
-  v_to text := trim(coalesce(loc_to, ''));
+  v_from text := inventory_normalize_location(loc_from);
+  v_to text := inventory_normalize_location(loc_to);
   v_qty numeric := coalesce(qty, 0);
-  v_location text := trim(coalesce(p_location, ''));
+  v_location text := inventory_normalize_location(p_location);
 BEGIN
   IF v_location = '' THEN
     RETURN inventory_net_qty_effect(v_from, v_to, v_qty);
@@ -120,9 +163,9 @@ LANGUAGE plpgsql
 IMMUTABLE
 AS $$
 DECLARE
-  v_from text := trim(coalesce(loc_from, ''));
-  v_to text := trim(coalesce(loc_to, ''));
-  v_location text := trim(coalesce(p_location, ''));
+  v_from text := inventory_normalize_location(loc_from);
+  v_to text := inventory_normalize_location(loc_to);
+  v_location text := inventory_normalize_location(p_location);
 BEGIN
   IF v_location = '' THEN
     RETURN true;
@@ -148,8 +191,8 @@ LANGUAGE plpgsql
 IMMUTABLE
 AS $$
 DECLARE
-  v_from text := trim(coalesce(loc_from, ''));
-  v_to text := trim(coalesce(loc_to, ''));
+  v_from text := inventory_normalize_location(loc_from);
+  v_to text := inventory_normalize_location(loc_to);
   v_qty numeric := coalesce(qty, 0);
   v_from_internal boolean := inventory_is_internal(v_from);
   v_to_internal boolean := inventory_is_internal(v_to);
@@ -167,7 +210,11 @@ BEGIN
   END IF;
 
   IF v_from_internal AND v_to_internal THEN
-    IF v_from = 'WA/WH/Water' OR v_to = 'WA/WH/Water' THEN
+    IF inventory_is_water_cluster(v_from) AND NOT inventory_is_water_cluster(v_to) THEN
+      RETURN NEXT;
+      RETURN;
+    END IF;
+    IF inventory_is_water_cluster(v_to) AND NOT inventory_is_water_cluster(v_from) THEN
       RETURN NEXT;
       RETURN;
     END IF;
@@ -416,8 +463,10 @@ BEGIN
       pm.qty,
       CASE
         WHEN inventory_is_internal_transfer(pm.loc_from, pm.loc_to) THEN 'transfer'
-        WHEN inventory_is_internal(pm.loc_from) AND inventory_is_internal(pm.loc_to) AND pm.loc_from = 'WA/WH/Water' THEN 'production_out'
-        WHEN inventory_is_internal(pm.loc_from) AND inventory_is_internal(pm.loc_to) AND pm.loc_to = 'WA/WH/Water' THEN 'production_in'
+        WHEN inventory_is_internal(pm.loc_from) AND inventory_is_internal(pm.loc_to)
+          AND inventory_is_water_cluster(pm.loc_from) AND NOT inventory_is_water_cluster(pm.loc_to) THEN 'production_out'
+        WHEN inventory_is_internal(pm.loc_from) AND inventory_is_internal(pm.loc_to)
+          AND inventory_is_water_cluster(pm.loc_to) AND NOT inventory_is_water_cluster(pm.loc_from) THEN 'production_in'
         WHEN inventory_is_internal(pm.loc_to) AND NOT inventory_is_internal(pm.loc_from) AND pm.loc_from = 'Partners/Vendors' THEN 'vendor_in'
         WHEN inventory_is_internal(pm.loc_to) AND NOT inventory_is_internal(pm.loc_from) AND pm.loc_from = 'Partners/Customers' THEN 'customer_return'
         WHEN inventory_is_internal(pm.loc_to) AND NOT inventory_is_internal(pm.loc_from) AND pm.loc_from = 'Physical Locations/Subcontracting Location' THEN 'subcontracting_in'
@@ -460,6 +509,7 @@ EXCEPTION
 END;
 $$;
 
+GRANT EXECUTE ON FUNCTION inventory_normalize_location(text) TO authenticated, anon, service_role;
 GRANT EXECUTE ON FUNCTION inventory_is_internal(text) TO authenticated, anon, service_role;
 GRANT EXECUTE ON FUNCTION inventory_is_internal_transfer(text, text) TO authenticated, anon, service_role;
 GRANT EXECUTE ON FUNCTION inventory_net_qty_effect(text, text, numeric) TO authenticated, anon, service_role;

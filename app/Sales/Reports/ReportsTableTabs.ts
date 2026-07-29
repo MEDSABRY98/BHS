@@ -17,9 +17,9 @@ const ALL_IDS = SALES_REPORTS_TABLE_TAB_DEFS.map((t) => t.id);
 /** Returns null when all report table tabs are allowed (manager / no restriction). */
 export function getAllowedReportTableTabIds(
   roleStr: string | undefined,
-  isManager: boolean
+  hasSalesDataAccess: boolean
 ): SalesReportsTableTabId[] | null {
-  if (isManager) return null;
+  if (hasSalesDataAccess) return null;
   if (!roleStr || roleStr === 'Admin') return null;
   try {
     const perms = JSON.parse(roleStr);

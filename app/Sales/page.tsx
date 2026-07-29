@@ -26,7 +26,7 @@ import { SalesRefreshBridge } from '@/app/Sales/Context/SalesRefreshBridge';
 
 import Login from '@/app/Components/Login';
 import Loading from '@/app/Components/Loading';
-import { SalesInvoice } from '@/lib/supabase';;
+import { SalesInvoice, hasSalesDataAccess } from '@/lib/supabase';
 import { ArrowLeft, BarChart3, LogOut, User, FileUp, FileSpreadsheet, ChevronDown, AlertCircle, RefreshCcw, X, Users, Menu } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { toast } from '@/app/Components/Notification';
@@ -105,7 +105,7 @@ export default function SalesPage() {
         setCurrentUser(parsed);
         setIsAuthenticated(true);
 
-        // Silently sync and update session from database to catch changes in isSalesManager or roles
+        // Silently sync and update session from database to catch permission or role changes
         fetchUsersList()
           .then(data => {
             if (data?.users) {
@@ -115,7 +115,7 @@ export default function SalesPage() {
                   ...parsed,
                   role: fresh.role,
                   userAdmin: fresh.userAdmin,
-                  isSalesManager: fresh.isSalesManager
+                  salesDataAccess: fresh.salesDataAccess,
                 };
                 setCurrentUser(updatedUser);
                 localStorage.setItem('currentUser', JSON.stringify(updatedUser));
@@ -143,8 +143,7 @@ export default function SalesPage() {
   // Enforce subtab permissions
   useEffect(() => {
     if (currentUser) {
-      const isManager = currentUser.name === 'MED Sabry' || currentUser.isSalesManager === true || currentUser.isSalesManager === 'TRUE';
-      if (!isManager) {
+      if (!hasSalesDataAccess(currentUser)) {
         try {
           const perms = JSON.parse(currentUser.role || '{}');
           const allowedTabs = perms.sales;
@@ -166,24 +165,18 @@ export default function SalesPage() {
     [currentUser?.id]
   );
 
-  const isSalesManager = useMemo(() => {
-    const userName = currentUser?.name?.trim().toLowerCase() || '';
-    return (
-      userName === 'med sabry' ||
-      currentUser?.isSalesManager === true ||
-      currentUser?.isSalesManager === 'TRUE'
-    );
-  }, [currentUser?.name, currentUser?.isSalesManager]);
+  const userHasSalesDataAccess = useMemo(
+    () => hasSalesDataAccess(currentUser),
+    [currentUser]
+  );
 
   const allowedReportTableTabIds = useMemo(
-    () => getAllowedReportTableTabIds(currentUser?.role, isSalesManager),
-    [currentUser?.role, isSalesManager]
+    () => getAllowedReportTableTabIds(currentUser?.role, userHasSalesDataAccess),
+    [currentUser?.role, userHasSalesDataAccess]
   );
 
   const showCosts = useMemo(() => {
-    const userName = currentUser?.name?.toLowerCase() || '';
-    const isManager = userName === 'med sabry' || currentUser?.isSalesManager === true || currentUser?.isSalesManager === 'TRUE';
-    if (isManager) return true;
+    if (userHasSalesDataAccess) return true;
     try {
       const roleStr = currentUser?.role || '';
       if (!roleStr) return true;
@@ -194,7 +187,7 @@ export default function SalesPage() {
       }
     } catch (e) { }
     return true; // default to true
-  }, [currentUser]);
+  }, [currentUser, userHasSalesDataAccess]);
 
   // Reset scroll position and track visited tabs when tab changes
   useEffect(() => {
@@ -252,8 +245,8 @@ export default function SalesPage() {
   };
 
   const handleUploadMapping = async (mapping: Record<string, any>) => {
-    if (!isSalesManager) {
-      toast.error('Only sales managers can upload customer mappings.');
+    if (!userHasSalesDataAccess) {
+      toast.error('Only users with sales data access can upload customer mappings.');
       return;
     }
 
@@ -278,7 +271,7 @@ export default function SalesPage() {
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!isSalesManager) return;
+    if (!userHasSalesDataAccess) return;
 
     const file = e.target.files?.[0];
     if (!file) return;
@@ -411,8 +404,7 @@ export default function SalesPage() {
 
     // Check for dynamic JSON permission structure
     try {
-      const isManager = currentUser?.name === 'MED Sabry' || currentUser?.isSalesManager === true || currentUser?.isSalesManager === 'TRUE';
-      if (!isManager && currentUser?.role) {
+      if (!hasSalesDataAccess(currentUser) && currentUser?.role) {
         const perms = JSON.parse(currentUser.role);
         if (perms.sales && Array.isArray(perms.sales)) {
           if (!perms.sales.includes(activeTab)) {
@@ -500,7 +492,7 @@ export default function SalesPage() {
             onRefresh={() => fetchData(true)}
             isLoading={loading || isRefreshing}
             onUploadClick={() => setIsUploadModalOpen(true)}
-            isManager={isSalesManager}
+            hasSalesDataAccess={userHasSalesDataAccess}
             FilterNode={<SalesFilterButton inSidebar={true} isCollapsed={isSidebarCollapsed} />}
           />
         </aside>
@@ -536,7 +528,7 @@ export default function SalesPage() {
             onRefresh={() => fetchData(true)}
             isLoading={loading || isRefreshing}
             onUploadClick={() => setIsUploadModalOpen(true)}
-            isManager={isSalesManager}
+            hasSalesDataAccess={userHasSalesDataAccess}
             FilterNode={<SalesFilterButton inSidebar={true} isCollapsed={false} />}
           />
         </aside>
@@ -552,7 +544,7 @@ export default function SalesPage() {
         </div>
 
       {/* UPLOAD/DOWNLOAD MODAL — sales managers only */}
-      {isSalesManager && isUploadModalOpen && (
+      {userHasSalesDataAccess && isUploadModalOpen && (
         <div className="fixed inset-0 z-[10001] flex items-center justify-center p-4">
           <div
             className="absolute inset-0 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300"

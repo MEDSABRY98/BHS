@@ -1,7 +1,7 @@
 'use server';
 
 import { bhs_supabas } from '@/lib/supabase';
-import { getFilteredSalesData } from '@/app/Sales/Utils/SalesMappingCache';
+import { getFilteredSalesData, checkHasSalesDataAccess } from '@/app/Sales/Utils/SalesMappingCache';
 import {
   augmentWithDates,
   applyGeoFilters,
@@ -93,22 +93,6 @@ async function resolveUserIdByName(name: string): Promise<string | null> {
   return match?.ID || null;
 }
 
-async function checkIsManager(userId: string): Promise<boolean> {
-  const { data: user } = await bhs_supabas
-    .from('bhs_USERS')
-    .select('NAME, ROLE, IS_SALESMANAGER')
-    .eq('ID', String(userId).trim().toUpperCase())
-    .maybeSingle();
-  if (!user) return false;
-  const userName = String(user.NAME || '').trim().toLowerCase();
-  return (
-    userName === 'med sabry' ||
-    String(user.ROLE || '').toLowerCase() === 'admin' ||
-    user.IS_SALESMANAGER === true ||
-    String(user.IS_SALESMANAGER || '').toUpperCase() === 'TRUE'
-  );
-}
-
 function sumTargetsForMonth(
   targetMap: Map<string, number>,
   year: number,
@@ -165,7 +149,7 @@ export async function getReportsData(userId: string, filters: any) {
   const primaryCurrent = getPrimaryAmount(currentMetrics, reportingMode);
 
   const targetMap = await fetchTargets();
-  const isManager = await checkIsManager(userId);
+  const hasSalesDataAccess = await checkHasSalesDataAccess(userId);
 
   let targetUserIds: string[] | null = null;
   let targetType: 'sales_rep' | 'merchandiser' | null = null;
@@ -177,13 +161,13 @@ export async function getReportsData(userId: string, filters: any) {
     const mid = await resolveUserIdByName(filters.merchandiser);
     targetUserIds = mid ? [mid] : [];
     targetType = 'merchandiser';
-  } else if (!isManager) {
+  } else if (!hasSalesDataAccess) {
     targetUserIds = [String(userId).trim().toUpperCase()];
     targetType = 'sales_rep';
   }
 
   const getTarget = (y: number, m: number) =>
-    isManager && !filters?.salesRep && !filters?.merchandiser
+    hasSalesDataAccess && !filters?.salesRep && !filters?.merchandiser
       ? sumTargetsForMonth(targetMap, y, m, null, 'sales_rep')
       : sumTargetsForMonth(targetMap, y, m, targetUserIds, targetType);
 
@@ -387,7 +371,7 @@ export async function getReportsData(userId: string, filters: any) {
   let repDisplayName = await fetchUserName(userId);
   if (filters?.salesRep) repDisplayName = filters.salesRep;
   else if (filters?.merchandiser) repDisplayName = filters.merchandiser;
-  else if (isManager) repDisplayName = 'All Sales Reps';
+  else if (hasSalesDataAccess) repDisplayName = 'All Sales Reps';
 
   return {
     repDisplayName,

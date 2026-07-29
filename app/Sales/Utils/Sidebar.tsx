@@ -22,6 +22,7 @@ import {
   FileSpreadsheet,
   RefreshCcw
 } from 'lucide-react';
+import { hasSalesDataAccess } from '@/lib/supabase';
 
 interface SalesSidebarProps {
   refreshTrigger?: number;
@@ -35,7 +36,7 @@ interface SalesSidebarProps {
   onRefresh?: () => void;
   isLoading?: boolean;
   onUploadClick?: () => void;
-  isManager?: boolean;
+  hasSalesDataAccess?: boolean;
   FilterNode?: React.ReactNode;
 }
 
@@ -50,7 +51,7 @@ export default function SalesSidebar({
   onRefresh,
   isLoading,
   onUploadClick,
-  isManager,
+  hasSalesDataAccess: hasSalesDataAccessProp,
   FilterNode
 }: SalesSidebarProps) {
   
@@ -75,17 +76,13 @@ export default function SalesSidebar({
   const getFilteredTabs = () => {
     if (!currentUser) return [];
 
-    const userName = String(currentUser.name || '').trim().toLowerCase();
-    const isManager =
-      userName === 'med sabry' ||
-      currentUser.isSalesManager === true ||
-      currentUser.isSalesManager === 'TRUE';
+    const userHasSalesDataAccess = hasSalesDataAccessProp ?? hasSalesDataAccess(currentUser);
     let allowedTabs = allTabs;
-    if (!isManager) {
+    if (!userHasSalesDataAccess) {
       allowedTabs = allTabs.filter(tab => tab.id !== 'sales-my-customers' && tab.id !== 'sales-targets');
     }
 
-    if (isManager) return allowedTabs;
+    if (userHasSalesDataAccess) return allowedTabs;
 
     try {
       const perms = JSON.parse(currentUser.role || '{}');
@@ -187,7 +184,7 @@ export default function SalesSidebar({
         <div className={`flex gap-2 ${isCollapsed ? 'flex-col' : 'flex-row items-center'}`}>
           {FilterNode}
           
-          {isManager && onUploadClick && (
+          {hasSalesDataAccessProp && onUploadClick && (
             <button
               onClick={onUploadClick}
               className="flex items-center justify-center w-10 h-10 hover:bg-white/10 rounded-xl transition-all duration-200 text-emerald-400 group relative"
@@ -198,7 +195,7 @@ export default function SalesSidebar({
             </button>
           )}
 
-          {isManager && onRefresh && (
+          {hasSalesDataAccessProp && onRefresh && (
             <button
               onClick={onRefresh}
               disabled={isLoading}

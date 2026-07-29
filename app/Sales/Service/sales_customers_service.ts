@@ -3,7 +3,7 @@
 import { bhs_supabas } from '@/lib/supabase';
 import { 
   getFilteredSalesData,
-  checkIsManager,
+  checkHasSalesDataAccess,
   getMappingServer,
   getCachedUsersList,
   invalidateMappingCache,
@@ -483,7 +483,7 @@ export async function syncCustomerMappingAreasFromCity(): Promise<number> {
 }
 
 export async function getSetCustomersTabData(userId: string): Promise<SetCustomersTabData> {
-  const isManager = await checkIsManager(userId);
+  const isManager = await checkHasSalesDataAccess(userId);
   if (isManager) {
     await syncCustomerMappingAreasFromCity();
   }
@@ -502,7 +502,7 @@ export async function getSetCustomersTabData(userId: string): Promise<SetCustome
 }
 
 export async function saveCustomerMapping(userId: string, mapping: any) {
-  const isManager = await checkIsManager(userId);
+  const isManager = await checkHasSalesDataAccess(userId);
   if (!isManager) {
     throw new Error('Unauthorized. Only sales managers can modify assignments.');
   }
@@ -553,7 +553,7 @@ export async function saveCustomerMapping(userId: string, mapping: any) {
 }
 
 export async function batchSaveCustomerMapping(userId: string, mapping: Record<string, any>) {
-  const isManager = await checkIsManager(userId);
+  const isManager = await checkHasSalesDataAccess(userId);
   if (!isManager) {
     throw new Error('Unauthorized. Only sales managers can upload mappings.');
   }
@@ -620,7 +620,7 @@ export async function batchSaveCustomerMapping(userId: string, mapping: Record<s
 }
 
 export async function deleteCustomerMapping(userId: string, customerId: string) {
-  const isManager = await checkIsManager(userId);
+  const isManager = await checkHasSalesDataAccess(userId);
   if (!isManager) {
     throw new Error('Unauthorized. Only sales managers can remove assignments.');
   }

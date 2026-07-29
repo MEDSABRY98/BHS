@@ -7,7 +7,7 @@ import {
   isMoveInLocationScope,
   INTERNAL_WAREHOUSES_SET,
   isInternalTransfer,
-  WA_WH_WATER,
+  isWaterClusterLocation,
   formatProductCategory,
 } from '../Components/locationTypes';
 import type {
@@ -1016,10 +1016,10 @@ function classifyPeriodMovement(
   }
 
   if (fromInternal && toInternal) {
-    if (locFrom === WA_WH_WATER) {
+    if (isWaterClusterLocation(locFrom) && !isWaterClusterLocation(locTo)) {
       return { type: 'production_out', netVendors: 0, netCustomers: 0, netProduction: 0, netAdjustment: 0 };
     }
-    if (locTo === WA_WH_WATER) {
+    if (isWaterClusterLocation(locTo) && !isWaterClusterLocation(locFrom)) {
       return { type: 'production_in', netVendors: 0, netCustomers: 0, netProduction: 0, netAdjustment: 0 };
     }
   }

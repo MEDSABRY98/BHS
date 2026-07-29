@@ -1,7 +1,7 @@
 'use server';
 
 import { bhs_supabas } from '@/lib/supabase';
-import { checkIsManager } from '@/app/Sales/Utils/SalesMappingCache';
+import { checkHasSalesDataAccess } from '@/app/Sales/Utils/SalesMappingCache';
 
 export type TargetType = 'sales_rep' | 'merchandiser';
 
@@ -28,7 +28,7 @@ export async function getTargetYears() {
 }
 
 export async function getTargetsData(userId: string, year: number, month: number) {
-  const isManager = await checkIsManager(userId);
+  const isManager = await checkHasSalesDataAccess(userId);
 
   const { data: personnelData, error: personnelError } = await bhs_supabas
     .from('web_Sales_DB_PERSONNEL')
@@ -124,11 +124,11 @@ export async function getTargetsData(userId: string, year: number, month: number
     }
   });
 
-  return { salesReps, unassignedMerchandisers, isManager };
+  return { salesReps, unassignedMerchandisers, hasSalesDataAccess: isManager };
 }
 
 export async function saveTarget(userId: string, targetUserId: string, year: number, month: number, type: string, targetAmount: number) {
-  const isManager = await checkIsManager(userId);
+  const isManager = await checkHasSalesDataAccess(userId);
   if (!isManager && parseTargetType(type) === 'sales_rep') {
     throw new Error('Unauthorized. Sales reps cannot modify their own targets.');
   }
@@ -174,7 +174,7 @@ export async function saveTarget(userId: string, targetUserId: string, year: num
 }
 
 export async function batchSaveTargets(userId: string, year: number, month: number, type: string, targets: any[]) {
-  const isManager = await checkIsManager(userId);
+  const isManager = await checkHasSalesDataAccess(userId);
   if (!isManager) {
     const hasSalesRepTarget = targets.some((t: any) => parseTargetType(t.type) === 'sales_rep' || t.type === 'sales_rep');
     if (hasSalesRepTarget) {
@@ -226,7 +226,7 @@ export async function deleteTarget(userId: string, targetUserId: string, year: n
   const targetType = parseTargetType(type);
   if (!targetType) throw new Error('Invalid target type');
 
-  const isManager = await checkIsManager(userId);
+  const isManager = await checkHasSalesDataAccess(userId);
   if (!isManager) {
     throw new Error('Unauthorized. Only sales managers can delete targets.');
   }

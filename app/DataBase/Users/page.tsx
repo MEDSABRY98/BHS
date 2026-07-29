@@ -46,7 +46,7 @@ export default function UsersPage() {
   const [IS_IN_OFFICE, setIS_IN_OFFICE] = useState(false);
   const [CANCEL_AUTHORITY, setCANCEL_AUTHORITY] = useState(false);
   const [CITY, setCITY] = useState('');
-  const [IS_SALESMANAGER, setIS_SALESMANAGER] = useState(false);
+  const [salesDataAccess, setSalesDataAccess] = useState(false);
 
   useEffect(() => {
     const mainUserStr = localStorage.getItem('currentUser');
@@ -102,7 +102,7 @@ export default function UsersPage() {
     setIS_IN_OFFICE(user ? user.IS_IN_OFFICE : false);
     setCANCEL_AUTHORITY(user ? parseBoolFlag(user.CANCEL_AUTHORITY) : false);
     setCITY(user ? user.CITY || '' : '');
-    setIS_SALESMANAGER(user ? parseBoolFlag(user.IS_SALESMANAGER) : false);
+    setSalesDataAccess(user ? parseBoolFlag(user.SALES_DATA_ACCESS) : false);
     setIsModalOpen(true);
   };
 
@@ -113,7 +113,7 @@ export default function UsersPage() {
 
   const executeSave = async () => {
     setIsSaving(true);
-    const salesManagerValue = toTextBoolFlag(IS_SALESMANAGER);
+    const salesDataAccessValue = toTextBoolFlag(salesDataAccess);
     try {
       if (editingUser) {
         const { data, error } = await bhs_supabas
@@ -126,7 +126,7 @@ export default function UsersPage() {
             IS_IN_OFFICE,
             CANCEL_AUTHORITY,
             CITY,
-            IS_SALESMANAGER: salesManagerValue,
+            SALES_DATA_ACCESS: salesDataAccessValue,
           })
           .eq('ID', editingUser.ID)
           .select('*')
@@ -165,7 +165,7 @@ export default function UsersPage() {
             IS_IN_OFFICE,
             CANCEL_AUTHORITY,
             CITY,
-            IS_SALESMANAGER: salesManagerValue,
+            SALES_DATA_ACCESS: salesDataAccessValue,
           });
         if (error) throw error;
       }
@@ -267,7 +267,7 @@ export default function UsersPage() {
           {filteredUsers.map((user) => {
             const initials = user.NAME ? user.NAME.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase() : '?';
             const isCancelAuth = parseBoolFlag(user.CANCEL_AUTHORITY);
-            const isSalesManager = parseBoolFlag(user.IS_SALESMANAGER);
+            const hasSalesAccess = parseBoolFlag(user.SALES_DATA_ACCESS);
 
             return (
               <div
@@ -317,9 +317,9 @@ export default function UsersPage() {
                         <MapPin className="w-2.5 h-2.5" /> {user.CITY}
                       </span>
                     )}
-                    {isSalesManager && (
+                    {hasSalesAccess && (
                       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 text-amber-600 rounded-xl text-[9px] font-black uppercase tracking-widest border border-amber-100">
-                        <Shield className="w-2.5 h-2.5" /> Sales Manager
+                        <Shield className="w-2.5 h-2.5" /> Sales Data Access
                       </span>
                     )}
                   </div>
@@ -519,30 +519,30 @@ export default function UsersPage() {
                   </div>
                 </div>
 
-                {/* IS_SALESMANAGER Toggle */}
+                {/* SALES_DATA_ACCESS Toggle */}
                 <div className="space-y-3">
-                  <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">SALES MANAGER</label>
+                  <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">SALES DATA ACCESS</label>
                   <div className="grid grid-cols-2 gap-3 p-1.5 bg-gray-50 rounded-2xl border border-gray-100">
                     <button
                       type="button"
-                      onClick={() => setIS_SALESMANAGER(true)}
-                      className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-black transition-all ${IS_SALESMANAGER
+                      onClick={() => setSalesDataAccess(true)}
+                      className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-black transition-all ${salesDataAccess
                         ? 'bg-emerald-500 text-white shadow-xl'
                         : 'text-gray-400 hover:text-gray-600'
                         }`}
                     >
-                      {IS_SALESMANAGER && <Check className="w-4 h-4" />}
+                      {salesDataAccess && <Check className="w-4 h-4" />}
                       TRUE
                     </button>
                     <button
                       type="button"
-                      onClick={() => setIS_SALESMANAGER(false)}
-                      className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-black transition-all ${!IS_SALESMANAGER
+                      onClick={() => setSalesDataAccess(false)}
+                      className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-black transition-all ${!salesDataAccess
                         ? 'bg-red-500 text-white shadow-xl'
                         : 'text-gray-400 hover:text-gray-600'
                         }`}
                     >
-                      {!IS_SALESMANAGER && <Check className="w-4 h-4" />}
+                      {!salesDataAccess && <Check className="w-4 h-4" />}
                       FALSE
                     </button>
                   </div>

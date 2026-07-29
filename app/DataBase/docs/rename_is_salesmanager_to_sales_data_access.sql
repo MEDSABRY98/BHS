@@ -1,0 +1,6 @@
+-- Rename bhs_USERS.IS_SALESMANAGER -> SALES_DATA_ACCESS (run once in Supabase SQL Editor)
+
+ALTER TABLE "bhs_USERS"
+  RENAME COLUMN "IS_SALESMANAGER" TO "SALES_DATA_ACCESS";
+
+NOTIFY pgrst, 'reload schema';

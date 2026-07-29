@@ -770,7 +770,7 @@ export async function fetchUsersList() {
   try {
     const { data: dbUsers, error } = await bhs_supabase
       .from('bhs_USERS')
-      .select('ID, NAME, ROLE, AUTHORITY, IS_SALESMANAGER')
+      .select('ID, NAME, ROLE, AUTHORITY, SALES_DATA_ACCESS')
       .order('NAME');
 
     if (error) throw error;
@@ -782,7 +782,7 @@ export async function fetchUsersList() {
       name: u.NAME,
       role: u.AUTHORITY || '',
       userAdmin: u.ROLE,
-      isSalesManager: parseBool(u.IS_SALESMANAGER)
+      salesDataAccess: parseBool(u.SALES_DATA_ACCESS)
     }));
 
     return { success: true, users: userNames };
@@ -820,7 +820,7 @@ export async function verifyUserCredentials(name: string, password?: string) {
 
     const { data: user, error } = await bhs_supabase
       .from('bhs_USERS')
-      .select('ID, NAME, ROLE, AUTHORITY, IS_SALESMANAGER')
+      .select('ID, NAME, ROLE, AUTHORITY, SALES_DATA_ACCESS')
       .eq('NAME', name)
       .eq('PASSWORD', password)
       .maybeSingle();
@@ -837,7 +837,7 @@ export async function verifyUserCredentials(name: string, password?: string) {
           name: user.NAME,
           role: user.AUTHORITY || '',
           userAdmin: user.ROLE,
-          isSalesManager: parseBool(user.IS_SALESMANAGER)
+          salesDataAccess: parseBool(user.SALES_DATA_ACCESS)
         }
       };
     } else {

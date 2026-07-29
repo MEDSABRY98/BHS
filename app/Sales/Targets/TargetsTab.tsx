@@ -128,7 +128,7 @@ export default function SalesTargetsTab({ userId }: SalesTargetsTabProps) {
   const [saving, setSaving] = useState(false);
   const [salesReps, setSalesReps] = useState<TargetRow[]>([]);
   const [unassigned, setUnassigned] = useState<TargetRow[]>([]);
-  const [isManager, setIsManager] = useState(true);
+  const [hasSalesDataAccess, setHasSalesDataAccess] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [yearsWithData, setYearsWithData] = useState<number[]>([2025]);
 
@@ -168,7 +168,7 @@ export default function SalesTargetsTab({ userId }: SalesTargetsTabProps) {
       const result = await getTargetsData(userId, year, month);
       setSalesReps(result.salesReps || []);
       setUnassigned(result.unassignedMerchandisers || []);
-      setIsManager(!!result.isManager);
+      setHasSalesDataAccess(!!result.hasSalesDataAccess);
     } catch (error: any) {
       console.error(error);
       toast.error(error.message || 'Failed to load targets');
@@ -420,7 +420,7 @@ export default function SalesTargetsTab({ userId }: SalesTargetsTabProps) {
                           </span>
                           <input
                             type="text"
-                            disabled={!isManager}
+                            disabled={!hasSalesDataAccess}
                             value={formatDecimalInput(String(row.targetAmount || ''))}
                             onChange={(e) => updateRepAmount(row.userId, String(parseDecimalInput(e.target.value)))}
                             className={`w-full h-10 pl-12 pr-4 text-sm font-bold text-center rounded-xl border transition-all focus:outline-none focus:ring-2 focus:ring-green-500/20 disabled:opacity-60 disabled:cursor-not-allowed ${

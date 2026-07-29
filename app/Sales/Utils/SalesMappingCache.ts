@@ -1,4 +1,4 @@
-import { bhs_supabas, parseBoolFlag } from '@/lib/supabase';
+import { bhs_supabas, hasSalesDataAccessFromDb, parseBoolFlag } from '@/lib/supabase';
 import { getSalesDataServer } from '@/app/Sales/Utils/SalesCache';
 
 // ─────────────────────────────────────────────────────────────
@@ -103,18 +103,8 @@ export async function getGlobalMappings(): Promise<Map<string, any>> {
 type SalesUserContext = {
   cleanUserId: string;
   cleanUserName: string;
-  isManager: boolean;
+  hasSalesDataAccess: boolean;
 };
-
-function isManagerUser(user: { NAME?: string; ROLE?: string; IS_SALESMANAGER?: boolean | string } | null | undefined): boolean {
-  if (!user) return false;
-  const userName = String(user.NAME || '').trim().toLowerCase();
-  return (
-    userName === 'med sabry' ||
-    user.ROLE?.toLowerCase() === 'admin' ||
-    parseBoolFlag(user.IS_SALESMANAGER)
-  );
-}
 
 /** Match mapping to user by ID or legacy name stored in SALES_REP. */
 function isMappingAssignedToUser(
@@ -139,7 +129,7 @@ async function resolveSalesUserContext(userId: string): Promise<SalesUserContext
 
   const { data: user } = await bhs_supabas
     .from('bhs_USERS')
-    .select('NAME, ROLE, IS_SALESMANAGER')
+    .select('NAME, ROLE, SALES_DATA_ACCESS')
     .eq('ID', cleanUserId)
     .maybeSingle();
 
@@ -148,7 +138,7 @@ async function resolveSalesUserContext(userId: string): Promise<SalesUserContext
   return {
     cleanUserId,
     cleanUserName: String(user.NAME || '').trim().toUpperCase(),
-    isManager: isManagerUser(user),
+    hasSalesDataAccess: hasSalesDataAccessFromDb(user),
   };
 }
 
@@ -164,7 +154,7 @@ export async function getMappingServer(userId: string): Promise<Map<string, any>
     return new Map();
   }
 
-  if (userContext.isManager) {
+  if (userContext.hasSalesDataAccess) {
     return allMappings;
   }
 
@@ -226,7 +216,7 @@ export async function getFilteredSalesData(userId: string): Promise<any[]> {
 
   const rawSales = await getSalesDataServer();
   const allMappings = await getGlobalMappings();
-  const { cleanUserId, cleanUserName, isManager } = userContext;
+  const { cleanUserId, cleanUserName, hasSalesDataAccess } = userContext;
 
   const processed: any[] = [];
   rawSales.forEach((item: any) => {
@@ -235,7 +225,7 @@ export async function getFilteredSalesData(userId: string): Promise<any[]> {
 
     const isAssigned = isMappingAssignedToUser(mapping, cleanUserId, cleanUserName);
 
-    if (isManager || isAssigned) {
+    if (hasSalesDataAccess || isAssigned) {
       processed.push({
         ...item,
         customerMainName: mapping?.customerMainName || item.customerMainName,
@@ -253,13 +243,13 @@ export async function getFilteredSalesData(userId: string): Promise<any[]> {
   return processed;
 }
 
-/** Internal helper to check manager rights */
-async function checkIsManager(userId: string): Promise<boolean> {
+/** Internal helper to check full sales data access rights. */
+async function checkHasSalesDataAccess(userId: string): Promise<boolean> {
   const userContext = await resolveSalesUserContext(userId);
-  return userContext?.isManager ?? false;
+  return userContext?.hasSalesDataAccess ?? false;
 }
 
-export { checkIsManager, isMappingAssignedToUser, resolveSalesUserContext };
+export { checkHasSalesDataAccess, isMappingAssignedToUser, resolveSalesUserContext };
 
 /** Legacy surrogate keys like R-0001 generated for mapping table rows. */
 export function isLegacyMappingRowId(value: string): boolean {

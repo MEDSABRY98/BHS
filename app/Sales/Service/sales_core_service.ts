@@ -4,7 +4,7 @@ import {
   getMappingServer,
   getFilteredSalesData,
   invalidateMappingCache, 
-  checkIsManager, 
+  checkHasSalesDataAccess, 
   isLegacyMappingRowId, 
   loadUserMaps, 
   loadCustomerMaps, 
@@ -176,7 +176,7 @@ export async function getSalesMetadata(userId: string, forceRefresh: boolean = f
 }
 
 export async function uploadSalesMappingsBulk(userId: string, mapping: any) {
-  const isManager = await checkIsManager(userId);
+  const isManager = await checkHasSalesDataAccess(userId);
   if (!isManager) {
     throw new Error('Unauthorized. Only sales managers can upload mappings.');
   }
