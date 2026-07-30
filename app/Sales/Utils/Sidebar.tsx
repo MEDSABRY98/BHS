@@ -22,7 +22,7 @@ import {
   Sparkles,
   FileSpreadsheet,
 } from 'lucide-react';
-import { getAllowedSalesTabIds } from './salesTabPermissions';
+import { getAllowedSalesTabIds, type SalesTabId } from './salesTabPermissions';
 
 interface SalesSidebarProps {
   refreshTrigger?: number;
@@ -51,7 +51,7 @@ export default function SalesSidebar({
   FilterNode
 }: SalesSidebarProps) {
   
-  const allTabs = [
+  const allTabs: { id: SalesTabId; label: string; icon: typeof BarChart3 }[] = [
     { id: 'sales-overview', label: 'Overview', icon: BarChart3 },
     { id: 'sales-top10', label: 'Top 10', icon: Award },
     { id: 'sales-customers', label: 'Customers', icon: Users },
