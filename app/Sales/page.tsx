@@ -27,11 +27,12 @@ import { SalesRefreshBridge } from '@/app/Sales/Context/SalesRefreshBridge';
 import Login from '@/app/Components/Login';
 import Loading from '@/app/Components/Loading';
 import { SalesInvoice, hasSalesDataAccess } from '@/lib/supabase';
-import { ArrowLeft, BarChart3, LogOut, User, FileUp, FileSpreadsheet, ChevronDown, AlertCircle, RefreshCcw, X, Users, Menu } from 'lucide-react';
+import { ArrowLeft, BarChart3, LogOut, User, FileUp, FileSpreadsheet, ChevronDown, AlertCircle, X, Users, Menu } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { toast } from '@/app/Components/Notification';
 import { exportSalesExcelTable } from '@/app/Sales/Utils/ExcelExport';
 import { getAllowedReportTableTabIds } from '@/app/Sales/Reports/ReportsTableTabs';
+import { getAllowedSalesTabIds, isSalesTabAllowed } from '@/app/Sales/Utils/salesTabPermissions';
 import { getCustomersList, getMyCustomersData, batchSaveCustomerMapping } from '@/app/Sales/Service/sales_customers_service';
 import { getSalesMetadata } from '@/app/Sales/Service/sales_core_service';
 
@@ -52,7 +53,6 @@ export default function SalesPage() {
   const [activeTab, setActiveTab] = useState('sales-overview');
   const [visitedTabs, setVisitedTabs] = useState<Set<string>>(new Set(['sales-overview']));
   const [loading, setLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -142,21 +142,13 @@ export default function SalesPage() {
 
   // Enforce subtab permissions
   useEffect(() => {
-    if (currentUser) {
-      if (!hasSalesDataAccess(currentUser)) {
-        try {
-          const perms = JSON.parse(currentUser.role || '{}');
-          const allowedTabs = perms.sales;
+    if (!currentUser) return;
 
-          if (allowedTabs && Array.isArray(allowedTabs)) {
-            if (!allowedTabs.includes(activeTab)) {
-              if (allowedTabs.length > 0) {
-                setActiveTab(allowedTabs[0]);
-              }
-            }
-          }
-        } catch (e) { }
-      }
+    const allowedTabs = getAllowedSalesTabIds(currentUser);
+    if (allowedTabs.length === 0) return;
+
+    if (!allowedTabs.includes(activeTab as typeof allowedTabs[number])) {
+      setActiveTab(allowedTabs[0]);
     }
   }, [currentUser, activeTab]);
 
@@ -171,8 +163,8 @@ export default function SalesPage() {
   );
 
   const allowedReportTableTabIds = useMemo(
-    () => getAllowedReportTableTabIds(currentUser?.role, userHasSalesDataAccess),
-    [currentUser?.role, userHasSalesDataAccess]
+    () => getAllowedReportTableTabIds(currentUser?.role, currentUser),
+    [currentUser?.role, currentUser?.name, currentUser?.userAdmin]
   );
 
   const showCosts = useMemo(() => {
@@ -211,36 +203,27 @@ export default function SalesPage() {
     setActiveTab('sales-overview');
   };
 
-  const fetchData = async (silent = false) => {
+  const fetchData = async () => {
     try {
-      if (silent) setIsRefreshing(true);
-      else setLoading(true);
+      setLoading(true);
 
       const userId = salesUserId;
 
       if (!userId) {
         setLoading(false);
-        setIsRefreshing(false);
         return;
       }
 
-      const result = await getSalesMetadata(userId, silent);
+      const result = await getSalesMetadata(userId, false);
 
       setUniqueValues(result.uniqueValues);
       setLastUpdated(result.lastUpdated);
-
-      if (silent) {
-        setRefreshTrigger(prev => prev + 1);
-        toast.success('Sales data and cache refreshed successfully.');
-      }
-
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
       console.error('Error fetching sales metadata:', err);
     } finally {
       setLoading(false);
-      setIsRefreshing(false);
     }
   };
 
@@ -402,17 +385,9 @@ export default function SalesPage() {
       );
     }
 
-    // Check for dynamic JSON permission structure
-    try {
-      if (!hasSalesDataAccess(currentUser) && currentUser?.role) {
-        const perms = JSON.parse(currentUser.role);
-        if (perms.sales && Array.isArray(perms.sales)) {
-          if (!perms.sales.includes(activeTab)) {
-            return <div className="p-20 text-center text-slate-400 font-bold">You don't have permission to view this section.</div>;
-          }
-        }
-      }
-    } catch (e) { }
+    if (!isSalesTabAllowed(currentUser, activeTab)) {
+      return <div className="p-20 text-center text-slate-400 font-bold">You don&apos;t have permission to view this section.</div>;
+    }
 
     return (
       <div className="relative w-full">
@@ -489,8 +464,6 @@ export default function SalesPage() {
             lastUpdated={lastUpdated}
             isCollapsed={isSidebarCollapsed}
             onToggleCollapse={toggleSidebar}
-            onRefresh={() => fetchData(true)}
-            isLoading={loading || isRefreshing}
             onUploadClick={() => setIsUploadModalOpen(true)}
             hasSalesDataAccess={userHasSalesDataAccess}
             FilterNode={<SalesFilterButton inSidebar={true} isCollapsed={isSidebarCollapsed} />}
@@ -525,8 +498,6 @@ export default function SalesPage() {
             isCollapsed={false}
             onToggleCollapse={() => { }}
             onCloseMobile={() => setIsMobileSidebarOpen(false)}
-            onRefresh={() => fetchData(true)}
-            isLoading={loading || isRefreshing}
             onUploadClick={() => setIsUploadModalOpen(true)}
             hasSalesDataAccess={userHasSalesDataAccess}
             FilterNode={<SalesFilterButton inSidebar={true} isCollapsed={false} />}

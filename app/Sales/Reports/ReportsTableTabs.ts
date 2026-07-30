@@ -14,13 +14,14 @@ export type SalesReportsTableTabId = (typeof SALES_REPORTS_TABLE_TAB_DEFS)[numbe
 
 const ALL_IDS = SALES_REPORTS_TABLE_TAB_DEFS.map((t) => t.id);
 
-/** Returns null when all report table tabs are allowed (manager / no restriction). */
+/** Returns null when all report table tabs are allowed (no restriction). */
 export function getAllowedReportTableTabIds(
   roleStr: string | undefined,
-  hasSalesDataAccess: boolean
+  user?: { name?: string; userAdmin?: string } | null,
 ): SalesReportsTableTabId[] | null {
-  if (hasSalesDataAccess) return null;
   if (!roleStr || roleStr === 'Admin') return null;
+  if (String(user?.userAdmin || '').trim().toLowerCase() === 'admin') return null;
+  if (String(user?.name || '').trim().toLowerCase() === 'med sabry') return null;
   try {
     const perms = JSON.parse(roleStr);
     const key = 'sales-reports-tables';

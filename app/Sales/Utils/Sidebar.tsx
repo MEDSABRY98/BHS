@@ -1,6 +1,7 @@
 'use client';
 
-import { 
+import { useMemo } from 'react';
+import {
   BarChart3, 
   Award, 
   Users, 
@@ -20,9 +21,8 @@ import {
   X,
   Sparkles,
   FileSpreadsheet,
-  RefreshCcw
 } from 'lucide-react';
-import { hasSalesDataAccess } from '@/lib/supabase';
+import { getAllowedSalesTabIds } from './salesTabPermissions';
 
 interface SalesSidebarProps {
   refreshTrigger?: number;
@@ -33,8 +33,6 @@ interface SalesSidebarProps {
   isCollapsed: boolean;
   onToggleCollapse: () => void;
   onCloseMobile?: () => void;
-  onRefresh?: () => void;
-  isLoading?: boolean;
   onUploadClick?: () => void;
   hasSalesDataAccess?: boolean;
   FilterNode?: React.ReactNode;
@@ -48,8 +46,6 @@ export default function SalesSidebar({
   isCollapsed,
   onToggleCollapse,
   onCloseMobile,
-  onRefresh,
-  isLoading,
   onUploadClick,
   hasSalesDataAccess: hasSalesDataAccessProp,
   FilterNode
@@ -72,30 +68,10 @@ export default function SalesSidebar({
     { id: 'sales-my-customers', label: 'Set Customers', icon: User },
   ];
 
-  // Filter tabs based on user permissions
-  const getFilteredTabs = () => {
-    if (!currentUser) return [];
-
-    const userHasSalesDataAccess = hasSalesDataAccessProp ?? hasSalesDataAccess(currentUser);
-    let allowedTabs = allTabs;
-    if (!userHasSalesDataAccess) {
-      allowedTabs = allTabs.filter(tab => tab.id !== 'sales-my-customers' && tab.id !== 'sales-targets');
-    }
-
-    if (userHasSalesDataAccess) return allowedTabs;
-
-    try {
-      const perms = JSON.parse(currentUser.role || '{}');
-      if (perms.sales && Array.isArray(perms.sales)) {
-        return allowedTabs.filter(tab => perms.sales.includes(tab.id));
-      }
-    } catch (e) {
-      // Default to allowedTabs if permission role parsing fails
-    }
-    return allowedTabs;
-  };
-
-  const tabs = getFilteredTabs();
+  const tabs = useMemo(() => {
+    const allowedIds = new Set(getAllowedSalesTabIds(currentUser));
+    return allTabs.filter((tab) => allowedIds.has(tab.id));
+  }, [currentUser]);
 
   return (
     <div className="flex flex-col h-full bg-[#0d1e16] text-white border-r border-emerald-950/20">
@@ -192,18 +168,6 @@ export default function SalesSidebar({
             >
               <FileSpreadsheet className="w-5 h-5 group-hover:scale-110 transition-transform" />
               {isCollapsed && <span className="absolute left-14 opacity-0 group-hover:opacity-100 whitespace-nowrap bg-black/80 px-2 py-1 rounded text-xs pointer-events-none transition-opacity z-50">Upload Data</span>}
-            </button>
-          )}
-
-          {hasSalesDataAccessProp && onRefresh && (
-            <button
-              onClick={onRefresh}
-              disabled={isLoading}
-              className={`flex items-center justify-center w-10 h-10 hover:bg-white/10 rounded-xl transition-all duration-200 text-emerald-400 group relative ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
-              title="Refresh Data"
-            >
-              <RefreshCcw className={`w-5 h-5 group-hover:rotate-180 transition-transform duration-500 ${isLoading ? 'animate-spin' : ''}`} />
-              {isCollapsed && <span className="absolute left-14 opacity-0 group-hover:opacity-100 whitespace-nowrap bg-black/80 px-2 py-1 rounded text-xs pointer-events-none transition-opacity z-50">Refresh</span>}
             </button>
           )}
 
