@@ -1,6 +1,6 @@
 import Link from 'next/link';
-import { ArrowRight, Database } from 'lucide-react';
-import { DATABASE_CATEGORIES } from './Utils/DatabaseHubConfig';
+import { ArrowRight, Database, LayoutDashboard } from 'lucide-react';
+import { DATABASE_CATEGORIES, DATABASE_DASHBOARD_HREF } from './Utils/DatabaseHubConfig';
 
 export default function DatabaseHub() {
   return (
@@ -16,6 +16,24 @@ export default function DatabaseHub() {
           <p className="text-gray-500 mt-2">Select a category to manage related data tables and records.</p>
         </div>
       </div>
+
+      <Link
+        href={DATABASE_DASHBOARD_HREF}
+        className="group flex items-center justify-between gap-4 bg-black text-white rounded-2xl p-6 border border-black shadow-lg hover:shadow-xl transition-all"
+      >
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 bg-[#D4AF37] rounded-xl flex items-center justify-center">
+            <LayoutDashboard className="w-6 h-6 text-black" />
+          </div>
+          <div>
+            <h2 className="text-lg font-black tracking-tight">Data Status Dashboard</h2>
+            <p className="text-sm text-gray-400 mt-0.5">
+              See row counts and latest data date for every database tab.
+            </p>
+          </div>
+        </div>
+        <ArrowRight className="w-5 h-5 text-[#D4AF37] group-hover:translate-x-1 transition-transform" />
+      </Link>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {DATABASE_CATEGORIES.map((category) => (

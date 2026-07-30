@@ -13,7 +13,7 @@ import {
   ChevronLeft,
   ArrowLeft,
 } from 'lucide-react';
-import { findDatabaseNavItemByPath, getDatabaseNavItemsByCategory } from './Utils/DatabaseHubConfig';
+import { findDatabaseNavItemByPath, getDatabaseNavItemsByCategory, DATABASE_DASHBOARD_HREF, DATABASE_DASHBOARD_NAV } from './Utils/DatabaseHubConfig';
 
 interface NavItemProps {
   href: string;
@@ -101,9 +101,11 @@ export default function DatabaseLayout({ children }: { children: React.ReactNode
   }
 
   const isHub = pathname === '/DataBase';
+  const isDashboard = pathname === DATABASE_DASHBOARD_HREF;
   const activeNavItem = findDatabaseNavItemByPath(pathname);
   const activeCategoryId = activeNavItem?.category || null;
-  const sidebarItems = isHub || !activeCategoryId ? [] : getDatabaseNavItemsByCategory(activeCategoryId);
+  const sidebarItems = isHub || isDashboard || !activeCategoryId ? [] : getDatabaseNavItemsByCategory(activeCategoryId);
+  const DashboardIcon = DATABASE_DASHBOARD_NAV.icon;
 
   return (
     <div className="flex min-h-screen bg-[#F8F9FA] text-black">
@@ -137,18 +139,34 @@ export default function DatabaseLayout({ children }: { children: React.ReactNode
         </div>
 
         <nav className="flex-1 mt-4 overflow-y-auto no-scrollbar">
-          {!isHub && (
-            <div className="px-4 mb-4">
-               <Link
-                 href="/DataBase"
-                 className={`flex items-center ${isCollapsed ? 'justify-center' : 'px-4'} py-3 bg-white/5 hover:bg-white/10 rounded-2xl transition-all group`}
-                 title="Back to Hub"
-               >
-                 <ArrowLeft className={`w-4 h-4 text-gray-400 group-hover:text-white transition-colors ${isCollapsed ? '' : 'mr-3'}`} />
-                 {!isCollapsed && <span className="font-bold text-xs text-gray-300 uppercase tracking-widest">Hub</span>}
-               </Link>
-            </div>
-          )}
+          <div className="px-4 mb-4">
+            {!isHub && (
+              <Link
+                href="/DataBase"
+                className={`flex items-center ${isCollapsed ? 'justify-center' : 'px-4'} py-3 bg-white/5 hover:bg-white/10 rounded-2xl transition-all group mb-2`}
+                title="Back to Hub"
+              >
+                <ArrowLeft className={`w-4 h-4 text-gray-400 group-hover:text-white transition-colors ${isCollapsed ? '' : 'mr-3'}`} />
+                {!isCollapsed && <span className="font-bold text-xs text-gray-300 uppercase tracking-widest">Hub</span>}
+              </Link>
+            )}
+            <Link
+              href={DATABASE_DASHBOARD_HREF}
+              className={`flex items-center ${isCollapsed ? 'justify-center px-4' : 'px-4'} py-3 rounded-2xl transition-all group ${
+                isDashboard
+                  ? 'bg-gradient-to-r from-black/10 to-transparent border-l-4 border-[#D4AF37] text-white'
+                  : 'bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white'
+              }`}
+              title={DATABASE_DASHBOARD_NAV.label}
+            >
+              <DashboardIcon className={`w-4 h-4 ${isCollapsed ? '' : 'mr-3'} ${isDashboard ? 'text-[#D4AF37]' : 'text-gray-400 group-hover:text-white'}`} />
+              {!isCollapsed && (
+                <span className={`font-bold text-xs uppercase tracking-widest ${isDashboard ? 'text-white' : 'text-gray-300'}`}>
+                  Dashboard
+                </span>
+              )}
+            </Link>
+          </div>
 
           {sidebarItems.map((item) => (
             <NavItem
@@ -219,18 +237,28 @@ export default function DatabaseLayout({ children }: { children: React.ReactNode
               </div>
 
               <nav className="flex-1 mt-4 overflow-y-auto">
-                {!isHub && (
-                  <div className="px-4 mb-4">
-                     <Link
-                       href="/DataBase"
-                       onClick={() => setIsSidebarOpen(false)}
-                       className={`flex items-center px-4 py-3 bg-white/5 hover:bg-white/10 rounded-2xl transition-all group`}
-                     >
-                       <ArrowLeft className="w-4 h-4 text-gray-400 group-hover:text-white transition-colors mr-3" />
-                       <span className="font-bold text-xs text-gray-300 uppercase tracking-widest">Database Hub</span>
-                     </Link>
-                  </div>
-                )}
+                <div className="px-4 mb-4 space-y-2">
+                  {!isHub && (
+                    <Link
+                      href="/DataBase"
+                      onClick={() => setIsSidebarOpen(false)}
+                      className="flex items-center px-4 py-3 bg-white/5 hover:bg-white/10 rounded-2xl transition-all group"
+                    >
+                      <ArrowLeft className="w-4 h-4 text-gray-400 group-hover:text-white transition-colors mr-3" />
+                      <span className="font-bold text-xs text-gray-300 uppercase tracking-widest">Database Hub</span>
+                    </Link>
+                  )}
+                  <Link
+                    href={DATABASE_DASHBOARD_HREF}
+                    onClick={() => setIsSidebarOpen(false)}
+                    className={`flex items-center px-4 py-3 rounded-2xl transition-all group ${
+                      isDashboard ? 'bg-white/10 text-white border-l-4 border-[#D4AF37]' : 'bg-white/5 hover:bg-white/10 text-gray-300'
+                    }`}
+                  >
+                    <DashboardIcon className={`w-4 h-4 mr-3 ${isDashboard ? 'text-[#D4AF37]' : 'text-gray-400'}`} />
+                    <span className="font-bold text-xs uppercase tracking-widest">Dashboard</span>
+                  </Link>
+                </div>
                 {sidebarItems.map((item) => (
                   <NavItem
                     key={item.href}
