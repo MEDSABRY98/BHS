@@ -106,7 +106,6 @@ export default function InventoryCategoryBalanceTab() {
       if (requestId !== fetchRequestId.current) return;
       console.error('Error fetching category balance:', err);
       setError(err.message || 'Failed to load category balance');
-      setProducts([]);
     } finally {
       if (requestId === fetchRequestId.current) {
         setLoading(false);
@@ -318,10 +317,17 @@ export default function InventoryCategoryBalanceTab() {
           </div>
         </div>
 
+        {loading && products.length > 0 && (
+          <p className="text-xs font-semibold text-indigo-600 flex items-center justify-center gap-2">
+            <RefreshCcw className="w-3.5 h-3.5 animate-spin" />
+            Updating...
+          </p>
+        )}
+
         {error && <p className="text-xs font-semibold text-rose-600 text-center">{error}</p>}
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 transition-opacity duration-300 ${loading && products.length > 0 ? 'opacity-50 pointer-events-none' : ''}`}>
         <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm">
           <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Categories</p>
           <p className="text-2xl font-black text-slate-800">{filteredCategories.length.toLocaleString('en-US')}</p>
@@ -334,8 +340,8 @@ export default function InventoryCategoryBalanceTab() {
         </div>
       </div>
 
-      <div className={`bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden transition-all duration-300 ${loading ? 'opacity-50 pointer-events-none' : ''}`}>
-        {filteredCategories.length === 0 ? (
+      <div className={`bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden transition-all duration-300 ${loading && products.length > 0 ? 'opacity-50 pointer-events-none' : ''}`}>
+        {!loading && filteredCategories.length === 0 ? (
           <NoData />
         ) : (
           <>

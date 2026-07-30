@@ -7,6 +7,8 @@ import {
   isMoveInLocationScope,
   INTERNAL_WAREHOUSES_SET,
   isInternalTransfer,
+  isSameLocationMove,
+  isWaterClusterTransfer,
   isWaterClusterLocation,
   normalizeLocation,
   formatProductCategory,
@@ -1013,6 +1015,14 @@ function classifyPeriodMovement(
   const from = normalizeLocation(locFrom);
   const to = normalizeLocation(locTo);
 
+  if (isSameLocationMove(from, to)) {
+    return { type: 'same_location', netVendors: 0, netCustomers: 0, netProduction: 0, netAdjustment: 0 };
+  }
+
+  if (isWaterClusterTransfer(from, to)) {
+    return { type: 'warehouse_transfer', netVendors: 0, netCustomers: 0, netProduction: 0, netAdjustment: 0 };
+  }
+
   if (isInternalTransfer(from, to)) {
     return { type: 'transfer', netVendors: 0, netCustomers: 0, netProduction: 0, netAdjustment: 0 };
   }
@@ -1049,6 +1059,65 @@ function classifyPeriodMovement(
   if (otherLocation === 'Virtual Locations/Inventory adjustment') return { type: 'adjustment_out', netVendors: 0, netCustomers: 0, netProduction: 0, netAdjustment: -qty };
   if (otherLocation === 'Virtual Locations/Production') return { type: 'production_out', netVendors: 0, netCustomers: 0, netProduction: -qty, netAdjustment: 0 };
   return { type: 'production_out', netVendors: 0, netCustomers: 0, netProduction: -qty, netAdjustment: 0 };
+}
+
+type PeriodBucketEntry = {
+  netVendors: number;
+  netCustomers: number;
+  netProduction: number;
+  netAdjustment: number;
+  netWarehouseTransfer: number;
+  netInternalTransfer: number;
+};
+
+/** Split period stock effect into display buckets (location-scoped uses signed effect). */
+function applyPeriodMovementBuckets(
+  entry: PeriodBucketEntry,
+  classified: { type: string; netVendors: number; netCustomers: number; netProduction: number; netAdjustment: number },
+  effect: number,
+  location: string | null,
+) {
+  if (classified.type === 'warehouse_transfer') {
+    if (location) entry.netWarehouseTransfer += effect;
+    return;
+  }
+
+  if (classified.type === 'transfer') {
+    if (location) entry.netInternalTransfer += effect;
+    return;
+  }
+
+  if (location) {
+    switch (classified.type) {
+      case 'vendor_in':
+      case 'vendor_return':
+        entry.netVendors += effect;
+        break;
+      case 'customer_sale':
+      case 'customer_return':
+        entry.netCustomers += effect;
+        break;
+      case 'adjustment_in':
+      case 'adjustment_out':
+        entry.netAdjustment += effect;
+        break;
+      case 'production_in':
+      case 'production_out':
+      case 'subcontracting_in':
+      case 'subcontracting_out':
+        entry.netProduction += effect;
+        break;
+      default:
+        if (effect !== 0) entry.netProduction += effect;
+        break;
+    }
+    return;
+  }
+
+  entry.netVendors += classified.netVendors;
+  entry.netCustomers += classified.netCustomers;
+  entry.netProduction += classified.netProduction;
+  entry.netAdjustment += classified.netAdjustment;
 }
 
 async function fetchProductInventoryMoves(productId: string): Promise<InventoryMoveRow[]> {
@@ -1101,6 +1170,8 @@ async function computeProductsBalanceReportDataJs(filters?: { dateFrom?: string;
     netCustomers: number;
     netProduction: number;
     netAdjustment: number;
+    netWarehouseTransfer: number;
+    netInternalTransfer: number;
   }>();
 
   moveRows.forEach((row: any) => {
@@ -1123,6 +1194,8 @@ async function computeProductsBalanceReportDataJs(filters?: { dateFrom?: string;
         netCustomers: 0,
         netProduction: 0,
         netAdjustment: 0,
+        netWarehouseTransfer: 0,
+        netInternalTransfer: 0,
       });
     }
 
@@ -1144,10 +1217,7 @@ async function computeProductsBalanceReportDataJs(filters?: { dateFrom?: string;
 
     if (!classified) return;
 
-    entry.netVendors += classified.netVendors;
-    entry.netCustomers += classified.netCustomers;
-    entry.netProduction += classified.netProduction;
-    entry.netAdjustment += classified.netAdjustment;
+    applyPeriodMovementBuckets(entry, classified, effect, location);
   });
 
   return products.map((row) => {
@@ -1163,6 +1233,8 @@ async function computeProductsBalanceReportDataJs(filters?: { dateFrom?: string;
       netCustomers: 0,
       netProduction: 0,
       netAdjustment: 0,
+      netWarehouseTransfer: 0,
+      netInternalTransfer: 0,
     };
 
     const endingStock = location
@@ -1171,7 +1243,9 @@ async function computeProductsBalanceReportDataJs(filters?: { dateFrom?: string;
         + calcData.netVendors
         + calcData.netCustomers
         + calcData.netProduction
-        + calcData.netAdjustment;
+        + calcData.netAdjustment
+        + calcData.netWarehouseTransfer
+        + calcData.netInternalTransfer;
 
     return {
       productId,
@@ -1183,6 +1257,8 @@ async function computeProductsBalanceReportDataJs(filters?: { dateFrom?: string;
       netCustomers: calcData.netCustomers,
       netProduction: calcData.netProduction,
       netAdjustment: calcData.netAdjustment,
+      netWarehouseTransfer: calcData.netWarehouseTransfer,
+      netInternalTransfer: calcData.netInternalTransfer,
       endingStock,
     };
   }).filter(p => p.productName && (productDataMap.has(p.productId) || p.endingStock !== 0 || p.openingStock !== 0));
@@ -1202,6 +1278,8 @@ function mapRpcProductsBalanceRows(data: unknown): ProductBalanceRow[] {
       netCustomers: Number(row.netCustomers ?? row.net_customers ?? 0),
       netProduction: Number(row.netProduction ?? row.net_production ?? 0),
       netAdjustment: Number(row.netAdjustment ?? row.net_adjustment ?? 0),
+      netWarehouseTransfer: Number(row.netWarehouseTransfer ?? row.net_warehouse_transfer ?? 0),
+      netInternalTransfer: Number(row.netInternalTransfer ?? row.net_internal_transfer ?? 0),
       endingStock: Number(row.endingStock ?? row.ending_stock ?? 0),
     }))
     .filter((row) => row.productName);
@@ -1209,31 +1287,6 @@ function mapRpcProductsBalanceRows(data: unknown): ProductBalanceRow[] {
 
 export async function getProductsBalanceReportData(filters?: { dateFrom?: string; dateTo?: string; location?: string }) {
   try {
-    const dateFromStr = filters?.dateFrom?.trim() || null;
-    const dateToStr = filters?.dateTo?.trim() || null;
-    const location = filters?.location?.trim() || null;
-
-    // Location-scoped balances include internal transfers; keep JS path authoritative here.
-    if (location) {
-      const data = await computeProductsBalanceReportDataJs(filters);
-      return { success: true, data };
-    }
-
-    const { data: rpcData, error: rpcError } = await bhs_supabase.rpc('get_inventory_products_balance_report', {
-      p_date_from: dateFromStr,
-      p_date_to: dateToStr,
-      p_location: location,
-    });
-
-    if (!rpcError && rpcData?.success && Array.isArray(rpcData.data)) {
-      return { success: true, data: mapRpcProductsBalanceRows(rpcData.data) };
-    }
-
-    console.warn(
-      'RPC get_inventory_products_balance_report failed, falling back to JS:',
-      rpcError?.message ?? rpcData?.error,
-    );
-
     const data = await computeProductsBalanceReportDataJs(filters);
     return { success: true, data };
   } catch (error: any) {

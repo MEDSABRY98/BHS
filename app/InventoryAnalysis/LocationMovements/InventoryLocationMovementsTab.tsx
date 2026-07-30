@@ -41,6 +41,8 @@ const MOVEMENT_TYPES = [
   { value: 'adjustment_in', label: 'Adjustment (+)' },
   { value: 'adjustment_out', label: 'Adjustment (-)' },
   { value: 'transfer', label: 'Internal Transfer' },
+  { value: 'warehouse_transfer', label: 'Warehouse Transfer' },
+  { value: 'same_location', label: 'Same Location' },
 ];
 
 function formatLocationLabel(loc: string): string {
@@ -50,6 +52,19 @@ function formatLocationLabel(loc: string): string {
 
 function getMovementTypeLabel(type: string): string {
   return MOVEMENT_TYPES.find((item) => item.value === type)?.label || type || 'Other';
+}
+
+function sortRowsAsc(rows: LocationMovementRow[]) {
+  return [...rows].sort((a, b) => {
+    const timeA = a.date ? new Date(a.date).getTime() : 0;
+    const timeB = b.date ? new Date(b.date).getTime() : 0;
+    if (timeA !== timeB) return timeA - timeB;
+    return (a.moveId || a.reference).localeCompare(b.moveId || b.reference);
+  });
+}
+
+function getMoveRowKey(row: LocationMovementRow): string {
+  return `${row.moveId}-${row.productId}`;
 }
 
 function formatDate(value: string): string {
@@ -150,7 +165,6 @@ export default function InventoryLocationMovementsTab() {
       if (requestId !== fetchRequestId.current) return;
       console.error('Error fetching location movements:', err);
       setError(err.message || 'Failed to load location movements');
-      setData([]);
     } finally {
       if (requestId === fetchRequestId.current) {
         setLoading(false);
@@ -227,6 +241,19 @@ export default function InventoryLocationMovementsTab() {
     });
   }, [data, selectedCategory, directionFilter, typeFilter, searchQuery]);
 
+  /** Location-wide cumulative balance on filtered rows (matches Net Change on last movement). */
+  const { runningBalanceByMoveKey, endingRunningBalance } = useMemo(() => {
+    const map = new Map<string, number>();
+    let balance = 0;
+
+    sortRowsAsc(filteredRows).forEach((row) => {
+      balance += row.stockChange;
+      map.set(getMoveRowKey(row), balance);
+    });
+
+    return { runningBalanceByMoveKey: map, endingRunningBalance: balance };
+  }, [filteredRows]);
+
   const summary = useMemo(() => {
     let totalIn = 0;
     let totalOut = 0;
@@ -258,9 +285,9 @@ export default function InventoryLocationMovementsTab() {
       'Category',
       'From',
       'To',
-      'Qty',
       'Type',
-      'Stock Change',
+      'Qty',
+      'Running Balance',
     ];
 
     const movementRows = filteredRows.map((row) => [
@@ -272,9 +299,9 @@ export default function InventoryLocationMovementsTab() {
       row.category,
       row.locationFrom,
       row.locationTo,
-      row.qty,
       getMovementTypeLabel(row.type),
-      row.stockChange,
+      row.qty,
+      runningBalanceByMoveKey.get(getMoveRowKey(row)) ?? 0,
     ]);
 
     const productMap = new Map<string, {
@@ -362,7 +389,7 @@ export default function InventoryLocationMovementsTab() {
         {
           name: 'Movements',
           data: recordsFromTable(movementHeaders, movementRows),
-          options: { numericColumns: ['Qty', 'Stock Change'] },
+          options: { numericColumns: ['Qty', 'Running Balance'] },
         },
         {
           name: 'Products Balance',
@@ -377,12 +404,27 @@ export default function InventoryLocationMovementsTab() {
     );
   };
 
-  const renderStockChange = (value: number) => {
-    if (value === 0) return <span className="text-slate-400 font-medium">0</span>;
-    const formatted = value.toLocaleString('en-US');
+  const renderRunningBalance = (value: number) => (
+    <span className={`font-black text-sm ${
+      value < 0 ? 'text-rose-700' : value > 0 ? 'text-indigo-900' : 'text-slate-500'
+    }`}>
+      {value.toLocaleString('en-US')}
+    </span>
+  );
+
+  const renderQty = (direction: 'in' | 'out', qty: number) => {
+    const n = Math.abs(Number(qty) || 0);
+    const formatted = n.toLocaleString('en-US');
+    if (direction === 'in') {
+      return (
+        <span className="inline-flex items-center gap-0.5 font-bold text-sm text-emerald-600">
+          +{formatted}
+        </span>
+      );
+    }
     return (
-      <span className={`inline-flex font-bold text-sm ${value > 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-        {value > 0 ? `+${formatted}` : formatted}
+      <span className="inline-flex items-center gap-0.5 font-bold text-sm text-rose-600">
+        -{formatted}
       </span>
     );
   };
@@ -708,9 +750,20 @@ export default function InventoryLocationMovementsTab() {
             </button>
           </div>
         </div>
+
+        {loading && data.length > 0 && (
+          <p className="text-xs font-semibold text-indigo-600 flex items-center justify-center gap-2">
+            <RefreshCcw className="w-3.5 h-3.5 animate-spin" />
+            Updating...
+          </p>
+        )}
+
+        {error && (
+          <p className="text-xs font-semibold text-rose-600 text-center">{error}</p>
+        )}
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+      <div className={`grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 transition-opacity duration-300 ${loading && data.length > 0 ? 'opacity-50 pointer-events-none' : ''}`}>
         <div className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-sm">
           <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Movements</p>
           <p className="text-2xl font-black text-slate-800 mt-1">{summary.moveCount.toLocaleString('en-US')}</p>
@@ -735,20 +788,23 @@ export default function InventoryLocationMovementsTab() {
         </div>
       </div>
 
-      {error ? (
+      {error && !loading && data.length === 0 ? (
         <div className="bg-rose-50 border border-rose-200 text-rose-700 rounded-2xl p-4 text-sm font-semibold">
           {error}
         </div>
-      ) : filteredRows.length === 0 ? (
+      ) : !loading && filteredRows.length === 0 ? (
         <NoData message="No location movements found for the selected filters." />
       ) : (
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden">
+        <div className={`bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden transition-opacity duration-300 ${loading && data.length > 0 ? 'opacity-50 pointer-events-none' : ''}`}>
           <div className="overflow-x-auto">
             <table className="w-full border-collapse min-w-[1100px]">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-black uppercase text-slate-500 tracking-wider">
-                  {['Date', 'Reference', 'Direction', 'Product', 'From', 'To', 'Qty', 'Type', 'Stock Change'].map((header) => (
-                    <th key={header} className="py-3.5 px-3 text-center">
+                  {['Date', 'Reference', 'Direction', 'Product', 'From', 'To', 'Type', 'Qty', 'Running Balance'].map((header) => (
+                    <th
+                      key={header}
+                      className={`py-3.5 px-3 text-center ${header === 'Running Balance' ? 'bg-indigo-50/50 text-indigo-900' : ''}`}
+                    >
                       {header}
                     </th>
                   ))}
@@ -779,14 +835,26 @@ export default function InventoryLocationMovementsTab() {
                     <td className="py-3.5 px-3 text-center max-w-[160px] truncate" title={row.locationTo}>
                       {formatLocationLabel(row.locationTo)}
                     </td>
-                    <td className="py-3.5 px-3 text-center font-bold text-slate-800">{row.qty.toLocaleString('en-US')}</td>
                     <td className="py-3.5 px-3 text-center max-w-[180px] truncate" title={getMovementTypeLabel(row.type)}>
                       {getMovementTypeLabel(row.type)}
                     </td>
-                    <td className="py-3.5 px-3 text-center">{renderStockChange(row.stockChange)}</td>
+                    <td className="py-3.5 px-3 text-center">{renderQty(row.direction, row.qty)}</td>
+                    <td className="py-3.5 px-3 text-center bg-indigo-50/20">
+                      {renderRunningBalance(runningBalanceByMoveKey.get(getMoveRowKey(row)) ?? 0)}
+                    </td>
                   </tr>
                 ))}
               </tbody>
+              <tfoot>
+                <tr className="bg-slate-50 border-t-2 border-slate-200 text-xs font-black uppercase">
+                  <td colSpan={8} className="py-3.5 px-3 text-right text-slate-500">
+                    Ending Running Balance (= Net Change)
+                  </td>
+                  <td className="py-3.5 px-3 text-center bg-indigo-50/40">
+                    {renderRunningBalance(endingRunningBalance)}
+                  </td>
+                </tr>
+              </tfoot>
             </table>
           </div>
 

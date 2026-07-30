@@ -54,8 +54,6 @@ export default function InventoryProductsBalanceTab() {
     const requestId = ++fetchRequestId.current;
     try {
       setLoading(true);
-      setData([]);
-      setSelectedProduct(null);
       setError(null);
       const res = await getProductsBalanceReportData({
         dateFrom: from,
@@ -178,6 +176,8 @@ export default function InventoryProductsBalanceTab() {
         acc.netCustomers += item.netCustomers;
         acc.netProduction += item.netProduction;
         acc.netAdjustment += item.netAdjustment;
+        acc.netWarehouseTransfer += item.netWarehouseTransfer ?? 0;
+        acc.netInternalTransfer += item.netInternalTransfer ?? 0;
         acc.endingStock += item.endingStock;
         return acc;
       },
@@ -187,6 +187,8 @@ export default function InventoryProductsBalanceTab() {
         netCustomers: 0,
         netProduction: 0,
         netAdjustment: 0,
+        netWarehouseTransfer: 0,
+        netInternalTransfer: 0,
         endingStock: 0,
       }
     );
@@ -203,8 +205,10 @@ export default function InventoryProductsBalanceTab() {
       'Opening Stock',
       'Net Purchases (Vendors)',
       'Net Sales (Customers)',
-      'Net Production & Sub.',
+      'Net Production',
       'Net Adjustment',
+      'Warehouse Transfer',
+      'Internal Transfer',
       'Ending Stock Balance',
     ];
 
@@ -219,6 +223,8 @@ export default function InventoryProductsBalanceTab() {
       item.netCustomers,
       item.netProduction,
       item.netAdjustment,
+      item.netWarehouseTransfer,
+      item.netInternalTransfer,
       item.endingStock,
     ]);
 
@@ -233,6 +239,8 @@ export default function InventoryProductsBalanceTab() {
       metrics.netCustomers,
       metrics.netProduction,
       metrics.netAdjustment,
+      metrics.netWarehouseTransfer,
+      metrics.netInternalTransfer,
       metrics.endingStock,
     ]);
 
@@ -243,8 +251,10 @@ export default function InventoryProductsBalanceTab() {
         'Opening Stock',
         'Net Purchases (Vendors)',
         'Net Sales (Customers)',
-        'Net Production & Sub.',
+        'Net Production',
         'Net Adjustment',
+        'Warehouse Transfer',
+        'Internal Transfer',
         'Ending Stock Balance',
       ],
     });
@@ -586,7 +596,7 @@ export default function InventoryProductsBalanceTab() {
         {loading && data.length > 0 && (
           <p className="text-xs font-semibold text-indigo-600 flex items-center gap-2">
             <RefreshCcw className="w-3.5 h-3.5 animate-spin" />
-            Updating balance columns for the selected date range...
+            Updating...
           </p>
         )}
 
@@ -596,8 +606,7 @@ export default function InventoryProductsBalanceTab() {
       </div>
 
       {/* KPI Metrics Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Opening Stock */}
+      <div className={`grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 transition-opacity duration-300 ${loading && data.length > 0 ? 'opacity-50 pointer-events-none' : ''}`}>
         <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Opening Stock</p>
@@ -610,7 +619,6 @@ export default function InventoryProductsBalanceTab() {
           </div>
         </div>
 
-        {/* Net Purchases */}
         <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Net Purchases (Vendors)</p>
@@ -623,7 +631,6 @@ export default function InventoryProductsBalanceTab() {
           </div>
         </div>
 
-        {/* Net Sales */}
         <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Net Sales (Customers)</p>
@@ -636,16 +643,69 @@ export default function InventoryProductsBalanceTab() {
           </div>
         </div>
 
-        {/* Ending Stock */}
         <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between">
           <div>
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Ending Stock Balance</p>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Net Production</p>
+            <p className="text-2xl font-black text-indigo-600">
+              {metrics.netProduction >= 0 ? `+${metrics.netProduction.toLocaleString('en-US')}` : metrics.netProduction.toLocaleString('en-US')}
+            </p>
+          </div>
+          <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+            <TrendingUp className="w-5 h-5" />
+          </div>
+        </div>
+
+        <div className="bg-white p-5 rounded-2xl border border-amber-100 shadow-sm flex items-center justify-between bg-amber-50/20">
+          <div>
+            <p className="text-xs font-bold text-amber-600 uppercase tracking-wider mb-1">Net Adjustment</p>
+            <p className={`text-2xl font-black ${
+              metrics.netAdjustment > 0 ? 'text-emerald-600' : metrics.netAdjustment < 0 ? 'text-rose-600' : 'text-slate-500'
+            }`}>
+              {metrics.netAdjustment >= 0 ? `+${metrics.netAdjustment.toLocaleString('en-US')}` : metrics.netAdjustment.toLocaleString('en-US')}
+            </p>
+          </div>
+          <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+            <Layers className="w-5 h-5" />
+          </div>
+        </div>
+
+        <div className="bg-white p-5 rounded-2xl border border-cyan-100 shadow-sm flex items-center justify-between bg-cyan-50/20">
+          <div>
+            <p className="text-xs font-bold text-cyan-600 uppercase tracking-wider mb-1">Warehouse Transfer</p>
+            <p className={`text-2xl font-black ${
+              metrics.netWarehouseTransfer > 0 ? 'text-emerald-600' : metrics.netWarehouseTransfer < 0 ? 'text-rose-600' : 'text-slate-500'
+            }`}>
+              {metrics.netWarehouseTransfer >= 0 ? `+${metrics.netWarehouseTransfer.toLocaleString('en-US')}` : metrics.netWarehouseTransfer.toLocaleString('en-US')}
+            </p>
+          </div>
+          <div className="w-10 h-10 rounded-xl bg-cyan-50 text-cyan-600 flex items-center justify-center">
+            <MapPin className="w-5 h-5" />
+          </div>
+        </div>
+
+        <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between">
+          <div>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Internal Transfer</p>
+            <p className={`text-2xl font-black ${
+              metrics.netInternalTransfer > 0 ? 'text-emerald-600' : metrics.netInternalTransfer < 0 ? 'text-rose-600' : 'text-slate-500'
+            }`}>
+              {metrics.netInternalTransfer >= 0 ? `+${metrics.netInternalTransfer.toLocaleString('en-US')}` : metrics.netInternalTransfer.toLocaleString('en-US')}
+            </p>
+          </div>
+          <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center">
+            <RefreshCcw className="w-5 h-5" />
+          </div>
+        </div>
+
+        <div className="bg-white p-5 rounded-2xl border border-indigo-100 shadow-sm flex items-center justify-between bg-indigo-50/20">
+          <div>
+            <p className="text-xs font-bold text-indigo-500 uppercase tracking-wider mb-1">Ending Stock Balance</p>
             <p className="text-2xl font-black text-indigo-600">
               {metrics.endingStock.toLocaleString('en-US')}
             </p>
           </div>
           <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
-            <Layers className="w-5 h-5" />
+            <Box className="w-5 h-5" />
           </div>
         </div>
       </div>
@@ -657,7 +717,7 @@ export default function InventoryProductsBalanceTab() {
         ) : (
           <>
             <div className="overflow-x-auto">
-              <table className="w-full border-collapse min-w-[1150px]">
+              <table className="w-full border-collapse min-w-[1350px]">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-black uppercase text-slate-500 tracking-wider">
                     <th className="py-3.5 px-3 text-center w-12">#</th>
@@ -667,8 +727,10 @@ export default function InventoryProductsBalanceTab() {
                     <th className="py-3.5 px-3 text-center w-28 bg-slate-100/60">Opening</th>
                     <th className="py-3.5 px-3 text-center w-28">Net Vendors</th>
                     <th className="py-3.5 px-3 text-center w-28">Net Sales</th>
-                    <th className="py-3.5 px-3 text-center w-32">Net Production & Sub.</th>
+                    <th className="py-3.5 px-3 text-center w-32">Net Production</th>
                     <th className="py-3.5 px-3 text-center w-28 bg-amber-50/60 text-amber-800">Net Adjustment</th>
+                    <th className="py-3.5 px-3 text-center w-32 bg-cyan-50/60 text-cyan-800">WH Transfer</th>
+                    <th className="py-3.5 px-3 text-center w-32">Internal Transfer</th>
                     <th className="py-3.5 px-3 text-center w-32 bg-indigo-50/50 text-indigo-900">Ending Balance</th>
                     <th className="py-3.5 px-2 text-center w-20">Actions</th>
                   </tr>
@@ -704,6 +766,12 @@ export default function InventoryProductsBalanceTab() {
                         </td>
                         <td className="py-3.5 px-3 text-center bg-amber-50/20">
                           {renderBadge(item.netAdjustment)}
+                        </td>
+                        <td className="py-3.5 px-3 text-center bg-cyan-50/20">
+                          {renderBadge(item.netWarehouseTransfer ?? 0)}
+                        </td>
+                        <td className="py-3.5 px-3 text-center">
+                          {renderBadge(item.netInternalTransfer ?? 0)}
                         </td>
                         <td className="py-3.5 px-3 text-center font-black text-sm bg-indigo-50/30 text-indigo-900">
                           {item.endingStock.toLocaleString('en-US')}

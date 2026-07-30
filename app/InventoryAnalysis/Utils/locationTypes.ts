@@ -8,8 +8,9 @@
  *  - INTERNAL → EXTERNAL  = Outflow  (-QTY)
  *  - EXTERNAL → INTERNAL  = Inflow   (+QTY)
  *  - INTERNAL → INTERNAL  = Transfer (0 net) — except water cluster ↔ other locations
+ *  - SAME → SAME location = Data error (0 net, ignored)
  *
- * Water cluster (Water / Ahmed Magdy / Omer & Salam): transfers among these three = internal (0 net).
+ * Water cluster (Water / Ahmed Magdy / Omer & Salam): transfers among these three = warehouse transfer (0 net).
  * Water ↔ Mazyad = internal transfer.
  * Water cluster ↔ other locations (except Mazyad) = normal inflow/outflow.
  * Mazyad ↔ S20 = internal transfer.
@@ -107,7 +108,16 @@ export type MovementType =
   | 'adjustment_in'     // Inventory Adjustment → Internal (count gain)
   | 'adjustment_out'    // Internal → Inventory Adjustment (count loss)
   | 'transfer'          // Internal → Internal (no net change)
+  | 'warehouse_transfer' // Water cluster ↔ Water cluster (0 net)
+  | 'same_location'     // Same source & destination (data error, 0 net)
   | 'other';            // Unrecognized movement
+
+/** Same source and destination after normalization — treat as invalid; no stock effect. */
+export function isSameLocationMove(locFrom: string, locTo: string): boolean {
+  const from = normalizeLocation(locFrom);
+  const to = normalizeLocation(locTo);
+  return from !== '' && from === to;
+}
 
 export function isWaterClusterLocation(loc: string): boolean {
   return WATER_CLUSTER_LOCATIONS_SET.has(normalizeLocation(loc));
@@ -122,9 +132,17 @@ export function isWaterMazyadTransfer(locFrom: string, locTo: string): boolean {
   );
 }
 
+/** Transfers among Water / Ahmed Magdy / Omer & Salam (0 net on aggregate stock). */
+export function isWaterClusterTransfer(locFrom: string, locTo: string): boolean {
+  const from = normalizeLocation(locFrom);
+  const to = normalizeLocation(locTo);
+  if (isSameLocationMove(from, to)) return false;
+  return isWaterClusterLocation(from) && isWaterClusterLocation(to);
+}
+
 /**
  * True when movement is an internal transfer (0 net effect on aggregate stock).
- * - Water ↔ Ahmed Magdy ↔ Omer & Salam = transfer
+ * - Water ↔ Ahmed Magdy ↔ Omer & Salam = warehouse transfer
  * - Water ↔ Mazyad = transfer
  * - Mazyad ↔ S20 = transfer
  * - Other internal pairs (Mazyad↔Game, etc.) = transfer
@@ -133,6 +151,10 @@ export function isWaterMazyadTransfer(locFrom: string, locTo: string): boolean {
 export function isInternalTransfer(locFrom: string, locTo: string): boolean {
   const from = normalizeLocation(locFrom);
   const to = normalizeLocation(locTo);
+
+  if (isSameLocationMove(from, to)) {
+    return false;
+  }
 
   if (isWaterMazyadTransfer(from, to)) {
     return true;
@@ -163,6 +185,10 @@ export function isInternalTransfer(locFrom: string, locTo: string): boolean {
 export function classifyMovement(locFrom: string, locTo: string): MovementType {
   const from = normalizeLocation(locFrom);
   const to = normalizeLocation(locTo);
+
+  if (isSameLocationMove(from, to)) return 'same_location';
+
+  if (isWaterClusterTransfer(from, to)) return 'warehouse_transfer';
 
   if (isInternalTransfer(from, to)) return 'transfer';
 
@@ -198,6 +224,8 @@ export function getNetQtyEffect(locFrom: string, locTo: string, qty: number): nu
   const from = normalizeLocation(locFrom);
   const to = normalizeLocation(locTo);
 
+  if (isSameLocationMove(from, to)) return 0;
+
   if (isInternalTransfer(from, to)) return 0;
 
   const fromInternal = INTERNAL_WAREHOUSES_SET.has(from);
@@ -211,6 +239,9 @@ export function getNetQtyEffect(locFrom: string, locTo: string, qty: number): nu
 export function getScopedQtyEffect(locFrom: string, locTo: string, qty: number, location?: string | null): number {
   const from = normalizeLocation(locFrom);
   const to = normalizeLocation(locTo);
+
+  if (isSameLocationMove(from, to)) return 0;
+
   const scopedLocation = location ? normalizeLocation(location) : '';
 
   if (!scopedLocation) return getNetQtyEffect(from, to, qty);
@@ -240,6 +271,8 @@ export const MOVEMENT_TYPE_LABELS: Record<MovementType, string> = {
   adjustment_in:      'Inventory Adjustment (+)',
   adjustment_out:     'Inventory Adjustment (-)',
   transfer:           'Internal Transfer',
+  warehouse_transfer: 'Warehouse Transfer',
+  same_location:      'Same Location',
   other:              'Other',
 };
 

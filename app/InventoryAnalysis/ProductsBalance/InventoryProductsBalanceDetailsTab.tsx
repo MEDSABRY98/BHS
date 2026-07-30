@@ -29,6 +29,8 @@ const MOVEMENT_TYPES = [
   { value: 'adjustment_in',     label: 'Adjustment (+)' },
   { value: 'adjustment_out',    label: 'Adjustment (-)' },
   { value: 'transfer',          label: 'Internal Transfer' },
+  { value: 'warehouse_transfer', label: 'Warehouse Transfer' },
+  { value: 'same_location',     label: 'Same Location' },
 ];
 
 function getMovementStockChange(move: PeriodMovement, location?: string): number {
@@ -341,7 +343,7 @@ export default function InventoryProductsBalanceDetailsTab({ selectedProduct, da
       </div>
 
       {/* KPI Metrics Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
         <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
           <p className="text-[10px] font-bold text-slate-400 uppercase">Opening Stock</p>
           <p className="text-lg font-black text-slate-800 mt-1">{selectedProduct.openingStock.toLocaleString('en-US')}</p>
@@ -357,7 +359,7 @@ export default function InventoryProductsBalanceDetailsTab({ selectedProduct, da
           <p className="text-lg font-black text-rose-600 mt-1">{selectedProduct.netCustomers.toLocaleString('en-US')}</p>
         </div>
         <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
-          <p className="text-[10px] font-bold text-slate-400 uppercase">Net Production & Sub.</p>
+          <p className="text-[10px] font-bold text-slate-400 uppercase">Net Production</p>
           <p className="text-lg font-black text-indigo-600 mt-1">{selectedProduct.netProduction.toLocaleString('en-US')}</p>
         </div>
         <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs bg-amber-50/20">
@@ -372,6 +374,34 @@ export default function InventoryProductsBalanceDetailsTab({ selectedProduct, da
             {selectedProduct.netAdjustment >= 0
               ? `+${selectedProduct.netAdjustment.toLocaleString('en-US')}`
               : selectedProduct.netAdjustment.toLocaleString('en-US')}
+          </p>
+        </div>
+        <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs bg-cyan-50/20">
+          <p className="text-[10px] font-bold text-cyan-600 uppercase">Warehouse Transfer</p>
+          <p className={`text-lg font-black mt-1 ${
+            (selectedProduct.netWarehouseTransfer ?? 0) > 0
+              ? 'text-emerald-600'
+              : (selectedProduct.netWarehouseTransfer ?? 0) < 0
+                ? 'text-rose-600'
+                : 'text-slate-500'
+          }`}>
+            {(selectedProduct.netWarehouseTransfer ?? 0) >= 0
+              ? `+${(selectedProduct.netWarehouseTransfer ?? 0).toLocaleString('en-US')}`
+              : (selectedProduct.netWarehouseTransfer ?? 0).toLocaleString('en-US')}
+          </p>
+        </div>
+        <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
+          <p className="text-[10px] font-bold text-slate-400 uppercase">Internal Transfer</p>
+          <p className={`text-lg font-black mt-1 ${
+            (selectedProduct.netInternalTransfer ?? 0) > 0
+              ? 'text-emerald-600'
+              : (selectedProduct.netInternalTransfer ?? 0) < 0
+                ? 'text-rose-600'
+                : 'text-slate-500'
+          }`}>
+            {(selectedProduct.netInternalTransfer ?? 0) >= 0
+              ? `+${(selectedProduct.netInternalTransfer ?? 0).toLocaleString('en-US')}`
+              : (selectedProduct.netInternalTransfer ?? 0).toLocaleString('en-US')}
           </p>
         </div>
         <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs bg-indigo-50/20">
@@ -461,6 +491,8 @@ export default function InventoryProductsBalanceDetailsTab({ selectedProduct, da
                   else if (move.type === 'adjustment_in')      typeBadge = <span className="px-2.5 py-1 bg-amber-100 text-amber-800 rounded-lg font-bold">Adjustment (+)</span>;
                   else if (move.type === 'adjustment_out')     typeBadge = <span className="px-2.5 py-1 bg-yellow-100 text-yellow-800 rounded-lg font-bold">Adjustment (−)</span>;
                   else if (move.type === 'transfer')           typeBadge = <span className="px-2.5 py-1 bg-slate-200 text-slate-700 rounded-lg font-bold">Internal Transfer</span>;
+                  else if (move.type === 'warehouse_transfer') typeBadge = <span className="px-2.5 py-1 bg-cyan-100 text-cyan-800 rounded-lg font-bold">Warehouse Transfer</span>;
+                  else if (move.type === 'same_location')     typeBadge = <span className="px-2.5 py-1 bg-red-100 text-red-700 rounded-lg font-bold">Same Location</span>;
 
                   const { runningBalance } = row;
 

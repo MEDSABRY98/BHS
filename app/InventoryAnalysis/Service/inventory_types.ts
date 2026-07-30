@@ -51,6 +51,8 @@ export interface ProductBalanceRow {
   netCustomers: number;
   netProduction: number;
   netAdjustment: number;
+  netWarehouseTransfer: number;
+  netInternalTransfer: number;
   endingStock: number;
   periodMovements?: PeriodMovement[];
 }
