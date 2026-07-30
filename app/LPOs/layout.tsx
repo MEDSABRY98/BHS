@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import Login from '@/app/Components/Login';
-import Loading from '@/app/Components/Loading';
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -51,34 +50,34 @@ function NavItem({ href, icon: Icon, label, isActive, onClick, isCollapsed }: Na
   );
 }
 
+function readStoredUser() {
+  if (typeof window === 'undefined') return null;
+  const mainUserStr = localStorage.getItem('currentUser');
+  if (!mainUserStr) return null;
+  try {
+    const userData = JSON.parse(mainUserStr);
+    if (!userData.NAME && userData.name) {
+      userData.NAME = userData.name;
+    }
+    return userData;
+  } catch {
+    localStorage.removeItem('currentUser');
+    return null;
+  }
+}
+
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(true);
-  const [user, setUser] = useState<any>(null);
-  const [isChecking, setIsChecking] = useState(true);
+  const [user, setUser] = useState<any>(() => readStoredUser());
 
   useEffect(() => {
     const stored = localStorage.getItem('sidebarCollapsed');
     if (stored === 'true') {
       setIsCollapsed(true);
     }
-
-    const mainUserStr = localStorage.getItem('currentUser');
-    if (mainUserStr) {
-      try {
-        const userData = JSON.parse(mainUserStr);
-        // Ensure we have a NAME property for display/logic (mapping from main user's name if needed)
-        if (!userData.NAME && userData.name) {
-          userData.NAME = userData.name;
-        }
-        setUser(userData);
-      } catch (e) {
-        localStorage.removeItem('currentUser');
-      }
-    }
-    setIsChecking(false);
   }, []);
 
   const toggleSidebar = () => {
@@ -100,10 +99,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     // but usually in this context "Sign Out" from LPO means going back to main selection.
     router.push('/');
   };
-
-  if (isChecking) {
-    return <Loading />;
-  }
 
   if (!user) {
     return <Login onLogin={handleLogin} />;

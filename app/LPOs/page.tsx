@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { bhs_supabas } from '@/lib/supabase';
+import { bhs_supabas, fetchAllData } from '@/lib/supabase';
 import {
   TrendingUp,
   Clock,
@@ -20,6 +20,7 @@ import {
   FileText
 } from 'lucide-react';
 import NoData from '@/app/Components/NoDataTab';
+import TabLoader from '@/app/Components/TabLoader';
 
 interface Stats {
   total: number;
@@ -50,13 +51,9 @@ export default function DashboardPage() {
 
   async function fetchDashboardData() {
     try {
-      const { data: allDriversData, error } = await bhs_supabas
-        .from('app_lpos_DRIVERS')
-        .select('*')
-        .order('ID', { ascending: false });
-
-      if (error) throw error;
-      const drivers = allDriversData || [];
+      const drivers = await fetchAllData(() =>
+        bhs_supabas.from('app_lpos_DRIVERS').select('*').order('ID', { ascending: false })
+      );
 
       let total = 0;
       let delivered = 0;
@@ -66,8 +63,7 @@ export default function DashboardPage() {
 
       const performanceMap: Record<string, DriverPerformance> = {};
 
-      const { data: allUsersRes } = await bhs_supabas.from('bhs_USERS').select('*');
-      const allUsers = allUsersRes || [];
+      const allUsers = await fetchAllData(() => bhs_supabas.from('bhs_USERS').select('*'));
 
       drivers.forEach((driver: any) => {
         total++;
@@ -126,11 +122,7 @@ export default function DashboardPage() {
   }
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black"></div>
-      </div>
-    );
+    return <TabLoader />;
   }
 
   return (

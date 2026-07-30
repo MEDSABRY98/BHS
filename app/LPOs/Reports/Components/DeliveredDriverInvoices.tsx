@@ -1,11 +1,12 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { bhs_supabas, fetchAssignedDrivers } from '@/lib/supabase';
+import { bhs_supabas, fetchAllData, fetchAssignedDrivers } from '@/lib/supabase';
 import SearchSelect from '../../Components/DropDownList';
 import { FileText, Loader2, Download, Printer, AlertCircle } from 'lucide-react';
 import { generateDeliveredDriverInvoicesPDF } from '@/app/LPOs/Pdf/DeliveredDriverInvoicesPdf';
 import NoData from '@/app/Components/NoDataTab';
+import TabLoader from '@/app/Components/TabLoader';
 
 export default function DeliveredDriverInvoices() {
   const [drivers, setDrivers] = useState<any[]>([]);
@@ -57,9 +58,10 @@ export default function DeliveredDriverInvoices() {
     setIsInvoicesLoading(true);
     try {
       // Fetch all invoices assigned to this driver
-      const { data, error } = await bhs_supabas
-        .from('app_lpos_ORDERS')
-        .select(`
+      const data = await fetchAllData(() =>
+        bhs_supabas
+          .from('app_lpos_ORDERS')
+          .select(`
           *,
           bhs_CUSTOMERS ( "CUSTOMER NAME":"CUSTOMER SUB NAME" ),
           app_lpos_DRIVERS!inner (
@@ -71,12 +73,11 @@ export default function DeliveredDriverInvoices() {
             TRACKING_NOTES
           )
         `)
-        .eq('app_lpos_DRIVERS.DRIVERS_NAME', selectedDriverId);
-
-      if (error) throw error;
+          .eq('app_lpos_DRIVERS.DRIVERS_NAME', selectedDriverId)
+      );
 
       // Filter in frontend to show ONLY Confirmed handovers
-      const deliveredList = (data || []).filter((order: any) => {
+      const deliveredList = data.filter((order: any) => {
         const driverRecord = order.app_lpos_DRIVERS?.[0];
         return driverRecord && driverRecord.OFFICE_HANDOVER_STATUS === 'Confirmed';
       });
@@ -329,10 +330,7 @@ export default function DeliveredDriverInvoices() {
           </div>
 
           {isInvoicesLoading ? (
-            <div className="py-20 text-center flex flex-col items-center justify-center gap-4">
-              <Loader2 className="w-10 h-10 animate-spin text-[#D4AF37]" />
-              <p className="text-xs font-black text-gray-400 uppercase tracking-widest">Loading Invoices...</p>
-            </div>
+            <TabLoader />
           ) : sortedInvoices.length === 0 ? (
             <NoData title="NO CONFIRMED INVOICES" />
           ) : (

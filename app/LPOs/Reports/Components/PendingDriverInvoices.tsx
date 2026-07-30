@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { bhs_supabas, fetchAssignedDrivers } from '@/lib/supabase';
+import { bhs_supabas, fetchAllData, fetchAssignedDrivers } from '@/lib/supabase';
 import { FileText, Loader2, Download, Printer, AlertCircle, Search, Calendar, Archive } from 'lucide-react';
 import { generatePendingDriverInvoicesPDF } from '@/app/LPOs/Pdf/PendingDriverInvoicesPdf';
 import NoData from '@/app/Components/NoDataTab';
+import TabLoader from '@/app/Components/TabLoader';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import { toast } from '@/app/Components/Notification';
@@ -40,9 +41,8 @@ export default function PendingDriverInvoices() {
     try {
       const driversData = await fetchAssignedDrivers();
       setDrivers(driversData);
-      const { data: ordersData, error: ordErr } = await bhs_supabas
-        .from('app_lpos_ORDERS')
-        .select(`
+      const ordersData = await fetchAllData(() =>
+        bhs_supabas.from('app_lpos_ORDERS').select(`
           *,
           bhs_CUSTOMERS ( "CUSTOMER NAME":"CUSTOMER SUB NAME" ),
           app_lpos_DRIVERS (
@@ -50,11 +50,11 @@ export default function PendingDriverInvoices() {
             STATUS,
             OFFICE_HANDOVER_STATUS
           )
-        `);
-      if (ordErr) throw ordErr;
+        `)
+      );
 
       // Filter in frontend to handle NULLs and non-Confirmed handovers accurately
-      const pendingList = (ordersData || []).filter((order: any) => {
+      const pendingList = ordersData.filter((order: any) => {
         const driverRecord = order.app_lpos_DRIVERS?.[0];
         return driverRecord && driverRecord.OFFICE_HANDOVER_STATUS !== 'Confirmed';
       });
@@ -365,10 +365,7 @@ export default function PendingDriverInvoices() {
         </div>
 
         {isLoading ? (
-          <div className="py-20 text-center flex flex-col items-center justify-center gap-4">
-            <Loader2 className="w-10 h-10 animate-spin text-[#D4AF37]" />
-            <p className="text-xs font-black text-gray-400 uppercase tracking-widest">Loading Driver Metrics...</p>
-          </div>
+          <TabLoader />
         ) : driverMetrics.length === 0 ? (
           <NoData title="NO PENDING DRIVER INVOICES" />
         ) : (

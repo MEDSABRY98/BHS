@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { bhs_supabas } from '@/lib/supabase';
+import { bhs_supabas, fetchAllData } from '@/lib/supabase';
 import { FileCheck, UserCheck, Clock, ShieldCheck, AlertCircle, Save, Loader2, CheckCircle2, XCircle, Lock, Truck, Printer, Download } from 'lucide-react';
 import { generateCancelInvoicePDF, CancelInvoiceReason } from '@/app/LPOs/Pdf/CancelInvoicePdf';
 import NoData from '@/app/Components/NoDataTab';
+import TabLoader from '@/app/Components/TabLoader';
 import { usePermissions } from '../../Hooks/usePermissions';
 
 interface InvoicesStatusTabProps {
@@ -69,10 +70,8 @@ export default function InvoicesStatusTab({ orderId, order }: InvoicesStatusTabP
             setCurrentUserProfile(data);
           } else {
             // Fallback: fetch all users and match case-insensitively/trimmed
-            const { data: allUsers } = await bhs_supabas
-              .from('bhs_USERS')
-              .select('*');
-            const matchedUser = allUsers?.find(
+            const allUsers = await fetchAllData(() => bhs_supabas.from('bhs_USERS').select('*'));
+            const matchedUser = allUsers.find(
               (u: any) => u.NAME.trim().toLowerCase() === cleanName.toLowerCase()
             );
             if (matchedUser) {
@@ -182,8 +181,8 @@ export default function InvoicesStatusTab({ orderId, order }: InvoicesStatusTabP
               if (data?.ID) {
                 userId = data.ID;
               } else {
-                const { data: allUsers } = await bhs_supabas.from('bhs_USERS').select('*');
-                const matched = allUsers?.find(
+                const allUsers = await fetchAllData(() => bhs_supabas.from('bhs_USERS').select('*'));
+                const matched = allUsers.find(
                   (u: any) => u.NAME.trim().toLowerCase() === cleanName.toLowerCase()
                 );
                 userId = matched?.ID || parsed.id || parsed.ID;
@@ -371,12 +370,7 @@ export default function InvoicesStatusTab({ orderId, order }: InvoicesStatusTabP
 
 
   if (isLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[300px] gap-4">
-        <Loader2 className="w-8 h-8 animate-spin text-black" />
-        <p className="text-xs font-black text-gray-400 uppercase tracking-widest">Loading Status...</p>
-      </div>
-    );
+    return <TabLoader className="min-h-[280px]" />;
   }
 
   if (!deliveryData) {

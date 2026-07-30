@@ -1,6 +1,6 @@
 import { PurchaseRecord, Product, Supplier } from '../page';
 import { exportStyledExcel } from '@/app/Components/Export/ExcelExport';
-import { filterPurchases, filterProductsByCategory, filterSuffix, ReportFilters } from './ReportFilters';
+import { filterPurchases, filterSuffix, ReportFilters } from './ReportFilters';
 
 function buildLatestPriceMap(
   purchases: PurchaseRecord[]
@@ -29,24 +29,17 @@ export async function generateSupplierPriceMatrixReport(
   suppliers: Supplier[],
   filters: ReportFilters
 ) {
-  const filteredPurchases = filterPurchases(purchases, filters);
+  const filteredPurchases = filterPurchases(purchases, filters, products);
 
   if (filteredPurchases.length === 0) {
     alert('No purchases found for the selected filters.');
     return;
   }
 
-  const categoryFilteredProducts = filterProductsByCategory(products, filters.category);
-  const allowedProductIds = new Set(categoryFilteredProducts.map(p => p.id));
-
-  const activeProductIds = [...new Set(
-    filteredPurchases
-      .map(p => p.productId)
-      .filter(id => allowedProductIds.has(id))
-  )];
+  const activeProductIds = [...new Set(filteredPurchases.map(p => p.productId))];
 
   const sortedProducts = activeProductIds
-    .map(id => categoryFilteredProducts.find(p => p.id === id))
+    .map(id => products.find(p => p.id === id))
     .filter((p): p is Product => p !== undefined)
     .sort((a, b) => a.name.localeCompare(b.name));
 

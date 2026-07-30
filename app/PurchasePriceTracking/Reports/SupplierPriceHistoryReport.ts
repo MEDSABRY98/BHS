@@ -8,7 +8,7 @@ export async function generateSupplierPriceHistoryReport(
   products: Product[],
   filters: ReportFilters
 ) {
-  const supplierPurchases = filterPurchases(purchases, filters);
+  const supplierPurchases = filterPurchases(purchases, filters, products);
   
   const purchasesByProduct = new Map<string, PurchaseRecord[]>();
   supplierPurchases.forEach(p => {

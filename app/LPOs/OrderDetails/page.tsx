@@ -19,6 +19,7 @@ import {
   X,
 } from 'lucide-react';
 import { ConfirmModal } from '../Components/ConfirmModal';
+import TabLoader from '@/app/Components/TabLoader';
 import { usePermissions } from '../Hooks/usePermissions';
 import OrderItemsTab from './Components/OrderItemsTab';
 import OrderInfoTab, { OrderInfoTabHandle } from './Components/OrderInfoTab';
@@ -163,11 +164,7 @@ function OrderDetailsPageContent() {
   };
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black"></div>
-      </div>
-    );
+    return <TabLoader />;
   }
 
   const totalAmount = items.reduce((sum, item) => {
@@ -427,11 +424,7 @@ function OrderDetailsPageContent() {
 
 export default function OrderDetailsPage() {
   return (
-    <Suspense fallback={
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black"></div>
-      </div>
-    }>
+    <Suspense fallback={<TabLoader />}>
       <OrderDetailsPageContent />
     </Suspense>
   );

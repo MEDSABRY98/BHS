@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { bhs_supabas } from '@/lib/supabase';
+import { bhs_supabas, fetchAllData } from '@/lib/supabase';
 import { Truck, Navigation, CheckCircle2, Clock, Save, MapPin, Trash2 } from 'lucide-react';
 import SearchSelect from '../../Components/DropDownList';
+import TabLoader from '@/app/Components/TabLoader';
 
 interface OrderDeliveryTabProps {
   orderId: string;
@@ -53,11 +54,10 @@ export default function OrderDeliveryTab({ orderId }: OrderDeliveryTabProps) {
     setIsLoading(true);
     try {
       // Fetch all staff for dropdowns
-      const { data: staffData } = await bhs_supabas
-        .from('bhs_USERS')
-        .select('*')
-        .order('NAME');
-      setAllStaff(staffData || []);
+      const staffData = await fetchAllData(() =>
+        bhs_supabas.from('bhs_USERS').select('*').order('NAME')
+      );
+      setAllStaff(staffData);
 
       // Fetch delivery tracking for this order
       const { data: delData } = await bhs_supabas
@@ -155,12 +155,7 @@ export default function OrderDeliveryTab({ orderId }: OrderDeliveryTabProps) {
   };
 
   if (isLoading) {
-    return (
-      <div className="py-20 text-center animate-pulse">
-        <Truck className="w-12 h-12 text-gray-100 mx-auto mb-4" />
-        <p className="text-xs font-black text-gray-400 uppercase tracking-widest">Loading logistics data...</p>
-      </div>
-    );
+    return <TabLoader className="min-h-[280px]" />;
   }
 
   const staffOptions = allStaff.map(s => ({ id: s.ID, label: s.NAME }));

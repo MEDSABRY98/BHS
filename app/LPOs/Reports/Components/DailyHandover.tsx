@@ -1,11 +1,12 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { bhs_supabas, fetchAssignedDrivers } from '@/lib/supabase';
+import { bhs_supabas, fetchAllData, fetchAssignedDrivers } from '@/lib/supabase';
 import SearchSelect from '../../Components/DropDownList';
 import { FileText, Loader2, Download, Printer, AlertCircle } from 'lucide-react';
 import { generateDailyHandoverPDF } from '@/app/LPOs/Pdf/DailyHandoverPdf';
 import NoData from '@/app/Components/NoDataTab';
+import TabLoader from '@/app/Components/TabLoader';
 
 interface HandoverGroup {
   key: string;
@@ -57,9 +58,10 @@ export default function HandoverReports() {
   async function fetchConfirmedOrders() {
     setIsOrdersLoading(true);
     try {
-      const { data, error } = await bhs_supabas
-        .from('app_lpos_ORDERS')
-        .select(`
+      const data = await fetchAllData(() =>
+        bhs_supabas
+          .from('app_lpos_ORDERS')
+          .select(`
           *,
           bhs_CUSTOMERS ( "CUSTOMER NAME":"CUSTOMER SUB NAME" ),
           app_lpos_DRIVERS!inner (
@@ -71,10 +73,9 @@ export default function HandoverReports() {
             TRACKING_NOTES
           )
         `)
-        .eq('app_lpos_DRIVERS.OFFICE_HANDOVER_STATUS', 'Confirmed');
-
-      if (error) throw error;
-      setAllConfirmedOrders(data || []);
+          .eq('app_lpos_DRIVERS.OFFICE_HANDOVER_STATUS', 'Confirmed')
+      );
+      setAllConfirmedOrders(data);
     } catch (err) {
       console.error('Error fetching confirmed handover orders:', err);
     } finally {
@@ -312,10 +313,7 @@ export default function HandoverReports() {
         </div>
 
         {isOrdersLoading ? (
-          <div className="py-20 text-center flex flex-col items-center justify-center gap-4">
-            <Loader2 className="w-10 h-10 animate-spin text-[#D4AF37]" />
-            <p className="text-xs font-black text-gray-400 uppercase tracking-widest">Loading Handover Records...</p>
-          </div>
+          <TabLoader />
         ) : filteredHandovers.length === 0 ? (
           <NoData title="NO HANDOVER RECORDS FOUND" />
         ) : (

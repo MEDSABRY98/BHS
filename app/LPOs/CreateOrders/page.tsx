@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { bhs_supabas } from '@/lib/supabase';
+import { bhs_supabas, fetchAllData } from '@/lib/supabase';
 import {
   ReceiptText,
   Send,
@@ -23,6 +23,7 @@ import SearchSelect from '../Components/DropDownList';
 import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
 import { toast } from '@/app/Components/Notification';
+import TabLoader from '@/app/Components/TabLoader';
 
 function downloadUploadErrorsReport(errors: string[], action: 'import' | 'update') {
   if (errors.length === 0) return;
@@ -80,14 +81,18 @@ export default function CreateOrderPage() {
 
   async function fetchInitialData() {
     try {
-      const [usersRes, customersRes] = await Promise.all([
-        bhs_supabas.from('bhs_USERS').select('*').order('NAME'),
-        bhs_supabas.from('bhs_CUSTOMERS').select('*, "CUSTOMER NAME":"CUSTOMER SUB NAME"').order('CUSTOMER SUB NAME')
+      const [users, customers] = await Promise.all([
+        fetchAllData(() => bhs_supabas.from('bhs_USERS').select('*').order('NAME')),
+        fetchAllData(() =>
+          bhs_supabas
+            .from('bhs_CUSTOMERS')
+            .select('*, "CUSTOMER NAME":"CUSTOMER SUB NAME"')
+            .order('CUSTOMER SUB NAME')
+        ),
       ]);
 
-      const fetchedUsers = usersRes.data || [];
-      setUsers(fetchedUsers);
-      setCustomers(customersRes.data || []);
+      setUsers(users);
+      setCustomers(customers);
 
       // Auto-set the logged-in user as the Sales Rep by matching NAME
       const storedUser = localStorage.getItem('currentUser');
@@ -98,7 +103,7 @@ export default function CreateOrderPage() {
 
           if (userName) {
             // Find the corresponding user in the Supabase users table to get their ID
-            const dbUser = fetchedUsers.find(u => u.NAME.toLowerCase() === userName.toLowerCase());
+            const dbUser = users.find(u => u.NAME.toLowerCase() === userName.toLowerCase());
             if (dbUser) {
               setFormData(prev => ({ ...prev, CREATED_BY: dbUser.ID }));
             }
@@ -188,9 +193,7 @@ export default function CreateOrderPage() {
   };
 
   async function generateNextOrderId() {
-    const { data } = await bhs_supabas
-      .from('app_lpos_ORDERS')
-      .select('ID');
+    const data = await fetchAllData(() => bhs_supabas.from('app_lpos_ORDERS').select('ID'));
 
     let highestNum = 0;
     if (data && data.length > 0) {
@@ -345,35 +348,35 @@ export default function CreateOrderPage() {
         // Fetch existing Invoice IDs from the database to prevent duplicates
         let dbExistingInvoices: Record<string, string> = {}; // invoice_id -> order_id
         if (uploadedInvoiceIds.length > 0) {
-          const { data: dbOrders, error: dbError } = await bhs_supabas
-            .from('app_lpos_ORDERS')
-            .select('ORDER_ID, INVOICE_ID')
-            .in('INVOICE_ID', uploadedInvoiceIds);
+          const dbOrders = await fetchAllData(() =>
+            bhs_supabas
+              .from('app_lpos_ORDERS')
+              .select('ORDER_ID, INVOICE_ID')
+              .in('INVOICE_ID', uploadedInvoiceIds)
+          );
 
-          if (!dbError && dbOrders) {
-            dbOrders.forEach(row => {
-              if (row.INVOICE_ID && row.ORDER_ID) {
-                dbExistingInvoices[row.INVOICE_ID.trim().toLowerCase()] = row.ORDER_ID;
-              }
-            });
-          }
+          dbOrders.forEach(row => {
+            if (row.INVOICE_ID && row.ORDER_ID) {
+              dbExistingInvoices[row.INVOICE_ID.trim().toLowerCase()] = row.ORDER_ID;
+            }
+          });
         }
 
         // Fetch existing LPO IDs from the database to prevent duplicates
         let dbExistingLpos: Record<string, string> = {}; // lpo_id -> order_id
         if (uploadedLpoIds.length > 0) {
-          const { data: dbLpoOrders, error: lpoDbError } = await bhs_supabas
-            .from('app_lpos_ORDERS')
-            .select('ORDER_ID, LPO_ID')
-            .in('LPO_ID', uploadedLpoIds);
+          const dbLpoOrders = await fetchAllData(() =>
+            bhs_supabas
+              .from('app_lpos_ORDERS')
+              .select('ORDER_ID, LPO_ID')
+              .in('LPO_ID', uploadedLpoIds)
+          );
 
-          if (!lpoDbError && dbLpoOrders) {
-            dbLpoOrders.forEach(row => {
-              if (row.LPO_ID && row.ORDER_ID) {
-                dbExistingLpos[row.LPO_ID.trim().toLowerCase()] = row.ORDER_ID;
-              }
-            });
-          }
+          dbLpoOrders.forEach(row => {
+            if (row.LPO_ID && row.ORDER_ID) {
+              dbExistingLpos[row.LPO_ID.trim().toLowerCase()] = row.ORDER_ID;
+            }
+          });
         }
 
         // 2. Keep track of duplicates seen in this Excel sheet and current pending orders list
@@ -684,11 +687,7 @@ export default function CreateOrderPage() {
   };
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black"></div>
-      </div>
-    );
+    return <TabLoader />;
   }
 
   return (

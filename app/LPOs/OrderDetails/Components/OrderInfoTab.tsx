@@ -1,7 +1,7 @@
 'use client';
 
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useState } from 'react';
-import { bhs_supabas } from '@/lib/supabase';
+import { bhs_supabas, fetchAllData } from '@/lib/supabase';
 import SearchSelect from '../../Components/DropDownList';
 import { toast } from '@/app/Components/Notification';
 import {
@@ -76,15 +76,17 @@ const OrderInfoTab = forwardRef<OrderInfoTabHandle, OrderInfoTabProps>(function 
     const fetchOptions = async () => {
       setIsLoadingOptions(true);
       try {
-        const [usersRes, customersRes] = await Promise.all([
-          bhs_supabas.from('bhs_USERS').select('*').order('NAME'),
-          bhs_supabas
-            .from('bhs_CUSTOMERS')
-            .select('*, "CUSTOMER NAME":"CUSTOMER SUB NAME"')
-            .order('CUSTOMER SUB NAME'),
+        const [users, customers] = await Promise.all([
+          fetchAllData(() => bhs_supabas.from('bhs_USERS').select('*').order('NAME')),
+          fetchAllData(() =>
+            bhs_supabas
+              .from('bhs_CUSTOMERS')
+              .select('*, "CUSTOMER NAME":"CUSTOMER SUB NAME"')
+              .order('CUSTOMER SUB NAME')
+          ),
         ]);
-        setUsers(usersRes.data || []);
-        setCustomers(customersRes.data || []);
+        setUsers(users);
+        setCustomers(customers);
       } catch (err) {
         console.error('Error loading order info options:', err);
         toast.error('Failed to load customers and users');

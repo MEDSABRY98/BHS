@@ -236,7 +236,6 @@ export default function ReportsTab() {
   const reportCards = [
     {
       title: 'Monthly Net Sales',
-      description: 'Sales to customers minus returns, by month',
       icon: TrendingUp,
       accent: 'border-t-indigo-500',
       iconClass: 'text-indigo-600 bg-indigo-50',
@@ -246,7 +245,6 @@ export default function ReportsTab() {
     },
     {
       title: 'Quarterly Net Sales',
-      description: 'Three-month calendar quarter totals',
       icon: FileSpreadsheet,
       accent: 'border-t-blue-500',
       iconClass: 'text-blue-600 bg-blue-50',
@@ -256,7 +254,6 @@ export default function ReportsTab() {
     },
     {
       title: 'Monthly Net Purchases',
-      description: 'Purchases from vendors minus returns, by month',
       icon: ShoppingCart,
       accent: 'border-t-emerald-500',
       iconClass: 'text-emerald-600 bg-emerald-50',
@@ -266,7 +263,6 @@ export default function ReportsTab() {
     },
     {
       title: 'Quarterly Net Purchases',
-      description: 'Three-month calendar quarter purchase totals',
       icon: ShoppingCart,
       accent: 'border-t-teal-500',
       iconClass: 'text-teal-600 bg-teal-50',
@@ -276,7 +272,6 @@ export default function ReportsTab() {
     },
     {
       title: 'Monthly Sales vs Purchases',
-      description: 'Side-by-side net sales and purchases by month',
       icon: GitCompare,
       accent: 'border-t-violet-500',
       iconClass: 'text-violet-600 bg-violet-50',
@@ -286,7 +281,6 @@ export default function ReportsTab() {
     },
     {
       title: 'Quarterly Sales vs Purchases',
-      description: 'Side-by-side net sales and purchases by quarter',
       icon: GitCompare,
       accent: 'border-t-fuchsia-500',
       iconClass: 'text-fuchsia-600 bg-fuchsia-50',
@@ -296,7 +290,6 @@ export default function ReportsTab() {
     },
     {
       title: 'Dead Stock / Slow Movers',
-      description: 'In-stock products with zero sales in the selected period',
       icon: PackageX,
       accent: 'border-t-rose-500',
       iconClass: 'text-rose-600 bg-rose-50',
@@ -386,7 +379,7 @@ export default function ReportsTab() {
           return (
             <div
               key={report.title}
-              className={`bg-white px-4 py-4 rounded-xl border border-slate-100 shadow-sm border-t-[3px] ${report.accent} flex flex-col gap-3 hover:shadow-md transition-shadow min-h-[120px]`}
+              className={`bg-white px-4 py-4 rounded-xl border border-slate-100 shadow-sm border-t-[3px] ${report.accent} flex flex-col gap-3 hover:shadow-md transition-shadow`}
             >
               <div className="flex items-start gap-2.5 min-w-0">
                 <div className={`p-2 rounded-lg shrink-0 ${report.iconClass}`}>
@@ -394,7 +387,6 @@ export default function ReportsTab() {
                 </div>
                 <div className="min-w-0">
                   <h3 className="text-[15px] font-bold text-slate-800 leading-tight">{report.title}</h3>
-                  <p className="text-xs text-slate-500 mt-1 leading-snug">{report.description}</p>
                 </div>
               </div>
               <button

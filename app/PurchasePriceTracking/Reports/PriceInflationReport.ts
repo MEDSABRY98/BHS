@@ -7,7 +7,7 @@ export async function generatePriceInflationReport(
   products: Product[],
   filters: ReportFilters
 ) {
-  const filteredPurchases = filterPurchases(purchases, filters);
+  const filteredPurchases = filterPurchases(purchases, filters, products);
 
   if (filteredPurchases.length === 0) {
     alert("No purchases found for the selected date range.");

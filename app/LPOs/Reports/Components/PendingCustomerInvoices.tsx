@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { bhs_supabas, fetchAssignedDrivers } from '@/lib/supabase';
+import { bhs_supabas, fetchAllData, fetchAssignedDrivers } from '@/lib/supabase';
 import { FileText, Loader2, Download, Printer, Search } from 'lucide-react';
 import { generatePendingCustomerInvoicesPDF } from '@/app/LPOs/Pdf/PendingCustomerInvoicesPdf';
 import NoData from '@/app/Components/NoDataTab';
+import TabLoader from '@/app/Components/TabLoader';
 import SearchSelect from '../../Components/DropDownList';
 
 export default function PendingCustomerInvoices() {
@@ -33,9 +34,8 @@ export default function PendingCustomerInvoices() {
   async function fetchPendingInvoices() {
     setIsInvoicesLoading(true);
     try {
-      const { data, error } = await bhs_supabas
-        .from('app_lpos_ORDERS')
-        .select(`
+      const data = await fetchAllData(() =>
+        bhs_supabas.from('app_lpos_ORDERS').select(`
           *,
           bhs_CUSTOMERS ( "CUSTOMER NAME":"CUSTOMER SUB NAME" ),
           app_lpos_DRIVERS!inner (
@@ -43,12 +43,11 @@ export default function PendingCustomerInvoices() {
             STATUS,
             OFFICE_HANDOVER_STATUS
           )
-        `);
-
-      if (error) throw error;
+        `)
+      );
 
       // Filter in frontend to handle NULLs and non-Confirmed handovers accurately
-      const pendingList = (data || []).filter((order: any) => {
+      const pendingList = data.filter((order: any) => {
         const driverRecord = order.app_lpos_DRIVERS?.[0];
         return driverRecord && driverRecord.OFFICE_HANDOVER_STATUS !== 'Confirmed';
       });
@@ -261,10 +260,7 @@ export default function PendingCustomerInvoices() {
 
       {/* Results Content */}
       {isInvoicesLoading ? (
-        <div className="flex flex-col items-center justify-center min-h-[300px] bg-white rounded-[3rem] border border-gray-100 shadow-sm">
-          <Loader2 className="w-10 h-10 text-[#D4AF37] animate-spin mb-4" />
-          <p className="text-xs font-black text-gray-400 uppercase tracking-widest">Loading Invoices...</p>
-        </div>
+        <TabLoader />
       ) : !isSearchValid ? (
         <NoData title="Type customer name to search" />
       ) : sortedInvoices.length === 0 ? (

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { bhs_supabas } from '@/lib/supabase';
+import { bhs_supabas, fetchAllData } from '@/lib/supabase';
 import {
   Search,
   Eye,
@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import NoData from '@/app/Components/NoDataTab';
+import TabLoader from '@/app/Components/TabLoader';
 import { usePermissions } from '../Hooks/usePermissions';
 import OrdersFilterMenu, { FilterCriteria } from '../OrderDetails/Components/OrdersFilterMenu';
 import { ConfirmModal } from '../Components/ConfirmModal';
@@ -95,18 +96,18 @@ export default function OrdersPage() {
   }, [searchTerm, statusFilter, advancedFilters]);
 
   async function fetchStaff() {
-    const { data } = await bhs_supabas
-      .from('bhs_USERS')
-      .select('ID, NAME')
-      .order('NAME');
-    if (data) setStaffList(data);
+    const data = await fetchAllData(() =>
+      bhs_supabas.from('bhs_USERS').select('ID, NAME').order('NAME')
+    );
+    setStaffList(data);
   }
 
   async function fetchOrders() {
     try {
-      const { data, error } = await bhs_supabas
-        .from('app_lpos_ORDERS')
-        .select(`
+      const data = await fetchAllData(() =>
+        bhs_supabas
+          .from('app_lpos_ORDERS')
+          .select(`
           *,
           bhs_CUSTOMERS ( "CUSTOMER NAME":"CUSTOMER SUB NAME", "CUSTOMER CITY" ),
           bhs_USERS ( "NAME" ),
@@ -118,11 +119,10 @@ export default function OrdersPage() {
             STATUS
           )
         `)
-        .order('CREATED_AT', { ascending: false });
+          .order('CREATED_AT', { ascending: false })
+      );
 
-      if (error) throw error;
-
-      setOrders(data || []);
+      setOrders(data);
     } catch (err: any) {
       console.error('Fetch orders error:', err?.message || err, err);
       if (err?.details) console.error('Details:', err.details);
@@ -308,11 +308,7 @@ export default function OrdersPage() {
   };
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black"></div>
-      </div>
-    );
+    return <TabLoader />;
   }
 
   return (

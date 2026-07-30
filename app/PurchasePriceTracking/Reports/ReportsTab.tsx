@@ -213,7 +213,7 @@ export default function ReportsTab({ purchases, products, suppliers }: Props) {
     setIsGenerating2(true);
     const product = products.find(p => p.id === selectedProductId);
     if (product) {
-      await generateProductSupplierComparisonReport(product.name, purchases, suppliers, filters);
+      await generateProductSupplierComparisonReport(product.name, purchases, suppliers, filters, products);
     }
     setIsGenerating2(false);
   };

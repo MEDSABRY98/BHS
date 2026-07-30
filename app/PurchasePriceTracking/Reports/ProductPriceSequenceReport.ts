@@ -7,7 +7,7 @@ export async function generateProductPriceSequenceReport(
   products: Product[],
   filters: ReportFilters
 ) {
-  const filteredPurchases = filterPurchases(purchases, filters);
+  const filteredPurchases = filterPurchases(purchases, filters, products);
 
   const purchasesByProduct = new Map<string, PurchaseRecord[]>();
   filteredPurchases.forEach(p => {

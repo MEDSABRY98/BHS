@@ -8,7 +8,11 @@ export type ReportFilters = {
   toDate?: string;
 };
 
-export function filterPurchases(purchases: PurchaseRecord[], filters: ReportFilters): PurchaseRecord[] {
+export function filterPurchases(
+  purchases: PurchaseRecord[],
+  filters: ReportFilters,
+  products?: Product[],
+): PurchaseRecord[] {
   let result = [...purchases];
 
   if (filters.supplierId) {
@@ -16,6 +20,12 @@ export function filterPurchases(purchases: PurchaseRecord[], filters: ReportFilt
   }
   if (filters.productId) {
     result = result.filter(p => p.productId === filters.productId);
+  }
+  if (filters.category && products) {
+    const allowedProductIds = new Set(
+      filterProductsByCategory(products, filters.category).map(p => p.id),
+    );
+    result = result.filter(p => allowedProductIds.has(p.productId));
   }
   if (filters.fromDate) {
     result = result.filter(p => new Date(p.date) >= new Date(filters.fromDate!));

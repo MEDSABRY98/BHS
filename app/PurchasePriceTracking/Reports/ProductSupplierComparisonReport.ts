@@ -6,9 +6,10 @@ export async function generateProductSupplierComparisonReport(
   productName: string,
   purchases: PurchaseRecord[],
   suppliers: Supplier[],
-  filters: ReportFilters
+  filters: ReportFilters,
+  products: Product[],
 ) {
-  const productPurchases = filterPurchases(purchases, filters);
+  const productPurchases = filterPurchases(purchases, filters, products);
   
   if (productPurchases.length === 0) {
     alert("No purchases found for this product.");
