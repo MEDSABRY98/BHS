@@ -171,6 +171,13 @@ export default function InventoryProductsBalanceDetailsTab({ selectedProduct, da
     return { totalQty, endingBalance };
   }, [filteredLedgerRows, selectedProduct.openingStock]);
 
+  const ledgerEndingBalance = useMemo(() => {
+    if (movementsLoading || ledgerRows.length === 0) {
+      return selectedProduct.endingStock;
+    }
+    return ledgerRows[ledgerRows.length - 1].runningBalance;
+  }, [movementsLoading, ledgerRows, selectedProduct.endingStock]);
+
   const totalPages = Math.ceil(filteredLedgerRows.length / itemsPerPage);
   const paginatedLedgerRows = useMemo(() => {
     const start = (currentPage - 1) * itemsPerPage;
@@ -369,7 +376,7 @@ export default function InventoryProductsBalanceDetailsTab({ selectedProduct, da
         </div>
         <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs bg-indigo-50/20">
           <p className="text-[10px] font-bold text-indigo-500 uppercase">Ending Stock</p>
-          <p className="text-lg font-black text-indigo-900 mt-1">{selectedProduct.endingStock.toLocaleString('en-US')}</p>
+          <p className="text-lg font-black text-indigo-900 mt-1">{ledgerEndingBalance.toLocaleString('en-US')}</p>
         </div>
       </div>
 

@@ -54,6 +54,9 @@ export default function InventoryProductsBalanceTab() {
     const requestId = ++fetchRequestId.current;
     try {
       setLoading(true);
+      setData([]);
+      setSelectedProduct(null);
+      setError(null);
       const res = await getProductsBalanceReportData({
         dateFrom: from,
         dateTo: to,

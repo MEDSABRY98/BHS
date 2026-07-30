@@ -8,6 +8,7 @@ import {
   INTERNAL_WAREHOUSES_SET,
   isInternalTransfer,
   isWaterClusterLocation,
+  normalizeLocation,
   formatProductCategory,
 } from '../Utils/locationTypes';
 import type {
@@ -1008,18 +1009,22 @@ function classifyPeriodMovement(
   locFrom: string,
   locTo: string,
   qty: number,
-  fromInternal: boolean,
-  toInternal: boolean,
 ): { type: string; netVendors: number; netCustomers: number; netProduction: number; netAdjustment: number } | null {
-  if (isInternalTransfer(locFrom, locTo)) {
+  const from = normalizeLocation(locFrom);
+  const to = normalizeLocation(locTo);
+
+  if (isInternalTransfer(from, to)) {
     return { type: 'transfer', netVendors: 0, netCustomers: 0, netProduction: 0, netAdjustment: 0 };
   }
 
+  const fromInternal = INTERNAL_WAREHOUSES_SET.has(from);
+  const toInternal = INTERNAL_WAREHOUSES_SET.has(to);
+
   if (fromInternal && toInternal) {
-    if (isWaterClusterLocation(locFrom) && !isWaterClusterLocation(locTo)) {
+    if (isWaterClusterLocation(from) && !isWaterClusterLocation(to)) {
       return { type: 'production_out', netVendors: 0, netCustomers: 0, netProduction: 0, netAdjustment: 0 };
     }
-    if (isWaterClusterLocation(locTo) && !isWaterClusterLocation(locFrom)) {
+    if (isWaterClusterLocation(to) && !isWaterClusterLocation(from)) {
       return { type: 'production_in', netVendors: 0, netCustomers: 0, netProduction: 0, netAdjustment: 0 };
     }
   }
@@ -1028,7 +1033,7 @@ function classifyPeriodMovement(
   const isOut = fromInternal;
   if (!isIn && !isOut) return null;
 
-  const otherLocation = isIn ? locFrom : locTo;
+  const otherLocation = isIn ? from : to;
   if (isIn) {
     if (otherLocation === 'Partners/Vendors') return { type: 'vendor_in', netVendors: qty, netCustomers: 0, netProduction: 0, netAdjustment: 0 };
     if (otherLocation === 'Partners/Customers') return { type: 'customer_return', netVendors: 0, netCustomers: qty, netProduction: 0, netAdjustment: 0 };
@@ -1091,6 +1096,7 @@ async function computeProductsBalanceReportDataJs(filters?: { dateFrom?: string;
 
   const productDataMap = new Map<string, {
     openingStock: number;
+    periodEffect: number;
     netVendors: number;
     netCustomers: number;
     netProduction: number;
@@ -1104,14 +1110,15 @@ async function computeProductsBalanceReportDataJs(filters?: { dateFrom?: string;
     const dateStr = row.DATE ? String(row.DATE) : '';
     const moveDate = dateStr ? new Date(dateStr) : null;
     const qty = parseNum(row.QTY);
-    const locFrom = row['LOCATION FROM']?.toString().trim() || '';
-    const locTo = row['LOCATION TO']?.toString().trim() || '';
+    const locFrom = normalizeLocation(row['LOCATION FROM']?.toString().trim() || '');
+    const locTo = normalizeLocation(row['LOCATION TO']?.toString().trim() || '');
 
     if (!isMoveInLocationScope(locFrom, locTo, location)) return;
 
     if (!productDataMap.has(productId)) {
       productDataMap.set(productId, {
         openingStock: 0,
+        periodEffect: 0,
         netVendors: 0,
         netCustomers: 0,
         netProduction: 0,
@@ -1121,10 +1128,8 @@ async function computeProductsBalanceReportDataJs(filters?: { dateFrom?: string;
 
     const entry = productDataMap.get(productId)!;
 
-    const fromInternal = INTERNAL_WAREHOUSES_SET.has(locFrom);
-    const toInternal = INTERNAL_WAREHOUSES_SET.has(locTo);
     const effect = getScopedQtyEffect(locFrom, locTo, qty, location);
-    const classified = classifyPeriodMovement(locFrom, locTo, qty, fromInternal, toInternal);
+    const classified = classifyPeriodMovement(locFrom, locTo, qty);
 
     if (fromDate && moveDate && moveDate < fromDate) {
       entry.openingStock += effect;
@@ -1134,6 +1139,8 @@ async function computeProductsBalanceReportDataJs(filters?: { dateFrom?: string;
     if (toDate && moveDate && moveDate > toDate) {
       return;
     }
+
+    entry.periodEffect += effect;
 
     if (!classified) return;
 
@@ -1151,13 +1158,20 @@ async function computeProductsBalanceReportDataJs(filters?: { dateFrom?: string;
 
     const calcData = productDataMap.get(productId) || {
       openingStock: 0,
+      periodEffect: 0,
       netVendors: 0,
       netCustomers: 0,
       netProduction: 0,
       netAdjustment: 0,
     };
 
-    const endingStock = calcData.openingStock + calcData.netVendors + calcData.netCustomers + calcData.netProduction + calcData.netAdjustment;
+    const endingStock = location
+      ? calcData.openingStock + calcData.periodEffect
+      : calcData.openingStock
+        + calcData.netVendors
+        + calcData.netCustomers
+        + calcData.netProduction
+        + calcData.netAdjustment;
 
     return {
       productId,
@@ -1198,6 +1212,12 @@ export async function getProductsBalanceReportData(filters?: { dateFrom?: string
     const dateFromStr = filters?.dateFrom?.trim() || null;
     const dateToStr = filters?.dateTo?.trim() || null;
     const location = filters?.location?.trim() || null;
+
+    // Location-scoped balances include internal transfers; keep JS path authoritative here.
+    if (location) {
+      const data = await computeProductsBalanceReportDataJs(filters);
+      return { success: true, data };
+    }
 
     const { data: rpcData, error: rpcError } = await bhs_supabase.rpc('get_inventory_products_balance_report', {
       p_date_from: dateFromStr,
@@ -1269,16 +1289,14 @@ export async function getProductPeriodMovements(
       const dateStr = row.DATE ? String(row.DATE) : '';
       const moveDate = dateStr ? new Date(dateStr) : null;
       const qty = parseNum(row.QTY);
-      const locFrom = row['LOCATION FROM']?.toString().trim() || '';
-      const locTo = row['LOCATION TO']?.toString().trim() || '';
+      const locFrom = normalizeLocation(row['LOCATION FROM']?.toString().trim() || '');
+      const locTo = normalizeLocation(row['LOCATION TO']?.toString().trim() || '');
       const ref = row.REFERENCE?.toString().trim() || '-';
 
       if (fromDate && moveDate && moveDate < fromDate) return;
       if (toDate && moveDate && moveDate > toDate) return;
 
-      const fromInternal = INTERNAL_WAREHOUSES_SET.has(locFrom);
-      const toInternal = INTERNAL_WAREHOUSES_SET.has(locTo);
-      const classified = classifyPeriodMovement(locFrom, locTo, qty, fromInternal, toInternal);
+      const classified = classifyPeriodMovement(locFrom, locTo, qty);
       if (!classified) return;
 
       movements.push({
@@ -1380,19 +1398,18 @@ export async function getLocationPeriodMovements(filters: {
       const productId = row['PRODUCT ID']?.toString().trim() || '';
       if (!productId) return;
 
-      const locFrom = row['LOCATION FROM']?.toString().trim() || '';
-      const locTo = row['LOCATION TO']?.toString().trim() || '';
+      const locFrom = normalizeLocation(row['LOCATION FROM']?.toString().trim() || '');
+      const locTo = normalizeLocation(row['LOCATION TO']?.toString().trim() || '');
       const qty = parseNum(row.QTY);
+      const scopedLocation = normalizeLocation(location);
 
-      if (!isMoveInLocationScope(locFrom, locTo, location)) return;
+      if (!isMoveInLocationScope(locFrom, locTo, scopedLocation)) return;
 
-      const fromInternal = INTERNAL_WAREHOUSES_SET.has(locFrom);
-      const toInternal = INTERNAL_WAREHOUSES_SET.has(locTo);
-      const classified = classifyPeriodMovement(locFrom, locTo, qty, fromInternal, toInternal);
+      const classified = classifyPeriodMovement(locFrom, locTo, qty);
       if (!classified) return;
 
-      const stockChange = getScopedQtyEffect(locFrom, locTo, qty, location);
-      const direction: 'in' | 'out' = locTo === location ? 'in' : 'out';
+      const stockChange = getScopedQtyEffect(locFrom, locTo, qty, scopedLocation);
+      const direction: 'in' | 'out' = locTo === scopedLocation ? 'in' : 'out';
       const product = productMap.get(productId);
 
       rows.push({
