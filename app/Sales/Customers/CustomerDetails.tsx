@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { SalesInvoice } from '@/lib/supabase';;
-import { ArrowLeft, DollarSign, Package, TrendingUp, BarChart3, Search, Calendar, Download, Percent, X, ShoppingBag, FileSpreadsheet } from 'lucide-react';
+import { ArrowLeft, DollarSign, Package, TrendingUp, BarChart3, Search, Calendar, X, ShoppingBag, FileSpreadsheet } from 'lucide-react';
 import NoData from '@/app/Components/NoDataTab';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
 import SalesCustomerCategoriesTab from './CustomerDetailsCategoriesTab';
@@ -49,15 +49,11 @@ export default function SalesCustomerDetails({
   const [activeTab, setActiveTab] = useState<'dashboard' | 'subcustomers' | 'monthly' | 'categories' | 'products' | 'invoices'>(initialTab as any);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
-  const [invoicesData, setInvoicesData] = useState<Array<{ number: string; debit: number; credit: number; customerName: string; date: string }>>([]);
-  const [loadingInvoices, setLoadingInvoices] = useState(false);
-  const [showDiscountsModal, setShowDiscountsModal] = useState(false);
   const [invoiceTypeFilter, setInvoiceTypeFilter] = useState<'all' | 'sales' | 'returns'>('all');
   const [invoicesPage, setInvoicesPage] = useState(1);
   const invoicesPerPage = 50;
   const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
   const fetchRequestId = useRef(0);
-  const debitLoadedRef = useRef(false);
 
   // Debounce search query
   useEffect(() => {
@@ -97,38 +93,6 @@ export default function SalesCustomerDetails({
       fetchRequestId.current += 1;
     };
   }, [userId, filters, customerName, customerId, customerType]);
-
-  // Lazy-load debit invoices only when dashboard/discounts need them
-  useEffect(() => {
-    const needsDebitData = activeTab === 'dashboard' || showDiscountsModal;
-    if (!needsDebitData || debitLoadedRef.current) return;
-
-    let cancelled = false;
-    const fetchInvoices = async () => {
-      setLoadingInvoices(true);
-      try {
-        const response = await fetch('/api/Debit');
-        if (!response.ok || cancelled) return;
-        const result = await response.json();
-        if (cancelled) return;
-        setInvoicesData(result.data || []);
-        debitLoadedRef.current = true;
-      } catch (error) {
-        if (!cancelled) {
-          console.error('Error fetching invoices:', error);
-        }
-      } finally {
-        if (!cancelled) {
-          setLoadingInvoices(false);
-        }
-      }
-    };
-    fetchInvoices();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [activeTab, showDiscountsModal]);
 
   // Get unfiltered customer data (for lastInvoiceDate calculation)
   const unfilteredCustomerData = useMemo(() => {
@@ -614,102 +578,6 @@ export default function SalesCustomerDetails({
       }
     }
 
-    // Calculate discounts based on sales ratio
-    // 1. Get CUSTOMER MAIN NAME from customerData
-    const customerMainName = customerData.length > 0 && customerData[0].customerMainName
-      ? customerData[0].customerMainName
-      : customerName; // Fallback to customerName if customerMainName not available
-
-    // 2. Calculate total sales amount for sub-customer
-    const subCustomerTotalAmount = customerData.reduce((sum, item) => sum + item.amount, 0);
-
-    // 3. Calculate total sales amount for main customer (all sub-customers with same customerMainName)
-    const normalizeCustomerName = (name: string) => (name || '').toLowerCase().trim().replace(/\s+/g, ' ');
-    const normalizedMainName = normalizeCustomerName(customerMainName);
-
-    const mainCustomerTotalAmount = data.reduce((sum, item) => {
-      const itemMainName = item.customerMainName || item.customerName;
-      const normalizedItemMainName = normalizeCustomerName(itemMainName);
-      if (normalizedItemMainName === normalizedMainName) {
-        return sum + item.amount;
-      }
-      return sum;
-    }, 0);
-
-    // 4. Calculate sales ratio
-    const salesRatio = mainCustomerTotalAmount > 0
-      ? subCustomerTotalAmount / mainCustomerTotalAmount
-      : 0;
-
-    // 5. Find the date range in sales data (already filtered by parent/sidebar)
-    let earliestSalesDate: Date | null = null;
-    let latestSalesDate: Date | null = null;
-    if (data.length > 0) {
-      const salesDates = data
-        .map(item => {
-          if (!item.invoiceDate) return null;
-          try {
-            const date = new Date(item.invoiceDate);
-            return isNaN(date.getTime()) ? null : date;
-          } catch {
-            return null;
-          }
-        })
-        .filter((date): date is Date => date !== null);
-
-      if (salesDates.length > 0) {
-        const timestamps = salesDates.map(d => d.getTime());
-        earliestSalesDate = new Date(Math.min(...timestamps));
-        latestSalesDate = new Date(Math.max(...timestamps));
-
-        earliestSalesDate.setHours(0, 0, 0, 0);
-        latestSalesDate.setHours(23, 59, 59, 999);
-      }
-    }
-
-    // 6. Calculate total discounts for main customer from Invoices sheet
-    // Filter by customer name and ensure invoice date is within the sales date range
-    const mainCustomerInvoices = invoicesData.filter(inv => {
-      if (!inv.customerName) return false;
-      const normalizedInvName = normalizeCustomerName(inv.customerName);
-      if (normalizedInvName !== normalizedMainName) return false;
-
-      // Filter by date range: respect the same period as sales data
-      if (inv.date) {
-        try {
-          const invDate = new Date(inv.date);
-          if (!isNaN(invDate.getTime())) {
-            invDate.setHours(0, 0, 0, 0);
-
-            if (earliestSalesDate && invDate < earliestSalesDate) return false;
-            if (latestSalesDate && invDate > latestSalesDate) return false;
-          }
-        } catch {
-          return false;
-        }
-      }
-
-      return true;
-    });
-
-    const mainCustomerTotalDiscountsWithTax = mainCustomerInvoices.reduce((sum, inv) => {
-      const num = (inv.number?.toString() || '').toUpperCase();
-      if (num.startsWith('BIL') || num.startsWith('JV')) {
-        // Calculate net discount: (credit - debit)
-        const netDiscount = (inv.credit || 0) - (inv.debit || 0);
-        return sum + netDiscount;
-      }
-      return sum;
-    }, 0);
-
-    // Remove 5% tax from discounts (discounts in invoices sheet include tax, but sales amounts are without tax)
-    // If discount includes 5% tax: discount_with_tax = discount_without_tax * 1.05
-    // Therefore: discount_without_tax = discount_with_tax / 1.05
-    const mainCustomerTotalDiscounts = mainCustomerTotalDiscountsWithTax / 1.05;
-
-    // 7. Distribute discount based on sales ratio
-    const distributedDiscount = mainCustomerTotalDiscountsWithTax * salesRatio;
-
     return {
       totalAmount,
       totalQty,
@@ -720,17 +588,8 @@ export default function SalesCustomerDetails({
       avgMonthlyQty,
       lastInvoiceDate,
       daysSinceLastInvoice,
-      discountsAmount: distributedDiscount,
-      // Additional data for discounts explanation modal
-      customerMainName,
-      subCustomerTotalAmount,
-      mainCustomerTotalAmount,
-      salesRatio,
-      mainCustomerTotalDiscountsWithTax,
-      mainCustomerTotalDiscounts,
-      latestSalesDate
     };
-  }, [customerData, monthlySales, invoicesData, customerName, data]);
+  }, [customerData, monthlySales, unfilteredCustomerData]);
 
   // Get unfiltered customer data from ALL data (for comparison chart)
   const customerAllData = useMemo(() => {
@@ -1030,22 +889,23 @@ export default function SalesCustomerDetails({
         {activeTab === 'dashboard' && (
           <div className="space-y-6">
             {/* Key Metrics Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="overflow-x-auto pb-1">
+              <div className="grid grid-cols-7 gap-4 min-w-[1120px]">
               {/* Last Invoice Date Card */}
-              <div className={`bg-white rounded-xl shadow-md p-6 ${dashboardMetrics.daysSinceLastInvoice !== null && dashboardMetrics.daysSinceLastInvoice > 5
+              <div className={`bg-white rounded-xl shadow-md p-5 min-w-0 ${dashboardMetrics.daysSinceLastInvoice !== null && dashboardMetrics.daysSinceLastInvoice > 5
                 ? 'border-2 border-red-500 bg-red-50'
                 : ''
                 }`}>
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-medium text-gray-600">Last Invoice Date</h3>
-                  <Calendar className={`w-6 h-6 ${dashboardMetrics.daysSinceLastInvoice !== null && dashboardMetrics.daysSinceLastInvoice > 5
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-xs font-medium text-gray-600 leading-tight">Last Invoice Date</h3>
+                  <Calendar className={`w-5 h-5 shrink-0 ${dashboardMetrics.daysSinceLastInvoice !== null && dashboardMetrics.daysSinceLastInvoice > 5
                     ? 'text-red-600'
                     : 'text-gray-600'
                     }`} />
                 </div>
                 {dashboardMetrics.lastInvoiceDate ? (
                   <div>
-                    <p className="text-xl font-bold text-gray-800 mb-1">
+                    <p className="text-lg font-bold text-gray-800 mb-1">
                       {dashboardMetrics.lastInvoiceDate.toLocaleDateString('en-US', {
                         year: 'numeric',
                         month: 'short',
@@ -1062,16 +922,16 @@ export default function SalesCustomerDetails({
                     </p>
                   </div>
                 ) : (
-                  <p className="text-2xl font-bold text-gray-400">-</p>
+                  <p className="text-xl font-bold text-gray-400">-</p>
                 )}
               </div>
 
-              <div className="bg-white rounded-xl shadow-md p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-medium text-gray-600">Total Sales Amount</h3>
-                  <DollarSign className="w-6 h-6 text-green-600" />
+              <div className="bg-white rounded-xl shadow-md p-5 min-w-0">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-xs font-medium text-gray-600 leading-tight">Total Sales Amount</h3>
+                  <DollarSign className="w-5 h-5 text-green-600 shrink-0" />
                 </div>
-                <p className="text-2xl font-bold text-gray-800">
+                <p className="text-xl font-bold text-gray-800">
                   {dashboardMetrics.totalAmount.toLocaleString('en-US', {
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2
@@ -1079,33 +939,12 @@ export default function SalesCustomerDetails({
                 </p>
               </div>
 
-              <div
-                className="bg-white rounded-xl shadow-md p-6 cursor-pointer hover:shadow-lg transition-shadow"
-                onClick={() => setShowDiscountsModal(true)}
-                title="Click to see calculation details"
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-medium text-gray-600">Discounts</h3>
-                  <Percent className="w-6 h-6 text-yellow-600" />
+              <div className="bg-white rounded-xl shadow-md p-5 min-w-0">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-xs font-medium text-gray-600 leading-tight">Total Quantity</h3>
+                  <Package className="w-5 h-5 text-blue-600 shrink-0" />
                 </div>
-                <p className="text-2xl font-bold text-gray-800">
-                  {loadingInvoices ? (
-                    <span className="text-gray-400">Loading...</span>
-                  ) : (
-                    dashboardMetrics.discountsAmount.toLocaleString('en-US', {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2
-                    })
-                  )}
-                </p>
-              </div>
-
-              <div className="bg-white rounded-xl shadow-md p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-medium text-gray-600">Total Quantity</h3>
-                  <Package className="w-6 h-6 text-blue-600" />
-                </div>
-                <p className="text-2xl font-bold text-gray-800">
+                <p className="text-xl font-bold text-gray-800">
                   {dashboardMetrics.totalQty.toLocaleString('en-US', {
                     minimumFractionDigits: 0,
                     maximumFractionDigits: 0
@@ -1113,12 +952,12 @@ export default function SalesCustomerDetails({
                 </p>
               </div>
 
-              <div className="bg-white rounded-xl shadow-md p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-medium text-gray-600">Avg Monthly Amount</h3>
-                  <TrendingUp className="w-6 h-6 text-purple-600" />
+              <div className="bg-white rounded-xl shadow-md p-5 min-w-0">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-xs font-medium text-gray-600 leading-tight">Avg Monthly Amount</h3>
+                  <TrendingUp className="w-5 h-5 text-purple-600 shrink-0" />
                 </div>
-                <p className="text-2xl font-bold text-gray-800">
+                <p className="text-xl font-bold text-gray-800">
                   {dashboardMetrics.avgMonthlyAmount.toLocaleString('en-US', {
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2
@@ -1126,12 +965,12 @@ export default function SalesCustomerDetails({
                 </p>
               </div>
 
-              <div className="bg-white rounded-xl shadow-md p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-medium text-gray-600">Avg Monthly Quantity</h3>
-                  <TrendingUp className="w-6 h-6 text-orange-600" />
+              <div className="bg-white rounded-xl shadow-md p-5 min-w-0">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-xs font-medium text-gray-600 leading-tight">Avg Monthly Quantity</h3>
+                  <TrendingUp className="w-5 h-5 text-orange-600 shrink-0" />
                 </div>
-                <p className="text-2xl font-bold text-gray-800">
+                <p className="text-xl font-bold text-gray-800">
                   {dashboardMetrics.avgMonthlyQty.toLocaleString('en-US', {
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2
@@ -1139,20 +978,21 @@ export default function SalesCustomerDetails({
                 </p>
               </div>
 
-              <div className="bg-white rounded-xl shadow-md p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-medium text-gray-600">Total Products</h3>
-                  <Package className="w-6 h-6 text-indigo-600" />
+              <div className="bg-white rounded-xl shadow-md p-5 min-w-0">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-xs font-medium text-gray-600 leading-tight">Total Products</h3>
+                  <Package className="w-5 h-5 text-indigo-600 shrink-0" />
                 </div>
-                <p className="text-2xl font-bold text-gray-800">{dashboardMetrics.uniqueProducts}</p>
+                <p className="text-xl font-bold text-gray-800">{dashboardMetrics.uniqueProducts}</p>
               </div>
 
-              <div className="bg-white rounded-xl shadow-md p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-medium text-gray-600">Active Months</h3>
-                  <BarChart3 className="w-6 h-6 text-teal-600" />
+              <div className="bg-white rounded-xl shadow-md p-5 min-w-0">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-xs font-medium text-gray-600 leading-tight">Active Months</h3>
+                  <BarChart3 className="w-5 h-5 text-teal-600 shrink-0" />
                 </div>
-                <p className="text-2xl font-bold text-gray-800">{dashboardMetrics.uniqueMonths}</p>
+                <p className="text-xl font-bold text-gray-800">{dashboardMetrics.uniqueMonths}</p>
+              </div>
               </div>
             </div>
 
@@ -1737,131 +1577,6 @@ export default function SalesCustomerDetails({
             )}
             </>
             )}
-          </div>
-        )}
-
-        {/* Discounts Calculation Modal */}
-        {showDiscountsModal && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full">
-              <div className="border-b border-gray-200 px-6 py-3 flex items-center justify-between">
-                <h2 className="text-xl font-bold text-gray-800">Discounts Calculation Explanation</h2>
-                <button
-                  onClick={() => setShowDiscountsModal(false)}
-                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                  title="Close"
-                >
-                  <X className="w-5 h-5 text-gray-600" />
-                </button>
-              </div>
-
-              <div className="p-5">
-                <div className="grid grid-cols-2 gap-4 mb-4">
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                    <h3 className="text-sm font-semibold text-blue-900 mb-1">Customer Information</h3>
-                    <p className="text-xs text-gray-700"><span className="font-medium">Sub:</span> {customerName}</p>
-                    <p className="text-xs text-gray-700"><span className="font-medium">Main:</span> {dashboardMetrics.customerMainName || customerName}</p>
-                  </div>
-                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-                    <h3 className="text-sm font-semibold text-gray-800 mb-1">Date Filter</h3>
-                    <p className="text-xs text-gray-600">
-                      {dashboardMetrics.latestSalesDate ? (
-                        <>Up to: <span className="font-medium">{dashboardMetrics.latestSalesDate.toLocaleDateString('en-US', {
-                          year: 'numeric',
-                          month: 'short',
-                          day: 'numeric'
-                        })}</span></>
-                      ) : (
-                        'No date filter'
-                      )}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3 mb-4">
-                  <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
-                    <h3 className="text-xs font-semibold text-gray-700 mb-1">Step 1: Sub-Customer Sales</h3>
-                    <p className="text-xs text-gray-500 mb-1">Sum of AMOUNT from Sales sheet</p>
-                    <p className="text-lg font-bold text-gray-800">
-                      {dashboardMetrics.subCustomerTotalAmount.toLocaleString('en-US', {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2
-                      })}
-                    </p>
-                  </div>
-
-                  <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
-                    <h3 className="text-xs font-semibold text-gray-700 mb-1">Step 2: Main Customer Total Sales</h3>
-                    <p className="text-xs text-gray-500 mb-1">Sum of AMOUNT for all sub-customers</p>
-                    <p className="text-lg font-bold text-gray-800">
-                      {dashboardMetrics.mainCustomerTotalAmount.toLocaleString('en-US', {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2
-                      })}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3 mb-4">
-                  <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
-                    <h3 className="text-xs font-semibold text-gray-700 mb-1">Step 3: Sales Ratio</h3>
-                    <p className="text-xs text-gray-500 mb-1">
-                      {dashboardMetrics.subCustomerTotalAmount.toLocaleString('en-US', {
-                        minimumFractionDigits: 0,
-                        maximumFractionDigits: 0
-                      })} ÷ {dashboardMetrics.mainCustomerTotalAmount.toLocaleString('en-US', {
-                        minimumFractionDigits: 0,
-                        maximumFractionDigits: 0
-                      })}
-                    </p>
-                    <p className="text-lg font-bold text-gray-800">
-                      {dashboardMetrics.mainCustomerTotalAmount > 0 ? (
-                        <>{(dashboardMetrics.salesRatio * 100).toFixed(2)}%</>
-                      ) : (
-                        '0%'
-                      )}
-                    </p>
-                  </div>
-
-                  <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
-                    <h3 className="text-xs font-semibold text-gray-700 mb-1">Step 4: Main Customer Discounts (with tax)</h3>
-                    <p className="text-xs text-gray-500 mb-1">Sum of (DEBIT - CREDIT) for BIL from Invoices sheet</p>
-                    <p className="text-lg font-bold text-gray-800">
-                      {((dashboardMetrics as any).mainCustomerTotalDiscountsWithTax || dashboardMetrics.mainCustomerTotalDiscounts * 1.05).toLocaleString('en-US', {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2
-                      })}
-                    </p>
-                    <p className="text-xs text-gray-500 mt-1">(includes 5% tax)</p>
-                  </div>
-                </div>
-
-                <div className="bg-green-50 border-2 border-green-300 rounded-lg p-4">
-                  <h3 className="text-sm font-semibold text-green-900 mb-2">Final: Distributed Discount (Inc. Tax)</h3>
-                  <p className="text-xs text-gray-600 mb-2">
-                    {dashboardMetrics.mainCustomerTotalDiscountsWithTax.toLocaleString('en-US', {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2
-                    })} × {(dashboardMetrics.salesRatio * 100).toFixed(2)}%
-                  </p>
-                  <p className="text-2xl font-bold text-green-700">
-                    = {dashboardMetrics.discountsAmount.toLocaleString('en-US', {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2
-                    })}
-                  </p>
-                </div>
-              </div>
-
-              <div className="border-t border-gray-200 px-6 py-3 flex justify-end">
-                <button
-                  onClick={() => setShowDiscountsModal(false)}
-                  className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium text-sm"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
           </div>
         )}
 
