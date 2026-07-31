@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import Login from '@/app/Components/Login';
+import Loading from '@/app/Components/Loading';
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -17,7 +18,8 @@ import {
   ChevronRight,
   ChevronLeft,
   FileText,
-  ArrowLeft
+  ArrowLeft,
+  FileX2
 } from 'lucide-react';
 
 interface NavItemProps {
@@ -71,13 +73,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const pathname = usePathname();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(true);
-  const [user, setUser] = useState<any>(() => readStoredUser());
+  const [user, setUser] = useState<any>(null);
+  const [isChecking, setIsChecking] = useState(true);
 
   useEffect(() => {
     const stored = localStorage.getItem('sidebarCollapsed');
     if (stored === 'true') {
       setIsCollapsed(true);
     }
+
+    const storedUser = readStoredUser();
+    if (storedUser) {
+      setUser(storedUser);
+    }
+    setIsChecking(false);
   }, []);
 
   const toggleSidebar = () => {
@@ -100,6 +109,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     router.push('/');
   };
 
+  if (isChecking) {
+    return <Loading />;
+  }
+
   if (!user) {
     return <Login onLogin={handleLogin} />;
   }
@@ -109,6 +122,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { id: 'lpo-orders', href: '/LPOs/Orders', icon: ShoppingCart, label: 'Orders' },
     { id: 'lpo-create-orders', href: '/LPOs/CreateOrders', icon: ReceiptText, label: 'Create Orders' },
     { id: 'lpo-reports', href: '/LPOs/Reports', icon: FileText, label: 'Reports' },
+    { id: 'lpo-invoice-cancel', href: '/LPOs/InvoiceCancel', icon: FileX2, label: 'Invoice Cancel' },
   ];
 
   const getFilteredNavItems = () => {
@@ -262,7 +276,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </aside>
 
         <main className="flex-1 p-4 md:p-8 lg:p-12">
-          <div className={`${(pathname === '/LPOs' || pathname === '/LPOs/Orders' || pathname === '/LPOs/CreateOrders' || pathname.startsWith('/DataBase')) ? 'max-w-[1600px]' : 'max-w-7xl'} mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500`}>
+          <div className={`${(pathname === '/LPOs' || pathname === '/LPOs/Orders' || pathname === '/LPOs/CreateOrders' || pathname === '/LPOs/InvoiceCancel' || pathname.startsWith('/DataBase')) ? 'max-w-[1600px]' : 'max-w-7xl'} mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500`}>
             {children}
           </div>
         </main>

@@ -10,6 +10,7 @@ import {
   Truck,
   Receipt,
   LayoutDashboard,
+  MapPin,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -79,7 +80,7 @@ export const DATABASE_CATEGORIES: DatabaseCategory[] = [
     href: '/DataBase/Products',
     icon: Package,
     color: 'from-amber-500 to-amber-600',
-    tables: ['Products DB', 'Inventory Item Code', 'Inventory Moves'],
+    tables: ['Products DB', 'Inventory Item Code', 'Inventory Locations', 'Inventory Moves'],
   },
   {
     id: 'SALES',
@@ -162,6 +163,14 @@ export const DATABASE_NAV_ITEMS: DatabaseNavItem[] = [
     label: 'Inventory Item Code',
     category: 'PRODUCTS_INVENTORY',
     source: { table: 'web_INVENTORY_ITEM_CODE', kind: 'reference' },
+  },
+  {
+    id: 'db-inv-locations',
+    href: '/DataBase/InventoryLocations',
+    icon: MapPin,
+    label: 'Inventory Locations',
+    category: 'PRODUCTS_INVENTORY',
+    source: { table: 'web_INVENTORY_LOCATIONS', kind: 'reference' },
   },
   {
     id: 'db-inv-moves',

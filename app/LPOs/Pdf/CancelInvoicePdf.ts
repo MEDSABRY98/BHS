@@ -3,28 +3,10 @@ import autoTable from 'jspdf-autotable';
 import { addArabicFont } from '@/app/Components/Pdf/shared';
 import { printPdfInSameTab } from './DeliveryUtils';
 
-const DISCLAIMER_RETURN_EN =
-  'I, the warehouse responsible, confirm that I received the goods for this invoice and request its cancellation.';
-const DISCLAIMER_RETURN_AR =
-  'أقر أنا مسؤول المستودع أنني استلمت البضاعة الخاصة بهذه الفاتورة وأرغب في إلغائها.';
-
-const DISCLAIMER_AMENDMENT_EN =
-  'I, the warehouse responsible, confirm that this invoice is cancelled for amendment and will be re-issued as a new amended invoice.';
-const DISCLAIMER_AMENDMENT_AR =
-  'أقر أنا مسؤول المستودع أن هذه الفاتورة ملغاة للتعديل عليها وسيتم إصدارها مرة أخرى كفاتورة جديدة معدلة.';
-
-export type CancelInvoiceReason = 'return' | 'amendment';
-
-function getCancelReasonLabel(reason: CancelInvoiceReason): string {
-  return reason === 'amendment' ? 'Amendment & Re-issue' : 'Returned Goods';
-}
-
-function getDisclaimerText(reason: CancelInvoiceReason) {
-  if (reason === 'amendment') {
-    return { en: DISCLAIMER_AMENDMENT_EN, ar: DISCLAIMER_AMENDMENT_AR };
-  }
-  return { en: DISCLAIMER_RETURN_EN, ar: DISCLAIMER_RETURN_AR };
-}
+const DISCLAIMER_EN =
+  'I, the warehouse responsible, confirm the cancellation of the invoice(s) listed above.';
+const DISCLAIMER_AR =
+  'أقر أنا مسؤول المستودع بإلغاء الفاتورة/الفواتير المذكورة أعلاه.';
 
 export interface CancelInvoicePdfRow {
   invoiceId: string;
@@ -36,7 +18,8 @@ export interface CancelInvoicePdfRow {
 export interface CancelInvoicePdfOptions {
   invoices: CancelInvoicePdfRow[];
   cancelDate?: string;
-  cancelReason?: CancelInvoiceReason;
+  notes?: string;
+  printedBy?: string;
   action?: 'download' | 'print';
 }
 
@@ -51,24 +34,74 @@ function formatAmount(amount: number): string {
   return `AED ${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+const ARABIC_REGEX = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/;
+
+function hasArabic(text: string): boolean {
+  return ARABIC_REGEX.test(text);
+}
+
+function drawNotesBox(
+  doc: jsPDF,
+  startY: number,
+  margin: number,
+  contentWidth: number,
+  notes: string,
+): number {
+  const padding = 5;
+  const innerWidth = contentWidth - padding * 2;
+  const trimmed = notes.trim();
+  const notesAreArabic = hasArabic(trimmed);
+
+  doc.setFont('Amiri', 'normal');
+  doc.setFontSize(9);
+  const noteLines = doc.splitTextToSize(trimmed, innerWidth) as string[];
+  const lineHeight = notesAreArabic ? 4.8 : 4.2;
+  const boxHeight = padding + 5 + noteLines.length * lineHeight + padding;
+
+  doc.setDrawColor(220, 220, 220);
+  doc.setLineWidth(0.3);
+  doc.setFillColor(252, 252, 252);
+  doc.roundedRect(margin, startY, contentWidth, boxHeight, 2, 2, 'FD');
+
+  let textY = startY + padding + 4;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(40, 40, 40);
+  const notesTitleWidth = doc.getTextWidth('Notes');
+  doc.text('Notes', margin + padding, textY);
+  doc.setFont('Amiri', 'normal');
+  doc.text(' / ملاحظات', margin + padding + notesTitleWidth, textY);
+
+  textY += 6;
+  doc.setFont('Amiri', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(55, 55, 55);
+
+  if (notesAreArabic) {
+    doc.text(noteLines, margin + contentWidth - padding, textY, { align: 'right', maxWidth: innerWidth });
+  } else {
+    doc.text(noteLines, margin + padding, textY);
+  }
+
+  return startY + boxHeight;
+}
+
 function drawDisclaimerBox(
   doc: jsPDF,
   startY: number,
   margin: number,
   contentWidth: number,
-  cancelReason: CancelInvoiceReason,
 ): number {
-  const { en: disclaimerEn, ar: disclaimerAr } = getDisclaimerText(cancelReason);
   const padding = 5;
   const innerWidth = contentWidth - padding * 2;
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);
-  const enLines = doc.splitTextToSize(disclaimerEn, innerWidth) as string[];
+  const enLines = doc.splitTextToSize(DISCLAIMER_EN, innerWidth) as string[];
 
   doc.setFont('Amiri', 'normal');
   doc.setFontSize(9);
-  const arLines = doc.splitTextToSize(disclaimerAr, innerWidth) as string[];
+  const arLines = doc.splitTextToSize(DISCLAIMER_AR, innerWidth) as string[];
 
   const boxHeight = padding + 5 + enLines.length * 4.2 + 3 + arLines.length * 4.8 + padding;
 
@@ -104,7 +137,8 @@ function drawDisclaimerBox(
 export async function generateCancelInvoicePDF({
   invoices,
   cancelDate,
-  cancelReason = 'return',
+  notes,
+  printedBy,
   action = 'download',
 }: CancelInvoicePdfOptions): Promise<void> {
   if (invoices.length === 0) {
@@ -138,7 +172,7 @@ export async function generateCancelInvoicePDF({
   doc.setFontSize(13);
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
-  const headerTitle = `INVOICE CANCELLATION FORM (${getCancelReasonLabel(cancelReason)})`;
+  const headerTitle = 'INVOICE CANCELLATION FORM';
   doc.text(headerTitle, pageWidth / 2, 13, { align: 'center' });
 
   let y = 26;
@@ -210,10 +244,19 @@ export async function generateCancelInvoicePDF({
 
   const finalY = (doc as any).lastAutoTable?.finalY || y + 40;
   const contentWidth = pageWidth - margin * 2;
-  const disclaimerEndY = drawDisclaimerBox(doc, finalY + 8, margin, contentWidth, cancelReason);
+  let sectionY = finalY + 8;
+
+  if (notes?.trim()) {
+    sectionY = drawNotesBox(doc, sectionY, margin, contentWidth, notes) + 8;
+  }
+
+  const disclaimerEndY = drawDisclaimerBox(doc, sectionY, margin, contentWidth);
   let sigY = disclaimerEndY + 14;
 
-  if (sigY + 34 > pageHeight - 10) {
+  const printedByName = printedBy?.trim() || '';
+  const signatureBlockHeight = 34 + (printedByName ? 10 : 0);
+
+  if (sigY + signatureBlockHeight > pageHeight - 10) {
     doc.addPage();
     sigY = 30;
   }
@@ -232,9 +275,16 @@ export async function generateCancelInvoicePDF({
   doc.setFillColor(255, 255, 255);
   doc.roundedRect(signatureX, sigY + 6, signatureWidth, signatureBoxHeight, 2, 2, 'FD');
 
+  if (printedByName) {
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(80, 80, 80);
+    doc.text(printedByName, pageWidth / 2, sigY + 6 + signatureBoxHeight + 8, { align: 'center' });
+  }
+
   const filenameBase = invoices.length === 1
-    ? `Cancel_${cancelReason === 'amendment' ? 'Amend_' : 'Return_'}${(invoices[0].invoiceId || 'Invoice').replace(/\s+/g, '_')}`
-    : `Cancel_Invoices_${cancelReason === 'amendment' ? 'Amend_' : 'Return_'}${formatDate(cancelDate).replace(/\//g, '-')}`;
+    ? `Cancel_Invoice_${(invoices[0].invoiceId || 'Invoice').replace(/\s+/g, '_')}`
+    : `Cancel_Invoices_${formatDate(cancelDate).replace(/\//g, '-')}`;
 
   if (action === 'print') {
     printPdfInSameTab(doc);

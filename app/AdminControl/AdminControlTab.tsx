@@ -213,7 +213,8 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
         { id: 'lpo-dashboard', label: 'Dashboard' },
         { id: 'lpo-orders', label: 'Orders' },
         { id: 'lpo-create-orders', label: 'Create Orders' },
-        { id: 'lpo-reports', label: 'Reports' }
+        { id: 'lpo-reports', label: 'Reports' },
+        { id: 'lpo-invoice-cancel', label: 'Invoice Cancel' }
     ],
     'database': [
         { id: 'db-customers', label: 'Customers DB' },
@@ -222,6 +223,7 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
         { id: 'db-lulu-emails', label: 'Lulu Emails DB' },
         { id: 'db-products', label: 'Products DB' },
         { id: 'db-inv-itemcode', label: 'Inventory Item Code' },
+        { id: 'db-inv-locations', label: 'Inventory Locations' },
         { id: 'db-inv-moves', label: 'Inventory Moves' },
         { id: 'db-sales', label: 'Sales DB' },
         { id: 'db-suppliers', label: 'Suppliers DB' },

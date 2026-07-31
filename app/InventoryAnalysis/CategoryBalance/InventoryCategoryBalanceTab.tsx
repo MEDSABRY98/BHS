@@ -18,9 +18,8 @@ import {
 } from 'lucide-react';
 import TabLoader from '@/app/Components/TabLoader';
 import NoData from '@/app/Components/NoDataTab';
-import { getProductsBalanceReportData } from '../Service/inventory_service';
+import { getProductsBalanceReportData, getInternalWarehouseLocationOptions } from '../Service/inventory_service';
 import type { CategoryBalanceRow, ProductBalanceRow } from '../Service/inventory_types';
-import { INTERNAL_WAREHOUSES_SORTED } from '../Utils/locationTypes';
 import { exportSalesExcelTable } from '@/app/Sales/Utils/ExcelExport';
 import InventoryCategoryBalanceDetailsTab from './InventoryCategoryBalanceDetailsTab';
 
@@ -63,11 +62,18 @@ export default function InventoryCategoryBalanceTab() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 50;
+  const [warehouseLocations, setWarehouseLocations] = useState<string[]>([]);
   const fetchRequestId = useRef(0);
 
   const [isLocationOpen, setIsLocationOpen] = useState(false);
   const [locationSearch, setLocationSearch] = useState('');
   const locationRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    getInternalWarehouseLocationOptions().then((res) => {
+      if (res.data?.length) setWarehouseLocations(res.data);
+    });
+  }, []);
 
   useEffect(() => {
     fetchReport(appliedDateFrom, appliedDateTo, selectedLocation);
@@ -132,7 +138,7 @@ export default function InventoryCategoryBalanceTab() {
     return filteredCategories.slice(start, start + itemsPerPage);
   }, [filteredCategories, currentPage]);
 
-  const locations = useMemo(() => ['All', ...INTERNAL_WAREHOUSES_SORTED], []);
+  const locations = useMemo(() => ['All', ...warehouseLocations], [warehouseLocations]);
   const filteredLocations = useMemo(() => {
     if (!locationSearch.trim()) return locations;
     const q = locationSearch.toLowerCase().trim();

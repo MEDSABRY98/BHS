@@ -317,7 +317,7 @@ export default function SalesST_CustomerMarginTab({
                             type="button"
                             onClick={() => handleExportCustomerExcel(row)}
                             disabled={row.productCount === 0 || isExporting}
-                            className="p-2 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white transition-all disabled:opacity-30"
+                            className="p-2 bg-white border border-emerald-200 text-emerald-600 rounded-lg hover:bg-emerald-600 hover:text-white hover:border-emerald-600 transition-all disabled:opacity-30"
                             title="Download products Excel"
                           >
                             <FileSpreadsheet className="w-4 h-4" />
@@ -326,8 +326,8 @@ export default function SalesST_CustomerMarginTab({
                             type="button"
                             onClick={() => handleExportCustomerReport(row)}
                             disabled={row.productCount === 0 || isExporting}
-                            className="p-2 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-800 hover:text-white transition-all disabled:opacity-30"
-                            title="Download products report"
+                            className="p-2 bg-white border border-red-200 text-red-600 rounded-lg hover:bg-red-600 hover:text-white hover:border-red-600 transition-all disabled:opacity-30"
+                            title="Download products report (PDF)"
                           >
                             {isExporting ? (
                               <Loader2 className="w-4 h-4 animate-spin" />

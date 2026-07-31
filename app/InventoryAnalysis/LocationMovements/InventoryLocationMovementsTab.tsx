@@ -21,9 +21,8 @@ import {
 } from 'lucide-react';
 import TabLoader from '@/app/Components/TabLoader';
 import NoData from '@/app/Components/NoDataTab';
-import { getLocationPeriodMovements } from '../Service/inventory_service';
+import { getLocationPeriodMovements, getInternalWarehouseLocationOptions } from '../Service/inventory_service';
 import type { LocationMovementRow } from '../Service/inventory_types';
-import { INTERNAL_WAREHOUSES_SORTED } from '../Utils/locationTypes';
 import { exportSalesExcelWorkbook, recordsFromTable } from '@/app/Sales/Utils/ExcelExport';
 
 type DirectionFilter = 'All' | 'in' | 'out';
@@ -81,9 +80,8 @@ export default function InventoryLocationMovementsTab() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [selectedLocation, setSelectedLocation] = useState<string>(
-    INTERNAL_WAREHOUSES_SORTED[0] || '',
-  );
+  const [selectedLocation, setSelectedLocation] = useState<string>('');
+  const [warehouseLocations, setWarehouseLocations] = useState<string[]>([]);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [appliedDateFrom, setAppliedDateFrom] = useState('');
@@ -113,7 +111,15 @@ export default function InventoryLocationMovementsTab() {
   const [categorySearch, setCategorySearch] = useState('');
   const categoryRef = useRef<HTMLDivElement>(null);
 
-  const locations = useMemo(() => INTERNAL_WAREHOUSES_SORTED, []);
+  useEffect(() => {
+    getInternalWarehouseLocationOptions().then((res) => {
+      const list = res.data || [];
+      setWarehouseLocations(list);
+      setSelectedLocation((prev) => (prev && list.includes(prev) ? prev : list[0] || ''));
+    });
+  }, []);
+
+  const locations = useMemo(() => warehouseLocations, [warehouseLocations]);
 
   const filteredLocations = useMemo(() => {
     if (!locationSearch.trim()) return locations;
@@ -173,6 +179,7 @@ export default function InventoryLocationMovementsTab() {
   };
 
   useEffect(() => {
+    if (!selectedLocation) return;
     fetchReport(selectedLocation, appliedDateFrom, appliedDateTo);
   }, [selectedLocation, appliedDateFrom, appliedDateTo]);
 

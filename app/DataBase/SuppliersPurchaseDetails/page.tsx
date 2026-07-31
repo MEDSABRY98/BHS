@@ -156,7 +156,13 @@ export default function PurchaseDetailsPage() {
         throw new Error(details || (result as any).error || 'Upload failed');
       }
 
-      toast.success(`Successfully uploaded ${(result as any).inserted || rows.length} rows!`);
+      toast.success(
+        (result as any).inserted > 0
+          ? (result as any).skippedRows > 0
+            ? `Uploaded ${(result as any).inserted} rows. Skipped ${(result as any).skippedRows} rows from ${(result as any).skippedInvoices} existing invoice(s).`
+            : `Successfully uploaded ${(result as any).inserted} rows!`
+          : `All invoices already exist in the database. Nothing new was uploaded.`,
+      );
       setIsUploadModalOpen(false);
       await fetchMonths();
     } catch (err: unknown) {
@@ -272,6 +278,7 @@ export default function PurchaseDetailsPage() {
             <div className="p-8 space-y-6">
               <p className="text-xs text-gray-500 leading-relaxed">
                 Columns: DATE, INVOICE NUMBER, SUPPLIER ID, PRODUCT ID, UNIT PRICE, QTY.
+                Existing invoices in the database are skipped automatically.
               </p>
 
               <div className="space-y-4">

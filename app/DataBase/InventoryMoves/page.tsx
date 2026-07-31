@@ -15,6 +15,12 @@ import InventoryMovesDaysGrid, { MoveDaySummary } from './Components/InventoryMo
 import { fetchMoveMonthsSummary, fetchMoveDaysSummary, deleteMovesDb, deleteAllInventoryMovesDb } from '@/app/InventoryAnalysis/Service/inventory_service';
 import { exportDatabaseExcelTable } from '../Utils/ExcelExport';
 import { downloadUploadIssuesReport } from '../Utils/ExcelUploadUtils';
+import {
+  buildInventoryLocationLookup,
+  resolveLocationToId,
+  resolveLocationToName,
+  type InventoryLocationLookup,
+} from '../Utils/inventoryLocationResolve';
 
 const emptyForm = (): InventoryMoveFormValues => ({
   date: new Date().toISOString().split('T')[0],
@@ -79,6 +85,7 @@ export default function InventoryMovesPage() {
   const [dayToDelete, setDayToDelete] = useState<string | null>(null);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [locationLookup, setLocationLookup] = useState<InventoryLocationLookup | null>(null);
   const [isDeleteAllConfirmOpen, setIsDeleteAllConfirmOpen] = useState(false);
   const [isDeletingAll, setIsDeletingAll] = useState(false);
 
@@ -100,7 +107,58 @@ export default function InventoryMovesPage() {
 
   useEffect(() => {
     fetchMoveMonths();
+    fetchLocationLookup();
   }, []);
+
+  async function fetchLocationLookup() {
+    try {
+      const pageSize = 1000;
+      let from = 0;
+      const allRows: { ID: string; 'LOCATION NAME': string }[] = [];
+
+      while (true) {
+        const { data, error } = await bhs_supabas
+          .from('web_INVENTORY_LOCATIONS')
+          .select('ID, "LOCATION NAME"')
+          .order('ID')
+          .range(from, from + pageSize - 1);
+        if (error) throw error;
+        if (!data?.length) break;
+        allRows.push(...(data as { ID: string; 'LOCATION NAME': string }[]));
+        if (data.length < pageSize) break;
+        from += pageSize;
+      }
+
+      setLocationLookup(buildInventoryLocationLookup(allRows));
+    } catch (err) {
+      console.error('Failed to load location registry:', err);
+    }
+  }
+
+  async function ensureLocationLookup(): Promise<InventoryLocationLookup> {
+    if (locationLookup) return locationLookup;
+
+    const pageSize = 1000;
+    let from = 0;
+    const allRows: { ID: string; 'LOCATION NAME': string }[] = [];
+
+    while (true) {
+      const { data, error } = await bhs_supabas
+        .from('web_INVENTORY_LOCATIONS')
+        .select('ID, "LOCATION NAME"')
+        .order('ID')
+        .range(from, from + pageSize - 1);
+      if (error) throw error;
+      if (!data?.length) break;
+      allRows.push(...(data as { ID: string; 'LOCATION NAME': string }[]));
+      if (data.length < pageSize) break;
+      from += pageSize;
+    }
+
+    const lookup = buildInventoryLocationLookup(allRows);
+    setLocationLookup(lookup);
+    return lookup;
+  }
 
   useEffect(() => {
     setCurrentPage(1);
@@ -146,7 +204,7 @@ export default function InventoryMovesPage() {
 
       while (true) {
         const { data, error } = await bhs_supabas
-          .from('web_INVENTORY_PRODUCTS')
+          .from('bhs_PRODUCTS')
           .select('"PRODUCT ID","PRODUCT NAME"')
           .order('PRODUCT NAME')
           .range(from, from + pageSize - 1);
@@ -160,8 +218,14 @@ export default function InventoryMovesPage() {
       }
 
       setProductOptions(allProducts);
-    } catch (err) {
-      console.error(err);
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : typeof err === 'object' && err !== null && 'message' in err
+            ? String((err as { message: unknown }).message)
+            : 'Failed to load product list';
+      toast.error(message);
     }
   }
 
@@ -229,15 +293,16 @@ export default function InventoryMovesPage() {
     if (selectedMonth) fetchMoveDays(selectedMonth.year, selectedMonth.month);
   };
 
-  const openModal = (row: InventoryMoveRow | null = null) => {
+  const openModal = async (row: InventoryMoveRow | null = null) => {
     if (productOptions.length === 0) fetchProductOptions();
+    const lookup = await ensureLocationLookup();
     setEditing(row);
     if (row) {
       setFormValues({
         date: toDateInput(row.DATE),
         reference: row.REFERENCE || '',
-        locationFrom: row['LOCATION FROM'] || '',
-        locationTo: row['LOCATION TO'] || '',
+        locationFrom: resolveLocationToName(row['LOCATION FROM'] || '', lookup),
+        locationTo: resolveLocationToName(row['LOCATION TO'] || '', lookup),
         productId: row['PRODUCT ID'] || '',
         qty: String(row.QTY ?? 0),
       });
@@ -278,11 +343,24 @@ export default function InventoryMovesPage() {
         return;
       }
 
+      const lookup = await ensureLocationLookup();
+      const locationFromId = resolveLocationToId(formValues.locationFrom, lookup);
+      const locationToId = resolveLocationToId(formValues.locationTo, lookup);
+
+      if (!locationFromId) {
+        toast.error(`Unknown location (FROM): "${formValues.locationFrom.trim()}"`);
+        return;
+      }
+      if (!locationToId) {
+        toast.error(`Unknown location (TO): "${formValues.locationTo.trim()}"`);
+        return;
+      }
+
       const payload = {
         DATE: formValues.date ? new Date(formValues.date).toISOString() : null,
         REFERENCE: formValues.reference.trim(),
-        'LOCATION FROM': formValues.locationFrom.trim(),
-        'LOCATION TO': formValues.locationTo.trim(),
+        'LOCATION FROM': locationFromId,
+        'LOCATION TO': locationToId,
         'PRODUCT ID': formValues.productId.trim(),
         QTY: parseNum(formValues.qty),
       };
@@ -471,14 +549,16 @@ export default function InventoryMovesPage() {
       }
 
       const productIds = new Set(allProducts.map((p) => p['PRODUCT ID'] as string));
+      const lookup = await ensureLocationLookup();
 
       const nextId = await getNextInventoryRecordId('web_INVENTORY_MOVES');
       let nextNum = parseInt(nextId.substring(2), 10);
 
       const formattedRows: Record<string, unknown>[] = [];
       const invalidProductIds = new Set<string>();
+      const unmappedLocations = new Set<string>();
 
-      jsonData.forEach((row, index) => {
+      jsonData.forEach((row) => {
         const productId = String(row['PRODUCT ID'] ?? '').trim();
         const date = formatExcelDate(row.DATE);
         if (!date || !productId) return;
@@ -488,16 +568,40 @@ export default function InventoryMovesPage() {
           return;
         }
 
+        const rawFrom = String(row['LOCATION FROM'] ?? '').trim();
+        const rawTo = String(row['LOCATION TO'] ?? '').trim();
+        const locationFromId = resolveLocationToId(rawFrom, lookup);
+        const locationToId = resolveLocationToId(rawTo, lookup);
+
+        if (rawFrom && !locationFromId) unmappedLocations.add(rawFrom);
+        if (rawTo && !locationToId) unmappedLocations.add(rawTo);
+        if (!locationFromId || !locationToId) return;
+
         formattedRows.push({
           ID: formatInventoryRecordId(nextNum++),
           DATE: new Date(date).toISOString(),
           REFERENCE: String(row.REFERENCE ?? '').trim(),
-          'LOCATION FROM': String(row['LOCATION FROM'] ?? '').trim(),
-          'LOCATION TO': String(row['LOCATION TO'] ?? '').trim(),
+          'LOCATION FROM': locationFromId,
+          'LOCATION TO': locationToId,
           'PRODUCT ID': productId,
           QTY: Number(row.QTY) || 0,
         });
       });
+
+      if (unmappedLocations.size > 0) {
+        downloadUploadIssuesReport(
+          `Inventory_Moves_Upload_Issues_${new Date().toISOString().split('T')[0]}.txt`,
+          'Inventory Moves Upload - Unknown Location Names',
+          [
+            {
+              heading: `=== UNKNOWN LOCATION NAMES (${unmappedLocations.size}) ===`,
+              lines: [...unmappedLocations].sort(),
+            },
+          ],
+        );
+        toast.error('Upload blocked. Add missing locations in Inventory Locations, then retry.');
+        return;
+      }
 
       if (invalidProductIds.size > 0) {
         const missingIds = Array.from(invalidProductIds);
@@ -784,6 +888,9 @@ export default function InventoryMovesPage() {
         isLoading={isLoading}
         canEdit={canEdit}
         canDelete={canDelete}
+        formatLocation={(raw) =>
+          locationLookup ? resolveLocationToName(String(raw ?? ''), locationLookup) : String(raw || '—')
+        }
         onEdit={openModal}
         onDelete={handleDeleteMove}
       />
@@ -810,6 +917,7 @@ export default function InventoryMovesPage() {
         editing={editing}
         values={formValues}
         productOptions={productOptions}
+        locationOptions={locationLookup?.names ?? []}
         isSaving={isSaving}
         onChange={setFormValues}
         onClose={() => setIsModalOpen(false)}

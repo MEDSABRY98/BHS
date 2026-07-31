@@ -126,6 +126,39 @@ function parseNumeric(value: unknown): number | null {
   return num;
 }
 
+function invoiceLookupKey(supplierId: string, invoiceNumber: string): string | null {
+  const supplier = supplierId.trim();
+  const invoice = invoiceNumber.trim();
+  if (!invoice) return null;
+  return `${supplier}::${invoice.toLowerCase()}`;
+}
+
+async function fetchExistingInvoiceKeys(invoiceNumbers: string[]): Promise<Set<string>> {
+  const existingKeys = new Set<string>();
+  if (invoiceNumbers.length === 0) return existingKeys;
+
+  const chunkSize = 200;
+  for (let i = 0; i < invoiceNumbers.length; i += chunkSize) {
+    const chunk = invoiceNumbers.slice(i, i + chunkSize);
+    const { data, error } = await bhs_supabas
+      .from('web_Suppliers_Purchase')
+      .select('"INVOICE NUMBER", "SUPPLIER ID"')
+      .in('INVOICE NUMBER', chunk);
+
+    if (error) throw error;
+
+    (data || []).forEach((row) => {
+      const key = invoiceLookupKey(
+        String(row['SUPPLIER ID'] ?? ''),
+        String(row['INVOICE NUMBER'] ?? ''),
+      );
+      if (key) existingKeys.add(key);
+    });
+  }
+
+  return existingKeys;
+}
+
 export async function uploadPurchaseDetails(rows: any[]) {
   try {
     if (rows.length === 0) {
@@ -219,8 +252,35 @@ export async function uploadPurchaseDetails(rows: any[]) {
     }
     // ---------------------------------------------------------
 
-    const ids = await allocateSupplierRecordIds('web_Suppliers_Purchase', parsedRows.length);
-    const payload = parsedRows.map((row, index) => ({
+    const uniqueInvoiceNumbers = Array.from(
+      new Set(parsedRows.map((row) => row['INVOICE NUMBER'].trim()).filter(Boolean)),
+    );
+    const existingInvoiceKeys = await fetchExistingInvoiceKeys(uniqueInvoiceNumbers);
+
+    const skippedInvoiceKeys = new Set<string>();
+    const rowsToInsert = parsedRows.filter((row) => {
+      const key = invoiceLookupKey(row['SUPPLIER ID'], row['INVOICE NUMBER']);
+      if (!key) return true;
+      if (existingInvoiceKeys.has(key)) {
+        skippedInvoiceKeys.add(key);
+        return false;
+      }
+      return true;
+    });
+
+    const skippedRows = parsedRows.length - rowsToInsert.length;
+
+    if (rowsToInsert.length === 0) {
+      return {
+        success: true,
+        inserted: 0,
+        skippedRows,
+        skippedInvoices: skippedInvoiceKeys.size,
+      };
+    }
+
+    const ids = await allocateSupplierRecordIds('web_Suppliers_Purchase', rowsToInsert.length);
+    const payload = rowsToInsert.map((row, index) => ({
       ID: ids[index],
       ...row,
     }));
@@ -232,7 +292,12 @@ export async function uploadPurchaseDetails(rows: any[]) {
       if (error) throw error;
     }
 
-    return { success: true, inserted: payload.length };
+    return {
+      success: true,
+      inserted: payload.length,
+      skippedRows,
+      skippedInvoices: skippedInvoiceKeys.size,
+    };
   } catch (error) {
     console.error('Service Error uploading purchase details:', error);
     throw new Error(error instanceof Error ? error.message : 'Unknown error');

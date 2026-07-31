@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { SalesInvoice } from '@/lib/supabase';;
-import { Search, ChevronLeft, ChevronRight, Loader2, DollarSign, FileText, FileSpreadsheet, FileDown } from 'lucide-react';
+import { Search, ChevronLeft, ChevronRight, Loader2, FileText, FileSpreadsheet, FileDown } from 'lucide-react';
 import { generateSalesPricelistPDF } from '@/app/Sales/StockReport/Pricelist';
 import { generateSalesStockFormPDF } from '@/app/Sales/StockReport/StockForm';
 import { generateSalesAnalysisComparisonPDF } from '@/app/Sales/StockReport/AnalysisComparison';;
@@ -28,8 +28,6 @@ export default function SalesST_ByCustomers({ customersData, loading, refreshTri
   const [currentPage, setCurrentPage] = useState(1);
   const [generationProgress, setGenerationProgress] = useState({ current: 0, total: 0 });
   const [showDownloadModal, setShowDownloadModal] = useState(false);
-  const [selectedCustomerForPriceList, setSelectedCustomerForPriceList] = useState<string | null>(null);
-  const [selectedCustomerForAnalysis, setSelectedCustomerForAnalysis] = useState<string | null>(null);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -59,8 +57,6 @@ export default function SalesST_ByCustomers({ customersData, loading, refreshTri
     if (!customer) return;
     try {
       setIsGenerating(true);
-      setSelectedCustomerForPriceList(null);
-      setSelectedCustomerForAnalysis(null);
       const productsToPrint = customer.products.map((p: any) => {
         const maxPrice = (p.pricesDistribution && Array.isArray(p.pricesDistribution) && p.pricesDistribution.length > 0)
           ? Math.max(...p.pricesDistribution)
@@ -86,43 +82,74 @@ export default function SalesST_ByCustomers({ customersData, loading, refreshTri
     } catch (error) { console.error(error); } finally { setIsGenerating(false); }
   };
 
+  const handleExportStandardExcel = async (customerName: string) => {
+    const customer = customersData.find(c => c.customer === customerName);
+    if (!customer) return;
+
+    try {
+      setIsGenerating(true);
+
+      const exportData = customer.products.map((p: any, index: number) => ({
+        '#': index + 1,
+        Barcode: p.barcode || '-',
+        Product: p.product || '-',
+        Quantity: '',
+      }));
+
+      await exportSalesExcel(exportData, `Standard_Order_Form_${customerName}_${new Date().toISOString().split('T')[0]}.xlsx`, {
+        sheetName: 'Order Form',
+      });
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   const handleExportAnalysisExcel = async (customerName: string) => {
     const customer = customersData.find(c => c.customer === customerName);
     if (!customer) return;
 
-    const exportData = customer.products.map((p: any, index: number) => {
-      const frequent = p.mostPrice;
-      const maxPrice = (p.pricesDistribution && Array.isArray(p.pricesDistribution) && p.pricesDistribution.length > 0)
-        ? Math.max(...p.pricesDistribution)
-        : p.mostPrice;
-      const cost = p.cost;
-      const diff = frequent - cost;
-      const margin = frequent > 0 ? (diff / frequent) * 100 : 0;
+    try {
+      setIsGenerating(true);
 
-      const row: any = {
-        '#': index + 1,
-        'Barcode': p.barcode,
-        'Product': p.product,
-        'Most Price': frequent,
-        'Max Price': maxPrice,
-      };
+      const exportData = customer.products.map((p: any, index: number) => {
+        const frequent = p.mostPrice;
+        const maxPrice = (p.pricesDistribution && Array.isArray(p.pricesDistribution) && p.pricesDistribution.length > 0)
+          ? Math.max(...p.pricesDistribution)
+          : p.mostPrice;
+        const cost = p.cost;
+        const diff = frequent - cost;
+        const margin = frequent > 0 ? (diff / frequent) * 100 : 0;
 
-      if (showCosts) {
-        row['Cost'] = cost;
-        row['Diff'] = diff;
-        row['%'] = `${margin.toFixed(1)}%`;
-      }
+        const row: any = {
+          '#': index + 1,
+          'Barcode': p.barcode,
+          'Product': p.product,
+          'Most Price': frequent,
+          'Max Price': maxPrice,
+        };
 
-      return row;
-    });
+        if (showCosts) {
+          row['Cost'] = cost;
+          row['Diff'] = diff;
+          row['%'] = `${margin.toFixed(1)}%`;
+        }
 
-    const numericColumns = showCosts ? ['Most Price', 'Max Price', 'Cost', 'Diff'] : ['Most Price', 'Max Price'];
+        return row;
+      });
 
-    await exportSalesExcel(exportData, `Sales_Analysis_${customerName}_${new Date().toISOString().split('T')[0]}.xlsx`, {
-      sheetName: 'Analysis',
-      numericColumns,
-    });
-    setSelectedCustomerForAnalysis(null);
+      const numericColumns = showCosts ? ['Most Price', 'Max Price', 'Cost', 'Diff'] : ['Most Price', 'Max Price'];
+
+      await exportSalesExcel(exportData, `Sales_Analysis_${customerName}_${new Date().toISOString().split('T')[0]}.xlsx`, {
+        sheetName: 'Analysis',
+        numericColumns,
+      });
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   const handleDownloadAllPDFs = async (mode: 'order' | 'pricelist' | 'analysis', strategy: 'most' | 'max' = 'most') => {
@@ -212,9 +239,8 @@ export default function SalesST_ByCustomers({ customersData, loading, refreshTri
                 <tr className="bg-gray-50/50 border-b border-gray-100">
                   <th className="py-4 px-8 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Customer Name</th>
                   <th className="py-4 px-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider w-[180px]">Items</th>
-                  <th className="py-4 px-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider w-[180px]">Standard</th>
-                  <th className="py-4 px-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider w-[180px]">Pricing</th>
-                  {showCosts && <th className="py-4 px-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider w-[180px]">Analysis</th>}
+                  <th className="py-4 px-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider w-[120px]">Standard</th>
+                  {showCosts && <th className="py-4 px-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider w-[120px]">Analysis</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
@@ -225,35 +251,45 @@ export default function SalesST_ByCustomers({ customersData, loading, refreshTri
                       <span className="px-3 py-1 bg-gray-100 text-gray-600 rounded-lg text-xs font-bold">{c.products.length}</span>
                     </td>
                     <td className="py-3 px-4 text-center">
-                      <button
-                        onClick={() => handleDownload(c.customer, 'order')}
-                        disabled={isGenerating}
-                        className="p-2 bg-white border border-gray-200 text-gray-600 rounded-lg hover:bg-slate-800 hover:text-white transition-all mx-auto disabled:opacity-30"
-                        title="Order Form"
-                      >
-                        <FileText className="w-4 h-4" />
-                      </button>
-                    </td>
-                    <td className="py-3 px-4 text-center">
-                      <button
-                        onClick={() => setSelectedCustomerForPriceList(c.customer)}
-                        disabled={isGenerating}
-                        className="p-2 bg-white border border-gray-200 text-gray-600 rounded-lg hover:bg-indigo-600 hover:text-white transition-all mx-auto disabled:opacity-30"
-                        title="Price List"
-                      >
-                        <DollarSign className="w-4 h-4" />
-                      </button>
+                      <div className="flex items-center justify-center gap-2">
+                        <button
+                          onClick={() => handleExportStandardExcel(c.customer)}
+                          disabled={isGenerating}
+                          className="p-2 bg-white border border-emerald-200 text-emerald-600 rounded-lg hover:bg-emerald-600 hover:text-white hover:border-emerald-600 transition-all disabled:opacity-30"
+                          title="Standard Excel"
+                        >
+                          <FileSpreadsheet className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDownload(c.customer, 'order')}
+                          disabled={isGenerating}
+                          className="p-2 bg-white border border-red-200 text-red-600 rounded-lg hover:bg-red-600 hover:text-white hover:border-red-600 transition-all disabled:opacity-30"
+                          title="Standard PDF"
+                        >
+                          <FileText className="w-4 h-4" />
+                        </button>
+                      </div>
                     </td>
                     {showCosts && (
                       <td className="py-3 px-4 text-center">
-                        <button
-                          onClick={() => setSelectedCustomerForAnalysis(c.customer)}
-                          disabled={isGenerating}
-                          className="px-3 py-1.5 bg-white border border-gray-200 text-gray-600 rounded-lg hover:bg-emerald-600 hover:text-white hover:border-emerald-600 transition-all font-bold text-[10px] uppercase tracking-wider flex items-center justify-center gap-2 mx-auto disabled:opacity-30"
-                        >
-                          <Search className="w-3.5 h-3.5" />
-                          <span>Analysis</span>
-                        </button>
+                        <div className="flex items-center justify-center gap-2">
+                          <button
+                            onClick={() => handleExportAnalysisExcel(c.customer)}
+                            disabled={isGenerating}
+                            className="p-2 bg-white border border-emerald-200 text-emerald-600 rounded-lg hover:bg-emerald-600 hover:text-white hover:border-emerald-600 transition-all disabled:opacity-30"
+                            title="Analysis Excel"
+                          >
+                            <FileSpreadsheet className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDownload(c.customer, 'analysis')}
+                            disabled={isGenerating}
+                            className="p-2 bg-white border border-red-200 text-red-600 rounded-lg hover:bg-red-600 hover:text-white hover:border-red-600 transition-all disabled:opacity-30"
+                            title="Analysis PDF"
+                          >
+                            <FileText className="w-4 h-4" />
+                          </button>
+                        </div>
                       </td>
                     )}
                   </tr>
@@ -274,80 +310,6 @@ export default function SalesST_ByCustomers({ customersData, loading, refreshTri
           )}
         </div>
       )}
-
-      {selectedCustomerForPriceList && (
-          <div className="fixed inset-0 z-[1100] flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300" onClick={() => setSelectedCustomerForPriceList(null)} />
-            <div className="relative bg-white rounded-[32px] shadow-2xl p-8 max-w-sm w-full animate-in zoom-in-95 duration-300 border border-white/20">
-              <div className="w-16 h-16 bg-emerald-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
-                <DollarSign className="w-8 h-8 text-emerald-600" />
-              </div>
-              <h2 className="text-xl font-black text-slate-900 text-center mb-1 tracking-tight">Select Strategy</h2>
-              <p className="text-slate-500 text-center text-[10px] font-bold uppercase tracking-widest mb-8">{selectedCustomerForPriceList}</p>
-
-              <div className="grid grid-cols-1 gap-3">
-                <button
-                  onClick={() => handleDownload(selectedCustomerForPriceList, 'pricelist', 'most')}
-                  className="w-full py-4 bg-emerald-600 text-white font-black text-xs uppercase tracking-[0.2em] rounded-xl hover:bg-emerald-700 transition-all shadow-lg flex items-center justify-between px-6 group"
-                >
-                  <span>Most Price</span>
-                  <span className="text-[9px] text-white/50 font-medium">Frequent</span>
-                </button>
-                <button
-                  onClick={() => handleDownload(selectedCustomerForPriceList, 'pricelist', 'max')}
-                  className="w-full py-4 bg-amber-600 text-white font-black text-xs uppercase tracking-[0.2em] rounded-xl hover:bg-amber-700 transition-all shadow-lg flex items-center justify-between px-6 group"
-                >
-                  <span>Max Price</span>
-                  <span className="text-[9px] text-white/50 font-medium">Highest</span>
-                </button>
-              </div>
-
-              <button
-                onClick={() => setSelectedCustomerForPriceList(null)}
-                className="mt-6 w-full text-[10px] font-black text-slate-400 hover:text-slate-600 uppercase tracking-widest transition-colors"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        )}
-
-        {selectedCustomerForAnalysis && (
-          <div className="fixed inset-0 z-[1100] flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300" onClick={() => setSelectedCustomerForAnalysis(null)} />
-            <div className="relative bg-white rounded-[32px] shadow-2xl p-8 max-w-sm w-full animate-in zoom-in-95 duration-300 border border-white/20">
-              <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
-                <Search className="w-8 h-8 text-blue-600" />
-              </div>
-              <h2 className="text-xl font-black text-slate-900 text-center mb-1 tracking-tight">Export Analysis</h2>
-              <p className="text-slate-500 text-center text-[10px] font-bold uppercase tracking-widest mb-8">{selectedCustomerForAnalysis}</p>
-
-              <div className="grid grid-cols-1 gap-3">
-                <button
-                  onClick={() => handleDownload(selectedCustomerForAnalysis, 'analysis')}
-                  className="w-full py-4 bg-rose-600 text-white font-black text-xs uppercase tracking-[0.2em] rounded-xl hover:bg-rose-700 transition-all shadow-lg flex items-center justify-center gap-3 group"
-                >
-                  <FileText className="w-4 h-4" />
-                  <span>PDF</span>
-                </button>
-                <button
-                  onClick={() => handleExportAnalysisExcel(selectedCustomerForAnalysis)}
-                  className="w-full py-4 bg-emerald-600 text-white font-black text-xs uppercase tracking-[0.2em] rounded-xl hover:bg-emerald-700 transition-all shadow-lg flex items-center justify-center gap-3 group"
-                >
-                  <FileSpreadsheet className="w-4 h-4" />
-                  <span>EXCEL</span>
-                </button>
-              </div>
-
-              <button
-                onClick={() => setSelectedCustomerForAnalysis(null)}
-                className="mt-6 w-full text-[10px] font-black text-slate-400 hover:text-slate-600 uppercase tracking-widest transition-colors"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        )}
 
       {showDownloadModal && (
         <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">

@@ -22,13 +22,14 @@ interface Props {
   editing: InventoryMoveRow | null;
   values: InventoryMoveFormValues;
   productOptions: ProductOption[];
+  locationOptions: string[];
   isSaving: boolean;
   onChange: (values: InventoryMoveFormValues) => void;
   onClose: () => void;
   onSubmit: (e: React.FormEvent) => void;
 }
 
-const LOCATION_SUGGESTIONS = [
+const DEFAULT_LOCATION_SUGGESTIONS = [
   'Partners/Customers',
   'Partners/Vendors',
 ];
@@ -38,6 +39,7 @@ export default function InventoryMovesModal({
   editing,
   values,
   productOptions,
+  locationOptions,
   isSaving,
   onChange,
   onClose,
@@ -53,6 +55,9 @@ export default function InventoryMovesModal({
     const q = values.productId.toLowerCase();
     return p['PRODUCT ID'].toLowerCase().includes(q) || p['PRODUCT NAME'].toLowerCase().includes(q);
   }).slice(0, 50);
+
+  const locationSuggestions =
+    locationOptions.length > 0 ? locationOptions : DEFAULT_LOCATION_SUGGESTIONS;
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
@@ -90,14 +95,14 @@ export default function InventoryMovesModal({
               <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">Location From</label>
               <input list="location-from-list" value={values.locationFrom} onChange={(e) => set('locationFrom', e.target.value)} className="w-full mt-2 px-4 py-3 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-black/5" />
               <datalist id="location-from-list">
-                {LOCATION_SUGGESTIONS.map((loc) => <option key={loc} value={loc} />)}
+                {locationSuggestions.map((loc) => <option key={loc} value={loc} />)}
               </datalist>
             </div>
             <div>
               <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">Location To</label>
               <input list="location-to-list" value={values.locationTo} onChange={(e) => set('locationTo', e.target.value)} className="w-full mt-2 px-4 py-3 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-black/5" />
               <datalist id="location-to-list">
-                {LOCATION_SUGGESTIONS.map((loc) => <option key={loc} value={loc} />)}
+                {locationSuggestions.map((loc) => <option key={loc} value={loc} />)}
               </datalist>
             </div>
           </div>

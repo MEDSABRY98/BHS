@@ -6,6 +6,7 @@ import {
   getScopedQtyEffect,
   isMoveInLocationScope,
   INTERNAL_WAREHOUSES_SET,
+  INTERNAL_WAREHOUSES_SORTED,
   isInternalTransfer,
   isSameLocationMove,
   isWaterClusterTransfer,
@@ -13,6 +14,14 @@ import {
   normalizeLocation,
   formatProductCategory,
 } from '../Utils/locationTypes';
+import {
+  buildLocationRegistry,
+  matchesCanonicalLocation,
+  resolveLocationId,
+  resolveLocationName,
+  type LocationRegistry,
+} from '../Utils/locationRegistry';
+import { fetchInventoryLocations } from './location_service';
 import type {
   CustomerMoveInRange,
   InventoryReportProduct,
@@ -50,6 +59,29 @@ interface MoveMonthSummary {
 }
 
 const INVENTORY_MOVE_SELECT = 'DATE,"LOCATION FROM","LOCATION TO","PRODUCT ID",QTY';
+
+let locationRegistryCache: LocationRegistry | null = null;
+
+async function loadLocationRegistry(): Promise<LocationRegistry> {
+  if (locationRegistryCache) return locationRegistryCache;
+  const { rows } = await fetchInventoryLocations();
+  locationRegistryCache = buildLocationRegistry(rows);
+  return locationRegistryCache;
+}
+
+function resolveMoveFrom(row: InventoryMoveRow, registry: LocationRegistry): string {
+  return resolveLocationName(String(row['LOCATION FROM'] ?? ''), registry);
+}
+
+function resolveMoveTo(row: InventoryMoveRow, registry: LocationRegistry): string {
+  return resolveLocationName(String(row['LOCATION TO'] ?? ''), registry);
+}
+
+function resolveScopedLocationName(raw: string | null | undefined, registry: LocationRegistry): string | null {
+  const trimmed = String(raw ?? '').trim();
+  if (!trimmed) return null;
+  return resolveLocationName(trimmed, registry);
+}
 
 // Shared Helpers
 function parseNum(val: unknown): number {
@@ -166,6 +198,7 @@ async function fetchCustomerMovesInRangeFromDb(
   dateFrom: string,
   dateTo: string,
   mode: 'sale' | 'return',
+  registry: LocationRegistry,
 ): Promise<CustomerMoveInRange[]> {
   const pageSize = 1000;
   const results: CustomerMoveInRange[] = [];
@@ -184,9 +217,9 @@ async function fetchCustomerMovesInRangeFromDb(
       .limit(pageSize);
 
     if (mode === 'sale') {
-      query = query.eq('LOCATION TO', CUSTOMERS_LOCATION);
+      query = query.eq('LOCATION TO', registry.customersLocationId || CUSTOMERS_LOCATION);
     } else {
-      query = query.eq('LOCATION FROM', CUSTOMERS_LOCATION);
+      query = query.eq('LOCATION FROM', registry.customersLocationId || CUSTOMERS_LOCATION);
     }
 
     if (lastId !== null) {
@@ -229,9 +262,10 @@ export async function fetchInventoryMovesInRange(dateFrom: string, dateTo: strin
       return { success: false as const, error: 'From date must be before or equal to To date' };
     }
 
+    const registry = await loadLocationRegistry();
     const [sales, returns] = await Promise.all([
-      fetchCustomerMovesInRangeFromDb(dateFrom, dateTo, 'sale'),
-      fetchCustomerMovesInRangeFromDb(dateFrom, dateTo, 'return'),
+      fetchCustomerMovesInRangeFromDb(dateFrom, dateTo, 'sale', registry),
+      fetchCustomerMovesInRangeFromDb(dateFrom, dateTo, 'return', registry),
     ]);
 
     return { success: true as const, data: [...sales, ...returns] };
@@ -246,6 +280,7 @@ async function fetchVendorMovesInRangeFromDb(
   dateFrom: string,
   dateTo: string,
   mode: 'purchase' | 'return',
+  registry: LocationRegistry,
 ): Promise<VendorMoveInRange[]> {
   const pageSize = 1000;
   const results: VendorMoveInRange[] = [];
@@ -264,9 +299,9 @@ async function fetchVendorMovesInRangeFromDb(
       .limit(pageSize);
 
     if (mode === 'purchase') {
-      query = query.eq('LOCATION FROM', VENDORS_LOCATION);
+      query = query.eq('LOCATION FROM', registry.vendorsLocationId || VENDORS_LOCATION);
     } else {
-      query = query.eq('LOCATION TO', VENDORS_LOCATION);
+      query = query.eq('LOCATION TO', registry.vendorsLocationId || VENDORS_LOCATION);
     }
 
     if (lastId !== null) {
@@ -309,9 +344,10 @@ export async function fetchInventoryVendorMovesInRange(dateFrom: string, dateTo:
       return { success: false as const, error: 'From date must be before or equal to To date' };
     }
 
+    const registry = await loadLocationRegistry();
     const [purchases, returns] = await Promise.all([
-      fetchVendorMovesInRangeFromDb(dateFrom, dateTo, 'purchase'),
-      fetchVendorMovesInRangeFromDb(dateFrom, dateTo, 'return'),
+      fetchVendorMovesInRangeFromDb(dateFrom, dateTo, 'purchase', registry),
+      fetchVendorMovesInRangeFromDb(dateFrom, dateTo, 'return', registry),
     ]);
 
     return { success: true as const, data: [...purchases, ...returns] };
@@ -366,7 +402,7 @@ async function fetchInventoryMoves(): Promise<InventoryMoveRow[]> {
 // API: /api/Inventory
 // ----------------------------------------------------------------------
 
-function buildSalesMaps(moveRows: InventoryMoveRow[]) {
+function buildSalesMaps(moveRows: InventoryMoveRow[], registry: LocationRegistry) {
   const now = new Date();
   const getMonthStart = (monthsAgo: number) => new Date(now.getFullYear(), now.getMonth() - monthsAgo, 1);
   const months = [3, 2, 1, 0].map((i) => getMonthStart(i));
@@ -388,7 +424,7 @@ function buildSalesMaps(moveRows: InventoryMoveRow[]) {
   moveRows.forEach((row) => {
     const dateStr = row.DATE;
     const locationTo = row['LOCATION TO']?.toString().trim();
-    if (!dateStr || locationTo !== 'Partners/Customers') return;
+    if (!dateStr || !matchesCanonicalLocation(locationTo || '', CUSTOMERS_LOCATION, registry)) return;
 
     const moveDate = new Date(dateStr);
     if (isNaN(moveDate.getTime())) return;
@@ -436,19 +472,20 @@ export async function getProductOrdersData() {
     console.warn('RPC get_inventory_product_orders failed, falling back to JS:', rpcError?.message);
 
     // Fallback: fetch all data and compute in JS
-    const [products, moveRows] = await Promise.all([
+    const [products, moveRows, registry] = await Promise.all([
       fetchInventoryProducts(),
       fetchInventoryMoves(),
+      loadLocationRegistry(),
     ]);
 
-    const { salesMap, salesBreakdownMap, monthLabels, months, hasMovesSet } = buildSalesMaps(moveRows);
+    const { salesMap, salesBreakdownMap, monthLabels, months, hasMovesSet } = buildSalesMaps(moveRows, registry);
     const stockMap = new Map<string, number>();
     for (const move of moveRows) {
       const productId = (move['PRODUCT ID'] || '').trim();
       if (!productId) continue;
       const effect = getNetQtyEffect(
-        (move['LOCATION FROM'] || '').trim(),
-        (move['LOCATION TO'] || '').trim(),
+        resolveMoveFrom(move, registry),
+        resolveMoveTo(move, registry),
         parseNum(move.QTY),
       );
       if (effect !== 0) {
@@ -497,12 +534,12 @@ export async function updateProductColumn(productId: string, columnName: string,
 // API: /api/Inventory/Movements
 // ----------------------------------------------------------------------
 
-function aggregateMovements(moveRows: InventoryMoveRow[]) {
+function aggregateMovements(moveRows: InventoryMoveRow[], registry: LocationRegistry) {
   const movements: Record<string, { sales: number; returns: number; netPurchases: number }> = {};
 
   moveRows.forEach((row) => {
-    const from = row['LOCATION FROM']?.toString().trim();
-    const to = row['LOCATION TO']?.toString().trim();
+    const from = resolveMoveFrom(row, registry);
+    const to = resolveMoveTo(row, registry);
     const productId = row['PRODUCT ID']?.toString().trim();
     const qty = parseNum(row.QTY);
 
@@ -512,10 +549,10 @@ function aggregateMovements(moveRows: InventoryMoveRow[]) {
       movements[productId] = { sales: 0, returns: 0, netPurchases: 0 };
     }
 
-    if (to === 'Partners/Customers') movements[productId].sales += qty;
-    if (from === 'Partners/Customers') movements[productId].returns += qty;
-    if (from === 'Partners/Vendors') movements[productId].netPurchases += qty;
-    if (to === 'Partners/Vendors') movements[productId].netPurchases -= qty;
+    if (to === CUSTOMERS_LOCATION) movements[productId].sales += qty;
+    if (from === CUSTOMERS_LOCATION) movements[productId].returns += qty;
+    if (from === VENDORS_LOCATION) movements[productId].netPurchases += qty;
+    if (to === VENDORS_LOCATION) movements[productId].netPurchases -= qty;
   });
 
   return movements;
@@ -528,7 +565,8 @@ export async function getProductMovementsData() {
     if (error) {
       console.warn('RPC failed or not found, falling back to manual fetch', error);
       const moveRows = await fetchInventoryMoves();
-      const aggregated = aggregateMovements(moveRows);
+      const registry = await loadLocationRegistry();
+      const aggregated = aggregateMovements(moveRows, registry);
       return { success: true, data: aggregated };
     }
 
@@ -612,9 +650,10 @@ export async function getSingleProductAnalysis(
     console.warn('RPC get_inventory_product_analysis failed, falling back to JS:', rpcError?.message);
 
     // Fallback: fetch all data and compute in JS
-    const [moveRows, products] = await Promise.all([
+    const [moveRows, products, registry] = await Promise.all([
       fetchInventoryMovesForProduct(productId),
       fetchInventoryProducts(),
+      loadLocationRegistry(),
     ]);
 
     const productRow = products.find((p) => p['PRODUCT ID']?.toString().trim() === productId.trim());
@@ -622,8 +661,8 @@ export async function getSingleProductAnalysis(
 
     let endingBalance = 0;
     moveRows.forEach((row) => {
-      const from = row['LOCATION FROM']?.toString().trim() || '';
-      const to = row['LOCATION TO']?.toString().trim() || '';
+      const from = resolveMoveFrom(row, registry);
+      const to = resolveMoveTo(row, registry);
       const qty = parseNum(row.QTY);
       endingBalance += getNetQtyEffect(from, to, qty);
     });
@@ -708,8 +747,8 @@ export async function getSingleProductAnalysis(
       const pid = row['PRODUCT ID']?.toString().trim();
       if (pid !== productId || !row.DATE) return;
 
-      const from = row['LOCATION FROM']?.toString().trim();
-      const to = row['LOCATION TO']?.toString().trim();
+      const from = resolveMoveFrom(row, registry);
+      const to = resolveMoveTo(row, registry);
       const qty = parseNum(row.QTY);
       if (qty === 0) return;
 
@@ -723,22 +762,22 @@ export async function getSingleProductAnalysis(
       if (isDaily) key = moveDate.toISOString().split('T')[0];
       else key = `${moveDate.getFullYear()}-${moveDate.getMonth() + 1}`;
 
-      if (to === 'Partners/Customers') {
+      if (matchesCanonicalLocation(to, CUSTOMERS_LOCATION, registry)) {
         totalSales += qty;
         const pData = allPeriods.find((p) => p.key === key);
         if (pData) pData.sales += qty;
       }
-      if (from === 'Partners/Customers') {
+      if (matchesCanonicalLocation(from, CUSTOMERS_LOCATION, registry)) {
         totalReturns += qty;
         const pData = allPeriods.find((p) => p.key === key);
         if (pData) pData.returns += qty;
       }
-      if (from === 'Partners/Vendors') {
+      if (matchesCanonicalLocation(from, VENDORS_LOCATION, registry)) {
         totalPurchases += qty;
         const pData = allPeriods.find((p) => p.key === key);
         if (pData) pData.purchases += qty;
       }
-      if (to === 'Partners/Vendors') {
+      if (matchesCanonicalLocation(to, VENDORS_LOCATION, registry)) {
         totalPurchaseReturns += qty;
         const pData = allPeriods.find((p) => p.key === key);
         if (pData) pData.purchases -= qty;
@@ -1151,14 +1190,15 @@ async function fetchProductInventoryMoves(productId: string): Promise<InventoryM
 }
 
 async function computeProductsBalanceReportDataJs(filters?: { dateFrom?: string; dateTo?: string; location?: string }) {
-  const [products, moveRows] = await Promise.all([
+  const [products, moveRows, registry] = await Promise.all([
     fetchInventoryProducts(),
     fetchAllInventoryMovesStable(),
+    loadLocationRegistry(),
   ]);
 
   const dateFromStr = filters?.dateFrom ? filters.dateFrom.trim() : null;
   const dateToStr = filters?.dateTo ? filters.dateTo.trim() : null;
-  const location = filters?.location?.trim() || null;
+  const location = resolveScopedLocationName(filters?.location, registry);
 
   const fromDate = dateFromStr ? new Date(`${dateFromStr}T00:00:00.000Z`) : null;
   const toDate = dateToStr ? new Date(`${dateToStr}T23:59:59.999Z`) : null;
@@ -1181,8 +1221,8 @@ async function computeProductsBalanceReportDataJs(filters?: { dateFrom?: string;
     const dateStr = row.DATE ? String(row.DATE) : '';
     const moveDate = dateStr ? new Date(dateStr) : null;
     const qty = parseNum(row.QTY);
-    const locFrom = normalizeLocation(row['LOCATION FROM']?.toString().trim() || '');
-    const locTo = normalizeLocation(row['LOCATION TO']?.toString().trim() || '');
+    const locFrom = resolveMoveFrom(row, registry);
+    const locTo = resolveMoveTo(row, registry);
 
     if (!isMoveInLocationScope(locFrom, locTo, location)) return;
 
@@ -1315,12 +1355,13 @@ export async function getProductPeriodMovements(
     });
 
     if (!rpcError && rpcData?.success && Array.isArray(rpcData.data)) {
+      const registry = await loadLocationRegistry();
       const movements: PeriodMovement[] = rpcData.data.map((row: any) => ({
         moveId: String(row.moveId ?? row.move_id ?? ''),
         date: String(row.date ?? ''),
         reference: String(row.reference ?? '-'),
-        locationFrom: String(row.locationFrom ?? row.location_from ?? ''),
-        locationTo: String(row.locationTo ?? row.location_to ?? ''),
+        locationFrom: resolveLocationName(String(row.locationFrom ?? row.location_from ?? ''), registry),
+        locationTo: resolveLocationName(String(row.locationTo ?? row.location_to ?? ''), registry),
         qty: Number(row.qty ?? 0),
         type: String(row.type ?? 'other'),
       }));
@@ -1335,15 +1376,18 @@ export async function getProductPeriodMovements(
     const fromDate = dateFromStr ? new Date(`${dateFromStr}T00:00:00.000Z`) : null;
     const toDate = dateToStr ? new Date(`${dateToStr}T23:59:59.999Z`) : null;
 
-    const moveRows = await fetchProductInventoryMoves(trimmedId);
+    const [moveRows, registry] = await Promise.all([
+      fetchProductInventoryMoves(trimmedId),
+      loadLocationRegistry(),
+    ]);
     const movements: PeriodMovement[] = [];
 
     moveRows.forEach((row: any) => {
       const dateStr = row.DATE ? String(row.DATE) : '';
       const moveDate = dateStr ? new Date(dateStr) : null;
       const qty = parseNum(row.QTY);
-      const locFrom = normalizeLocation(row['LOCATION FROM']?.toString().trim() || '');
-      const locTo = normalizeLocation(row['LOCATION TO']?.toString().trim() || '');
+      const locFrom = resolveMoveFrom(row, registry);
+      const locTo = resolveMoveTo(row, registry);
       const ref = row.REFERENCE?.toString().trim() || '-';
 
       if (fromDate && moveDate && moveDate < fromDate) return;
@@ -1383,6 +1427,7 @@ function escapePostgrestValue(value: string): string {
 
 async function fetchLocationInventoryMoves(
   location: string,
+  registry: LocationRegistry,
   dateFrom?: string | null,
   dateTo?: string | null,
 ): Promise<InventoryMoveRow[]> {
@@ -1390,8 +1435,8 @@ async function fetchLocationInventoryMoves(
   const allRows: InventoryMoveRow[] = [];
   let lastId: string | null = null;
   const SELECT = 'ID,DATE,REFERENCE,"LOCATION FROM","LOCATION TO","PRODUCT ID",QTY';
-  const scopedLocation = location.trim();
-  const locationFilter = `"LOCATION FROM".eq."${escapePostgrestValue(scopedLocation)}","LOCATION TO".eq."${escapePostgrestValue(scopedLocation)}"`;
+  const scopedLocationId = resolveLocationId(location, registry) ?? location.trim();
+  const locationFilter = `"LOCATION FROM".eq."${escapePostgrestValue(scopedLocationId)}","LOCATION TO".eq."${escapePostgrestValue(scopedLocationId)}"`;
 
   while (true) {
     let query = bhs_supabase
@@ -1434,8 +1479,9 @@ export async function getLocationPeriodMovements(filters: {
     const dateFromStr = filters.dateFrom?.trim() || null;
     const dateToStr = filters.dateTo?.trim() || null;
 
+    const registry = await loadLocationRegistry();
     const [moveRows, products] = await Promise.all([
-      fetchLocationInventoryMoves(location, dateFromStr, dateToStr),
+      fetchLocationInventoryMoves(location, registry, dateFromStr, dateToStr),
       fetchInventoryProducts(),
     ]);
 
@@ -1446,15 +1492,15 @@ export async function getLocationPeriodMovements(filters: {
     });
 
     const rows: LocationMovementRow[] = [];
+    const scopedLocation = resolveScopedLocationName(location, registry)!;
 
     moveRows.forEach((row) => {
       const productId = row['PRODUCT ID']?.toString().trim() || '';
       if (!productId) return;
 
-      const locFrom = normalizeLocation(row['LOCATION FROM']?.toString().trim() || '');
-      const locTo = normalizeLocation(row['LOCATION TO']?.toString().trim() || '');
+      const locFrom = resolveMoveFrom(row, registry);
+      const locTo = resolveMoveTo(row, registry);
       const qty = parseNum(row.QTY);
-      const scopedLocation = normalizeLocation(location);
 
       if (!isMoveInLocationScope(locFrom, locTo, scopedLocation)) return;
 
@@ -1503,6 +1549,7 @@ export async function getLocationPeriodMovements(filters: {
  */
 export async function getLiveAvailableQuantitiesFromMoves(): Promise<Map<string, number>> {
   const stockMap = new Map<string, number>();
+  const registry = await loadLocationRegistry();
 
   const moves = await fetchAllInventoryRows<InventoryMoveRow>(
     'web_INVENTORY_MOVES',
@@ -1514,8 +1561,8 @@ export async function getLiveAvailableQuantitiesFromMoves(): Promise<Map<string,
     if (!productId) continue;
 
     const qty = move.QTY || 0;
-    const fromLoc = (move['LOCATION FROM'] || '').trim();
-    const toLoc = (move['LOCATION TO'] || '').trim();
+    const fromLoc = resolveMoveFrom(move, registry);
+    const toLoc = resolveMoveTo(move, registry);
 
     const effect = getNetQtyEffect(fromLoc, toLoc, qty);
     if (effect !== 0) {
@@ -1533,4 +1580,19 @@ export async function getProductAvailableQtyFromMoves(productId: string): Promis
   if (!productId) return 0;
   const map = await getLiveAvailableQuantitiesFromMoves();
   return map.get(productId.trim()) || 0;
+}
+
+export async function getInternalWarehouseLocationOptions() {
+  try {
+    const registry = await loadLocationRegistry();
+    const data =
+      registry.internalWarehouseNames.length > 0
+        ? registry.internalWarehouseNames
+        : [...INTERNAL_WAREHOUSES_SORTED];
+    return { success: true as const, data };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Failed to load warehouse locations';
+    console.error('Service Error getInternalWarehouseLocationOptions:', error);
+    return { success: false as const, error: message, data: [...INTERNAL_WAREHOUSES_SORTED] };
+  }
 }

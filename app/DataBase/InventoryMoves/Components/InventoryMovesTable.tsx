@@ -18,6 +18,7 @@ interface Props {
   isLoading: boolean;
   canEdit: boolean;
   canDelete: boolean;
+  formatLocation?: (raw: string | null | undefined) => string;
   onEdit: (row: InventoryMoveRow) => void;
   onDelete: (id: string) => void;
 }
@@ -46,9 +47,14 @@ export default function InventoryMovesTable({
   isLoading,
   canEdit,
   canDelete,
+  formatLocation,
   onEdit,
   onDelete,
 }: Props) {
+  const displayLocation = (raw: string | null | undefined) => {
+    const label = formatLocation ? formatLocation(raw) : String(raw || '—');
+    return label || '—';
+  };
   if (isLoading) {
     return (
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
@@ -95,8 +101,8 @@ export default function InventoryMovesTable({
           <div className="flex justify-between items-center mt-6">
             <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-gray-400 min-w-0">
               <ArrowLeftRight className="w-3.5 h-3.5 text-gray-300 shrink-0" />
-              <span className="truncate" title={`${row['LOCATION FROM'] || '—'} → ${row['LOCATION TO'] || '—'}`}>
-                {row['LOCATION FROM'] || '—'} → {row['LOCATION TO'] || '—'}
+              <span className="truncate" title={`${displayLocation(row['LOCATION FROM'])} → ${displayLocation(row['LOCATION TO'])}`}>
+                {displayLocation(row['LOCATION FROM'])} → {displayLocation(row['LOCATION TO'])}
               </span>
             </div>
             <div className="flex items-center gap-1 shrink-0">

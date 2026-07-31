@@ -5,25 +5,81 @@ import { bhs_supabas, fetchAllData } from '@/lib/supabase';
 import {
   Search,
   Eye,
-  ChevronRight,
   CheckCircle2,
-  XCircle,
-  Trash2,
   FileSpreadsheet
 } from 'lucide-react';
 import Link from 'next/link';
 import NoData from '@/app/Components/NoDataTab';
 import TabLoader from '@/app/Components/TabLoader';
+import { toast } from '@/app/Components/Notification';
 import { usePermissions } from '../Hooks/usePermissions';
 import OrdersFilterMenu, { FilterCriteria } from '../OrderDetails/Components/OrdersFilterMenu';
 import { ConfirmModal } from '../Components/ConfirmModal';
 import * as XLSX from 'xlsx';
 
+function canConfirmInvoiceHandover(driver: any, currentUserProfile: any): boolean {
+  if (!driver) return false;
+
+  const handoverStatus = driver.OFFICE_HANDOVER_STATUS;
+  if (handoverStatus === 'Confirmed' || handoverStatus === 'Rejected') return false;
+
+  const hasHandoverAction =
+    Boolean(driver.OFFICE_HANDOVER_ID) || driver.TRACKING_NOTES === 'SYSTEM_CANCELLED';
+  if (!hasHandoverAction) return false;
+
+  if (!currentUserProfile?.ID) return false;
+
+  if (driver.TRACKING_NOTES === 'SYSTEM_CANCELLED') {
+    return (
+      currentUserProfile.CANCEL_AUTHORITY === true ||
+      currentUserProfile.CANCEL_AUTHORITY === 'TRUE'
+    );
+  }
+
+  return String(currentUserProfile.ID) === String(driver.OFFICE_HANDOVER_ID);
+}
+
+async function resolveCurrentUserProfile() {
+  const mainUserStr = localStorage.getItem('currentUser');
+  if (!mainUserStr) return null;
+
+  try {
+    const parsed = JSON.parse(mainUserStr);
+    const name = parsed.name || parsed.NAME;
+    if (!name) return null;
+
+    const cleanName = name.trim();
+    const { data } = await bhs_supabas
+      .from('bhs_USERS')
+      .select('*')
+      .ilike('NAME', cleanName)
+      .maybeSingle();
+
+    if (data) return data;
+
+    const allUsers = await fetchAllData(() => bhs_supabas.from('bhs_USERS').select('*'));
+    const matchedUser = allUsers.find(
+      (u: any) => u.NAME.trim().toLowerCase() === cleanName.toLowerCase(),
+    );
+    if (matchedUser) return matchedUser;
+
+    return {
+      ID: parsed.id || parsed.ID || 'R-0001',
+      NAME: name,
+      ROLE: parsed.role || 'user',
+    };
+  } catch (error) {
+    console.error('Error resolving current user:', error);
+    return null;
+  }
+}
+
 
 export default function OrdersPage() {
-  const { canEdit, canDelete, isLoaded } = usePermissions();
+  const { canEdit } = usePermissions();
   const [orders, setOrders] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [currentUserProfile, setCurrentUserProfile] = useState<any>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [staffList, setStaffList] = useState<any[]>([]);
@@ -36,8 +92,7 @@ export default function OrdersPage() {
   const ITEMS_PER_PAGE = 50;
 
   const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
-  const [isBulkActionModalOpen, setIsBulkActionModalOpen] = useState(false);
-  const [bulkActionType, setBulkActionType] = useState<'Approve' | 'Reject' | 'Delete' | null>(null);
+  const [isBulkConfirmModalOpen, setIsBulkConfirmModalOpen] = useState(false);
   const [isBulkSaving, setIsBulkSaving] = useState(false);
 
   // Clear selected checkbox state when filters, pagination, or search change
@@ -48,6 +103,7 @@ export default function OrdersPage() {
   useEffect(() => {
     fetchStaff();
     fetchOrders();
+    resolveCurrentUserProfile().then(setCurrentUserProfile);
   }, []);
 
   // Load saved filters from sessionStorage on mount to avoid hydration mismatch
@@ -114,6 +170,7 @@ export default function OrdersPage() {
           app_lpos_DRIVERS ( 
             ID,
             DRIVERS_NAME, 
+            OFFICE_HANDOVER_ID,
             OFFICE_HANDOVER_STATUS,
             TRACKING_NOTES,
             STATUS
@@ -132,71 +189,61 @@ export default function OrdersPage() {
     }
   }
 
-  const handleBulkAction = async () => {
-    if (!bulkActionType || selectedOrderIds.length === 0) return;
+  const handleBulkConfirmReceipt = async () => {
+    if (selectedOrderIds.length === 0) return;
+
+    const userProfile = currentUserProfile || (await resolveCurrentUserProfile());
+    if (!userProfile?.ID) {
+      toast.error('Could not resolve the current user profile.');
+      return;
+    }
+
     setIsBulkSaving(true);
     try {
-      if (bulkActionType === 'Approve') {
-        const { error: ordersError } = await bhs_supabas
-          .from('app_lpos_ORDERS')
-          .update({ STATUS: 'Approved' })
-          .in('ID', selectedOrderIds);
+      const confirmableOrders = selectedOrderIds
+        .map((orderId) => processedOrders.find((order) => order.ID === orderId))
+        .filter((order): order is NonNullable<typeof order> => Boolean(order))
+        .filter((order) => canConfirmInvoiceHandover(order.app_lpos_DRIVERS?.[0], userProfile));
 
-        if (ordersError) throw ordersError;
-      } else if (bulkActionType === 'Reject') {
-        const { error: ordersError } = await bhs_supabas
-          .from('app_lpos_ORDERS')
-          .update({ STATUS: 'Rejected' })
-          .in('ID', selectedOrderIds);
-
-        if (ordersError) throw ordersError;
-      } else if (bulkActionType === 'Delete') {
-        // 1. Delete Drivers/Logistics
-        await bhs_supabas
-          .from('app_lpos_DRIVERS')
-          .delete()
-          .in('ORDER_ID', selectedOrderIds);
-
-        // 3. Delete the orders
-        const { error: ordersError } = await bhs_supabas
-          .from('app_lpos_ORDERS')
-          .delete()
-          .in('ID', selectedOrderIds);
-
-        if (ordersError) throw ordersError;
+      if (confirmableOrders.length === 0) {
+        toast.error('None of the selected invoices can be confirmed by you.');
+        return;
       }
 
-      // Re-fetch all orders
+      const now = new Date().toISOString();
+      const updates = confirmableOrders.map((order) => {
+        const driver = order.app_lpos_DRIVERS[0];
+        return bhs_supabas
+          .from('app_lpos_DRIVERS')
+          .update({
+            OFFICE_HANDOVER_STATUS: 'Confirmed',
+            OFFICE_HANDOVER_TIME: now,
+            OFFICE_HANDOVER_ID: userProfile.ID || 'R-0001',
+          })
+          .eq('ID', driver.ID);
+      });
+
+      const results = await Promise.all(updates);
+      const failed = results.find((result) => result.error);
+      if (failed?.error) throw failed.error;
+
+      const skippedCount = selectedOrderIds.length - confirmableOrders.length;
+      if (skippedCount > 0) {
+        toast.success(
+          `Confirmed ${confirmableOrders.length} invoice(s). Skipped ${skippedCount} not eligible for your account.`,
+        );
+      } else {
+        toast.success(`Confirmed ${confirmableOrders.length} invoice(s).`);
+      }
+
       await fetchOrders();
       setSelectedOrderIds([]);
     } catch (err) {
-      alert(`Error performing bulk ${bulkActionType}: ${(err as any).message}`);
+      console.error(err);
+      toast.error(err instanceof Error ? err.message : 'Failed to confirm selected invoices.');
     } finally {
       setIsBulkSaving(false);
-      setIsBulkActionModalOpen(false);
-      setBulkActionType(null);
-    }
-  };
-
-  const getModalTitleAndMessage = () => {
-    switch (bulkActionType) {
-      case 'Approve':
-        return {
-          title: 'Confirm Bulk Approval',
-          message: `Are you sure you want to approve all ${selectedOrderIds.length} selected orders? This will also mark all their items as approved and auto-fill quantities.`
-        };
-      case 'Reject':
-        return {
-          title: 'Confirm Bulk Rejection',
-          message: `Are you sure you want to reject all ${selectedOrderIds.length} selected orders?`
-        };
-      case 'Delete':
-        return {
-          title: 'Confirm Bulk Deletion',
-          message: `Are you sure you want to permanently delete all ${selectedOrderIds.length} selected orders? This action is irreversible.`
-        };
-      default:
-        return { title: '', message: '' };
+      setIsBulkConfirmModalOpen(false);
     }
   };
 
@@ -221,6 +268,13 @@ export default function OrdersPage() {
       return (a.ORDER_ID || '').localeCompare(b.ORDER_ID || '');
     });
   }, [orders, staffList]);
+
+  const selectedConfirmableCount = useMemo(() => {
+    return selectedOrderIds.filter((orderId) => {
+      const order = processedOrders.find((item) => item.ID === orderId);
+      return canConfirmInvoiceHandover(order?.app_lpos_DRIVERS?.[0], currentUserProfile);
+    }).length;
+  }, [selectedOrderIds, processedOrders, currentUserProfile]);
 
   const filteredOrders = useMemo(() => {
     return processedOrders.filter(order => {
@@ -340,41 +394,18 @@ export default function OrdersPage() {
           <div className="flex items-center gap-2 bg-gray-50 border border-gray-100 rounded-[1.25rem] p-1.5 animate-in fade-in slide-in-from-top-2 duration-300">
             <span className="text-xs font-black text-gray-500 uppercase tracking-wider px-3">
               {selectedOrderIds.length} Selected
+              {selectedConfirmableCount > 0 && selectedConfirmableCount !== selectedOrderIds.length
+                ? ` · ${selectedConfirmableCount} confirmable`
+                : ''}
             </span>
             {canEdit && (
-              <>
-                <button
-                  onClick={() => {
-                    setBulkActionType('Approve');
-                    setIsBulkActionModalOpen(true);
-                  }}
-                  className="w-10 h-10 flex items-center justify-center bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 hover:scale-105 active:scale-95 transition-all shadow-md shadow-emerald-500/10"
-                  title="Bulk Approve"
-                >
-                  <CheckCircle2 className="w-5 h-5" />
-                </button>
-                <button
-                  onClick={() => {
-                    setBulkActionType('Reject');
-                    setIsBulkActionModalOpen(true);
-                  }}
-                  className="w-10 h-10 flex items-center justify-center bg-white border border-red-100 text-red-500 rounded-xl hover:bg-red-50 hover:scale-105 active:scale-95 transition-all shadow-sm"
-                  title="Bulk Reject"
-                >
-                  <XCircle className="w-5 h-5" />
-                </button>
-              </>
-            )}
-            {canDelete && (
               <button
-                onClick={() => {
-                  setBulkActionType('Delete');
-                  setIsBulkActionModalOpen(true);
-                }}
-                className="w-10 h-10 flex items-center justify-center bg-red-600 text-white rounded-xl hover:bg-red-700 hover:scale-105 active:scale-95 transition-all shadow-md shadow-red-600/10"
-                title="Bulk Delete"
+                onClick={() => setIsBulkConfirmModalOpen(true)}
+                disabled={selectedConfirmableCount === 0}
+                className="w-10 h-10 flex items-center justify-center bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 hover:scale-105 active:scale-95 transition-all shadow-md shadow-emerald-500/10 disabled:opacity-40 disabled:hover:scale-100 disabled:cursor-not-allowed"
+                title="Confirm Office Receipt"
               >
-                <Trash2 className="w-5 h-5" />
+                <CheckCircle2 className="w-5 h-5" />
               </button>
             )}
           </div>
@@ -599,15 +630,12 @@ export default function OrdersPage() {
       )}
 
       <ConfirmModal
-        isOpen={isBulkActionModalOpen}
-        onConfirm={handleBulkAction}
-        onCancel={() => {
-          setIsBulkActionModalOpen(false);
-          setBulkActionType(null);
-        }}
+        isOpen={isBulkConfirmModalOpen}
+        onConfirm={handleBulkConfirmReceipt}
+        onCancel={() => setIsBulkConfirmModalOpen(false)}
         isLoading={isBulkSaving}
-        title={getModalTitleAndMessage().title}
-        message={getModalTitleAndMessage().message}
+        title="Confirm Office Receipt"
+        message={`Confirm office receipt for ${selectedConfirmableCount} of ${selectedOrderIds.length} selected invoice(s)? This uses the same confirmation as Invoices Status.`}
       />
     </div>
   );
