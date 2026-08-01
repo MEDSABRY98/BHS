@@ -10,7 +10,6 @@ import NoData from '@/app/Components/NoDataTab';
 import TabLoader from '@/app/Components/TabLoader';
 import InventoryProductOrdersDetailsTab from './InventoryCategoriesDetailsTab';
 import { getProductOrdersData, getProductMovementsData } from '../Service/inventory_service';
-import { exportAllCategoriesZip } from './ExcelExport';
 import { formatProductCategory } from '../Utils/locationTypes';
 
 export interface BaseProductOrder {
@@ -102,6 +101,7 @@ export default function InventoryProductOrdersTab({ orderItems, setOrderItems }:
                 });
             });
 
+            const { exportAllCategoriesZip } = await import('./ExcelExport');
             await exportAllCategoriesZip(categoriesMap, 'All_Categories_Inventory.zip');
         } catch (err) {
             console.error('Export Error:', err);

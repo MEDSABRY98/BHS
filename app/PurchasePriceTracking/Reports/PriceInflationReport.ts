@@ -24,17 +24,21 @@ export async function generatePriceInflationReport(
   const reportData: Record<string, unknown>[] = [];
 
   purchasesByProduct.forEach((list, productId) => {
-    const sorted = [...list].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-    
-    const oldestPurchase = sorted[0];
-    const latestPurchase = sorted[sorted.length - 1];
+    const sorted = [...list].sort((a, b) => {
+      const dateDiff = new Date(a.date).getTime() - new Date(b.date).getTime();
+      if (dateDiff !== 0) return dateDiff;
+      return a.id.localeCompare(b.id);
+    });
 
-    const oldestPrice = oldestPurchase.unitPrice;
+    const latestPurchase = sorted[sorted.length - 1];
+    const previousPurchase = sorted.length >= 2 ? sorted[sorted.length - 2] : latestPurchase;
+
     const latestPrice = latestPurchase.unitPrice;
+    const previousPrice = previousPurchase.unitPrice;
 
     let variancePercent = 0;
-    if (oldestPrice > 0) {
-      variancePercent = ((latestPrice - oldestPrice) / oldestPrice) * 100;
+    if (previousPrice > 0 && sorted.length >= 2) {
+      variancePercent = ((latestPrice - previousPrice) / previousPrice) * 100;
     }
 
     let trend = 'No Change';
@@ -48,8 +52,8 @@ export async function generatePriceInflationReport(
     reportData.push({
       'Barcode': barcode,
       'Product Name': productName,
-      'Oldest Date': oldestPurchase.date,
-      'Oldest Price (AED)': oldestPrice,
+      'Previous Date': previousPurchase.date,
+      'Previous Price (AED)': previousPrice,
       'Latest Date': latestPurchase.date,
       'Latest Price (AED)': latestPrice,
       'Variance (%)': Number(variancePercent.toFixed(2)),
@@ -65,6 +69,6 @@ export async function generatePriceInflationReport(
   await exportStyledExcel(reportData, fileName, {
     sheetName: 'Price Inflation',
     columnWidth: 20,
-    numericColumns: ['Oldest Price (AED)', 'Latest Price (AED)', 'Variance (%)']
+    numericColumns: ['Previous Price (AED)', 'Latest Price (AED)', 'Variance (%)']
   });
 }

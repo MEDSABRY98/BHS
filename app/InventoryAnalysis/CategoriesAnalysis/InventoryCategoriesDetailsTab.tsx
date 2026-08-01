@@ -5,10 +5,8 @@ import {
     Search, FileSpreadsheet, ChevronLeft,
     Box, RefreshCw, TrendingUp, TrendingDown, Truck, Info, X, Save
 } from 'lucide-react';
-import * as XLSX from 'xlsx';
 import { ProductOrder, OrderItem } from './InventoryCategoriesTab';
 import NoData from '@/app/Components/NoDataTab';
-import { exportInventoryExcel } from './ExcelExport';
 import ProductDetails from './InventoryProductDetails';
 import { getProductMovementsData, updateProductColumn, getProductsBalanceReportData } from '../Service/inventory_service';
 
@@ -114,6 +112,7 @@ export default function InventoryProductOrdersDetailsTab({
             };
         });
 
+        const { exportInventoryExcel } = await import('./ExcelExport');
         await exportInventoryExcel(data, 'Inventory', `${categoryName}_inventory.xlsx`);
     };
 
@@ -254,10 +253,12 @@ export default function InventoryProductOrdersDetailsTab({
                             ) : (
                                 filteredProducts.map((product) => {
                                     const move = movements[product.productId] || { sales: 0, returns: 0, netPurchases: 0 };
-                                    const endingStock = endingBalances[product.productId] ?? null;
+                                    const endingStock = endingBalances[product.productId] ?? product.onHand;
                                     const metricsPending = fetchingMovements || fetchingBalance;
                                     const hasMovementData = Object.prototype.hasOwnProperty.call(movements, product.productId);
-                                    const hasBalanceData = Object.prototype.hasOwnProperty.call(endingBalances, product.productId);
+                                    const hasBalanceData =
+                                        Object.prototype.hasOwnProperty.call(endingBalances, product.productId) ||
+                                        product.onHand !== 0;
 
                                     const renderMetricCell = (
                                         value: number | null,
@@ -307,8 +308,6 @@ export default function InventoryProductOrdersDetailsTab({
                                             <td className="px-2 py-3 text-center bg-white">
                                                 {metricsPending && !hasBalanceData ? (
                                                     <div className="h-5 bg-gray-200 rounded w-12 mx-auto animate-pulse" />
-                                                ) : endingStock === null ? (
-                                                    <span className="text-gray-300 text-xs">—</span>
                                                 ) : (
                                                     <span className={`px-2 py-1 rounded-md text-sm font-black inline-block min-w-[50px] ${
                                                         endingStock < 0

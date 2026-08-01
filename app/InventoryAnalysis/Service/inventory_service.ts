@@ -456,20 +456,22 @@ export async function getProductOrdersData() {
     // Try RPC first (fast — computed in PostgreSQL)
     const { data: rpcData, error: rpcError } = await bhs_supabase.rpc('get_inventory_product_orders');
 
-    if (!rpcError && rpcData && rpcData.success) {
-      if (Array.isArray(rpcData.data)) {
-        return {
-          ...rpcData,
-          data: rpcData.data.map((row: { tags?: string }) => ({
-            ...row,
-            tags: formatProductCategory(row.tags || ''),
-          })),
-        };
-      }
-      return rpcData;
+    const rpcRows = rpcData?.success && Array.isArray(rpcData.data) ? rpcData.data : null;
+    if (!rpcError && rpcRows && rpcRows.length > 0) {
+      return {
+        ...rpcData,
+        data: rpcRows.map((row: { tags?: string }) => ({
+          ...row,
+          tags: formatProductCategory(row.tags || ''),
+        })),
+      };
     }
 
-    console.warn('RPC get_inventory_product_orders failed, falling back to JS:', rpcError?.message);
+    if (rpcError) {
+      console.warn('RPC get_inventory_product_orders failed, falling back to JS:', rpcError.message);
+    } else {
+      console.warn('RPC get_inventory_product_orders returned no rows, falling back to JS');
+    }
 
     // Fallback: fetch all data and compute in JS
     const [products, moveRows, registry] = await Promise.all([
@@ -538,8 +540,8 @@ function aggregateMovements(moveRows: InventoryMoveRow[], registry: LocationRegi
   const movements: Record<string, { sales: number; returns: number; netPurchases: number }> = {};
 
   moveRows.forEach((row) => {
-    const from = resolveMoveFrom(row, registry);
-    const to = resolveMoveTo(row, registry);
+    const fromRaw = row['LOCATION FROM']?.toString().trim() || '';
+    const toRaw = row['LOCATION TO']?.toString().trim() || '';
     const productId = row['PRODUCT ID']?.toString().trim();
     const qty = parseNum(row.QTY);
 
@@ -549,41 +551,60 @@ function aggregateMovements(moveRows: InventoryMoveRow[], registry: LocationRegi
       movements[productId] = { sales: 0, returns: 0, netPurchases: 0 };
     }
 
-    if (to === CUSTOMERS_LOCATION) movements[productId].sales += qty;
-    if (from === CUSTOMERS_LOCATION) movements[productId].returns += qty;
-    if (from === VENDORS_LOCATION) movements[productId].netPurchases += qty;
-    if (to === VENDORS_LOCATION) movements[productId].netPurchases -= qty;
+    if (matchesCanonicalLocation(toRaw, CUSTOMERS_LOCATION, registry)) movements[productId].sales += qty;
+    if (matchesCanonicalLocation(fromRaw, CUSTOMERS_LOCATION, registry)) movements[productId].returns += qty;
+    if (matchesCanonicalLocation(fromRaw, VENDORS_LOCATION, registry)) movements[productId].netPurchases += qty;
+    if (matchesCanonicalLocation(toRaw, VENDORS_LOCATION, registry)) movements[productId].netPurchases -= qty;
   });
 
   return movements;
 }
 
+function mapMovementsRpcRows(data: unknown): Record<string, { sales: number; returns: number; netPurchases: number }> {
+  const movements: Record<string, { sales: number; returns: number; netPurchases: number }> = {};
+  if (!Array.isArray(data)) return movements;
+
+  data.forEach((row: { product_id?: string | null; sales?: unknown; returns?: unknown; net_purchases?: unknown }) => {
+    const productId = row.product_id?.toString().trim();
+    if (!productId) return;
+    movements[productId] = {
+      sales: Number(row.sales) || 0,
+      returns: Number(row.returns) || 0,
+      netPurchases: Number(row.net_purchases) || 0,
+    };
+  });
+
+  return movements;
+}
+
+function hasUsableMovementsRpcData(data: unknown): boolean {
+  if (!Array.isArray(data) || data.length === 0) return false;
+  return data.some((row: { sales?: unknown; returns?: unknown; net_purchases?: unknown }) => {
+    const sales = Number(row.sales) || 0;
+    const returns = Number(row.returns) || 0;
+    const netPurchases = Number(row.net_purchases) || 0;
+    return sales !== 0 || returns !== 0 || netPurchases !== 0;
+  });
+}
+
 export async function getProductMovementsData() {
   try {
     const { data, error } = await bhs_supabase.rpc('get_inventory_movements_summary');
-    
+
+    if (!error && hasUsableMovementsRpcData(data)) {
+      return { success: true, data: mapMovementsRpcRows(data) };
+    }
+
     if (error) {
-      console.warn('RPC failed or not found, falling back to manual fetch', error);
-      const moveRows = await fetchInventoryMoves();
-      const registry = await loadLocationRegistry();
-      const aggregated = aggregateMovements(moveRows, registry);
-      return { success: true, data: aggregated };
+      console.warn('RPC get_inventory_movements_summary failed, falling back to JS:', error.message);
+    } else {
+      console.warn('RPC get_inventory_movements_summary returned no usable rows, falling back to JS');
     }
 
-    const movements: Record<string, { sales: number; returns: number; netPurchases: number }> = {};
-    if (data) {
-      data.forEach((row: any) => {
-        if (row.product_id) {
-          movements[row.product_id] = {
-            sales: Number(row.sales) || 0,
-            returns: Number(row.returns) || 0,
-            netPurchases: Number(row.net_purchases) || 0
-          };
-        }
-      });
-    }
-
-    return { success: true, data: movements };
+    const moveRows = await fetchInventoryMoves();
+    const registry = await loadLocationRegistry();
+    const aggregated = aggregateMovements(moveRows, registry);
+    return { success: true, data: aggregated };
   } catch (error: any) {
     console.error('API Error:', error);
     return { success: false, error: 'Failed to fetch movements data', details: error.message };
@@ -628,6 +649,43 @@ async function fetchInventoryMovesForProduct(productId: string): Promise<Invento
   });
 }
 
+function hasUsableProductAnalysisRpcData(rpcData: unknown): boolean {
+  if (!rpcData || typeof rpcData !== 'object') return false;
+
+  const wrapped = rpcData as {
+    success?: boolean;
+    data?: {
+      summary?: { sales?: unknown; returns?: unknown; netPurchases?: unknown };
+      monthlyData?: Array<{ sales?: unknown; returns?: unknown; purchases?: unknown }>;
+    };
+  };
+
+  if (!wrapped.success || !wrapped.data?.summary) return false;
+
+  const summary = wrapped.data.summary;
+  const movementTotal =
+    (Number(summary.sales) || 0) +
+    (Number(summary.returns) || 0) +
+    Math.abs(Number(summary.netPurchases) || 0);
+
+  if (movementTotal > 0) return true;
+
+  const monthly = wrapped.data.monthlyData;
+  if (
+    Array.isArray(monthly) &&
+    monthly.some(
+      (row) =>
+        (Number(row.sales) || 0) !== 0 ||
+        (Number(row.returns) || 0) !== 0 ||
+        (Number(row.purchases) || 0) !== 0,
+    )
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
 export async function getSingleProductAnalysis(
   productId: string,
   filters?: { year?: string; month?: string; from?: string; to?: string; preset?: string }
@@ -643,11 +701,15 @@ export async function getSingleProductAnalysis(
       p_preset: filters?.preset || 'all',
     });
 
-    if (!rpcError && rpcData && rpcData.success) {
+    if (!rpcError && hasUsableProductAnalysisRpcData(rpcData)) {
       return rpcData;
     }
 
-    console.warn('RPC get_inventory_product_analysis failed, falling back to JS:', rpcError?.message);
+    if (rpcError) {
+      console.warn('RPC get_inventory_product_analysis failed, falling back to JS:', rpcError.message);
+    } else {
+      console.warn('RPC get_inventory_product_analysis returned no usable rows, falling back to JS');
+    }
 
     // Fallback: fetch all data and compute in JS
     const [moveRows, products, registry] = await Promise.all([
