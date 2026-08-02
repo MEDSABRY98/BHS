@@ -127,6 +127,7 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
     { id: 'documents-tracking', title: 'Documents Tracking', path: '/DocumentsTracking', color: 'orange' },
     { id: 'customers-summaries', title: 'Customers Summaries', path: '/CustomersSummaries', color: 'sky' },
     { id: 'debit', title: 'Debit Analysis', path: '/Debit', color: 'red' },
+    { id: 'debit_insights', title: 'Debit Insights', path: '/DebitInsights', color: 'violet' },
     { id: 'customers-documents', title: 'Customers Documents', path: '/CustomersDocuments', color: 'indigo' },
     { id: 'inventory', title: 'Inventory Analysis', path: '/InventoryAnalysis', color: 'indigo' },
     { id: 'inventory-item-code', title: 'Inventory Item Code', path: '/InventoryItemCode', color: 'blue' },

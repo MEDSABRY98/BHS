@@ -1,0 +1,179 @@
+'use client';
+
+import { useMemo } from 'react';
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  LabelList,
+  Legend,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
+import { InsightsTrendPoint } from '../Utils/InsightsTypes';
+
+interface SalesCollectionsChartProps {
+  data: InsightsTrendPoint[];
+}
+
+type DebtLabelProps = {
+  x?: number;
+  width?: number;
+  index?: number;
+};
+
+function formatAmount(value: number) {
+  return value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function formatDebtBoxAmount(value: number) {
+  const abs = Math.abs(value);
+  const sign = value < 0 ? '-' : '';
+
+  if (abs >= 1_000_000) {
+    return `${sign}${(abs / 1_000_000).toFixed(2)}M`;
+  }
+  if (abs >= 1_000) {
+    return `${sign}${(abs / 1_000).toFixed(1)}K`;
+  }
+
+  return `${sign}${abs.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
+}
+
+const DEBT_BOX_HEIGHT = 26;
+const DEBT_BOX_Y = 8;
+
+function createOpenDebtLabel(chartData: InsightsTrendPoint[]) {
+  const boxWidth = Math.max(
+    64,
+    ...chartData.map((point) => formatDebtBoxAmount(point.openDebt).length * 6.5 + 16)
+  );
+
+  return function OpenDebtLabel({ x = 0, width = 0, index }: DebtLabelProps) {
+    if (index === undefined || !chartData[index]) return null;
+
+    const openDebt = chartData[index].openDebt;
+    const centerX = x + width * 1.56;
+    const boxX = centerX - boxWidth / 2;
+
+    return (
+      <g>
+        <rect
+          x={boxX}
+          y={DEBT_BOX_Y}
+          width={boxWidth}
+          height={DEBT_BOX_HEIGHT}
+          rx={6}
+          fill="#EFF6FF"
+          stroke="#60A5FA"
+          strokeWidth={1.25}
+        />
+        <text
+          x={centerX}
+          y={DEBT_BOX_Y + DEBT_BOX_HEIGHT / 2 + 4}
+          textAnchor="middle"
+          fill="#1E40AF"
+          fontSize={10}
+          fontWeight={700}
+        >
+          {formatDebtBoxAmount(openDebt)}
+        </text>
+      </g>
+    );
+  };
+}
+
+function SalesCollectionsTooltip({
+  active,
+  payload,
+  label,
+}: {
+  active?: boolean;
+  payload?: Array<{ name?: string; value?: number; color?: string; payload?: InsightsTrendPoint }>;
+  label?: string;
+}) {
+  if (!active || !payload?.length) return null;
+
+  const point = payload[0]?.payload;
+  const netSales = point?.netSales ?? 0;
+  const collections = point?.collections ?? 0;
+  const collectionRate =
+    netSales > 0.01 ? (collections / netSales) * 100 : null;
+
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 shadow-md text-sm">
+      <p className="font-semibold text-slate-800 mb-2">{label}</p>
+      {payload.map((item) => (
+        <p key={item.name} className="flex items-center justify-between gap-4 text-slate-600">
+          <span className="inline-flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+            {item.name}
+          </span>
+          <span className="font-medium text-slate-900">{formatAmount(item.value ?? 0)}</span>
+        </p>
+      ))}
+      <p className="mt-2 pt-2 border-t border-slate-100 text-slate-700">
+        <span className="font-medium">Collection Rate: </span>
+        <span className="font-semibold text-indigo-700">
+          {collectionRate === null ? 'N/A' : `${collectionRate.toFixed(1)}%`}
+        </span>
+      </p>
+    </div>
+  );
+}
+
+export default function SalesCollectionsChart({ data }: SalesCollectionsChartProps) {
+  const debtLabel = useMemo(() => createOpenDebtLabel(data), [data]);
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-4 h-[500px]">
+      <h3 className="text-sm font-semibold text-gray-900 mb-4">Net Sales vs Collections</h3>
+      <ResponsiveContainer width="100%" height={440}>
+        <BarChart data={data} barGap="12%" barCategoryGap="18%" margin={{ top: 56, right: 20, left: 10, bottom: 20 }}>
+          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+          <XAxis
+            dataKey="monthLabel"
+            tick={{ fill: '#374151', fontSize: 13, fontWeight: 600 }}
+            axisLine={false}
+            tickLine={false}
+            interval={0}
+            height={64}
+            dy={10}
+          />
+          <YAxis
+            tick={{ fill: '#9CA3AF', fontSize: 11 }}
+            axisLine={false}
+            tickLine={false}
+            tickFormatter={(value) =>
+              new Intl.NumberFormat('en-US', { notation: 'compact', compactDisplay: 'short' }).format(value)
+            }
+          />
+          <Tooltip content={<SalesCollectionsTooltip />} />
+          <Legend />
+          <Bar
+            dataKey="netSales"
+            name="Net Sales"
+            fill="#6EE7B7"
+            stroke="#34D399"
+            strokeWidth={1}
+            radius={[6, 6, 0, 0]}
+            isAnimationActive={false}
+          >
+            <LabelList dataKey="openDebt" content={debtLabel} />
+          </Bar>
+          <Bar
+            dataKey="collections"
+            name="Collections"
+            fill="#C4B5FD"
+            stroke="#A78BFA"
+            strokeWidth={1}
+            radius={[6, 6, 0, 0]}
+            isAnimationActive={false}
+          />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
