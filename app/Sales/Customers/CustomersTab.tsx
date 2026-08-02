@@ -5,7 +5,7 @@ import { SalesInvoice } from '@/lib/supabase';;
 import { Search, ChevronLeft, ChevronRight, Download, X, FileSpreadsheet, Layers, LayoutGrid, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { useSalesModuleFilters } from '@/app/Sales/Model/SalesFilters';
 import { exportSalesExcelTable } from '@/app/Sales/Utils/ExcelExport';
-import SalesCustomerDetails from './CustomerDetails';
+import SalesCustomerDetails from '@/app/Sales/CustomerDetails/CustomerDetails';
 import { getCustomersData } from '@/app/Sales/Service/sales_customers_service';
 import { useSalesDataContext } from '@/app/Sales/Context/SalesDataContext';
 import { useSalesTabFetch } from '@/app/Sales/Hooks/useSalesTabFetch';

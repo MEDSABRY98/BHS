@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { fetchAllScrapEntries, fetchActiveScrapSession, upsertActiveScrapSession } from '../Service/inventory_scrap_service';
+import { fetchAllScrapEntries, fetchActiveScrapSession, upsertActiveScrapSession } from '../Service/InventoryScrapService';
 import RecordScrapTab from './RecordScrapTab';
 import SessionsHistoryTab from './SessionsHistoryScrapTab';
 import InventoryScrapReportTab from './ReportTab';

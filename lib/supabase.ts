@@ -129,14 +129,6 @@ export interface SalesInvoice {
 
 
 
-export async function getSupplierData(): Promise<any[]> {
-  return [];
-}
-
-export async function getSuppliersMatchingData(): Promise<any[]> {
-  return [];
-}
-
 // --- DEBIT_NOTES ---
 export async function getNotes(customerId?: string) {
   let data: any[] = [];

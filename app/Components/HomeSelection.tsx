@@ -134,7 +134,6 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
     { id: 'inventory-item-code', title: 'Inventory Item Code', path: '/InventoryItemCode', color: 'blue' },
     { id: 'inventory-counting', title: 'Inventory Counting', path: '/InventoryCounting', color: 'blue' },
     { id: 'inventory-scrap', title: 'Inventory Scrap', path: '/InventoryScrap', color: 'orange' },
-    { id: 'suppliers', title: 'Suppliers', path: '/Suppliers', color: 'emerald' },
     { id: 'purchase-price-tracking', title: 'Purchase Price Tracking', path: '/PurchasePriceTracking', color: 'yellow' },
     { id: 'sales', title: 'Sales Analysis', path: '/Sales', color: 'green' },
     { id: 'lpo-management', title: "LPO's", path: '/LPOs', color: 'yellow' },

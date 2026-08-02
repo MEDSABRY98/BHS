@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { upsertActiveScrapSession, deleteScrapEntry, deleteScrapSession } from '../Service/inventory_scrap_service';
+import { upsertActiveScrapSession, deleteScrapEntry, deleteScrapSession } from '../Service/InventoryScrapService';
 import {
   Layers,
   RefreshCw,

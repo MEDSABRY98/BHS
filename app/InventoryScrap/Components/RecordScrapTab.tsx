@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { fetchAllProductsForScrap, upsertActiveScrapSession, insertScrapEntry, deleteScrapEntry } from '../Service/inventory_scrap_service';
+import { fetchAllProductsForScrap, upsertActiveScrapSession, insertScrapEntry, deleteScrapEntry } from '../Service/InventoryScrapService';
 import {
   Search,
   Trash2,

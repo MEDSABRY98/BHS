@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { fetchScrapEntriesByDateRange, fetchMaxScrapReportRowId, fetchMaxScrapReportId, insertScrapReport } from '../Service/inventory_scrap_service';
+import { fetchScrapEntriesByDateRange, fetchMaxScrapReportRowId, fetchMaxScrapReportId, insertScrapReport } from '../Service/InventoryScrapService';
 import { FileText, Calendar, Printer, Loader2, Eye, AlertCircle } from 'lucide-react';
 import { generateInventoryScrapReportPDF } from '@/app/InventoryScrap/Pdf/InventoryScrapReportPdf';
 import NoData from '@/app/Components/NoDataTab';

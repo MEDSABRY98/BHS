@@ -68,6 +68,48 @@ function readStoredUser() {
   }
 }
 
+const ALL_NAV_ITEMS = [
+  { id: 'lpo-dashboard', href: '/LPOs', icon: LayoutDashboard, label: 'Dashboard' },
+  { id: 'lpo-orders', href: '/LPOs/Orders', icon: ShoppingCart, label: 'Orders' },
+  { id: 'lpo-create-orders', href: '/LPOs/CreateOrders', icon: ReceiptText, label: 'Create Orders' },
+  { id: 'lpo-reports', href: '/LPOs/Reports', icon: FileText, label: 'Reports' },
+  { id: 'lpo-invoice-cancel', href: '/LPOs/InvoiceCancel', icon: FileX2, label: 'Invoice Cancel' },
+];
+
+function getLpoNavIdFromPath(pathname: string): string | null {
+  if (pathname === '/LPOs') return 'lpo-dashboard';
+  if (pathname.startsWith('/LPOs/OrderDetails') || pathname.startsWith('/LPOs/Orders')) return 'lpo-orders';
+  if (pathname.startsWith('/LPOs/CreateOrders')) return 'lpo-create-orders';
+  if (pathname.startsWith('/LPOs/Reports')) return 'lpo-reports';
+  if (pathname.startsWith('/LPOs/InvoiceCancel')) return 'lpo-invoice-cancel';
+  return null;
+}
+
+function getFilteredNavItems(user: any) {
+  if (!user) return [];
+
+  if (user.NAME === 'MED Sabry' || user.name === 'med sabry') return ALL_NAV_ITEMS;
+
+  try {
+    const mainUserStr = localStorage.getItem('currentUser');
+    if (mainUserStr) {
+      const mainUser = JSON.parse(mainUserStr);
+      const roleStr = mainUser.role || '{}';
+      const perms = JSON.parse(roleStr);
+
+      if (perms.systems && !perms.systems.includes('lpo-management')) return [];
+
+      if (Array.isArray(perms['lpo-management'])) {
+        return ALL_NAV_ITEMS.filter((item) => perms['lpo-management'].includes(item.id));
+      }
+    }
+  } catch (e) {
+    console.error('Error parsing permissions:', e);
+  }
+
+  return ALL_NAV_ITEMS;
+}
+
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -88,6 +130,24 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
     setIsChecking(false);
   }, []);
+
+  useEffect(() => {
+    if (isChecking || !user) return;
+
+    const navItemsForUser = getFilteredNavItems(user);
+    if (navItemsForUser.length === 0) {
+      router.replace('/');
+      return;
+    }
+
+    const currentNavId = getLpoNavIdFromPath(pathname);
+    if (!currentNavId) return;
+
+    const allowedIds = new Set(navItemsForUser.map((item) => item.id));
+    if (!allowedIds.has(currentNavId)) {
+      router.replace(navItemsForUser[0].href);
+    }
+  }, [isChecking, user, pathname, router]);
 
   const toggleSidebar = () => {
     const nextState = !isCollapsed;
@@ -117,44 +177,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     return <Login onLogin={handleLogin} />;
   }
 
-  const ALL_NAV_ITEMS = [
-    { id: 'lpo-dashboard', href: '/LPOs', icon: LayoutDashboard, label: 'Dashboard' },
-    { id: 'lpo-orders', href: '/LPOs/Orders', icon: ShoppingCart, label: 'Orders' },
-    { id: 'lpo-create-orders', href: '/LPOs/CreateOrders', icon: ReceiptText, label: 'Create Orders' },
-    { id: 'lpo-reports', href: '/LPOs/Reports', icon: FileText, label: 'Reports' },
-    { id: 'lpo-invoice-cancel', href: '/LPOs/InvoiceCancel', icon: FileX2, label: 'Invoice Cancel' },
-  ];
-
-  const getFilteredNavItems = () => {
-    if (!user) return [];
-
-    // Admin Sabry has full access
-    if (user.NAME === 'MED Sabry' || user.name === 'med sabry') return ALL_NAV_ITEMS;
-
-    try {
-      // Check for main system permissions (stored in 'role' as JSON)
-      const mainUserStr = localStorage.getItem('currentUser');
-      if (mainUserStr) {
-        const mainUser = JSON.parse(mainUserStr);
-        const roleStr = mainUser.role || '{}';
-        const perms = JSON.parse(roleStr);
-
-        // If they don't have access to LPO system at all, return empty
-        if (perms.systems && !perms.systems.includes('lpo-management')) return [];
-
-        // Check for sub-tab permissions
-        const allowedTabs = perms['lpo-management'] || [];
-        return ALL_NAV_ITEMS.filter(item => allowedTabs.includes(item.id));
-      }
-    } catch (e) {
-      console.error('Error parsing permissions:', e);
-    }
-
-    // Default to all if no permission system found (legacy or LPO-only login)
-    return ALL_NAV_ITEMS;
-  };
-
-  const navItems = getFilteredNavItems();
+  const navItems = getFilteredNavItems(user);
 
   return (
     <div className="flex min-h-screen bg-[#F8F9FA] text-black">

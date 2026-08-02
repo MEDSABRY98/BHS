@@ -1,35 +1,36 @@
 'use client';
 
 import { useMemo } from 'react';
-import { SalesInvoice } from '@/lib/supabase';;
+import { SalesInvoice } from '@/lib/supabase';
 import { FileSpreadsheet } from 'lucide-react';
 import NoData from '@/app/Components/NoDataTab';
 import { exportSalesExcelTable } from '@/app/Sales/Utils/ExcelExport';
 
-interface SalesCustomerCategoriesTabProps {
+interface CategoriesTabProps {
   data: SalesInvoice[];
   customerName: string;
   searchQuery?: string;
 }
 
-export default function SalesCustomerCategoriesTab({
+export default function CategoriesTab({
   data,
   customerName,
-  searchQuery = ''
-}: SalesCustomerCategoriesTabProps) {
-  // Aggregate data by productTag
+  searchQuery = '',
+}: CategoriesTabProps) {
   const categoriesData = useMemo(() => {
-    const categoryMap = new Map<string, {
-      category: string;
-      amount: number;
-      qty: number;
-      invoiceNumbers: Set<string>;
-    }>();
+    const categoryMap = new Map<
+      string,
+      {
+        category: string;
+        amount: number;
+        qty: number;
+        invoiceNumbers: Set<string>;
+      }
+    >();
 
-    data.forEach(item => {
+    data.forEach((item) => {
       const category = item.productTag || 'Uncategorized';
 
-      // Apply search filter if provided
       if (searchQuery) {
         const query = searchQuery.toLowerCase().trim();
         const matchesCategory = category.toLowerCase().includes(query);
@@ -41,13 +42,12 @@ export default function SalesCustomerCategoriesTab({
         category,
         amount: 0,
         qty: 0,
-        invoiceNumbers: new Set<string>()
+        invoiceNumbers: new Set<string>(),
       };
 
       existing.amount += item.amount;
       existing.qty += item.qty;
 
-      // Count unique invoices (only sales)
       if (item.invoiceNumber && item.invoiceNumber.trim().toUpperCase().startsWith('SAL')) {
         existing.invoiceNumbers.add(item.invoiceNumber);
       }
@@ -58,13 +58,15 @@ export default function SalesCustomerCategoriesTab({
     return Array.from(categoryMap.values()).sort((a, b) => b.amount - a.amount);
   }, [data, searchQuery]);
 
-  // Totals for the footer
   const totals = useMemo(() => {
-    return categoriesData.reduce((acc, item) => {
-      acc.amount += item.amount;
-      acc.qty += item.qty;
-      return acc;
-    }, { amount: 0, qty: 0 });
+    return categoriesData.reduce(
+      (acc, item) => {
+        acc.amount += item.amount;
+        acc.qty += item.qty;
+        return acc;
+      },
+      { amount: 0, qty: 0 }
+    );
   }, [categoriesData]);
 
   const exportToExcel = async () => {
@@ -75,7 +77,7 @@ export default function SalesCustomerCategoriesTab({
       item.category,
       item.amount,
       item.qty,
-      item.invoiceNumbers.size
+      item.invoiceNumbers.size,
     ]);
 
     rows.push(['', 'GRAND TOTAL', totals.amount, totals.qty, '']);

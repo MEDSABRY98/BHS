@@ -612,33 +612,6 @@ export async function getProductMovementsData() {
 }
 
 // ----------------------------------------------------------------------
-// API: /api/Inventory/ItemCodes
-// ----------------------------------------------------------------------
-
-export async function getItemCodesData() {
-  try {
-    const data = await fetchAllInventoryRows<{
-      TAGS: string | null;
-      'ITEM CODE': string | null;
-      BARCODE: string | null;
-    }>('web_INVENTORY_ITEM_CODE', 'TAGS,"ITEM CODE",BARCODE');
-
-    const mapped = data
-      .map((row) => ({
-        tags: row.TAGS?.toString().trim() || '',
-        itemCode: row['ITEM CODE']?.toString().trim() || '',
-        barcode: row.BARCODE?.toString().trim() || '',
-      }))
-      .filter((entry) => entry.itemCode || entry.barcode);
-
-    return { success: true, data: mapped };
-  } catch (error: any) {
-    console.error('Error fetching Item Codes:', error);
-    return { success: false, error: 'Failed to fetch item codes', details: error.message };
-  }
-}
-
-// ----------------------------------------------------------------------
 // API: /api/Inventory/Details
 // ----------------------------------------------------------------------
 

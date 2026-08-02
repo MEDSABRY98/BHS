@@ -7,9 +7,9 @@ import { usePermissions } from '@/app/LPOs/Hooks/usePermissions';
 import { ConfirmModal } from '@/app/LPOs/Components/ConfirmModal';
 import NoData from '@/app/Components/NoDataTab';
 import { toast } from '@/app/Components/Notification';
-import { getSuppliersMonthsSummary, deleteSuppliersMonth, uploadSuppliersInvoices } from '@/app/Suppliers/Service/suppliers_service';
-import { exportDatabaseExcelTable } from '../../Utils/ExcelExport';
-import { downloadUploadIssuesReport } from '../../Utils/ExcelUploadUtils';
+import { getPurchaseDetailsMonthsSummary, deletePurchaseDetailsMonth, uploadPurchaseDetails } from './PurchaseDetailsService';
+import { exportDatabaseExcelTable } from '../Utils/ExcelExport';
+import { downloadUploadIssuesReport } from '../Utils/ExcelUploadUtils';
 
 const englishMonths: Record<number, string> = {
   1: 'January',
@@ -26,17 +26,17 @@ const englishMonths: Record<number, string> = {
   12: 'December',
 };
 
-interface InvoiceMonth {
+interface DetailMonth {
   year: number;
   month: number;
   count: number;
 }
 
-const EXCEL_HEADERS = ['DATE', 'TYPE', 'INVOICE NUMBER', 'SUPPLIER NAME', 'AMOUNT'];
+const EXCEL_HEADERS = ['DATE', 'INVOICE NUMBER', 'SUPPLIER ID', 'PRODUCT ID', 'UNIT PRICE', 'QTY'];
 
-export default function SuppliersInvoicesPage() {
+export default function PurchaseDetailsPage() {
   const { canDelete, canEdit } = usePermissions();
-  const [months, setMonths] = useState<InvoiceMonth[]>([]);
+  const [months, setMonths] = useState<DetailMonth[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -44,10 +44,9 @@ export default function SuppliersInvoicesPage() {
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
 
-  const pageTitle = "Suppliers Invoices DB";
-  const invoiceType = "Purchase";
-  const templateFilename = "Suppliers_Invoices_Template.xlsx";
-  const cardLabel = "Invoices";
+  const pageTitle = "Purchase Price Tracking DB";
+  const templateFilename = "Purchase_Details_Template.xlsx";
+  const cardLabel = "Purchase Items";
 
   useEffect(() => {
     fetchMonths();
@@ -56,7 +55,7 @@ export default function SuppliersInvoicesPage() {
   async function fetchMonths() {
     setIsLoading(true);
     try {
-      const resData = await getSuppliersMonthsSummary(invoiceType as any);
+      const resData = await getPurchaseDetailsMonthsSummary();
       if ((resData as any).error) {
         throw new Error((resData as any).details ? `${(resData as any).error}: ${(resData as any).details}` : (resData as any).error);
       }
@@ -78,11 +77,11 @@ export default function SuppliersInvoicesPage() {
     if (!targetMonth) return;
     setIsDeleting(true);
     try {
-      const data = await deleteSuppliersMonth(targetMonth.year, targetMonth.month, invoiceType as any);
+      const data = await deletePurchaseDetailsMonth(targetMonth.year, targetMonth.month);
       if ((data as any).error) throw new Error((data as any).error);
 
       toast.success(
-        `Deleted ${invoiceType.toLowerCase()} data for ${englishMonths[targetMonth.month]} ${targetMonth.year}`
+        `Deleted purchase details for ${englishMonths[targetMonth.month]} ${targetMonth.year}`
       );
       await fetchMonths();
     } catch (err: unknown) {
@@ -98,10 +97,11 @@ export default function SuppliersInvoicesPage() {
   const downloadTemplate = async () => {
     const sampleRow = [
       '2026-06-12',
-      invoiceType,
       'INV-001',
-      'Sample Supplier',
-      1500.0,
+      'S-0001',
+      'P-0001',
+      150.0,
+      10,
     ];
     await exportDatabaseExcelTable(EXCEL_HEADERS, [sampleRow], templateFilename);
     toast.success('Template downloaded successfully!');
@@ -131,18 +131,19 @@ export default function SuppliersInvoicesPage() {
 
       const rows = jsonData.map((row) => ({
         DATE: row.DATE,
-        TYPE: row.TYPE ?? invoiceType,
         'INVOICE NUMBER': row['INVOICE NUMBER'],
-        'SUPPLIER NAME': row['SUPPLIER NAME'],
-        AMOUNT: row.AMOUNT,
+        'SUPPLIER ID': row['SUPPLIER ID'],
+        'PRODUCT ID': row['PRODUCT ID'],
+        QTY: row.QTY,
+        'UNIT PRICE': row['UNIT PRICE'],
       }));
 
-      const result = await uploadSuppliersInvoices(invoiceType as any, rows);
+      const result = await uploadPurchaseDetails(rows);
       if ((result as any).error) {
         if (Array.isArray((result as any).details) && (result as any).details.length > 0) {
            downloadUploadIssuesReport(
-             `Suppliers_Invoices_Upload_Issues_${new Date().toISOString().split('T')[0]}.txt`,
-             'Suppliers Invoices Upload - Issues Found',
+             `Purchase_Details_Upload_Issues_${new Date().toISOString().split('T')[0]}.txt`,
+             'Purchase Details Upload - Issues Found',
              [{ heading: '=== VALIDATION ERRORS ===', lines: (result as any).details }]
            );
            toast.error('Upload blocked. A text file with issues has been downloaded.');
@@ -155,7 +156,13 @@ export default function SuppliersInvoicesPage() {
         throw new Error(details || (result as any).error || 'Upload failed');
       }
 
-      toast.success(`Successfully uploaded ${(result as any).inserted || rows.length} rows!`);
+      toast.success(
+        (result as any).inserted > 0
+          ? (result as any).skippedRows > 0
+            ? `Uploaded ${(result as any).inserted} rows. Skipped ${(result as any).skippedRows} rows from ${(result as any).skippedInvoices} existing invoice(s).`
+            : `Successfully uploaded ${(result as any).inserted} rows!`
+          : `All invoices already exist in the database. Nothing new was uploaded.`,
+      );
       setIsUploadModalOpen(false);
       await fetchMonths();
     } catch (err: unknown) {
@@ -187,7 +194,7 @@ export default function SuppliersInvoicesPage() {
           {Array(8)
             .fill(0)
             .map((_, i) => (
-              <div
+               <div
                 key={i}
                 className="animate-pulse bg-white rounded-3xl p-6 border border-gray-100 h-[180px] flex flex-col justify-between"
               >
@@ -201,11 +208,11 @@ export default function SuppliersInvoicesPage() {
             ))}
         </div>
       ) : months.length === 0 ? (
-        <NoData title={`NO ${invoiceType.toUpperCase()} DATA FOUND`} />
+        <NoData title={`NO PURCHASE DETAILS DATA FOUND`} />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
           {months.map((m) => (
-            <div
+             <div
               key={`${m.year}-${m.month}`}
               className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm hover:shadow-xl hover:-translate-y-1 hover:border-black/5 transition-all duration-300 flex flex-col justify-between h-[180px]"
             >
@@ -250,7 +257,7 @@ export default function SuppliersInvoicesPage() {
           }}
           isLoading={isDeleting}
           title="Confirm Month Deletion"
-          message={`Are you sure you want to delete all ${invoiceType.toLowerCase()} data for ${englishMonths[targetMonth.month]} ${targetMonth.year}? This cannot be undone.`}
+          message={`Are you sure you want to delete all purchase details data for ${englishMonths[targetMonth.month]} ${targetMonth.year}? This cannot be undone.`}
         />
       )}
 
@@ -258,7 +265,7 @@ export default function SuppliersInvoicesPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/20 animate-in fade-in duration-300">
           <div className="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl animate-in slide-in-from-bottom-8 duration-500 overflow-hidden">
             <div className="p-8 flex items-center justify-between border-b border-gray-50">
-              <h2 className="text-2xl font-bold text-black">{invoiceType} Data Import</h2>
+              <h2 className="text-2xl font-bold text-black">Purchase Details Import</h2>
               <button
                 onClick={() => setIsUploadModalOpen(false)}
                 className="p-2 hover:bg-gray-100 rounded-xl transition-all"
@@ -270,8 +277,8 @@ export default function SuppliersInvoicesPage() {
 
             <div className="p-8 space-y-6">
               <p className="text-xs text-gray-500 leading-relaxed">
-                Columns: DATE, TYPE, INVOICE NUMBER, SUPPLIER NAME, AMOUNT. TYPE must be{' '}
-                <strong>{invoiceType}</strong> for this tab.
+                Columns: DATE, INVOICE NUMBER, SUPPLIER ID, PRODUCT ID, UNIT PRICE, QTY.
+                Existing invoices in the database are skipped automatically.
               </p>
 
               <div className="space-y-4">

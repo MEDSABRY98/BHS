@@ -18,7 +18,7 @@ interface Props {
 const ITEMS_PER_PAGE = 50;
 
 const MONTH_NAMES = [
-  { value: '', label: 'Full Year' },
+  { value: '', label: 'YTD (Same Period)' },
   { value: '1', label: 'January' },
   { value: '2', label: 'February' },
   { value: '3', label: 'March' },
@@ -33,6 +33,8 @@ const MONTH_NAMES = [
   { value: '12', label: 'December' },
 ];
 
+const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
 type SortField = 'name' | 'prev' | 'curr' | 'diff' | 'pct';
 
 interface ComparisonRow {
@@ -42,7 +44,38 @@ interface ComparisonRow {
   prev: number;
   curr: number;
   diff: number;
-  pct: number; // percentage change
+  pct: number;
+}
+
+interface ComparisonBundle {
+  mainComparison: ComparisonRow[];
+  subComparison: ComparisonRow[];
+  currentYear: number;
+  prevYear: number;
+  ytdEndMonth: number | null;
+}
+
+const EMPTY_BUNDLE: ComparisonBundle = {
+  mainComparison: [],
+  subComparison: [],
+  currentYear: new Date().getFullYear(),
+  prevYear: new Date().getFullYear() - 1,
+  ytdEndMonth: null,
+};
+
+function formatComparisonYearLabel(
+  year: number,
+  selectedMonth: string,
+  ytdEndMonth: number | null
+) {
+  if (selectedMonth) {
+    const monthName = MONTH_NAMES.find((m) => m.value === selectedMonth)?.label;
+    return monthName ? `${monthName} ${year}` : `${year}`;
+  }
+  if (ytdEndMonth && ytdEndMonth < 12) {
+    return `${year} (${MONTH_SHORT[0]}–${MONTH_SHORT[ytdEndMonth - 1]})`;
+  }
+  return `${year}`;
 }
 
 const fmt = (n: number) =>
@@ -94,18 +127,21 @@ export default function SalesCustomersComparisonTab({ userId }: Props) {
   const [currentPage, setCurrentPage] = useState(1);
   const [customerType, setCustomerType] = useState<'sub' | 'main'>('sub');
 
-  const { data: comparisonBundle, isInitialLoading } = useSalesTabFetch({
+  const { data: comparisonBundle, isInitialLoading } = useSalesTabFetch<ComparisonBundle>({
     tabKey: 'comparison',
     userId,
     filters,
     dataVersion,
     extraKey: `${selectedMonth}-${currentYear}-${prevYear}`,
     fetcher: () => getCustomersComparisonData(userId, filters, currentYear, prevYear, selectedMonth),
-    initialData: { mainComparison: [] as ComparisonRow[], subComparison: [] as ComparisonRow[] },
+    initialData: EMPTY_BUNDLE,
   });
 
   const mainComparisonData = comparisonBundle?.mainComparison ?? [];
   const subComparisonData = comparisonBundle?.subComparison ?? [];
+  const resolvedCurrentYear = comparisonBundle?.currentYear ?? currentYear;
+  const resolvedPrevYear = comparisonBundle?.prevYear ?? prevYear;
+  const ytdEndMonth = comparisonBundle?.ytdEndMonth ?? null;
 
   // Debounce
   useEffect(() => {
@@ -117,17 +153,15 @@ export default function SalesCustomersComparisonTab({ userId }: Props) {
   useEffect(() => { setCurrentPage(1); }, [selectedMonth, customerType, sortField, sortDir]);
 
   // Column labels
-  const prevLabel = useMemo(() => {
-    if (!selectedMonth) return `${prevYear}`;
-    const m = MONTH_NAMES.find(m => m.value === selectedMonth);
-    return m ? `${m.label} ${prevYear}` : `${prevYear}`;
-  }, [selectedMonth, prevYear]);
+  const prevLabel = useMemo(
+    () => formatComparisonYearLabel(resolvedPrevYear, selectedMonth, ytdEndMonth),
+    [selectedMonth, resolvedPrevYear, ytdEndMonth]
+  );
 
-  const currLabel = useMemo(() => {
-    if (!selectedMonth) return `${currentYear}`;
-    const m = MONTH_NAMES.find(m => m.value === selectedMonth);
-    return m ? `${m.label} ${currentYear}` : `${currentYear}`;
-  }, [selectedMonth, currentYear]);
+  const currLabel = useMemo(
+    () => formatComparisonYearLabel(resolvedCurrentYear, selectedMonth, ytdEndMonth),
+    [selectedMonth, resolvedCurrentYear, ytdEndMonth]
+  );
 
   // Build comparison data for the current view
   const comparisonData: ComparisonRow[] = useMemo(() => {
@@ -294,7 +328,7 @@ export default function SalesCustomersComparisonTab({ userId }: Props) {
           },
         },
       ],
-      `customers_comparison_${currentYear}_vs_${prevYear}.xlsx`
+      `customers_comparison_${resolvedCurrentYear}_vs_${resolvedPrevYear}.xlsx`
     );
   };
 

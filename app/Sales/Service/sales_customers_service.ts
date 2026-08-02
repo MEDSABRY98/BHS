@@ -310,19 +310,41 @@ export async function getCustomersComparisonData(userId: string, filters: any, c
     if (salesRep) globallyFilteredData = globallyFilteredData.filter(i => i.salesRep === salesRep);
   }
 
-  const salesOnly = globallyFilteredData.filter(item =>
-    item.invoiceNumber?.trim().toUpperCase().startsWith('SAL')
-  );
-
-  const targetMonth = selectedMonth ? parseInt(selectedMonth) : null;
+  const targetMonth = selectedMonth ? parseInt(selectedMonth, 10) : null;
   const today = new Date();
+  today.setHours(23, 59, 59, 999);
+
+  // Match Overview: use latest year/month in data as comparison window (not full prior year).
+  let latestMonthKey = '';
+  for (let i = 0; i < globallyFilteredData.length; i++) {
+    const item = globallyFilteredData[i];
+    if (!item.invoiceDate) continue;
+    const d = new Date(item.invoiceDate);
+    if (isNaN(d.getTime())) continue;
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    if (key > latestMonthKey) latestMonthKey = key;
+  }
+
+  const resolvedCurrentYear = latestMonthKey
+    ? parseInt(latestMonthKey.split('-')[0], 10)
+    : currentYear;
+  const resolvedPrevYear = resolvedCurrentYear - 1;
+
+  let ytdEndMonth: number | null = null;
+  if (!targetMonth && latestMonthKey) {
+    ytdEndMonth = parseInt(latestMonthKey.split('-')[1], 10);
+    const todayMonth = today.getMonth() + 1;
+    if (resolvedCurrentYear === today.getFullYear()) {
+      ytdEndMonth = Math.min(ytdEndMonth, todayMonth);
+    }
+  }
 
   const processDataForType = (type: 'main' | 'sub') => {
     const mapPrev = new Map<string, { mainName: string; subName: string; amount: number }>();
     const mapCurr = new Map<string, { mainName: string; subName: string; amount: number }>();
 
-    for (let i = 0; i < salesOnly.length; i++) {
-      const item = salesOnly[i];
+    for (let i = 0; i < globallyFilteredData.length; i++) {
+      const item = globallyFilteredData[i];
       if (!item.invoiceDate) continue;
 
       const d = new Date(item.invoiceDate);
@@ -331,8 +353,13 @@ export async function getCustomersComparisonData(userId: string, filters: any, c
       const year = d.getFullYear();
       const month = d.getMonth() + 1;
 
-      if (targetMonth && month !== targetMonth) continue;
-      if (year === currentYear && d > today) continue; 
+      if (targetMonth) {
+        if (month !== targetMonth) continue;
+      } else if (ytdEndMonth !== null && month > ytdEndMonth) {
+        continue;
+      }
+
+      if (year === resolvedCurrentYear && d > today) continue;
 
       const key = type === 'sub'
         ? (item.customerId?.trim() || item.customerName?.trim())
@@ -343,11 +370,11 @@ export async function getCustomersComparisonData(userId: string, filters: any, c
       const mainName = item.customerMainName?.trim() || item.customerName?.trim() || '';
       const subName = item.customerName?.trim() || '';
 
-      if (year === prevYear) {
+      if (year === resolvedPrevYear) {
         const existing = mapPrev.get(key) || { mainName, subName, amount: 0 };
         existing.amount += Number(item.amount) || 0;
         mapPrev.set(key, existing);
-      } else if (year === currentYear) {
+      } else if (year === resolvedCurrentYear) {
         const existing = mapCurr.get(key) || { mainName, subName, amount: 0 };
         existing.amount += Number(item.amount) || 0;
         mapCurr.set(key, existing);
@@ -382,9 +409,12 @@ export async function getCustomersComparisonData(userId: string, filters: any, c
     return result;
   };
 
-  return { 
-    mainComparison: processDataForType('main'), 
-    subComparison: processDataForType('sub') 
+  return {
+    mainComparison: processDataForType('main'),
+    subComparison: processDataForType('sub'),
+    currentYear: resolvedCurrentYear,
+    prevYear: resolvedPrevYear,
+    ytdEndMonth,
   };
 }
 

@@ -454,7 +454,7 @@ export default function SalesPage() {
       <SalesDataProvider initialVersion={refreshTrigger}>
         <SalesRefreshBridge refreshTrigger={refreshTrigger}>
           <SalesRawDataBridge userId={salesUserId}>
-      <div className="flex min-h-screen bg-[#F8F9FA] text-black">
+      <div className="flex min-h-screen bg-white text-black">
         {/* Sidebar - Desktop */}
         <aside className={`hidden lg:flex flex-col ${isSidebarCollapsed ? 'w-20' : 'w-72'} bg-[#0d1e16] text-white shadow-2xl fixed h-screen left-0 top-0 z-50 transition-all duration-300`}>
           <SalesSidebar
@@ -507,11 +507,9 @@ export default function SalesPage() {
         {/* Main Content Area */}
         <div className={`flex-1 flex flex-col min-w-0 ${isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-72'} transition-all duration-300`}>
           {/* Main Content */}
-          <div className="max-w-[98%] mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-12 flex-1 w-full">
-            <main ref={mainContentRef} className="bg-white rounded-2xl shadow-sm border border-slate-200 min-h-[calc(100vh-8rem)] p-8">
-              {renderTabContent()}
-            </main>
-          </div>
+          <main ref={mainContentRef} className="flex-1 w-full max-w-[98%] mx-auto px-4 sm:px-6 lg:px-8 py-6">
+            {renderTabContent()}
+          </main>
         </div>
 
       {/* UPLOAD/DOWNLOAD MODAL — sales managers only */}

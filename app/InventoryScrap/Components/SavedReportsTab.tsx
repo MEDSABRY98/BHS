@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { fetchSavedScrapReports, deleteScrapReport } from '../Service/inventory_scrap_service';
+import { fetchSavedScrapReports, deleteScrapReport } from '../Service/InventoryScrapService';
 import { Printer, Trash2, Calendar, FileText, Search, Loader2, AlertTriangle, AlertCircle } from 'lucide-react';
 import { generateInventoryScrapReportPDF } from '@/app/InventoryScrap/Pdf/InventoryScrapReportPdf';
 import NoData from '@/app/Components/NoDataTab';

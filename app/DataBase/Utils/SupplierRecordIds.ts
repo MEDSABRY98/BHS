@@ -1,6 +1,6 @@
 import { bhs_supabas } from '@/lib/supabase';
 
-export type SupplierTableName = 'web_Suppliers_Invoices' | 'web_Suppliers_Matching' | 'web_Suppliers_Purchase';
+export type SupplierTableName = 'web_Suppliers_Purchase';
 
 function parseRecordNum(id: string): number | null {
   const baseId = String(id || '').split('#')[0];

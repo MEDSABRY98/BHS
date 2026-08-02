@@ -23,8 +23,6 @@ const nextConfig: NextConfig = {
       { source: '/api/petty-cash', destination: '/api/PettyCash' },
       { source: '/api/sales', destination: '/api/Sales' },
       { source: '/api/semi-closed-customers', destination: '/api/SemiClosedCustomers' },
-      { source: '/api/suppliers', destination: '/api/Suppliers' },
-      { source: '/api/suppliers-matching', destination: '/api/SuppliersMatching' },
       { source: '/api/vouchers', destination: '/api/Vouchers' },
       
       // Page rewrites
@@ -37,7 +35,6 @@ const nextConfig: NextConfig = {
       { source: '/warehouses', destination: '/Warehouses' },
       { source: '/petty-cash', destination: '/PettyCash' },
       { source: '/sales', destination: '/Sales' },
-      { source: '/suppliers', destination: '/Suppliers' },
     ];
   }
 };

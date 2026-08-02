@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { PurchaseRecord, Product, Supplier } from './page';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Search, TrendingUp, TrendingDown, Minus, Calendar, Building2, Package, ArrowLeft, ChevronLeft, ChevronRight, FileText, X, Pencil, Loader2 } from 'lucide-react';
-import { updatePurchaseUnitPrice } from '@/app/Suppliers/Service/purchase_details_service';
+import { updatePurchaseUnitPrice } from '@/app/DataBase/PurchasePriceTracking/PurchaseDetailsService';
 import { toast } from '@/app/Components/Notification';
 
 interface Props {

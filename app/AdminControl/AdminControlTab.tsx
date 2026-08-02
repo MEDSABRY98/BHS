@@ -99,7 +99,9 @@ function migrateInventoryPermissionsFromLegacyInventory(inventoryTabs: string[],
 const LEGACY_DB_TAB_IDS: Record<string, string> = {
     'db-inv-count-products': 'db-products',
     'db-inv-products': 'db-products',
-    'db-suppliers-purchase': 'db-suppliers-purchase-details',
+    'db-suppliers-purchase': 'db-purchase-price-tracking',
+    'db-suppliers-purchase-details': 'db-purchase-price-tracking',
+    'db-purchase-details': 'db-purchase-price-tracking',
 };
 
 const SYSTEMS = [
@@ -114,7 +116,6 @@ const SYSTEMS = [
     { id: 'inventory-item-code', label: 'Inventory Item Code' },
     { id: 'inventory-counting', label: 'Inventory Counting' },
     { id: 'inventory-scrap', label: 'Inventory Scrap' },
-    { id: 'suppliers', label: 'Suppliers' },
     { id: 'purchase-price-tracking', label: 'Purchase Price Tracking' },
     { id: 'sales', label: 'Sales Analysis' },
     { id: 'lpo-management', label: "LPO's" },
@@ -200,10 +201,6 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
         { id: 'stats', label: 'Statistics' },
         { id: 'history', label: 'History' },
     ],
-    'suppliers': [
-        { id: 'statements', label: 'Statements' },
-        { id: 'matching', label: 'Matching' },
-    ],
     'documents-tracking': [
         { id: 'register', label: 'تسجيل شيك جديد' },
         { id: 'list', label: 'استعراض الشيكات' },
@@ -227,9 +224,7 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
         { id: 'db-inv-moves', label: 'Inventory Moves' },
         { id: 'db-sales', label: 'Sales DB' },
         { id: 'db-suppliers', label: 'Suppliers DB' },
-        { id: 'db-suppliers-invoices', label: 'Suppliers Invoices' },
-        { id: 'db-suppliers-refund', label: 'Suppliers Refund' },
-        { id: 'db-suppliers-purchase-details', label: 'Suppliers Purchase Details' },
+        { id: 'db-purchase-price-tracking', label: 'Purchase Price Tracking DB' },
         { id: 'db-personnel', label: 'Personnel DB' },
         { id: 'db-users', label: 'Users DB' },
     ],
@@ -281,7 +276,6 @@ const getSystemIcon = (id: string) => {
         case 'inventory-item-code': return <Hash className="w-5 h-5 text-blue-500" />;
         case 'inventory-counting': return <ListChecks className="w-5 h-5 text-blue-500" />;
         case 'inventory-scrap': return <Trash2 className="w-5 h-5 text-orange-500" />;
-        case 'suppliers': return <Truck className="w-5 h-5 text-purple-500" />;
         case 'customers-summaries': return <FileSpreadsheet className="w-5 h-5 text-teal-500" />;
         case 'customers-documents': return <FileCheck className="w-5 h-5 text-pink-500" />;
         case 'documents-tracking': return <ClipboardList className="w-5 h-5 text-violet-500" />;

@@ -487,8 +487,7 @@ export default function SalesProductDetails({ productId, userId, onBack, initial
   }
 
   return (
-    <div className="p-6 bg-gray-50 min-h-screen">
-      <div className="w-full">
+    <div className="w-full">
         {/* Header */}
         <div className="mb-6 flex items-center gap-4">
           <button
@@ -1073,7 +1072,6 @@ export default function SalesProductDetails({ productId, userId, onBack, initial
             )}
           </div>
         )}
-      </div>
     </div>
   );
 }

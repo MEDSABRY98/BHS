@@ -5,7 +5,7 @@ import { SalesInvoice } from '@/lib/supabase';;
 import { Search, Users, ChevronLeft, ChevronRight, Download, ArrowUpDown, ArrowUp, ArrowDown, X, FileSpreadsheet } from 'lucide-react';
 import { useSalesModuleFilters } from '@/app/Sales/Model/SalesFilters';
 import { exportSalesExcelTable } from '@/app/Sales/Utils/ExcelExport';
-import SalesCustomerDetails from '@/app/Sales/Customers/CustomerDetails';
+import SalesCustomerDetails from '@/app/Sales/CustomerDetails/CustomerDetails';
 import NoData from '@/app/Components/NoDataTab';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
 import { getInactiveCustomersData, getInactiveCustomerExceptions, hideInactiveCustomer, restoreInactiveCustomer } from '../Service/sales_customers_service';

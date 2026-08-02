@@ -205,11 +205,9 @@ export async function uploadPurchaseDetails(rows: any[]) {
       return { error: 'Validation failed', details: errors.slice(0, 20) };
     }
 
-    // --- Validation: Check if suppliers and products exist ---
     const uniqueSuppliers = Array.from(new Set(parsedRows.map(r => r['SUPPLIER ID'])));
     const uniqueProducts = Array.from(new Set(parsedRows.map(r => r['PRODUCT ID'])));
-    
-    // Check Suppliers
+
     const { data: dbSuppliers, error: suppErr } = await bhs_supabas
       .from('bhs_SUPPLIERS')
       .select('"SUPPLIER ID"')
@@ -217,12 +215,11 @@ export async function uploadPurchaseDetails(rows: any[]) {
     if (suppErr) throw suppErr;
     const existingSupplierIds = new Set(dbSuppliers?.map(s => String(s['SUPPLIER ID']).trim()) || []);
 
-    // Check Products
     const { data: dbProductsById, error: prodErr1 } = await bhs_supabas
       .from('bhs_PRODUCTS')
       .select('"PRODUCT ID"')
       .in('PRODUCT ID', uniqueProducts);
-      
+
     if (prodErr1) throw prodErr1;
 
     const existingProductIds = new Set(dbProductsById?.map(p => String(p['PRODUCT ID'] || '').trim()).filter(Boolean) || []);
@@ -250,7 +247,6 @@ export async function uploadPurchaseDetails(rows: any[]) {
     if (existenceErrors.length > 0) {
       return { error: 'Validation failed', details: existenceErrors };
     }
-    // ---------------------------------------------------------
 
     const uniqueInvoiceNumbers = Array.from(
       new Set(parsedRows.map((row) => row['INVOICE NUMBER'].trim()).filter(Boolean)),
