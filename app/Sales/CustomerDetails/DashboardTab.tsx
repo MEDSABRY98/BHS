@@ -72,11 +72,32 @@ export default function DashboardTab({ dashboardMetrics, chartData }: DashboardT
 
           <div className="bg-white rounded-xl shadow-md p-5 min-w-0">
             <div className="flex items-center justify-between mb-3">
+              <h3 className="text-xs font-medium text-gray-600 leading-tight">Active Months</h3>
+              <BarChart3 className="w-5 h-5 text-teal-600 shrink-0" />
+            </div>
+            <p className="text-xl font-bold text-gray-800">{dashboardMetrics.uniqueMonths}</p>
+          </div>
+
+          <div className="bg-white rounded-xl shadow-md p-5 min-w-0">
+            <div className="flex items-center justify-between mb-3">
               <h3 className="text-xs font-medium text-gray-600 leading-tight">Total Sales Amount</h3>
               <DollarSign className="w-5 h-5 text-green-600 shrink-0" />
             </div>
             <p className="text-xl font-bold text-gray-800">
               {dashboardMetrics.totalAmount.toLocaleString('en-US', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
+            </p>
+          </div>
+
+          <div className="bg-white rounded-xl shadow-md p-5 min-w-0">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-xs font-medium text-gray-600 leading-tight">Avg Monthly Amount</h3>
+              <TrendingUp className="w-5 h-5 text-purple-600 shrink-0" />
+            </div>
+            <p className="text-xl font-bold text-gray-800">
+              {dashboardMetrics.avgMonthlyAmount.toLocaleString('en-US', {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2,
               })}
@@ -92,19 +113,6 @@ export default function DashboardTab({ dashboardMetrics, chartData }: DashboardT
               {dashboardMetrics.totalQty.toLocaleString('en-US', {
                 minimumFractionDigits: 0,
                 maximumFractionDigits: 0,
-              })}
-            </p>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-md p-5 min-w-0">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-xs font-medium text-gray-600 leading-tight">Avg Monthly Amount</h3>
-              <TrendingUp className="w-5 h-5 text-purple-600 shrink-0" />
-            </div>
-            <p className="text-xl font-bold text-gray-800">
-              {dashboardMetrics.avgMonthlyAmount.toLocaleString('en-US', {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
               })}
             </p>
           </div>
@@ -128,14 +136,6 @@ export default function DashboardTab({ dashboardMetrics, chartData }: DashboardT
               <Package className="w-5 h-5 text-indigo-600 shrink-0" />
             </div>
             <p className="text-xl font-bold text-gray-800">{dashboardMetrics.uniqueProducts}</p>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-md p-5 min-w-0">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-xs font-medium text-gray-600 leading-tight">Active Months</h3>
-              <BarChart3 className="w-5 h-5 text-teal-600 shrink-0" />
-            </div>
-            <p className="text-xl font-bold text-gray-800">{dashboardMetrics.uniqueMonths}</p>
           </div>
         </div>
       </div>
