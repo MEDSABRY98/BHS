@@ -16,7 +16,7 @@ import {
   Briefcase
 } from 'lucide-react';
 import { ConfirmModal } from '../../LPOs/Components/ConfirmModal';
-import NoData from '@/app/Components/NoDataTab';
+import NoData from '@/app/Components/DataState/NoDataTab';
 import { toast } from '@/app/Components/Notification';
 import { fetchPersonnel, addPersonnel, updatePersonnel, deletePersonnel } from '../Service/database_service';
 

@@ -3,7 +3,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Search, Package, AlertCircle, ChevronDown, Filter, Check } from 'lucide-react';
 import Loading from '@/app/Components/Loading';
-import NoData from '@/app/Components/NoDataTab';
+import NoData from '@/app/Components/DataState/NoDataTab';
+import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import * as XLSX from 'xlsx';
 import { getItemCodesData } from './Service/InventoryItemCodeService';
 
@@ -16,6 +17,7 @@ interface ItemCodeEntry {
 export default function InventoryItemCodeTab() {
     const [itemCodes, setItemCodes] = useState<ItemCodeEntry[]>([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [activeTag, setActiveTag] = useState('All');
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -39,13 +41,17 @@ export default function InventoryItemCodeTab() {
 
     const fetchItemCodes = async () => {
         setLoading(true);
+        setError(null);
         try {
             const json = await getItemCodesData();
             if (json.success && json.data) {
                 setItemCodes(json.data as any);
+            } else {
+                throw new Error(json.error || 'Failed to load item codes');
             }
         } catch (error) {
             console.error('Failed to load item codes', error);
+            setError(error instanceof Error ? error.message : 'Failed to load item codes');
         } finally {
             setLoading(false);
         }
@@ -78,6 +84,17 @@ export default function InventoryItemCodeTab() {
 
     if (loading) {
         return <Loading message="Loading Item Codes..." />;
+    }
+
+    if (error) {
+        return (
+            <TabFetchError
+                message={error}
+                onRetry={() => void fetchItemCodes()}
+                isRetrying={loading}
+                className="min-h-[360px]"
+            />
+        );
     }
 
     return (

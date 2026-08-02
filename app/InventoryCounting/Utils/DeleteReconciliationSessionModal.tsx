@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { AlertTriangle, Loader2, Trash2, X } from 'lucide-react';
-import type { ICReconciliationSessionSummary } from '../Service/inventory_counting_service';
+import type { ICReconciliationSessionSummary } from '../Service/InventoryCountingService';
 
 interface DeleteReconciliationSessionModalProps {
   session: ICReconciliationSessionSummary;

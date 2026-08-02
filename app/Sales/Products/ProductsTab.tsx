@@ -5,12 +5,13 @@ import { SalesInvoice } from '@/lib/supabase';;
 import { Search, ChevronLeft, ChevronRight, Download, FileSpreadsheet } from 'lucide-react';
 import { useSalesModuleFilters } from '@/app/Sales/Model/SalesFilters';
 import { exportSalesExcelTable } from '@/app/Sales/Utils/ExcelExport';
-import NoData from '@/app/Components/NoDataTab';
+import NoData from '@/app/Components/DataState/NoDataTab';
 import SalesProductDetails from './ProductDetails';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
 import { getProductsData } from '../Service/sales_products_service';
 import { useSalesDataContext } from '@/app/Sales/Context/SalesDataContext';
 import { useSalesTabFetch } from '@/app/Sales/Hooks/useSalesTabFetch';
+import TabFetchError from '@/app/Components/DataState/TabFetchError';
 
 interface SalesProductsTabProps {
   userId: string;
@@ -52,7 +53,7 @@ export default function SalesProductsTab({ userId, showCosts = true }: SalesProd
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
 
-  const { data: productsData, isInitialLoading } = useSalesTabFetch({
+  const { data: productsData, isInitialLoading, error, reload, loading } = useSalesTabFetch({
     tabKey: 'products',
     userId,
     filters,
@@ -138,6 +139,17 @@ export default function SalesProductsTab({ userId, showCosts = true }: SalesProd
 
   if (isInitialLoading) {
     return <SalesTabLoader />;
+  }
+
+  if (error) {
+    return (
+      <TabFetchError
+        message={error}
+        onRetry={() => void reload()}
+        isRetrying={loading}
+        className="min-h-[360px]"
+      />
+    );
   }
 
   if (selectedProductId) {

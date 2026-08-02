@@ -1,1 +1,1 @@
-export { default } from '@/app/Components/TabPanel';
+export { default } from '@/app/Components/Layout/TabPanel';

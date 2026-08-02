@@ -5,9 +5,10 @@ import { Package, Users, ArrowUp, ArrowDown, FileSpreadsheet, LayoutGrid, Layers
 import { useSalesModuleFilters } from '@/app/Sales/Model/SalesFilters';
 import { exportSalesExcelWorkbook, recordsFromTable } from '@/app/Sales/Utils/ExcelExport';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
-import NoData from '@/app/Components/NoDataTab';
+import NoData from '@/app/Components/DataState/NoDataTab';
 import { useSalesDataContext } from '@/app/Sales/Context/SalesDataContext';
 import { useSalesTabFetch } from '@/app/Sales/Hooks/useSalesTabFetch';
+import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import { getTop10Data } from '../Service/sales_reports_service';
 
 interface SalesTop10TabProps {
@@ -71,7 +72,7 @@ export default function SalesTop10Tab({ userId }: SalesTop10TabProps) {
   const [customerSortBy, setCustomerSortBy] = useState<'amount' | 'qty'>('amount');
   const [customerSortDirection, setCustomerSortDirection] = useState<SortDirection>('desc');
 
-  const { data: top10Bundle, isInitialLoading } = useSalesTabFetch<{
+  const { data: top10Bundle, isInitialLoading, error, reload, loading } = useSalesTabFetch<{
     productsData: Top10Row[];
     mainCustomersData: Top10Row[];
     subCustomersData: Top10Row[];
@@ -238,6 +239,17 @@ export default function SalesTop10Tab({ userId }: SalesTop10TabProps) {
 
   if (isInitialLoading) {
     return <SalesTabLoader />;
+  }
+
+  if (error) {
+    return (
+      <TabFetchError
+        message={error}
+        onRetry={() => void reload()}
+        isRetrying={loading}
+        className="min-h-[360px]"
+      />
+    );
   }
 
   return (

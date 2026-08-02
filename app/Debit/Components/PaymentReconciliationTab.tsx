@@ -25,7 +25,7 @@ import {
   AlignRight,
 } from 'lucide-react';
 import { InvoiceRow } from '@/types';
-import NoData from '@/app/Components/NoDataTab';
+import NoData from '@/app/Components/DataState/NoDataTab';
 import { useDebouncedValue } from '../Hooks/useDebouncedValue';
 import { buildOpenInvoiceRows, getUniqueCustomerNames, OpenInvoiceRow } from '../Utils/openInvoiceRows';
 import { exportDebitExcelTable } from '../Utils/ExcelExport';

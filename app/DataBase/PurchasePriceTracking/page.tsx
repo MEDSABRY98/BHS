@@ -5,7 +5,7 @@ import { Trash2, Calendar, Loader2, FileSpreadsheet, Download, Upload, X } from 
 import * as XLSX from 'xlsx';
 import { usePermissions } from '@/app/LPOs/Hooks/usePermissions';
 import { ConfirmModal } from '@/app/LPOs/Components/ConfirmModal';
-import NoData from '@/app/Components/NoDataTab';
+import NoData from '@/app/Components/DataState/NoDataTab';
 import { toast } from '@/app/Components/Notification';
 import { getPurchaseDetailsMonthsSummary, deletePurchaseDetailsMonth, uploadPurchaseDetails } from './PurchaseDetailsService';
 import { exportDatabaseExcelTable } from '../Utils/ExcelExport';

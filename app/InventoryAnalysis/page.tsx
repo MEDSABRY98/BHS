@@ -9,7 +9,7 @@ import InventoryCategoryBalanceTab from './CategoryBalance/InventoryCategoryBala
 import InventoryProductOrdersTab from './CategoriesAnalysis/InventoryCategoriesTab';
 import ReportsTab from './Reports/ReportsTab';
 import InventorySidebar, { type InventoryTabId } from './Utils/Sidebar';
-import Login from '@/app/Components/Login';
+import Login from '@/app/Components/Auth/Login';
 import Loading from '@/app/Components/Loading';
 
 function TabPanel({

@@ -5,8 +5,8 @@ import { bhs_supabas, fetchAllData, fetchAssignedDrivers } from '@/lib/supabase'
 import SearchSelect from '../../Components/DropDownList';
 import { FileText, Loader2, Download, Printer, AlertCircle } from 'lucide-react';
 import { generateDeliveredDriverInvoicesPDF } from '@/app/LPOs/Pdf/DeliveredDriverInvoicesPdf';
-import NoData from '@/app/Components/NoDataTab';
-import TabLoader from '@/app/Components/TabLoader';
+import NoData from '@/app/Components/DataState/NoDataTab';
+import TabLoader from '@/app/Components/Loading/TabLoader';
 
 export default function DeliveredDriverInvoices() {
   const [drivers, setDrivers] = useState<any[]>([]);

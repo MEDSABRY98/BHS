@@ -21,7 +21,7 @@ import {
   GitMerge
 } from 'lucide-react';
 import { ConfirmModal } from '../../LPOs/Components/ConfirmModal';
-import NoData from '@/app/Components/NoDataTab';
+import NoData from '@/app/Components/DataState/NoDataTab';
 import { usePermissions } from '../../LPOs/Hooks/usePermissions';
 import { toast } from '@/app/Components/Notification';
 import { useMergeProducts } from './Hooks/UseMergeProducts';

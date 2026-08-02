@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import InventoryScrapTab from '@/app/InventoryScrap/Components/InventoryScrapTab';
-import Login from '@/app/Components/Login';
+import Login from '@/app/Components/Auth/Login';
 import Loading from '@/app/Components/Loading';
 import {
   ArrowLeft,

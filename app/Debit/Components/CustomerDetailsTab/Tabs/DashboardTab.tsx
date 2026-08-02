@@ -15,7 +15,7 @@ import {
   Cell,
   LabelList,
 } from 'recharts';
-import NoData from '@/app/Components/NoDataTab';
+import NoData from '@/app/Components/DataState/NoDataTab';
 import { SharedTabProps } from '../Types';
 import { isPaymentTxn, getPaymentAmount } from '../Utils';
 

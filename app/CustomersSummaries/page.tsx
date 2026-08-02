@@ -2,8 +2,9 @@
 
 import { Suspense, useEffect, useState } from 'react';
 import CustomersSummariesTab from '@/app/Debit/Components/CustomersSummariesTab';
-import Login from '@/app/Components/Login';
+import Login from '@/app/Components/Auth/Login';
 import Loading from '@/app/Components/Loading';
+import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import { ArrowLeft, RefreshCcw, FileSpreadsheet } from 'lucide-react';
 import { InvoiceRow } from '@/types';
 import { getDebitData } from '@/app/Debit/Service/debit_service';
@@ -100,18 +101,12 @@ function CustomersSummariesPageContent() {
         {isInitialLoading ? (
           <Loading message="Loading Summaries Data..." />
         ) : error && data.length === 0 ? (
-          <div className="flex items-center justify-center pt-20">
-            <div className="text-center bg-red-50 p-6 rounded-lg max-w-md">
-              <p className="text-red-600 text-lg mb-4 font-semibold">Error loading data</p>
-              <p className="text-gray-600 mb-4">{error}</p>
-              <button
-                onClick={() => fetchData()}
-                className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 shadow-sm"
-              >
-                Retry
-              </button>
-            </div>
-          </div>
+          <TabFetchError
+            message={error}
+            onRetry={() => fetchData()}
+            isRetrying={loading}
+            className="min-h-[360px] pt-20"
+          />
         ) : (
           <CustomersSummariesTab data={data} onRefresh={() => fetchData(true)} />
         )}

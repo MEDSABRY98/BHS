@@ -7,6 +7,7 @@ import { useSalesRawData } from '@/app/Sales/Context/SalesRawDataContext';
 import SalesST_ByCustomers from './ST_ByCustomersTab';
 import SalesST_ByProduct from './ST_ByProductTab';
 import SalesST_CustomerMarginTab from './ST_CustomerMarginTab';
+import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
 
 interface SalesStockReportTabProps {
@@ -17,7 +18,7 @@ interface SalesStockReportTabProps {
 type TabMode = 'customers' | 'products' | 'margin';
 
 export default function SalesStockReportTab({ userId, showCosts = true }: SalesStockReportTabProps) {
-  const { stockReport, loading, isInitialLoading, ensureRawData } = useSalesRawData();
+  const { stockReport, loading, isInitialLoading, ensureRawData, error } = useSalesRawData();
   const [activeTab, setActiveTab] = useState<TabMode>('customers');
 
   useEffect(() => {
@@ -30,6 +31,17 @@ export default function SalesStockReportTab({ userId, showCosts = true }: SalesS
 
   if (isInitialLoading) {
     return <SalesTabLoader />;
+  }
+
+  if (error) {
+    return (
+      <TabFetchError
+        message={error}
+        onRetry={() => void ensureRawData()}
+        isRetrying={loading}
+        className="min-h-[360px]"
+      />
+    );
   }
 
   return (

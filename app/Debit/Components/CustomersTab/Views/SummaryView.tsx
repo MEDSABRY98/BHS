@@ -1,7 +1,7 @@
 import React from 'react';
 import { Table } from '@tanstack/react-table';
 import { CustomerAnalysis } from '@/types';
-import NoData from '@/app/Components/NoDataTab';
+import NoData from '@/app/Components/DataState/NoDataTab';
 import { formatDmy, calculateDebtRating } from '../CstomersUtils';
 
 interface SummaryViewProps {

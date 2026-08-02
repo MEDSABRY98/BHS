@@ -1,13 +1,18 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Menu, Loader2 } from 'lucide-react';
 import Sidebar from './Utils/Sidebar';
 import { bhs_supabase, fetchAllData } from '@/lib/supabase';
 import ProductPriceHistory from './ProductPriceHistory';
 import SupplierComparison from './SupplierComparison';
 import SupplierHistory from './SupplierHistory';
 import ReportsTab from './Reports/ReportsTab';
+import {
+  PurchaseFiltersProvider,
+  PurchaseFilterButton,
+  usePurchaseModuleFilters,
+} from './Model/PurchaseFilters';
+import TabFetchError from '@/app/Components/DataState/TabFetchError';
 
 export type PurchaseRecord = {
   id: string;
@@ -31,14 +36,122 @@ export type Product = {
   category?: string;
 };
 
+function LoadingSkeleton() {
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8 animate-in fade-in duration-300">
+      {[...Array(6)].map((_, i) => (
+        <div
+          key={i}
+          className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm flex flex-col gap-6 animate-pulse min-h-[200px]"
+        >
+          <div className="flex items-center gap-4">
+            <div className="bg-slate-200 w-14 h-14 rounded-2xl" />
+            <div className="flex-1 space-y-3">
+              <div className="bg-slate-200 w-3/4 h-6 rounded-lg" />
+              <div className="bg-slate-200 w-1/2 h-4 rounded-lg" />
+            </div>
+          </div>
+          <div className="mt-auto space-y-2">
+            <div className="bg-slate-100 w-full h-12 rounded-xl" />
+            <div className="bg-slate-100 w-full h-12 rounded-xl" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function PurchasePriceTrackingContent({
+  activeTab,
+  onPurchasePriceUpdated,
+}: {
+  activeTab: string;
+  onPurchasePriceUpdated: (id: string, unitPrice: number) => void;
+}) {
+  const { filteredPurchases, suppliers, products } = usePurchaseModuleFilters();
+
+  switch (activeTab) {
+    case 'product-history':
+      return (
+        <ProductPriceHistory
+          purchases={filteredPurchases}
+          suppliers={suppliers}
+          products={products}
+          onPurchasePriceUpdated={onPurchasePriceUpdated}
+        />
+      );
+    case 'supplier-comparison':
+      return (
+        <SupplierComparison purchases={filteredPurchases} suppliers={suppliers} products={products} />
+      );
+    case 'supplier-history':
+      return (
+        <SupplierHistory purchases={filteredPurchases} suppliers={suppliers} products={products} />
+      );
+    case 'reports':
+      return <ReportsTab purchases={filteredPurchases} suppliers={suppliers} products={products} />;
+    default:
+      return null;
+  }
+}
+
+function PurchasePriceTrackingLoaded({
+  activeTab,
+  setActiveTab,
+  isSidebarOpen,
+  setIsSidebarOpen,
+  purchases,
+  products,
+  suppliers,
+  onPurchasePriceUpdated,
+}: {
+  activeTab: string;
+  setActiveTab: (tab: string) => void;
+  isSidebarOpen: boolean;
+  setIsSidebarOpen: (val: boolean) => void;
+  purchases: PurchaseRecord[];
+  products: Product[];
+  suppliers: Supplier[];
+  onPurchasePriceUpdated: (id: string, unitPrice: number) => void;
+}) {
+  return (
+    <PurchaseFiltersProvider purchases={purchases} products={products} suppliers={suppliers}>
+      <div className="flex h-screen overflow-hidden bg-slate-50/50">
+        <Sidebar
+          isSidebarOpen={isSidebarOpen}
+          setIsSidebarOpen={setIsSidebarOpen}
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          FilterNode={
+            <PurchaseFilterButton inSidebar={true} isCollapsed={!isSidebarOpen} />
+          }
+        />
+
+        <main className="flex-1 flex flex-col h-full overflow-hidden relative">
+          <div className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar">
+            <div className="max-w-[90%] mx-auto">
+              <div key={activeTab} className="animate-in fade-in zoom-in-[0.98] duration-500">
+                <PurchasePriceTrackingContent
+                  activeTab={activeTab}
+                  onPurchasePriceUpdated={onPurchasePriceUpdated}
+                />
+              </div>
+            </div>
+          </div>
+        </main>
+      </div>
+    </PurchaseFiltersProvider>
+  );
+}
+
 export default function PurchasePriceTrackingPage() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('product-history');
-  
   const [purchases, setPurchases] = useState<PurchaseRecord[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -47,21 +160,36 @@ export default function PurchasePriceTrackingPage() {
   async function fetchData() {
     try {
       setIsLoading(true);
-      
+      setLoadError(null);
+
       const [purchasesData, suppliersData, productsData] = await Promise.all([
-        fetchAllData(() => bhs_supabase.from('web_Suppliers_Purchase').select('*').order('ID', { ascending: true })),
-        fetchAllData(() => bhs_supabase.from('bhs_SUPPLIERS').select('"SUPPLIER ID", "SUPPLIER NAME"').order('SUPPLIER ID', { ascending: true })),
-        fetchAllData(() => bhs_supabase.from('bhs_PRODUCTS').select('"PRODUCT ID", "PRODUCT NAME", "PRODUCT BARCODE", "PRODUCT CATEGORY"').order('PRODUCT ID', { ascending: true }))
+        fetchAllData(() =>
+          bhs_supabase.from('web_Suppliers_Purchase').select('*').order('ID', { ascending: true }),
+        ),
+        fetchAllData(() =>
+          bhs_supabase
+            .from('bhs_SUPPLIERS')
+            .select('"SUPPLIER ID", "SUPPLIER NAME"')
+            .order('SUPPLIER ID', { ascending: true }),
+        ),
+        fetchAllData(() =>
+          bhs_supabase
+            .from('bhs_PRODUCTS')
+            .select('"PRODUCT ID", "PRODUCT NAME", "PRODUCT BARCODE", "PRODUCT CATEGORY"')
+            .order('PRODUCT ID', { ascending: true }),
+        ),
       ]);
 
       const excludedProductNames = ['PACKAGING'];
-      
+
       const filteredProductsData = productsData.filter((p: any) => {
         const name = p['PRODUCT NAME'] ? String(p['PRODUCT NAME']).trim().toUpperCase() : '';
         return !excludedProductNames.includes(name);
       });
 
-      const allowedProductIds = new Set(filteredProductsData.map((p: any) => String(p['PRODUCT ID']).trim()));
+      const allowedProductIds = new Set(
+        filteredProductsData.map((p: any) => String(p['PRODUCT ID']).trim()),
+      );
 
       const filteredPurchasesData = purchasesData.filter((p: any) => {
         const pId = String(p['PRODUCT ID'] || '').trim();
@@ -78,14 +206,13 @@ export default function PurchasePriceTrackingPage() {
         qty: Number(p['QTY']) || 0,
       }));
 
-      // Free/sample lines (unit price 0) stay in DB but skew price analytics — skip those rows only.
       setPurchases(mappedPurchases.filter((p) => p.unitPrice > 0));
 
       setSuppliers(
         suppliersData.map((s: any) => ({
           id: String(s['SUPPLIER ID'] || '').trim(),
           name: s['SUPPLIER NAME'] || 'Unknown Supplier',
-        }))
+        })),
       );
 
       setProducts(
@@ -94,100 +221,70 @@ export default function PurchasePriceTrackingPage() {
           name: p['PRODUCT NAME'] || 'Unknown Product',
           barcode: p['PRODUCT BARCODE'] ? String(p['PRODUCT BARCODE']).trim() : undefined,
           category: p['PRODUCT CATEGORY'] ? String(p['PRODUCT CATEGORY']).trim() : undefined,
-        }))
+        })),
       );
-
-      console.log("FETCHED PURCHASES (first 2):", JSON.stringify(purchasesData.slice(0, 2), null, 2));
-      console.log("MAPPED PURCHASES (first 2):", JSON.stringify(purchasesData.slice(0, 2).map((p: any) => ({
-          id: p.ID,
-          date: p.DATE ? String(p.DATE).split('T')[0] : '',
-          invoiceNumber: p['INVOICE NUMBER'],
-          supplierId: String(p['SUPPLIER ID'] || '').trim(),
-          productId: String(p['PRODUCT ID'] || '').trim(),
-          unitPrice: Number(p['UNIT PRICE']) || 0,
-          qty: Number(p['QTY']) || 0,
-        })), null, 2));
-
     } catch (error) {
       console.error('Error fetching purchase tracking data:', error);
+      setLoadError(error instanceof Error ? error.message : 'Failed to load purchase tracking data');
     } finally {
       setIsLoading(false);
     }
   }
 
-  const renderContent = () => {
-    if (isLoading) {
-      return (
-        <div className="flex-1 flex flex-col items-center justify-center h-full text-amber-500">
-          <Loader2 className="w-12 h-12 animate-spin mb-4" />
-          <p className="font-bold tracking-widest uppercase">Loading Data...</p>
-        </div>
-      );
-    }
-
-    switch (activeTab) {
-      case 'product-history':
-        return (
-          <ProductPriceHistory
-            purchases={purchases}
-            suppliers={suppliers}
-            products={products}
-            onPurchasePriceUpdated={(id, unitPrice) => {
-              setPurchases((prev) =>
-                prev.map((p) => (p.id === id ? { ...p, unitPrice } : p))
-              );
-            }}
+  if (loadError && !isLoading) {
+    return (
+      <div className="flex h-screen overflow-hidden bg-slate-50/50">
+        <Sidebar
+          isSidebarOpen={isSidebarOpen}
+          setIsSidebarOpen={setIsSidebarOpen}
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+        />
+        <main className="flex-1 flex items-center justify-center p-8">
+          <TabFetchError
+            message={loadError}
+            onRetry={() => void fetchData()}
+            isRetrying={isLoading}
+            className="min-h-[360px]"
           />
-        );
-      case 'supplier-comparison':
-        return <SupplierComparison purchases={purchases} suppliers={suppliers} products={products} />;
-      case 'supplier-history':
-        return <SupplierHistory purchases={purchases} suppliers={suppliers} products={products} />;
-      case 'reports':
-        return <ReportsTab purchases={purchases} suppliers={suppliers} products={products} />;
-      default:
-        return null;
-    }
-  };
+        </main>
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex h-screen overflow-hidden bg-slate-50/50">
+        <Sidebar
+          isSidebarOpen={isSidebarOpen}
+          setIsSidebarOpen={setIsSidebarOpen}
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+        />
+
+        <main className="flex-1 flex flex-col h-full overflow-hidden relative">
+          <div className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar">
+            <div className="max-w-[90%] mx-auto">
+              <LoadingSkeleton />
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-50/50">
-      <Sidebar 
-        isSidebarOpen={isSidebarOpen} 
-        setIsSidebarOpen={setIsSidebarOpen}
-        activeTab={activeTab} 
-        onTabChange={setActiveTab} 
-      />
-      
-      <main className="flex-1 flex flex-col h-full overflow-hidden relative">
-        <div className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar">
-          <div className="max-w-[90%] mx-auto">
-            {isLoading ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8 animate-in fade-in duration-300">
-                {[...Array(6)].map((_, i) => (
-                  <div key={i} className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm flex flex-col gap-6 animate-pulse min-h-[200px]">
-                    <div className="flex items-center gap-4">
-                      <div className="bg-slate-200 w-14 h-14 rounded-2xl" />
-                      <div className="flex-1 space-y-3">
-                        <div className="bg-slate-200 w-3/4 h-6 rounded-lg" />
-                        <div className="bg-slate-200 w-1/2 h-4 rounded-lg" />
-                      </div>
-                    </div>
-                    <div className="mt-auto space-y-2">
-                      <div className="bg-slate-100 w-full h-12 rounded-xl" />
-                      <div className="bg-slate-100 w-full h-12 rounded-xl" />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div key={activeTab} className="animate-in fade-in zoom-in-[0.98] duration-500">
-                {renderContent()}
-              </div>
-            )}
-          </div>
-        </div>
-      </main>
-    </div>
+    <PurchasePriceTrackingLoaded
+      activeTab={activeTab}
+      setActiveTab={setActiveTab}
+      isSidebarOpen={isSidebarOpen}
+      setIsSidebarOpen={setIsSidebarOpen}
+      purchases={purchases}
+      products={products}
+      suppliers={suppliers}
+      onPurchasePriceUpdated={(id, unitPrice) => {
+        setPurchases((prev) => prev.map((p) => (p.id === id ? { ...p, unitPrice } : p)));
+      }}
+    />
   );
 }

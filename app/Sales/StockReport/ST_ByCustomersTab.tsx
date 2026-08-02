@@ -6,7 +6,7 @@ import { Search, ChevronLeft, ChevronRight, Loader2, FileText, FileSpreadsheet, 
 import { generateSalesPricelistPDF } from '@/app/Sales/StockReport/Pricelist';
 import { generateSalesStockFormPDF } from '@/app/Sales/StockReport/StockForm';
 import { generateSalesAnalysisComparisonPDF } from '@/app/Sales/StockReport/AnalysisComparison';;
-import NoData from '@/app/Components/NoDataTab';
+import NoData from '@/app/Components/DataState/NoDataTab';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';

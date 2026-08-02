@@ -9,9 +9,9 @@ import {
   Database,
   RefreshCw,
   Rows3,
-  AlertCircle,
 } from 'lucide-react';
-import TabLoader from '@/app/Components/TabLoader';
+import TabLoader from '@/app/Components/Loading/TabLoader';
+import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import {
   DATABASE_CATEGORIES,
   getDatabaseNavItemsByCategory,
@@ -152,10 +152,12 @@ export default function DatabaseDashboardPage() {
                       </div>
 
                       {status?.error ? (
-                        <div className="flex items-center gap-2 text-xs text-red-600 bg-red-50 rounded-xl px-3 py-2">
-                          <AlertCircle className="w-4 h-4 shrink-0" />
-                          <span className="truncate">{status.error}</span>
-                        </div>
+                        <TabFetchError
+                          message={status.error}
+                          onRetry={() => void loadStatus(true)}
+                          isRetrying={isRefreshing}
+                          className="py-4"
+                        />
                       ) : (
                         <div className="grid grid-cols-2 gap-3">
                           <div className="bg-gray-50 rounded-xl px-3 py-2.5 border border-gray-100">

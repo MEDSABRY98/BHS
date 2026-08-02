@@ -6,8 +6,9 @@ import {
   FileSpreadsheet, Calendar, Eye, X, ArrowUpRight, ArrowDownLeft,
   Layers, Filter, Box, ChevronLeft, ChevronRight, ChevronDown, Check, CalendarCheck, MapPin
 } from 'lucide-react';
-import TabLoader from '@/app/Components/TabLoader';
-import NoData from '@/app/Components/NoDataTab';
+import TabLoader from '@/app/Components/Loading/TabLoader';
+import NoData from '@/app/Components/DataState/NoDataTab';
+import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import { getProductsBalanceReportData, getInternalWarehouseLocationOptions } from '../Service/inventory_service';
 import type { ProductBalanceRow } from '../Service/inventory_types';
 import { exportSalesExcelTable } from '@/app/Sales/Utils/ExcelExport';
@@ -292,6 +293,17 @@ export default function InventoryProductsBalanceTab() {
   };
 
   if (loading && data.length === 0) return <TabLoader />;
+
+  if (error && !loading && data.length === 0) {
+    return (
+      <TabFetchError
+        message={error}
+        onRetry={() => fetchReport()}
+        isRetrying={loading}
+        className="min-h-[360px]"
+      />
+    );
+  }
 
   // Render Full Page Details Tab View if a product is selected
   if (selectedProduct) {
@@ -606,8 +618,12 @@ export default function InventoryProductsBalanceTab() {
           </p>
         )}
 
-        {error && (
-          <p className="text-xs font-semibold text-rose-600">{error}</p>
+        {error && data.length > 0 && (
+          <TabFetchError
+            message={error}
+            onRetry={() => fetchReport()}
+            isRetrying={loading}
+          />
         )}
       </div>
 

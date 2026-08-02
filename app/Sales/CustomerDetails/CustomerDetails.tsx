@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { ArrowLeft, Search } from 'lucide-react';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
 import TabsNav from './TabsNav';
+import SubCustomerSummaryTab from './SubCustomerSummaryTab';
 import DashboardTab from './DashboardTab';
 import SubCustomersTab from './SubCustomersTab';
 import MonthlyTab from './MonthlyTab';
@@ -26,10 +27,13 @@ export default function SalesCustomerDetails({
   customerType = 'sub',
   userId,
   onBack,
-  initialTab = 'dashboard',
+  initialTab,
   showCosts = true,
+  onOpenMainCustomer,
 }: SalesCustomerDetailsProps) {
-  const [activeTab, setActiveTab] = useState<CustomerDetailsTabId>(initialTab);
+  const [activeTab, setActiveTab] = useState<CustomerDetailsTabId>(
+    initialTab ?? (customerType === 'sub' ? 'summary' : 'dashboard')
+  );
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [invoiceTypeFilter, setInvoiceTypeFilter] = useState<'all' | 'sales' | 'returns'>('all');
@@ -57,6 +61,7 @@ export default function SalesCustomerDetails({
     groupedInvoicesData,
     dashboardMetrics,
     chartData,
+    subCustomerSummary,
   } = useCustomerDetailsData({
     customerName,
     customerId,
@@ -102,6 +107,14 @@ export default function SalesCustomerDetails({
           customerType={customerType}
           subCustomersCount={subCustomersData.length}
         />
+
+        {activeTab === 'summary' && customerType === 'sub' && (
+          <SubCustomerSummaryTab
+            customerName={customerName}
+            summary={subCustomerSummary}
+            onOpenMainCustomer={onOpenMainCustomer}
+          />
+        )}
 
         {activeTab === 'dashboard' && (
           <DashboardTab dashboardMetrics={dashboardMetrics} chartData={chartData} />

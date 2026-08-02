@@ -1,15 +1,16 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, Package, RefreshCw, AlertCircle, ChevronDown, FileSpreadsheet, ArrowUpDown } from 'lucide-react';
+import { Search, Package, RefreshCw, ChevronDown, FileSpreadsheet, ArrowUpDown } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import TabLoader from '@/app/Components/TabLoader';
-import NoData from '@/app/Components/NoDataTab';
+import TabLoader from '@/app/Components/Loading/TabLoader';
+import NoData from '@/app/Components/DataState/NoDataTab';
+import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import {
   fetchICUserComparisonData,
   fetchArchivedICUserComparisonData,
   ICUserComparisonRow,
-} from './Service/inventory_counting_service';
+} from './Service/InventoryCountingService';
 import { useInventoryCountingArchive } from './InventoryCountingArchiveContext';
 import { ICRecord } from './Utils/EditItemModal';
 import { useInventoryCountingFilters, matchesICWarehouse } from './InventoryCountingFiltersContext';
@@ -228,17 +229,11 @@ export default function UserComparisonTab() {
 
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center p-12 bg-red-50 rounded-3xl border border-red-100">
-        <AlertCircle className="w-16 h-16 text-red-500 mb-6" />
-        <h3 className="text-2xl font-black text-red-800 mb-2">Error Connection</h3>
-        <p className="text-red-600 mb-8 max-w-md text-center font-medium">{error}</p>
-        <button
-          onClick={() => fetchData()}
-          className="px-8 py-3 bg-red-600 text-white rounded-2xl hover:bg-red-700 transition-all shadow-lg flex items-center gap-2 font-bold"
-        >
-          <RefreshCw className="w-5 h-5" /> Retry Sync
-        </button>
-      </div>
+      <TabFetchError
+        message={error}
+        onRetry={() => fetchData()}
+        className="min-h-[360px]"
+      />
     );
   }
 

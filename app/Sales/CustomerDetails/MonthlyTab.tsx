@@ -1,6 +1,6 @@
 'use client';
 
-import NoData from '@/app/Components/NoDataTab';
+import NoData from '@/app/Components/DataState/NoDataTab';
 import type { MonthlySalesRow } from './Types';
 
 interface MonthlyTabProps {
@@ -9,7 +9,7 @@ interface MonthlyTabProps {
 
 export default function MonthlyTab({ monthlySales }: MonthlyTabProps) {
   return (
-    <div className="bg-white rounded-xl shadow-md p-6">
+    <div className="bg-white rounded-xl border border-gray-200 p-6">
       <h2 className="text-xl font-bold text-gray-800 mb-4">Sales by Month</h2>
       {monthlySales.length === 0 ? (
         <NoData />

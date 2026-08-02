@@ -1,7 +1,7 @@
 'use client';
 
 import { ArrowLeftRight, Edit2, Trash2 } from 'lucide-react';
-import NoData from '@/app/Components/NoDataTab';
+import NoData from '@/app/Components/DataState/NoDataTab';
 
 export interface InventoryMoveRow {
   ID: string;

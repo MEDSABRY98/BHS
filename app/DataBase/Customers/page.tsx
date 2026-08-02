@@ -24,7 +24,7 @@ import {
 import { toast } from '@/app/Components/Notification';
 import * as XLSX from 'xlsx';
 import { ConfirmModal } from '../../LPOs/Components/ConfirmModal';
-import NoData from '@/app/Components/NoDataTab';
+import NoData from '@/app/Components/DataState/NoDataTab';
 import { usePermissions } from '../../LPOs/Hooks/usePermissions';
 import { useMergeCustomers } from './Hooks/UseMergeCustomers';
 import MergeCustomersModal from './Components/MergeCustomersModal';

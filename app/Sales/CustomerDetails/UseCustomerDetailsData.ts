@@ -11,6 +11,7 @@ import type {
   MonthlySalesRow,
   ProductSalesRow,
   SubCustomerRow,
+  SubCustomerSummaryData,
 } from './Types';
 
 interface UseCustomerDetailsDataArgs {
@@ -33,6 +34,7 @@ export function useCustomerDetailsData({
   const { commonFilters: filters } = useSalesModuleFilters();
   const [data, setData] = useState<SalesInvoice[]>([]);
   const [allData, setAllData] = useState<SalesInvoice[]>([]);
+  const [mainGroupData, setMainGroupData] = useState<SalesInvoice[]>([]);
   const [loading, setLoading] = useState(true);
   const fetchRequestId = useRef(0);
 
@@ -51,6 +53,7 @@ export function useCustomerDetailsData({
         if (requestId !== fetchRequestId.current) return;
         setData(result.data || []);
         setAllData(result.allData || []);
+        setMainGroupData(result.mainGroupData || []);
       } catch (err) {
         if (requestId !== fetchRequestId.current) return;
         console.error('Error fetching Customer Details:', err);
@@ -650,6 +653,94 @@ export function useCustomerDetailsData({
 
     return result;
   }, [customerAllData]);
+
+  const subCustomerSummary = useMemo((): SubCustomerSummaryData | null => {
+    if (customerType !== 'sub') return null;
+
+    const mainCustomerName =
+      mainGroupData.length > 0
+        ? (mainGroupData[0].customerMainName || mainGroupData[0].customerName || '').trim() || null
+        : unfilteredCustomerData.length > 0
+          ? (unfilteredCustomerData[0].customerMainName ||
+              (unfilteredCustomerData[0] as any).customermainname ||
+              unfilteredCustomerData[0].customerName ||
+              '')
+              .trim() || null
+          : null;
+
+    const map = new Map<string, SubCustomerRow>();
+    mainGroupData.forEach((item) => {
+      const subName = (item.customerName || (item as any).customername || 'Unknown').trim();
+      const subId = (item.customerId || (item as any).customerid || '').trim();
+      const key = subId ? `${subId}::${subName}` : subName;
+
+      const existing = map.get(key) || {
+        customerId: subId,
+        subCustomerName: subName,
+        totalAmount: 0,
+        totalQty: 0,
+        productsCount: 0,
+        invoicesCount: 0,
+      };
+
+      existing.totalAmount += item.amount || 0;
+      existing.totalQty += item.qty || 0;
+      map.set(key, existing);
+    });
+
+    const siblingRanking = Array.from(map.values()).sort((a, b) => b.totalAmount - a.totalAmount);
+    const targetId = customerId?.trim().toUpperCase();
+    const targetName = customerName?.trim();
+    const rankIndex = siblingRanking.findIndex((row) => {
+      if (targetId && row.customerId) {
+        return row.customerId.trim().toUpperCase() === targetId;
+      }
+      return row.subCustomerName.trim() === targetName;
+    });
+
+    const mainGroupTotal = siblingRanking.reduce((sum, row) => sum + row.totalAmount, 0);
+    const currentSub = rankIndex >= 0 ? siblingRanking[rankIndex] : null;
+    const activeMonths = chartData.filter((row) => !row.isFuture);
+    const currYtdAmount = activeMonths.reduce((sum, row) => sum + row.currentAmount, 0);
+    const prevYtdAmount = activeMonths.reduce((sum, row) => sum + row.prevAmount, 0);
+    const ytdDiff = currYtdAmount - prevYtdAmount;
+    const ytdPercent =
+      prevYtdAmount !== 0 ? (ytdDiff / Math.abs(prevYtdAmount)) * 100 : currYtdAmount > 0 ? 100 : 0;
+
+    const currentYear = chartData[0]?.legendCurr ? parseInt(chartData[0].legendCurr, 10) : new Date().getFullYear();
+    const prevYear = currentYear - 1;
+    const ytdEndMonth = activeMonths.length > 0 ? activeMonths.length : null;
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const ytdLabel =
+      ytdEndMonth && ytdEndMonth < 12
+        ? `${monthNames[0]}–${monthNames[ytdEndMonth - 1]}`
+        : 'Full Year';
+
+    return {
+      mainCustomerName,
+      rank: rankIndex >= 0 ? rankIndex + 1 : null,
+      totalSubCustomers: siblingRanking.length,
+      shareOfMainPercent:
+        mainGroupTotal > 0 && currentSub ? (currentSub.totalAmount / mainGroupTotal) * 100 : null,
+      currentYear,
+      prevYear,
+      ytdEndMonth,
+      ytdLabel,
+      prevYtdAmount,
+      currYtdAmount,
+      ytdDiff,
+      ytdPercent,
+      siblingRanking,
+    };
+  }, [
+    customerType,
+    mainGroupData,
+    unfilteredCustomerData,
+    chartData,
+    customerId,
+    customerName,
+  ]);
+
   return {
     loading,
     customerData,
@@ -659,5 +750,6 @@ export function useCustomerDetailsData({
     groupedInvoicesData,
     dashboardMetrics,
     chartData,
+    subCustomerSummary,
   };
 }

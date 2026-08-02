@@ -3,13 +3,14 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { Search, Edit, Trash2, Save, X, User, AlertTriangle, Loader2, ChevronDown, FileSpreadsheet } from 'lucide-react';
 import { toast } from '@/app/Components/Notification';
-import NoData from '@/app/Components/NoDataTab';
+import NoData from '@/app/Components/DataState/NoDataTab';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
 import { exportSalesExcelTable } from '@/app/Sales/Utils/ExcelExport';
 import { getSetCustomersTabData, saveCustomerMapping, deleteCustomerMapping } from '../Service/sales_customers_service';
 import { useSalesDataContext } from '@/app/Sales/Context/SalesDataContext';
 import { useSalesModuleFilters } from '@/app/Sales/Model/SalesFilters';
 import { useSalesTabFetch } from '@/app/Sales/Hooks/useSalesTabFetch';
+import TabFetchError from '@/app/Components/DataState/TabFetchError';
 
 // Custom Premium Filter Dropdown Component
 const NO_CITY_FILTER = '__NO_CITY__';
@@ -93,7 +94,7 @@ export default function SalesSetCustomersTab({ userId }: SalesSetCustomersTabPro
   const { commonFilters: filters } = useSalesModuleFilters();
   const [tableSearchQuery, setTableSearchQuery] = useState('');
 
-  const { data: tabData, isInitialLoading, reload } = useSalesTabFetch({
+  const { data: tabData, isInitialLoading, reload, error, loading } = useSalesTabFetch({
     tabKey: 'set-customers',
     userId,
     filters,
@@ -308,6 +309,17 @@ export default function SalesSetCustomersTab({ userId }: SalesSetCustomersTabPro
 
   if (isInitialLoading) {
     return <SalesTabLoader />;
+  }
+
+  if (error) {
+    return (
+      <TabFetchError
+        message={error}
+        onRetry={() => void reload()}
+        isRetrying={loading}
+        className="min-h-[360px]"
+      />
+    );
   }
 
   return (

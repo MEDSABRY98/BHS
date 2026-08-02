@@ -4,7 +4,8 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Box, ArrowLeft, FileSpreadsheet, Search, Filter, ChevronDown, Check, X, RefreshCcw, ChevronLeft, ChevronRight } from 'lucide-react';
 import { getProductPeriodMovements } from '../Service/inventory_service';
 import type { PeriodMovement, ProductBalanceRow } from '../Service/inventory_types';
-import NoData from '@/app/Components/NoDataTab';
+import NoData from '@/app/Components/DataState/NoDataTab';
+import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import { exportSalesExcelTable } from '@/app/Sales/Utils/ExcelExport';
 import { getScopedQtyEffect, isMoveInLocationScope } from '../Utils/locationTypes';
 
@@ -413,27 +414,22 @@ export default function InventoryProductsBalanceDetailsTab({ selectedProduct, da
       {/* Ledger Table Container */}
       <div className={`bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden transition-opacity duration-300 ${movementsLoading ? 'opacity-60' : ''}`}>
         {movementsError ? (
-          <div className="p-8 text-center space-y-3">
-            <p className="text-sm font-semibold text-rose-600">{movementsError}</p>
-            <button
-              type="button"
-              onClick={() => {
-                setMovementsLoading(true);
-                setMovementsError(null);
-                getProductPeriodMovements(selectedProduct.productId, { dateFrom, dateTo })
-                  .then(res => {
-                    if (!res.success) throw new Error(res.error || 'Failed to fetch product movements');
-                    setPeriodMovements(res.data || []);
-                  })
-                  .catch(err => setMovementsError(err.message || 'Failed to load movement ledger'))
-                  .finally(() => setMovementsLoading(false));
-              }}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 text-white hover:bg-indigo-700 transition-all"
-            >
-              <RefreshCcw className="w-4 h-4" />
-              Retry
-            </button>
-          </div>
+          <TabFetchError
+            message={movementsError}
+            onRetry={() => {
+              setMovementsLoading(true);
+              setMovementsError(null);
+              getProductPeriodMovements(selectedProduct.productId, { dateFrom, dateTo })
+                .then((res) => {
+                  if (!res.success) throw new Error(res.error || 'Failed to fetch product movements');
+                  setPeriodMovements(res.data || []);
+                })
+                .catch((err) => setMovementsError(err.message || 'Failed to load movement ledger'))
+                .finally(() => setMovementsLoading(false));
+            }}
+            isRetrying={movementsLoading}
+            className="py-12"
+          />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-center border-collapse text-xs font-semibold min-w-[1000px]">

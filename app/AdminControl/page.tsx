@@ -6,7 +6,7 @@ import { ChevronLeft } from 'lucide-react';
 import AdminControlTab from './AdminControlTab';
 
 import { verifyUserCredentials } from '@/app/DataBase/Service/database_service';
-import Login from '@/app/Components/Login';
+import Login from '@/app/Components/Auth/Login';
 import Loading from '@/app/Components/Loading';
 
 export default function AdminControlPage() {

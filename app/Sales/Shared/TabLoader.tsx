@@ -1,1 +1,1 @@
-export { default } from '@/app/Components/TabLoader';
+export { default } from '@/app/Components/Loading/TabLoader';

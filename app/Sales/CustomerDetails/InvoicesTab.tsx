@@ -1,7 +1,7 @@
 'use client';
 
 import { FileSpreadsheet } from 'lucide-react';
-import NoData from '@/app/Components/NoDataTab';
+import NoData from '@/app/Components/DataState/NoDataTab';
 import type { GroupedInvoiceRow, SelectedInvoice } from './Types';
 
 interface InvoicesTabProps {
@@ -32,7 +32,7 @@ export default function InvoicesTab({
   const totalPages = Math.ceil(groupedInvoicesData.length / invoicesPerPage);
 
   return (
-    <div className="bg-white rounded-xl shadow-md p-6">
+    <div className="bg-white rounded-xl border border-gray-200 p-6">
       <div className="flex flex-wrap items-center justify-between mb-6 gap-4">
         <div className="flex items-center gap-4">
           <h2 className="text-xl font-bold text-gray-800">Invoices / LPO</h2>

@@ -9,8 +9,8 @@ import {
   FileSpreadsheet
 } from 'lucide-react';
 import Link from 'next/link';
-import NoData from '@/app/Components/NoDataTab';
-import TabLoader from '@/app/Components/TabLoader';
+import NoData from '@/app/Components/DataState/NoDataTab';
+import TabLoader from '@/app/Components/Loading/TabLoader';
 import { toast } from '@/app/Components/Notification';
 import { usePermissions } from '../Hooks/usePermissions';
 import OrdersFilterMenu, { FilterCriteria } from '../OrderDetails/Components/OrdersFilterMenu';

@@ -37,18 +37,6 @@
   animation-delay: -8s;
 }
 
-.home-grid {
-  position: fixed;
-  inset: 0;
-  opacity: 0.03;
-  background-image:
-    linear-gradient(rgba(15, 23, 42, 0.6) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(15, 23, 42, 0.6) 1px, transparent 1px);
-  background-size: 48px 48px;
-  pointer-events: none;
-  z-index: 0;
-}
-
 .home-header {
   background: rgba(255, 255, 255, 0.72);
   backdrop-filter: blur(16px);
@@ -64,8 +52,8 @@
 }
 
 .home-search:focus {
-  border-color: rgba(212, 175, 55, 0.6);
-  box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.12);
+  border-color: rgba(99, 102, 241, 0.45);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
   background: #fff;
   outline: none;
 }
@@ -78,22 +66,8 @@
 
 .home-card:hover {
   transform: translateY(-4px);
-  border-color: rgba(212, 175, 55, 0.35);
-  box-shadow:
-    0 20px 40px -20px rgba(15, 23, 42, 0.15),
-    0 0 0 1px rgba(212, 175, 55, 0.08);
-}
-
-.home-card-admin {
-  border-color: rgba(212, 175, 55, 0.35);
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.95) 0%, rgba(250, 245, 234, 0.9) 100%);
-}
-
-.home-card-admin:hover {
-  border-color: rgba(212, 175, 55, 0.55);
-  box-shadow:
-    0 20px 40px -20px rgba(212, 175, 55, 0.2),
-    0 0 0 1px rgba(212, 175, 55, 0.15);
+  border-color: rgba(148, 163, 184, 0.45);
+  box-shadow: 0 20px 40px -20px rgba(15, 23, 42, 0.15);
 }
 
 .home-letter-box {

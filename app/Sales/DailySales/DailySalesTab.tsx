@@ -5,7 +5,8 @@ import { SalesInvoice } from '@/lib/supabase';;
 import { Download, Calendar, MapPin, ShoppingBag, UserCircle, ChevronDown, ChevronLeft, ChevronRight, Search, X, Filter, FileSpreadsheet } from 'lucide-react';
 import { useSalesRawData } from '@/app/Sales/Context/SalesRawDataContext';
 import { exportSalesExcel, exportSalesExcelTable } from '@/app/Sales/Utils/ExcelExport';
-import NoData from '@/app/Components/NoDataTab';
+import NoData from '@/app/Components/DataState/NoDataTab';
+import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
 
 interface SalesDailySalesTabProps {
@@ -14,7 +15,7 @@ interface SalesDailySalesTabProps {
 }
 
 export default function SalesDailySalesTab({ userId, showCosts = true }: SalesDailySalesTabProps) {
-  const { ensureRawData, dailySales, loading, isInitialLoading } = useSalesRawData();
+  const { ensureRawData, dailySales, loading, isInitialLoading, error } = useSalesRawData();
 
   useEffect(() => {
     void ensureRawData();
@@ -136,6 +137,17 @@ export default function SalesDailySalesTab({ userId, showCosts = true }: SalesDa
 
   if (isInitialLoading) {
     return <SalesTabLoader />;
+  }
+
+  if (error) {
+    return (
+      <TabFetchError
+        message={error}
+        onRetry={() => void ensureRawData()}
+        isRetrying={loading}
+        className="min-h-[360px]"
+      />
+    );
   }
 
   // Calculate statistics for All Invoices tab

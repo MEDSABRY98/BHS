@@ -16,9 +16,10 @@ import HistoryTab from './Components/HistoryTab';
 import AgesTab from './Components/AgesTab';
 import CustomersTab from './Components/CustomersTab/CustomersTab';
 import Loading from '@/app/Components/Loading';
-import TabLoader from '@/app/Components/TabLoader';
-import Login from '@/app/Components/Login';
-import TabPanel from '@/app/Components/TabPanel';
+import TabLoader from '@/app/Components/Loading/TabLoader';
+import TabFetchError from '@/app/Components/DataState/TabFetchError';
+import Login from '@/app/Components/Auth/Login';
+import TabPanel from '@/app/Components/Layout/TabPanel';
 import DebitSidebar from './Utils/Sidebar';
 import { DebitDataProvider, useDebitData } from './Context/DebitDataContext';
 
@@ -99,25 +100,17 @@ function DebitPageShell({
     const needsFullData = TABS_NEEDING_FULL_DATA.has(activeTab);
 
     if (needsFullData && !dataReady) {
+      if (error && !dataLoading) {
+        return (
+          <TabFetchError
+            message={error}
+            onRetry={() => void refresh()}
+            isRetrying={dataLoading}
+            className="min-h-[40vh]"
+          />
+        );
+      }
       return <TabLoader />;
-    }
-
-    if (error && needsFullData && !dataReady) {
-      return (
-        <div className="flex items-center justify-center min-h-[40vh] p-8">
-          <div className="text-center bg-red-50 p-6 rounded-lg">
-            <p className="text-red-600 text-lg mb-4">Error loading data</p>
-            <p className="text-gray-600 mb-4">{error}</p>
-            <button
-              type="button"
-              onClick={() => refresh()}
-              className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-            >
-              Retry
-            </button>
-          </div>
-        </div>
-      );
     }
 
     if (!tabAllowed()) {

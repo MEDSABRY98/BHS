@@ -19,8 +19,9 @@ import {
   ChevronRight,
   Filter,
 } from 'lucide-react';
-import TabLoader from '@/app/Components/TabLoader';
-import NoData from '@/app/Components/NoDataTab';
+import TabLoader from '@/app/Components/Loading/TabLoader';
+import NoData from '@/app/Components/DataState/NoDataTab';
+import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import { getLocationPeriodMovements, getInternalWarehouseLocationOptions } from '../Service/inventory_service';
 import type { LocationMovementRow } from '../Service/inventory_types';
 import { exportSalesExcelWorkbook, recordsFromTable } from '@/app/Sales/Utils/ExcelExport';
@@ -438,6 +439,17 @@ export default function InventoryLocationMovementsTab() {
 
   if (loading && data.length === 0) return <TabLoader />;
 
+  if (error && !loading && data.length === 0) {
+    return (
+      <TabFetchError
+        message={error}
+        onRetry={() => fetchReport()}
+        isRetrying={loading}
+        className="min-h-[360px]"
+      />
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-6 space-y-4">
@@ -765,8 +777,12 @@ export default function InventoryLocationMovementsTab() {
           </p>
         )}
 
-        {error && (
-          <p className="text-xs font-semibold text-rose-600 text-center">{error}</p>
+        {error && data.length > 0 && (
+          <TabFetchError
+            message={error}
+            onRetry={() => fetchReport()}
+            isRetrying={loading}
+          />
         )}
       </div>
 
@@ -796,9 +812,12 @@ export default function InventoryLocationMovementsTab() {
       </div>
 
       {error && !loading && data.length === 0 ? (
-        <div className="bg-rose-50 border border-rose-200 text-rose-700 rounded-2xl p-4 text-sm font-semibold">
-          {error}
-        </div>
+        <TabFetchError
+          message={error}
+          onRetry={() => fetchReport()}
+          isRetrying={loading}
+          className="min-h-[280px]"
+        />
       ) : !loading && filteredRows.length === 0 ? (
         <NoData message="No location movements found for the selected filters." />
       ) : (

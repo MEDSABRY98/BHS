@@ -4,8 +4,8 @@ import { useState, useEffect } from 'react';
 import { bhs_supabas, fetchAllData } from '@/lib/supabase';
 import { FileCheck, UserCheck, Clock, ShieldCheck, AlertCircle, Save, Loader2, CheckCircle2, XCircle, Lock, Truck, Printer, Download } from 'lucide-react';
 import { generateCancelInvoicePDF } from '@/app/LPOs/Pdf/CancelInvoicePdf';
-import NoData from '@/app/Components/NoDataTab';
-import TabLoader from '@/app/Components/TabLoader';
+import NoData from '@/app/Components/DataState/NoDataTab';
+import TabLoader from '@/app/Components/Loading/TabLoader';
 import { usePermissions } from '../../Hooks/usePermissions';
 
 interface InvoicesStatusTabProps {

@@ -30,7 +30,6 @@ interface SystemCardProps {
   onClick: () => void;
   color: CardColor;
   delay?: number;
-  admin?: boolean;
 }
 
 const COLOR_MAP: Record<CardColor, { stripe: string; boxBorder: string }> = {
@@ -56,7 +55,7 @@ function getModuleLetter(title: string): string {
   return words[0].charAt(0).toUpperCase();
 }
 
-function SystemCard({ title, onClick, color, delay = 0, admin = false }: SystemCardProps) {
+function SystemCard({ title, onClick, color, delay = 0 }: SystemCardProps) {
   const styles = COLOR_MAP[color] ?? COLOR_MAP.blue;
   const letter = getModuleLetter(title);
 
@@ -64,15 +63,14 @@ function SystemCard({ title, onClick, color, delay = 0, admin = false }: SystemC
     <button
       type="button"
       onClick={onClick}
-      className={`
+      className="
         group relative w-full text-left overflow-hidden rounded-2xl
         home-card p-4 sm:p-5 min-h-[120px] sm:min-h-[132px]
         animate-in fade-in slide-in-from-bottom-3 fill-mode-backwards
-        ${admin ? 'home-card-admin' : ''}
-      `}
+      "
       style={{ animationDelay: `${delay}ms` }}
     >
-      <div className={`absolute left-0 top-4 bottom-4 w-1 rounded-r-full ${admin ? 'bg-[#d4af37]' : styles.stripe} opacity-80`} />
+      <div className={`absolute left-0 top-4 bottom-4 w-1 rounded-r-full ${styles.stripe} opacity-80`} />
 
       <div className="flex flex-col h-full justify-between pl-3 relative z-10">
         <div className="flex items-start justify-between gap-2">
@@ -80,7 +78,7 @@ function SystemCard({ title, onClick, color, delay = 0, admin = false }: SystemC
             className={`
               home-letter-box w-11 h-11 sm:w-12 sm:h-12 rounded-lg flex items-center justify-center
               bg-white/90 border-2 transition-transform duration-300 group-hover:scale-105
-              ${admin ? 'border-[#d4af37]/60' : styles.boxBorder}
+              ${styles.boxBorder}
             `}
           >
             <span className="home-letter-mark text-[24px] sm:text-[28px]">
@@ -89,7 +87,7 @@ function SystemCard({ title, onClick, color, delay = 0, admin = false }: SystemC
           </div>
 
           <div className="w-7 h-7 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300">
-            <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-[#b8941f]" />
+            <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-600" />
           </div>
         </div>
 
@@ -158,7 +156,6 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
   return (
     <div className="home-scene min-h-screen relative overflow-x-hidden" dir="ltr">
       <div className="home-aurora" />
-      <div className="home-grid" />
 
       <div className="relative z-10 max-w-[1480px] mx-auto px-4 sm:px-6 lg:px-8 pb-12">
         <header className="home-enter pt-6 sm:pt-8 pb-6">
@@ -225,7 +222,6 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
               onClick={nav('/AdminControl')}
               color="indigo"
               delay={50}
-              admin
             />
           )}
 

@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { PurchaseRecord, Product, Supplier } from './page';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Search, TrendingUp, TrendingDown, Minus, Calendar, Building2, Package, ArrowLeft, ChevronLeft, ChevronRight, FileText, X, Pencil, Loader2 } from 'lucide-react';
+import { Search, TrendingUp, TrendingDown, Minus, Calendar, Package, ArrowLeft, ChevronLeft, ChevronRight, FileText, X, Pencil, Loader2 } from 'lucide-react';
 import { updatePurchaseUnitPrice } from '@/app/DataBase/PurchasePriceTracking/PurchaseDetailsService';
 import { toast } from '@/app/Components/Notification';
 
@@ -28,6 +28,7 @@ function canEditPurchaseLinePrice(roleStr?: string, userName?: string): boolean 
 export default function ProductPriceHistory({ purchases, products, suppliers, onPurchasePriceUpdated }: Props) {
   const [canEditPrice, setCanEditPrice] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [listPage, setListPage] = useState(1);
   const [tableSearchTerm, setTableSearchTerm] = useState('');
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [tablePage, setTablePage] = useState(1);
@@ -57,16 +58,71 @@ export default function ProductPriceHistory({ purchases, products, suppliers, on
   const filteredProducts = useMemo(() => {
     const productsWithHistory = new Set(purchases.map(p => p.productId));
     const lower = searchTerm.toLowerCase();
-    
+
     return products
       .filter(p => productsWithHistory.has(p.id))
-      .filter(p => 
-        p.name.toLowerCase().includes(lower) || 
+      .filter(p =>
+        p.name.toLowerCase().includes(lower) ||
         p.id.toLowerCase().includes(lower) ||
         (p.barcode && p.barcode.toLowerCase().includes(lower))
       )
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [searchTerm, products, purchases]);
+
+  const productSummaryRows = useMemo(() => {
+    const purchasesByProduct = new Map<string, PurchaseRecord[]>();
+    purchases.forEach((purchase) => {
+      const existing = purchasesByProduct.get(purchase.productId) || [];
+      existing.push(purchase);
+      purchasesByProduct.set(purchase.productId, existing);
+    });
+
+    return filteredProducts.map((product) => {
+      const productPurchases = purchasesByProduct.get(product.id) || [];
+      const supplierCounts = new Map<string, number>();
+
+      productPurchases.forEach((purchase) => {
+        supplierCounts.set(purchase.supplierId, (supplierCounts.get(purchase.supplierId) || 0) + 1);
+      });
+
+      let topSupplierId = '';
+      let topSupplierCount = 0;
+      supplierCounts.forEach((count, supplierId) => {
+        if (count > topSupplierCount) {
+          topSupplierCount = count;
+          topSupplierId = supplierId;
+        }
+      });
+
+      const sortedPurchases = [...productPurchases].sort(
+        (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+      );
+      const latestPurchase = sortedPurchases[sortedPurchases.length - 1];
+
+      return {
+        productId: product.id,
+        barcode: product.barcode || product.id,
+        name: product.name,
+        topSupplierName: topSupplierId ? getSupplierName(topSupplierId) : 'N/A',
+        topSupplierPercent:
+          productPurchases.length > 0 ? (topSupplierCount / productPurchases.length) * 100 : 0,
+        lastPurchasePrice: latestPurchase?.unitPrice ?? 0,
+        lastPurchaseDate: latestPurchase?.date ?? '',
+        purchaseCount: productPurchases.length,
+        supplierCount: supplierCounts.size,
+      };
+    });
+  }, [filteredProducts, purchases, suppliers]);
+
+  useEffect(() => {
+    setListPage(1);
+  }, [searchTerm]);
+
+  const totalListPages = Math.ceil(productSummaryRows.length / itemsPerPage);
+  const paginatedSummaryRows = useMemo(() => {
+    const start = (listPage - 1) * itemsPerPage;
+    return productSummaryRows.slice(start, start + itemsPerPage);
+  }, [productSummaryRows, listPage]);
 
   const productPurchases = useMemo(() => {
     if (!selectedProductId) return [];
@@ -169,7 +225,7 @@ export default function ProductPriceHistory({ purchases, products, suppliers, on
           (a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime()
         ),
       }))
-      .sort((a, b) => a.price - b.price);
+      .sort((a, b) => b.price - a.price);
   }, [productPurchases]);
 
   const PriceChartTooltip = ({ active, payload }: any) => {
@@ -213,34 +269,6 @@ export default function ProductPriceHistory({ purchases, products, suppliers, on
 
   const uniqueSuppliersSet = new Set(productPurchases.map(p => p.supplierId));
   const totalSuppliersCount = uniqueSuppliersSet.size;
-
-  const supplierCounts = new Map<string, number>();
-  let maxCount = 0;
-  let topSupplierId = '';
-  productPurchases.forEach(p => {
-    const count = (supplierCounts.get(p.supplierId) || 0) + 1;
-    supplierCounts.set(p.supplierId, count);
-    if (count > maxCount) {
-      maxCount = count;
-      topSupplierId = p.supplierId;
-    }
-  });
-  const topSupplierName = topSupplierId ? getSupplierName(topSupplierId) : 'N/A';
-
-  const latestPriceBySupplier = new Map<string, number>();
-  productPurchases.forEach(p => {
-    latestPriceBySupplier.set(p.supplierId, p.unitPrice);
-  });
-
-  let minPrice = Infinity;
-  let recommendedSupplierId = '';
-  latestPriceBySupplier.forEach((price, suppId) => {
-    if (price < minPrice) {
-      minPrice = price;
-      recommendedSupplierId = suppId;
-    }
-  });
-  const recommendedSupplierName = recommendedSupplierId ? getSupplierName(recommendedSupplierId) : 'N/A';
 
   const selectedProduct = products.find(p => p.id === selectedProductId);
 
@@ -292,13 +320,13 @@ export default function ProductPriceHistory({ purchases, products, suppliers, on
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h2 className="text-3xl font-black text-slate-900 tracking-tight">Product Price History</h2>
-            <p className="text-slate-500 font-medium mt-1">Select a product to view its price history and trends.</p>
+            <p className="text-slate-500 font-medium mt-1">Browse products and click a row to view full price history.</p>
           </div>
           <div className="relative w-full md:w-96">
             <Search className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
-              placeholder="Search product name or ID..."
+              placeholder="Search barcode, product name or ID..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full bg-white border border-slate-200 pl-12 pr-4 py-3 rounded-2xl outline-none focus:ring-2 focus:ring-[#D4AF37]/50 focus:border-[#D4AF37] font-medium transition-all shadow-sm"
@@ -306,33 +334,82 @@ export default function ProductPriceHistory({ purchases, products, suppliers, on
           </div>
         </div>
 
-        {filteredProducts.length === 0 ? (
+        {productSummaryRows.length === 0 ? (
           <div className="bg-white/50 border border-slate-200 border-dashed rounded-[2rem] p-12 flex flex-col items-center justify-center text-slate-400">
             <Package className="w-16 h-16 mb-4 opacity-20" />
             <p className="font-bold text-lg">No products found matching your search.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 pb-12">
-            {filteredProducts.map(product => (
-              <button
-                key={product.id}
-                onClick={() => setSelectedProductId(product.id)}
-                className="bg-white text-left p-6 rounded-2xl shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 border border-slate-100 border-t-4 border-t-[#D4AF37] flex flex-col justify-between h-[160px] group"
-              >
+          <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden flex flex-col">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-50/50">
+                    <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-widest text-center w-40">Barcode</th>
+                    <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-widest text-center">Product Name</th>
+                    <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-widest text-center w-28">Suppliers</th>
+                    <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-widest text-center">Top Supplier</th>
+                    <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-widest text-center w-28">Share %</th>
+                    <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-widest text-center w-36">Last Price</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {paginatedSummaryRows.map((row) => (
+                    <tr
+                      key={row.productId}
+                      onClick={() => setSelectedProductId(row.productId)}
+                      className="hover:bg-amber-50/60 cursor-pointer transition-colors group"
+                    >
+                      <td className="px-6 py-4 whitespace-nowrap text-center">
+                        <span className="font-mono text-sm font-bold text-[#D4AF37]">{row.barcode}</span>
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <span className="font-bold text-slate-800 group-hover:text-[#D4AF37] transition-colors">{row.name}</span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-center">
+                        <span className="font-bold text-slate-900">{row.supplierCount}</span>
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <span className="font-semibold text-slate-700">{row.topSupplierName}</span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-center">
+                        <span className="font-bold text-slate-900">{row.topSupplierPercent.toFixed(1)}%</span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-center">
+                        <span className="font-bold text-amber-600">{row.lastPurchasePrice.toFixed(2)} AED</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {totalListPages > 1 && (
+              <div className="p-4 border-t border-slate-100 flex items-center justify-between text-xs font-semibold text-slate-600 bg-slate-50/50">
                 <div>
-                  <p className="text-xs font-mono font-bold text-[#D4AF37] mb-2 bg-amber-50 inline-block px-2 py-1 rounded-md">
-                    {product.barcode || product.id}
-                  </p>
-                  <h3 className="font-bold text-slate-800 line-clamp-2 leading-tight group-hover:text-[#D4AF37] transition-colors text-lg">
-                    {product.name}
-                  </h3>
+                  Showing {((listPage - 1) * itemsPerPage) + 1} to {Math.min(listPage * itemsPerPage, productSummaryRows.length)} of {productSummaryRows.length} products
                 </div>
-                <div className="mt-4 flex items-center gap-2 text-xs font-bold text-slate-400 uppercase tracking-wider group-hover:text-slate-600 transition-colors">
-                  <TrendingUp className="w-4 h-4" />
-                  <span>View History</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setListPage(p => Math.max(p - 1, 1))}
+                    disabled={listPage === 1}
+                    className="p-2 border border-slate-200 rounded-lg hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <span>Page {listPage} of {totalListPages}</span>
+                  <button
+                    type="button"
+                    onClick={() => setListPage(p => Math.min(p + 1, totalListPages))}
+                    disabled={listPage === totalListPages}
+                    className="p-2 border border-slate-200 rounded-lg hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
                 </div>
-              </button>
-            ))}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -371,7 +448,7 @@ export default function ProductPriceHistory({ purchases, products, suppliers, on
       ) : (
         <div className="space-y-6">
           {/* Stats Row */}
-          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm border-t-4 border-t-[#D4AF37]">
               <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Latest Price</p>
               <div className="flex items-end gap-2">
@@ -415,21 +492,6 @@ export default function ProductPriceHistory({ purchases, products, suppliers, on
               <div className="flex items-end gap-2">
                 <p className="text-3xl font-black text-slate-900">{totalSuppliersCount}</p>
                 <p className="text-sm font-bold text-slate-400 mb-1">suppliers</p>
-              </div>
-            </div>
-
-            <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm border-t-4 border-t-blue-500">
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Top Supplier</p>
-              <div className="flex items-center gap-2 h-full">
-                <p className="text-sm font-semibold text-slate-700 line-clamp-3 break-words w-full leading-tight">{topSupplierName}</p>
-              </div>
-            </div>
-
-            <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm border-t-4 border-t-emerald-500 relative overflow-hidden flex flex-col justify-between">
-              <div className="absolute -right-4 -top-4 bg-emerald-100 w-16 h-16 rounded-full opacity-50"></div>
-              <p className="text-xs font-bold text-emerald-600 uppercase tracking-widest mb-1 relative z-10">Recommended</p>
-              <div className="flex items-center gap-2 h-full relative z-10 mt-1">
-                <p className="text-sm font-semibold text-slate-700 line-clamp-3 break-words w-full leading-tight">{recommendedSupplierName}</p>
               </div>
             </div>
           </div>
@@ -534,11 +596,8 @@ export default function ProductPriceHistory({ purchases, products, suppliers, on
                           <span className="font-bold text-slate-700 font-mono text-sm">{p.invoiceNumber || '-'}</span>
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center justify-center gap-2">
-                          <Building2 className="w-4 h-4 text-slate-400" />
-                          <span className="font-bold text-slate-700">{getSupplierName(p.supplierId)}</span>
-                        </div>
+                      <td className="px-6 py-4 whitespace-nowrap text-center">
+                        <span className="font-bold text-slate-700">{getSupplierName(p.supplierId)}</span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-center">
                         <span className="font-bold text-slate-900 bg-slate-100 px-3 py-1 rounded-full">{p.qty}</span>

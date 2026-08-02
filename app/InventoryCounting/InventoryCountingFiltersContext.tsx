@@ -4,7 +4,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import {
   fetchICFilterOptions,
   fetchArchivedICFilterOptions,
-} from './Service/inventory_counting_service';
+} from './Service/InventoryCountingService';
 import { useInventoryCountingArchive } from './InventoryCountingArchiveContext';
 
 type InventoryCountingFiltersContextValue = {

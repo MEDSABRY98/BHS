@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { ArrowLeft, Search, RefreshCw, FileCheck, FileSpreadsheet, AlertCircle } from 'lucide-react';
 import { exportDebitExcelTable } from '@/app/Debit/Utils/ExcelExport';
 import Loading from '@/app/Components/Loading';
-import Login from '@/app/Components/Login';
+import Login from '@/app/Components/Auth/Login';
 import CustomersDocumentsGrid from './Components/CustomersDocumentsGrid';
 import { getCustomersDocuments, updateCustomerDocument } from './Service/customers_documents_service';
 

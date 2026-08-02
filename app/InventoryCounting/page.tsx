@@ -9,7 +9,7 @@ import Sidebar, {
   type InventoryCountingTabId,
 } from './Utils/Sidebar';
 import { InventoryCountingArchiveProvider, useInventoryCountingArchive } from './InventoryCountingArchiveContext';
-import Login from '@/app/Components/Login';
+import Login from '@/app/Components/Auth/Login';
 import Loading from '@/app/Components/Loading';
 
 function hasInventoryCountingAccess(user: any): boolean {

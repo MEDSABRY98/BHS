@@ -13,7 +13,7 @@ import {
   StickyNote,
 } from 'lucide-react';
 import SearchSelect from '../Components/DropDownList';
-import TabLoader from '@/app/Components/TabLoader';
+import TabLoader from '@/app/Components/Loading/TabLoader';
 import { toast } from '@/app/Components/Notification';
 import {
   generateCancelInvoicePDF,

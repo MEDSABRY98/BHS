@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { Trash2, Calendar, Loader2, Database, FileSpreadsheet, Download, Upload, X } from 'lucide-react';
 import { usePermissions } from '../../LPOs/Hooks/usePermissions';
 import { ConfirmModal } from '../../LPOs/Components/ConfirmModal';
-import NoData from '@/app/Components/NoDataTab';
+import NoData from '@/app/Components/DataState/NoDataTab';
 import { toast } from '@/app/Components/Notification';
 import { bhs_supabas } from '@/lib/supabase';
 import * as XLSX from 'xlsx';

@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { fetchScrapEntriesByDateRange, fetchMaxScrapReportRowId, fetchMaxScrapReportId, insertScrapReport } from '../Service/InventoryScrapService';
 import { FileText, Calendar, Printer, Loader2, Eye, AlertCircle } from 'lucide-react';
 import { generateInventoryScrapReportPDF } from '@/app/InventoryScrap/Pdf/InventoryScrapReportPdf';
-import NoData from '@/app/Components/NoDataTab';
+import NoData from '@/app/Components/DataState/NoDataTab';
 
 interface AggregatedItem {
   productId: string;

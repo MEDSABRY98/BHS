@@ -23,7 +23,7 @@ import SearchSelect from '../Components/DropDownList';
 import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
 import { toast } from '@/app/Components/Notification';
-import TabLoader from '@/app/Components/TabLoader';
+import TabLoader from '@/app/Components/Loading/TabLoader';
 
 function downloadUploadErrorsReport(errors: string[], action: 'import' | 'update') {
   if (errors.length === 0) return;

@@ -11,7 +11,7 @@ import {
   FileSpreadsheet, 
   MapPin
 } from 'lucide-react';
-import NoData from '@/app/Components/NoDataTab';
+import NoData from '@/app/Components/DataState/NoDataTab';
 
 interface CreditLimitTabProps {
   data: InvoiceRow[];

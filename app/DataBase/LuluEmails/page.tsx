@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2, Search, MailPlus } from 'lucide-react';
-import NoData from '@/app/Components/NoDataTab';
+import NoData from '@/app/Components/DataState/NoDataTab';
 import { toast } from '@/app/Components/Notification';
 import { fetchLuluEmails, addLuluEmail, updateLuluEmail, deleteLuluEmail } from '../Service/database_service';
 

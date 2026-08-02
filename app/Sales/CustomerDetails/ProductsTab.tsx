@@ -1,7 +1,7 @@
 'use client';
 
 import { FileSpreadsheet } from 'lucide-react';
-import NoData from '@/app/Components/NoDataTab';
+import NoData from '@/app/Components/DataState/NoDataTab';
 import type { ProductSalesRow } from './Types';
 
 interface ProductsTabProps {
@@ -12,7 +12,7 @@ interface ProductsTabProps {
 
 export default function ProductsTab({ productsData, showCosts, onExport }: ProductsTabProps) {
   return (
-    <div className="bg-white rounded-xl shadow-md p-6">
+    <div className="bg-white rounded-xl border border-gray-200 p-6">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-xl font-bold text-gray-800">Products Sales</h2>
         <button

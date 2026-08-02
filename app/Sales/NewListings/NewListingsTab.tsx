@@ -3,13 +3,14 @@
 import { useState } from 'react';
 import { ChevronLeft, Calendar, Package, Users, Search } from 'lucide-react';
 import { useSalesModuleFilters } from '@/app/Sales/Model/SalesFilters';
-import NoData from '@/app/Components/NoDataTab';
+import NoData from '@/app/Components/DataState/NoDataTab';
 import SalesNewListingsProducts from './NewListingsProducts';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
 import SalesNewListingsCustomers from './NewListingsCustomers';
 import { getNewListingsData } from '../Service/sales_reports_service';
 import { useSalesDataContext } from '@/app/Sales/Context/SalesDataContext';
 import { useSalesTabFetch } from '@/app/Sales/Hooks/useSalesTabFetch';
+import TabFetchError from '@/app/Components/DataState/TabFetchError';
 
 interface SalesNewListingsTabProps {
   userId: string;
@@ -19,7 +20,7 @@ export default function SalesNewListingsTab({ userId }: SalesNewListingsTabProps
   const { commonFilters: filters } = useSalesModuleFilters();
   const { dataVersion } = useSalesDataContext();
 
-  const { data, isInitialLoading } = useSalesTabFetch<any[]>({
+  const { data, isInitialLoading, error, reload, loading } = useSalesTabFetch<any[]>({
     tabKey: 'new-listings',
     userId,
     filters,
@@ -37,6 +38,17 @@ export default function SalesNewListingsTab({ userId }: SalesNewListingsTabProps
 
   if (isInitialLoading) {
     return <SalesTabLoader />;
+  }
+
+  if (error) {
+    return (
+      <TabFetchError
+        message={error}
+        onRetry={() => void reload()}
+        isRetrying={loading}
+        className="min-h-[360px]"
+      />
+    );
   }
 
   return (

@@ -6,7 +6,7 @@ import {
     Box, RefreshCw, TrendingUp, TrendingDown, Truck, Info, X, Save
 } from 'lucide-react';
 import { ProductOrder, OrderItem } from './InventoryCategoriesTab';
-import NoData from '@/app/Components/NoDataTab';
+import NoData from '@/app/Components/DataState/NoDataTab';
 import ProductDetails from './InventoryProductDetails';
 import { getProductMovementsData, updateProductColumn, getProductsBalanceReportData } from '../Service/inventory_service';
 

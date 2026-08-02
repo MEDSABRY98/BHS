@@ -6,7 +6,7 @@ import { toast } from '@/app/Components/Notification';
 import {
   fetchICProductCategories,
   type ICProductCategory,
-} from '../Service/inventory_counting_service';
+} from '../Service/InventoryCountingService';
 
 interface AddCategoryProductsPickerProps {
   disabled?: boolean;

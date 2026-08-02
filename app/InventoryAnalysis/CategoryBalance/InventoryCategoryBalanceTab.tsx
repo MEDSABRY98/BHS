@@ -16,8 +16,9 @@ import {
   Search,
   X,
 } from 'lucide-react';
-import TabLoader from '@/app/Components/TabLoader';
-import NoData from '@/app/Components/NoDataTab';
+import TabLoader from '@/app/Components/Loading/TabLoader';
+import NoData from '@/app/Components/DataState/NoDataTab';
+import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import { getProductsBalanceReportData, getInternalWarehouseLocationOptions } from '../Service/inventory_service';
 import type { CategoryBalanceRow, ProductBalanceRow } from '../Service/inventory_types';
 import { exportSalesExcelTable } from '@/app/Sales/Utils/ExcelExport';
@@ -178,6 +179,17 @@ export default function InventoryCategoryBalanceTab() {
     return <TabLoader />;
   }
 
+  if (error && !loading && products.length === 0) {
+    return (
+      <TabFetchError
+        message={error}
+        onRetry={() => fetchReport()}
+        isRetrying={loading}
+        className="min-h-[360px]"
+      />
+    );
+  }
+
   if (selectedCategory) {
     return (
       <InventoryCategoryBalanceDetailsTab
@@ -330,7 +342,13 @@ export default function InventoryCategoryBalanceTab() {
           </p>
         )}
 
-        {error && <p className="text-xs font-semibold text-rose-600 text-center">{error}</p>}
+        {error && products.length > 0 && (
+          <TabFetchError
+            message={error}
+            onRetry={() => fetchReport()}
+            isRetrying={loading}
+          />
+        )}
       </div>
 
       <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 transition-opacity duration-300 ${loading && products.length > 0 ? 'opacity-50 pointer-events-none' : ''}`}>

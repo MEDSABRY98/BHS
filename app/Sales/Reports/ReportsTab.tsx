@@ -20,7 +20,8 @@ import { generateSalesReportsZip } from '@/app/Sales/Reports/ReportsExport';
 import { saveAs } from 'file-saver';
 import { toast } from '@/app/Components/Notification';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
-import NoData from '@/app/Components/NoDataTab';
+import NoData from '@/app/Components/DataState/NoDataTab';
+import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import ReportsDailyCalendar from './DailyCalendar';
 import { getReportsData } from '../Service/sales_reports_service';
 import { useSalesDataContext } from '@/app/Sales/Context/SalesDataContext';
@@ -404,7 +405,7 @@ export default function SalesReportsTab({ userId, allowedReportTableTabIds = nul
     setFilterMonth,
   } = useSalesModuleFilters();
   const { dataVersion } = useSalesDataContext();
-  const { data, isInitialLoading } = useSalesTabFetch<ReportsPayload | null>({
+  const { data, isInitialLoading, error, reload, loading } = useSalesTabFetch<ReportsPayload | null>({
     tabKey: 'reports',
     userId,
     filters,
@@ -820,7 +821,12 @@ export default function SalesReportsTab({ userId, allowedReportTableTabIds = nul
     return (
       <div className="min-h-full w-full bg-white">
         {toolbar}
-        <div className="p-12 text-center text-slate-500 font-medium">Failed to load reports. Try refreshing.</div>
+        <TabFetchError
+          message={error || 'Failed to load reports'}
+          onRetry={() => void reload()}
+          isRetrying={loading}
+          className="min-h-[360px]"
+        />
       </div>
     );
   }

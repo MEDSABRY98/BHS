@@ -1,13 +1,13 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
-import { ChevronDown, FolderOpen, Loader2, Trash2 } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { FolderOpen, Loader2, Trash2, X } from 'lucide-react';
 import { toast } from '@/app/Components/Notification';
 import {
   deleteReconciliationSession,
   fetchReconciliationSessions,
   type ICReconciliationSessionSummary,
-} from '../Service/inventory_counting_service';
+} from '../Service/InventoryCountingService';
 import DeleteReconciliationSessionModal from './DeleteReconciliationSessionModal';
 
 function formatSavedAt(value: string): string {
@@ -21,13 +21,6 @@ function formatSavedAt(value: string): string {
     hour: '2-digit',
     minute: '2-digit',
   });
-}
-
-function sessionLabel(session: ICReconciliationSessionSummary): string {
-  const parts = [session.reconciliationId];
-  if (session.countDate) parts.push(session.countDate);
-  parts.push(`(${session.rowCount})`);
-  return parts.join(' · ');
 }
 
 interface ReconciliationSessionPickerProps {
@@ -48,7 +41,6 @@ export default function ReconciliationSessionPicker({
   const [loading, setLoading] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [sessionToDelete, setSessionToDelete] = useState<ICReconciliationSessionSummary | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
 
   const loadSessions = async () => {
     setLoading(true);
@@ -72,14 +64,10 @@ export default function ReconciliationSessionPicker({
   }, [refreshKey]);
 
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+    if (isOpen) {
+      void loadSessions();
+    }
+  }, [isOpen]);
 
   const selectedSession = sessions.find((s) => s.reconciliationId === selectedId) || null;
 
@@ -113,98 +101,121 @@ export default function ReconciliationSessionPicker({
   };
 
   return (
-    <div ref={containerRef} className="relative shrink-0">
+    <>
       <button
         type="button"
-        onClick={() => {
-          setIsOpen((prev) => !prev);
-          if (!isOpen) void loadSessions();
-        }}
-        title={selectedSession ? sessionLabel(selectedSession) : 'Load saved reconciliation'}
-        className={`flex items-center gap-2 rounded-xl border text-xs font-black uppercase tracking-wide transition-all shadow-sm px-3 py-3 ${
+        onClick={() => setIsOpen(true)}
+        title={
+          selectedSession
+            ? `Loaded: ${selectedSession.reconciliationId}`
+            : 'Load saved reconciliation'
+        }
+        className={`p-3 rounded-xl border transition-all shadow-sm ${
           selectedSession
             ? 'bg-emerald-50 border-emerald-200 text-emerald-900 hover:bg-emerald-100'
-            : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+            : 'bg-white border-slate-200 text-slate-700 hover:border-indigo-200 hover:text-indigo-700'
         }`}
       >
-        <FolderOpen className="w-4 h-4 shrink-0" />
-        <span className="max-w-[160px] truncate hidden sm:inline">
-          {selectedSession ? selectedSession.reconciliationId : 'Saved'}
-        </span>
-        {loading ? (
-          <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
+        {loading && !isOpen ? (
+          <Loader2 className="w-5 h-5 animate-spin text-slate-400" />
         ) : (
-          <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+          <FolderOpen className="w-5 h-5" />
         )}
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 top-full mt-3 w-[min(100vw-2rem,420px)] bg-white border border-slate-100 rounded-2xl shadow-2xl shadow-slate-200/60 py-2 z-50 max-h-[360px] overflow-y-auto">
-          {sessions.length === 0 && !loading && (
-            <p className="px-4 py-3 text-xs text-slate-400 font-medium">No saved sessions yet</p>
-          )}
-
-          {loading && sessions.length === 0 && (
-            <p className="px-4 py-3 text-xs text-slate-400 font-medium flex items-center gap-2">
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              Loading...
-            </p>
-          )}
-
-          {sessions.map((session) => (
-            <div
-              key={session.reconciliationId}
-              className={`flex items-center gap-1 px-2 ${
-                selectedId === session.reconciliationId ? 'bg-emerald-50/80' : ''
-              }`}
-            >
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200"
+          onClick={() => setIsOpen(false)}
+        >
+          <div
+            className="bg-white rounded-[2rem] p-6 md:p-8 max-w-lg w-full shadow-2xl border border-gray-100 animate-in zoom-in-95 duration-300 max-h-[85vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-start mb-6 shrink-0">
+              <div>
+                <h3 className="text-xl font-black text-gray-900">Saved Sessions</h3>
+              </div>
               <button
                 type="button"
-                onClick={() => {
-                  onSelect(session);
-                  setIsOpen(false);
-                }}
-                className="flex-1 text-left px-2 py-3 hover:bg-slate-50 rounded-xl transition-colors min-w-0"
+                onClick={() => setIsOpen(false)}
+                className="w-10 h-10 flex items-center justify-center bg-gray-50 hover:bg-gray-100 text-gray-400 hover:text-gray-900 rounded-xl transition-colors shrink-0"
               >
-                <p className="text-sm font-black text-slate-800 truncate">{session.reconciliationId}</p>
-                <p className="text-[11px] font-bold text-slate-400 mt-0.5 truncate">
-                  {session.countDate || 'No date'}
-                  {` · ${session.rowCount} row(s)`}
-                </p>
-                <p className="text-[10px] font-medium text-slate-400 mt-0.5">
-                  Saved {formatSavedAt(session.savedAt)}
-                </p>
-              </button>
-              <button
-                type="button"
-                onClick={(e) => handleDeleteClick(e, session)}
-                disabled={deletingId === session.reconciliationId}
-                title="Delete session"
-                className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all disabled:opacity-50"
-              >
-                {deletingId === session.reconciliationId ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Trash2 className="w-4 h-4" />
-                )}
+                <X className="w-5 h-5" />
               </button>
             </div>
-          ))}
 
-          {selectedId && (
-            <div className="border-t border-slate-100 mt-2 pt-2 px-2">
+            <div className="space-y-2 overflow-y-auto pr-1 min-h-0 flex-1">
+              {sessions.length === 0 && !loading && (
+                <p className="text-sm font-bold text-slate-400 text-center py-8">No saved sessions yet</p>
+              )}
+
+              {loading && sessions.length === 0 && (
+                <p className="text-sm font-bold text-slate-400 text-center py-8 flex items-center justify-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Loading sessions...
+                </p>
+              )}
+
+              {sessions.map((session) => {
+                const isSelected = selectedId === session.reconciliationId;
+                return (
+                  <div
+                    key={session.reconciliationId}
+                    className={`flex items-center gap-1 rounded-2xl border transition-all ${
+                      isSelected
+                        ? 'border-emerald-300 bg-emerald-50 shadow-sm shadow-emerald-100'
+                        : 'border-slate-100 bg-slate-50/80 hover:border-emerald-200 hover:bg-emerald-50/50'
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onSelect(session);
+                        setIsOpen(false);
+                      }}
+                      className="flex-1 text-left px-4 py-3.5 min-w-0"
+                    >
+                      <p className="text-sm font-black text-slate-800 truncate">{session.reconciliationId}</p>
+                      <p className="text-[11px] font-bold text-slate-400 mt-0.5 truncate">
+                        {session.countDate || 'No date'}
+                        {` · ${session.rowCount} row(s)`}
+                      </p>
+                      <p className="text-[10px] font-medium text-slate-400 mt-0.5">
+                        Saved {formatSavedAt(session.savedAt)}
+                      </p>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => handleDeleteClick(e, session)}
+                      disabled={deletingId === session.reconciliationId}
+                      title="Delete session"
+                      className="p-2.5 mr-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all disabled:opacity-50"
+                    >
+                      {deletingId === session.reconciliationId ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="w-4 h-4" />
+                      )}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+
+            {selectedId && (
               <button
                 type="button"
                 onClick={() => {
                   onClear();
                   setIsOpen(false);
                 }}
-                className="w-full px-4 py-2.5 text-xs font-black uppercase tracking-wide text-slate-500 hover:bg-slate-50 rounded-xl transition-colors"
+                className="w-full mt-4 py-3 text-xs font-black uppercase tracking-wider text-slate-400 hover:text-red-600 transition-colors shrink-0"
               >
                 Clear loaded session
               </button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       )}
 
@@ -219,6 +230,6 @@ export default function ReconciliationSessionPicker({
           onConfirm={confirmDeleteSession}
         />
       )}
-    </div>
+    </>
   );
 }

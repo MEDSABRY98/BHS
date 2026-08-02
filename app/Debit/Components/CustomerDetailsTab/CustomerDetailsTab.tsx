@@ -32,7 +32,7 @@ import { InvoiceRow } from '@/types';
 import { Mail, FileText, Calendar, ArrowLeft, FileSpreadsheet, ListFilter, CheckSquare, BarChart3, Download, X, Settings2, CircleAlert } from 'lucide-react';
 import { getInvoiceType } from '@/app/Debit/Utils/InvoiceType';
 import { useSearchParams } from 'next/navigation';
-import NoData from '@/app/Components/NoDataTab';
+import NoData from '@/app/Components/DataState/NoDataTab';
 import { generateAnalyticalPDF as generateAnalyticalPDFUtil } from '@/app/Debit/Pdf/AnalysisByCustomerUtils';
 import { getCustomerNotes, createNote, updateCustomerNote, deleteCustomerNote } from '../../Service/notes_service';
 import { useDebitData } from '../../Context/DebitDataContext';

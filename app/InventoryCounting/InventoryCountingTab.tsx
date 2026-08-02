@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import TabPanel from '@/app/Components/TabPanel';
+import TabPanel from '@/app/Components/Layout/TabPanel';
 import TotalCountTab from './TotalCountTab';
 import UserComparisonTab from './UserComparisonTab';
 import CountTab from './CountTab';

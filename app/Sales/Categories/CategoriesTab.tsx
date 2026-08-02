@@ -8,7 +8,8 @@ import { exportSalesExcelTable } from '@/app/Sales/Utils/ExcelExport';
 import { getCategoriesData } from '@/app/Sales/Service/sales_products_service';
 import { useSalesDataContext } from '@/app/Sales/Context/SalesDataContext';
 import { useSalesTabFetch } from '@/app/Sales/Hooks/useSalesTabFetch';
-import NoData from '@/app/Components/NoDataTab';
+import NoData from '@/app/Components/DataState/NoDataTab';
+import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
 
 interface SalesCategoriesTabProps {
@@ -38,7 +39,7 @@ export default function SalesCategoriesTab({ userId }: SalesCategoriesTabProps) 
   const { dataVersion } = useSalesDataContext();
   const [searchQuery, setSearchQuery] = useState('');
 
-  const { data: categoriesData, isInitialLoading } = useSalesTabFetch({
+  const { data: categoriesData, isInitialLoading, error, reload, loading } = useSalesTabFetch({
     tabKey: 'categories',
     userId,
     filters,
@@ -111,6 +112,17 @@ export default function SalesCategoriesTab({ userId }: SalesCategoriesTabProps) 
 
   if (isInitialLoading) {
     return <SalesTabLoader />;
+  }
+
+  if (error) {
+    return (
+      <TabFetchError
+        message={error}
+        onRetry={() => void reload()}
+        isRetrying={loading}
+        className="min-h-[360px]"
+      />
+    );
   }
 
   return (

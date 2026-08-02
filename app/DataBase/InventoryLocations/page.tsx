@@ -5,7 +5,7 @@ import { Plus, Search, Edit2 } from 'lucide-react';
 import { bhs_supabas } from '@/lib/supabase';
 import { usePermissions } from '@/app/LPOs/Hooks/usePermissions';
 import { toast } from '@/app/Components/Notification';
-import NoData from '@/app/Components/NoDataTab';
+import NoData from '@/app/Components/DataState/NoDataTab';
 import {
   createInventoryLocation,
   updateInventoryLocationName,

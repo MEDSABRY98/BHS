@@ -6,11 +6,12 @@ import { Search, Users, ChevronLeft, ChevronRight, Download, ArrowUpDown, ArrowU
 import { useSalesModuleFilters } from '@/app/Sales/Model/SalesFilters';
 import { exportSalesExcelTable } from '@/app/Sales/Utils/ExcelExport';
 import SalesCustomerDetails from '@/app/Sales/CustomerDetails/CustomerDetails';
-import NoData from '@/app/Components/NoDataTab';
+import NoData from '@/app/Components/DataState/NoDataTab';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
 import { getInactiveCustomersData, getInactiveCustomerExceptions, hideInactiveCustomer, restoreInactiveCustomer } from '../Service/sales_customers_service';
 import { useSalesDataContext } from '@/app/Sales/Context/SalesDataContext';
 import { useSalesTabFetch } from '@/app/Sales/Hooks/useSalesTabFetch';
+import TabFetchError from '@/app/Components/DataState/TabFetchError';
 
 interface SalesInactiveCustomersTabProps {
   userId: string;
@@ -97,7 +98,7 @@ export default function SalesInactiveCustomersTab({ userId }: SalesInactiveCusto
   const [restoringId, setRestoringId] = useState<string | null>(null);
   const [customerToExclude, setCustomerToExclude] = useState<{ id: string, name: string } | null>(null);
 
-  const { data: serverInactiveCustomersData, isInitialLoading } = useSalesTabFetch<any[]>({
+  const { data: serverInactiveCustomersData, isInitialLoading, error, reload, loading } = useSalesTabFetch<any[]>({
     tabKey: 'inactive-customers',
     userId,
     filters,
@@ -234,7 +235,20 @@ export default function SalesInactiveCustomersTab({ userId }: SalesInactiveCusto
 
   if (isInitialLoading) {
     return <SalesTabLoader />;
-  } if (selectedCustomer) return (
+  }
+
+  if (error) {
+    return (
+      <TabFetchError
+        message={error}
+        onRetry={() => void reload()}
+        isRetrying={loading}
+        className="min-h-[360px]"
+      />
+    );
+  }
+
+  if (selectedCustomer) return (
     <SalesCustomerDetails customerName={selectedCustomer} userId={userId} onBack={() => setSelectedCustomer(null)} initialTab="dashboard" />
   );
 

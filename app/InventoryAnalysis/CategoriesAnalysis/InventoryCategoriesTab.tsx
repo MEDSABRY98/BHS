@@ -6,8 +6,9 @@ import {
     ArrowUpDown, RotateCw, RefreshCw, AlertCircle, FileDown,
     ChevronLeft, ChevronRight, FileSpreadsheet, Box
 } from 'lucide-react';
-import NoData from '@/app/Components/NoDataTab';
-import TabLoader from '@/app/Components/TabLoader';
+import NoData from '@/app/Components/DataState/NoDataTab';
+import TabLoader from '@/app/Components/Loading/TabLoader';
+import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import InventoryProductOrdersDetailsTab from './InventoryCategoriesDetailsTab';
 import { getProductOrdersData, getProductMovementsData } from '../Service/inventory_service';
 import { formatProductCategory } from '../Utils/locationTypes';
@@ -113,17 +114,12 @@ export default function InventoryProductOrdersTab({ orderItems, setOrderItems }:
 
     if (error) {
         return (
-            <div className="flex flex-col items-center justify-center p-12 bg-red-50 rounded-3xl border border-red-100 mt-4">
-                <AlertCircle className="w-16 h-16 text-red-500 mb-6" />
-                <h3 className="text-2xl font-black text-red-800 mb-2">Error Connection</h3>
-                <p className="text-red-600 mb-8 max-w-md text-center font-medium">{error}</p>
-                <button
-                    onClick={fetchOrders}
-                    className="px-8 py-3 bg-red-600 text-white rounded-2xl hover:bg-red-700 transition-all shadow-lg hover:shadow-red-200 flex items-center gap-2 font-bold"
-                >
-                    <RefreshCw className="w-5 h-5" /> Retry Sync
-                </button>
-            </div>
+            <TabFetchError
+                message={error}
+                onRetry={fetchOrders}
+                isRetrying={loading}
+                className="min-h-[360px]"
+            />
         );
     }
 

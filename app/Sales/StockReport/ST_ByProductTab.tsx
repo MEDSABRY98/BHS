@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { SalesInvoice } from '@/lib/supabase';;
 import { Search, Loader2, DollarSign, User, TrendingUp, FileSpreadsheet, BarChart2, X } from 'lucide-react';
-import NoData from '@/app/Components/NoDataTab';
+import NoData from '@/app/Components/DataState/NoDataTab';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
 import { exportSalesExcel } from '@/app/Sales/Utils/ExcelExport';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';

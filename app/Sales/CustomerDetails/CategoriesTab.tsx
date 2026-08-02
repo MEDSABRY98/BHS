@@ -3,7 +3,7 @@
 import { useMemo } from 'react';
 import { SalesInvoice } from '@/lib/supabase';
 import { FileSpreadsheet } from 'lucide-react';
-import NoData from '@/app/Components/NoDataTab';
+import NoData from '@/app/Components/DataState/NoDataTab';
 import { exportSalesExcelTable } from '@/app/Sales/Utils/ExcelExport';
 
 interface CategoriesTabProps {
@@ -91,7 +91,7 @@ export default function CategoriesTab({
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-md p-6">
+    <div className="bg-white rounded-xl border border-gray-200 p-6">
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-xl font-bold text-gray-800">Categories Sales</h2>
         <button

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import Login from '@/app/Components/Login';
+import Login from '@/app/Components/Auth/Login';
 import Loading from '@/app/Components/Loading';
 import { ArrowLeft, Hash } from 'lucide-react';
 import InventoryItemCodeTab from './InventoryItemCodeTab';

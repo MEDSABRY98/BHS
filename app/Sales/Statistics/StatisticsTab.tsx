@@ -5,6 +5,7 @@ import { SalesInvoice } from '@/lib/supabase';;
 import { MapPin, ShoppingBag, UserCircle, DollarSign, Package, Store } from 'lucide-react';
 import { useSalesModuleFilters } from '@/app/Sales/Model/SalesFilters';
 import { useSalesRawData } from '@/app/Sales/Context/SalesRawDataContext';
+import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
 
 interface SalesStatisticsTabProps {
@@ -22,7 +23,7 @@ const convertMonthlyDataToMap = (monthlyDataObj: any) => {
 };
 
 export default function SalesStatisticsTab({ userId, showCosts = true }: SalesStatisticsTabProps) {
-  const { ensureRawData, statistics, isInitialLoading } = useSalesRawData();
+  const { ensureRawData, statistics, isInitialLoading, error, loading } = useSalesRawData();
   const [activeSubTab, setActiveSubTab] = useState<'area' | 'market' | 'merchandiser' | 'salesrep'>('area');
 
   useEffect(() => {
@@ -118,6 +119,17 @@ export default function SalesStatisticsTab({ userId, showCosts = true }: SalesSt
 
   if (isInitialLoading) {
     return <SalesTabLoader />;
+  }
+
+  if (error) {
+    return (
+      <TabFetchError
+        message={error}
+        onRetry={() => void ensureRawData()}
+        isRetrying={loading}
+        className="min-h-[360px]"
+      />
+    );
   }
 
   const totals = getTotalStats();

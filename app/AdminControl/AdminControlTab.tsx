@@ -7,7 +7,7 @@ import {
     ClipboardList, ShoppingCart, Database, Users, Sparkles, Trash2, ListChecks, FileSpreadsheet, ArrowLeft, CheckCheck, Ban, Hash, UserPlus, LayoutGrid
 } from 'lucide-react';
 import Loading from '@/app/Components/Loading';
-import NoData from '@/app/Components/NoDataTab';
+import NoData from '@/app/Components/DataState/NoDataTab';
 import { fetchUsersList, updateUserRole } from '@/app/DataBase/Service/database_service';
 
 interface UserPermissions {

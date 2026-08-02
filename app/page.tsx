@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import HomeSelection from '@/app/Components/HomeSelection';
-import Login from '@/app/Components/Login';
+import HomeSelection from '@/app/Components/Layout/HomeSelection';
+import Login from '@/app/Components/Auth/Login';
 import Loading from '@/app/Components/Loading';
 import { verifyUserCredentials } from '@/app/DataBase/Service/database_service';
 

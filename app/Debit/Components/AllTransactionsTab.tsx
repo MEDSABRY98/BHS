@@ -12,7 +12,7 @@ import {
 } from '@tanstack/react-table';
 import { FileSpreadsheet } from 'lucide-react';
 import { InvoiceRow } from '@/types';
-import NoData from '@/app/Components/NoDataTab';
+import NoData from '@/app/Components/DataState/NoDataTab';
 import { useDebouncedValue } from '../Hooks/useDebouncedValue';
 
 interface AllTransactionsTabProps {

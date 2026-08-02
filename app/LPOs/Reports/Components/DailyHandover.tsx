@@ -5,8 +5,8 @@ import { bhs_supabas, fetchAllData, fetchAssignedDrivers } from '@/lib/supabase'
 import SearchSelect from '../../Components/DropDownList';
 import { FileText, Loader2, Download, Printer, AlertCircle } from 'lucide-react';
 import { generateDailyHandoverPDF } from '@/app/LPOs/Pdf/DailyHandoverPdf';
-import NoData from '@/app/Components/NoDataTab';
-import TabLoader from '@/app/Components/TabLoader';
+import NoData from '@/app/Components/DataState/NoDataTab';
+import TabLoader from '@/app/Components/Loading/TabLoader';
 
 interface HandoverGroup {
   key: string;

@@ -6,7 +6,8 @@ import { useSalesDataContext } from '@/app/Sales/Context/SalesDataContext';
 import { useSalesTabFetch } from '@/app/Sales/Hooks/useSalesTabFetch';
 import { exportSalesExcelTable } from '@/app/Sales/Utils/ExcelExport';
 import { getOverviewData } from '@/app/Sales/Service/sales_core_service';
-import NoData from '@/app/Components/NoDataTab';
+import NoData from '@/app/Components/DataState/NoDataTab';
+import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
 import {
   ComposedChart,
@@ -30,7 +31,7 @@ interface SalesOverviewTabProps {
 export default function SalesOverviewTab({ userId, showCosts = true }: SalesOverviewTabProps) {
   const { commonFilters: filters } = useSalesModuleFilters();
   const { dataVersion } = useSalesDataContext();
-  const { data, isInitialLoading, isRefreshing } = useSalesTabFetch<{
+  const { data, isInitialLoading, isRefreshing, error, reload, loading } = useSalesTabFetch<{
     metrics: any;
     chartData: any[];
     yearlyTableData: any[];
@@ -87,7 +88,22 @@ export default function SalesOverviewTab({ userId, showCosts = true }: SalesOver
     });
   };
 
-  if (isInitialLoading || !data) {
+  if (isInitialLoading) {
+    return <SalesTabLoader />;
+  }
+
+  if (error) {
+    return (
+      <TabFetchError
+        message={error}
+        onRetry={() => void reload()}
+        isRetrying={loading}
+        className="min-h-[360px]"
+      />
+    );
+  }
+
+  if (!data) {
     return <SalesTabLoader />;
   }
 

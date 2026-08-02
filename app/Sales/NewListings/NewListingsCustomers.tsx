@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import { Search, Eye, X, Users, Package } from 'lucide-react';
-import NoData from '@/app/Components/NoDataTab';
+import NoData from '@/app/Components/DataState/NoDataTab';
 
 interface SalesNewListingsCustomersProps {
   selectedMonth: any;

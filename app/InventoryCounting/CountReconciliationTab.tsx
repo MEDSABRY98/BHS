@@ -15,11 +15,11 @@ import {
   Search,
   Trash2,
   Upload,
-  AlertCircle,
   ChevronDown,
 } from 'lucide-react';
-import TabLoader from '@/app/Components/TabLoader';
-import NoData from '@/app/Components/NoDataTab';
+import TabLoader from '@/app/Components/Loading/TabLoader';
+import NoData from '@/app/Components/DataState/NoDataTab';
+import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import { toast } from '@/app/Components/Notification';
 import { normalizeExcelId } from '@/app/DataBase/Utils/ExcelUploadUtils';
 import { exportDatabaseExcelTable } from '@/app/DataBase/Utils/ExcelExport';
@@ -37,7 +37,7 @@ import {
   type ICReconciliationLoadedRow,
   type ICReconciliationSaveLine,
   type ICReconciliationSessionSummary,
-} from './Service/inventory_counting_service';
+} from './Service/InventoryCountingService';
 import { useInventoryCountingArchive } from './InventoryCountingArchiveContext';
 import SourcePickerModal from './Utils/SourcePickerModal';
 import RemoveManualRowModal from './Utils/RemoveManualRowModal';
@@ -1136,10 +1136,7 @@ export default function CountReconciliationTab() {
         </p>
       )}
       {error && (
-        <div className="flex items-start gap-3 bg-red-50 border border-red-100 text-red-700 rounded-2xl p-4">
-          <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
-          <p className="text-sm font-bold whitespace-pre-line">{error}</p>
-        </div>
+        <TabFetchError message={error} className="py-4" />
       )}
 
       {hasResults && (

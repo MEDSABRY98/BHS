@@ -1,7 +1,7 @@
 'use client';
 
 import { Trash2, Calendar } from 'lucide-react';
-import NoData from '@/app/Components/NoDataTab';
+import NoData from '@/app/Components/DataState/NoDataTab';
 import { englishMonths } from './InventoryMovesMonthsGrid';
 
 export interface MoveDaySummary {

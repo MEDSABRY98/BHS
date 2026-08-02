@@ -1,6 +1,6 @@
 'use server';
 
-import { bhs_supabas } from '@/lib/supabase';
+import { bhs_supabas, SalesInvoice } from '@/lib/supabase';
 import { 
   getFilteredSalesData,
   checkHasSalesDataAccess,
@@ -263,7 +263,46 @@ export async function getCustomerDetailsData(userId: string, filters: any, custo
     }
   }
 
-  return { data, allData };
+  const mainGroupData =
+    customerType === 'sub'
+      ? buildMainGroupDataForSub(augmentedData, customerRawData, filters)
+      : [];
+
+  return { data, allData, mainGroupData };
+}
+
+function buildMainGroupDataForSub(
+  augmentedData: SalesInvoice[],
+  customerRawData: SalesInvoice[],
+  filters: any
+): SalesInvoice[] {
+  if (customerRawData.length === 0) return [];
+
+  const mainName = (customerRawData[0].customerMainName || customerRawData[0].customerName || '').trim();
+  if (!mainName) return [];
+
+  let mainGroupData = augmentedData.filter(
+    (item) => (item.customerMainName || item.customerName || 'Unknown').trim() === mainName
+  );
+
+  if (filters) {
+    const { invoiceType, area, market, merchandiser, salesRep, productTag } = filters;
+    if (invoiceType && invoiceType !== 'all') {
+      mainGroupData = mainGroupData.filter((item) => {
+        const num = item.invoiceNumber?.trim().toUpperCase() || '';
+        if (invoiceType === 'sales') return num.startsWith('SAL');
+        if (invoiceType === 'returns') return num.startsWith('RSAL');
+        return true;
+      });
+    }
+    if (productTag) mainGroupData = mainGroupData.filter((i) => i.productTag === productTag);
+    if (area) mainGroupData = mainGroupData.filter((i) => i.area === area);
+    if (market) mainGroupData = mainGroupData.filter((i) => i.market === market);
+    if (merchandiser) mainGroupData = mainGroupData.filter((i) => i.merchandiser === merchandiser);
+    if (salesRep) mainGroupData = mainGroupData.filter((i) => i.salesRep === salesRep);
+  }
+
+  return mainGroupData;
 }
 
 // -------------------------------------------------------------

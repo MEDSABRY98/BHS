@@ -1,6 +1,6 @@
 import React from 'react';
 import { flexRender } from '@tanstack/react-table';
-import NoData from '@/app/Components/NoDataTab';
+import NoData from '@/app/Components/DataState/NoDataTab';
 import { SharedTabProps } from '../Types';
 
 export default function InvoicesTab(props: SharedTabProps) {

@@ -19,14 +19,14 @@ import {
   X,
 } from 'lucide-react';
 import { ConfirmModal } from '../Components/ConfirmModal';
-import TabLoader from '@/app/Components/TabLoader';
+import TabLoader from '@/app/Components/Loading/TabLoader';
 import { usePermissions } from '../Hooks/usePermissions';
 import OrderItemsTab from './Components/OrderItemsTab';
 import OrderInfoTab, { OrderInfoTabHandle } from './Components/OrderInfoTab';
 
 import OrderDeliveryTab from './Components/OrderDeliveryTab';
 import InvoicesStatusTab from './Components/InvoicesStatusTab';
-import NoData from '@/app/Components/NoDataTab';
+import NoData from '@/app/Components/DataState/NoDataTab';
 import * as XLSX from 'xlsx';
 
 function OrderDetailsPageContent() {

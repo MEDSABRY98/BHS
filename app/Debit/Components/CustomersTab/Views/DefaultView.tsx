@@ -1,7 +1,7 @@
 import React from 'react';
 import { flexRender, Table } from '@tanstack/react-table';
 import { Printer, Mail } from 'lucide-react';
-import NoData from '@/app/Components/NoDataTab';
+import NoData from '@/app/Components/DataState/NoDataTab';
 import { CustomerAnalysis } from '@/types';
 import { copyToClipboard, calculateDebtRating, formatDmy } from '../CstomersUtils';
 

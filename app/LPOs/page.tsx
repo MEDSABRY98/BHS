@@ -19,8 +19,8 @@ import {
   FileCheck,
   FileText
 } from 'lucide-react';
-import NoData from '@/app/Components/NoDataTab';
-import TabLoader from '@/app/Components/TabLoader';
+import NoData from '@/app/Components/DataState/NoDataTab';
+import TabLoader from '@/app/Components/Loading/TabLoader';
 
 interface Stats {
   total: number;

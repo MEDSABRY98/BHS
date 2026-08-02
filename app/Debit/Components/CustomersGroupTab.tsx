@@ -13,7 +13,7 @@ import {
 } from '@tanstack/react-table';
 import { Search, Plus, X, FileText, Printer, FileSpreadsheet, AlertCircle, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
 import { InvoiceRow } from '@/types';
-import NoData from '@/app/Components/NoDataTab';
+import NoData from '@/app/Components/DataState/NoDataTab';
 import FilterBar from './CustomerDetailsTab/FilterBar';
 import { isPaymentTxn } from './CustomerDetailsTab/Utils';
 import { getInvoiceType } from '@/app/Debit/Utils/InvoiceType';

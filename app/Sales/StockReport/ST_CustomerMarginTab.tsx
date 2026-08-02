@@ -9,7 +9,7 @@ import {
   FileText,
   Loader2,
 } from 'lucide-react';
-import NoData from '@/app/Components/NoDataTab';
+import NoData from '@/app/Components/DataState/NoDataTab';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
 import { exportSalesExcel } from '@/app/Sales/Utils/ExcelExport';
 import { generateCustomerMarginProducts } from '@/app/Sales/StockReport/CustomerMarginProducts';

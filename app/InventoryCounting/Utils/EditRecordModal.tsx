@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { History, Save, X } from 'lucide-react';
-import type { CountType, ICRecord } from '../Service/inventory_counting_service';
+import type { CountType, ICRecord } from '../Service/InventoryCountingService';
 
 function formatCountType(countType: CountType): string {
   return countType === 'Normal' ? 'Normal' : 'Damage & Expire';

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Save, Search, Target, ChevronDown, Users, X, AlertCircle } from 'lucide-react';
 import { toast } from '@/app/Components/Notification';
-import NoData from '@/app/Components/NoDataTab';
+import NoData from '@/app/Components/DataState/NoDataTab';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
 import { getTargetYears, getTargetsData, batchSaveTargets } from '../Service/sales_targets_service';
 import { useSalesDataContext } from '@/app/Sales/Context/SalesDataContext';

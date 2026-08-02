@@ -8,7 +8,7 @@ import {
   User
 } from 'lucide-react';
 import Loading from '@/app/Components/Loading';
-import NoData from '@/app/Components/NoDataTab';
+import NoData from '@/app/Components/DataState/NoDataTab';
 import { updateCustomerDocument } from '../Service/customers_documents_service';
 
 interface CustomerDoc {

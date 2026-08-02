@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import NoData from '@/app/Components/NoDataTab';
+import NoData from '@/app/Components/DataState/NoDataTab';
 import {
   BarChart, 
   Bar, 

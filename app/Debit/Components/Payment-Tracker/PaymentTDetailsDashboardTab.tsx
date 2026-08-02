@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import NoData from '@/app/Components/NoDataTab';
+import NoData from '@/app/Components/DataState/NoDataTab';
 import { InvoiceRow } from '@/types';
 import { getInvoiceType } from '@/app/Debit/Utils/InvoiceType';
 import { parseDate } from './PaymentTUtilsTab';

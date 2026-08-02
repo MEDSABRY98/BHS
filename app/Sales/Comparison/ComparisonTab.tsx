@@ -5,11 +5,12 @@ import { SalesInvoice } from '@/lib/supabase';;
 import { Search, ArrowUpDown, ArrowUp, ArrowDown, TrendingUp, TrendingDown, Minus, ChevronLeft, ChevronRight, FileSpreadsheet } from 'lucide-react';
 import { useSalesModuleFilters } from '@/app/Sales/Model/SalesFilters';
 import { exportSalesExcelWorkbook, recordsFromTable } from '@/app/Sales/Utils/ExcelExport';
-import NoData from '@/app/Components/NoDataTab';
+import NoData from '@/app/Components/DataState/NoDataTab';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
 import { getCustomersComparisonData } from '../Service/sales_customers_service';
 import { useSalesDataContext } from '@/app/Sales/Context/SalesDataContext';
 import { useSalesTabFetch } from '@/app/Sales/Hooks/useSalesTabFetch';
+import TabFetchError from '@/app/Components/DataState/TabFetchError';
 
 interface Props {
   userId: string;
@@ -127,7 +128,7 @@ export default function SalesCustomersComparisonTab({ userId }: Props) {
   const [currentPage, setCurrentPage] = useState(1);
   const [customerType, setCustomerType] = useState<'sub' | 'main'>('sub');
 
-  const { data: comparisonBundle, isInitialLoading } = useSalesTabFetch<ComparisonBundle>({
+  const { data: comparisonBundle, isInitialLoading, error, reload, loading } = useSalesTabFetch<ComparisonBundle>({
     tabKey: 'comparison',
     userId,
     filters,
@@ -334,7 +335,20 @@ export default function SalesCustomersComparisonTab({ userId }: Props) {
 
   if (isInitialLoading) {
     return <SalesTabLoader />;
-  } return (
+  }
+
+  if (error) {
+    return (
+      <TabFetchError
+        message={error}
+        onRetry={() => void reload()}
+        isRetrying={loading}
+        className="min-h-[360px]"
+      />
+    );
+  }
+
+  return (
     <div className="space-y-5">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">

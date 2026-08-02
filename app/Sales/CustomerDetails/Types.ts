@@ -1,6 +1,7 @@
 import type { SalesInvoice } from '@/lib/supabase';
 
 export type CustomerDetailsTabId =
+  | 'summary'
   | 'dashboard'
   | 'subcustomers'
   | 'monthly'
@@ -16,6 +17,7 @@ export interface SalesCustomerDetailsProps {
   onBack: () => void;
   initialTab?: CustomerDetailsTabId;
   showCosts?: boolean;
+  onOpenMainCustomer?: (mainCustomerName: string) => void;
 }
 
 export interface MonthlySalesRow {
@@ -96,4 +98,20 @@ export interface SelectedInvoice {
   qty: number;
   customerName: string;
   items: SalesInvoice[];
+}
+
+export interface SubCustomerSummaryData {
+  mainCustomerName: string | null;
+  rank: number | null;
+  totalSubCustomers: number;
+  shareOfMainPercent: number | null;
+  currentYear: number;
+  prevYear: number;
+  ytdEndMonth: number | null;
+  ytdLabel: string;
+  prevYtdAmount: number;
+  currYtdAmount: number;
+  ytdDiff: number;
+  ytdPercent: number;
+  siblingRanking: SubCustomerRow[];
 }

@@ -6,7 +6,7 @@ import { toast } from '@/app/Components/Notification';
 import {
   saveReconciliationSession,
   type ICReconciliationSaveLine,
-} from '../Service/inventory_counting_service';
+} from '../Service/InventoryCountingService';
 
 interface SaveReconciliationModalProps {
   countDate: string;

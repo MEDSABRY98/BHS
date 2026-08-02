@@ -1,7 +1,7 @@
 'use client';
 
 import { DollarSign, Package, TrendingUp, BarChart3, Calendar } from 'lucide-react';
-import NoData from '@/app/Components/NoDataTab';
+import NoData from '@/app/Components/DataState/NoDataTab';
 import {
   ComposedChart,
   Bar,
@@ -28,10 +28,10 @@ export default function DashboardTab({ dashboardMetrics, chartData }: DashboardT
       <div className="overflow-x-auto pb-1">
         <div className="grid grid-cols-7 gap-4 min-w-[1120px]">
           <div
-            className={`bg-white rounded-xl shadow-md p-5 min-w-0 ${
+            className={`bg-white rounded-xl border p-5 min-w-0 ${
               dashboardMetrics.daysSinceLastInvoice !== null && dashboardMetrics.daysSinceLastInvoice > 5
-                ? 'border-2 border-red-500 bg-red-50'
-                : ''
+                ? 'border-red-500'
+                : 'border-gray-200'
             }`}
           >
             <div className="flex items-center justify-between mb-3">
@@ -70,7 +70,7 @@ export default function DashboardTab({ dashboardMetrics, chartData }: DashboardT
             )}
           </div>
 
-          <div className="bg-white rounded-xl shadow-md p-5 min-w-0">
+          <div className="bg-white rounded-xl border border-gray-200 p-5 min-w-0">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-xs font-medium text-gray-600 leading-tight">Active Months</h3>
               <BarChart3 className="w-5 h-5 text-teal-600 shrink-0" />
@@ -78,7 +78,7 @@ export default function DashboardTab({ dashboardMetrics, chartData }: DashboardT
             <p className="text-xl font-bold text-gray-800">{dashboardMetrics.uniqueMonths}</p>
           </div>
 
-          <div className="bg-white rounded-xl shadow-md p-5 min-w-0">
+          <div className="bg-white rounded-xl border border-gray-200 p-5 min-w-0">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-xs font-medium text-gray-600 leading-tight">Total Sales Amount</h3>
               <DollarSign className="w-5 h-5 text-green-600 shrink-0" />
@@ -91,7 +91,7 @@ export default function DashboardTab({ dashboardMetrics, chartData }: DashboardT
             </p>
           </div>
 
-          <div className="bg-white rounded-xl shadow-md p-5 min-w-0">
+          <div className="bg-white rounded-xl border border-gray-200 p-5 min-w-0">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-xs font-medium text-gray-600 leading-tight">Avg Monthly Amount</h3>
               <TrendingUp className="w-5 h-5 text-purple-600 shrink-0" />
@@ -104,7 +104,7 @@ export default function DashboardTab({ dashboardMetrics, chartData }: DashboardT
             </p>
           </div>
 
-          <div className="bg-white rounded-xl shadow-md p-5 min-w-0">
+          <div className="bg-white rounded-xl border border-gray-200 p-5 min-w-0">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-xs font-medium text-gray-600 leading-tight">Total Quantity</h3>
               <Package className="w-5 h-5 text-blue-600 shrink-0" />
@@ -117,7 +117,7 @@ export default function DashboardTab({ dashboardMetrics, chartData }: DashboardT
             </p>
           </div>
 
-          <div className="bg-white rounded-xl shadow-md p-5 min-w-0">
+          <div className="bg-white rounded-xl border border-gray-200 p-5 min-w-0">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-xs font-medium text-gray-600 leading-tight">Avg Monthly Quantity</h3>
               <TrendingUp className="w-5 h-5 text-orange-600 shrink-0" />
@@ -130,7 +130,7 @@ export default function DashboardTab({ dashboardMetrics, chartData }: DashboardT
             </p>
           </div>
 
-          <div className="bg-white rounded-xl shadow-md p-5 min-w-0">
+          <div className="bg-white rounded-xl border border-gray-200 p-5 min-w-0">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-xs font-medium text-gray-600 leading-tight">Total Products</h3>
               <Package className="w-5 h-5 text-indigo-600 shrink-0" />
@@ -140,10 +140,10 @@ export default function DashboardTab({ dashboardMetrics, chartData }: DashboardT
         </div>
       </div>
 
-      <div className="bg-white rounded-xl shadow-lg p-6">
+      <div className="bg-white rounded-xl border border-gray-200 p-6">
         <h2 className="text-xl font-bold text-gray-800 mb-6">Monthly Sales Performance Comparison</h2>
         {chartData.length > 0 ? (
-          <div className="bg-gradient-to-br from-gray-50 to-white rounded-lg p-4 shadow-md overflow-hidden">
+          <div className="rounded-lg border border-gray-200 p-4 overflow-hidden">
             <div className="relative w-full" style={{ height: '550px' }}>
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={chartData} margin={{ top: 80, right: 30, left: 40, bottom: 20 }} barGap={8}>
@@ -164,7 +164,7 @@ export default function DashboardTab({ dashboardMetrics, chartData }: DashboardT
                         const data = payload[0].payload;
                         const isPositive = data.isPositive;
                         return (
-                          <div className="bg-white p-4 rounded-xl shadow-xl border border-gray-100 min-w-[180px]">
+                                <div className="bg-white p-4 rounded-xl border border-gray-200 min-w-[180px]">
                             <p className="text-sm font-bold text-gray-500 mb-3 uppercase tracking-wider">{label}</p>
                             <div className="space-y-2 text-sm">
                               <div>
@@ -265,8 +265,8 @@ export default function DashboardTab({ dashboardMetrics, chartData }: DashboardT
                               rx={12}
                               fill={isFuture ? '#f8fafc' : isPositive ? '#f0fdf4' : '#fef2f2'}
                               stroke={isFuture ? '#e2e8f0' : isPositive ? '#bcf0da' : '#fecaca'}
-                              strokeWidth={1.5}
-                              className="shadow-sm"
+                              strokeWidth={1}
+                              className=""
                             />
                             <text
                               x={x}

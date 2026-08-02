@@ -24,8 +24,9 @@ import { SalesDataProvider } from '@/app/Sales/Context/SalesDataContext';
 import { SalesRawDataBridge } from '@/app/Sales/Context/SalesRawDataBridge';
 import { SalesRefreshBridge } from '@/app/Sales/Context/SalesRefreshBridge';
 
-import Login from '@/app/Components/Login';
+import Login from '@/app/Components/Auth/Login';
 import Loading from '@/app/Components/Loading';
+import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import { SalesInvoice, hasSalesDataAccess } from '@/lib/supabase';
 import { ArrowLeft, BarChart3, LogOut, User, FileUp, FileSpreadsheet, ChevronDown, AlertCircle, X, Users, Menu } from 'lucide-react';
 import * as XLSX from 'xlsx';
@@ -370,18 +371,12 @@ export default function SalesPage() {
 
     if (error) {
       return (
-        <div className="flex items-center justify-center h-screen">
-          <div className="text-center bg-red-50 p-6 rounded-lg">
-            <p className="text-red-600 text-lg mb-4">Error loading sales data</p>
-            <p className="text-gray-600 mb-4">{error}</p>
-            <button
-              onClick={() => fetchData()}
-              className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
-            >
-              Retry
-            </button>
-          </div>
-        </div>
+        <TabFetchError
+          message={error}
+          onRetry={() => fetchData()}
+          isRetrying={loading}
+          className="min-h-screen"
+        />
       );
     }
 

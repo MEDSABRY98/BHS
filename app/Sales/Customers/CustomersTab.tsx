@@ -9,7 +9,8 @@ import SalesCustomerDetails from '@/app/Sales/CustomerDetails/CustomerDetails';
 import { getCustomersData } from '@/app/Sales/Service/sales_customers_service';
 import { useSalesDataContext } from '@/app/Sales/Context/SalesDataContext';
 import { useSalesTabFetch } from '@/app/Sales/Hooks/useSalesTabFetch';
-import NoData from '@/app/Components/NoDataTab';
+import NoData from '@/app/Components/DataState/NoDataTab';
+import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
 
 interface SalesCustomersTabProps {
@@ -60,7 +61,7 @@ export default function SalesCustomersTab({ userId, onUploadMapping, showCosts =
   const [sortField, setSortField] = useState<'customer' | 'totalAmount' | 'averageAmount' | 'totalQty' | 'productsCount'>('totalAmount');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
-  const { data: customersData, isInitialLoading } = useSalesTabFetch<any[]>({
+  const { data: customersData, isInitialLoading, error, reload, loading } = useSalesTabFetch<any[]>({
     tabKey: 'customers',
     userId,
     filters,
@@ -174,6 +175,17 @@ export default function SalesCustomersTab({ userId, onUploadMapping, showCosts =
 
   if (isInitialLoading) {
     return <SalesTabLoader />;
+  }
+
+  if (error) {
+    return (
+      <TabFetchError
+        message={error}
+        onRetry={() => void reload()}
+        isRetrying={loading}
+        className="min-h-[360px]"
+      />
+    );
   } if (selectedCustomer) return (
     <SalesCustomerDetails
       customerName={selectedCustomer.name}
@@ -182,6 +194,10 @@ export default function SalesCustomersTab({ userId, onUploadMapping, showCosts =
       userId={userId}
       onBack={() => setSelectedCustomer(null)}
       showCosts={showCosts}
+      onOpenMainCustomer={(mainCustomerName) => {
+        setActiveTab('main');
+        setSelectedCustomer({ id: '', name: mainCustomerName });
+      }}
     />
   );
 

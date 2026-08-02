@@ -1,5 +1,15 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { FileSpreadsheet, Download, Building2, Package, Search, ChevronDown, Calendar, TrendingUp, AlertTriangle, ListOrdered, Filter, Grid3x3, Tag } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import {
+  FileSpreadsheet,
+  Download,
+  Building2,
+  Package,
+  TrendingUp,
+  AlertTriangle,
+  ListOrdered,
+  Filter,
+  Grid3x3,
+} from 'lucide-react';
 import { PurchaseRecord, Product, Supplier } from '../page';
 import { generateSupplierPriceHistoryReport } from './SupplierPriceHistoryReport';
 import { generateProductSupplierComparisonReport } from './ProductSupplierComparisonReport';
@@ -7,90 +17,7 @@ import { generatePriceInflationReport } from './PriceInflationReport';
 import { generateSupplierDependencyReport } from './SupplierDependencyReport';
 import { generateProductPriceSequenceReport } from './ProductPriceSequenceReport';
 import { generateSupplierPriceMatrixReport } from './SupplierPriceMatrixReport';
-import { ReportFilters } from './ReportFilters';
-
-interface SearchableSelectProps {
-  options: { id: string; label: string }[];
-  value: string;
-  onChange: (val: string) => void;
-  placeholder: string;
-  colorTheme?: 'blue' | 'emerald';
-}
-
-function SearchableSelect({ options, value, onChange, placeholder, colorTheme = 'blue' }: SearchableSelectProps) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [search, setSearch] = useState('');
-  const selectRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (selectRef.current && !selectRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  const filteredOptions = options.filter(opt => opt.label.toLowerCase().includes(search.toLowerCase()));
-  const selectedOption = options.find(opt => opt.id === value);
-  const focusRing = colorTheme === 'emerald' ? 'focus:ring-emerald-500/50 focus:border-emerald-500' : 'focus:ring-blue-500/50 focus:border-blue-500';
-
-  return (
-    <div className="relative" ref={selectRef}>
-      <div
-        onClick={() => setIsOpen(!isOpen)}
-        className={`w-full bg-slate-50 border border-slate-200 p-3.5 rounded-xl cursor-pointer flex justify-between items-center transition-all hover:bg-slate-100 outline-none ${isOpen ? focusRing : ''}`}
-      >
-        <span className={selectedOption ? 'text-slate-900 font-bold truncate pr-2' : 'text-slate-400 font-medium truncate pr-2'}>
-          {selectedOption ? selectedOption.label : placeholder}
-        </span>
-        <ChevronDown className={`w-5 h-5 shrink-0 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
-      </div>
-
-      {isOpen && (
-        <div className="absolute z-50 w-full mt-2 bg-white border border-slate-100 rounded-xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
-          <div className="p-2 border-b border-slate-100 bg-slate-50/50 sticky top-0">
-            <div className="relative">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                autoFocus
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search..."
-                className={`w-full bg-white border border-slate-200 pl-9 pr-4 py-2 rounded-lg text-sm outline-none transition-all ${focusRing}`}
-              />
-            </div>
-          </div>
-          <div className="max-h-60 overflow-y-auto custom-scrollbar p-1">
-            {filteredOptions.length === 0 ? (
-              <div className="p-4 text-center text-sm text-slate-400">No results found</div>
-            ) : (
-              filteredOptions.map(opt => (
-                <div
-                  key={opt.id || '__all__'}
-                  onClick={() => {
-                    onChange(opt.id);
-                    setIsOpen(false);
-                    setSearch('');
-                  }}
-                  className={`p-3 text-sm rounded-lg cursor-pointer transition-colors ${
-                    opt.id === value
-                      ? 'bg-[#D4AF37]/10 text-[#b8962e] font-bold'
-                      : 'hover:bg-slate-50 text-slate-700 font-medium hover:text-slate-900'
-                  }`}
-                >
-                  {opt.label}
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
+import { usePurchaseModuleFilters, PurchaseFilterButton } from '../Model/PurchaseFilters';
 
 interface Props {
   purchases: PurchaseRecord[];
@@ -99,11 +26,18 @@ interface Props {
 }
 
 export default function ReportsTab({ purchases, products, suppliers }: Props) {
-  const [selectedSupplierId, setSelectedSupplierId] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('');
-  const [selectedProductId, setSelectedProductId] = useState('');
-  const [fromDate, setFromDate] = useState('');
-  const [toDate, setToDate] = useState('');
+  const {
+    appliedFilters,
+    hasAnyFilter,
+    supplierId,
+    productId,
+    category,
+    productSupplierCount,
+    fromDate,
+    toDate,
+    openFilterModal,
+  } = usePurchaseModuleFilters();
+
   const [isGenerating1, setIsGenerating1] = useState(false);
   const [isGenerating2, setIsGenerating2] = useState(false);
   const [isGenerating3, setIsGenerating3] = useState(false);
@@ -111,134 +45,74 @@ export default function ReportsTab({ purchases, products, suppliers }: Props) {
   const [isGenerating5, setIsGenerating5] = useState(false);
   const [isGenerating6, setIsGenerating6] = useState(false);
 
-  const activeSuppliers = useMemo(() => {
-    const supplierIds = new Set(purchases.map(p => p.supplierId));
-    return suppliers
-      .filter(s => supplierIds.has(s.id))
-      .sort((a, b) => a.name.localeCompare(b.name))
-      .map(s => ({ id: s.id, label: s.name }));
-  }, [purchases, suppliers]);
-
-  const supplierOptions = useMemo(
-    () => [{ id: '', label: 'All Suppliers' }, ...activeSuppliers],
-    [activeSuppliers]
-  );
-
-  const filteredProductIds = useMemo(() => {
-    const relevant = selectedSupplierId
-      ? purchases.filter(p => p.supplierId === selectedSupplierId)
-      : purchases;
-    return new Set(relevant.map(p => p.productId));
-  }, [purchases, selectedSupplierId]);
-
-  const categoryOptions = useMemo(() => {
-    const productIdsWithPurchases = new Set(purchases.map(p => p.productId));
-    const categories = new Set<string>();
-    products
-      .filter(p => productIdsWithPurchases.has(p.id) && p.category)
-      .forEach(p => categories.add(p.category!));
-    return [
-      { id: '', label: 'All Categories' },
-      ...Array.from(categories).sort((a, b) => a.localeCompare(b)).map(c => ({ id: c, label: c })),
-    ];
-  }, [products, purchases]);
-
-  const activeProducts = useMemo(() => {
-    return products
-      .filter(p => filteredProductIds.has(p.id))
-      .filter(p => !selectedCategory || (p.category || '') === selectedCategory)
-      .sort((a, b) => a.name.localeCompare(b.name))
-      .map(p => ({ id: p.id, label: p.barcode ? `[${p.barcode}] ${p.name}` : p.name }));
-  }, [products, filteredProductIds, selectedCategory]);
-
-  const productOptions = useMemo(
-    () => [{ id: '', label: 'All Products' }, ...activeProducts],
-    [activeProducts]
-  );
-
-  useEffect(() => {
-    if (selectedProductId && !filteredProductIds.has(selectedProductId)) {
-      setSelectedProductId('');
-    }
-  }, [selectedProductId, filteredProductIds]);
-
-  useEffect(() => {
-    if (!selectedProductId) return;
-    const product = products.find(p => p.id === selectedProductId);
-    if (selectedCategory && product?.category !== selectedCategory) {
-      setSelectedProductId('');
-    }
-  }, [selectedCategory, selectedProductId, products]);
-
-  const filters: ReportFilters = useMemo(() => ({
-    supplierId: selectedSupplierId || undefined,
-    productId: selectedProductId || undefined,
-    category: selectedCategory || undefined,
-    fromDate: fromDate || undefined,
-    toDate: toDate || undefined,
-  }), [selectedSupplierId, selectedProductId, selectedCategory, fromDate, toDate]);
-
   const filterSummary = useMemo(() => {
     const parts: string[] = [];
-    if (selectedSupplierId) {
-      parts.push(suppliers.find(s => s.id === selectedSupplierId)?.name || 'Supplier');
-    } else {
-      parts.push('All Suppliers');
-    }
-    if (selectedCategory) {
-      parts.push(selectedCategory);
-    } else {
-      parts.push('All Categories');
-    }
-    if (selectedProductId) {
-      parts.push(products.find(p => p.id === selectedProductId)?.name || 'Product');
-    } else {
-      parts.push('All Products');
-    }
+    parts.push(
+      supplierId
+        ? suppliers.find((s) => s.id === supplierId)?.name || 'Supplier'
+        : 'All Suppliers',
+    );
+    parts.push(
+      productSupplierCount
+        ? productSupplierCount === '1'
+          ? '1 Supplier / Product'
+          : `${productSupplierCount} Suppliers / Product`
+        : 'All Supplier Counts',
+    );
+    parts.push(category || 'All Categories');
+    parts.push(
+      productId ? products.find((p) => p.id === productId)?.name || 'Product' : 'All Products',
+    );
     return parts.join(' · ');
-  }, [selectedSupplierId, selectedCategory, selectedProductId, suppliers, products]);
+  }, [supplierId, productSupplierCount, category, productId, suppliers, products]);
 
   const handleDownloadSupplierReport = async () => {
-    if (!selectedSupplierId) return;
+    if (!supplierId) return;
     setIsGenerating1(true);
-    const supplier = suppliers.find(s => s.id === selectedSupplierId);
+    const supplier = suppliers.find((s) => s.id === supplierId);
     if (supplier) {
-      await generateSupplierPriceHistoryReport(supplier.name, purchases, products, filters);
+      await generateSupplierPriceHistoryReport(supplier.name, purchases, products, appliedFilters);
     }
     setIsGenerating1(false);
   };
 
   const handleDownloadProductReport = async () => {
-    if (!selectedProductId) return;
+    if (!productId) return;
     setIsGenerating2(true);
-    const product = products.find(p => p.id === selectedProductId);
+    const product = products.find((p) => p.id === productId);
     if (product) {
-      await generateProductSupplierComparisonReport(product.name, purchases, suppliers, filters, products);
+      await generateProductSupplierComparisonReport(
+        product.name,
+        purchases,
+        suppliers,
+        appliedFilters,
+        products,
+      );
     }
     setIsGenerating2(false);
   };
 
   const handleDownloadInflationReport = async () => {
     setIsGenerating3(true);
-    await generatePriceInflationReport(purchases, products, filters);
+    await generatePriceInflationReport(purchases, products, appliedFilters);
     setIsGenerating3(false);
   };
 
   const handleDownloadDependencyReport = async () => {
     setIsGenerating4(true);
-    await generateSupplierDependencyReport(purchases, products, suppliers, filters);
+    await generateSupplierDependencyReport(purchases, products, suppliers, appliedFilters);
     setIsGenerating4(false);
   };
 
   const handleDownloadPriceSequenceReport = async () => {
     setIsGenerating5(true);
-    await generateProductPriceSequenceReport(purchases, products, filters);
+    await generateProductPriceSequenceReport(purchases, products, appliedFilters);
     setIsGenerating5(false);
   };
 
   const handleDownloadMatrixReport = async () => {
     setIsGenerating6(true);
-    await generateSupplierPriceMatrixReport(purchases, products, suppliers, filters);
+    await generateSupplierPriceMatrixReport(purchases, products, suppliers, appliedFilters);
     setIsGenerating6(false);
   };
 
@@ -267,7 +141,7 @@ export default function ReportsTab({ purchases, products, suppliers }: Props) {
       accent: 'border-t-emerald-500',
       iconClass: 'text-emerald-500 bg-emerald-50',
       onClick: handleDownloadProductReport,
-      disabled: !selectedProductId || isGenerating2,
+      disabled: !productId || isGenerating2,
       loading: isGenerating2,
     },
     {
@@ -285,7 +159,7 @@ export default function ReportsTab({ purchases, products, suppliers }: Props) {
       accent: 'border-t-blue-500',
       iconClass: 'text-blue-500 bg-blue-50',
       onClick: handleDownloadSupplierReport,
-      disabled: !selectedSupplierId || isGenerating1,
+      disabled: !supplierId || isGenerating1,
       loading: isGenerating1,
     },
     {
@@ -301,95 +175,45 @@ export default function ReportsTab({ purchases, products, suppliers }: Props) {
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
-      <div>
-        <h2 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
-          <FileSpreadsheet className="w-8 h-8 text-[#D4AF37]" />
-          Excel Reports
-        </h2>
-        <p className="text-slate-500 font-medium mt-1">Set filters once, then download any report below.</p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
+            <FileSpreadsheet className="w-8 h-8 text-[#D4AF37]" />
+            Excel Reports
+          </h2>
+          <p className="text-slate-500 font-medium mt-1">
+            Use sidebar filters, then download any report below.
+          </p>
+        </div>
+        <PurchaseFilterButton />
       </div>
 
-      {/* Global Filters */}
-      <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-5">
-        <div className="flex items-center gap-2 text-slate-800">
-          <Filter className="w-5 h-5 text-[#D4AF37]" />
-          <h3 className="font-bold text-lg">Report Filters</h3>
+      <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-slate-800">
+            <Filter className="w-5 h-5 text-[#D4AF37]" />
+            <h3 className="font-bold text-lg">Active Filters</h3>
+            {hasAnyFilter && (
+              <span className="text-[10px] font-black uppercase tracking-widest bg-[#D4AF37]/10 text-[#b8962e] px-2 py-0.5 rounded-full">
+                Applied
+              </span>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={openFilterModal}
+            className="text-sm font-bold text-[#b8962e] hover:text-[#D4AF37] transition-colors"
+          >
+            Edit Filters
+          </button>
         </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5 gap-4">
-          <div>
-            <label className="flex items-center gap-1.5 text-sm font-bold text-slate-700 mb-2">
-              <Building2 className="w-4 h-4 text-blue-500" />
-              Supplier
-            </label>
-            <SearchableSelect
-              options={supplierOptions}
-              value={selectedSupplierId}
-              onChange={setSelectedSupplierId}
-              placeholder="All Suppliers"
-              colorTheme="blue"
-            />
-          </div>
-
-          <div>
-            <label className="flex items-center gap-1.5 text-sm font-bold text-slate-700 mb-2">
-              <Tag className="w-4 h-4 text-teal-500" />
-              Category
-            </label>
-            <SearchableSelect
-              options={categoryOptions}
-              value={selectedCategory}
-              onChange={setSelectedCategory}
-              placeholder="All Categories"
-              colorTheme="blue"
-            />
-          </div>
-
-          <div>
-            <label className="flex items-center gap-1.5 text-sm font-bold text-slate-700 mb-2">
-              <Package className="w-4 h-4 text-emerald-500" />
-              Product
-            </label>
-            <SearchableSelect
-              options={productOptions}
-              value={selectedProductId}
-              onChange={setSelectedProductId}
-              placeholder="All Products"
-              colorTheme="emerald"
-            />
-          </div>
-
-          <div>
-            <label className="flex items-center gap-1.5 text-sm font-bold text-slate-700 mb-2">
-              <Calendar className="w-4 h-4 text-[#D4AF37]" />
-              From Date
-            </label>
-            <input
-              type="date"
-              value={fromDate}
-              onChange={(e) => setFromDate(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 px-3 py-3.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#D4AF37]/50 focus:border-[#D4AF37] font-medium transition-all"
-            />
-          </div>
-
-          <div>
-            <label className="flex items-center gap-1.5 text-sm font-bold text-slate-700 mb-2">
-              <Calendar className="w-4 h-4 text-[#D4AF37]" />
-              To Date
-            </label>
-            <input
-              type="date"
-              value={toDate}
-              onChange={(e) => setToDate(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 px-3 py-3.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#D4AF37]/50 focus:border-[#D4AF37] font-medium transition-all"
-            />
-          </div>
-        </div>
-
-        <p className="text-sm font-medium text-slate-500 bg-slate-50 rounded-xl px-4 py-3 border border-slate-100">
+        <p className="text-sm font-medium text-slate-500 bg-slate-50 rounded-xl px-4 py-3 border border-slate-100 mt-4">
           Active scope: <span className="font-bold text-slate-700">{filterSummary}</span>
           {(fromDate || toDate) && (
-            <span className="text-slate-500"> · {fromDate || '…'} → {toDate || '…'}</span>
+            <span className="text-slate-500">
+              {' '}
+              · {fromDate || '…'} → {toDate || '…'}
+            </span>
           )}
         </p>
       </div>

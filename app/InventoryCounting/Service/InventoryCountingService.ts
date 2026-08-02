@@ -1,7 +1,12 @@
 'use server';
 
 import { bhs_supabase } from '@/lib/supabase';
-import { getLiveAvailableQuantitiesFromMoves } from '@/app/InventoryAnalysis/Service/inventory_service';
+
+const LIVE_STOCK_CACHE_MS = 60_000;
+const PRODUCTS_CACHE_MS = 120_000;
+
+let cachedLiveStockMap: { map: Map<string, number>; expiresAt: number } | null = null;
+let cachedCountableProducts: { rows: MixCountProductRow[]; expiresAt: number } | null = null;
 
 export type CountType = 'Normal' | 'DamageExpire';
 
@@ -98,6 +103,25 @@ const TOTAL_SELECT = 'ID,"PRODUCT ID",COUNT_TYPE,"COUNTED QTY"';
 function parseNum(val: unknown): number {
   const n = parseFloat(String(val ?? '').replace(/,/g, ''));
   return Number.isFinite(n) ? n : 0;
+}
+
+/** Title-case each word for USER / WAREHOUSE display (e.g. "med sabry" → "Med Sabry"). */
+function formatICDisplayName(value: unknown): string {
+  const raw = String(value ?? '').trim();
+  if (!raw) return '';
+
+  return raw
+    .split(/\s+/)
+    .map((word) =>
+      word
+        .split('-')
+        .map((part) => {
+          if (!part) return part;
+          return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
+        })
+        .join('-')
+    )
+    .join(' ');
 }
 
 function formatICDateTime(value: unknown): string {
@@ -228,7 +252,23 @@ function buildProductMap(products: MixCountProductRow[]): Map<string, MixCountPr
   return new Map(products.map((p) => [p['PRODUCT ID']?.toString().trim(), p]));
 }
 
+async function loadCountableProducts(): Promise<MixCountProductRow[]> {
+  const now = Date.now();
+  if (cachedCountableProducts && cachedCountableProducts.expiresAt > now) {
+    return cachedCountableProducts.rows;
+  }
+
+  const rows = await fetchAllMixCountRows<MixCountProductRow>('bhs_PRODUCTS', PRODUCT_SELECT);
+  cachedCountableProducts = { rows, expiresAt: now + PRODUCTS_CACHE_MS };
+  return rows;
+}
+
 async function loadAvailableQtyMap(): Promise<Map<string, number>> {
+  const now = Date.now();
+  if (cachedLiveStockMap && cachedLiveStockMap.expiresAt > now) {
+    return cachedLiveStockMap.map;
+  }
+
   try {
     const { data, error } = await bhs_supabase.rpc('get_live_available_quantities');
     if (!error && Array.isArray(data)) {
@@ -239,14 +279,22 @@ async function loadAvailableQtyMap(): Promise<Map<string, number>> {
         if (!productId) continue;
         map.set(productId, parseNum(record.available_qty ?? record.availableQty));
       }
-      if (map.size > 0) return map;
+      if (map.size > 0) {
+        cachedLiveStockMap = { map, expiresAt: now + LIVE_STOCK_CACHE_MS };
+        return map;
+      }
     }
     if (error) console.warn('RPC get_live_available_quantities failed:', error.message);
   } catch (err) {
     console.warn('RPC get_live_available_quantities error:', err);
   }
 
-  return getLiveAvailableQuantitiesFromMoves();
+  const { getLiveAvailableQuantitiesFromMoves } = await import(
+    '@/app/InventoryAnalysis/Service/inventory_service'
+  );
+  const map = await getLiveAvailableQuantitiesFromMoves();
+  cachedLiveStockMap = { map, expiresAt: now + LIVE_STOCK_CACHE_MS };
+  return map;
 }
 
 function buildICTotalItems(
@@ -286,8 +334,8 @@ function buildICRecords(
       return {
         rowId: row.ID || '',
         date: formatICDateTime(row.DATE),
-        user: row.USER?.toString().trim() || '',
-        warehouse: row.WAREHOUSE?.toString().trim() || '',
+        user: formatICDisplayName(row.USER),
+        warehouse: formatICDisplayName(row.WAREHOUSE),
         productId,
         barcodeName: product?.['PRODUCT BARCODE']?.toString().trim() || '',
         productName: product?.['PRODUCT NAME']?.toString().trim() || '',
@@ -358,7 +406,7 @@ async function recalcICTotalForProduct(productId: string, countType: CountType):
 export async function fetchICTotalCountData() {
   try {
     const [products, normalTotals, damageTotals, liveStockMap] = await Promise.all([
-      fetchAllMixCountRows<MixCountProductRow>('bhs_PRODUCTS', PRODUCT_SELECT),
+      loadCountableProducts(),
       fetchAllMixCountRows<{ 'PRODUCT ID': string; 'COUNTED QTY': number | null }>(
         'mix_INVENTORY_COUNT_TOTALS',
         '"PRODUCT ID","COUNTED QTY"',
@@ -413,7 +461,7 @@ export async function fetchICUserComparisonData() {
   try {
     const [products, normalTotals, damageTotals, normalDetails, damageDetails, liveStockMap] =
       await Promise.all([
-        fetchAllMixCountRows<MixCountProductRow>('bhs_PRODUCTS', PRODUCT_SELECT),
+        loadCountableProducts(),
         fetchAllMixCountRows<{ 'PRODUCT ID': string; 'COUNTED QTY': number | null }>(
           'mix_INVENTORY_COUNT_TOTALS',
           '"PRODUCT ID","COUNTED QTY"',
@@ -494,7 +542,7 @@ export async function fetchICUserComparisonData() {
 export async function fetchICCountTabData(countType: CountType) {
   try {
     const [products, totals, details, liveStockMap] = await Promise.all([
-      fetchAllMixCountRows<MixCountProductRow>('bhs_PRODUCTS', PRODUCT_SELECT),
+      loadCountableProducts(),
       fetchAllMixCountRows<{ 'PRODUCT ID': string; 'COUNTED QTY': number | null }>(
         'mix_INVENTORY_COUNT_TOTALS',
         '"PRODUCT ID","COUNTED QTY"',
@@ -524,7 +572,7 @@ export async function fetchICCountTabData(countType: CountType) {
 export async function fetchICTotal(countType: CountType) {
   try {
     const [products, totals, liveStockMap] = await Promise.all([
-      fetchAllMixCountRows<MixCountProductRow>('bhs_PRODUCTS', PRODUCT_SELECT),
+      loadCountableProducts(),
       fetchAllMixCountRows<{ 'PRODUCT ID': string; 'COUNTED QTY': number | null }>(
         'mix_INVENTORY_COUNT_TOTALS',
         '"PRODUCT ID","COUNTED QTY"',
@@ -553,7 +601,7 @@ export async function fetchAllICDetails() {
         DETAIL_SELECT,
         { column: 'COUNT_TYPE', value: 'DamageExpire' }
       ),
-      fetchAllMixCountRows<MixCountProductRow>('bhs_PRODUCTS', PRODUCT_SELECT),
+      loadCountableProducts(),
     ]);
 
     const productMap = buildProductMap(products);
@@ -630,7 +678,7 @@ export async function fetchICDetails(countType: CountType) {
         DETAIL_SELECT,
         { column: 'COUNT_TYPE', value: countType }
       ),
-      fetchAllMixCountRows<MixCountProductRow>('bhs_PRODUCTS', PRODUCT_SELECT),
+      loadCountableProducts(),
     ]);
 
     return {
@@ -679,13 +727,13 @@ export async function fetchICFilterOptions() {
 
     const userNames = new Set<string>();
     (details || []).forEach((row) => {
-      const name = String(row.USER || '').trim();
+      const name = formatICDisplayName(row.USER);
       if (name) userNames.add(name);
     });
 
     const warehouseNames = new Set<string>();
     (details || []).forEach((row) => {
-      const name = String(row.WAREHOUSE || '').trim();
+      const name = formatICDisplayName(row.WAREHOUSE);
       if (name) warehouseNames.add(name);
     });
 
@@ -1014,7 +1062,7 @@ export async function closeInventoryCountSession(input: {
 export async function fetchArchivedICTotalCountData(archiveId: string) {
   try {
     const [products, normalTotals, damageTotals, liveStockMap] = await Promise.all([
-      fetchAllMixCountRows<MixCountProductRow>('bhs_PRODUCTS', PRODUCT_SELECT),
+      loadCountableProducts(),
       fetchAllArchiveRows<{ 'PRODUCT ID': string; 'COUNTED QTY': number | null }>(
         'mix_INVENTORY_COUNT_TOTALS_ARCHIVE',
         archiveId,
@@ -1070,7 +1118,7 @@ export async function fetchArchivedICUserComparisonData(archiveId: string) {
   try {
     const [products, normalTotals, damageTotals, normalDetails, damageDetails, liveStockMap] =
       await Promise.all([
-        fetchAllMixCountRows<MixCountProductRow>('bhs_PRODUCTS', PRODUCT_SELECT),
+        loadCountableProducts(),
         fetchAllArchiveRows<{ 'PRODUCT ID': string; 'COUNTED QTY': number | null }>(
           'mix_INVENTORY_COUNT_TOTALS_ARCHIVE',
           archiveId,
@@ -1154,7 +1202,7 @@ export async function fetchArchivedICUserComparisonData(archiveId: string) {
 export async function fetchArchivedICCountTabData(archiveId: string, countType: CountType) {
   try {
     const [products, totals, details, liveStockMap] = await Promise.all([
-      fetchAllMixCountRows<MixCountProductRow>('bhs_PRODUCTS', PRODUCT_SELECT),
+      loadCountableProducts(),
       fetchAllArchiveRows<{ 'PRODUCT ID': string; 'COUNTED QTY': number | null }>(
         'mix_INVENTORY_COUNT_TOTALS_ARCHIVE',
         archiveId,
@@ -1198,7 +1246,7 @@ export async function fetchArchivedAllICDetails(archiveId: string) {
         DETAIL_SELECT,
         { column: 'COUNT_TYPE', value: 'DamageExpire' }
       ),
-      fetchAllMixCountRows<MixCountProductRow>('bhs_PRODUCTS', PRODUCT_SELECT),
+      loadCountableProducts(),
     ]);
 
     const productMap = buildProductMap(products);
@@ -1233,13 +1281,13 @@ export async function fetchArchivedICFilterOptions(archiveId: string) {
 
     const userNames = new Set<string>();
     details.forEach((row) => {
-      const name = String(row.USER || '').trim();
+      const name = formatICDisplayName(row.USER);
       if (name) userNames.add(name);
     });
 
     const warehouseNames = new Set<string>();
     details.forEach((row) => {
-      const name = String(row.WAREHOUSE || '').trim();
+      const name = formatICDisplayName(row.WAREHOUSE);
       if (name) warehouseNames.add(name);
     });
 

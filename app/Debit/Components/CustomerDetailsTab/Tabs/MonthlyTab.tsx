@@ -1,5 +1,5 @@
 import React from 'react';
-import NoData from '@/app/Components/NoDataTab';
+import NoData from '@/app/Components/DataState/NoDataTab';
 import { SharedTabProps } from '../Types';
 
 export default function MonthlyTab(props: SharedTabProps) {

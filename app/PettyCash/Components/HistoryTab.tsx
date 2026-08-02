@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Search, Calendar, TrendingUp, TrendingDown, Wallet, FileText, CheckCircle2, ChevronDown, Check, User, Filter } from 'lucide-react';
-import NoData from '@/app/Components/NoDataTab';
+import NoData from '@/app/Components/DataState/NoDataTab';
 
 interface HistoryRecord {
   id: string;

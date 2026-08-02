@@ -10,7 +10,7 @@ import {
   SortingState,
 } from '@tanstack/react-table';
 import { InvoiceRow, CustomerAnalysis } from '@/types';
-import NoData from '@/app/Components/NoDataTab';
+import NoData from '@/app/Components/DataState/NoDataTab';
 import CustomerDetailsTab from '../CustomerDetailsTab/CustomerDetailsTab';
 import { generateAccountStatementPDF, generateBulkCustomerStatementsPDF } from '@/app/Debit/Pdf/StatementUtils';
 import { generateBulkDebitSummaryPDF } from '@/app/Debit/Pdf/SummaryUtils';;

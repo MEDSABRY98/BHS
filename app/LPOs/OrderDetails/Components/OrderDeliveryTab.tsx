@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { bhs_supabas, fetchAllData } from '@/lib/supabase';
 import { Truck, Navigation, CheckCircle2, Clock, Save, MapPin, Trash2 } from 'lucide-react';
 import SearchSelect from '../../Components/DropDownList';
-import TabLoader from '@/app/Components/TabLoader';
+import TabLoader from '@/app/Components/Loading/TabLoader';
 
 interface OrderDeliveryTabProps {
   orderId: string;

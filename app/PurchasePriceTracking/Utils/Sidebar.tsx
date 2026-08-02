@@ -6,9 +6,16 @@ interface SidebarProps {
   setIsSidebarOpen: (val: boolean) => void;
   activeTab: string;
   onTabChange: (tab: string) => void;
+  FilterNode?: React.ReactNode;
 }
 
-export default function Sidebar({ isSidebarOpen, setIsSidebarOpen, activeTab, onTabChange }: SidebarProps) {
+export default function Sidebar({
+  isSidebarOpen,
+  setIsSidebarOpen,
+  activeTab,
+  onTabChange,
+  FilterNode,
+}: SidebarProps) {
   return (
     <div className={`${isSidebarOpen ? 'w-64' : 'w-20'} transition-all duration-300 bg-black text-white flex flex-col shrink-0 shadow-2xl z-20 h-screen sticky top-0`}>
       
@@ -110,15 +117,18 @@ export default function Sidebar({ isSidebarOpen, setIsSidebarOpen, activeTab, on
         </button>
       </nav>
 
-      {/* Toggle Button */}
-      <div className="p-4 border-t border-white/10 mt-auto flex justify-center">
-        <button
-          onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-          className="flex items-center justify-center w-10 h-10 hover:bg-white/10 rounded-xl transition-all duration-200 text-[#D4AF37]"
-          title={isSidebarOpen ? "Collapse Sidebar" : "Expand Sidebar"}
-        >
-          {isSidebarOpen ? <ChevronLeft className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
-        </button>
+      {/* Actions */}
+      <div className="p-4 border-t border-white/10 mt-auto flex flex-col items-center gap-2">
+        <div className={`flex gap-2 ${isSidebarOpen ? 'flex-row items-center' : 'flex-col'}`}>
+          {FilterNode}
+          <button
+            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+            className="flex items-center justify-center w-10 h-10 hover:bg-white/10 rounded-xl transition-all duration-200 text-[#D4AF37]"
+            title={isSidebarOpen ? 'Collapse Sidebar' : 'Expand Sidebar'}
+          >
+            {isSidebarOpen ? <ChevronLeft className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
+          </button>
+        </div>
       </div>
     </div>
   );

@@ -24,6 +24,11 @@ export default function TabsNav({
 
   return (
     <div className="mb-6 flex border-b border-gray-200">
+      {customerType === 'sub' && (
+        <button onClick={() => onTabChange('summary')} className={tabClass('summary')}>
+          Sub Customer Summary
+        </button>
+      )}
       <button onClick={() => onTabChange('dashboard')} className={tabClass('dashboard')}>
         Dashboard
       </button>
