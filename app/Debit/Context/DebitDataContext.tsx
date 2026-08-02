@@ -3,7 +3,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { getCustomerEmails, getLuluCustomerEmails } from '@/app/Emails/Service/email_service';
 import { getDebitData, getDebitMetadata } from '../Service/debit_service';
-import { buildInvoicesByCustomer } from '../Utils/debitIndexes';
+import { buildInvoicesByCustomer } from '../Utils/DebitIndexes';
 import { InvoiceRow } from '@/types';
 
 export type LuluEmailRecord = {

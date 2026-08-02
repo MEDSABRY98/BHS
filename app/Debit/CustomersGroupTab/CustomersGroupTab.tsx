@@ -14,8 +14,8 @@ import {
 import { Search, Plus, X, FileText, Printer, FileSpreadsheet, AlertCircle, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
 import { InvoiceRow } from '@/types';
 import NoData from '@/app/Components/DataState/NoDataTab';
-import FilterBar from './CustomerDetailsTab/FilterBar';
-import { isPaymentTxn } from './CustomerDetailsTab/Utils';
+import FilterBar from '../CustomerDetailsTab/FilterBar';
+import { isPaymentTxn } from '../CustomerDetailsTab/Utils';
 import { getInvoiceType } from '@/app/Debit/Utils/InvoiceType';
 import { printPdfInSameTab } from '@/app/LPOs/Pdf/DeliveryUtils';
 

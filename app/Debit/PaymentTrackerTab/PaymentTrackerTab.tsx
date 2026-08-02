@@ -12,7 +12,7 @@ import PaymentTCustomerTab from './PaymentTCustomerTab';
 import PaymentTPeriodTab from './PaymentTPeriodTab';
 import PaymentTAreaTab from './PaymentTAreaTab';
 import PaymentTExportTab from './PaymentTExportTab';
-import { useDebitPaymentsSummary } from '../../Hooks/useDebitPaymentsSummary';
+import { useDebitPaymentsSummary } from '../Hooks/useDebitPaymentsSummary';
 
 interface PaymentTrackerTabProps {
   data: InvoiceRow[];

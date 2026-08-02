@@ -34,8 +34,8 @@ import { getInvoiceType } from '@/app/Debit/Utils/InvoiceType';
 import { useSearchParams } from 'next/navigation';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import { generateAnalyticalPDF as generateAnalyticalPDFUtil } from '@/app/Debit/Pdf/AnalysisByCustomerUtils';
-import { getCustomerNotes, createNote, updateCustomerNote, deleteCustomerNote } from '../../Service/notes_service';
-import { useDebitData } from '../../Context/DebitDataContext';
+import { getCustomerNotes, createNote, updateCustomerNote, deleteCustomerNote } from '../Service/notes_service';
+import { useDebitData } from '../Context/DebitDataContext';
 import { getCustomerEmails } from '@/app/Emails/Service/email_service';
 import EmailStatementModal from '../CustomersTab/Modals/EmailStatementModal';
 import CustomerEmailsModal from './Modals/CustomerEmailsModal';
@@ -52,7 +52,7 @@ const parseCustomerEmailList = (items: string[]) =>
       ),
     ),
   );
-import { generateSingleCustomerExcelBlob } from '../ExcelEmails';
+import { generateSingleCustomerExcelBlob } from '../CustomersTab/ExcelEmails';
 
 interface CustomerDetailsProps {
   customerName: string;

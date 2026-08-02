@@ -40,9 +40,9 @@ import {
   exportToPDF,
   parseDate
 } from './CstomersUtils';
-import { generateSingleCustomerExcelBlob } from '../ExcelEmails';
-import { useDebouncedValue } from '../../Hooks/useDebouncedValue';
-import { useDebitData } from '../../Context/DebitDataContext';
+import { generateSingleCustomerExcelBlob } from './ExcelEmails';
+import { useDebouncedValue } from '../Hooks/useDebouncedValue';
+import { useDebitData } from '../Context/DebitDataContext';
 
 interface CustomersTabProps {
   data: InvoiceRow[];

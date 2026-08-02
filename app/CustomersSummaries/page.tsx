@@ -1,7 +1,7 @@
 'use client';
 
 import { Suspense, useEffect, useState } from 'react';
-import CustomersSummariesTab from '@/app/Debit/Components/CustomersSummariesTab';
+import CustomersSummariesTab from '@/app/Debit/CustomersSummariesTab/CustomersSummariesTab';
 import Login from '@/app/Components/Auth/Login';
 import Loading from '@/app/Components/Loading';
 import TabFetchError from '@/app/Components/DataState/TabFetchError';

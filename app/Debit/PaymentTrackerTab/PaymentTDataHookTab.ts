@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { InvoiceRow } from '@/types';
 import { getInvoiceType } from '@/app/Debit/Utils/InvoiceType';
-import { useDebouncedValue } from '../../Hooks/useDebouncedValue';
+import { useDebouncedValue } from '../Hooks/useDebouncedValue';
 import {
   PaymentEntry,
   PaymentByCustomer,

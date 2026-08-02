@@ -6,7 +6,7 @@ import {
   getPaymentAmount,
   calculateDebtRating,
 } from './CstomersUtils';
-import { useDebitData } from '../../Context/DebitDataContext';
+import { useDebitData } from '../Context/DebitDataContext';
 
 interface UseCustomerDataProps {
   data: InvoiceRow[];

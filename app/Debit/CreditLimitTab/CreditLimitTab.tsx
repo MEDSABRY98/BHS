@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { InvoiceRow } from '@/types';
-import { useCustomerData } from './CustomersTab/CustomersData';
+import { useCustomerData } from '../CustomersTab/CustomersData';
 import { exportDebitExcelTable } from '../Utils/ExcelExport';
 import { useDebouncedValue } from '../Hooks/useDebouncedValue';
 import { 

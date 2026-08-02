@@ -204,3 +204,299 @@ export async function getDebitPaymentsSummary(options?: { dateFrom?: string; dat
   }
   return { success: false, totalPayments: 0, totalAmount: 0, data: [] };
 }
+
+const PR_HEADER_TABLE = 'debit_PAYMENT_RECONCILIATION';
+const PR_LINES_TABLE = 'debit_PAYMENT_RECONCILIATION_LINES';
+
+export interface PaymentReconciliationSaveLine {
+  customerId: string;
+  invoiceNumber: string;
+  openAmount: number;
+  appliedAmount: number;
+  remainingAmount: number;
+}
+
+export interface PaymentReconciliationSaveHeader {
+  paymentDate: string | null;
+  paymentAmount: number;
+  paymentReference: string | null;
+  customersId: string[];
+  remainderNote: string | null;
+}
+
+export interface PaymentReconciliationSessionSummary {
+  sessionId: string;
+  savedAt: string;
+  paymentDate: string | null;
+  paymentAmount: number;
+  paymentReference: string | null;
+  totalApplied: number;
+  paymentRemainder: number;
+  lineCount: number;
+  customerCount: number;
+}
+
+export interface PaymentReconciliationLoadedLine {
+  lineNo: number;
+  customerId: string;
+  invoiceNumber: string;
+  openAmount: number;
+  appliedAmount: number;
+  remainingAmount: number;
+}
+
+function parseNum(value: unknown): number {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function parseCustomersId(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((item) => String(item || '').trim()).filter(Boolean);
+}
+
+async function bulkInsertChunks(
+  table: string,
+  rows: Record<string, unknown>[],
+  chunkSize = 500,
+): Promise<void> {
+  for (let i = 0; i < rows.length; i += chunkSize) {
+    const chunk = rows.slice(i, i + chunkSize);
+    const { error } = await bhs_supabase.from(table).insert(chunk);
+    if (error) throw error;
+  }
+}
+
+export async function generateNextPaymentReconciliationId(): Promise<string> {
+  const year = new Date().getFullYear();
+  const prefix = `PR-${year}-`;
+
+  const { data, error } = await bhs_supabase
+    .from(PR_HEADER_TABLE)
+    .select('SESSION_ID')
+    .like('SESSION_ID', `${prefix}%`)
+    .order('SESSION_ID', { ascending: false })
+    .limit(1);
+
+  if (error) throw error;
+
+  let nextNum = 1;
+  const latest = data?.[0]?.SESSION_ID;
+  if (latest) {
+    const parts = String(latest).split('-');
+    const num = parseInt(parts[2] || '', 10);
+    if (Number.isFinite(num)) nextNum = num + 1;
+  }
+
+  return `${prefix}${String(nextNum).padStart(4, '0')}`;
+}
+
+export async function savePaymentReconciliationSession(input: {
+  sessionId?: string;
+  header: PaymentReconciliationSaveHeader;
+  lines: PaymentReconciliationSaveLine[];
+}) {
+  try {
+    const lines = input.lines.filter(
+      (line) =>
+        line.customerId.trim() &&
+        line.invoiceNumber.trim() &&
+        line.appliedAmount > 0.009,
+    );
+
+    if (lines.length === 0) {
+      return { success: false as const, error: 'No invoice lines with applied amount to save' };
+    }
+
+    if (input.header.paymentAmount <= 0.009) {
+      return { success: false as const, error: 'Payment amount must be greater than zero' };
+    }
+
+    const existingId = input.sessionId?.trim() || '';
+    const isUpdate = Boolean(existingId);
+    const sessionId = isUpdate ? existingId : await generateNextPaymentReconciliationId();
+    const savedAt = new Date().toISOString();
+    const paymentDate = input.header.paymentDate?.trim() || null;
+    const customersId = [...new Set(input.header.customersId.map((id) => id.trim()).filter(Boolean))];
+
+    const headerRow = {
+      SESSION_ID: sessionId,
+      PAYMENT_DATE: paymentDate,
+      PAYMENT_AMOUNT: input.header.paymentAmount,
+      PAYMENT_REFERENCE: input.header.paymentReference?.trim() || null,
+      CUSTOMERS_ID: customersId,
+      REMAINDER_NOTE: input.header.remainderNote?.trim() || null,
+      SAVED_AT: savedAt,
+    };
+
+    if (isUpdate) {
+      const { error: deleteLinesError } = await bhs_supabase
+        .from(PR_LINES_TABLE)
+        .delete()
+        .eq('SESSION_ID', sessionId);
+
+      if (deleteLinesError) throw deleteLinesError;
+
+      const { error: updateError } = await bhs_supabase
+        .from(PR_HEADER_TABLE)
+        .update(headerRow)
+        .eq('SESSION_ID', sessionId);
+
+      if (updateError) throw updateError;
+    } else {
+      const { error: insertHeaderError } = await bhs_supabase.from(PR_HEADER_TABLE).insert(headerRow);
+      if (insertHeaderError) throw insertHeaderError;
+    }
+
+    const dbLines = lines.map((line, index) => ({
+      SESSION_ID: sessionId,
+      LINE_NO: index + 1,
+      CUSTOMER_ID: line.customerId.trim(),
+      INVOICE_NUMBER: line.invoiceNumber.trim(),
+      OPEN_AMOUNT: line.openAmount,
+      APPLIED_AMOUNT: line.appliedAmount,
+      REMAINING_AMOUNT: line.remainingAmount,
+    }));
+
+    await bulkInsertChunks(PR_LINES_TABLE, dbLines);
+
+    return {
+      success: true as const,
+      sessionId,
+      rowCount: dbLines.length,
+      savedAt,
+      updated: isUpdate,
+    };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Failed to save payment reconciliation session';
+    console.error('Error in savePaymentReconciliationSession:', error);
+    return { success: false as const, error: message };
+  }
+}
+
+export async function fetchPaymentReconciliationSessions() {
+  try {
+    const { data: headers, error: headerError } = await bhs_supabase
+      .from(PR_HEADER_TABLE)
+      .select('SESSION_ID, PAYMENT_DATE, PAYMENT_AMOUNT, PAYMENT_REFERENCE, CUSTOMERS_ID, SAVED_AT')
+      .order('SAVED_AT', { ascending: false });
+
+    if (headerError) throw headerError;
+
+    const { data: lineRows, error: lineError } = await bhs_supabase
+      .from(PR_LINES_TABLE)
+      .select('SESSION_ID, APPLIED_AMOUNT');
+
+    if (lineError) throw lineError;
+
+    const lineStats = new Map<string, { lineCount: number; totalApplied: number }>();
+    for (const row of lineRows || []) {
+      const id = String(row.SESSION_ID || '').trim();
+      if (!id) continue;
+      const existing = lineStats.get(id) || { lineCount: 0, totalApplied: 0 };
+      existing.lineCount += 1;
+      existing.totalApplied += parseNum(row.APPLIED_AMOUNT);
+      lineStats.set(id, existing);
+    }
+
+    const data: PaymentReconciliationSessionSummary[] = (headers || []).map((row) => {
+      const sessionId = String(row.SESSION_ID || '').trim();
+      const stats = lineStats.get(sessionId) || { lineCount: 0, totalApplied: 0 };
+      const paymentAmount = parseNum(row.PAYMENT_AMOUNT);
+      const customersId = parseCustomersId(row.CUSTOMERS_ID);
+      const paymentDateRaw = row.PAYMENT_DATE;
+
+      return {
+        sessionId,
+        savedAt: String(row.SAVED_AT || ''),
+        paymentDate: paymentDateRaw ? String(paymentDateRaw).split('T')[0] : null,
+        paymentAmount,
+        paymentReference: row.PAYMENT_REFERENCE ? String(row.PAYMENT_REFERENCE) : null,
+        totalApplied: stats.totalApplied,
+        paymentRemainder: paymentAmount - stats.totalApplied,
+        lineCount: stats.lineCount,
+        customerCount: customersId.length,
+      };
+    });
+
+    return { success: true as const, data };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Failed to fetch payment reconciliation sessions';
+    console.error('Error in fetchPaymentReconciliationSessions:', error);
+    return { success: false as const, error: message, data: [] as PaymentReconciliationSessionSummary[] };
+  }
+}
+
+export async function fetchPaymentReconciliationSession(sessionId: string) {
+  try {
+    const id = sessionId.trim();
+    if (!id) {
+      return { success: false as const, error: 'Session ID is required' };
+    }
+
+    const { data: headerRows, error: headerError } = await bhs_supabase
+      .from(PR_HEADER_TABLE)
+      .select('SESSION_ID, PAYMENT_DATE, PAYMENT_AMOUNT, PAYMENT_REFERENCE, CUSTOMERS_ID, REMAINDER_NOTE, SAVED_AT')
+      .eq('SESSION_ID', id)
+      .limit(1);
+
+    if (headerError) throw headerError;
+
+    const header = headerRows?.[0];
+    if (!header) {
+      return { success: false as const, error: 'Payment reconciliation session not found' };
+    }
+
+    const { data: lineRows, error: lineError } = await bhs_supabase
+      .from(PR_LINES_TABLE)
+      .select('LINE_NO, CUSTOMER_ID, INVOICE_NUMBER, OPEN_AMOUNT, APPLIED_AMOUNT, REMAINING_AMOUNT')
+      .eq('SESSION_ID', id)
+      .order('LINE_NO', { ascending: true });
+
+    if (lineError) throw lineError;
+
+    const paymentDateRaw = header.PAYMENT_DATE;
+    const lines: PaymentReconciliationLoadedLine[] = (lineRows || []).map((row) => ({
+      lineNo: parseNum(row.LINE_NO),
+      customerId: String(row.CUSTOMER_ID || '').trim(),
+      invoiceNumber: String(row.INVOICE_NUMBER || '').trim(),
+      openAmount: parseNum(row.OPEN_AMOUNT),
+      appliedAmount: parseNum(row.APPLIED_AMOUNT),
+      remainingAmount: parseNum(row.REMAINING_AMOUNT),
+    }));
+
+    return {
+      success: true as const,
+      sessionId: id,
+      savedAt: String(header.SAVED_AT || ''),
+      paymentDate: paymentDateRaw ? String(paymentDateRaw).split('T')[0] : null,
+      paymentAmount: parseNum(header.PAYMENT_AMOUNT),
+      paymentReference: header.PAYMENT_REFERENCE ? String(header.PAYMENT_REFERENCE) : null,
+      customersId: parseCustomersId(header.CUSTOMERS_ID),
+      remainderNote: header.REMAINDER_NOTE ? String(header.REMAINDER_NOTE) : null,
+      lines,
+    };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Failed to load payment reconciliation session';
+    console.error('Error in fetchPaymentReconciliationSession:', error);
+    return { success: false as const, error: message };
+  }
+}
+
+export async function deletePaymentReconciliationSession(sessionId: string) {
+  try {
+    const id = sessionId.trim();
+    if (!id) {
+      return { success: false as const, error: 'Session ID is required' };
+    }
+
+    const { error } = await bhs_supabase.from(PR_HEADER_TABLE).delete().eq('SESSION_ID', id);
+    if (error) throw error;
+
+    return { success: true as const };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Failed to delete payment reconciliation session';
+    console.error('Error in deletePaymentReconciliationSession:', error);
+    return { success: false as const, error: message };
+  }
+}

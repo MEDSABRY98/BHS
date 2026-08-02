@@ -320,15 +320,6 @@ export async function generatePaymentReconciliationPDF(
 
   yPosition += 2;
 
-  const now = new Date();
-  doc.setFont('helvetica', 'normal');
-  doc.text(
-    `Generated: ${formatDisplayDate(now.toISOString())}`,
-    margin,
-    yPosition,
-  );
-  yPosition += 8;
-
   const usableWidth = pageWidth - margin * 2;
   const sectionTopOnNewPage = tableMargin + 10;
 

@@ -23,13 +23,30 @@ import {
   ChevronRight,
   AlignLeft,
   AlignRight,
+  Save,
 } from 'lucide-react';
 import { InvoiceRow } from '@/types';
 import NoData from '@/app/Components/DataState/NoDataTab';
+import { toast } from '@/app/Components/Notification';
 import { useDebouncedValue } from '../Hooks/useDebouncedValue';
 import { buildOpenInvoiceRows, getUniqueCustomerNames, OpenInvoiceRow } from '../Utils/openInvoiceRows';
 import { exportDebitExcelTable } from '../Utils/ExcelExport';
 import { generatePaymentReconciliationPDF } from '../Pdf/PaymentReconciliationUtils';
+import {
+  fetchPaymentReconciliationSession,
+  type PaymentReconciliationLoadedLine,
+  type PaymentReconciliationSessionSummary,
+} from '../Service/debit_service';
+import {
+  buildCustomerIdByName,
+  buildExportLinesFromSavedSession,
+  buildPaymentReconciliationSaveLines,
+  resolveCustomerIdsForNames,
+  resolveCustomerNamesFromIds,
+  restoreAppliedByRowFromLoadedLines,
+} from './paymentReconciliationSession';
+import SavePaymentReconciliationModal from './SavePaymentReconciliationModal';
+import PaymentReconciliationSessionPicker from './PaymentReconciliationSessionPicker';
 
 interface PaymentReconciliationTabProps {
   data: InvoiceRow[];
@@ -122,10 +139,19 @@ export default function PaymentReconciliationTab({ data = [] }: PaymentReconcili
   const [remainderNote, setRemainderNote] = useState('');
   const [remainderNoteAlign, setRemainderNoteAlign] = useState<'left' | 'right'>('left');
   const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 50 });
+  const [loadedSessionId, setLoadedSessionId] = useState<string | null>(null);
+  const [loadedSessionLines, setLoadedSessionLines] = useState<PaymentReconciliationLoadedLine[]>([]);
+  const [pendingSessionRestore, setPendingSessionRestore] = useState<PaymentReconciliationLoadedLine[] | null>(
+    null,
+  );
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [sessionsRefreshKey, setSessionsRefreshKey] = useState(0);
 
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const skipClearAppliedRef = useRef(false);
 
   const allCustomers = useMemo(() => getUniqueCustomerNames(safeData), [safeData]);
+  const customerIdByName = useMemo(() => buildCustomerIdByName(safeData), [safeData]);
 
   const filteredDropdownCustomers = useMemo(() => {
     const q = customerSearchQuery.toLowerCase().trim();
@@ -231,7 +257,35 @@ export default function PaymentReconciliationTab({ data = [] }: PaymentReconcili
       });
   }, [openRows, appliedByRow]);
 
-  const canExport = hasValidPayment && appliedLines.length > 0;
+  const exportLines = useMemo(() => {
+    if (loadedSessionLines.length > 0) {
+      return buildExportLinesFromSavedSession(
+        safeData,
+        loadedSessionLines,
+        appliedByRow,
+        openRows,
+      );
+    }
+    return appliedLines;
+  }, [appliedLines, appliedByRow, loadedSessionLines, openRows, safeData]);
+
+  const saveLines = useMemo(
+    () => buildPaymentReconciliationSaveLines(openRows, appliedByRow, customerIdByName),
+    [openRows, appliedByRow, customerIdByName],
+  );
+
+  const saveHeader = useMemo(
+    () => ({
+      paymentDate: paymentDate || null,
+      paymentAmount,
+      paymentReference: paymentReference || null,
+      customersId: resolveCustomerIdsForNames(safeData, groupCustomers),
+      remainderNote: remainderNote || null,
+    }),
+    [paymentDate, paymentAmount, paymentReference, groupCustomers, remainderNote, safeData],
+  );
+
+  const canExport = hasValidPayment && exportLines.length > 0;
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -244,9 +298,38 @@ export default function PaymentReconciliationTab({ data = [] }: PaymentReconcili
   }, []);
 
   useEffect(() => {
+    if (skipClearAppliedRef.current) {
+      skipClearAppliedRef.current = false;
+      setPagination((p) => ({ ...p, pageIndex: 0 }));
+      return;
+    }
     setAppliedByRow(new Map());
     setPagination((p) => ({ ...p, pageIndex: 0 }));
   }, [groupCustomers]);
+
+  useEffect(() => {
+    if (!pendingSessionRestore || groupCustomers.length === 0) return;
+
+    const result = restoreAppliedByRowFromLoadedLines(
+      openRows,
+      customerIdByName,
+      pendingSessionRestore,
+    );
+    setAppliedByRow(result.appliedByRow);
+
+    if (result.staleLineCount > 0) {
+      toast.warning(
+        `${result.staleLineCount} saved invoice line(s) could not be matched to current open invoices.`,
+      );
+    }
+    if (result.openAmountMismatchCount > 0) {
+      toast.warning(
+        `${result.openAmountMismatchCount} invoice line(s) have a different open amount than when saved.`,
+      );
+    }
+
+    setPendingSessionRestore(null);
+  }, [pendingSessionRestore, openRows, groupCustomers, customerIdByName]);
 
   useEffect(() => {
     setPagination((p) => ({ ...p, pageIndex: 0 }));
@@ -334,12 +417,81 @@ export default function PaymentReconciliationTab({ data = [] }: PaymentReconcili
     paymentDate: paymentDate || undefined,
     paymentReference: paymentReference || undefined,
     customers: groupCustomers,
-    lines: appliedLines,
+    lines: exportLines,
     totalApplied,
     remainder,
     remainderNote: remainderNote || undefined,
     remainderNoteAlign,
   });
+
+  const handleOpenSaveModal = () => {
+    if (!canExport) {
+      toast.warning('Enter a valid payment amount and allocate at least one invoice before saving.');
+      return;
+    }
+    if (saveLines.length === 0) {
+      toast.warning('Could not resolve customer IDs for the selected invoices.');
+      return;
+    }
+    if (saveHeader.customersId.length === 0) {
+      toast.warning('Could not resolve customer IDs for the selected customers.');
+      return;
+    }
+    setShowSaveModal(true);
+  };
+
+  const handleSaveSuccess = (sessionId: string) => {
+    setLoadedSessionId(sessionId);
+    setLoadedSessionLines(
+      saveLines.map((line, index) => ({
+        lineNo: index + 1,
+        customerId: line.customerId,
+        invoiceNumber: line.invoiceNumber,
+        openAmount: line.openAmount,
+        appliedAmount: line.appliedAmount,
+        remainingAmount: line.remainingAmount,
+      })),
+    );
+    setSessionsRefreshKey((key) => key + 1);
+  };
+
+  const handleLoadSession = async (session: PaymentReconciliationSessionSummary) => {
+    try {
+      const res = await fetchPaymentReconciliationSession(session.sessionId);
+      if (!res.success || !res.lines) {
+        throw new Error(res.error || 'Failed to load saved session');
+      }
+
+      setPaymentAmountInput(String(res.paymentAmount));
+      setPaymentDate(res.paymentDate || '');
+      setPaymentReference(res.paymentReference || '');
+      setRemainderNote(res.remainderNote || '');
+
+      let customerNames = resolveCustomerNamesFromIds(safeData, res.customersId);
+      if (customerNames.length === 0) {
+        customerNames = resolveCustomerNamesFromIds(
+          safeData,
+          res.lines.map((line) => line.customerId),
+        );
+      }
+
+      setLoadedSessionId(res.sessionId);
+      setLoadedSessionLines(res.lines);
+      skipClearAppliedRef.current = true;
+      setPendingSessionRestore(res.lines);
+      setGroupCustomers(customerNames);
+      toast.success(`Loaded ${res.lines.length} invoice line(s) from ${res.sessionId}`);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to load saved session';
+      toast.error(message);
+    }
+  };
+
+  const handleClearLoadedSession = () => {
+    setLoadedSessionId(null);
+    setLoadedSessionLines([]);
+    setPendingSessionRestore(null);
+  };
 
   const handlePdf = async (print: boolean) => {
     if (!canExport) {
@@ -355,7 +507,7 @@ export default function PaymentReconciliationTab({ data = [] }: PaymentReconcili
       return;
     }
     const headers = ['Customer', 'Date', 'Invoice', 'Total Amount', 'Applied', 'Open Amount', 'Matching'];
-    const rows = appliedLines.map((line) => [
+    const rows = exportLines.map((line) => [
       line.customerName,
       line.date,
       line.number,
@@ -483,9 +635,25 @@ export default function PaymentReconciliationTab({ data = [] }: PaymentReconcili
   return (
     <div className="p-6 space-y-6">
       <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-100 rounded-2xl p-6 shadow-sm">
-        <div className="flex flex-wrap items-center gap-2 mb-4">
-          <Wallet className="w-6 h-6 text-emerald-600" />
-          <h1 className="text-xl font-bold text-slate-800">Payment Reconciliation</h1>
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <div className="flex flex-wrap items-center gap-2 min-w-0">
+            <Wallet className="w-6 h-6 text-emerald-600 shrink-0" />
+            <h1 className="text-xl font-bold text-slate-800">Payment Reconciliation</h1>
+            {loadedSessionId && (
+              <span
+                className="text-xs font-bold text-emerald-700 bg-white/80 border border-emerald-200 px-2.5 py-1 rounded-full truncate max-w-[200px]"
+                title={loadedSessionId}
+              >
+                {loadedSessionId}
+              </span>
+            )}
+          </div>
+          <PaymentReconciliationSessionPicker
+            selectedId={loadedSessionId}
+            refreshKey={sessionsRefreshKey}
+            onSelect={(session) => void handleLoadSession(session)}
+            onClear={handleClearLoadedSession}
+          />
         </div>
 
         <div className="space-y-4">
@@ -771,6 +939,16 @@ export default function PaymentReconciliationTab({ data = [] }: PaymentReconcili
 
             <button
               type="button"
+              onClick={handleOpenSaveModal}
+              disabled={!canExport || saveLines.length === 0}
+              className="p-2.5 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-all shadow-sm shrink-0 flex items-center justify-center disabled:opacity-50"
+              title="Save session"
+            >
+              <Save className="w-5 h-5" />
+            </button>
+
+            <button
+              type="button"
               onClick={() => handlePdf(false)}
               disabled={!canExport}
               className="p-2.5 bg-red-50 border border-red-200 rounded-xl hover:bg-red-100 text-red-700 transition-all shadow-sm shrink-0 flex items-center justify-center disabled:opacity-50"
@@ -926,6 +1104,16 @@ export default function PaymentReconciliationTab({ data = [] }: PaymentReconcili
 
       {groupCustomers.length === 0 && (
         <NoData title="NO CUSTOMERS ADDED" />
+      )}
+
+      {showSaveModal && (
+        <SavePaymentReconciliationModal
+          header={saveHeader}
+          lines={saveLines}
+          sessionId={loadedSessionId}
+          onClose={() => setShowSaveModal(false)}
+          onSuccess={handleSaveSuccess}
+        />
       )}
     </div>
   );
