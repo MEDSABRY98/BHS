@@ -12,6 +12,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import type { Props as RechartsLabelProps } from 'recharts/types/component/Label';
 import { InsightsTrendPoint } from '../Utils/InsightsTypes';
 
 interface CollectionRateChartProps {
@@ -66,15 +67,27 @@ function CollectionRateTooltip({
   );
 }
 
-function RateBarLabel(props: { x?: number; y?: number; width?: number; value?: number; index?: number; chartData?: CollectionRatePoint[] }) {
-  const { x = 0, y = 0, width = 0, index, chartData } = props;
+function toNumber(value: string | number | undefined, fallback = 0): number {
+  if (typeof value === 'number') return value;
+  if (typeof value === 'string') {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  }
+  return fallback;
+}
+
+function RateBarLabel(props: RechartsLabelProps & { chartData?: CollectionRatePoint[] }) {
+  const { x, y, width, index, chartData } = props;
+  const posX = toNumber(x);
+  const posY = toNumber(y);
+  const barWidth = toNumber(width);
   if (index === undefined || !chartData?.[index]) return null;
 
   const point = chartData[index];
   if (!point.hasRate) return null;
 
   return (
-    <text x={x + width / 2} y={y - 10} textAnchor="middle" fill="#4338CA" fontSize={15} fontWeight={800}>
+    <text x={posX + barWidth / 2} y={posY - 10} textAnchor="middle" fill="#4338CA" fontSize={15} fontWeight={800}>
       {`${point.collectionRate.toFixed(1)}%`}
     </text>
   );
@@ -114,7 +127,7 @@ export default function CollectionRateChart({ data }: CollectionRateChartProps) 
 
   const rateLabel = useMemo(
     () =>
-      function RateLabel(props: { x?: number; y?: number; width?: number; value?: number; index?: number }) {
+      function RateLabel(props: RechartsLabelProps) {
         return <RateBarLabel {...props} chartData={chartData} />;
       },
     [chartData]

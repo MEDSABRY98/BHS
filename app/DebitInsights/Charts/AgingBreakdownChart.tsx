@@ -39,26 +39,34 @@ function formatBarAmount(value: number) {
   return value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+import type { Props as RechartsLabelProps } from 'recharts/types/component/Label';
+
+function toNumber(value: string | number | undefined, fallback = 0): number {
+  if (typeof value === 'number') return value;
+  if (typeof value === 'string') {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  }
+  return fallback;
+}
+
 function AmountBarLabel({
-  x = 0,
-  y = 0,
-  width = 0,
+  x,
+  y,
+  width,
   index,
   chartData,
-}: {
-  x?: number;
-  y?: number;
-  width?: number;
-  index?: number;
-  chartData?: AgingChartPoint[];
-}) {
+}: RechartsLabelProps & { chartData?: AgingChartPoint[] }) {
+  const posX = toNumber(x);
+  const posY = toNumber(y);
+  const barWidth = toNumber(width);
   if (index === undefined || !chartData?.[index]) return null;
 
   const amount = chartData[index].amount;
   if (amount <= 0.01) return null;
 
   return (
-    <text x={x + width / 2} y={y - 10} textAnchor="middle" fill="#111827" fontSize={15} fontWeight={800}>
+    <text x={posX + barWidth / 2} y={posY - 10} textAnchor="middle" fill="#111827" fontSize={15} fontWeight={800}>
       {formatBarAmount(amount)}
     </text>
   );
@@ -79,7 +87,7 @@ export default function AgingBreakdownChart({ breakdown }: AgingBreakdownChartPr
 
   const amountLabel = useMemo(
     () =>
-      function AmountLabel(props: { x?: number; y?: number; width?: number; index?: number }) {
+      function AmountLabel(props: RechartsLabelProps) {
         return <AmountBarLabel {...props} chartData={chartData} />;
       },
     [chartData]

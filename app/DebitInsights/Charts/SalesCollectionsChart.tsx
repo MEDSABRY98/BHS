@@ -12,17 +12,23 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import type { Props as RechartsLabelProps } from 'recharts/types/component/Label';
 import { InsightsTrendPoint } from '../Utils/InsightsTypes';
 
 interface SalesCollectionsChartProps {
   data: InsightsTrendPoint[];
 }
 
-type DebtLabelProps = {
-  x?: number;
-  width?: number;
-  index?: number;
-};
+type DebtLabelProps = RechartsLabelProps;
+
+function toNumber(value: string | number | undefined, fallback = 0): number {
+  if (typeof value === 'number') return value;
+  if (typeof value === 'string') {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  }
+  return fallback;
+}
 
 function formatAmount(value: number) {
   return value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -51,11 +57,13 @@ function createOpenDebtLabel(chartData: InsightsTrendPoint[]) {
     ...chartData.map((point) => formatDebtBoxAmount(point.openDebt).length * 6.5 + 16)
   );
 
-  return function OpenDebtLabel({ x = 0, width = 0, index }: DebtLabelProps) {
+  return function OpenDebtLabel({ x, width, index }: DebtLabelProps) {
     if (index === undefined || !chartData[index]) return null;
 
+    const posX = toNumber(x);
+    const barWidth = toNumber(width);
     const openDebt = chartData[index].openDebt;
-    const centerX = x + width * 1.56;
+    const centerX = posX + barWidth * 1.56;
     const boxX = centerX - boxWidth / 2;
 
     return (
