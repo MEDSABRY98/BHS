@@ -1,5 +1,6 @@
 import { PurchaseRecord, Product, Supplier } from '../page';
-import { exportStyledExcel } from '@/app/Components/Export/ExcelExport';
+import { exportPurchasePriceTrackingExcel } from '../Export/ExcelExport';
+import { RoundPurchasePrice } from '../Utils/PriceFormat';
 import { filterPurchases, filterSuffix, ReportFilters } from './ReportFilters';
 
 export async function generateSupplierDependencyReport(
@@ -68,7 +69,7 @@ export async function generateSupplierDependencyReport(
       'Risk Level': riskLevel,
       'Oldest Price (AED)': oldestPrice,
       'Latest Price (AED)': latestPrice,
-      'Average Price (AED)': Number(avgPrice.toFixed(2))
+      'Average Price (AED)': RoundPurchasePrice(avgPrice)
     });
   });
 
@@ -82,7 +83,7 @@ export async function generateSupplierDependencyReport(
 
   const fileName = `Supplier_Dependency_Report${filterSuffix(filters)}_${new Date().toISOString().split('T')[0]}`;
   
-  await exportStyledExcel(reportData, fileName, {
+  await exportPurchasePriceTrackingExcel(reportData, fileName, {
     sheetName: 'Dependency Risk',
     columnWidth: 22,
     numericColumns: ['Total Qty Bought', 'Qty From Primary', 'Dependency (%)', 'Oldest Price (AED)', 'Latest Price (AED)', 'Average Price (AED)']

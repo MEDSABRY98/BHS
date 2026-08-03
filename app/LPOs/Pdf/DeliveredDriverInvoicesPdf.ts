@@ -1,6 +1,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { printPdfInSameTab } from './DeliveryUtils';
+import { saveTrackedPdf } from '@/app/Audit/Utils/TrackedDownload';
 
 const CANCELLED_ROW_FILL: [number, number, number] = [255, 235, 235];
 
@@ -275,6 +276,6 @@ export async function generateDeliveredDriverInvoicesPDF(
   if (action === 'print') {
     printPdfInSameTab(doc);
   } else {
-    doc.save(`Delivered_Invoices_${driverName.replace(/\s+/g, '_')}.pdf`);
+    saveTrackedPdf(doc, `Delivered_Invoices_${driverName.replace(/\s+/g, '_')}.pdf`);
   }
 }

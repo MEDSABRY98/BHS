@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowUpDown, Search, Package, RefreshCw, ChevronDown, FileSpreadsheet } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { writeTrackedXlsxFile } from '@/app/Audit/Utils/TrackedDownload';
 import TabLoader from '@/app/Components/Loading/TabLoader';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import TabFetchError from '@/app/Components/DataState/TabFetchError';
@@ -184,7 +185,7 @@ export default function TotalCountTab() {
     const worksheet = XLSX.utils.json_to_sheet(exportData);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Total Count');
-    XLSX.writeFile(workbook, `Total_Count_${new Date().toISOString().split('T')[0]}.xlsx`);
+    writeTrackedXlsxFile(workbook, `Total_Count_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
   const handleSaveItem = async (updatedValues: Partial<ICItem>) => {

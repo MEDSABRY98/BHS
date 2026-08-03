@@ -12,6 +12,7 @@ import {
   SortingState,
 } from '@tanstack/react-table';
 import { FileSpreadsheet, FileText } from 'lucide-react';
+import { saveTrackedAs } from '@/app/Audit/Utils/TrackedDownload';
 import { InvoiceRow } from '@/types';
 import NoData from '@/app/Components/DataState/NoDataTab';
 
@@ -257,7 +258,6 @@ export default function AgesTab({ data }: AgesTabProps) {
 
   const handleExportPDF = async () => {
     try {
-      const { saveAs } = await import('file-saver');
       const JSZip = (await import('jszip')).default;
       const { generateAgesPDF, generateSingleRegionAgesPDF } = await import('@/app/Debit/Pdf/AgesUtils');
 
@@ -289,7 +289,7 @@ export default function AgesTab({ data }: AgesTabProps) {
 
       // 5. Download ZIP
       const zipBlob = await zip.generateAsync({ type: 'blob' });
-      saveAs(zipBlob, `Aging_Report_${dateStr}.zip`);
+      saveTrackedAs(zipBlob, `Aging_Report_${dateStr}.zip`);
     } catch (error) {
       console.error('Error generating PDF:', error);
       alert('Failed to generate PDF');

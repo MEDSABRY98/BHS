@@ -18,6 +18,7 @@ import {
   FileSpreadsheet
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { writeTrackedXlsxFile } from '@/app/Audit/Utils/TrackedDownload';
 import { toast } from '@/app/Components/Notification';
 import NoData from '@/app/Components/DataState/NoDataTab';
 
@@ -241,7 +242,7 @@ export default function RecordScrapTab({
     );
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Session Logs');
-    XLSX.writeFile(wb, `BHS_Scrap_Session_${sessionId}.xlsx`);
+    writeTrackedXlsxFile(wb, `BHS_Scrap_Session_${sessionId}.xlsx`);
   };
 
 

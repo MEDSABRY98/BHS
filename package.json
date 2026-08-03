@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "setup:excel-exports": "node scripts/setup-module-excel-exports.mjs --apply"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.105.4",

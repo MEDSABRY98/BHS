@@ -12,6 +12,7 @@ import {
   SortingState,
 } from '@tanstack/react-table';
 import { Search, Plus, X, FileText, Printer, FileSpreadsheet, AlertCircle, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
+import { saveTrackedPdf } from '@/app/Audit/Utils/TrackedDownload';
 import { InvoiceRow } from '@/types';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import FilterBar from '../CustomerDetailsTab/FilterBar';
@@ -775,7 +776,7 @@ export default function CustomersGroupTab({ data }: CustomersGroupTabProps) {
       printPdfInSameTab(doc);
     } else {
       const fileName = viewMode === 'overdue' ? 'Group_Overdue_Statement' : 'Group_Account_Statement';
-      doc.save(`${fileName}_${currentDate}.pdf`);
+      saveTrackedPdf(doc, `${fileName}_${currentDate}.pdf`);
     }
   };
 

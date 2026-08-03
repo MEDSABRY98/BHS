@@ -12,6 +12,7 @@ import {
   Cell, 
   LabelList 
 } from 'recharts';
+import { saveTrackedPdf } from '@/app/Audit/Utils/TrackedDownload';
 
 // Helper to identify payment transactions consistently
 const isPaymentTxn = (inv: { number?: string | null; credit?: number | null }): boolean => {
@@ -605,7 +606,7 @@ export async function generateAnalyticalPDF({
 
     pdf.addImage(imgData2, 'JPEG', 0, 0, pdfWidth, pdfHeight2);
 
-    pdf.save(`${customerName.replace(/\s+/g, '_')}_Analysis.pdf`);
+    saveTrackedPdf(pdf, `${customerName.replace(/\s+/g, '_')}_Analysis.pdf`);
   } catch (error) {
     console.error('Error generating analytical PDF:', error);
     throw error;

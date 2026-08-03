@@ -1,11 +1,23 @@
 'use client';
 
 import React, { useState } from 'react';
+import {
+  Check,
+  ChevronRight,
+  FileSpreadsheet,
+  FileText,
+  Loader2,
+  Users,
+  X,
+} from 'lucide-react';
 import { InvoiceRow } from '@/types';
 import { PdfExportSections } from './PaymentTTypesTab';
 import { generatePaymentAnalysisPDFZip, type PaymentPdfFilterContext } from '@/app/Debit/Pdf/PaymentUtils';
+import { generatePaymentAnalysisExcel } from '@/app/Debit/Pdf/PaymentExcelUtils';
 
-const PDF_SECTION_LABELS: Record<keyof PdfExportSections, string> = {
+type ExportFormat = 'pdf' | 'excel';
+
+const EXPORT_SECTION_LABELS: Record<keyof PdfExportSections, string> = {
   summary: 'Summary',
   summaryPrevious: 'Summary Previous',
   summaryLastYear: 'Summary Last Year',
@@ -38,6 +50,14 @@ interface PaymentTExportTabProps {
   searchQuery?: string;
 }
 
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 mb-3">
+      {children}
+    </p>
+  );
+}
+
 export default function PaymentTExportTab({
   isPdfExportOpen,
   setIsPdfExportOpen,
@@ -55,19 +75,19 @@ export default function PaymentTExportTab({
   startDate,
   endDate,
   salesRep,
-  searchQuery
+  searchQuery,
 }: PaymentTExportTabProps) {
-
   const [isGenerating, setIsGenerating] = useState(false);
+  const [exportFormat, setExportFormat] = useState<ExportFormat>('pdf');
 
   if (!isPdfExportOpen) return null;
 
   const toggleSection = (section: keyof PdfExportSections) => {
-    setPdfExportSections(prev => ({ ...prev, [section]: !prev[section] }));
+    setPdfExportSections((prev) => ({ ...prev, [section]: !prev[section] }));
   };
 
   const toggleCustomer = (customer: string) => {
-    setPdfSelectedCustomers(prev => {
+    setPdfSelectedCustomers((prev) => {
       const next = new Set(prev);
       if (next.has(customer)) next.delete(customer);
       else next.add(customer);
@@ -75,160 +95,270 @@ export default function PaymentTExportTab({
     });
   };
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-gray-900/40" onClick={() => setIsPdfExportOpen(false)} />
+  const selectedReportsCount = Object.values(pdfExportSections).filter(Boolean).length;
+  const totalCustomers = allCustomers.length;
+  const selectedCustomerCount = pdfSelectedCustomers.size;
+  const customerLabel =
+    selectedCustomerCount === 0
+      ? `All customers · 0 of ${totalCustomers}`
+      : selectedCustomerCount === totalCustomers
+        ? `All customers · ${totalCustomers} of ${totalCustomers}`
+        : `${selectedCustomerCount} of ${totalCustomers} customers`;
 
-      <div className="relative bg-white w-full max-w-2xl rounded-xl border border-gray-200 shadow-lg overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
-          <h3 className="text-base font-semibold text-gray-900">Export Payment Analysis</h3>
-          <button onClick={() => setIsPdfExportOpen(false)} className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-500">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
+      <button
+        type="button"
+        aria-label="Close export dialog"
+        className="absolute inset-0 bg-slate-900/45 backdrop-blur-[2px]"
+        onClick={() => setIsPdfExportOpen(false)}
+      />
+
+      <div className="relative w-full max-w-2xl bg-white rounded-2xl border border-slate-200/80 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        <div className="relative px-6 py-5 border-b border-slate-100 bg-gradient-to-r from-slate-50 via-white to-slate-50">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h3 className="text-lg font-bold text-slate-900 tracking-tight">Export Payment Analysis</h3>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsPdfExportOpen(false)}
+              className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors shrink-0"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
-        <div className="p-5 space-y-6">
+        <div className="px-6 py-5 space-y-6 max-h-[calc(100vh-220px)] overflow-y-auto">
           <div>
-            <p className="text-xs font-medium text-gray-500 uppercase mb-3">Reports to Include</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-              {(Object.keys(pdfExportSections) as Array<keyof PdfExportSections>).map((section) => (
-                <label key={section} className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
-                  <input
-                    type="checkbox"
-                    checked={pdfExportSections[section]}
-                    onChange={() => toggleSection(section)}
-                    className="h-4 w-4 rounded border-gray-300 text-gray-800 focus:ring-gray-400"
-                  />
-                  <span>{PDF_SECTION_LABELS[section]}</span>
-                </label>
-              ))}
+            <SectionLabel>Export Format</SectionLabel>
+            <div className="grid grid-cols-2 gap-2 w-full p-1.5 rounded-xl bg-slate-100/90 border border-slate-200/80">
+              <button
+                type="button"
+                onClick={() => setExportFormat('pdf')}
+                className={`flex items-center justify-center gap-2.5 w-full py-3 rounded-lg text-sm font-semibold transition-all ${
+                  exportFormat === 'pdf'
+                    ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-200'
+                    : 'text-slate-500 hover:text-slate-800 hover:bg-white/50'
+                }`}
+              >
+                <FileText className={`w-4 h-4 ${exportFormat === 'pdf' ? 'text-slate-800' : 'text-slate-400'}`} />
+                PDF
+              </button>
+              <button
+                type="button"
+                onClick={() => setExportFormat('excel')}
+                className={`flex items-center justify-center gap-2.5 w-full py-3 rounded-lg text-sm font-semibold transition-all ${
+                  exportFormat === 'excel'
+                    ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-200'
+                    : 'text-slate-500 hover:text-slate-800 hover:bg-white/50'
+                }`}
+              >
+                <FileSpreadsheet className={`w-4 h-4 ${exportFormat === 'excel' ? 'text-emerald-600' : 'text-slate-400'}`} />
+                Excel
+              </button>
             </div>
           </div>
 
           <div>
-            <p className="text-xs font-medium text-gray-500 uppercase mb-3">Customers</p>
-            {!isCustomerSelectionOpen ? (
-              <button
-                onClick={() => setIsCustomerSelectionOpen(true)}
-                className="w-full p-4 border border-dashed border-gray-300 rounded-lg text-sm text-gray-600 hover:border-gray-400 hover:bg-gray-50 text-left"
-              >
-                Select customers
-                {pdfSelectedCustomers.size > 0 && (
-                  <span className="ml-2 text-xs bg-gray-800 text-white px-2 py-0.5 rounded-full">
-                    {pdfSelectedCustomers.size}
-                  </span>
-                )}
-              </button>
-            ) : (
-              <button
-                onClick={() => setIsCustomerSelectionOpen(true)}
-                className="w-full p-3 border border-gray-200 rounded-lg text-sm text-gray-700 hover:bg-gray-50 text-left"
-              >
-                {pdfSelectedCustomers.size === allCustomers.length
-                  ? 'All customers selected'
-                  : `${pdfSelectedCustomers.size} selected — click to change`}
-              </button>
-            )}
+            <div className="flex items-center justify-between mb-3">
+              <SectionLabel>Reports to Include</SectionLabel>
+              <span className="text-[11px] font-medium text-slate-400 -mt-3">
+                {selectedReportsCount} selected
+              </span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {(Object.keys(pdfExportSections) as Array<keyof PdfExportSections>).map((section) => {
+                const isSelected = pdfExportSections[section];
+                return (
+                  <button
+                    key={section}
+                    type="button"
+                    onClick={() => toggleSection(section)}
+                    className={`flex items-center gap-3 w-full px-3.5 py-3 rounded-xl border text-left transition-all ${
+                      isSelected
+                        ? 'border-slate-800 bg-slate-900 text-white shadow-sm'
+                        : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50'
+                    }`}
+                  >
+                    <span
+                      className={`flex items-center justify-center w-5 h-5 rounded-md shrink-0 transition-colors ${
+                        isSelected ? 'bg-white/15 text-white' : 'bg-slate-100 text-slate-400'
+                      }`}
+                    >
+                      {isSelected && <Check className="w-3.5 h-3.5" strokeWidth={3} />}
+                    </span>
+                    <span className="text-sm font-medium leading-snug">{EXPORT_SECTION_LABELS[section]}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div>
+            <SectionLabel>Customers</SectionLabel>
+            <button
+              type="button"
+              onClick={() => setIsCustomerSelectionOpen(true)}
+              className="group flex items-center justify-between w-full px-4 py-3.5 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-white hover:border-slate-300 transition-all text-left"
+            >
+              <span className="inline-flex items-center gap-3 min-w-0">
+                <span className="flex items-center justify-center w-9 h-9 rounded-lg bg-white border border-slate-200 text-slate-600 group-hover:border-slate-300 shrink-0">
+                  <Users className="w-4 h-4" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold text-slate-800 truncate">{customerLabel}</span>
+                  <span className="block text-xs text-slate-400 mt-0.5">Tap to filter by customer</span>
+                </span>
+              </span>
+              <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-slate-600 shrink-0" />
+            </button>
           </div>
         </div>
 
-        <div className="flex gap-3 p-5 border-t border-gray-200 bg-gray-50">
+        <div className="flex gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50/80">
           <button
+            type="button"
             onClick={() => setIsPdfExportOpen(false)}
-            className="flex-1 py-2.5 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-white"
+            className="flex-1 py-3 border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 bg-white hover:bg-slate-50 transition-colors"
           >
             Cancel
           </button>
           <button
+            type="button"
             onClick={async () => {
               if (isGenerating) return;
               setIsGenerating(true);
               try {
                 const exportFilters: PaymentPdfFilterContext = {
                   sections: pdfExportSections,
-                  selectedCustomers: pdfSelectedCustomers.size > 0
-                    ? new Set(Array.from(pdfSelectedCustomers).map(c => c.trim().toLowerCase()))
-                    : null,
+                  selectedCustomers:
+                    pdfSelectedCustomers.size > 0
+                      ? new Set(Array.from(pdfSelectedCustomers).map((c) => c.trim().toLowerCase()))
+                      : null,
                   startDate,
                   endDate,
                   salesRep,
                   searchQuery,
                 };
-                await generatePaymentAnalysisPDFZip(data, exportFilters);
+                if (exportFormat === 'pdf') {
+                  await generatePaymentAnalysisPDFZip(data, exportFilters);
+                } else {
+                  await generatePaymentAnalysisExcel(data, exportFilters);
+                }
                 setIsPdfExportOpen(false);
               } catch (error) {
-                console.error('Payment analysis ZIP export failed:', error);
-                alert('Failed to generate PDF export. Please try again.');
+                console.error('Payment analysis export failed:', error);
+                alert(`Failed to generate ${exportFormat.toUpperCase()} export. Please try again.`);
               } finally {
                 setIsGenerating(false);
               }
             }}
-            disabled={isGenerating}
-            className="flex-1 py-2.5 bg-gray-800 text-white rounded-lg text-sm font-medium hover:bg-gray-700 disabled:opacity-60 disabled:cursor-not-allowed"
+            disabled={isGenerating || selectedReportsCount === 0}
+            className="flex-1 inline-flex items-center justify-center gap-2 py-3 bg-slate-900 text-white rounded-xl text-sm font-semibold hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            {isGenerating ? 'Generating ZIP...' : 'Generate PDF'}
+            {isGenerating && <Loader2 className="w-4 h-4 animate-spin" />}
+            {isGenerating
+              ? exportFormat === 'pdf'
+                ? 'Generating ZIP...'
+                : 'Generating Excel...'
+              : exportFormat === 'pdf'
+                ? 'Generate PDF'
+                : 'Generate Excel'}
           </button>
         </div>
       </div>
 
       {isCustomerSelectionOpen && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-gray-900/50" onClick={() => setIsCustomerSelectionOpen(false)} />
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 sm:p-6">
+          <button
+            type="button"
+            aria-label="Close customer selection"
+            className="absolute inset-0 bg-slate-900/50 backdrop-blur-[2px]"
+            onClick={() => setIsCustomerSelectionOpen(false)}
+          />
 
-          <div className="relative bg-white w-full max-w-lg rounded-xl border border-gray-200 shadow-lg flex flex-col max-h-[90vh]">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
-              <h3 className="text-base font-semibold text-gray-900">Select Customers</h3>
-              <button onClick={() => setIsCustomerSelectionOpen(false)} className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-500">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
+          <div className="relative bg-white w-full max-w-lg rounded-2xl border border-slate-200/80 shadow-2xl flex flex-col max-h-[90vh] overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Select Customers</h3>
+                <p className="text-xs text-slate-500 mt-0.5">Leave empty to use current dashboard filters</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsCustomerSelectionOpen(false)}
+                className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+              >
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="px-5 py-3 flex items-center justify-between border-b border-gray-100 text-sm text-gray-500">
-              <span>
+            <div className="px-5 py-3 border-b border-slate-100 bg-slate-50/60 space-y-3">
+              <span className="block text-sm text-slate-600 font-medium">
                 {pdfSelectedCustomers.size === allCustomers.length
                   ? 'All selected'
                   : pdfSelectedCustomers.size === 0
                     ? 'None selected'
                     : `${pdfSelectedCustomers.size} selected`}
               </span>
-              <div className="flex gap-3">
-                <button onClick={() => setPdfSelectedCustomers(new Set(allCustomers))} className="text-gray-800 font-medium hover:underline">All</button>
-                <button onClick={() => setPdfSelectedCustomers(new Set())} className="text-gray-500 hover:underline">None</button>
+              <div className="grid grid-cols-2 gap-2 w-full">
+                <button
+                  type="button"
+                  onClick={() => setPdfSelectedCustomers(new Set(allCustomers))}
+                  className="w-full py-2.5 text-sm font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors"
+                >
+                  All
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPdfSelectedCustomers(new Set())}
+                  className="w-full py-2.5 text-sm font-semibold text-slate-500 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors"
+                >
+                  None
+                </button>
               </div>
             </div>
 
-            <div className="px-5 py-3">
+            <div className="px-5 py-3 border-b border-slate-100">
               <input
                 type="text"
                 placeholder="Search customers..."
                 value={checklistSearch}
                 onChange={(e) => setChecklistSearch(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-300"
+                className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300 focus:border-slate-300"
               />
             </div>
 
-            <div className="flex-1 overflow-y-auto px-5 pb-4">
-              {filteredCustomerChecklist.map(cust => (
-                <label key={cust} className="flex items-center gap-2 py-2 cursor-pointer text-sm text-gray-700 hover:text-gray-900">
-                  <input
-                    type="checkbox"
-                    checked={pdfSelectedCustomers.has(cust)}
-                    onChange={() => toggleCustomer(cust)}
-                    className="h-4 w-4 rounded border-gray-300 text-gray-800"
-                  />
-                  <span className="truncate">{cust}</span>
-                </label>
-              ))}
+            <div className="flex-1 overflow-y-auto px-3 py-2">
+              {filteredCustomerChecklist.map((cust) => {
+                const isSelected = pdfSelectedCustomers.has(cust);
+                return (
+                  <label
+                    key={cust}
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-colors ${
+                      isSelected ? 'bg-slate-900 text-white' : 'hover:bg-slate-50 text-slate-700'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => toggleCustomer(cust)}
+                      className="w-4 h-4 rounded border-slate-300 text-slate-900 focus:ring-slate-400 shrink-0"
+                    />
+                    <span className={`text-sm truncate ${isSelected ? 'font-semibold' : 'font-medium'}`}>
+                      {cust}
+                    </span>
+                  </label>
+                );
+              })}
             </div>
 
-            <div className="px-5 py-4 border-t border-gray-200 flex justify-end">
+            <div className="px-5 py-4 border-t border-slate-100 bg-slate-50/80 flex justify-end">
               <button
+                type="button"
                 onClick={() => setIsCustomerSelectionOpen(false)}
-                className="px-5 py-2 bg-gray-800 text-white rounded-lg text-sm font-medium hover:bg-gray-700"
+                className="px-5 py-2.5 bg-slate-900 text-white rounded-xl text-sm font-semibold hover:bg-slate-800 transition-colors"
               >
                 Done
               </button>

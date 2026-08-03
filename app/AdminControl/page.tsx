@@ -2,9 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ChevronLeft } from 'lucide-react';
-import AdminControlTab from './AdminControlTab';
-
+import { Menu } from 'lucide-react';
+import ByUserTab from './ByUserTab';
+import ByModuleTab from './ByModuleTab';
+import UserActivityTab from './UserActivityTab';
+import AdminSidebar from './Utils/Sidebar';
+import TabPanel from '@/app/Components/Layout/TabPanel';
 import { verifyUserCredentials } from '@/app/DataBase/Service/database_service';
 import Login from '@/app/Components/Auth/Login';
 import Loading from '@/app/Components/Loading';
@@ -13,7 +16,18 @@ export default function AdminControlPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('by-user');
+  const [visitedTabs, setVisitedTabs] = useState<Set<string>>(new Set(['by-user']));
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const router = useRouter();
+
+  useEffect(() => {
+    const stored = localStorage.getItem('adminSidebarCollapsed');
+    if (stored === 'false') {
+      setIsSidebarCollapsed(false);
+    }
+  }, []);
 
   useEffect(() => {
     const validateAndSetUser = async () => {
@@ -25,25 +39,22 @@ export default function AdminControlPage() {
         try {
           const userData = JSON.parse(savedUser);
           if (userData && userData.name) {
-            // Verify user still exists and password is correct
             const result = await verifyUserCredentials(userData.name, savedPassword);
 
             if (result.success && result.user) {
-              // User still exists and credentials are valid
               setCurrentUser(result.user);
               setIsAuthenticated(true);
-              // Update localStorage with fresh user data
               localStorage.setItem('currentUser', JSON.stringify(result.user));
-              
+
               if (result.user.name !== 'MED Sabry') {
-                  router.push('/');
+                router.push('/');
               }
             } else {
               localStorage.removeItem('currentUser');
               localStorage.removeItem('userPassword');
             }
           }
-        } catch (e) {
+        } catch {
           localStorage.removeItem('currentUser');
           localStorage.removeItem('userPassword');
         }
@@ -51,7 +62,7 @@ export default function AdminControlPage() {
       setTimeout(() => setIsLoading(false), 800);
     };
 
-    validateAndSetUser();
+    void validateAndSetUser();
   }, [router]);
 
   const handleLogin = (user: any) => {
@@ -63,6 +74,18 @@ export default function AdminControlPage() {
     }
   };
 
+  useEffect(() => {
+    setVisitedTabs((prev) => new Set(prev).add(activeTab));
+  }, [activeTab]);
+
+  const toggleSidebar = () => {
+    const nextState = !isSidebarCollapsed;
+    setIsSidebarCollapsed(nextState);
+    localStorage.setItem('adminSidebarCollapsed', String(nextState));
+  };
+
+  const adminName = currentUser?.name || '';
+
   if (isLoading) {
     return <Loading />;
   }
@@ -72,25 +95,67 @@ export default function AdminControlPage() {
   }
 
   if (currentUser?.name !== 'MED Sabry') {
-      return null;
+    return null;
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <div className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between sticky top-0 z-50">
-        <div className="flex items-center gap-4">
+    <div className="flex min-h-screen bg-[#F8F9FA] text-black">
+      <aside
+        className={`hidden lg:flex flex-col ${isSidebarCollapsed ? 'w-20' : 'w-72'} bg-[#0a0f1d] text-white shadow-2xl fixed h-screen left-0 top-0 z-50 transition-all duration-300`}
+      >
+        <AdminSidebar
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          isCollapsed={isSidebarCollapsed}
+          onToggleCollapse={toggleSidebar}
+        />
+      </aside>
+
+      {isMobileSidebarOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm lg:hidden"
+          onClick={() => setIsMobileSidebarOpen(false)}
+        />
+      )}
+
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 w-72 bg-[#0a0f1d] text-white transition-transform duration-300 transform lg:hidden ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'} flex flex-col`}
+      >
+        <AdminSidebar
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          isCollapsed={false}
+          onToggleCollapse={() => {}}
+          onCloseMobile={() => setIsMobileSidebarOpen(false)}
+        />
+      </aside>
+
+      <div
+        className={`flex-1 flex flex-col min-w-0 ${isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-72'} transition-all duration-300`}
+      >
+        <div className="lg:hidden p-4 flex items-center bg-white border-b border-slate-200">
           <button
-            onClick={() => router.push('/')}
-            className="p-2 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-all"
-            title="Back to Dashboard"
+            type="button"
+            onClick={() => setIsMobileSidebarOpen(true)}
+            className="p-2.5 text-slate-600 hover:text-slate-900 rounded-xl hover:bg-slate-100 transition-all"
           >
-            <ChevronLeft className="w-6 h-6" />
+            <Menu className="w-6 h-6" />
           </button>
-          <div className="h-6 w-px bg-slate-200" />
-          <h1 className="text-xl font-bold text-slate-900">Admin Control</h1>
+          <span className="ml-3 font-bold text-slate-800">Admin Control</span>
+        </div>
+
+        <div className="max-w-[95%] 2xl:max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-12 flex-1 w-full">
+          <TabPanel tabId="by-user" activeTab={activeTab} isVisited={visitedTabs.has('by-user')}>
+            <ByUserTab />
+          </TabPanel>
+          <TabPanel tabId="by-module" activeTab={activeTab} isVisited={visitedTabs.has('by-module')}>
+            <ByModuleTab />
+          </TabPanel>
+          <TabPanel tabId="user-activity" activeTab={activeTab} isVisited={visitedTabs.has('user-activity')}>
+            <UserActivityTab adminName={adminName} />
+          </TabPanel>
         </div>
       </div>
-      <AdminControlTab />
     </div>
   );
 }

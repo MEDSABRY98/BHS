@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { NotificationContainer } from "@/app/Components/Notification";
 import MobileBlocker from "@/lib/MobileBlocker";
+import ActivityTracker from "@/app/Audit/Components/ActivityTracker";
 
 
 const geistSans = Geist({
@@ -34,6 +35,7 @@ export default function RootLayout({
         <div className="app-main-wrapper">
           {children}
           <NotificationContainer />
+          <ActivityTracker />
         </div>
         <MobileBlocker />
       </body>

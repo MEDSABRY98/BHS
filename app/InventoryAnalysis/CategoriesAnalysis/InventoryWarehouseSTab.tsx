@@ -10,6 +10,7 @@ import { useRouter } from 'next/navigation';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { addArabicFont } from '@/app/Components/Pdf/shared';
+import { saveTrackedPdf, triggerTrackedDownload } from '@/app/Audit/Utils/TrackedDownload';
 import Loading from '@/app/Components/Loading';
 import { toast } from '@/app/Components/Notification';
 
@@ -232,13 +233,8 @@ export default function InventoryWh20ItemsTab() {
         ].join("\n");
 
         const blob = new Blob(["\ufeff" + csvContent], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.setAttribute("href", url);
-        link.setAttribute("download", `${personName}_Inventory_${new Date().toISOString().split('T')[0]}.csv`);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        const fileName = `${personName}_Inventory_${new Date().toISOString().split('T')[0]}.csv`;
+        triggerTrackedDownload(blob, fileName);
     };
 
     useEffect(() => {
@@ -485,13 +481,8 @@ export default function InventoryWh20ItemsTab() {
         ].join("\n");
 
         const blob = new Blob(["\ufeff" + csvContent], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.setAttribute("href", url);
-        link.setAttribute("download", `${transactionNumber}_${h.recipientName}.csv`);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        const fileName = `${transactionNumber}_${h.recipientName}.csv`;
+        triggerTrackedDownload(blob, fileName);
     };
 
     const fetchHistory = async (limit?: number) => {
@@ -806,7 +797,7 @@ export default function InventoryWh20ItemsTab() {
 
             // Save PDF
             const fileName = `${transactionNumber}_${header.receiverName}.pdf`;
-            doc.save(fileName);
+            saveTrackedPdf(doc, fileName);
 
             addNotification('Transfer saved and PDF generated successfully!', 'success');
             // Reset form: Clear header and clear Qty/Price only from rows
@@ -1005,7 +996,7 @@ export default function InventoryWh20ItemsTab() {
             const receiverText = `Recipient: ${firstRow.recipientName}`;
             doc.text(receiverText, signatureCenterX, finalY + 10, { align: 'center' });
 
-            doc.save(`${firstRow.number}_${firstRow.recipientName}.pdf`);
+            saveTrackedPdf(doc, `${firstRow.number}_${firstRow.recipientName}.pdf`);
             addNotification('Reprint successful!', 'success');
 
         } catch (error) {

@@ -18,6 +18,7 @@ import { generateSupplierDependencyReport } from './SupplierDependencyReport';
 import { generateProductPriceSequenceReport } from './ProductPriceSequenceReport';
 import { generateSupplierPriceMatrixReport } from './SupplierPriceMatrixReport';
 import { usePurchaseModuleFilters, PurchaseFilterButton } from '../Model/PurchaseFilters';
+import { formatProductCategory } from '@/app/InventoryAnalysis/Utils/locationTypes';
 
 interface Props {
   purchases: PurchaseRecord[];
@@ -31,7 +32,7 @@ export default function ReportsTab({ purchases, products, suppliers }: Props) {
     hasAnyFilter,
     supplierId,
     productId,
-    category,
+    categories,
     productSupplierCount,
     fromDate,
     toDate,
@@ -59,12 +60,18 @@ export default function ReportsTab({ purchases, products, suppliers }: Props) {
           : `${productSupplierCount} Suppliers / Product`
         : 'All Supplier Counts',
     );
-    parts.push(category || 'All Categories');
+    parts.push(
+      categories.length === 0
+        ? 'All Categories'
+        : categories.length === 1
+          ? formatProductCategory(categories[0]) || categories[0]
+          : `${categories.length} Categories`,
+    );
     parts.push(
       productId ? products.find((p) => p.id === productId)?.name || 'Product' : 'All Products',
     );
     return parts.join(' · ');
-  }, [supplierId, productSupplierCount, category, productId, suppliers, products]);
+  }, [supplierId, productSupplierCount, categories, productId, suppliers, products]);
 
   const handleDownloadSupplierReport = async () => {
     if (!supplierId) return;

@@ -1,5 +1,5 @@
 import { PurchaseRecord, Product, Supplier } from '../page';
-import { exportStyledExcel } from '@/app/Components/Export/ExcelExport';
+import { exportPurchasePriceTrackingExcel } from '../Export/ExcelExport';
 import { filterPurchases, filterSuffix, ReportFilters } from './ReportFilters';
 
 function buildLatestPriceMap(
@@ -80,7 +80,7 @@ export async function generateSupplierPriceMatrixReport(
 
   const fileName = `Supplier_Price_Matrix${filterSuffix(filters)}_${new Date().toISOString().split('T')[0]}`;
 
-  await exportStyledExcel(reportData, fileName, {
+  await exportPurchasePriceTrackingExcel(reportData, fileName, {
     sheetName: 'Supplier Price Matrix',
     columnWidth: 18,
     numericColumns: supplierColumnNames,

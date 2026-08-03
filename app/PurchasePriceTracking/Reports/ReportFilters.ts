@@ -3,7 +3,7 @@ import { Product, PurchaseRecord } from '../page';
 export type ReportFilters = {
   supplierId?: string;
   productId?: string;
-  category?: string;
+  categories?: string[];
   productSupplierCount?: number;
   fromDate?: string;
   toDate?: string;
@@ -61,9 +61,9 @@ export function filterPurchases(
   if (filters.productId) {
     result = result.filter(p => p.productId === filters.productId);
   }
-  if (filters.category && products) {
+  if (filters.categories?.length && products) {
     const allowedProductIds = new Set(
-      filterProductsByCategory(products, filters.category).map(p => p.id),
+      filterProductsByCategory(products, filters.categories).map(p => p.id),
     );
     result = result.filter(p => allowedProductIds.has(p.productId));
   }
@@ -71,16 +71,17 @@ export function filterPurchases(
   return result;
 }
 
-export function filterProductsByCategory(products: Product[], category?: string): Product[] {
-  if (!category) return products;
-  return products.filter(p => (p.category || '') === category);
+export function filterProductsByCategory(products: Product[], categories?: string[]): Product[] {
+  if (!categories?.length) return products;
+  const allowed = new Set(categories);
+  return products.filter(p => allowed.has(p.category || ''));
 }
 
 export function filterSuffix(filters: ReportFilters): string {
   const parts: string[] = [];
   if (filters.supplierId) parts.push('Supplier');
   if (filters.productId) parts.push('Product');
-  if (filters.category) parts.push('Category');
+  if (filters.categories?.length) parts.push('Category');
   if (filters.productSupplierCount) parts.push('SupplierCount');
   if (filters.fromDate || filters.toDate) parts.push('Dated');
   return parts.length ? `_${parts.join('_')}` : '_All';

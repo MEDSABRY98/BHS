@@ -1,6 +1,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { addArabicFont } from '@/app/Components/Pdf/shared';
+import { saveTrackedPdf } from '@/app/Audit/Utils/TrackedDownload';
 import { HandoverItem } from '../Service/cash_handover_service';
 
 export interface HandoverPdfData {
@@ -161,5 +162,5 @@ export const generateHandoverPdf = async ({ data, filename }: { data: HandoverPd
   doc.text(data.receivedBy, leftMargin + 30, signatureY + 33, { align: 'center' });
 
   // Save the PDF
-  doc.save(`${filename}.pdf`);
+  saveTrackedPdf(doc, `${filename}.pdf`);
 };

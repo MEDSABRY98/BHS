@@ -2,6 +2,7 @@
 
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { exportDebitExcelTable } from '@/app/Debit/Utils/ExcelExport';
+import { saveTrackedAs } from '@/app/Audit/Utils/TrackedDownload';
 import {
   AreaChart,
   Area,
@@ -394,11 +395,10 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
       ];
 
       const JSZip = (await import('jszip')).default;
-      const { saveAs } = await import('file-saver');
       const zip = new JSZip();
       zip.file(`${cleanName}.eml`, emlLines.join('\r\n'));
       const content = await zip.generateAsync({ type: 'blob' });
-      saveAs(content, `Customer_Emails_${new Date().toISOString().split('T')[0]}.zip`);
+      saveTrackedAs(content, `Customer_Emails_${new Date().toISOString().split('T')[0]}.zip`);
     } catch (error) {
       console.error('Error in email flow:', error);
       alert('Error generating email.');

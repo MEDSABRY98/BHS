@@ -269,8 +269,8 @@ export const exportToPDF = async (data: CustomerAnalysis[], filename: string = '
 
     // 3. Generate and Save Zip
     const content = await zip.generateAsync({ type: 'blob' });
-    const { saveAs } = await import('file-saver');
-    saveAs(content, `${filename}.zip`);
+    const { saveTrackedAs } = await import('@/app/Audit/Utils/TrackedDownload');
+    saveTrackedAs(content, `${filename}.zip`);
 
   } catch (error) {
     console.error('Error generating PDF:', error);

@@ -17,7 +17,7 @@ import { FileSpreadsheet, AlertTriangle, FileText, Loader2 } from 'lucide-react'
 import { useSalesModuleFilters } from '@/app/Sales/Model/SalesFilters';
 import { exportSalesExcelWorkbook } from '@/app/Sales/Utils/ExcelExport';
 import { generateSalesReportsZip } from '@/app/Sales/Reports/ReportsExport';
-import { saveAs } from 'file-saver';
+import { saveTrackedAs } from '@/app/Audit/Utils/TrackedDownload';
 import { toast } from '@/app/Components/Notification';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
 import NoData from '@/app/Components/DataState/NoDataTab';
@@ -689,7 +689,7 @@ export default function SalesReportsTab({ userId, allowedReportTableTabIds = nul
           });
         },
       });
-      saveAs(zipBlob, `Sales_Reports_${periodSlug}.zip`);
+      saveTrackedAs(zipBlob, `Sales_Reports_${periodSlug}.zip`);
       toast.dismiss('reports-zip');
       toast.success('Reports ZIP downloaded');
     } catch (err) {

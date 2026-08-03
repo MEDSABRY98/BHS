@@ -1,5 +1,6 @@
 import jsPDF from 'jspdf';
 import { addArabicFont } from '@/app/Components/Pdf/shared';
+import { saveTrackedPdf } from '@/app/Audit/Utils/TrackedDownload';
 
 export interface VoucherPdfData {
   voucherNumber: string;
@@ -261,5 +262,5 @@ export async function generateVoucherPdf(options: {
   doc.addPage();
   renderVoucherPage(doc, data, true);
 
-  doc.save(`${filename}.pdf`);
+  saveTrackedPdf(doc, `${filename}.pdf`);
 }

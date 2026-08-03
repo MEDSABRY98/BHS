@@ -7,7 +7,7 @@ import { generatePendingDriverInvoicesPDF } from '@/app/LPOs/Pdf/PendingDriverIn
 import NoData from '@/app/Components/DataState/NoDataTab';
 import TabLoader from '@/app/Components/Loading/TabLoader';
 import JSZip from 'jszip';
-import { saveAs } from 'file-saver';
+import { saveTrackedAs } from '@/app/Audit/Utils/TrackedDownload';
 import { toast } from '@/app/Components/Notification';
 
 export default function PendingDriverInvoices() {
@@ -249,7 +249,7 @@ export default function PendingDriverInvoices() {
 
       const zipBlob = await zip.generateAsync({ type: 'blob' });
       const dateStr = new Date().toISOString().split('T')[0];
-      saveAs(zipBlob, `Pending_Invoices_${dateStr}.zip`);
+      saveTrackedAs(zipBlob, `Pending_Invoices_${dateStr}.zip`);
       toast.success('Downloaded ZIP successfully!');
     } catch (err) {
       console.error('ZIP Generation failed:', err);

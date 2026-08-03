@@ -1,7 +1,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import JSZip from 'jszip';
-import { saveAs } from 'file-saver';
+import { saveTrackedAs, saveTrackedPdf } from '@/app/Audit/Utils/TrackedDownload';
 import { InvoiceRow } from '@/types';
 import { getInvoiceType } from '@/app/Debit/Utils/InvoiceType';
 
@@ -1808,6 +1808,26 @@ export const generatePaymentAnalysisPDF = (
                 ];
             });
 
+        let paidTotalAmount = 0;
+        let paidTotalCount = 0;
+        customerMap.forEach((stats) => {
+            if (stats.total <= 0.01) return;
+            paidTotalAmount += stats.total;
+            paidTotalCount += stats.count;
+        });
+        const custRowsWithTotal = [...custRows];
+        if (custRows.length > 0) {
+            custRowsWithTotal.push([
+                '',
+                'Total',
+                '',
+                `${paidTotalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+                paidTotalCount,
+                '',
+                '',
+            ]);
+        }
+
         if (showPaidCustomers) {
             doc.addPage('a4', 'landscape');
             y = 20;
@@ -1820,7 +1840,7 @@ export const generatePaymentAnalysisPDF = (
             autoTable(doc, {
                 startY: 28,
                 head: [['#', 'Customer Name', 'City', 'Total Paid', 'Count', 'Payment Dates', 'Gap']],
-                body: custRows,
+                body: custRowsWithTotal,
                 theme: 'striped',
                 headStyles: { fillColor: [59, 130, 246], halign: 'center', valign: 'middle' },
                 bodyStyles: { halign: 'center', valign: 'middle' },
@@ -1829,7 +1849,13 @@ export const generatePaymentAnalysisPDF = (
                     1: { halign: 'center', cellWidth: 80 }, // Customer Name (Increased)
                     2: { halign: 'center', cellWidth: 35 }, // City
                     5: { halign: 'center', cellWidth: 50 }  // Payment Dates (Fixed Width to prevent expansion)
-                }
+                },
+                didParseCell: (data) => {
+                    if (data.section === 'body' && data.row.index === custRowsWithTotal.length - 1 && custRows.length > 0) {
+                        data.cell.styles.fontStyle = 'bold';
+                        data.cell.styles.fillColor = [241, 245, 249];
+                    }
+                },
             });
 
             const finalY = (doc as any).lastAutoTable.finalY + 10;
@@ -1857,7 +1883,7 @@ export const generatePaymentAnalysisPDF = (
             referenceDate.setHours(0, 0, 0, 0);
             const filterStartMs = startDate!.getTime();
 
-            const nonPayerRows = Array.from(scopedCustomerRows.entries())
+            const nonPayerData = Array.from(scopedCustomerRows.entries())
                 .filter(([name]) => !paidCustomerKeys.has(name.trim().toLowerCase()))
                 .map(([name, rows]) => {
                     const balanceDue = rows.reduce((sum, row) => sum + (row.debit || 0) - (row.credit || 0), 0);
@@ -1911,16 +1937,30 @@ export const generatePaymentAnalysisPDF = (
                 .sort((a, b) => {
                     if (b.balanceDue !== a.balanceDue) return b.balanceDue - a.balanceDue;
                     return b.sortDays - a.sortDays;
-                })
-                .map((row, i) => [
-                    i + 1,
-                    row.name,
-                    row.cityName,
-                    `${row.balanceDue.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
-                    row.lastPaymentStr,
-                    row.lastPaymentAmountStr,
-                    row.daysSinceStr,
+                });
+
+            const totalBalanceDue = nonPayerData.reduce((sum, row) => sum + row.balanceDue, 0);
+            const nonPayerRows = nonPayerData.map((row, i) => [
+                i + 1,
+                row.name,
+                row.cityName,
+                `${row.balanceDue.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+                row.lastPaymentStr,
+                row.lastPaymentAmountStr,
+                row.daysSinceStr,
+            ]);
+
+            if (nonPayerRows.length > 0) {
+                nonPayerRows.push([
+                    '',
+                    'Total',
+                    '',
+                    `${totalBalanceDue.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+                    '',
+                    '',
+                    '',
                 ]);
+            }
 
             doc.addPage('a4', 'landscape');
             y = 20;
@@ -1945,6 +1985,16 @@ export const generatePaymentAnalysisPDF = (
                     2: { halign: 'center', cellWidth: 30 },
                     4: { halign: 'center', cellWidth: 35 },
                     5: { halign: 'center', cellWidth: 40 },
+                },
+                didParseCell: (data) => {
+                    if (
+                        data.section === 'body' &&
+                        nonPayerData.length > 0 &&
+                        data.row.index === nonPayerRows.length - 1
+                    ) {
+                        data.cell.styles.fontStyle = 'bold';
+                        data.cell.styles.fillColor = [241, 245, 249];
+                    }
                 },
             });
 
@@ -2225,7 +2275,7 @@ export const generatePaymentAnalysisPDF = (
         return doc.output('blob');
     }
 
-    doc.save(fileName);
+    saveTrackedPdf(doc, fileName);
 };
 
 export async function generatePaymentAnalysisPDFZip(
@@ -2254,5 +2304,5 @@ export async function generatePaymentAnalysisPDFZip(
     }
 
     const zipBlob = await zip.generateAsync({ type: 'blob' });
-    saveAs(zipBlob, `Collections_Analysis_${dateStr}.zip`);
+    saveTrackedAs(zipBlob, `Collections_Analysis_${dateStr}.zip`);
 };

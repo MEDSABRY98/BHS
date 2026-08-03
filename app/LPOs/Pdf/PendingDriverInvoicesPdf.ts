@@ -1,6 +1,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { printPdfInSameTab } from './DeliveryUtils';
+import { saveTrackedPdf } from '@/app/Audit/Utils/TrackedDownload';
 
 export async function generatePendingDriverInvoicesPDF(
   driverName: string,
@@ -285,6 +286,6 @@ export async function generatePendingDriverInvoicesPDF(
     return doc.output('blob');
   } else {
     const currentDate = new Date().toISOString().split('T')[0];
-    doc.save(`Pending_Invoices_${driverName.replace(/\s+/g, '_')}_${currentDate}.pdf`);
+    saveTrackedPdf(doc, `Pending_Invoices_${driverName.replace(/\s+/g, '_')}_${currentDate}.pdf`);
   }
 }

@@ -27,7 +27,7 @@ import OrderInfoTab, { OrderInfoTabHandle } from './Components/OrderInfoTab';
 import OrderDeliveryTab from './Components/OrderDeliveryTab';
 import InvoicesStatusTab from './Components/InvoicesStatusTab';
 import NoData from '@/app/Components/DataState/NoDataTab';
-import * as XLSX from 'xlsx';
+import { exportLPOsExcel } from '../Export/ExcelExport';
 
 function OrderDetailsPageContent() {
   const { canEdit, canDelete, isLoaded } = usePermissions();
@@ -173,11 +173,9 @@ function OrderDetailsPageContent() {
     return sum + (item.PRICE * sentQty);
   }, 0);
 
-  const handleDownloadExcel = () => {
+  const handleDownloadExcel = async () => {
     try {
-      const customerName = order.bhs_CUSTOMERS?.["CUSTOMER NAME"] || '-';
-
-      const exportData: any[] = items.map(item => ({
+      const exportData: Record<string, unknown>[] = items.map(item => ({
         'Product': item.bhs_PRODUCTS?.["PRODUCT NAME"] || '-',
         'Unit': item.UNIT || item.bhs_PRODUCTS?.["PRODUCT UNIT"] || '-',
         'Quantity': item.QTY_REQUEST || 0
@@ -191,10 +189,10 @@ function OrderDetailsPageContent() {
         });
       }
 
-      const worksheet = XLSX.utils.json_to_sheet(exportData);
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, "Order Details");
-      XLSX.writeFile(workbook, `Order_${order.ORDER_ID}_Export.xlsx`);
+      await exportLPOsExcel(exportData, `Order_${order.ORDER_ID}_Export`, {
+        sheetName: 'Order Details',
+        numericColumns: ['Quantity'],
+      });
     } catch (err) {
       console.error('Excel Export Error:', err);
       alert('Failed to export Excel');

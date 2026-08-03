@@ -16,6 +16,7 @@ import {
   Calendar
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { writeTrackedXlsxFile } from '@/app/Audit/Utils/TrackedDownload';
 import { toast } from '@/app/Components/Notification';
 import NoData from '@/app/Components/DataState/NoDataTab';
 
@@ -118,7 +119,7 @@ export default function SessionsHistoryTab({
 
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Scrap Summary');
-    XLSX.writeFile(wb, `BHS_Scrap_Summary_${startDate}_to_${endDate}.xlsx`);
+    writeTrackedXlsxFile(wb, `BHS_Scrap_Summary_${startDate}_to_${endDate}.xlsx`);
     setIsExportModalOpen(false);
     toast.success(`Exported ${aggregatedList.length} aggregated products successfully!`);
   };
@@ -216,7 +217,7 @@ export default function SessionsHistoryTab({
     );
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Session Logs');
-    XLSX.writeFile(wb, `BHS_Scrap_Session_${sessionId}.xlsx`);
+    writeTrackedXlsxFile(wb, `BHS_Scrap_Session_${sessionId}.xlsx`);
   };
 
 

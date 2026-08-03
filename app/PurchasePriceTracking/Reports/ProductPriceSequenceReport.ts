@@ -1,5 +1,6 @@
 import { PurchaseRecord, Product } from '../page';
-import { exportStyledExcel } from '@/app/Components/Export/ExcelExport';
+import { exportPurchasePriceTrackingExcel } from '../Export/ExcelExport';
+import { PurchasePriceKey } from '../Utils/PriceFormat';
 import { filterPurchases, filterSuffix, ReportFilters } from './ReportFilters';
 
 export async function generateProductPriceSequenceReport(
@@ -25,7 +26,7 @@ export async function generateProductPriceSequenceReport(
     const prices: number[] = [];
     const seen = new Set<string>();
     sorted.forEach(p => {
-      const key = p.unitPrice.toFixed(2);
+      const key = String(PurchasePriceKey(p.unitPrice));
       if (!seen.has(key)) {
         seen.add(key);
         prices.push(p.unitPrice);
@@ -66,7 +67,7 @@ export async function generateProductPriceSequenceReport(
 
   const fileName = `Product_Price_Sequence${filterSuffix(filters)}_${new Date().toISOString().split('T')[0]}`;
 
-  await exportStyledExcel(reportData, fileName, {
+  await exportPurchasePriceTrackingExcel(reportData, fileName, {
     sheetName: 'Price Sequence',
     columnWidth: 18,
     numericColumns,

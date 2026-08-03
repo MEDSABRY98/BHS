@@ -69,13 +69,15 @@ export default function PaymentTrackerTab({ data, dataVersion }: PaymentTrackerT
             />
           </div>
 
-          <div className="w-20">
-            <label className={labelClass}>Year</label>
-            <input type="text" placeholder="YYYY" maxLength={4} value={p.chartYear} onChange={(e) => p.setChartYear(e.target.value)} className={`${inputClass} text-center font-medium`} />
-          </div>
-          <div className="w-16">
-            <label className={labelClass}>Month</label>
-            <input type="text" placeholder="MM" maxLength={2} value={p.chartMonth} onChange={(e) => p.setChartMonth(e.target.value)} className={`${inputClass} text-center font-medium`} />
+          <div className="grid grid-cols-2 gap-2 w-full sm:w-44 shrink-0">
+            <div className="min-w-0">
+              <label className={labelClass}>Year</label>
+              <input type="text" placeholder="YYYY" maxLength={4} value={p.chartYear} onChange={(e) => p.setChartYear(e.target.value)} className={`${inputClass} text-center font-medium w-full`} />
+            </div>
+            <div className="min-w-0">
+              <label className={labelClass}>Month</label>
+              <input type="text" placeholder="MM" maxLength={2} value={p.chartMonth} onChange={(e) => p.setChartMonth(e.target.value)} className={`${inputClass} text-center font-medium w-full`} />
+            </div>
           </div>
           <div className="w-full sm:w-36">
             <label className={labelClass}>From</label>
@@ -113,7 +115,7 @@ export default function PaymentTrackerTab({ data, dataVersion }: PaymentTrackerT
             <button
               onClick={() => p.setIsPdfExportOpen(true)}
               className="h-9 w-9 bg-gray-800 text-white rounded-lg flex items-center justify-center hover:bg-gray-700"
-              title="Export PDF"
+              title="Export"
             >
               <FileText className="h-4 w-4" />
             </button>

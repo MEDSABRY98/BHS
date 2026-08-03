@@ -2,6 +2,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { addArabicFont } from '@/app/Components/Pdf/shared';
 import { printPdfInSameTab } from './DeliveryUtils';
+import { saveTrackedPdf } from '@/app/Audit/Utils/TrackedDownload';
 
 const DISCLAIMER_EN =
   'I, the warehouse responsible, confirm the cancellation of the invoice(s) listed above.';
@@ -289,6 +290,6 @@ export async function generateCancelInvoicePDF({
   if (action === 'print') {
     printPdfInSameTab(doc);
   } else {
-    doc.save(`${filenameBase}.pdf`);
+    saveTrackedPdf(doc, `${filenameBase}.pdf`);
   }
 }

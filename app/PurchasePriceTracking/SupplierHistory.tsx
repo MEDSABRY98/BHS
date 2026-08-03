@@ -1,7 +1,13 @@
 import React, { useState, useMemo } from 'react';
 import { PurchaseRecord, Product, Supplier } from './page';
 import { Search, Building2, Calendar, FileText, ArrowLeft, Users, Package, X, TrendingUp, FileSpreadsheet } from 'lucide-react';
-import { exportStyledExcel } from '@/app/Components/Export/ExcelExport';
+import { exportPurchasePriceTrackingExcel } from './Export/ExcelExport';
+import {
+  FormatPurchasePrice,
+  FormatPurchasePriceAed,
+  RoundPurchasePrice,
+  SamePurchasePrice,
+} from './Utils/PriceFormat';
 
 interface Props {
   purchases: PurchaseRecord[];
@@ -116,7 +122,7 @@ export default function SupplierHistory({ purchases, products, suppliers }: Prop
       if (!currentPeriod) {
         currentPeriod = { startDate: p.date, endDate: p.date, price: p.unitPrice };
       } else {
-        if (p.unitPrice === currentPeriod.price) {
+        if (SamePurchasePrice(p.unitPrice, currentPeriod.price)) {
           currentPeriod.endDate = p.date;
         } else {
           periods.push({ ...currentPeriod });
@@ -142,14 +148,14 @@ export default function SupplierHistory({ purchases, products, suppliers }: Prop
       'Product Name': p.productName,
       'Purchases Count': p.purchaseCount,
       'Total Qty': p.totalQty,
-      'Oldest Price (AED)': Number(p.oldestPrice.toFixed(2)),
-      'Latest Price (AED)': Number(p.latestPrice.toFixed(2)),
-      'Price Diff (AED)': Number(p.priceDiff.toFixed(2))
+      'Oldest Price (AED)': RoundPurchasePrice(p.oldestPrice),
+      'Latest Price (AED)': RoundPurchasePrice(p.latestPrice),
+      'Price Diff (AED)': RoundPurchasePrice(p.priceDiff)
     }));
 
     const fileName = `Supplier_Products_${selectedSupplier.name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}`;
     
-    await exportStyledExcel(reportData, fileName, {
+    await exportPurchasePriceTrackingExcel(reportData, fileName, {
       sheetName: 'Products Log',
       columnWidth: 22,
       numericColumns: ['Purchases Count', 'Total Qty', 'Oldest Price (AED)', 'Latest Price (AED)', 'Price Diff (AED)']
@@ -263,8 +269,10 @@ export default function SupplierHistory({ purchases, products, suppliers }: Prop
               <div className="flex items-end gap-2">
                 <p className="text-3xl font-black text-slate-900">
                   {supplierPurchases.length > 0 
-                    ? (supplierPurchases.reduce((sum, p) => sum + p.unitPrice, 0) / supplierPurchases.length).toFixed(2) 
-                    : '0.00'}
+                    ? FormatPurchasePrice(
+                        supplierPurchases.reduce((sum, p) => sum + p.unitPrice, 0) / supplierPurchases.length,
+                      )
+                    : FormatPurchasePrice(0)}
                 </p>
                 <p className="text-sm font-bold text-slate-400 mb-1">AED</p>
               </div>
@@ -333,7 +341,7 @@ export default function SupplierHistory({ purchases, products, suppliers }: Prop
                           className="font-bold text-slate-600 hover:text-amber-600 underline decoration-dashed underline-offset-4 cursor-pointer transition-colors"
                           title="Click to view price evolution"
                         >
-                          {p.oldestPrice.toFixed(2)} AED
+                          {FormatPurchasePriceAed(p.oldestPrice)}
                         </button>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-center">
@@ -342,14 +350,14 @@ export default function SupplierHistory({ purchases, products, suppliers }: Prop
                           className="font-bold text-slate-600 hover:text-amber-600 underline decoration-dashed underline-offset-4 cursor-pointer transition-colors"
                           title="Click to view price evolution"
                         >
-                          {p.latestPrice.toFixed(2)} AED
+                          {FormatPurchasePriceAed(p.latestPrice)}
                         </button>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-center">
                         <span className={`font-black ${
                           p.priceDiff > 0 ? 'text-red-500' : p.priceDiff < 0 ? 'text-emerald-600' : 'text-slate-400'
                         }`}>
-                          {p.priceDiff > 0 ? '+' : ''}{p.priceDiff.toFixed(2)} AED
+                          {p.priceDiff > 0 ? '+' : ''}{FormatPurchasePriceAed(p.priceDiff)}
                         </span>
                       </td>
                     </tr>
@@ -402,7 +410,7 @@ export default function SupplierHistory({ purchases, products, suppliers }: Prop
                     <div className="text-right">
                       <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Unit Price</p>
                       <span className="font-black text-amber-600 text-xl group-hover:scale-110 transition-transform inline-block origin-right">
-                        {period.price.toFixed(2)} <span className="text-sm font-bold text-slate-400">AED</span>
+                        {FormatPurchasePrice(period.price)} <span className="text-sm font-bold text-slate-400">AED</span>
                       </span>
                     </div>
                   </div>

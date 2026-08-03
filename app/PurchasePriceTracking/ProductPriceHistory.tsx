@@ -4,6 +4,13 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { Search, TrendingUp, TrendingDown, Minus, Calendar, Package, ArrowLeft, ChevronLeft, ChevronRight, FileText, X, Pencil, Loader2 } from 'lucide-react';
 import { updatePurchaseUnitPrice } from '@/app/DataBase/PurchasePriceTracking/PurchaseDetailsService';
 import { toast } from '@/app/Components/Notification';
+import {
+  FormatPurchasePrice,
+  FormatPurchasePriceAed,
+  PurchasePriceKey,
+  PurchasePriceInputStep,
+  SamePurchasePrice,
+} from './Utils/PriceFormat';
 
 interface Props {
   purchases: PurchaseRecord[];
@@ -174,7 +181,7 @@ export default function ProductPriceHistory({ purchases, products, suppliers, on
     productPurchases.forEach((p, idx) => {
       if (!currentPeriod) {
         currentPeriod = { startDate: p.date, endDate: p.date, price: p.unitPrice };
-      } else if (p.unitPrice.toFixed(2) === currentPeriod.price.toFixed(2)) {
+      } else if (SamePurchasePrice(p.unitPrice, currentPeriod.price)) {
         currentPeriod.endDate = p.date;
       } else {
         chronologicalPeriods.push({
@@ -203,11 +210,11 @@ export default function ProductPriceHistory({ purchases, products, suppliers, on
     }>();
 
     chronologicalPeriods.forEach(period => {
-      const priceKey = Number(period.price.toFixed(2));
+      const priceKey = PurchasePriceKey(period.price);
       if (!byPrice.has(priceKey)) {
         byPrice.set(priceKey, {
           price: period.price,
-          displayPrice: `${period.price.toFixed(2)} AED`,
+          displayPrice: FormatPurchasePriceAed(period.price),
           periods: [],
         });
       }
@@ -275,7 +282,7 @@ export default function ProductPriceHistory({ purchases, products, suppliers, on
   const openEditPriceModal = (purchase: PurchaseRecord) => {
     if (!canEditPrice) return;
     setEditingPurchase(purchase);
-    setEditPrice(purchase.unitPrice.toFixed(2));
+    setEditPrice(FormatPurchasePrice(purchase.unitPrice));
   };
 
   const closeEditPriceModal = () => {
@@ -376,7 +383,7 @@ export default function ProductPriceHistory({ purchases, products, suppliers, on
                         <span className="font-bold text-slate-900">{row.topSupplierPercent.toFixed(1)}%</span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-center">
-                        <span className="font-bold text-amber-600">{row.lastPurchasePrice.toFixed(2)} AED</span>
+                        <span className="font-bold text-amber-600">{FormatPurchasePriceAed(row.lastPurchasePrice)}</span>
                       </td>
                     </tr>
                   ))}
@@ -452,7 +459,7 @@ export default function ProductPriceHistory({ purchases, products, suppliers, on
             <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm border-t-4 border-t-[#D4AF37]">
               <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Latest Price</p>
               <div className="flex items-end gap-2">
-                <p className="text-3xl font-black text-slate-900">{latestPrice.toFixed(2)}</p>
+                <p className="text-3xl font-black text-slate-900">{FormatPurchasePrice(latestPrice)}</p>
                 <p className="text-sm font-bold text-slate-400 mb-1">AED</p>
               </div>
             </div>
@@ -604,7 +611,7 @@ export default function ProductPriceHistory({ purchases, products, suppliers, on
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-center">
                         <span className={`inline-flex items-center gap-2 font-bold text-amber-600 ${canEditPrice ? 'group-hover:text-[#b8962e]' : ''}`}>
-                          {p.unitPrice.toFixed(2)} AED
+                          {FormatPurchasePriceAed(p.unitPrice)}
                           {canEditPrice && (
                             <Pencil className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
                           )}
@@ -689,7 +696,7 @@ export default function ProductPriceHistory({ purchases, products, suppliers, on
                 </div>
                 <div className="bg-slate-50 rounded-xl p-3">
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Current Price</p>
-                  <p className="font-bold text-amber-600">{editingPurchase.unitPrice.toFixed(2)} AED</p>
+                  <p className="font-bold text-amber-600">{FormatPurchasePriceAed(editingPurchase.unitPrice)}</p>
                 </div>
               </div>
 
@@ -700,7 +707,7 @@ export default function ProductPriceHistory({ purchases, products, suppliers, on
                 <input
                   type="number"
                   min="0.01"
-                  step="0.01"
+                  step={PurchasePriceInputStep}
                   autoFocus
                   value={editPrice}
                   onChange={(e) => setEditPrice(e.target.value)}

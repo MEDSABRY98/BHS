@@ -266,8 +266,8 @@ export default function CustomerDiscountsPage() {
       ];
 
       const blob = new Blob([emlLines.join('\r\n')], { type: 'message/rfc822' });
-      const { saveAs } = await import('file-saver');
-      saveAs(blob, `Tax_Rebate_Request_${customerName.replace(/[^a-zA-Z0-9\u0600-\u06FF]/g, '_')}.eml`);
+      const { saveTrackedAs } = await import('@/app/Audit/Utils/TrackedDownload');
+      saveTrackedAs(blob, `Tax_Rebate_Request_${customerName.replace(/[^a-zA-Z0-9\u0600-\u06FF]/g, '_')}.eml`);
       toast.success("Email draft downloaded successfully!");
     } catch (err) {
       console.error("Error generating EML:", err);

@@ -1,6 +1,7 @@
 'use client';
 
 import { addArabicFont } from '@/app/Components/Pdf/shared';
+import { saveTrackedPdf } from '@/app/Audit/Utils/TrackedDownload';
 
 export type CustomerMarginProductRow = {
   barcode: string;
@@ -121,5 +122,5 @@ export async function generateCustomerMarginProducts(
   if (typeof (doc as any).autoTable === 'function') (doc as any).autoTable(tableOptions);
   else if (typeof autoTable === 'function') autoTable(doc, tableOptions as any);
 
-  doc.save(`Margin_Products_${customerName.replace(/[^a-z0-9]/gi, '_')}.pdf`);
+  saveTrackedPdf(doc, `Margin_Products_${customerName.replace(/[^a-z0-9]/gi, '_')}.pdf`);
 }

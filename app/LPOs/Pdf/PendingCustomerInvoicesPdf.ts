@@ -1,6 +1,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { printPdfInSameTab } from './DeliveryUtils';
+import { saveTrackedPdf } from '@/app/Audit/Utils/TrackedDownload';
 
 export async function generatePendingCustomerInvoicesPDF(
   customerSearchTerm: string,
@@ -80,7 +81,7 @@ export async function generatePendingCustomerInvoicesPDF(
   if (action === 'print') {
     printPdfInSameTab(doc);
   } else {
-    doc.save(`Pending_Invoices_Search_${customerSearchTerm.replace(/\s+/g, '_')}.pdf`);
+    saveTrackedPdf(doc, `Pending_Invoices_Search_${customerSearchTerm.replace(/\s+/g, '_')}.pdf`);
   }
 }
 

@@ -1,6 +1,7 @@
 import jsPDF from 'jspdf';
 import { addArabicFont } from '@/app/Components/Pdf/shared';
 import { bhs_supabas } from '@/lib/supabase';
+import { saveTrackedPdf } from '@/app/Audit/Utils/TrackedDownload';
 
 export interface ReceiptPdfData {
   receiptNumber: string;
@@ -380,5 +381,5 @@ export async function generateReceiptPdf(options: {
 
   renderReceiptPage(doc, { ...data, receivedBySignature });
 
-  doc.save(`${filename}.pdf`);
+  saveTrackedPdf(doc, `${filename}.pdf`);
 }

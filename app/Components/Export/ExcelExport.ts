@@ -1,11 +1,12 @@
-import { saveAs } from 'file-saver';
 import type ExcelJS from 'exceljs';
+import { saveTrackedAs } from '@/app/Audit/Utils/TrackedDownload';
 
 export type StyledExcelExportOptions = {
   sheetName?: string;
   columnWidth?: number;
   numericColumns?: string[];
   highlightNegativeInColumns?: string[];
+  numericDecimalPlaces?: number;
 };
 
 export type StyledExcelSheet = {
@@ -19,6 +20,12 @@ const LIGHT_ROW_BORDER = 'FFEEEEEE';
 const NEGATIVE_FILL = 'FFFEF2F2';
 const NEGATIVE_TEXT = 'FFB91C1C';
 const NUM_FMT = '#,##0.00;-#,##0.00;"-"';
+
+function buildNumericFormat(decimalPlaces = 2): string {
+  if (decimalPlaces === 2) return NUM_FMT;
+  const zeros = '0'.repeat(decimalPlaces);
+  return `#,##0.${zeros};-#,##0.${zeros};"-"`;
+}
 const POSITIVE_GREEN_TEXT = 'FF16A34A';
 
 function parseNumericValue(value: unknown): number | null {
@@ -61,6 +68,7 @@ function styleWorksheet(
   const columnWidth = options.columnWidth ?? 20;
   const numericColumns = new Set(options.numericColumns ?? []);
   const highlightColumns = options.highlightNegativeInColumns ?? [];
+  const numericFormat = buildNumericFormat(options.numericDecimalPlaces ?? 2);
 
   worksheet.columns = keys.map((key) => ({
     header: key,
@@ -103,7 +111,7 @@ function styleWorksheet(
         const num = parseNumericValue(cell.value);
         if (num !== null) {
           cell.value = num;
-          cell.numFmt = NUM_FMT;
+          cell.numFmt = numericFormat;
           if (num < 0) {
              cell.font = { color: { argb: POSITIVE_GREEN_TEXT }, bold: true };
           }
@@ -132,7 +140,7 @@ async function writeWorkbook(workbook: ExcelJS.Workbook, fileName: string) {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   });
   const safeName = fileName.endsWith('.xlsx') ? fileName : `${fileName}.xlsx`;
-  saveAs(blob, safeName);
+  saveTrackedAs(blob, safeName);
 }
 
 export async function exportStyledExcel(

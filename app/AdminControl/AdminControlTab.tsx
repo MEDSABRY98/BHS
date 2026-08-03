@@ -6,7 +6,7 @@ import {
     CreditCard, Wallet, BarChart3, TrendingUp, Package, Truck, FileCheck,
     ClipboardList, ShoppingCart, Database, Users, Sparkles, Trash2, ListChecks, FileSpreadsheet, ArrowLeft, CheckCheck, Ban, Hash, UserPlus, LayoutGrid
 } from 'lucide-react';
-import Loading from '@/app/Components/Loading';
+import TabLoader from '@/app/Components/Loading/TabLoader';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import { fetchUsersList, updateUserRole } from '@/app/DataBase/Service/database_service';
 
@@ -395,13 +395,12 @@ function setUserActionAccess(
     };
 }
 
-export default function AdminControlTab() {
+export default function AdminControlTab({ adminMode }: { adminMode: 'by-user' | 'by-module' }) {
     const [users, setUsers] = useState<UserPermissions[]>([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
     const [selectedUser, setSelectedUser] = useState<UserPermissions | null>(null);
     const [view, setView] = useState<'users' | 'modules'>('users');
-    const [adminMode, setAdminMode] = useState<'by-user' | 'by-module'>('by-user');
     const [selectedModuleId, setSelectedModuleId] = useState<string | null>(null);
     const [moduleUserSearch, setModuleUserSearch] = useState('');
     const [moduleUserSaving, setModuleUserSaving] = useState<string | null>(null);
@@ -610,20 +609,6 @@ export default function AdminControlTab() {
         setMessage({ type: '', text: '' });
     };
 
-    const switchAdminMode = (mode: 'by-user' | 'by-module') => {
-        setAdminMode(mode);
-        setView('users');
-        setSelectedUser(null);
-        setSelectedModuleId(null);
-        setModalSystem(null);
-        setModalInnerTab('tabs');
-        setModuleDetailTab('access');
-        setSearch('');
-        setSystemSearch('');
-        setModuleUserSearch('');
-        setMessage({ type: '', text: '' });
-    };
-
     const openModuleUsers = (systemId: string) => {
         setSelectedModuleId(systemId);
         setModuleUserSearch('');
@@ -722,7 +707,7 @@ export default function AdminControlTab() {
             .sort((a, b) => a.name.localeCompare(b.name));
     }, [users, selectedModuleId, moduleUserSearch]);
 
-    if (loading) return <Loading message="Loading Admin Control..." />;
+    if (loading) return <TabLoader className="min-h-[40vh]" />;
 
     const renderSubTabModal = () => {
         if (!modalSystem || !selectedUser) return null;
@@ -898,32 +883,6 @@ export default function AdminControlTab() {
                                             ? 'Users Management'
                                             : selectedUser?.name}
                                 </h2>
-                                <div className="flex flex-wrap gap-2 shrink-0">
-                                    <button
-                                        type="button"
-                                        onClick={() => switchAdminMode('by-user')}
-                                        className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${
-                                            adminMode === 'by-user'
-                                                ? 'bg-slate-900 text-white shadow-md'
-                                                : 'bg-slate-50 text-slate-500 border border-slate-200 hover:border-slate-400'
-                                        }`}
-                                    >
-                                        <Users className="w-3.5 h-3.5" />
-                                        By User
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => switchAdminMode('by-module')}
-                                        className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${
-                                            adminMode === 'by-module'
-                                                ? 'bg-slate-900 text-white shadow-md'
-                                                : 'bg-slate-50 text-slate-500 border border-slate-200 hover:border-slate-400'
-                                        }`}
-                                    >
-                                        <LayoutGrid className="w-3.5 h-3.5" />
-                                        By Module
-                                    </button>
-                                </div>
                             </div>
                             {adminMode === 'by-user' && view === 'modules' && (
                                 <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider mt-1">

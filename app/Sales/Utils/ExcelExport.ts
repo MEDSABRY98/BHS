@@ -1,8 +1,2 @@
-export {
-  exportStyledExcel as exportSalesExcel,
-  exportStyledExcelWorkbook as exportSalesExcelWorkbook,
-  exportStyledExcelTable as exportSalesExcelTable,
-  recordsFromTable,
-  type StyledExcelExportOptions as SalesExcelExportOptions,
-  type StyledExcelSheet as SalesExcelSheet,
-} from '@/app/Components/Export/ExcelExport';
+/** Re-export shim — use app/<Module>/Export/ExcelExport.ts */
+export * from '../Export/ExcelExport';

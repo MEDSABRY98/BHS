@@ -15,12 +15,217 @@ import {
   Users,
 } from 'lucide-react';
 import { Product, PurchaseRecord, Supplier } from '../page';
+import { formatProductCategory } from '@/app/InventoryAnalysis/Utils/locationTypes';
 import {
   filterPurchases,
   getAvailableProductSupplierCounts,
   getProductSupplierCountMap,
   ReportFilters,
 } from '../Reports/ReportFilters';
+
+interface SearchableMultiSelectProps {
+  options: { id: string; label: string }[];
+  value: string[];
+  onChange: (val: string[]) => void;
+  placeholder: string;
+}
+
+function SearchableMultiSelect({
+  options,
+  value,
+  onChange,
+  placeholder,
+}: SearchableMultiSelectProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const [dropdownStyle, setDropdownStyle] = useState<{
+    top: number;
+    left: number;
+    width: number;
+    maxHeight: number;
+    openUp: boolean;
+  } | null>(null);
+  const triggerRef = useRef<HTMLDivElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const updateDropdownPosition = () => {
+    if (!triggerRef.current) return;
+    const rect = triggerRef.current.getBoundingClientRect();
+    const viewportPadding = 16;
+    const gap = 8;
+    const preferredHeight = 360;
+    const spaceBelow = window.innerHeight - rect.bottom - viewportPadding;
+    const spaceAbove = rect.top - viewportPadding;
+    const openUp = spaceBelow < 220 && spaceAbove > spaceBelow;
+    const maxHeight = Math.min(preferredHeight, openUp ? spaceAbove - gap : spaceBelow - gap);
+
+    setDropdownStyle({
+      top: openUp ? rect.top - gap : rect.bottom + gap,
+      left: rect.left,
+      width: rect.width,
+      maxHeight: Math.max(220, maxHeight),
+      openUp,
+    });
+  };
+
+  useEffect(() => {
+    if (!isOpen) return;
+    updateDropdownPosition();
+    window.addEventListener('resize', updateDropdownPosition);
+    window.addEventListener('scroll', updateDropdownPosition, true);
+    return () => {
+      window.removeEventListener('resize', updateDropdownPosition);
+      window.removeEventListener('scroll', updateDropdownPosition, true);
+    };
+  }, [isOpen]);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      const target = event.target as Node;
+      if (
+        triggerRef.current?.contains(target) ||
+        dropdownRef.current?.contains(target)
+      ) {
+        return;
+      }
+      setIsOpen(false);
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const selectableOptions = options.filter((opt) => opt.id);
+  const filteredOptions = selectableOptions.filter((opt) =>
+    `${opt.label} ${opt.id}`.toLowerCase().includes(search.toLowerCase()),
+  );
+  const selectedSet = new Set(value);
+
+  const triggerLabel =
+    value.length === 0
+      ? placeholder
+      : value.length === 1
+        ? selectableOptions.find((opt) => opt.id === value[0])?.label || value[0]
+        : `${value.length} categories selected`;
+
+  const toggleOption = (id: string) => {
+    onChange(
+      selectedSet.has(id) ? value.filter((item) => item !== id) : [...value, id],
+    );
+  };
+
+  const dropdown =
+    isOpen &&
+    dropdownStyle &&
+    typeof document !== 'undefined' &&
+    createPortal(
+      <div
+        ref={dropdownRef}
+        style={{
+          position: 'fixed',
+          top: dropdownStyle.top,
+          left: dropdownStyle.left,
+          width: dropdownStyle.width,
+          transform: dropdownStyle.openUp ? 'translateY(-100%)' : undefined,
+          zIndex: 10000,
+        }}
+        className="bg-white border border-slate-100 rounded-xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200"
+      >
+        <div className="p-2 border-b border-slate-100 bg-slate-50/50 sticky top-0 space-y-2">
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => onChange(selectableOptions.map((opt) => opt.id))}
+              className="w-full px-3 py-2 text-xs font-bold text-[#b8962e] bg-[#D4AF37]/10 rounded-lg hover:bg-[#D4AF37]/20 transition-colors"
+            >
+              All
+            </button>
+            <button
+              type="button"
+              onClick={() => onChange([])}
+              className="w-full px-3 py-2 text-xs font-bold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+            >
+              None
+            </button>
+          </div>
+          <div className="relative">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              autoFocus
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search categories..."
+              className="w-full bg-white border border-slate-200 pl-9 pr-4 py-2 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#D4AF37]/50 focus:border-[#D4AF37]"
+            />
+          </div>
+        </div>
+        <div
+          className="overflow-y-auto custom-scrollbar p-1"
+          style={{ maxHeight: dropdownStyle.maxHeight - 108 }}
+        >
+          {filteredOptions.length === 0 ? (
+            <div className="p-4 text-center text-sm text-slate-400">No results found</div>
+          ) : (
+            filteredOptions.map((opt) => {
+              const isSelected = selectedSet.has(opt.id);
+              return (
+                <label
+                  key={opt.id}
+                  className={`w-full px-3 py-2.5 flex items-center gap-3 rounded-lg cursor-pointer transition-colors ${
+                    isSelected
+                      ? 'bg-[#D4AF37]/10 text-[#b8962e]'
+                      : 'hover:bg-slate-50 text-slate-700 hover:text-slate-900'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={isSelected}
+                    onChange={() => toggleOption(opt.id)}
+                    className="w-4 h-4 rounded border-slate-300 text-[#D4AF37] focus:ring-[#D4AF37] shrink-0"
+                  />
+                  <span
+                    className={`text-sm truncate ${isSelected ? 'font-bold' : 'font-medium'}`}
+                    title={opt.id}
+                  >
+                    {opt.label}
+                  </span>
+                </label>
+              );
+            })
+          )}
+        </div>
+      </div>,
+      document.body,
+    );
+
+  return (
+    <div className="relative" ref={triggerRef}>
+      <div
+        onClick={() => {
+          setIsOpen((prev) => !prev);
+          if (!isOpen) setSearch('');
+        }}
+        className={`w-full bg-slate-50 border border-slate-200 p-3.5 rounded-xl cursor-pointer flex justify-between items-center transition-all hover:bg-slate-100 outline-none ${
+          isOpen ? 'ring-2 ring-[#D4AF37]/50 border-[#D4AF37]' : ''
+        }`}
+      >
+        <span
+          className={
+            value.length > 0
+              ? 'text-slate-900 font-bold truncate pr-2'
+              : 'text-slate-400 font-medium truncate pr-2'
+          }
+        >
+          {triggerLabel}
+        </span>
+        <ChevronDown
+          className={`w-5 h-5 shrink-0 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+        />
+      </div>
+      {dropdown}
+    </div>
+  );
+}
 
 interface SearchableSelectProps {
   options: { id: string; label: string }[];
@@ -184,7 +389,7 @@ function SearchableSelect({ options, value, onChange, placeholder }: SearchableS
 
 function usePurchaseFiltersState() {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const [category, setCategory] = useState('');
+  const [categories, setCategories] = useState<string[]>([]);
   const [productId, setProductId] = useState('');
   const [supplierId, setSupplierId] = useState('');
   const [productSupplierCount, setProductSupplierCount] = useState('');
@@ -193,18 +398,18 @@ function usePurchaseFiltersState() {
 
   const appliedFilters: ReportFilters = useMemo(
     () => ({
-      category: category || undefined,
+      categories: categories.length > 0 ? categories : undefined,
       productId: productId || undefined,
       supplierId: supplierId || undefined,
       productSupplierCount: productSupplierCount ? Number(productSupplierCount) : undefined,
       fromDate: fromDate || undefined,
       toDate: toDate || undefined,
     }),
-    [category, productId, supplierId, productSupplierCount, fromDate, toDate],
+    [categories, productId, supplierId, productSupplierCount, fromDate, toDate],
   );
 
   const hasAnyFilter = !!(
-    category ||
+    categories.length > 0 ||
     productId ||
     supplierId ||
     productSupplierCount ||
@@ -213,7 +418,7 @@ function usePurchaseFiltersState() {
   );
 
   const resetFilters = () => {
-    setCategory('');
+    setCategories([]);
     setProductId('');
     setSupplierId('');
     setProductSupplierCount('');
@@ -225,8 +430,8 @@ function usePurchaseFiltersState() {
     isFilterOpen,
     openFilterModal: () => setIsFilterOpen(true),
     closeFilterModal: () => setIsFilterOpen(false),
-    category,
-    setCategory,
+    categories,
+    setCategories,
     productId,
     setProductId,
     supplierId,
@@ -249,8 +454,8 @@ function PurchaseFilterModal({
   purchases,
   products,
   suppliers,
-  category,
-  setCategory,
+  categories,
+  setCategories,
   productId,
   setProductId,
   supplierId,
@@ -269,8 +474,8 @@ function PurchaseFilterModal({
   purchases: PurchaseRecord[];
   products: Product[];
   suppliers: Supplier[];
-  category: string;
-  setCategory: (val: string) => void;
+  categories: string[];
+  setCategories: (val: string[]) => void;
   productId: string;
   setProductId: (val: string) => void;
   supplierId: string;
@@ -310,10 +515,10 @@ function PurchaseFilterModal({
     () => ({
       supplierId: supplierId || undefined,
       productId: productId || undefined,
-      category: category || undefined,
+      categories: categories.length > 0 ? categories : undefined,
       productSupplierCount: productSupplierCount ? Number(productSupplierCount) : undefined,
     }),
-    [supplierId, productId, category, productSupplierCount],
+    [supplierId, productId, categories, productSupplierCount],
   );
 
   const applyCrossFilters = (
@@ -329,10 +534,11 @@ function PurchaseFilterModal({
     if (exclude !== 'productId' && selections.productId) {
       result = result.filter((p) => p.productId === selections.productId);
     }
-    if (exclude !== 'category' && selections.category) {
+    if (exclude !== 'categories' && selections.categories?.length) {
+      const categorySet = new Set(selections.categories);
       const categoryProductIds = new Set(
         products
-          .filter((p) => (p.category || '') === selections.category)
+          .filter((p) => categorySet.has(p.category || ''))
           .map((p) => p.id),
       );
       result = result.filter((p) => categoryProductIds.has(p.productId));
@@ -356,7 +562,7 @@ function PurchaseFilterModal({
   );
 
   const purchasesForCategoryOptions = useMemo(
-    () => applyCrossFilters(purchasesForCountOptions, filterSelections, 'category'),
+    () => applyCrossFilters(purchasesForCountOptions, filterSelections, 'categories'),
     [purchasesForCountOptions, filterSelections, products],
   );
 
@@ -380,16 +586,18 @@ function PurchaseFilterModal({
 
   const categoryOptions = useMemo(() => {
     const productIdsWithPurchases = new Set(purchasesForCategoryOptions.map((p) => p.productId));
-    const categories = new Set<string>();
+    const categorySet = new Set<string>();
     products
       .filter((p) => productIdsWithPurchases.has(p.id) && p.category)
-      .forEach((p) => categories.add(p.category!));
-    return [
-      { id: '', label: 'All Categories' },
-      ...Array.from(categories)
-        .sort((a, b) => a.localeCompare(b))
-        .map((c) => ({ id: c, label: c })),
-    ];
+      .forEach((p) => categorySet.add(p.category!));
+    return Array.from(categorySet)
+      .sort((a, b) =>
+        formatProductCategory(a).localeCompare(formatProductCategory(b)),
+      )
+      .map((c) => ({
+        id: c,
+        label: formatProductCategory(c) || c,
+      }));
   }, [products, purchasesForCategoryOptions]);
 
   const activeProducts = useMemo(() => {
@@ -417,12 +625,13 @@ function PurchaseFilterModal({
   }, [supplierId, purchasesForSupplierOptions, setSupplierId]);
 
   useEffect(() => {
-    if (!category) return;
-    const validCategories = new Set(categoryOptions.map((option) => option.id).filter(Boolean));
-    if (!validCategories.has(category)) {
-      setCategory('');
+    if (categories.length === 0) return;
+    const validCategories = new Set(categoryOptions.map((option) => option.id));
+    const nextCategories = categories.filter((item) => validCategories.has(item));
+    if (nextCategories.length !== categories.length) {
+      setCategories(nextCategories);
     }
-  }, [category, categoryOptions, setCategory]);
+  }, [categories, categoryOptions, setCategories]);
 
   useEffect(() => {
     if (!productId) return;
@@ -446,14 +655,20 @@ function PurchaseFilterModal({
           : `${productSupplierCount} Suppliers / Product`
         : 'All Supplier Counts',
     );
-    parts.push(category || 'All Categories');
+    parts.push(
+      categories.length === 0
+        ? 'All Categories'
+        : categories.length === 1
+          ? formatProductCategory(categories[0]) || categories[0]
+          : `${categories.length} Categories`,
+    );
     parts.push(
       productId
         ? products.find((p) => p.id === productId)?.name || 'Product'
         : 'All Products',
     );
     return parts.join(' · ');
-  }, [supplierId, productSupplierCount, category, productId, suppliers, products]);
+  }, [supplierId, productSupplierCount, categories, productId, suppliers, products]);
 
   if (!isOpen) return null;
 
@@ -492,10 +707,10 @@ function PurchaseFilterModal({
                 <Tag className="w-4 h-4 text-teal-500" />
                 Category
               </label>
-              <SearchableSelect
+              <SearchableMultiSelect
                 options={categoryOptions}
-                value={category}
-                onChange={setCategory}
+                value={categories}
+                onChange={setCategories}
                 placeholder="All Categories"
               />
             </div>
@@ -708,8 +923,8 @@ export function PurchaseFiltersProvider({
         purchases={purchases}
         products={products}
         suppliers={suppliers}
-        category={filterState.category}
-        setCategory={filterState.setCategory}
+        categories={filterState.categories}
+        setCategories={filterState.setCategories}
         productId={filterState.productId}
         setProductId={filterState.setProductId}
         supplierId={filterState.supplierId}

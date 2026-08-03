@@ -1,6 +1,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { printPdfInSameTab } from './DeliveryUtils';
+import { saveTrackedPdf } from '@/app/Audit/Utils/TrackedDownload';
 
 const CANCELLED_ROW_FILL: [number, number, number] = [255, 235, 235];
 
@@ -239,6 +240,6 @@ export async function generateDailyHandoverPDF(
   if (action === 'print') {
     printPdfInSameTab(doc);
   } else {
-    doc.save(`Daily_Handover_${driverName.replace(/\s+/g, '_')}_${dateStr}.pdf`);
+    saveTrackedPdf(doc, `Daily_Handover_${driverName.replace(/\s+/g, '_')}_${dateStr}.pdf`);
   }
 }

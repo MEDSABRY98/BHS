@@ -9,7 +9,7 @@ import { generateSalesAnalysisComparisonPDF } from '@/app/Sales/StockReport/Anal
 import NoData from '@/app/Components/DataState/NoDataTab';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
 import JSZip from 'jszip';
-import { saveAs } from 'file-saver';
+import { saveTrackedAs } from '@/app/Audit/Utils/TrackedDownload';
 import { exportSalesExcel } from '@/app/Sales/Utils/ExcelExport';
 
 interface SalesST_ByCustomersProps {
@@ -191,7 +191,7 @@ export default function SalesST_ByCustomers({ customersData, loading, refreshTri
       }
       const zipName = mode === 'pricelist' ? `Price_Lists_${new Date().toISOString().split('T')[0]}.zip` : mode === 'analysis' ? `Analysis_Reports_${new Date().toISOString().split('T')[0]}.zip` : `Stock_Reports_${new Date().toISOString().split('T')[0]}.zip`;
       const content = await zip.generateAsync({ type: 'blob' });
-      saveAs(content, zipName);
+      saveTrackedAs(content, zipName);
     } catch (error) { console.error(error); } finally { setIsGenerating(false); setGenerationProgress({ current: 0, total: 0 }); }
   };
 

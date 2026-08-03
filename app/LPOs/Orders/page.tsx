@@ -15,7 +15,7 @@ import { toast } from '@/app/Components/Notification';
 import { usePermissions } from '../Hooks/usePermissions';
 import OrdersFilterMenu, { FilterCriteria } from '../OrderDetails/Components/OrdersFilterMenu';
 import { ConfirmModal } from '../Components/ConfirmModal';
-import * as XLSX from 'xlsx';
+import { exportLPOsExcel } from '../Export/ExcelExport';
 
 function canConfirmInvoiceHandover(driver: any, currentUserProfile: any): boolean {
   if (!driver) return false;
@@ -340,7 +340,7 @@ export default function OrdersPage() {
     return filteredOrders.slice(startIndex, startIndex + ITEMS_PER_PAGE);
   }, [filteredOrders, currentPage]);
 
-  const exportToExcel = () => {
+  const exportToExcel = async () => {
     const dataToExport = filteredOrders.map(order => ({
       "Order ID": order.ORDER_ID,
       "Order Date": order.ORDER_DATE ? new Date(order.ORDER_DATE).toLocaleDateString('en-GB') : new Date(order.CREATED_AT).toLocaleDateString('en-GB'),
@@ -355,10 +355,14 @@ export default function OrdersPage() {
       "Tracking Notes": order.tracking_notes || ''
     }));
 
-    const ws = XLSX.utils.json_to_sheet(dataToExport);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Orders");
-    XLSX.writeFile(wb, `Orders_Export_${new Date().toISOString().split('T')[0]}.xlsx`);
+    await exportLPOsExcel(
+      dataToExport,
+      `Orders_Export_${new Date().toISOString().split('T')[0]}`,
+      {
+        sheetName: 'Orders',
+        numericColumns: ['Amount'],
+      }
+    );
   };
 
   if (isLoading) {

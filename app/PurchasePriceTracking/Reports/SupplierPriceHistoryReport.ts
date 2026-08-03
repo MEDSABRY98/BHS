@@ -1,5 +1,6 @@
 import { PurchaseRecord, Product } from '../page';
-import { exportStyledExcel } from '@/app/Components/Export/ExcelExport';
+import { exportPurchasePriceTrackingExcel } from '../Export/ExcelExport';
+import { SamePurchasePrice } from '../Utils/PriceFormat';
 import { filterPurchases, filterSuffix, ReportFilters } from './ReportFilters';
 
 export async function generateSupplierPriceHistoryReport(
@@ -30,7 +31,7 @@ export async function generateSupplierPriceHistoryReport(
       if (!currentPeriod) {
         currentPeriod = { startDate: p.date, endDate: p.date, price: p.unitPrice };
       } else {
-        if (p.unitPrice.toFixed(2) === currentPeriod.price.toFixed(2)) {
+        if (SamePurchasePrice(p.unitPrice, currentPeriod.price)) {
           currentPeriod.endDate = p.date;
         } else {
           periods.push({ ...currentPeriod });
@@ -89,7 +90,7 @@ export async function generateSupplierPriceHistoryReport(
 
   const fileName = `Price_History_${supplierName.replace(/[^a-z0-9\u0600-\u06FF]/gi, '_')}`;
   
-  await exportStyledExcel(reportData, fileName, {
+  await exportPurchasePriceTrackingExcel(reportData, fileName, {
     sheetName: 'Supplier Price History',
     columnWidth: 22,
     numericColumns

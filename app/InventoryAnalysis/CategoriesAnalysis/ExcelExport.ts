@@ -1,4 +1,4 @@
-import { saveAs } from 'file-saver';
+import { saveTrackedAs } from '@/app/Audit/Utils/TrackedDownload';
 import JSZip from 'jszip';
 
 const GOLD_BORDER = 'FFC9A84C';
@@ -61,7 +61,7 @@ export async function exportInventoryExcel(data: any[], sheetName: string, fileN
   const blob = new Blob([buffer], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   });
-  saveAs(blob, fileName);
+  saveTrackedAs(blob, fileName);
 }
 
 export async function exportAllCategoriesZip(
@@ -106,5 +106,5 @@ export async function exportAllCategoriesZip(
   }
 
   const zipBlob = await zip.generateAsync({ type: 'blob' });
-  saveAs(zipBlob, zipFileName);
+  saveTrackedAs(zipBlob, zipFileName);
 }

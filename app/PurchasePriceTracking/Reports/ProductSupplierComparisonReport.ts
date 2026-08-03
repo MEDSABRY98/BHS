@@ -1,5 +1,6 @@
 import { PurchaseRecord, Product, Supplier } from '../page';
-import { exportStyledExcel } from '@/app/Components/Export/ExcelExport';
+import { exportPurchasePriceTrackingExcel } from '../Export/ExcelExport';
+import { RoundPurchasePrice } from '../Utils/PriceFormat';
 import { filterPurchases, filterSuffix, ReportFilters } from './ReportFilters';
 
 export async function generateProductSupplierComparisonReport(
@@ -63,7 +64,7 @@ export async function generateProductSupplierComparisonReport(
       'Supplier Name': getSupplierName(supplierId),
       'Latest Purchase Date': latestPurchase.date,
       'Latest Price (AED)': latestPurchase.unitPrice,
-      'Avg Previous Price (AED)': previousPurchases.length > 0 ? Number(avgPreviousPrice.toFixed(2)) : 'N/A',
+      'Avg Previous Price (AED)': previousPurchases.length > 0 ? RoundPurchasePrice(avgPreviousPrice) : 'N/A',
       'Lowest Price (AED)': minPrice !== Infinity ? minPrice : 'N/A',
       'Lowest Price Date': minDate || 'N/A',
       'Highest Price (AED)': maxPrice !== -Infinity ? maxPrice : 'N/A',
@@ -76,7 +77,7 @@ export async function generateProductSupplierComparisonReport(
 
   const fileName = `Supplier_Comparison_${productName.replace(/[^a-z0-9\u0600-\u06FF]/gi, '_')}`;
   
-  await exportStyledExcel(reportData, fileName, {
+  await exportPurchasePriceTrackingExcel(reportData, fileName, {
     sheetName: 'Supplier Comparison',
     columnWidth: 22,
     numericColumns: ['Latest Price (AED)', 'Avg Previous Price (AED)', 'Lowest Price (AED)', 'Highest Price (AED)']

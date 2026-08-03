@@ -15,6 +15,7 @@ import CustomerDetailsTab from '../CustomerDetailsTab/CustomerDetailsTab';
 import { generateAccountStatementPDF, generateBulkCustomerStatementsPDF } from '@/app/Debit/Pdf/StatementUtils';
 import { generateBulkDebitSummaryPDF } from '@/app/Debit/Pdf/SummaryUtils';;
 import { FileSpreadsheet, FileText } from 'lucide-react';
+import { saveTrackedAs } from '@/app/Audit/Utils/TrackedDownload';
 
 // Sub-components
 import DefaultView from './Views/DefaultView';
@@ -174,8 +175,7 @@ export default function CustomersTab({
       const customersToDehydrate = filteredData.filter(c => selectedCustomersForDownload.has(c.customerName));
       const pdfBlob = await generateBulkDebitSummaryPDF(customersToDehydrate);
       if (pdfBlob) {
-        const { saveAs } = await import('file-saver');
-        saveAs(pdfBlob as Blob, `Debit_Summary_${new Date().toISOString().split('T')[0]}.pdf`);
+        saveTrackedAs(pdfBlob as Blob, `Debit_Summary_${new Date().toISOString().split('T')[0]}.pdf`);
       }
     } catch (error) {
       console.error('Error generating summary PDF:', error);
@@ -200,7 +200,6 @@ export default function CustomersTab({
     setIsDownloading(true);
     try {
       const JSZip = (await import('jszip')).default;
-      const { saveAs } = await import('file-saver');
       const zip = new JSZip();
       let count = 0;
 
@@ -232,7 +231,7 @@ export default function CustomersTab({
 
       if (count > 0) {
         const content = await zip.generateAsync({ type: 'blob' });
-        saveAs(content, `Customer_Statements_${new Date().toISOString().split('T')[0]}.zip`);
+        saveTrackedAs(content, `Customer_Statements_${new Date().toISOString().split('T')[0]}.zip`);
         setSelectedCustomersForDownload(new Set());
       } else {
         alert('No files generated.');
@@ -261,7 +260,6 @@ export default function CustomersTab({
     setIsDownloading(true);
     try {
       const JSZip = (await import('jszip')).default;
-      const { saveAs } = await import('file-saver');
       const zip = new JSZip();
       let count = 0;
 
@@ -356,7 +354,7 @@ export default function CustomersTab({
 
       if (count > 0) {
         const content = await zip.generateAsync({ type: 'blob' });
-        saveAs(content, `Customer_Emails_${new Date().toISOString().split('T')[0]}.zip`);
+        saveTrackedAs(content, `Customer_Emails_${new Date().toISOString().split('T')[0]}.zip`);
         setStatementModalAction(null);
       }
     } catch (error) {
@@ -383,7 +381,6 @@ export default function CustomersTab({
     setIsDownloading(true);
     try {
       const JSZip = (await import('jszip')).default;
-      const { saveAs } = await import('file-saver');
       const zip = new JSZip();
       let count = 0;
 
@@ -505,7 +502,7 @@ export default function CustomersTab({
 
       if (count > 0) {
         const content = await zip.generateAsync({ type: 'blob' });
-        saveAs(content, `Lulu_Emails_${new Date().toISOString().split('T')[0]}.zip`);
+        saveTrackedAs(content, `Lulu_Emails_${new Date().toISOString().split('T')[0]}.zip`);
         setStatementModalAction(null);
       } else {
         alert('No matching Lulu customers found in selection.');

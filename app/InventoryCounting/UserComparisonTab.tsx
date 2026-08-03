@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Search, Package, RefreshCw, ChevronDown, FileSpreadsheet, ArrowUpDown } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { writeTrackedXlsxFile } from '@/app/Audit/Utils/TrackedDownload';
 import TabLoader from '@/app/Components/Loading/TabLoader';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import TabFetchError from '@/app/Components/DataState/TabFetchError';
@@ -222,7 +223,7 @@ export default function UserComparisonTab() {
     const worksheet = XLSX.utils.json_to_sheet(exportData);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'User Comparison');
-    XLSX.writeFile(workbook, `User_Comparison_${new Date().toISOString().split('T')[0]}.xlsx`);
+    writeTrackedXlsxFile(workbook, `User_Comparison_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
   if (loading) return <TabLoader />;

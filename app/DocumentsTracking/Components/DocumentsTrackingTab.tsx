@@ -6,6 +6,7 @@ import { ArrowRight, RefreshCcw } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
+import { saveTrackedPdf } from '@/app/Audit/Utils/TrackedDownload';
 
 import { toast } from '@/app/Components/Notification';
 import './DocumentsTrackingTab.css';
@@ -378,7 +379,7 @@ export default function DocumentsTrackingTab() {
             doc.setTextColor(17, 24, 39);
             doc.text(personName, signatureX + signatureWidth / 2, signatureY + 18, { align: 'center' });
 
-            doc.save(`Cheque_${today.replace(/\//g, '-')}.pdf`);
+            saveTrackedPdf(doc, `Cheque_${today.replace(/\//g, '-')}.pdf`);
             showNotify('Report generated successfully');
             setSelectedIds([]);
             setIsPdfModalOpen(false);

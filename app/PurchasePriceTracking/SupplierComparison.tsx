@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { PurchaseRecord, Product, Supplier } from './page';
 import { Search, Package, Users, TrendingDown, TrendingUp, ArrowLeft, Award, AlertTriangle } from 'lucide-react';
+import { FormatPurchasePrice, FormatPurchasePriceAed } from './Utils/PriceFormat';
 
 interface Props {
   purchases: PurchaseRecord[];
@@ -288,10 +289,10 @@ export default function SupplierComparison({ purchases, products, suppliers }: P
                   <p className="text-xs font-black text-emerald-600 uppercase tracking-widest mb-1">Recommended Supplier</p>
                   <h3 className="text-xl font-black text-slate-900">{comparisonSummary.bestSupplierName}</h3>
                   <p className="text-sm font-medium text-slate-600 mt-1">
-                    Latest price <span className="font-black text-emerald-700">{comparisonSummary.bestLatestPrice.toFixed(2)} AED</span>
+                    Latest price <span className="font-black text-emerald-700">{FormatPurchasePriceAed(comparisonSummary.bestLatestPrice)}</span>
                     {' '}— saves{' '}
                     <span className="font-black text-emerald-700">
-                      {comparisonSummary.priceSpread.toFixed(2)} AED ({comparisonSummary.spreadPct.toFixed(1)}%)
+                      {FormatPurchasePriceAed(comparisonSummary.priceSpread)} ({comparisonSummary.spreadPct.toFixed(1)}%)
                     </span>
                     {' '}vs {comparisonSummary.worstSupplierName}
                   </p>
@@ -307,17 +308,17 @@ export default function SupplierComparison({ purchases, products, suppliers }: P
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
             <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm border-t-4 border-t-emerald-500">
               <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Best Latest Price</p>
-              <p className="text-3xl font-black text-emerald-600">{comparisonSummary?.bestLatestPrice.toFixed(2)}</p>
+              <p className="text-3xl font-black text-emerald-600">{FormatPurchasePrice(comparisonSummary?.bestLatestPrice ?? 0)}</p>
               <p className="text-xs font-bold text-slate-400 mt-1 truncate">{comparisonSummary?.bestSupplierName}</p>
             </div>
             <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm border-t-4 border-t-red-400">
               <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Highest Latest Price</p>
-              <p className="text-3xl font-black text-red-500">{comparisonSummary?.worstLatestPrice.toFixed(2)}</p>
+              <p className="text-3xl font-black text-red-500">{FormatPurchasePrice(comparisonSummary?.worstLatestPrice ?? 0)}</p>
               <p className="text-xs font-bold text-slate-400 mt-1 truncate">{comparisonSummary?.worstSupplierName}</p>
             </div>
             <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm border-t-4 border-t-[#D4AF37]">
               <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Price Spread</p>
-              <p className="text-3xl font-black text-slate-900">{comparisonSummary?.priceSpread.toFixed(2)}</p>
+              <p className="text-3xl font-black text-slate-900">{FormatPurchasePrice(comparisonSummary?.priceSpread ?? 0)}</p>
               <p className="text-xs font-bold text-slate-400 mt-1">
                 {comparisonSummary && comparisonSummary.spreadPct > 0
                   ? `${comparisonSummary.spreadPct.toFixed(1)}% difference`
@@ -382,7 +383,7 @@ export default function SupplierComparison({ purchases, products, suppliers }: P
                         </td>
                         <td className="px-5 py-4 text-center">
                           <span className={`font-black text-lg ${stat.isBest ? 'text-emerald-600' : 'text-slate-900'}`}>
-                            {stat.latestPrice.toFixed(2)}
+                            {FormatPurchasePrice(stat.latestPrice)}
                           </span>
                           <span className="text-xs text-slate-400 ml-1">AED</span>
                           {priceTrend !== 'flat' && (
@@ -394,7 +395,7 @@ export default function SupplierComparison({ purchases, products, suppliers }: P
                             </div>
                           )}
                         </td>
-                        <td className="px-5 py-4 text-center font-bold text-slate-600">{stat.oldestPrice.toFixed(2)}</td>
+                        <td className="px-5 py-4 text-center font-bold text-slate-600">{FormatPurchasePrice(stat.oldestPrice)}</td>
                         <td className="px-5 py-4 text-center">
                           <span className="font-bold text-slate-700">{stat.purchaseCount}</span>
                           <span className="text-xs text-slate-400 block">({stat.totalQty} qty)</span>

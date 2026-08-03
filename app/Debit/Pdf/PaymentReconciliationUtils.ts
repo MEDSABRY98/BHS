@@ -2,6 +2,7 @@
 
 import { addArabicFont } from '@/app/Components/Pdf/shared';
 import { printPdfInSameTab } from '@/app/LPOs/Pdf/DeliveryUtils';
+import { saveTrackedPdf } from '@/app/Audit/Utils/TrackedDownload';
 
 export interface PaymentReconciliationLine {
   customerName: string;
@@ -583,6 +584,6 @@ export async function generatePaymentReconciliationPDF(
     printPdfInSameTab(doc);
   } else {
     const dateLabel = new Date().toISOString().split('T')[0];
-    doc.save(`Payment_Reconciliation_${dateLabel}.pdf`);
+    saveTrackedPdf(doc, `Payment_Reconciliation_${dateLabel}.pdf`);
   }
 }

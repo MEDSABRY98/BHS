@@ -22,8 +22,10 @@ import {
 import SearchSelect from '../Components/DropDownList';
 import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
+import { exportLPOsExcel } from '../Export/ExcelExport';
 import { toast } from '@/app/Components/Notification';
 import TabLoader from '@/app/Components/Loading/TabLoader';
+import { triggerTrackedDownload } from '@/app/Audit/Utils/TrackedDownload';
 
 function downloadUploadErrorsReport(errors: string[], action: 'import' | 'update') {
   if (errors.length === 0) return;
@@ -41,14 +43,8 @@ function downloadUploadErrorsReport(errors: string[], action: 'import' | 'update
   ];
 
   const blob = new Blob([lines.join('\r\n')], { type: 'text/plain;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = `LPO_Orders_${action === 'import' ? 'Import' : 'Update'}_Errors_${new Date().toISOString().split('T')[0]}.txt`;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+  const fileName = `LPO_Orders_${action === 'import' ? 'Import' : 'Update'}_Errors_${new Date().toISOString().split('T')[0]}.txt`;
+  triggerTrackedDownload(blob, fileName);
 }
 
 export default function CreateOrderPage() {
@@ -303,20 +299,24 @@ export default function CreateOrderPage() {
     }
   };
 
-  const downloadTemplate = () => {
-    const ws = XLSX.utils.json_to_sheet([
+  const downloadTemplate = async () => {
+    await exportLPOsExcel(
+      [
+        {
+          "Order Date": "2026-05-18",
+          "LPO ID": "LPO-001",
+          "Invoice ID": "INV-001",
+          "Driver": "Driver Name",
+          "Customer Name": "Example Customer",
+          "Amount": 1500.50
+        }
+      ],
+      'Orders_Template',
       {
-        "Order Date": "2026-05-18",
-        "LPO ID": "LPO-001",
-        "Invoice ID": "INV-001",
-        "Driver": "Driver Name",
-        "Customer Name": "Example Customer",
-        "Amount": 1500.50
+        sheetName: 'Orders Template',
+        numericColumns: ['Amount'],
       }
-    ]);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Orders Template");
-    XLSX.writeFile(wb, "Orders_Template.xlsx");
+    );
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -537,13 +537,23 @@ export default function CreateOrderPage() {
     reader.readAsBinaryString(file);
   };
 
-  const downloadUpdateTemplate = () => {
-    const ws = XLSX.utils.json_to_sheet([
-      { "Order Date": "2026-05-18", "Invoice ID": "INV-001", "LPO ID": "LPO-100", "Customer Name": "Example Customer", "Amount": 1500.50 }
-    ]);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Update Template");
-    XLSX.writeFile(wb, "Orders_Update_Template.xlsx");
+  const downloadUpdateTemplate = async () => {
+    await exportLPOsExcel(
+      [
+        {
+          "Order Date": "2026-05-18",
+          "Invoice ID": "INV-001",
+          "LPO ID": "LPO-100",
+          "Customer Name": "Example Customer",
+          "Amount": 1500.50
+        }
+      ],
+      'Orders_Update_Template',
+      {
+        sheetName: 'Update Template',
+        numericColumns: ['Amount'],
+      }
+    );
   };
 
   const handleUpdateFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {

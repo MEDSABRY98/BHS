@@ -2,6 +2,7 @@
 
 import { getInvoiceType } from '@/app/Debit/Utils/InvoiceType';
 import { addArabicFont, TYPE_BADGE_COLORS } from '@/app/Components/Pdf/shared';
+import { saveTrackedPdf } from '@/app/Audit/Utils/TrackedDownload';
 
 export async function generateAccountStatementPDF(
   customerName: string,
@@ -248,7 +249,7 @@ export async function generateAccountStatementPDF(
 
   const fileName = `${customerName}.pdf`;
   if (returnBlob) return doc.output('blob');
-  doc.save(fileName);
+  saveTrackedPdf(doc, fileName);
 }
 
 export async function generateBulkCustomerStatementsPDF(
@@ -692,5 +693,5 @@ export async function generateMonthlySeparatedPDF(
     doc.setTextColor(100, 100, 100);
     doc.text(`Page ${i} of ${totalPages}`, doc.internal.pageSize.getWidth() - 15, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
   }
-  doc.save(`${customerName}.pdf`);
+  saveTrackedPdf(doc, `${customerName}.pdf`);
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import { addArabicFont } from '@/app/Components/Pdf/shared';
+import { saveTrackedPdf } from '@/app/Audit/Utils/TrackedDownload';
 
 export async function generateSalesAnalysisComparisonPDF(
   customerName: string,
@@ -82,5 +83,5 @@ export async function generateSalesAnalysisComparisonPDF(
   else if (typeof autoTable === 'function') autoTable(doc, tableOptions as any);
 
   if (returnBlob) return doc.output('blob');
-  doc.save(`Analysis_${customerName.replace(/[^a-z0-9]/gi, '_')}.pdf`);
+  saveTrackedPdf(doc, `Analysis_${customerName.replace(/[^a-z0-9]/gi, '_')}.pdf`);
 }

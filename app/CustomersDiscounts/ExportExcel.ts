@@ -1,4 +1,4 @@
-import { saveAs } from 'file-saver';
+import { saveTrackedAs } from '@/app/Audit/Utils/TrackedDownload';
 import { bhs_supabase, fetchAllData } from "@/lib/supabase";
 import { parseSettlementId } from "./Utils/settlementUtils";
 import type { Worksheet } from 'exceljs';
@@ -313,5 +313,5 @@ export async function exportCustomersExcel(
   const blob = new Blob([buffer], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   });
-  saveAs(blob, buildExportFilename(labelOptions));
+  saveTrackedAs(blob, buildExportFilename(labelOptions));
 }

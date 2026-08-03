@@ -1,5 +1,5 @@
 import { PurchaseRecord, Product } from '../page';
-import { exportStyledExcel } from '@/app/Components/Export/ExcelExport';
+import { exportPurchasePriceTrackingExcel } from '../Export/ExcelExport';
 import { filterPurchases, filterSuffix, ReportFilters } from './ReportFilters';
 
 export async function generatePriceInflationReport(
@@ -66,7 +66,7 @@ export async function generatePriceInflationReport(
 
   const fileName = `Price_Inflation_Report${filterSuffix(filters)}_${new Date().toISOString().split('T')[0]}`;
   
-  await exportStyledExcel(reportData, fileName, {
+  await exportPurchasePriceTrackingExcel(reportData, fileName, {
     sheetName: 'Price Inflation',
     columnWidth: 20,
     numericColumns: ['Previous Price (AED)', 'Latest Price (AED)', 'Variance (%)']

@@ -1,6 +1,7 @@
 'use client';
 
 import { addArabicFont } from '@/app/Components/Pdf/shared';
+import { saveTrackedPdf } from '@/app/Audit/Utils/TrackedDownload';
 
 export async function generateSalesStockFormPDF(
   customerName: string,
@@ -65,5 +66,5 @@ export async function generateSalesStockFormPDF(
   else if (typeof autoTable === 'function') autoTable(doc, tableOptions as any);
 
   if (returnBlob) return doc.output('blob');
-  doc.save(`Order_Form_${customerName.replace(/[^a-z0-9]/gi, '_')}.pdf`);
+  saveTrackedPdf(doc, `Order_Form_${customerName.replace(/[^a-z0-9]/gi, '_')}.pdf`);
 }
