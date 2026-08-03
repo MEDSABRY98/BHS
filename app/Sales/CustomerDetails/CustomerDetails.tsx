@@ -20,6 +20,7 @@ import {
   exportSubCustomersToExcel,
 } from './Exports';
 import type { CustomerDetailsTabId, SalesCustomerDetailsProps, SelectedInvoice } from './Types';
+import { trackSalesCustomerDetailsTab } from '@/app/Sales/Utils/SalesTabAudit';
 
 export default function SalesCustomerDetails({
   customerName,
@@ -29,6 +30,7 @@ export default function SalesCustomerDetails({
   onBack,
   initialTab,
   showCosts = true,
+  auditParentTabId = 'sales-customers',
   onOpenMainCustomer,
 }: SalesCustomerDetailsProps) {
   const [activeTab, setActiveTab] = useState<CustomerDetailsTabId>(
@@ -51,6 +53,10 @@ export default function SalesCustomerDetails({
   useEffect(() => {
     setInvoicesPage(1);
   }, [invoiceTypeFilter, debouncedSearchQuery]);
+
+  useEffect(() => {
+    trackSalesCustomerDetailsTab(auditParentTabId, activeTab);
+  }, [auditParentTabId, activeTab]);
 
   const {
     loading,

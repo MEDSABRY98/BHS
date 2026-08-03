@@ -100,6 +100,11 @@ function SessionFilesModal({
                   <p className="text-sm font-semibold text-slate-800 truncate" title={file.name}>
                     {file.name}
                   </p>
+                  {file.tab ? (
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-violet-500 mt-0.5 truncate">
+                      {file.tab}
+                    </p>
+                  ) : null}
                   <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mt-0.5">
                     {file.type}
                   </p>

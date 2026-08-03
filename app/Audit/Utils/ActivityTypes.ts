@@ -1,6 +1,7 @@
 export type SessionDownload = {
   name: string;
   type: string;
+  tab?: string;
 };
 
 export type ActivitySessionPayload = {
@@ -54,9 +55,11 @@ export function ParseSessionDownloads(raw: string | null | undefined): SessionDo
         const row = item as Record<string, unknown>;
         const name = String(row.name ?? row.fileName ?? row.FILE_NAME ?? '').trim();
         if (!name) return null;
+        const tab = String(row.tab ?? row.sourceTab ?? row.TAB ?? '').trim();
         return {
           name,
           type: String(row.type ?? row.fileType ?? row.FILE_TYPE ?? 'file').trim() || 'file',
+          ...(tab ? { tab } : {}),
         };
       })
       .filter((item): item is SessionDownload => item !== null);

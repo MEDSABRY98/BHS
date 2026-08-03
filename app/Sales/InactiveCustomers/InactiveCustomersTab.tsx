@@ -249,7 +249,7 @@ export default function SalesInactiveCustomersTab({ userId }: SalesInactiveCusto
   }
 
   if (selectedCustomer) return (
-    <SalesCustomerDetails customerName={selectedCustomer} userId={userId} onBack={() => setSelectedCustomer(null)} initialTab="dashboard" />
+    <SalesCustomerDetails customerName={selectedCustomer} userId={userId} onBack={() => setSelectedCustomer(null)} initialTab="dashboard" auditParentTabId="sales-inactive-customers" />
   );
 
   const totalPages = Math.ceil(filteredCustomers.length / ITEMS_PER_PAGE);

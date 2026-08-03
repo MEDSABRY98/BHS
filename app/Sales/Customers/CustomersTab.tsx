@@ -194,6 +194,7 @@ export default function SalesCustomersTab({ userId, onUploadMapping, showCosts =
       userId={userId}
       onBack={() => setSelectedCustomer(null)}
       showCosts={showCosts}
+      auditParentTabId="sales-customers"
       onOpenMainCustomer={(mainCustomerName) => {
         setActiveTab('main');
         setSelectedCustomer({ id: '', name: mainCustomerName });

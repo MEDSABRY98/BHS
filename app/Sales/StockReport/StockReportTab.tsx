@@ -9,6 +9,7 @@ import SalesST_ByProduct from './ST_ByProductTab';
 import SalesST_CustomerMarginTab from './ST_CustomerMarginTab';
 import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
+import { trackSalesNestedTab } from '@/app/Sales/Utils/SalesTabAudit';
 
 interface SalesStockReportTabProps {
   userId: string;
@@ -24,6 +25,14 @@ export default function SalesStockReportTab({ userId, showCosts = true }: SalesS
   useEffect(() => {
     void ensureRawData();
   }, [ensureRawData]);
+
+  useEffect(() => {
+    trackSalesNestedTab('sales-download-form', activeTab, {
+      customers: 'By Customers',
+      products: 'By Product',
+      margin: 'Customer Margin',
+    });
+  }, [activeTab]);
 
   const customersData = stockReport?.customersData ?? [];
   const subCustomersData = stockReport?.subCustomersData ?? [];

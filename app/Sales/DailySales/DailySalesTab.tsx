@@ -8,6 +8,7 @@ import { exportSalesExcel, exportSalesExcelTable } from '@/app/Sales/Utils/Excel
 import NoData from '@/app/Components/DataState/NoDataTab';
 import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
+import { trackSalesNestedTab, SALES_DAILY_SALES_TAB_LABELS } from '@/app/Sales/Utils/SalesTabAudit';
 
 interface SalesDailySalesTabProps {
   userId: string;
@@ -50,6 +51,10 @@ export default function SalesDailySalesTab({ userId, showCosts = true }: SalesDa
   // Reset selected month when subtab changes
   useEffect(() => {
     setSelectedMonthKey(null);
+  }, [activeSubTab]);
+
+  useEffect(() => {
+    trackSalesNestedTab('sales-daily-sales', activeSubTab, SALES_DAILY_SALES_TAB_LABELS);
   }, [activeSubTab]);
 
   // Group salesByDayData by Month & Year

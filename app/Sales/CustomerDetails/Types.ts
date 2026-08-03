@@ -17,6 +17,7 @@ export interface SalesCustomerDetailsProps {
   onBack: () => void;
   initialTab?: CustomerDetailsTabId;
   showCosts?: boolean;
+  auditParentTabId?: string;
   onOpenMainCustomer?: (mainCustomerName: string) => void;
 }
 

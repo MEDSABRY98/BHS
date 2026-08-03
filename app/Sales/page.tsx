@@ -36,6 +36,7 @@ import { getAllowedReportTableTabIds } from '@/app/Sales/Reports/ReportsTableTab
 import { getAllowedSalesTabIds, isSalesTabAllowed } from '@/app/Sales/Utils/salesTabPermissions';
 import { getCustomersList, getMyCustomersData, batchSaveCustomerMapping } from '@/app/Sales/Service/sales_customers_service';
 import { getSalesMetadata } from '@/app/Sales/Service/sales_core_service';
+import { trackSalesTab } from '@/app/Sales/Utils/SalesTabAudit';
 
 const MAPPING_EXPORT_HEADERS = [
   'CUSTOMER ID',
@@ -185,6 +186,7 @@ export default function SalesPage() {
   // Reset scroll position and track visited tabs when tab changes
   useEffect(() => {
     setVisitedTabs(prev => new Set([...prev, activeTab]));
+    trackSalesTab(activeTab);
     if (mainContentRef.current) {
       mainContentRef.current.scrollTop = 0;
     }

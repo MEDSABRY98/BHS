@@ -19,6 +19,7 @@ type ActiveSession = {
 let queue: QueuedSession[] = [];
 let flushTimer: ReturnType<typeof setInterval> | null = null;
 let activeSession: ActiveSession | null = null;
+let moduleSubTab: string | null = null;
 let initialized = false;
 
 function GetCurrentUserId(): string | null {
@@ -62,15 +63,57 @@ function CloseActiveSession(exitedAt: string = new Date().toISOString()): boolea
 
   if (!userId) return false;
 
+  const moduleLabel = moduleSubTab ? `${moduleName} · ${moduleSubTab}` : moduleName;
+
   Enqueue({
     USER_ID: userId,
-    MODULE_NAME: moduleName,
+    MODULE_NAME: moduleLabel,
     FILE_NAME: SerializeSessionDownloads(downloads),
     SESSION_ENTERED_AT: enteredAt,
     SESSION_EXITED_AT: exitedAt,
     SESSION_MINUTES: SessionMinutes(enteredAt, exitedAt),
   });
   return true;
+}
+
+function EnsureModuleSession(moduleName: string) {
+  EnsureFlushLoop();
+  if (!activeSession || activeSession.moduleName !== moduleName) {
+    if (activeSession) CloseSessionAndSend();
+    StartSession(moduleName);
+  }
+}
+
+export function SetModuleSubTab(subTab: string | null) {
+  moduleSubTab = subTab?.trim() || null;
+}
+
+export function TrackModuleSubTab(subTab: string | null) {
+  if (typeof window === 'undefined') return;
+
+  const userId = GetCurrentUserId();
+  const moduleName = ResolveModuleName(window.location.pathname);
+  if (!userId || !moduleName) return;
+
+  const normalized = subTab?.trim() || null;
+  EnsureFlushLoop();
+
+  const subTabChanged = moduleSubTab !== normalized;
+
+  if (activeSession?.moduleName === moduleName && subTabChanged) {
+    CloseSessionAndSend();
+    StartSession(moduleName);
+  } else {
+    EnsureModuleSession(moduleName);
+  }
+
+  SetModuleSubTab(normalized);
+}
+
+function PushDownload(fileName: string, fileType: string) {
+  const download: SessionDownload = { name: fileName, type: fileType };
+  if (moduleSubTab) download.tab = moduleSubTab;
+  activeSession!.downloads.push(download);
 }
 
 function Enqueue(event: QueuedSession) {
@@ -138,6 +181,7 @@ export function TrackModuleVisit(pathname: string) {
   if (activeSession?.moduleName === moduleName) return;
 
   CloseSessionAndSend();
+  SetModuleSubTab(null);
   StartSession(moduleName);
   EnsureFlushLoop();
 }
@@ -147,14 +191,8 @@ export function TrackDownload(fileName: string, fileType: string) {
   if (!userId || !fileName) return;
 
   const moduleName = ResolveModuleName(window.location.pathname) ?? 'Unknown Module';
-  EnsureFlushLoop();
-
-  if (!activeSession || activeSession.moduleName !== moduleName) {
-    if (activeSession) CloseSessionAndSend();
-    StartSession(moduleName);
-  }
-
-  activeSession!.downloads.push({ name: fileName, type: fileType });
+  EnsureModuleSession(moduleName);
+  PushDownload(fileName, fileType);
 }
 
 export function InferFileType(fileName: string): string {
