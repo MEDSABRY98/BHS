@@ -9,7 +9,7 @@ import SalesST_ByProduct from './ST_ByProductTab';
 import SalesST_CustomerMarginTab from './ST_CustomerMarginTab';
 import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
-import { trackSalesNestedTab } from '@/app/Sales/Utils/SalesTabAudit';
+import { trackSalesNestedTab } from '@/app/Audit/Modules/SalesTabAudit';
 
 interface SalesStockReportTabProps {
   userId: string;

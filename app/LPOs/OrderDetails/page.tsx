@@ -28,6 +28,7 @@ import OrderDeliveryTab from './Components/OrderDeliveryTab';
 import InvoicesStatusTab from './Components/InvoicesStatusTab';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import { exportLPOsExcel } from '../Export/ExcelExport';
+import { useLposOrderDetailsTabAudit } from '@/app/Audit/Modules/LPOsTabAudit';
 
 function OrderDetailsPageContent() {
   const { canEdit, canDelete, isLoaded } = usePermissions();
@@ -49,6 +50,7 @@ function OrderDetailsPageContent() {
   const orderInfoRef = useRef<OrderInfoTabHandle>(null);
   const [pendingStatus, setPendingStatus] = useState('');
   const [activeTab, setActiveTab] = useState('INFO');
+  useLposOrderDetailsTabAudit(activeTab);
 
   const handleOrderInfoActionState = useCallback((state: { isSaving: boolean; isLoadingOptions: boolean }) => {
     setOrderInfoSaving(state.isSaving);

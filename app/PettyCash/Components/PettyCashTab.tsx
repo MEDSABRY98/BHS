@@ -2,9 +2,9 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Menu, X, ArrowLeft, FileSpreadsheet, RefreshCcw, Archive } from 'lucide-react';
-import * as XLSX from 'xlsx';
 
 import Sidebar, { tabs } from '../Utils/Sidebar';
+import { usePettyCashTabAudit } from '@/app/Audit/Modules/PettyCashTabAudit';
 import ReceiptsForm from './ReceiptsForm';
 import ExpensesForm from './ExpensesForm';
 import VoucherTab from './VoucherTab';
@@ -15,7 +15,7 @@ import { generateVoucherPdf } from '../Utils/VoucherPdf';
 import { toast } from '@/app/Components/Notification';
 import { getPettyCashRecords, createPettyCashEntry, updatePettyCashEntry, deletePettyCashEntry, settlePettyCashPeriod } from '../Service/petty_cash_service';
 import { getVouchers, createVoucher } from '../Service/vouchers_service';
-import { exportDebitExcelWorkbook } from '../../Debit/Utils/ExcelExport';
+import { exportPettyCashExcelWorkbook } from '../Export/ExcelExport';
 
 interface Receipt {
   id: string;
@@ -96,6 +96,8 @@ export default function PettyCashTab() {
   const [nextVoucherNumber, setNextVoucherNumber] = useState('V-0001');
   const [voucherSubTab, setVoucherSubTab] = useState<'add' | 'reprint'>('add');
   const [voucherHistory, setVoucherHistory] = useState<any[]>([]);
+
+  usePettyCashTabAudit(activeTab, voucherSubTab);
 
   // Fetch records from Google Sheets on mount
   useEffect(() => {
@@ -582,7 +584,7 @@ export default function PettyCashTab() {
     const filename = `Petty_Cash_Statistics_${date}.xlsx`;
 
     try {
-      await exportDebitExcelWorkbook(sheets, filename);
+      await exportPettyCashExcelWorkbook(sheets, filename);
       toast.success(`Exported to ${filename}`);
     } catch (error) {
       console.error('Error exporting to Excel:', error);

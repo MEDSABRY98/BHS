@@ -8,6 +8,7 @@ import { exportSalesExcelTable } from '@/app/Sales/Utils/ExcelExport';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
 import { getProductDetailsData } from '../Service/sales_products_service';
+import { trackSalesProductDetailsTab } from '@/app/Audit/Modules/SalesTabAudit';
 import {
   ComposedChart,
   Bar,
@@ -36,6 +37,9 @@ export default function SalesProductDetails({ productId, userId, onBack, initial
   const [allData, setAllData] = useState<SalesInvoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'monthly' | 'products'>(initialTab);
+  useEffect(() => {
+    trackSalesProductDetailsTab(activeTab);
+  }, [activeTab]);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [customerTypeView, setCustomerTypeView] = useState<'main' | 'sub'>('sub');

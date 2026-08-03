@@ -6,11 +6,13 @@ import PendingDriverInvoices from './Components/PendingDriverInvoices';
 import DeliveredDriverInvoices from './Components/DeliveredDriverInvoices';
 import PendingCustomerInvoices from './Components/PendingCustomerInvoices';
 import HandoverReports from './Components/DailyHandover';
+import { useLposReportsTabAudit } from '@/app/Audit/Modules/LPOsTabAudit';
 
 type ReportTab = 'pending' | 'pending-customer' | 'delivered' | 'handover';
 
 export default function ReportsPage() {
   const [activeTab, setActiveTab] = useState<ReportTab>('pending');
+  useLposReportsTabAudit(activeTab);
 
   return (
     <div className="space-y-10">

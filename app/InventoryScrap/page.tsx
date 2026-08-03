@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import InventoryScrapTab from '@/app/InventoryScrap/Components/InventoryScrapTab';
+import { useInventoryScrapTabAudit } from '@/app/Audit/Modules/InventoryScrapTabAudit';
 import Login from '@/app/Components/Auth/Login';
 import Loading from '@/app/Components/Loading';
 import {
@@ -24,6 +25,7 @@ export default function InventoryScrapPage() {
   const [isAllowed, setIsAllowed] = useState(true);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [activeSubTab, setActiveSubTab] = useState<'record' | 'sessions' | 'report' | 'history'>('record');
+  useInventoryScrapTabAudit(activeSubTab);
 
   // Sidebar Collapse states
   const [isCollapsed, setIsCollapsed] = useState(true);

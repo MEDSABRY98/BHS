@@ -19,8 +19,10 @@ import { exportAdminControlExcelTable } from '@/app/AdminControl/Export/ExcelExp
 import {
   CountSessionDownloads,
   ParseSessionDownloads,
+  ParseSessionTabs,
   type ActivityRecord,
   type SessionDownload,
+  type SessionTab,
 } from '@/app/Audit/Utils/ActivityTypes';
 
 type UserActivityTabProps = {
@@ -39,10 +41,18 @@ type FilesModalState = {
   files: SessionDownload[];
 } | null;
 
+type TabsModalState = {
+  userName: string;
+  moduleName: string;
+  tabs: SessionTab[];
+} | null;
+
 const inputClass =
   'w-full pl-10 pr-4 py-2.5 bg-slate-50 border-2 border-slate-100 rounded-xl text-sm font-semibold text-slate-800 outline-none transition-all placeholder:text-slate-400 focus:border-slate-900 focus:bg-white';
 
 const labelClass = 'text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-1.5 block';
+
+const PAGE_SIZE = 50;
 
 function formatDateTime(value: string | null | undefined) {
   if (!value) return '—';
@@ -124,6 +134,73 @@ function SessionFilesModal({
   );
 }
 
+function SessionTabsModal({
+  modal,
+  onClose,
+}: {
+  modal: TabsModalState;
+  onClose: () => void;
+}) {
+  if (!modal) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg max-h-[80vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3 p-5 border-b border-slate-100">
+          <div className="min-w-0">
+            <h4 className="text-base font-black text-slate-900">Visited Tabs</h4>
+            <p className="text-xs text-slate-500 font-medium mt-0.5 truncate">
+              {modal.userName} · {modal.moduleName}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-2 rounded-xl text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-all shrink-0"
+            aria-label="Close"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="overflow-y-auto p-3">
+          <ul className="divide-y divide-slate-100">
+            {modal.tabs.map((tab, index) => (
+              <li key={`${tab.name}-${index}`} className="flex items-center gap-3 px-2 py-3">
+                <div className="p-2 rounded-lg bg-violet-50 text-violet-700 shrink-0">
+                  <Layers className="w-4 h-4" />
+                </div>
+                <div className="min-w-0 text-left">
+                  <p className="text-sm font-semibold text-slate-800 truncate" title={tab.name}>
+                    {tab.name}
+                  </p>
+                  {tab.at ? (
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mt-0.5">
+                      {formatDateTime(tab.at)}
+                    </p>
+                  ) : null}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="p-4 border-t border-slate-100 text-center">
+          <p className="text-xs font-semibold text-slate-500">
+            {modal.tabs.length} tab{modal.tabs.length === 1 ? '' : 's'} visited in this session
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function UserActivityTab({ adminName }: UserActivityTabProps) {
   const today = useMemo(() => new Date().toISOString().split('T')[0], []);
 
@@ -138,7 +215,9 @@ export default function UserActivityTab({ adminName }: UserActivityTabProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filesModal, setFilesModal] = useState<FilesModalState>(null);
+  const [tabsModal, setTabsModal] = useState<TabsModalState>(null);
   const [exporting, setExporting] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
     const timer = setTimeout(() => setQuery(filters), 400);
@@ -169,6 +248,23 @@ export default function UserActivityTab({ adminName }: UserActivityTabProps) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [query]);
+
+  const totalPages = Math.max(1, Math.ceil(events.length / PAGE_SIZE));
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
+  const paginatedEvents = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return events.slice(start, start + PAGE_SIZE);
+  }, [events, currentPage]);
 
   const stats = useMemo(() => {
     const sessionMinutes = events.reduce((sum, e) => sum + (e.SESSION_MINUTES ?? 0), 0);
@@ -201,25 +297,30 @@ export default function UserActivityTab({ adminName }: UserActivityTabProps) {
         'User',
         'User ID',
         'Module',
+        'Tabs',
+        'Visited Tabs',
+        'Files',
+        'Downloaded Files',
         'Entered',
         'Exited',
         'Min',
-        'Files',
-        'Downloaded Files',
       ];
 
       const rows = events.map((event) => {
         const files = ParseSessionDownloads(event.FILE_NAME);
+        const tabs = ParseSessionTabs(event.TABS);
         return [
           formatDateTime(event.CREATED_AT),
           resolveUserName(event.USER_ID),
           event.USER_ID,
           event.MODULE_NAME,
+          tabs.length,
+          tabs.map((tab) => tab.name).join('; '),
+          files.length,
+          files.map((file) => file.name).join('; '),
           formatDateTime(event.SESSION_ENTERED_AT),
           formatDateTime(event.SESSION_EXITED_AT),
           event.SESSION_MINUTES ?? '',
-          files.length,
-          files.map((file) => file.name).join('; '),
         ];
       });
 
@@ -229,7 +330,7 @@ export default function UserActivityTab({ adminName }: UserActivityTabProps) {
         `User_Activity_${query.date}`,
         {
           sheetName: 'Activity Log',
-          numericColumns: ['Min', 'Files'],
+          numericColumns: ['Min', 'Tabs', 'Files'],
         },
       );
     } catch (err) {
@@ -242,6 +343,7 @@ export default function UserActivityTab({ adminName }: UserActivityTabProps) {
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <SessionFilesModal modal={filesModal} onClose={() => setFilesModal(null)} />
+      <SessionTabsModal modal={tabsModal} onClose={() => setTabsModal(null)} />
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
@@ -382,16 +484,19 @@ export default function UserActivityTab({ adminName }: UserActivityTabProps) {
                   <th className="py-3.5 px-5">Recorded</th>
                   <th className="py-3.5 px-5">User</th>
                   <th className="py-3.5 px-5">Module</th>
+                  <th className="py-3.5 px-5">Tabs</th>
+                  <th className="py-3.5 px-5">Files</th>
                   <th className="py-3.5 px-5">Entered</th>
                   <th className="py-3.5 px-5">Exited</th>
                   <th className="py-3.5 px-5">Min</th>
-                  <th className="py-3.5 px-5">Files</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {events.map((event) => {
+                {paginatedEvents.map((event) => {
                   const files = ParseSessionDownloads(event.FILE_NAME);
+                  const tabs = ParseSessionTabs(event.TABS);
                   const fileCount = files.length;
+                  const tabCount = tabs.length;
 
                   return (
                     <tr key={event.ID} className="hover:bg-slate-50/70 transition-colors">
@@ -407,18 +512,23 @@ export default function UserActivityTab({ adminName }: UserActivityTabProps) {
                         </span>
                       </td>
                       <td className="py-3.5 px-5 font-semibold text-slate-800">{event.MODULE_NAME}</td>
-                      <td className="py-3.5 px-5 text-slate-500 whitespace-nowrap text-xs">
-                        {formatDateTime(event.SESSION_ENTERED_AT)}
-                      </td>
-                      <td className="py-3.5 px-5 text-slate-500 whitespace-nowrap text-xs">
-                        {formatDateTime(event.SESSION_EXITED_AT)}
-                      </td>
                       <td className="py-3.5 px-5">
-                        {event.SESSION_MINUTES != null ? (
-                          <span className="inline-flex items-center justify-center gap-1 text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md">
-                            <Clock3 className="w-3 h-3" />
-                            {event.SESSION_MINUTES}
-                          </span>
+                        {tabCount > 0 ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setTabsModal({
+                                userName: resolveUserName(event.USER_ID),
+                                moduleName: event.MODULE_NAME,
+                                tabs,
+                              })
+                            }
+                            className="inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-violet-50 text-violet-700 hover:bg-violet-100 transition-colors"
+                            title={`${tabCount} visited tab${tabCount === 1 ? '' : 's'}`}
+                          >
+                            <Layers className="w-4 h-4" />
+                            <span className="text-xs font-bold tabular-nums">{tabCount}</span>
+                          </button>
                         ) : (
                           <span className="text-slate-300">—</span>
                         )}
@@ -444,11 +554,93 @@ export default function UserActivityTab({ adminName }: UserActivityTabProps) {
                           <span className="text-slate-300">—</span>
                         )}
                       </td>
+                      <td className="py-3.5 px-5 text-slate-500 whitespace-nowrap text-xs">
+                        {formatDateTime(event.SESSION_ENTERED_AT)}
+                      </td>
+                      <td className="py-3.5 px-5 text-slate-500 whitespace-nowrap text-xs">
+                        {formatDateTime(event.SESSION_EXITED_AT)}
+                      </td>
+                      <td className="py-3.5 px-5">
+                        {event.SESSION_MINUTES != null ? (
+                          <span className="inline-flex items-center justify-center gap-1 text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md">
+                            <Clock3 className="w-3 h-3" />
+                            {event.SESSION_MINUTES}
+                          </span>
+                        ) : (
+                          <span className="text-slate-300">—</span>
+                        )}
+                      </td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
+
+            {events.length > PAGE_SIZE && (
+              <div className="px-5 py-4 bg-slate-50/80 border-t border-slate-200 flex flex-col sm:flex-row justify-between items-center gap-4">
+                <div className="text-sm font-semibold text-slate-500">
+                  Showing{' '}
+                  <span className="text-slate-900 font-bold">{(currentPage - 1) * PAGE_SIZE + 1}</span>
+                  {' '}to{' '}
+                  <span className="text-slate-900 font-bold">
+                    {Math.min(currentPage * PAGE_SIZE, events.length)}
+                  </span>
+                  {' '}of <span className="text-slate-900 font-bold">{events.length}</span> sessions
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                    disabled={currentPage === 1}
+                    className="px-3.5 py-2 border border-slate-200 rounded-xl hover:bg-white disabled:opacity-50 disabled:hover:bg-transparent text-sm font-bold text-slate-600 transition-colors shadow-sm disabled:cursor-not-allowed"
+                  >
+                    Previous
+                  </button>
+
+                  <div className="hidden md:flex items-center gap-1">
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
+                      if (
+                        page === 1 ||
+                        page === totalPages ||
+                        (page >= currentPage - 1 && page <= currentPage + 1)
+                      ) {
+                        return (
+                          <button
+                            key={page}
+                            type="button"
+                            onClick={() => setCurrentPage(page)}
+                            className={`px-3 py-1.5 rounded-xl text-sm font-bold transition-all shadow-sm ${
+                              currentPage === page
+                                ? 'bg-slate-900 text-white'
+                                : 'border border-slate-200 text-slate-600 hover:bg-white'
+                            }`}
+                          >
+                            {page}
+                          </button>
+                        );
+                      }
+                      if (page === currentPage - 2 || page === currentPage + 2) {
+                        return (
+                          <span key={page} className="px-1.5 text-slate-400 font-bold text-sm">
+                            ...
+                          </span>
+                        );
+                      }
+                      return null;
+                    })}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                    disabled={currentPage === totalPages}
+                    className="px-3.5 py-2 border border-slate-200 rounded-xl hover:bg-white disabled:opacity-50 disabled:hover:bg-transparent text-sm font-bold text-slate-600 transition-colors shadow-sm disabled:cursor-not-allowed"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

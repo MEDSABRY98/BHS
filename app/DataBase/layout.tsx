@@ -13,6 +13,7 @@ import {
   ChevronLeft,
   ArrowLeft,
 } from 'lucide-react';
+import { useDataBaseRouteAudit } from '@/app/Audit/Modules/DataBaseTabAudit';
 import { findDatabaseNavItemByPath, getDatabaseNavItemsByCategory, DATABASE_DASHBOARD_HREF, DATABASE_DASHBOARD_NAV } from './Utils/DatabaseHubConfig';
 
 interface NavItemProps {
@@ -52,6 +53,7 @@ export default function DatabaseLayout({ children }: { children: React.ReactNode
   const [isCollapsed, setIsCollapsed] = useState(true);
   const [user, setUser] = useState<any>(null);
   const [isChecking, setIsChecking] = useState(true);
+  useDataBaseRouteAudit(pathname);
 
   useEffect(() => {
     const stored = localStorage.getItem('dbSidebarCollapsed');

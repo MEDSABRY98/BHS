@@ -8,6 +8,7 @@ import Sidebar, {
   getCountingTabLabel,
   type InventoryCountingTabId,
 } from './Utils/Sidebar';
+import { useInventoryCountingTabAudit } from '@/app/Audit/Modules/InventoryCountingTabAudit';
 import { InventoryCountingArchiveProvider, useInventoryCountingArchive } from './InventoryCountingArchiveContext';
 import Login from '@/app/Components/Auth/Login';
 import Loading from '@/app/Components/Loading';
@@ -102,6 +103,8 @@ export default function InventoryCountingPage() {
   useEffect(() => {
     setVisitedTabs((prev) => new Set([...prev, activeTab]));
   }, [activeTab]);
+
+  useInventoryCountingTabAudit(activeTab);
 
   const toggleSidebar = () => {
     const nextState = !isSidebarCollapsed;

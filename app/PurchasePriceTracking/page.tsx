@@ -13,6 +13,7 @@ import {
   usePurchaseModuleFilters,
 } from './Model/PurchaseFilters';
 import TabFetchError from '@/app/Components/DataState/TabFetchError';
+import { usePurchasePriceTrackingTabAudit } from '@/app/Audit/Modules/PurchasePriceTrackingTabAudit';
 
 export type PurchaseRecord = {
   id: string;
@@ -152,6 +153,8 @@ export default function PurchasePriceTrackingPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+
+  usePurchasePriceTrackingTabAudit(activeTab);
 
   useEffect(() => {
     fetchData();

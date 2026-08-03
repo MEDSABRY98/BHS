@@ -5,6 +5,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import Login from '@/app/Components/Auth/Login';
 import Loading from '@/app/Components/Loading';
+import { useLposRouteAudit } from '@/app/Audit/Modules/LPOsTabAudit';
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -117,6 +118,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [isCollapsed, setIsCollapsed] = useState(true);
   const [user, setUser] = useState<any>(null);
   const [isChecking, setIsChecking] = useState(true);
+  useLposRouteAudit(pathname);
 
   useEffect(() => {
     const stored = localStorage.getItem('sidebarCollapsed');

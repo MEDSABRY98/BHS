@@ -22,7 +22,7 @@ import { toast } from '@/app/Components/Notification';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import TabFetchError from '@/app/Components/DataState/TabFetchError';
-import ReportsDailyCalendar from './DailyCalendar';
+import { trackSalesReportsTableTab } from '@/app/Audit/Modules/SalesTabAudit';
 import { getReportsData } from '../Service/sales_reports_service';
 import { useSalesDataContext } from '@/app/Sales/Context/SalesDataContext';
 import { useSalesTabFetch } from '@/app/Sales/Hooks/useSalesTabFetch';
@@ -417,6 +417,10 @@ export default function SalesReportsTab({ userId, allowedReportTableTabIds = nul
   const [compareMode, setCompareMode] = useState<CompareMode>('prevMonth');
   const [customerView, setCustomerView] = useState<CustomerView>('main');
   const [activeTableTab, setActiveTableTab] = useState<ReportsTableTab>('top-customers');
+
+  useEffect(() => {
+    trackSalesReportsTableTab(activeTableTab);
+  }, [activeTableTab]);
 
   const compareBlock = data?.customerViews?.[customerView]?.[compareMode];
   const compareLabel = data?.compareModes?.[compareMode]?.label ?? '';

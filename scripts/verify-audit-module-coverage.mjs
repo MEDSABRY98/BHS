@@ -1,7 +1,11 @@
 #!/usr/bin/env node
 /**
  * Verifies that every user-facing Next.js module route is registered in
- * app/Audit/Utils/ModulePathMap.ts and that ActivityTracker is mounted globally.
+ * app/Audit/Utils/ModulePathMap.ts, that ActivityTracker is mounted globally,
+ * and that client-side tab modules wire sub-tab audit hooks.
+ *
+ * NOTE: This checks static wiring only. Runtime DB inserts are handled by
+ * ActivityQueue (OpenSessionRecord on enter + UpdateActivitySession on exit).
  *
  * Usage: node scripts/verify-audit-module-coverage.mjs
  * Exit code 0 = OK, 1 = coverage gaps found.
@@ -14,6 +18,32 @@ const ROOT = process.cwd();
 const APP_DIR = path.join(ROOT, 'app');
 const MODULE_MAP_FILE = path.join(ROOT, 'app', 'Audit', 'Utils', 'ModulePathMap.ts');
 const LAYOUT_FILE = path.join(ROOT, 'app', 'layout.tsx');
+const AUDIT_MODULES_DIR = path.join(ROOT, 'app', 'Audit', 'Modules');
+
+/** One TabAudit registry file per user-facing module root. */
+const MODULE_TAB_AUDIT_FILES = {
+  CashReceipt: 'CashReceiptTabAudit.ts',
+  CashHandover: 'CashHandoverTabAudit.ts',
+  PettyCash: 'PettyCashTabAudit.ts',
+  DocumentsTracking: 'DocumentsTrackingTabAudit.ts',
+  CustomersSummaries: 'CustomersSummariesTabAudit.ts',
+  DebitInsights: 'DebitInsightsTabAudit.ts',
+  Debit: 'DebitTabAudit.ts',
+  CustomersDocuments: 'CustomersDocumentsTabAudit.ts',
+  InventoryAnalysis: 'InventoryTabAudit.ts',
+  InventoryItemCode: 'InventoryItemCodeTabAudit.ts',
+  InventoryCounting: 'InventoryCountingTabAudit.ts',
+  InventoryScrap: 'InventoryScrapTabAudit.ts',
+  PurchasePriceTracking: 'PurchasePriceTrackingTabAudit.ts',
+  Sales: 'SalesTabAudit.ts',
+  LPOs: 'LPOsTabAudit.ts',
+  DataBase: 'DataBaseTabAudit.ts',
+  CustomersDiscounts: 'CustomersDiscountsTabAudit.ts',
+  AdminControl: 'AdminControlTabAudit.ts',
+};
+
+const TAB_AUDIT_HOOK_PATTERN =
+  /(?:useModuleTabAudit|TrackModuleSubTab|trackSales|trackDebit|trackInventory|trackCustomers|use\w+TabAudit|useLposRouteAudit|useDataBaseRouteAudit)/;
 
 /** Folders under app/ that are not end-user modules. */
 const EXCLUDED_MODULE_DIRS = new Set([
@@ -138,9 +168,48 @@ function main() {
     }
   }
 
+  const missingTabAuditFiles = moduleRoots.filter((name) => {
+    const expected = MODULE_TAB_AUDIT_FILES[name];
+    if (!expected) return true;
+    return !fs.existsSync(path.join(AUDIT_MODULES_DIR, expected));
+  });
+  if (missingTabAuditFiles.length > 0) {
+    errors.push(
+      `Modules missing app/Audit/Modules/*TabAudit.ts registry (${missingTabAuditFiles.length}): ${missingTabAuditFiles.join(', ')}`,
+    );
+  }
+
+  const tabbedSourceFiles = listFiles(APP_DIR, (filePath) => /\.(tsx|ts)$/.test(filePath)).filter((filePath) => {
+    const rel = path.relative(ROOT, filePath).replace(/\\/g, '/');
+    if (rel.includes('/Modals/')) return false;
+    const source = readText(filePath);
+    return (
+      /\[\s*activeTab\s*,\s*setActiveTab\s*\]/.test(source) ||
+      /\[\s*currentView\s*,\s*setCurrentView\s*\]/.test(source)
+    );
+  });
+
+  const missingTabAudit = tabbedSourceFiles
+    .map((sourceFile) => {
+      const rel = path.relative(ROOT, sourceFile).replace(/\\/g, '/');
+      const source = readText(sourceFile);
+      if (TAB_AUDIT_HOOK_PATTERN.test(source)) {
+        return null;
+      }
+      return rel;
+    })
+    .filter(Boolean);
+
+  if (missingTabAudit.length > 0) {
+    errors.push(
+      `Pages with client-side tabs missing sub-tab audit hook (${missingTabAudit.length}):\n  ${missingTabAudit.join('\n  ')}`,
+    );
+  }
+
   console.log('=== Audit module coverage ===');
   console.log(`Module roots found: ${moduleRoots.length}`);
   console.log(`ModulePathMap entries: ${registeredRoutes.length}`);
+  console.log(`TabAudit registry files: ${Object.keys(MODULE_TAB_AUDIT_FILES).length}`);
   console.log(`App routes checked: ${pageFiles.length - 1}`); // minus home
 
   if (warnings.length > 0) {

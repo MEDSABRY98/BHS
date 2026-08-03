@@ -21,6 +21,7 @@ import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import Login from '@/app/Components/Auth/Login';
 import TabPanel from '@/app/Components/Layout/TabPanel';
 import DebitSidebar from './Utils/Sidebar';
+import { useDebitTabAudit } from '@/app/Audit/Modules/DebitTabAudit';
 import { DebitDataProvider, useDebitData } from './Context/DebitDataContext';
 
 const TABS_NEEDING_FULL_DATA = new Set([
@@ -60,6 +61,8 @@ function DebitPageShell({
   const mainContentRef = useRef<HTMLDivElement>(null);
   const searchParams = useSearchParams();
   const isAutoDownload = initialCustomer && searchParams?.get('action') === 'download_report';
+
+  useDebitTabAudit(activeTab);
 
   useEffect(() => {
     setVisitedTabs((prev) => new Set(prev).add(activeTab));

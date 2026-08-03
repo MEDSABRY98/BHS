@@ -23,6 +23,7 @@ import {
 
 // Tab imports
 import RegisterTab from './RegisterTab';
+import { useDocumentsTrackingTabAudit } from '@/app/Audit/Modules/DocumentsTrackingTabAudit';
 import ListTab from './ListTab';
 import ReceiversTab from './ReceiversTab';
 
@@ -46,6 +47,7 @@ export default function DocumentsTrackingTab() {
     const [selectedCheckId, setSelectedCheckId] = useState<string | null>(null);
     const [headerDate, setHeaderDate] = useState('');
     const [activeSubTab, setActiveSubTab] = useState<'register' | 'list' | 'receivers'>('register');
+    useDocumentsTrackingTabAudit(activeSubTab);
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
     // Tracking and Edit check references

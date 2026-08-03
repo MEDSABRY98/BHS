@@ -6,6 +6,7 @@ import Login from '@/app/Components/Auth/Login';
 import Loading from '@/app/Components/Loading';
 import HandoverForm from './Components/HandoverForm';
 import HandoverSidebar from './Utils/Sidebar';
+import { useCashHandoverTabAudit } from '@/app/Audit/Modules/CashHandoverTabAudit';
 import SavedHandoversTab from './Components/SavedHandoversTab';
 import { verifyUserCredentials } from '@/app/DataBase/Service/database_service';
 import { CashHandover } from './Service/cash_handover_service';
@@ -19,6 +20,8 @@ export default function CashHandoverPage() {
 
   const [activeTab, setActiveTab] = useState<'new' | 'saved'>('new');
   const [editHandover, setEditHandover] = useState<CashHandover | null>(null);
+
+  useCashHandoverTabAudit(activeTab);
 
   useEffect(() => {
     const validateAndSetUser = async () => {

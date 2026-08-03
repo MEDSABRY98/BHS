@@ -10,6 +10,7 @@ import {
   User,
 } from "lucide-react";
 import { CustomerView } from "./page";
+import { trackCustomersDiscountsMonthsTab } from '@/app/Audit/Modules/CustomersDiscountsTabAudit';
 import {
   classifyCustomerMonth,
   getCustomerMonthStats,
@@ -46,6 +47,9 @@ export default function MonthsOverview({ customers, handleSelectCustomer }: Mont
     null
   );
   const [activeTab, setActiveTab] = useState<CustomerMonthBucket>("pending");
+  useEffect(() => {
+    trackCustomersDiscountsMonthsTab(activeTab);
+  }, [activeTab]);
   const [searchQuery, setSearchQuery] = useState("");
 
   const monthNames = [

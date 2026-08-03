@@ -16,6 +16,7 @@ import {
   splitMonthGroups,
   type MonthGroup,
 } from "./Utils/settlementUtils";
+import { useCustomersDiscountsTabAudit } from '@/app/Audit/Modules/CustomersDiscountsTabAudit';
 
 export type { MonthGroup } from "./Utils/settlementUtils";
 
@@ -52,6 +53,8 @@ type AllCustomerItem = {
 export default function CustomerDiscountsPage() {
   // Navigation State
   const [currentView, setCurrentView] = useState<"grid" | "add" | "details" | "months" | "stats">("grid");
+
+  useCustomersDiscountsTabAudit(currentView, currentView === 'details' ? activeTab : undefined);
   
   // Data State
   const [customers, setCustomers] = useState<CustomerView[]>([]);

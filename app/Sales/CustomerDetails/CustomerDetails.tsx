@@ -20,7 +20,7 @@ import {
   exportSubCustomersToExcel,
 } from './Exports';
 import type { CustomerDetailsTabId, SalesCustomerDetailsProps, SelectedInvoice } from './Types';
-import { trackSalesCustomerDetailsTab } from '@/app/Sales/Utils/SalesTabAudit';
+import { trackSalesCustomerDetailsTab } from '@/app/Audit/Modules/SalesTabAudit';
 
 export default function SalesCustomerDetails({
   customerName,

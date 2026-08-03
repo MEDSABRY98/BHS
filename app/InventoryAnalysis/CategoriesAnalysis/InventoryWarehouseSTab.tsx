@@ -11,7 +11,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { addArabicFont } from '@/app/Components/Pdf/shared';
 import { saveTrackedPdf, triggerTrackedDownload } from '@/app/Audit/Utils/TrackedDownload';
-import Loading from '@/app/Components/Loading';
+import { useInventoryWarehouseTabAudit } from '@/app/Audit/Modules/InventoryTabAudit';
 import { toast } from '@/app/Components/Notification';
 
 interface Wh20Item {
@@ -91,6 +91,7 @@ export default function InventoryWh20ItemsTab() {
 
     // Tab State
     const [activeTab, setActiveTab] = useState<'entry' | 'edit' | 'history' | 'people'>('entry');
+    useInventoryWarehouseTabAudit(activeTab);
     const [editSearchValue, setEditSearchValue] = useState('');
     const [isSearchingEdit, setIsSearchingEdit] = useState(false);
     const [editingTransactionNumber, setEditingTransactionNumber] = useState<string | null>(null);

@@ -36,7 +36,7 @@ import { getAllowedReportTableTabIds } from '@/app/Sales/Reports/ReportsTableTab
 import { getAllowedSalesTabIds, isSalesTabAllowed } from '@/app/Sales/Utils/salesTabPermissions';
 import { getCustomersList, getMyCustomersData, batchSaveCustomerMapping } from '@/app/Sales/Service/sales_customers_service';
 import { getSalesMetadata } from '@/app/Sales/Service/sales_core_service';
-import { trackSalesTab } from '@/app/Sales/Utils/SalesTabAudit';
+import { trackSalesTab } from '@/app/Audit/Modules/SalesTabAudit';
 
 const MAPPING_EXPORT_HEADERS = [
   'CUSTOMER ID',

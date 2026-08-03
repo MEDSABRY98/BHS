@@ -5,6 +5,7 @@ import CashReceiptTab from './Components/CashReceiptTab';
 import Login from '@/app/Components/Auth/Login';
 import Loading from '@/app/Components/Loading';
 import CashReceiptSidebar from './Utils/Sidebar';
+import { useCashReceiptTabAudit } from '@/app/Audit/Modules/CashReceiptTabAudit';
 import { Menu, Search } from 'lucide-react';
 import { verifyUserCredentials } from '@/app/DataBase/Service/database_service';
 
@@ -17,6 +18,8 @@ export default function CashReceiptPage() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  useCashReceiptTabAudit(activeTab);
 
   // Load sidebar collapsed state on mount
   useEffect(() => {

@@ -363,17 +363,6 @@ export default function HandoverForm({
               onChange={(val) => setFormData({ ...formData, whoReceived: val })}
             />
           </div>
-          <div className="group md:col-span-3">
-            <label className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-gray-400 mb-3 transition-colors group-focus-within:text-black">
-              Note
-            </label>
-            <textarea
-              value={formData.note}
-              onChange={(e) => setFormData({ ...formData, note: e.target.value })}
-              className="w-full px-5 py-4 bg-gray-50 border-2 border-transparent rounded-2xl text-lg font-bold text-gray-900 focus:bg-white focus:border-black transition-all outline-none resize-none h-24"
-              placeholder="Optional notes for this handover..."
-            />
-          </div>
         </div>
 
         <div className="pt-8 border-t-2 border-dashed border-gray-100">
@@ -436,24 +425,36 @@ export default function HandoverForm({
               </tbody>
             </table>
           </div>
-          
-          <div className="flex flex-col sm:flex-row justify-between items-center gap-6">
+
+          <div className="group mt-8 pt-8 border-t-2 border-dashed border-gray-100">
+            <label className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-gray-400 mb-3 transition-colors group-focus-within:text-black">
+              Note
+            </label>
+            <textarea
+              value={formData.note}
+              onChange={(e) => setFormData({ ...formData, note: e.target.value })}
+              className="w-full px-5 py-4 bg-gray-50 border-2 border-transparent rounded-2xl text-lg font-bold text-gray-900 focus:bg-white focus:border-black transition-all outline-none resize-none h-24"
+              placeholder="Optional notes for this handover..."
+            />
+          </div>
+
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mt-6">
             <button
               onClick={handleAddItem}
-              className="flex items-center gap-2 px-6 py-4 bg-gray-50 text-gray-700 font-bold rounded-2xl hover:bg-black hover:text-[#D4AF37] transition-colors w-full sm:w-auto"
+              className="flex items-center gap-1.5 px-4 py-2.5 bg-gray-50 text-gray-700 text-sm font-bold rounded-xl hover:bg-black hover:text-[#D4AF37] transition-colors w-full sm:w-auto"
             >
-              <PlusCircle className="w-5 h-5" />
+              <PlusCircle className="w-4 h-4" />
               Add Receipt
             </button>
 
-            <div className="bg-gray-900 rounded-2xl px-6 py-4 flex items-center justify-between gap-8 w-full sm:w-auto shadow-xl shadow-gray-900/10">
-              <div className="flex items-center gap-2">
-                <DollarSign className="w-5 h-5 text-gray-500" />
-                <span className="text-gray-400 font-bold uppercase tracking-widest text-xs">Total Amount</span>
+            <div className="bg-gray-900 rounded-xl px-4 py-2.5 flex items-center justify-between gap-4 w-full sm:w-auto shadow-lg shadow-gray-900/10">
+              <div className="flex items-center gap-1.5">
+                <DollarSign className="w-4 h-4 text-gray-500" />
+                <span className="text-gray-400 font-bold uppercase tracking-wider text-[10px]">Total Amount</span>
               </div>
-              <div className="flex items-baseline gap-2">
-                <span className="text-3xl font-black text-white">{totalAmount.toLocaleString()}</span>
-                <span className="text-lg font-bold text-gray-500">AED</span>
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-xl font-black text-white">{totalAmount.toLocaleString()}</span>
+                <span className="text-sm font-bold text-gray-500">AED</span>
               </div>
             </div>
           </div>

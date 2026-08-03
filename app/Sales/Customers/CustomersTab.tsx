@@ -11,7 +11,7 @@ import { useSalesDataContext } from '@/app/Sales/Context/SalesDataContext';
 import { useSalesTabFetch } from '@/app/Sales/Hooks/useSalesTabFetch';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import TabFetchError from '@/app/Components/DataState/TabFetchError';
-import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
+import { trackSalesCustomersTab } from '@/app/Audit/Modules/SalesTabAudit';
 
 interface SalesCustomersTabProps {
   userId: string;
@@ -58,6 +58,9 @@ export default function SalesCustomersTab({ userId, onUploadMapping, showCosts =
   const [selectedCustomer, setSelectedCustomer] = useState<{ id: string; name: string } | null>(null);
   const [showExportModal, setShowExportModal] = useState(false);
   const [activeTab, setActiveTab] = useState<'main' | 'sub'>('main');
+  useEffect(() => {
+    trackSalesCustomersTab(activeTab);
+  }, [activeTab]);
   const [sortField, setSortField] = useState<'customer' | 'totalAmount' | 'averageAmount' | 'totalQty' | 'productsCount'>('totalAmount');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 

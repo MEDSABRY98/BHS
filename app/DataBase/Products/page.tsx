@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useDataBaseProductsTabAudit } from '@/app/Audit/Modules/DataBaseTabAudit';
 import { bhs_supabas } from '@/lib/supabase';
 import * as XLSX from 'xlsx';
 import {
@@ -71,6 +72,7 @@ export default function ProductsPage() {
   const [isUploading, setIsUploading] = useState(false);
 
   const [activeTab, setActiveTab] = useState<'products'|'categories'>('products');
+  useDataBaseProductsTabAudit(activeTab);
   const [categories, setCategories] = useState<{name: string, count: number}[]>([]);
   const [isConfirmCategoryOpen, setIsConfirmCategoryOpen] = useState(false);
   const [categoryToDelete, setCategoryToDelete] = useState<string | null>(null);

@@ -6,6 +6,7 @@ import { exportDebitExcelTable } from '@/app/Debit/Utils/ExcelExport';
 import Loading from '@/app/Components/Loading';
 import Login from '@/app/Components/Auth/Login';
 import CustomersDocumentsGrid from './Components/CustomersDocumentsGrid';
+import { useCustomersDocumentsTabAudit } from '@/app/Audit/Modules/CustomersDocumentsTabAudit';
 import { getCustomersDocuments, updateCustomerDocument } from './Service/customers_documents_service';
 
 export default function CustomersDocumentsPage() {
@@ -26,6 +27,8 @@ export default function CustomersDocumentsPage() {
     id: false,
     contract: false,
   });
+
+  useCustomersDocumentsTabAudit();
 
   useEffect(() => {
     const savedUser = localStorage.getItem('currentUser');

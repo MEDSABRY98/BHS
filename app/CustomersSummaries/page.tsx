@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useState } from 'react';
 import CustomersSummariesTab from '@/app/Debit/CustomersSummariesTab/CustomersSummariesTab';
+import { useCustomersSummariesTabAudit } from '@/app/Audit/Modules/CustomersSummariesTabAudit';
 import Login from '@/app/Components/Auth/Login';
 import Loading from '@/app/Components/Loading';
 import TabFetchError from '@/app/Components/DataState/TabFetchError';
@@ -18,6 +19,7 @@ function CustomersSummariesPageContent() {
   const [error, setError] = useState<string | null>(null);
 
   const [isRefreshing, setIsRefreshing] = useState(false);
+  useCustomersSummariesTabAudit();
 
   useEffect(() => {
     const savedUser = localStorage.getItem('currentUser');

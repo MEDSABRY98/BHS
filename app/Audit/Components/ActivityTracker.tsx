@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import { usePathname } from 'next/navigation';
-import { CloseSessionAndFlush, InitActivityQueue, TrackModuleVisit } from '../Utils/ActivityQueue';
+import { InitActivityQueue, TrackModuleVisit } from '../Utils/ActivityQueue';
 
 export default function ActivityTracker() {
   const pathname = usePathname();
@@ -17,12 +17,6 @@ export default function ActivityTracker() {
     previousPath.current = pathname;
     TrackModuleVisit(pathname);
   }, [pathname]);
-
-  useEffect(() => {
-    return () => {
-      void CloseSessionAndFlush();
-    };
-  }, []);
 
   return null;
 }

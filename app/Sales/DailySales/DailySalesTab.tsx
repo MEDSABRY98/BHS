@@ -8,7 +8,7 @@ import { exportSalesExcel, exportSalesExcelTable } from '@/app/Sales/Utils/Excel
 import NoData from '@/app/Components/DataState/NoDataTab';
 import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
-import { trackSalesNestedTab, SALES_DAILY_SALES_TAB_LABELS } from '@/app/Sales/Utils/SalesTabAudit';
+import { trackSalesNestedTab, SALES_DAILY_SALES_TAB_LABELS } from '@/app/Audit/Modules/SalesTabAudit';
 
 interface SalesDailySalesTabProps {
   userId: string;

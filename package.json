@@ -10,7 +10,8 @@
     "setup:excel-exports": "node scripts/setup-module-excel-exports.mjs --apply",
     "verify:audit-modules": "node scripts/verify-audit-module-coverage.mjs",
     "verify:audit-downloads": "node scripts/verify-audit-download-coverage.mjs",
-    "verify:audit": "node scripts/verify-audit-module-coverage.mjs && node scripts/verify-audit-download-coverage.mjs"
+    "verify:audit": "node scripts/verify-audit-module-coverage.mjs && node scripts/verify-audit-download-coverage.mjs",
+    "migrate:activity-tabs": "node scripts/run-tabs-column-migration.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.105.4",

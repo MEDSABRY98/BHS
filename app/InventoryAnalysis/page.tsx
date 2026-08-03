@@ -9,6 +9,7 @@ import InventoryCategoryBalanceTab from './CategoryBalance/InventoryCategoryBala
 import InventoryProductOrdersTab from './CategoriesAnalysis/InventoryCategoriesTab';
 import ReportsTab from './Reports/ReportsTab';
 import InventorySidebar, { type InventoryTabId } from './Utils/Sidebar';
+import { useInventoryTabAudit } from '@/app/Audit/Modules/InventoryTabAudit';
 import Login from '@/app/Components/Auth/Login';
 import Loading from '@/app/Components/Loading';
 
@@ -37,6 +38,8 @@ export default function InventoryPage() {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   const [orderItems, setOrderItems] = useState<any[]>([]);
+
+  useInventoryTabAudit(activeTab);
 
   useEffect(() => {
     const savedUser = localStorage.getItem('currentUser');

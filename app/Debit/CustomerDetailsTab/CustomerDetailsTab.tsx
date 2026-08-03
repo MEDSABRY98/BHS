@@ -69,6 +69,7 @@ import MonthlyTab from './Tabs/MonthlyTab';
 import AgesTab from './Tabs/AgesTab';
 import NotesTab from './Tabs/NotesTab';
 import { SharedTabProps, InvoiceWithNetDebt, MonthlyDebt, AgingSummary, OverdueInvoice } from './Types';
+import { useDebitCustomerDetailsTabAudit } from '@/app/Audit/Modules/DebitTabAudit';
 import {
   isPaymentTxn,
   getPaymentAmount,
@@ -167,6 +168,7 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
   const hasDownloadedReport = useRef(false);
 
   const [activeTab, setActiveTab] = useState<'dashboard' | 'invoices' | 'ages' | 'notes' | 'overdue' | 'monthly'>(initialTab);
+  useDebitCustomerDetailsTabAudit(activeTab);
   const [invoiceSorting, setInvoiceSorting] = useState<SortingState>([{ id: 'date', desc: false }]);
   const [overdueSorting, setOverdueSorting] = useState<SortingState>([{ id: 'date', desc: false }]);
   const [invoiceSearchQuery, setInvoiceSearchQuery] = useState('');

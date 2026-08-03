@@ -8,6 +8,7 @@ import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import { DebitDataProvider, useDebitData } from '@/app/Debit/Context/DebitDataContext';
 import { toast } from '@/app/Components/Notification';
 import DebitInsightsDashboard from './DebitInsightsDashboard';
+import { useDebitInsightsTabAudit } from '@/app/Audit/Modules/DebitInsightsTabAudit';
 
 function isInsightsAllowed(currentUser: any): boolean {
   const userName = currentUser?.name?.toLowerCase() || '';
@@ -27,6 +28,7 @@ function isInsightsAllowed(currentUser: any): boolean {
 
 function DebitInsightsContent({ currentUser }: { currentUser: any }) {
   const { data, loading, isRefreshing, error, refresh, ensureFullData } = useDebitData();
+  useDebitInsightsTabAudit();
 
   useEffect(() => {
     void ensureFullData();

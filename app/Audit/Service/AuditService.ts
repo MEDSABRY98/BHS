@@ -5,6 +5,7 @@ import { AllocateActivityIds } from '@/app/Audit/Utils/ActivityId';
 import {
   CountSessionDownloads,
   ParseSessionDownloads,
+  ParseSessionTabs,
   type ActivityByModuleRow,
   type ActivityByUserRow,
   type ActivityRecord,
@@ -113,6 +114,7 @@ function MapRows(data: Record<string, unknown>[] | null): ActivityRecord[] {
     USER_ID: String(row.USER_ID ?? ''),
     MODULE_NAME: String(row.MODULE_NAME ?? ''),
     FILE_NAME: row.FILE_NAME ? String(row.FILE_NAME) : null,
+    TABS: row.TABS ? String(row.TABS) : null,
     SESSION_ENTERED_AT: row.SESSION_ENTERED_AT ? String(row.SESSION_ENTERED_AT) : null,
     SESSION_EXITED_AT: row.SESSION_EXITED_AT ? String(row.SESSION_EXITED_AT) : null,
     SESSION_MINUTES:
@@ -178,9 +180,9 @@ async function FetchUserNames(
 
 export async function IngestActivityEvents(
   events: ActivitySessionPayload[],
-): Promise<{ ok: boolean; inserted: number; error?: string }> {
+): Promise<{ ok: boolean; inserted: number; ids?: string[]; error?: string }> {
   try {
-    if (!events.length) return { ok: true, inserted: 0 };
+    if (!events.length) return { ok: true, inserted: 0, ids: [] };
 
     const validEvents = events.filter(IsValidSession).slice(0, 100);
     if (!validEvents.length) return { ok: false, inserted: 0, error: 'No valid sessions' };
@@ -193,6 +195,7 @@ export async function IngestActivityEvents(
       USER_ID: event.USER_ID.trim(),
       MODULE_NAME: event.MODULE_NAME.trim(),
       FILE_NAME: event.FILE_NAME ?? null,
+      TABS: event.TABS ?? null,
       SESSION_ENTERED_AT: event.SESSION_ENTERED_AT ?? null,
       SESSION_EXITED_AT: event.SESSION_EXITED_AT ?? null,
       SESSION_MINUTES: event.SESSION_MINUTES ?? null,
@@ -204,10 +207,48 @@ export async function IngestActivityEvents(
       return { ok: false, inserted: 0, error: error.message };
     }
 
-    return { ok: true, inserted: rows.length };
+    return { ok: true, inserted: rows.length, ids };
   } catch (error) {
     console.error('[AuditService ingest]', error);
     return { ok: false, inserted: 0, error: 'Ingest failed' };
+  }
+}
+
+export async function UpdateActivitySession(
+  id: string,
+  patch: {
+    MODULE_NAME?: string;
+    FILE_NAME?: string | null;
+    TABS?: string | null;
+    SESSION_EXITED_AT?: string | null;
+    SESSION_MINUTES?: number | null;
+  },
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const sessionId = id.trim();
+    if (!sessionId) return { ok: false, error: 'Missing session id' };
+
+    const supabase = getSupabaseAdmin();
+    const row: Record<string, unknown> = {};
+
+    if (patch.MODULE_NAME?.trim()) row.MODULE_NAME = patch.MODULE_NAME.trim();
+    if (patch.FILE_NAME !== undefined) row.FILE_NAME = patch.FILE_NAME;
+    if (patch.TABS !== undefined) row.TABS = patch.TABS;
+    if (patch.SESSION_EXITED_AT !== undefined) row.SESSION_EXITED_AT = patch.SESSION_EXITED_AT;
+    if (patch.SESSION_MINUTES !== undefined) row.SESSION_MINUTES = patch.SESSION_MINUTES;
+
+    if (!Object.keys(row).length) return { ok: true };
+
+    const { error } = await supabase.from(TABLE).update(row).eq('ID', sessionId);
+    if (error) {
+      console.error('[AuditService update]', error);
+      return { ok: false, error: error.message };
+    }
+
+    return { ok: true };
+  } catch (error) {
+    console.error('[AuditService update]', error);
+    return { ok: false, error: 'Update failed' };
   }
 }
 
@@ -228,7 +269,7 @@ export async function GetActivitySummary(params: {
   let query = supabase
     .from(TABLE)
     .select(
-      'ID, USER_ID, MODULE_NAME, FILE_NAME, SESSION_ENTERED_AT, SESSION_EXITED_AT, SESSION_MINUTES, CREATED_AT',
+      'ID, USER_ID, MODULE_NAME, FILE_NAME, TABS, SESSION_ENTERED_AT, SESSION_EXITED_AT, SESSION_MINUTES, CREATED_AT',
     )
     .gte('CREATED_AT', start)
     .lte('CREATED_AT', end)
@@ -260,4 +301,4 @@ export async function GetActivitySummary(params: {
 }
 
 // Re-export for UI
-export { ParseSessionDownloads, CountSessionDownloads };
+export { ParseSessionDownloads, ParseSessionTabs, CountSessionDownloads };
