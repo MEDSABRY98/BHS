@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import TabLoader from '@/app/Components/Loading/TabLoader';
 import NoData from '@/app/Components/DataState/NoDataTab';
+import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import { GetActivitySummary } from '@/app/Audit/Service/AuditService';
 import { exportAdminControlExcelTable } from '@/app/AdminControl/Export/ExcelExport';
 import {
@@ -213,7 +214,7 @@ export default function UserActivityTab({ adminName }: UserActivityTabProps) {
   const [events, setEvents] = useState<ActivityRecord[]>([]);
   const [userNames, setUserNames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [hasLoadError, setHasLoadError] = useState(false);
   const [filesModal, setFilesModal] = useState<FilesModalState>(null);
   const [tabsModal, setTabsModal] = useState<TabsModalState>(null);
   const [exporting, setExporting] = useState(false);
@@ -226,7 +227,7 @@ export default function UserActivityTab({ adminName }: UserActivityTabProps) {
 
   const load = useCallback(async () => {
     setLoading(true);
-    setError(null);
+    setHasLoadError(false);
     try {
       const summary = await GetActivitySummary({
         date: query.date,
@@ -237,7 +238,8 @@ export default function UserActivityTab({ adminName }: UserActivityTabProps) {
       setEvents(summary.events);
       setUserNames(summary.userNames);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load activity');
+      console.error('Failed to load activity:', err);
+      setHasLoadError(true);
       setEvents([]);
       setUserNames({});
     } finally {
@@ -461,16 +463,13 @@ export default function UserActivityTab({ adminName }: UserActivityTabProps) {
           <div className="p-6">
             <TabLoader className="min-h-[280px]" />
           </div>
-        ) : error ? (
-          <div className="p-12 text-center">
-            <p className="text-red-600 font-semibold mb-4">{error}</p>
-            <button
-              type="button"
-              onClick={() => void load()}
-              className="px-5 py-2.5 bg-slate-900 text-white rounded-xl text-sm font-bold hover:bg-black transition-all"
-            >
-              Retry
-            </button>
+        ) : hasLoadError ? (
+          <div className="p-12">
+            <TabFetchError
+              onRetry={() => void load()}
+              isRetrying={loading}
+              className="min-h-[280px]"
+            />
           </div>
         ) : !events.length ? (
           <div className="p-12">
