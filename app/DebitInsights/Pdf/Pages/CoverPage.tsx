@@ -1,7 +1,7 @@
 'use client';
 
 import type { InsightsFilters } from '../../Utils/InsightsTypes';
-import { formatGeneratedDate, formatPeriodLabel, PDF_PAGE_HEIGHT, PDF_PAGE_WIDTH } from '../PdfCaptureUtils';
+import { formatGeneratedDate, formatPeriodLabel, formatSalesSourceLabel, PDF_PAGE_HEIGHT, PDF_PAGE_WIDTH } from '../PdfCaptureUtils';
 
 interface CoverPageProps {
   filters: InsightsFilters;
@@ -141,6 +141,7 @@ export default function CoverPage({ filters, generatedAt }: CoverPageProps) {
         >
           <ParamRow label="As-of Date" value={filters.asOfDate} />
           <ParamRow label="Period" value={formatPeriodLabel(filters)} />
+          <ParamRow label="Sales Source" value={formatSalesSourceLabel(filters.salesSource)} />
           {filters.periodPreset === 'custom' && (
             <ParamRow label="Date Range" value={`${filters.periodFrom} – ${filters.periodTo}`} />
           )}

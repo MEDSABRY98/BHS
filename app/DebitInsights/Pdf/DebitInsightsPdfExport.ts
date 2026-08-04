@@ -3,8 +3,8 @@
 import { createElement, type ReactElement } from 'react';
 import { InvoiceRow } from '@/types';
 import { saveTrackedAs } from '@/app/Audit/Utils/TrackedDownload';
-import { computeDebitInsights } from '../Utils/AsOfLedgerEngine';
 import type { DebitInsightsMetrics, InsightsFilters } from '../Utils/InsightsTypes';
+import { computeDebitInsightsMetrics } from '../Service/insights_service';
 import {
   capturePage,
   createOffScreenContainer,
@@ -29,6 +29,14 @@ function fileDateStamp(date: Date): string {
 
 function sanitizeFileName(name: string): string {
   return name.replace(/[<>:"/\\|?*]/g, '').replace(/\s+/g, '_').trim() || 'Unknown';
+}
+
+async function buildMetricsWithSalesSource(
+  rows: InvoiceRow[],
+  filters: InsightsFilters,
+  userId?: string
+): Promise<DebitInsightsMetrics> {
+  return computeDebitInsightsMetrics({ rows, filters, userId });
 }
 
 function buildPages(
@@ -132,11 +140,12 @@ export type DebitInsightsZipOptions = {
   rows: InvoiceRow[];
   filters: InsightsFilters;
   cities: string[];
+  userId?: string;
   onProgress?: (current: number, total: number, label?: string) => void;
 };
 
 export async function exportDebitInsightsPdfZip(options: DebitInsightsZipOptions): Promise<void> {
-  const { rows, filters, onProgress } = options;
+  const { rows, filters, onProgress, userId } = options;
   const JSZip = (await import('jszip')).default;
   const zip = new JSZip();
   const dateStamp = fileDateStamp(new Date());
@@ -160,7 +169,7 @@ export async function exportDebitInsightsPdfZip(options: DebitInsightsZipOptions
       ...filters,
       salesRep: filters.salesRep.length > 0 ? filters.salesRep : [],
     };
-    const allMetrics = computeDebitInsights(rows, allFilters);
+    const allMetrics = await buildMetricsWithSalesSource(rows, allFilters, userId);
     const allBlob = await generateDebitInsightsPdfBlob(allMetrics, allFilters, container);
     zip.file(`Debit_Insights_All_${dateStamp}.pdf`, allBlob);
     tick('All');
@@ -170,7 +179,7 @@ export async function exportDebitInsightsPdfZip(options: DebitInsightsZipOptions
         ...filters,
         salesRep: [city],
       };
-      const cityMetrics = computeDebitInsights(rows, cityFilters);
+      const cityMetrics = await buildMetricsWithSalesSource(rows, cityFilters, userId);
       const cityBlob = await generateDebitInsightsPdfBlob(cityMetrics, cityFilters, container);
       zip.file(`Debit_Insights_${sanitizeFileName(city)}_${dateStamp}.pdf`, cityBlob);
       tick(city);

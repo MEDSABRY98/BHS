@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Calendar, Check, ChevronDown, FileText, Filter, Loader2, MapPin, Users } from 'lucide-react';
-import { InsightsFilters, InsightsPeriodPreset } from '../Utils/InsightsTypes';
+import { InsightsFilters, InsightsPeriodPreset, InsightsSalesSource } from '../Utils/InsightsTypes';
 import CustomersFilterModal from './CustomersFilterModal';
 
 interface InsightsFiltersBarProps {
@@ -24,6 +24,11 @@ const PERIOD_OPTIONS: { value: InsightsPeriodPreset; label: string }[] = [
   { value: 'trailing6m', label: 'Last 6 Months' },
   { value: 'trailing3m', label: 'Last 3 Months' },
   { value: 'custom', label: 'Custom Range' },
+];
+
+const SALES_SOURCE_OPTIONS: { value: InsightsSalesSource; label: string }[] = [
+  { value: 'debit', label: 'Debit Ledger' },
+  { value: 'sales', label: 'Sales DB' },
 ];
 
 const fieldClassName =
@@ -268,6 +273,13 @@ export default function InsightsFiltersBar({
           value={filters.periodPreset}
           options={PERIOD_OPTIONS}
           onChange={(value) => update({ periodPreset: value })}
+        />
+
+        <FilterDropdown
+          label="Sales Source"
+          value={filters.salesSource}
+          options={SALES_SOURCE_OPTIONS}
+          onChange={(value) => update({ salesSource: value })}
         />
 
         {filters.periodPreset === 'custom' && (

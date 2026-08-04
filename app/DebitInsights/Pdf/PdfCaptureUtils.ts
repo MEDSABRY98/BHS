@@ -143,6 +143,11 @@ export function formatPeriodLabel(filters: {
   return `${filters.periodFrom} – ${filters.periodTo}`;
 }
 
+export function formatSalesSourceLabel(salesSource?: string): string {
+  if (salesSource === 'sales') return 'Sales DB';
+  return 'Debit Ledger';
+}
+
 export function formatGeneratedDate(): string {
   return new Date().toLocaleDateString('en-GB', {
     day: '2-digit',

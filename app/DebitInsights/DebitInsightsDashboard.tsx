@@ -1,14 +1,15 @@
 'use client';
 
-import { useMemo, useState, useTransition } from 'react';
+import { useEffect, useMemo, useState, useTransition } from 'react';
 import { InvoiceRow } from '@/types';
 import TabLoader from '@/app/Components/Loading/TabLoader';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import { toast } from '@/app/Components/Notification';
 import { useDebitInsightsMetrics } from './Hooks/UseDebitInsightsMetrics';
 import { collectCustomers } from './Utils/AsOfLedgerEngine';
-import { InsightsFilters } from './Utils/InsightsTypes';
+import { InsightsFilters, InsightsSalesOverlay } from './Utils/InsightsTypes';
 import { toInputDate } from './Utils/DateUtils';
+import { applySalesNetOverlay } from './Utils/SalesSourceOverlay';
 import InsightsFiltersBar from './Module/InsightsFiltersBar';
 import InsightsKpiCards from './Cards/InsightsKpiCards';
 import DebtTrendChart from './Charts/DebtTrendChart';
@@ -16,6 +17,7 @@ import SalesCollectionsChart from './Charts/SalesCollectionsChart';
 import CollectionRateChart from './Charts/CollectionRateChart';
 import AgingBreakdownChart from './Charts/AgingBreakdownChart';
 import { exportDebitInsightsPdfZip } from './Export/PdfExport';
+import { fetchSalesOverlayForFilters } from './Service/insights_service';
 
 interface DebitInsightsDashboardProps {
   data: InvoiceRow[];
@@ -32,6 +34,7 @@ function defaultFilters(): InsightsFilters {
     periodTo: today,
     salesRep: [],
     customers: [],
+    salesSource: 'debit',
   };
 }
 
@@ -49,8 +52,20 @@ function filtersEqual(a: InsightsFilters, b: InsightsFilters): boolean {
     a.periodFrom === b.periodFrom &&
     a.periodTo === b.periodTo &&
     arraysEqual(a.salesRep, b.salesRep) &&
-    arraysEqual(a.customers, b.customers)
+    arraysEqual(a.customers, b.customers) &&
+    a.salesSource === b.salesSource
   );
+}
+
+function readUserId(): string {
+  try {
+    const saved = localStorage.getItem('currentUser');
+    if (!saved) return '';
+    const user = JSON.parse(saved);
+    return String(user?.id || '').trim();
+  } catch {
+    return '';
+  }
 }
 
 export default function DebitInsightsDashboard({
@@ -61,14 +76,57 @@ export default function DebitInsightsDashboard({
   const [appliedFilters, setAppliedFilters] = useState<InsightsFilters>(defaultFilters);
   const [isApplying, startTransition] = useTransition();
   const [exportingPdf, setExportingPdf] = useState(false);
-  const metrics = useDebitInsightsMetrics(data, appliedFilters);
+  const [salesOverlay, setSalesOverlay] = useState<InsightsSalesOverlay | null>(null);
+  const [salesLoading, setSalesLoading] = useState(false);
+  const debitMetrics = useDebitInsightsMetrics(data, appliedFilters);
 
-  const salesReps = useMemo(() => metrics.salesReps, [metrics.salesReps]);
+  const metrics = useMemo(() => {
+    if (appliedFilters.salesSource !== 'sales' || !salesOverlay) return debitMetrics;
+    return applySalesNetOverlay(debitMetrics, salesOverlay);
+  }, [appliedFilters.salesSource, debitMetrics, salesOverlay]);
+
+  const salesReps = useMemo(() => debitMetrics.salesReps, [debitMetrics.salesReps]);
   const availableCustomers = useMemo(
     () => collectCustomers(data, draftFilters.salesRep),
     [data, draftFilters.salesRep]
   );
   const hasPendingChanges = !filtersEqual(draftFilters, appliedFilters);
+
+  useEffect(() => {
+    if (appliedFilters.salesSource !== 'sales') {
+      setSalesOverlay(null);
+      setSalesLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    const userId = readUserId();
+    if (!userId) {
+      setSalesOverlay(null);
+      toast.error('Unable to load Sales DB: user not found.');
+      return;
+    }
+
+    setSalesLoading(true);
+    void fetchSalesOverlayForFilters(appliedFilters, userId)
+      .then((overlay) => {
+        if (!cancelled) setSalesOverlay(overlay);
+      })
+      .catch((error) => {
+        console.error('Sales overlay fetch failed:', error);
+        if (!cancelled) {
+          setSalesOverlay(null);
+          toast.error('Failed to load Sales DB metrics.');
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setSalesLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [appliedFilters]);
 
   const handleFilterChange = (next: InsightsFilters) => {
     if (!arraysEqual(next.salesRep, draftFilters.salesRep)) {
@@ -82,7 +140,7 @@ export default function DebitInsightsDashboard({
   };
 
   const handleExportPdf = async () => {
-    if (exportingPdf || data.length === 0) return;
+    if (exportingPdf || data.length === 0 || salesLoading) return;
     setExportingPdf(true);
     const loadingId = toast.loading('Generating ZIP...');
     try {
@@ -90,6 +148,7 @@ export default function DebitInsightsDashboard({
         rows: data,
         filters: appliedFilters,
         cities: salesReps,
+        userId: readUserId(),
         onProgress: (current, total, label) => {
           toast.loading(`Generating PDF ${current}/${total}${label ? ` — ${label}` : ''}...`, {
             id: loadingId,
@@ -115,6 +174,8 @@ export default function DebitInsightsDashboard({
     return <NoData />;
   }
 
+  const busy = isApplying || salesLoading;
+
   return (
     <div className="space-y-4">
       <InsightsFiltersBar
@@ -130,10 +191,16 @@ export default function DebitInsightsDashboard({
         }}
         onExportPdf={() => void handleExportPdf()}
         hasPendingChanges={hasPendingChanges}
-        isApplying={isApplying}
+        isApplying={busy}
         isExportingPdf={exportingPdf}
-        canExportPdf={!loading && data.length > 0}
+        canExportPdf={!loading && !salesLoading && data.length > 0}
       />
+
+      {salesLoading && (
+        <div className="rounded-xl border border-indigo-100 bg-indigo-50 px-4 py-2 text-sm font-medium text-indigo-700">
+          Loading Sales DB metrics...
+        </div>
+      )}
 
       <InsightsKpiCards metrics={metrics} />
 

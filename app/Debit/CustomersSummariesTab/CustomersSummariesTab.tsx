@@ -10,10 +10,17 @@ import {
   createColumnHelper,
   SortingState,
 } from '@tanstack/react-table';
-import { FileSpreadsheet, MapPin, ChevronDown, Search, Check } from 'lucide-react';
+import { FileSpreadsheet, MapPin, ChevronDown, Search, Check, Loader2 } from 'lucide-react';
 import { InvoiceRow } from '@/types';
 import NoData from '@/app/Components/DataState/NoDataTab';
+import { toast } from '@/app/Components/Notification';
 import { useDebouncedValue } from '../Hooks/useDebouncedValue';
+import type {
+  SummariesSalesOverlay,
+  SummariesSalesSource,
+} from '@/app/CustomersSummaries/Utils/SummariesTypes';
+import { fetchSummariesSalesOverlayForYears } from '@/app/CustomersSummaries/Service/summaries_service';
+import { applyCustomerSalesOverlay } from '@/app/CustomersSummaries/Utils/SalesSourceOverlay';
 
 interface CustomersSummariesTabProps {
   data: InvoiceRow[];
@@ -37,6 +44,11 @@ interface CustomerSummary {
   older: number;
   totalAging: number;
 }
+
+const SALES_SOURCE_OPTIONS: { value: SummariesSalesSource; label: string }[] = [
+  { value: 'debit', label: 'Debit Ledger' },
+  { value: 'sales', label: 'Sales DB' },
+];
 
 const formatGrowth = (growth: number | null, netSalesCurrent: number, netSalesPrev: number) => {
   if (netSalesPrev <= 0 && netSalesCurrent > 0) return 'New';
@@ -76,6 +88,17 @@ const parseInvoiceDate = (dateStr?: string | null): Date | null => {
   return null;
 };
 
+function readUserId(): string {
+  try {
+    const saved = localStorage.getItem('currentUser');
+    if (!saved) return '';
+    const user = JSON.parse(saved);
+    return String(user?.id || '').trim();
+  } catch {
+    return '';
+  }
+}
+
 const columnHelper = createColumnHelper<CustomerSummary>();
 
 export default function CustomersSummariesTab({ data, onRefresh }: CustomersSummariesTabProps) {
@@ -85,8 +108,13 @@ export default function CustomersSummariesTab({ data, onRefresh }: CustomersSumm
   const [cityDropdownOpen, setCityDropdownOpen] = useState(false);
   const [citySearch, setCitySearch] = useState('');
   const cityDropdownRef = useRef<HTMLDivElement>(null);
+  const salesSourceDropdownRef = useRef<HTMLDivElement>(null);
   const debouncedSearch = useDebouncedValue(searchQuery);
   const [hideNegative, setHideNegative] = useState(false);
+  const [salesSource, setSalesSource] = useState<SummariesSalesSource>('debit');
+  const [salesSourceOpen, setSalesSourceOpen] = useState(false);
+  const [salesOverlay, setSalesOverlay] = useState<SummariesSalesOverlay | null>(null);
+  const [salesLoading, setSalesLoading] = useState(false);
   // dynamic years
   const { currentYear, previousYear } = useMemo(() => {
     let maxYear = new Date().getFullYear();
@@ -101,7 +129,7 @@ export default function CustomersSummariesTab({ data, onRefresh }: CustomersSumm
     return { currentYear: maxYear, previousYear: maxYear - 1 };
   }, [data]);
 
-  const summaryData = useMemo(() => {
+  const debitSummaryData = useMemo(() => {
     const summaries: CustomerSummary[] = [];
     const now = new Date();
     const currentMonth = now.getMonth();
@@ -228,6 +256,57 @@ export default function CustomersSummariesTab({ data, onRefresh }: CustomersSumm
     return summaries.sort((a, b) => b.totalAging - a.totalAging);
   }, [data, currentYear, previousYear]);
 
+  useEffect(() => {
+    if (salesSource !== 'sales') {
+      setSalesOverlay(null);
+      setSalesLoading(false);
+      return;
+    }
+
+    const userId = readUserId();
+    if (!userId) {
+      setSalesOverlay(null);
+      toast.error('Unable to load Sales DB: user not found.');
+      return;
+    }
+
+    const now = new Date();
+    let cancelled = false;
+    setSalesLoading(true);
+
+    void fetchSummariesSalesOverlayForYears({
+      userId,
+      currentYear,
+      previousYear,
+      fairMonth: now.getMonth(),
+      fairDay: now.getDate(),
+    })
+      .then((overlay) => {
+        if (!cancelled) setSalesOverlay(overlay);
+      })
+      .catch((error) => {
+        console.error('Customers Summaries sales overlay failed:', error);
+        if (!cancelled) {
+          setSalesOverlay(null);
+          toast.error('Failed to load Sales DB metrics.');
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setSalesLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [salesSource, currentYear, previousYear]);
+
+  const summaryData = useMemo(() => {
+    if (salesSource !== 'sales' || !salesOverlay) return debitSummaryData;
+    return applyCustomerSalesOverlay(debitSummaryData, salesOverlay).sort(
+      (a, b) => b.totalAging - a.totalAging
+    );
+  }, [debitSummaryData, salesOverlay, salesSource]);
+
   const cities = useMemo(() => {
     const set = new Set<string>();
     summaryData.forEach((item) => {
@@ -247,6 +326,12 @@ export default function CustomersSummariesTab({ data, onRefresh }: CustomersSumm
       if (cityDropdownRef.current && !cityDropdownRef.current.contains(event.target as Node)) {
         setCityDropdownOpen(false);
         setCitySearch('');
+      }
+      if (
+        salesSourceDropdownRef.current &&
+        !salesSourceDropdownRef.current.contains(event.target as Node)
+      ) {
+        setSalesSourceOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -425,6 +510,9 @@ export default function CustomersSummariesTab({ data, onRefresh }: CustomersSumm
     onSortingChange: setSorting,
   });
 
+  const selectedSalesSourceLabel =
+    SALES_SOURCE_OPTIONS.find((opt) => opt.value === salesSource)?.label ?? 'Debit Ledger';
+
   return (
     <div className="space-y-6 max-w-[1700px] mx-auto w-full">
       <div className="flex items-center bg-white p-4 rounded-xl shadow-sm border border-slate-200 relative gap-4">
@@ -436,11 +524,56 @@ export default function CustomersSummariesTab({ data, onRefresh }: CustomersSumm
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full max-w-md px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-slate-50 transition-all focus:bg-white text-center"
           />
-          <div className="relative min-w-[300px] shrink-0" ref={cityDropdownRef}>
+
+          <div className="relative min-w-[200px] shrink-0" ref={salesSourceDropdownRef}>
+            <button
+              type="button"
+              onClick={() => setSalesSourceOpen((open) => !open)}
+              className="w-full whitespace-nowrap px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-semibold text-slate-700 flex items-center justify-between gap-3 transition-all hover:bg-white hover:border-slate-300 shadow-sm"
+            >
+              <span className="text-sm truncate">{selectedSalesSourceLabel}</span>
+              {salesLoading ? (
+                <Loader2 className="w-4 h-4 text-blue-500 animate-spin shrink-0" />
+              ) : (
+                <ChevronDown
+                  className={`w-4 h-4 text-slate-400 shrink-0 transition-transform ${salesSourceOpen ? 'rotate-180' : ''}`}
+                />
+              )}
+            </button>
+            {salesSourceOpen && (
+              <div className="absolute z-30 mt-2 left-0 w-full min-w-[200px] bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="py-1">
+                  {SALES_SOURCE_OPTIONS.map((opt) => {
+                    const isSelected = opt.value === salesSource;
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => {
+                          setSalesSource(opt.value);
+                          setSalesSourceOpen(false);
+                        }}
+                        className={`w-full px-3.5 py-2.5 text-left flex items-center justify-between gap-3 text-sm transition-colors ${
+                          isSelected
+                            ? 'bg-blue-50 text-blue-900 font-semibold'
+                            : 'text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        <span>{opt.label}</span>
+                        {isSelected && <Check className="w-4 h-4 text-blue-500 shrink-0" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="relative min-w-[220px] shrink-0" ref={cityDropdownRef}>
             <button
               type="button"
               onClick={() => setCityDropdownOpen((open) => !open)}
-              className="w-full min-w-[300px] whitespace-nowrap px-5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-semibold text-slate-700 flex items-center justify-between gap-3 transition-all hover:bg-white hover:border-slate-300 shadow-sm"
+              className="w-full min-w-[220px] whitespace-nowrap px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-semibold text-slate-700 flex items-center justify-between gap-3 transition-all hover:bg-white hover:border-slate-300 shadow-sm"
             >
               <span className="inline-flex items-center gap-2 flex-1 min-w-0">
                 <MapPin className="w-4 h-4 text-blue-500 shrink-0" />
@@ -454,7 +587,7 @@ export default function CustomersSummariesTab({ data, onRefresh }: CustomersSumm
             </button>
 
             {cityDropdownOpen && (
-              <div className="absolute z-30 mt-2 left-0 w-full min-w-[300px] bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="absolute z-30 mt-2 left-0 w-full min-w-[220px] bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
                 <div className="p-2.5 border-b border-slate-100 bg-slate-50">
                   <div className="relative">
                     <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />

@@ -8,7 +8,7 @@ import Loading from '@/app/Components/Loading';
 import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import { ArrowLeft, RefreshCcw, FileSpreadsheet } from 'lucide-react';
 import { InvoiceRow } from '@/types';
-import { getDebitData } from '@/app/Debit/Service/debit_service';
+import { getCustomersSummariesData } from '@/app/CustomersSummaries/Service/summaries_service';
 
 function CustomersSummariesPageContent() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -51,8 +51,11 @@ function CustomersSummariesPageContent() {
       if (silent) setIsRefreshing(true);
       else if (data.length === 0) setLoading(true);
 
-      const result = await getDebitData();
-      setData(result.data as InvoiceRow[]);
+      const result = await getCustomersSummariesData();
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to fetch data');
+      }
+      setData(result.data);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
