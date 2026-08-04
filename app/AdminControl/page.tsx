@@ -8,7 +8,6 @@ import ByModuleTab from './ByModuleTab';
 import UserActivityTab from './UserActivityTab';
 import AdminSidebar from './Utils/Sidebar';
 import TabPanel from '@/app/Components/Layout/TabPanel';
-import { useAdminControlTabAudit } from '@/app/Audit/Modules/AdminControlTabAudit';
 import { verifyUserCredentials } from '@/app/DataBase/Service/database_service';
 import Login from '@/app/Components/Auth/Login';
 import Loading from '@/app/Components/Loading';
@@ -78,8 +77,6 @@ export default function AdminControlPage() {
   useEffect(() => {
     setVisitedTabs((prev) => new Set(prev).add(activeTab));
   }, [activeTab]);
-
-  useAdminControlTabAudit(activeTab);
 
   const toggleSidebar = () => {
     const nextState = !isSidebarCollapsed;

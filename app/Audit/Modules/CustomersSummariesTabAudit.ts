@@ -1,12 +1,9 @@
 'use client';
 
-import { useEffect } from 'react';
-import { TrackModuleSubTab } from '@/app/Audit/Utils/ActivityQueue';
+import { useModuleTabAudit } from '@/app/Audit/Utils/useModuleTabAudit';
 
 export const CUSTOMERS_SUMMARIES_VIEW = 'Customers Summaries';
 
-export function useCustomersSummariesTabAudit() {
-  useEffect(() => {
-    TrackModuleSubTab(CUSTOMERS_SUMMARIES_VIEW);
-  }, []);
+export function useCustomersSummariesTabAudit(isReady: boolean = true) {
+  useModuleTabAudit(isReady ? CUSTOMERS_SUMMARIES_VIEW : null);
 }

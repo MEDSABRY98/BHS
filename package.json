@@ -10,7 +10,8 @@
     "setup:excel-exports": "node scripts/setup-module-excel-exports.mjs --apply",
     "verify:audit-modules": "node scripts/verify-audit-module-coverage.mjs",
     "verify:audit-downloads": "node scripts/verify-audit-download-coverage.mjs",
-    "verify:audit": "node scripts/verify-audit-module-coverage.mjs && node scripts/verify-audit-download-coverage.mjs",
+    "verify:audit-runtime": "node scripts/verify-audit-runtime-wiring.mjs",
+    "verify:audit": "node scripts/verify-audit-module-coverage.mjs && node scripts/verify-audit-download-coverage.mjs && node scripts/verify-audit-runtime-wiring.mjs",
     "migrate:activity-tabs": "node scripts/run-tabs-column-migration.mjs"
   },
   "dependencies": {

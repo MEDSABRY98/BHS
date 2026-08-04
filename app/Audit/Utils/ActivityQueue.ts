@@ -288,16 +288,49 @@ function EnsureModuleSession(moduleName: string) {
   }
 }
 
+export async function EnsureCurrentModuleSession(): Promise<boolean> {
+  if (typeof window === 'undefined') return false;
+
+  const userId = GetCurrentUserId();
+  const moduleName = ResolveModuleName(window.location.pathname);
+  if (!userId || !moduleName) return false;
+
+  EnsureFlushLoop();
+  await SwitchModuleSession(moduleName);
+  return !!activeSession;
+}
+
+export function RefreshCurrentModuleAudit(subTab: string | null = null) {
+  TrackModuleSubTab(subTab);
+}
+
+let switchSessionPromise: Promise<void> | null = null;
+
 async function SwitchModuleSession(moduleName: string) {
   if (activeSession?.moduleName === moduleName) return;
 
-  if (activeSession) {
-    await CloseActiveSession();
-    await FlushActivityQueue();
+  if (switchSessionPromise) {
+    await switchSessionPromise;
+    if (activeSession?.moduleName === moduleName) return;
   }
 
-  SetModuleSubTab(null);
-  StartSession(moduleName);
+  switchSessionPromise = (async () => {
+    if (activeSession?.moduleName === moduleName) return;
+
+    if (activeSession) {
+      await CloseActiveSession();
+      await FlushActivityQueue();
+    }
+
+    SetModuleSubTab(null);
+    StartSession(moduleName);
+  })();
+
+  try {
+    await switchSessionPromise;
+  } finally {
+    switchSessionPromise = null;
+  }
 }
 
 function RecordTabVisit(tabName: string) {
@@ -330,19 +363,22 @@ export function TrackModuleSubTab(subTab: string | null) {
   const normalized = subTab?.trim() || null;
   EnsureFlushLoop();
 
-  if (!activeSession || activeSession.moduleName !== moduleName) {
-    void SwitchModuleSession(moduleName);
-  }
+  void (async () => {
+    await SwitchModuleSession(moduleName);
 
-  if (normalized) {
-    RecordTabVisit(normalized);
-  }
+    if (normalized) {
+      RecordTabVisit(normalized);
+    }
 
-  SetModuleSubTab(normalized);
+    SetModuleSubTab(normalized);
 
-  if (activeSession) {
-    WriteStoredSession(activeSession, userId);
-  }
+    if (activeSession) {
+      WriteStoredSession(activeSession, userId);
+      if (normalized) {
+        await PersistSessionStateWithRetry(activeSession);
+      }
+    }
+  })();
 }
 
 function PushDownload(fileName: string, fileType: string) {

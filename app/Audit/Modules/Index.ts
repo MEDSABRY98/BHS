@@ -1,4 +1,3 @@
-export * from './AdminControlTabAudit';
 export * from './CashHandoverTabAudit';
 export * from './CashReceiptTabAudit';
 export * from './CustomersDiscountsTabAudit';

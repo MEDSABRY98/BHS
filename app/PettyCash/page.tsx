@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import PettyCashTab from './Components/PettyCashTab';
+import { useAuditAfterAuth } from '@/app/Audit/Utils/useModuleTabAudit';
 import Login from '@/app/Components/Auth/Login';
 import Loading from '@/app/Components/Loading';
 import { verifyUserCredentials } from '@/app/DataBase/Service/database_service';
@@ -10,6 +11,7 @@ export default function PettyCashPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  useAuditAfterAuth(isAuthenticated);
 
   useEffect(() => {
     const validateAndSetUser = async () => {

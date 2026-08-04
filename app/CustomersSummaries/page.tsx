@@ -19,7 +19,7 @@ function CustomersSummariesPageContent() {
   const [error, setError] = useState<string | null>(null);
 
   const [isRefreshing, setIsRefreshing] = useState(false);
-  useCustomersSummariesTabAudit();
+  useCustomersSummariesTabAudit(isAuthenticated);
 
   useEffect(() => {
     const savedUser = localStorage.getItem('currentUser');

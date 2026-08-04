@@ -28,7 +28,7 @@ export default function CustomersDocumentsPage() {
     contract: false,
   });
 
-  useCustomersDocumentsTabAudit();
+  useCustomersDocumentsTabAudit(isAuthenticated);
 
   useEffect(() => {
     const savedUser = localStorage.getItem('currentUser');

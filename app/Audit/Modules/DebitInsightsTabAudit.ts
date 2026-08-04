@@ -1,12 +1,9 @@
 'use client';
 
-import { useEffect } from 'react';
-import { TrackModuleSubTab } from '@/app/Audit/Utils/ActivityQueue';
+import { useModuleTabAudit } from '@/app/Audit/Utils/useModuleTabAudit';
 
 export const DEBIT_INSIGHTS_VIEW = 'Debit Insights Dashboard';
 
-export function useDebitInsightsTabAudit() {
-  useEffect(() => {
-    TrackModuleSubTab(DEBIT_INSIGHTS_VIEW);
-  }, []);
+export function useDebitInsightsTabAudit(isReady: boolean = true) {
+  useModuleTabAudit(isReady ? DEBIT_INSIGHTS_VIEW : null);
 }

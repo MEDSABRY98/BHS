@@ -1,12 +1,9 @@
 'use client';
 
-import { useEffect } from 'react';
-import { TrackModuleSubTab } from '@/app/Audit/Utils/ActivityQueue';
+import { useModuleTabAudit } from '@/app/Audit/Utils/useModuleTabAudit';
 
 export const INVENTORY_ITEM_CODE_VIEW = 'Inventory Item Code';
 
-export function useInventoryItemCodeTabAudit() {
-  useEffect(() => {
-    TrackModuleSubTab(INVENTORY_ITEM_CODE_VIEW);
-  }, []);
+export function useInventoryItemCodeTabAudit(isReady: boolean = true) {
+  useModuleTabAudit(isReady ? INVENTORY_ITEM_CODE_VIEW : null);
 }

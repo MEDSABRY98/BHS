@@ -1,12 +1,9 @@
 'use client';
 
-import { useEffect } from 'react';
-import { TrackModuleSubTab } from '@/app/Audit/Utils/ActivityQueue';
+import { useModuleTabAudit } from '@/app/Audit/Utils/useModuleTabAudit';
 
 export const CUSTOMERS_DOCUMENTS_VIEW = 'Customers Documents';
 
-export function useCustomersDocumentsTabAudit() {
-  useEffect(() => {
-    TrackModuleSubTab(CUSTOMERS_DOCUMENTS_VIEW);
-  }, []);
+export function useCustomersDocumentsTabAudit(isReady: boolean = true) {
+  useModuleTabAudit(isReady ? CUSTOMERS_DOCUMENTS_VIEW : null);
 }

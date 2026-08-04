@@ -32,7 +32,7 @@ export default function InventoryItemCodePage() {
     localStorage.setItem('currentUser', JSON.stringify(user));
   };
 
-  useInventoryItemCodeTabAudit();
+  useInventoryItemCodeTabAudit(isAuthenticated);
 
   if (isChecking) {
     return <Loading />;

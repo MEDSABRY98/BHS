@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import DocumentsTrackingTab from './Components/DocumentsTrackingTab';
+import { useAuditAfterAuth } from '@/app/Audit/Utils/useModuleTabAudit';
 import { ChevronLeft } from 'lucide-react';
 import Loading from '@/app/Components/Loading';
 import { verifyUserCredentials } from '@/app/DataBase/Service/database_service';
@@ -11,6 +12,7 @@ export default function DocumentsTrackingPage() {
     const [currentUser, setCurrentUser] = useState<any>(null);
     const [isChecking, setIsChecking] = useState(true);
     const router = useRouter();
+    useAuditAfterAuth(!!currentUser);
 
     useEffect(() => {
         const validateAndSetUser = async () => {

@@ -1,4 +1,5 @@
 const MODULE_ROUTES: { prefix: string; name: string }[] = [
+  // AdminControl is intentionally excluded — no activity tracking for the admin panel.
   { prefix: '/CashReceipt', name: 'Cash Receipt' },
   { prefix: '/CashHandover', name: 'Cash Handover' },
   { prefix: '/PettyCash', name: 'Petty Cash' },
@@ -16,7 +17,6 @@ const MODULE_ROUTES: { prefix: string; name: string }[] = [
   { prefix: '/LPOs', name: "LPO's" },
   { prefix: '/DataBase', name: 'Database' },
   { prefix: '/CustomersDiscounts', name: 'Customers Discounts' },
-  { prefix: '/AdminControl', name: 'Admin Control' },
 ];
 
 const SORTED_ROUTES = [...MODULE_ROUTES].sort((a, b) => b.prefix.length - a.prefix.length);

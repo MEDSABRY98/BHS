@@ -20,7 +20,10 @@ const MODULE_MAP_FILE = path.join(ROOT, 'app', 'Audit', 'Utils', 'ModulePathMap.
 const LAYOUT_FILE = path.join(ROOT, 'app', 'layout.tsx');
 const AUDIT_MODULES_DIR = path.join(ROOT, 'app', 'Audit', 'Modules');
 
-/** One TabAudit registry file per user-facing module root. */
+/** Module folders intentionally excluded from user activity tracking. */
+const AUDIT_TRACKING_EXCLUDED = new Set(['AdminControl']);
+
+/** One TabAudit registry file per tracked user-facing module root. */
 const MODULE_TAB_AUDIT_FILES = {
   CashReceipt: 'CashReceiptTabAudit.ts',
   CashHandover: 'CashHandoverTabAudit.ts',
@@ -39,7 +42,6 @@ const MODULE_TAB_AUDIT_FILES = {
   LPOs: 'LPOsTabAudit.ts',
   DataBase: 'DataBaseTabAudit.ts',
   CustomersDiscounts: 'CustomersDiscountsTabAudit.ts',
-  AdminControl: 'AdminControlTabAudit.ts',
 };
 
 const TAB_AUDIT_HOOK_PATTERN =
@@ -112,6 +114,18 @@ function resolveModuleName(pathname, sortedRoutes) {
   return hit?.name ?? null;
 }
 
+function isExcludedAuditRoute(route) {
+  return [...AUDIT_TRACKING_EXCLUDED].some(
+    (name) => route === `/${name}` || route.startsWith(`/${name}/`),
+  );
+}
+
+function isExcludedAuditPath(relPath) {
+  return [...AUDIT_TRACKING_EXCLUDED].some(
+    (name) => relPath === `app/${name}/page.tsx` || relPath.startsWith(`app/${name}/`),
+  );
+}
+
 function main() {
   const errors = [];
   const warnings = [];
@@ -126,7 +140,8 @@ function main() {
   const registeredPrefixes = new Set(registeredRoutes.map((route) => route.prefix.replace(/^\//, '')));
 
   const moduleRoots = discoverModuleRoots();
-  const missingInMap = moduleRoots.filter((name) => !registeredPrefixes.has(name));
+  const trackedModuleRoots = moduleRoots.filter((name) => !AUDIT_TRACKING_EXCLUDED.has(name));
+  const missingInMap = trackedModuleRoots.filter((name) => !registeredPrefixes.has(name));
   if (missingInMap.length > 0) {
     errors.push(
       `Module folders with page.tsx but missing from ModulePathMap.ts: ${missingInMap.join(', ')}`,
@@ -145,6 +160,8 @@ function main() {
   for (const pageFile of pageFiles) {
     const route = pageFileToRoute(pageFile);
     if (route === '/') continue;
+    if (isExcludedAuditRoute(route)) continue;
+    if (isExcludedAuditPath(path.relative(ROOT, pageFile).replace(/\\/g, '/'))) continue;
     if (!resolveModuleName(route, registeredRoutes)) {
       unresolvedRoutes.push(route);
     }
@@ -168,7 +185,7 @@ function main() {
     }
   }
 
-  const missingTabAuditFiles = moduleRoots.filter((name) => {
+  const missingTabAuditFiles = trackedModuleRoots.filter((name) => {
     const expected = MODULE_TAB_AUDIT_FILES[name];
     if (!expected) return true;
     return !fs.existsSync(path.join(AUDIT_MODULES_DIR, expected));
@@ -182,6 +199,7 @@ function main() {
   const tabbedSourceFiles = listFiles(APP_DIR, (filePath) => /\.(tsx|ts)$/.test(filePath)).filter((filePath) => {
     const rel = path.relative(ROOT, filePath).replace(/\\/g, '/');
     if (rel.includes('/Modals/')) return false;
+    if (isExcludedAuditPath(rel)) return false;
     const source = readText(filePath);
     return (
       /\[\s*activeTab\s*,\s*setActiveTab\s*\]/.test(source) ||
@@ -192,6 +210,7 @@ function main() {
   const missingTabAudit = tabbedSourceFiles
     .map((sourceFile) => {
       const rel = path.relative(ROOT, sourceFile).replace(/\\/g, '/');
+      if (isExcludedAuditPath(rel)) return null;
       const source = readText(sourceFile);
       if (TAB_AUDIT_HOOK_PATTERN.test(source)) {
         return null;
@@ -207,7 +226,8 @@ function main() {
   }
 
   console.log('=== Audit module coverage ===');
-  console.log(`Module roots found: ${moduleRoots.length}`);
+  console.log(`Module roots found: ${moduleRoots.length} (${AUDIT_TRACKING_EXCLUDED.size} excluded from tracking)`);
+  console.log(`Tracked modules: ${trackedModuleRoots.length}`);
   console.log(`ModulePathMap entries: ${registeredRoutes.length}`);
   console.log(`TabAudit registry files: ${Object.keys(MODULE_TAB_AUDIT_FILES).length}`);
   console.log(`App routes checked: ${pageFiles.length - 1}`); // minus home
