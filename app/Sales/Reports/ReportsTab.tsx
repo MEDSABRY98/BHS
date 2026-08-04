@@ -23,6 +23,7 @@ import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import { trackSalesReportsTableTab } from '@/app/Audit/Modules/SalesTabAudit';
+import ReportsDailyCalendar from './DailyCalendar';
 import { getReportsData } from '../Service/sales_reports_service';
 import { useSalesDataContext } from '@/app/Sales/Context/SalesDataContext';
 import { useSalesTabFetch } from '@/app/Sales/Hooks/useSalesTabFetch';
