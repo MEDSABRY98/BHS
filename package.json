@@ -12,7 +12,8 @@
     "verify:audit-downloads": "node scripts/verify-audit-download-coverage.mjs",
     "verify:audit-runtime": "node scripts/verify-audit-runtime-wiring.mjs",
     "verify:audit": "node scripts/verify-audit-module-coverage.mjs && node scripts/verify-audit-download-coverage.mjs && node scripts/verify-audit-runtime-wiring.mjs",
-    "migrate:activity-tabs": "node scripts/run-tabs-column-migration.mjs"
+    "migrate:activity-tabs": "node scripts/run-tabs-column-migration.mjs",
+    "migrate:customer-tag": "node scripts/run-customer-tag-column-migration.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.105.4",

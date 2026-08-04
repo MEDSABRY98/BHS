@@ -19,7 +19,8 @@ import {
   Upload,
   ChevronLeft,
   ChevronRight,
-  GitMerge
+  GitMerge,
+  Tag,
 } from 'lucide-react';
 import { toast } from '@/app/Components/Notification';
 import * as XLSX from 'xlsx';
@@ -57,6 +58,7 @@ export default function CustomersPage() {
   const [CUSTOMER_MAIN_NAME, setCUSTOMER_MAIN_NAME] = useState('');
   const [CUSTOMER_CITY, setCUSTOMER_CITY] = useState('');
   const [CUSTOMER_ID, setCUSTOMER_ID] = useState('');
+  const [CUSTOMER_TAG, setCUSTOMER_TAG] = useState('');
   const [CREDIT_LIMIT, setCREDIT_LIMIT] = useState('0');
 
   // Fetch customers when page or search term changes (debounced)
@@ -78,7 +80,7 @@ export default function CustomersPage() {
 
       if (search.trim()) {
         const term = `%${search.trim()}%`;
-        query = query.or(`"CUSTOMER SUB NAME".ilike.${term},"CUSTOMER MAIN NAME".ilike.${term},"CUSTOMER ID".ilike.${term},"CUSTOMER CITY".ilike.${term}`);
+        query = query.or(`"CUSTOMER SUB NAME".ilike.${term},"CUSTOMER MAIN NAME".ilike.${term},"CUSTOMER ID".ilike.${term},"CUSTOMER CITY".ilike.${term},"CUSTOMER TAG".ilike.${term}`);
       }
 
       const { data, error, count } = await query
@@ -101,6 +103,7 @@ export default function CustomersPage() {
     setCUSTOMER_MAIN_NAME(customer ? customer["CUSTOMER MAIN NAME"] : '');
     setCUSTOMER_CITY(customer ? customer["CUSTOMER CITY"] : '');
     setCUSTOMER_ID(customer ? customer["CUSTOMER ID"] : '');
+    setCUSTOMER_TAG(customer ? customer["CUSTOMER TAG"] || '' : '');
     setCREDIT_LIMIT(customer ? String(customer["CREDIT LIMIT"] || 0) : '0');
     setIsModalOpen(true);
   };
@@ -132,6 +135,8 @@ export default function CustomersPage() {
         }
       }
 
+      const tagValue = CUSTOMER_TAG.trim() || null;
+
       if (editingCustomer) {
         const { error } = await bhs_supabas
           .from('bhs_CUSTOMERS')
@@ -140,6 +145,7 @@ export default function CustomersPage() {
             "CUSTOMER MAIN NAME": CUSTOMER_MAIN_NAME,
             "CUSTOMER CITY": CUSTOMER_CITY,
             "CUSTOMER ID": CUSTOMER_ID,
+            "CUSTOMER TAG": tagValue,
             "CREDIT LIMIT": Number(CREDIT_LIMIT) || 0
           })
           .eq('ID', editingCustomer.ID);
@@ -171,6 +177,7 @@ export default function CustomersPage() {
             "CUSTOMER MAIN NAME": CUSTOMER_MAIN_NAME,
             "CUSTOMER CITY": CUSTOMER_CITY,
             "CUSTOMER ID": CUSTOMER_ID,
+            "CUSTOMER TAG": tagValue,
             "CREDIT LIMIT": Number(CREDIT_LIMIT) || 0
           });
         if (error) throw error;
@@ -260,6 +267,7 @@ export default function CustomersPage() {
         "Customer Main Name": c["CUSTOMER MAIN NAME"] || '',
         "Customer Sub Name": c["CUSTOMER SUB NAME"] || '',
         "Customer City": c["CUSTOMER CITY"] || '',
+        "Customer Tag": c["CUSTOMER TAG"] || '',
         "Credit Limit": Number(c["CREDIT LIMIT"]) || 0
       }));
 
@@ -405,6 +413,7 @@ export default function CustomersPage() {
             'CUSTOMER MAIN NAME': String(row['Customer Main Name'] ?? '').trim(),
             'CUSTOMER SUB NAME': String(subNameSource ?? '').trim(),
             'CUSTOMER CITY': String(row['Customer City'] ?? '').trim(),
+            'CUSTOMER TAG': String(row['Customer Tag'] ?? row['CUSTOMER TAG'] ?? '').trim() || null,
             'CREDIT LIMIT': isNaN(creditLimitVal) ? 0 : creditLimitVal
           };
 
@@ -514,7 +523,7 @@ export default function CustomersPage() {
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
           <input
             type="text"
-            placeholder="Search by customer name, ID, or city..."
+            placeholder="Search by customer name, ID, city, or tag..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all"
@@ -589,6 +598,11 @@ export default function CustomersPage() {
                       {customer["CUSTOMER CITY"] && (
                         <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50 text-blue-600 rounded-xl text-[9px] font-black uppercase tracking-widest">
                           <MapPin className="w-2.5 h-2.5" /> {customer["CUSTOMER CITY"]}
+                        </span>
+                      )}
+                      {customer["CUSTOMER TAG"] && (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-50 text-amber-700 rounded-xl text-[9px] font-black uppercase tracking-widest">
+                          <Tag className="w-2.5 h-2.5" /> {customer["CUSTOMER TAG"]}
                         </span>
                       )}
                       {customer["CREDIT LIMIT"] !== undefined && customer["CREDIT LIMIT"] !== null && (
@@ -705,6 +719,18 @@ export default function CustomersPage() {
             <form onSubmit={handleSave} className="p-8 space-y-8">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div className="md:col-span-2 space-y-2">
+                  <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">CUSTOMER ID</label>
+                  <input
+                    type="text"
+                    value={CUSTOMER_ID}
+                    onChange={(e) => setCUSTOMER_ID(e.target.value)}
+                    placeholder="TRN or Reg No."
+                    required
+                    className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold"
+                  />
+                </div>
+
+                <div className="md:col-span-2 space-y-2">
                   <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">CUSTOMER MAIN NAME</label>
                   <input
                     type="text"
@@ -728,18 +754,6 @@ export default function CustomersPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">CUSTOMER ID</label>
-                  <input
-                    type="text"
-                    value={CUSTOMER_ID}
-                    onChange={(e) => setCUSTOMER_ID(e.target.value)}
-                    placeholder="TRN or Reg No."
-                    required
-                    className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold"
-                  />
-                </div>
-
-                <div className="space-y-2">
                   <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">CUSTOMER CITY</label>
                   <div className="relative">
                     <MapPin className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -749,6 +763,20 @@ export default function CustomersPage() {
                       onChange={(e) => setCUSTOMER_CITY(e.target.value)}
                       placeholder="e.g. Dubai"
                       required
+                      className="w-full pl-14 pr-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">CUSTOMER TAG</label>
+                  <div className="relative">
+                    <Tag className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <input
+                      type="text"
+                      value={CUSTOMER_TAG}
+                      onChange={(e) => setCUSTOMER_TAG(e.target.value)}
+                      placeholder="Group label (optional)"
                       className="w-full pl-14 pr-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold"
                     />
                   </div>

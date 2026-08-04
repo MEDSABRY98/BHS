@@ -53,8 +53,6 @@ type AllCustomerItem = {
 export default function CustomerDiscountsPage() {
   // Navigation State
   const [currentView, setCurrentView] = useState<"grid" | "add" | "details" | "months" | "stats">("grid");
-
-  useCustomersDiscountsTabAudit(currentView, currentView === 'details' ? activeTab : undefined);
   
   // Data State
   const [customers, setCustomers] = useState<CustomerView[]>([]);
@@ -65,6 +63,7 @@ export default function CustomerDiscountsPage() {
   // Details View State
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerView | null>(null);
   const [activeTab, setActiveTab] = useState<"details" | "pending" | "semi" | "settled">("details");
+  useCustomersDiscountsTabAudit(currentView, currentView === 'details' ? activeTab : undefined);
   const [settlements, setSettlements] = useState<Settlement[]>([]);
   const [loadingSettlements, setLoadingSettlements] = useState(false);
   
