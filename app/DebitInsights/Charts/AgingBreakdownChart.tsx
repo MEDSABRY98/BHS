@@ -16,6 +16,7 @@ import { AgingBreakdown } from '../Utils/InsightsTypes';
 
 interface AgingBreakdownChartProps {
   breakdown: AgingBreakdown;
+  forPdf?: boolean;
 }
 
 interface AgingChartPoint {
@@ -72,7 +73,7 @@ function AmountBarLabel({
   );
 }
 
-export default function AgingBreakdownChart({ breakdown }: AgingBreakdownChartProps) {
+export default function AgingBreakdownChart({ breakdown, forPdf = false }: AgingBreakdownChartProps) {
   const chartData = useMemo<AgingChartPoint[]>(
     () =>
       BUCKET_META.map((bucket) => ({
@@ -93,29 +94,28 @@ export default function AgingBreakdownChart({ breakdown }: AgingBreakdownChartPr
     [chartData]
   );
 
-  return (
-    <div className="bg-white rounded-xl border border-gray-200 p-4 h-[500px]">
-      <h3 className="text-sm font-semibold text-gray-900 mb-4">Aging Breakdown</h3>
-      <ResponsiveContainer width="100%" height={400}>
-        <BarChart data={chartData} margin={{ top: 36, right: 20, left: 10, bottom: 12 }}>
-          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-          <XAxis
-            dataKey="bucket"
-            tick={{ fill: '#374151', fontSize: 14, fontWeight: 600 }}
-            axisLine={false}
-            tickLine={false}
-            interval={0}
-            height={56}
-            dy={10}
-          />
-          <YAxis
-            tick={{ fill: '#9CA3AF', fontSize: 11 }}
-            axisLine={false}
-            tickLine={false}
-            tickFormatter={(value) =>
-              new Intl.NumberFormat('en-US', { notation: 'compact', compactDisplay: 'short' }).format(value)
-            }
-          />
+  const chart = (
+    <ResponsiveContainer width="100%" height={forPdf ? 620 : 400}>
+      <BarChart data={chartData} margin={{ top: 36, right: 20, left: 10, bottom: 12 }}>
+        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+        <XAxis
+          dataKey="bucket"
+          tick={{ fill: '#374151', fontSize: 14, fontWeight: 600 }}
+          axisLine={false}
+          tickLine={false}
+          interval={0}
+          height={56}
+          dy={10}
+        />
+        <YAxis
+          tick={{ fill: '#9CA3AF', fontSize: 11 }}
+          axisLine={false}
+          tickLine={false}
+          tickFormatter={(value) =>
+            new Intl.NumberFormat('en-US', { notation: 'compact', compactDisplay: 'short' }).format(value)
+          }
+        />
+        {!forPdf && (
           <Tooltip
             formatter={(value: number, _name: string, props: { payload?: { hint?: string; color?: string } }) => [
               value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
@@ -123,14 +123,25 @@ export default function AgingBreakdownChart({ breakdown }: AgingBreakdownChartPr
             ]}
             contentStyle={{ borderRadius: '8px', border: '1px solid #E5E7EB' }}
           />
-          <Bar dataKey="amount" name="Open Amount" radius={[6, 6, 0, 0]} strokeWidth={1} isAnimationActive={false}>
-            {chartData.map((entry) => (
-              <Cell key={entry.bucket} fill={entry.fill} stroke={entry.stroke} />
-            ))}
-            <LabelList dataKey="amount" content={amountLabel} />
-          </Bar>
-        </BarChart>
-      </ResponsiveContainer>
+        )}
+        <Bar dataKey="amount" name="Open Amount" radius={[6, 6, 0, 0]} strokeWidth={1} isAnimationActive={false}>
+          {chartData.map((entry) => (
+            <Cell key={entry.bucket} fill={entry.fill} stroke={entry.stroke} />
+          ))}
+          <LabelList dataKey="amount" content={amountLabel} />
+        </Bar>
+      </BarChart>
+    </ResponsiveContainer>
+  );
+
+  if (forPdf) {
+    return <div style={{ width: '100%', height: 620, backgroundColor: '#ffffff' }}>{chart}</div>;
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-4 h-[500px]">
+      <h3 className="text-sm font-semibold text-gray-900 mb-4">Aging Breakdown</h3>
+      {chart}
     </div>
   );
 }

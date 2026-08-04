@@ -15,6 +15,7 @@ import DebtTrendChart from './Charts/DebtTrendChart';
 import SalesCollectionsChart from './Charts/SalesCollectionsChart';
 import CollectionRateChart from './Charts/CollectionRateChart';
 import AgingBreakdownChart from './Charts/AgingBreakdownChart';
+import { exportDebitInsightsPdfZip } from './Export/PdfExport';
 
 interface DebitInsightsDashboardProps {
   data: InvoiceRow[];
@@ -59,6 +60,7 @@ export default function DebitInsightsDashboard({
   const [draftFilters, setDraftFilters] = useState<InsightsFilters>(defaultFilters);
   const [appliedFilters, setAppliedFilters] = useState<InsightsFilters>(defaultFilters);
   const [isApplying, startTransition] = useTransition();
+  const [exportingPdf, setExportingPdf] = useState(false);
   const metrics = useDebitInsightsMetrics(data, appliedFilters);
 
   const salesReps = useMemo(() => metrics.salesReps, [metrics.salesReps]);
@@ -77,6 +79,32 @@ export default function DebitInsightsDashboard({
       };
     }
     setDraftFilters(next);
+  };
+
+  const handleExportPdf = async () => {
+    if (exportingPdf || data.length === 0) return;
+    setExportingPdf(true);
+    const loadingId = toast.loading('Generating ZIP...');
+    try {
+      await exportDebitInsightsPdfZip({
+        rows: data,
+        filters: appliedFilters,
+        cities: salesReps,
+        onProgress: (current, total, label) => {
+          toast.loading(`Generating PDF ${current}/${total}${label ? ` — ${label}` : ''}...`, {
+            id: loadingId,
+          });
+        },
+      });
+      toast.dismiss(loadingId);
+      toast.success('ZIP exported successfully.');
+    } catch (error) {
+      console.error('Debit Insights PDF export failed:', error);
+      toast.dismiss(loadingId);
+      toast.error('Failed to export ZIP.');
+    } finally {
+      setExportingPdf(false);
+    }
   };
 
   if (loading && data.length === 0) {
@@ -100,8 +128,11 @@ export default function DebitInsightsDashboard({
             toast.success('Filters applied.');
           });
         }}
+        onExportPdf={() => void handleExportPdf()}
         hasPendingChanges={hasPendingChanges}
         isApplying={isApplying}
+        isExportingPdf={exportingPdf}
+        canExportPdf={!loading && data.length > 0}
       />
 
       <InsightsKpiCards metrics={metrics} />

@@ -388,6 +388,7 @@ export interface ExportExcelOptions {
   includeSummary?: boolean;
   includeYearly?: boolean;
   includeMonthly?: boolean;
+  includeAges?: boolean;
   groupByRegion?: boolean;
 }
 
@@ -404,6 +405,7 @@ export const exportToExcel = async (
     includeSummary: true,
     includeYearly: true,
     includeMonthly: true,
+    includeAges: true,
     groupByRegion: false,
     ...options
   };
@@ -677,6 +679,74 @@ export const exportToExcel = async (
         });
         if (filtered.length > 0) {
           sheets.push(buildMonthlySheet(`Monthly - ${region}`.substring(0, 31), filtered));
+        }
+      });
+    }
+  }
+
+  // --- Ages View ---
+  if (opts.includeAges) {
+    const ageHeaders = ['0 - 30', '31 - 60', '61 - 90', '91 - 120', 'OLDER'];
+
+    const getAgeBuckets = (c: CustomerAnalysis) => {
+      const a = c.agingBreakdown;
+      return {
+        zeroToThirty: (a?.atDate || 0) + (a?.oneToThirty || 0),
+        thirtyOneToSixty: a?.thirtyOneToSixty || 0,
+        sixtyOneToNinety: a?.sixtyOneToNinety || 0,
+        ninetyOneToOneTwenty: a?.ninetyOneToOneTwenty || 0,
+        older: a?.older || 0,
+      };
+    };
+
+    const buildAgesSheet = (name: string, dataset: CustomerAnalysis[]) => {
+      const agesHeaders = [
+        '#',
+        'Customer Name',
+        'City',
+        'Net Debt',
+        'Last Payment Date',
+        'Last Payment Amount',
+        ...ageHeaders,
+      ];
+
+      const rows = dataset.map((c, idx) => {
+        const buckets = getAgeBuckets(c);
+        return [
+          idx + 1,
+          c.customerName || '',
+          getRepsString(c),
+          (c.netDebt || 0).toFixed(2),
+          c.lastPaymentDate ? formatDmy(c.lastPaymentDate) : '-',
+          (c.lastPaymentAmount || 0).toFixed(2),
+          buckets.zeroToThirty.toFixed(2),
+          buckets.thirtyOneToSixty.toFixed(2),
+          buckets.sixtyOneToNinety.toFixed(2),
+          buckets.ninetyOneToOneTwenty.toFixed(2),
+          buckets.older.toFixed(2),
+        ];
+      });
+
+      return {
+        name,
+        data: recordsFromTable(agesHeaders, rows),
+        options: {
+          numericColumns: ['Net Debt', 'Last Payment Amount', ...ageHeaders],
+        },
+      };
+    };
+
+    sheets.push(buildAgesSheet('Ages View', data));
+
+    if (opts.groupByRegion) {
+      Array.from(uniqueRegions).forEach(region => {
+        const filtered = data.filter(c => {
+          const reps = getRepsString(c);
+          if (region === 'Unassigned') return reps === '-';
+          return reps.includes(region);
+        });
+        if (filtered.length > 0) {
+          sheets.push(buildAgesSheet(`Ages - ${region}`.substring(0, 31), filtered));
         }
       });
     }

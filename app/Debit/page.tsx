@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, Suspense } from 'react';
+import { useState, useEffect, useRef, Suspense, type Dispatch, type SetStateAction } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Menu } from 'lucide-react';
 
@@ -10,6 +10,7 @@ import CustomersGroupTab from './CustomersGroupTab/CustomersGroupTab';
 import OpenTransactionsTab from './OpenTransactionsTab/OpenTransactionsTab';
 import AllTransactionsTab from './AllTransactionsTab/AllTransactionsTab';
 import PaymentReconciliationTab from './PaymentReconciliationTab/PaymentReconciliationTab';
+import SavedPaymentReconciliationsPageTab from './PaymentReconciliationTab/SavedPaymentReconciliationsPageTab';
 import PaymentTrackerTab from './PaymentTrackerTab/PaymentTrackerTab';
 import SalesRepsTab from './SalesRepsTab/SalesRepsTab';
 import HistoryTab from './HistoryTab/HistoryTab';
@@ -20,9 +21,10 @@ import TabLoader from '@/app/Components/Loading/TabLoader';
 import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import Login from '@/app/Components/Auth/Login';
 import TabPanel from '@/app/Components/Layout/TabPanel';
-import DebitSidebar from './Utils/Sidebar';
+import DebitSidebar, { isDebitTabAllowed } from './Utils/Sidebar';
 import { useDebitTabAudit } from '@/app/Audit/Modules/DebitTabAudit';
 import { DebitDataProvider, useDebitData } from './Context/DebitDataContext';
+import type { PaymentReconciliationSessionSummary } from './Service/debit_service';
 
 const TABS_NEEDING_FULL_DATA = new Set([
   'customers',
@@ -46,6 +48,10 @@ function DebitPageShell({
   toggleSidebar,
   isMobileSidebarOpen,
   setIsMobileSidebarOpen,
+  sessionToOpenInReconcile,
+  setSessionToOpenInReconcile,
+  savedSessionsRefreshKey,
+  setSavedSessionsRefreshKey,
 }: {
   initialCustomer?: string;
   currentUser: any;
@@ -55,6 +61,10 @@ function DebitPageShell({
   toggleSidebar: () => void;
   isMobileSidebarOpen: boolean;
   setIsMobileSidebarOpen: (open: boolean) => void;
+  sessionToOpenInReconcile: PaymentReconciliationSessionSummary | null;
+  setSessionToOpenInReconcile: (session: PaymentReconciliationSessionSummary | null) => void;
+  savedSessionsRefreshKey: number;
+  setSavedSessionsRefreshKey: Dispatch<SetStateAction<number>>;
 }) {
   const { data, loading, isRefreshing, error, lastUpdated, refresh, dataVersion, dataReady, dataLoading, ensureFullData } = useDebitData();
   const [visitedTabs, setVisitedTabs] = useState<Set<string>>(new Set(['customers']));
@@ -91,7 +101,7 @@ function DebitPageShell({
       const perms = JSON.parse(currentUser?.role || '{}');
       const allowedTabs = perms.debit || perms.debit_tabs;
       if (allowedTabs && Array.isArray(allowedTabs) && currentUser?.name !== 'MED Sabry') {
-        return allowedTabs.includes(activeTab);
+        return isDebitTabAllowed(activeTab, allowedTabs);
       }
     } catch {
       // full access
@@ -136,7 +146,21 @@ function DebitPageShell({
           <CustomersGroupTab data={data} />
         </TabPanel>
         <TabPanel tabId="payment-reconciliation" activeTab={activeTab} isVisited={visitedTabs.has('payment-reconciliation') && dataReady}>
-          <PaymentReconciliationTab data={data} />
+          <PaymentReconciliationTab
+            data={data}
+            sessionToLoad={sessionToOpenInReconcile}
+            onSessionLoaded={() => setSessionToOpenInReconcile(null)}
+          />
+        </TabPanel>
+        <TabPanel tabId="payment-reconciliation-saved" activeTab={activeTab} isVisited={visitedTabs.has('payment-reconciliation-saved')}>
+          <SavedPaymentReconciliationsPageTab
+            refreshKey={savedSessionsRefreshKey}
+            onOpenSession={(session) => {
+              setSessionToOpenInReconcile(session);
+              setActiveTab('payment-reconciliation');
+            }}
+            onSessionsChanged={() => setSavedSessionsRefreshKey((key) => key + 1)}
+          />
         </TabPanel>
         <TabPanel tabId="all-transactions" activeTab={activeTab} isVisited={visitedTabs.has('all-transactions') && dataReady}>
           <AllTransactionsTab data={data} />
@@ -254,6 +278,9 @@ function DebitPageContent() {
   const [activeTab, setActiveTab] = useState('customers');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [sessionToOpenInReconcile, setSessionToOpenInReconcile] =
+    useState<PaymentReconciliationSessionSummary | null>(null);
+  const [savedSessionsRefreshKey, setSavedSessionsRefreshKey] = useState(0);
 
   useEffect(() => {
     const stored = localStorage.getItem('debitSidebarCollapsed');
@@ -283,7 +310,7 @@ function DebitPageContent() {
       try {
         const perms = JSON.parse(currentUser.role || '{}');
         const allowedTabs = perms.debit || perms.debit_tabs;
-        if (allowedTabs && Array.isArray(allowedTabs) && !allowedTabs.includes(activeTab)) {
+        if (allowedTabs && Array.isArray(allowedTabs) && !isDebitTabAllowed(activeTab, allowedTabs)) {
           if (allowedTabs.length > 0) {
             setActiveTab(allowedTabs[0]);
           }
@@ -325,6 +352,10 @@ function DebitPageContent() {
         toggleSidebar={toggleSidebar}
         isMobileSidebarOpen={isMobileSidebarOpen}
         setIsMobileSidebarOpen={setIsMobileSidebarOpen}
+        sessionToOpenInReconcile={sessionToOpenInReconcile}
+        setSessionToOpenInReconcile={setSessionToOpenInReconcile}
+        savedSessionsRefreshKey={savedSessionsRefreshKey}
+        setSavedSessionsRefreshKey={setSavedSessionsRefreshKey}
       />
     </DebitDataProvider>
   );

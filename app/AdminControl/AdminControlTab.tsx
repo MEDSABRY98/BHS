@@ -130,6 +130,7 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
         { id: 'credit-limit', label: 'Credit Limit' },
         { id: 'customers-group', label: 'Customers Group' },
         { id: 'payment-reconciliation', label: 'Payment Reconciliation' },
+        { id: 'payment-reconciliation-saved', label: 'Saved Reconciliations' },
         { id: 'all-transactions', label: 'All Transactions' },
         { id: 'customers-open-matches', label: 'Open Transactions' },
         { id: 'payment-tracker', label: 'Payment Tracker' },

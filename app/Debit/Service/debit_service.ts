@@ -234,6 +234,7 @@ export interface PaymentReconciliationSessionSummary {
   paymentRemainder: number;
   lineCount: number;
   customerCount: number;
+  customersId: string[];
 }
 
 export interface PaymentReconciliationLoadedLine {
@@ -383,25 +384,8 @@ export async function fetchPaymentReconciliationSessions() {
 
     if (headerError) throw headerError;
 
-    const { data: lineRows, error: lineError } = await bhs_supabase
-      .from(PR_LINES_TABLE)
-      .select('SESSION_ID, APPLIED_AMOUNT');
-
-    if (lineError) throw lineError;
-
-    const lineStats = new Map<string, { lineCount: number; totalApplied: number }>();
-    for (const row of lineRows || []) {
-      const id = String(row.SESSION_ID || '').trim();
-      if (!id) continue;
-      const existing = lineStats.get(id) || { lineCount: 0, totalApplied: 0 };
-      existing.lineCount += 1;
-      existing.totalApplied += parseNum(row.APPLIED_AMOUNT);
-      lineStats.set(id, existing);
-    }
-
     const data: PaymentReconciliationSessionSummary[] = (headers || []).map((row) => {
       const sessionId = String(row.SESSION_ID || '').trim();
-      const stats = lineStats.get(sessionId) || { lineCount: 0, totalApplied: 0 };
       const paymentAmount = parseNum(row.PAYMENT_AMOUNT);
       const customersId = parseCustomersId(row.CUSTOMERS_ID);
       const paymentDateRaw = row.PAYMENT_DATE;
@@ -412,10 +396,11 @@ export async function fetchPaymentReconciliationSessions() {
         paymentDate: paymentDateRaw ? String(paymentDateRaw).split('T')[0] : null,
         paymentAmount,
         paymentReference: row.PAYMENT_REFERENCE ? String(row.PAYMENT_REFERENCE) : null,
-        totalApplied: stats.totalApplied,
-        paymentRemainder: paymentAmount - stats.totalApplied,
-        lineCount: stats.lineCount,
+        totalApplied: 0,
+        paymentRemainder: paymentAmount,
+        lineCount: 0,
         customerCount: customersId.length,
+        customersId,
       };
     });
 

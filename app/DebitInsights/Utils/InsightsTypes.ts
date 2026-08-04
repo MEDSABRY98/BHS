@@ -1,4 +1,4 @@
-export type InsightsPeriodPreset = 'trailing12m' | 'ytd' | 'custom';
+export type InsightsPeriodPreset = 'trailing12m' | 'ytd' | 'trailing6m' | 'trailing3m' | 'custom';
 
 export interface InsightsFilters {
   asOfDate: string;

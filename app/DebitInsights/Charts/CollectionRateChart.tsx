@@ -17,6 +17,7 @@ import { InsightsTrendPoint } from '../Utils/InsightsTypes';
 
 interface CollectionRateChartProps {
   data: InsightsTrendPoint[];
+  forPdf?: boolean;
 }
 
 interface CollectionRatePoint {
@@ -30,6 +31,25 @@ interface CollectionRatePoint {
 
 function formatAmount(value: number) {
   return value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function renderMonthYearTick(props: { x?: number; y?: number; payload?: { value?: string } }) {
+  const { x = 0, y = 0, payload } = props;
+  const label = String(payload?.value ?? '');
+  const parts = label.trim().split(' ');
+  const year = parts.pop() ?? '';
+  const month = parts.join(' ');
+
+  return (
+    <g transform={`translate(${x},${y})`}>
+      <text x={0} y={0} dy={14} textAnchor="middle" fill="#374151" fontSize={13} fontWeight={600}>
+        {month}
+      </text>
+      <text x={0} y={0} dy={30} textAnchor="middle" fill="#6B7280" fontSize={12} fontWeight={500}>
+        {year}
+      </text>
+    </g>
+  );
 }
 
 function CollectionRateTooltip({
@@ -50,12 +70,12 @@ function CollectionRateTooltip({
     <div className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 shadow-md text-sm">
       <p className="font-semibold text-slate-800 mb-2">{label}</p>
       <p className="flex items-center justify-between gap-4 text-slate-600">
-        <span>Net Sales</span>
-        <span className="font-medium text-slate-900">{formatAmount(point.netSales)}</span>
-      </p>
-      <p className="mt-1 flex items-center justify-between gap-4 text-slate-600">
         <span>Collections</span>
         <span className="font-medium text-slate-900">{formatAmount(point.collections)}</span>
+      </p>
+      <p className="mt-1 flex items-center justify-between gap-4 text-slate-600">
+        <span>Net Sales</span>
+        <span className="font-medium text-slate-900">{formatAmount(point.netSales)}</span>
       </p>
       <p className="mt-2 pt-2 border-t border-slate-100 text-slate-700">
         <span className="font-medium">Collection Rate: </span>
@@ -76,7 +96,7 @@ function toNumber(value: string | number | undefined, fallback = 0): number {
   return fallback;
 }
 
-function RateBarLabel(props: RechartsLabelProps & { chartData?: CollectionRatePoint[] }) {
+function AmountAndRateLabel(props: RechartsLabelProps & { chartData?: CollectionRatePoint[] }) {
   const { x, y, width, index, chartData } = props;
   const posX = toNumber(x);
   const posY = toNumber(y);
@@ -84,16 +104,40 @@ function RateBarLabel(props: RechartsLabelProps & { chartData?: CollectionRatePo
   if (index === undefined || !chartData?.[index]) return null;
 
   const point = chartData[index];
-  if (!point.hasRate) return null;
+  if (Math.abs(point.collections) <= 0.01 && !point.hasRate) return null;
+
+  const centerX = posX + barWidth / 2;
 
   return (
-    <text x={posX + barWidth / 2} y={posY - 10} textAnchor="middle" fill="#4338CA" fontSize={15} fontWeight={800}>
-      {`${point.collectionRate.toFixed(1)}%`}
-    </text>
+    <g>
+      <text
+        x={centerX}
+        y={posY - 36}
+        textAnchor="middle"
+        fill="#B45309"
+        fontSize={13}
+        fontWeight={800}
+      >
+        {formatAmount(point.collections)}
+      </text>
+      <text
+        x={centerX}
+        y={posY - 10}
+        textAnchor="middle"
+        fill="#4338CA"
+        fontSize={15}
+        fontWeight={800}
+      >
+        {point.hasRate ? `${point.collectionRate.toFixed(1)}%` : 'N/A'}
+      </text>
+    </g>
   );
 }
 
-function resolveCollectionRate(netSales: number, collections: number): Pick<CollectionRatePoint, 'collectionRate' | 'hasRate'> {
+function resolveCollectionRate(
+  netSales: number,
+  collections: number
+): Pick<CollectionRatePoint, 'collectionRate' | 'hasRate'> {
   if (netSales > 0.01) {
     return {
       collectionRate: (collections / netSales) * 100,
@@ -112,7 +156,7 @@ function resolveCollectionRate(netSales: number, collections: number): Pick<Coll
   };
 }
 
-export default function CollectionRateChart({ data }: CollectionRateChartProps) {
+export default function CollectionRateChart({ data, forPdf = false }: CollectionRateChartProps) {
   const chartData = useMemo<CollectionRatePoint[]>(
     () =>
       data.map((point) => ({
@@ -125,55 +169,63 @@ export default function CollectionRateChart({ data }: CollectionRateChartProps) 
     [data]
   );
 
-  const rateLabel = useMemo(
+  const amountRateLabel = useMemo(
     () =>
-      function RateLabel(props: RechartsLabelProps) {
-        return <RateBarLabel {...props} chartData={chartData} />;
+      function AmountRateLabel(props: RechartsLabelProps) {
+        return <AmountAndRateLabel {...props} chartData={chartData} />;
       },
     [chartData]
   );
 
+  const chart = (
+    <ResponsiveContainer width="100%" height={forPdf ? 620 : 440}>
+      <BarChart data={chartData} barCategoryGap="18%" margin={{ top: 56, right: 20, left: 10, bottom: 20 }}>
+        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+        <XAxis
+          dataKey="monthLabel"
+          tick={renderMonthYearTick}
+          axisLine={false}
+          tickLine={false}
+          interval={0}
+          height={72}
+        />
+        <YAxis
+          tick={{ fill: '#9CA3AF', fontSize: 11 }}
+          axisLine={false}
+          tickLine={false}
+          tickFormatter={(value) =>
+            new Intl.NumberFormat('en-US', { notation: 'compact', compactDisplay: 'short' }).format(value)
+          }
+        />
+        {!forPdf && <Tooltip content={<CollectionRateTooltip />} />}
+        <Bar
+          dataKey="collections"
+          name="Collections"
+          radius={[6, 6, 0, 0]}
+          isAnimationActive={false}
+        >
+          {chartData.map((point) => (
+            <Cell
+              key={point.month}
+              fill={point.hasRate ? '#C7D2FE' : '#E5E7EB'}
+              stroke={point.hasRate ? '#818CF8' : '#D1D5DB'}
+              strokeWidth={1}
+            />
+          ))}
+          <LabelList dataKey="collections" content={amountRateLabel} />
+        </Bar>
+      </BarChart>
+    </ResponsiveContainer>
+  );
+
+  if (forPdf) {
+    return <div style={{ width: '100%', height: 620, backgroundColor: '#ffffff' }}>{chart}</div>;
+  }
+
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-4 h-[500px]">
-      <h3 className="text-sm font-semibold text-gray-900 mb-4">Collection Rate (Monthly)</h3>
-      <ResponsiveContainer width="100%" height={440}>
-        <BarChart data={chartData} barCategoryGap="18%" margin={{ top: 36, right: 20, left: 10, bottom: 20 }}>
-          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-          <XAxis
-            dataKey="monthLabel"
-            tick={{ fill: '#374151', fontSize: 13, fontWeight: 600 }}
-            axisLine={false}
-            tickLine={false}
-            interval={0}
-            height={64}
-            dy={10}
-          />
-          <YAxis
-            tick={{ fill: '#9CA3AF', fontSize: 11 }}
-            axisLine={false}
-            tickLine={false}
-            tickFormatter={(value) => `${value}%`}
-            domain={[0, 'auto']}
-          />
-          <Tooltip content={<CollectionRateTooltip />} />
-          <Bar
-            dataKey="collectionRate"
-            name="Collection Rate"
-            radius={[6, 6, 0, 0]}
-            isAnimationActive={false}
-          >
-            {chartData.map((point) => (
-              <Cell
-                key={point.month}
-                fill={point.hasRate ? '#C7D2FE' : '#E5E7EB'}
-                stroke={point.hasRate ? '#818CF8' : '#D1D5DB'}
-                strokeWidth={1}
-              />
-            ))}
-            <LabelList dataKey="collectionRate" content={rateLabel} />
-          </Bar>
-        </BarChart>
-      </ResponsiveContainer>
+      <h3 className="text-sm font-semibold text-gray-900 mb-4">Collections Amount & Rate (Monthly)</h3>
+      {chart}
     </div>
   );
 }

@@ -36,10 +36,6 @@ function filterRowsByScope(rows: InvoiceRow[], cities: string[], customers: stri
   return rows.filter((row) => matchesRowFilters(row, cities, customers));
 }
 
-function filterRowsByCity(rows: InvoiceRow[], cities: string[], customers: string[]): InvoiceRow[] {
-  return filterRowsByScope(rows, cities, customers);
-}
-
 function filterRowsAsOf(
   rows: InvoiceRow[],
   asOfDate: string,
@@ -74,7 +70,10 @@ export function resolvePeriodRange(
     return { from, to: customTo > to ? to : customTo };
   }
 
-  const from = new Date(to.getFullYear(), to.getMonth() - 11, 1);
+  const monthsBack =
+    preset === 'trailing3m' ? 2 : preset === 'trailing6m' ? 5 : 11;
+
+  const from = new Date(to.getFullYear(), to.getMonth() - monthsBack, 1);
   from.setHours(0, 0, 0, 0);
   return { from, to };
 }
@@ -191,8 +190,9 @@ export function computeDebitInsights(
   const referenceDate = endOfDay(filters.asOfDate);
   const { totalOpenDebt } = computePortfolioAging(rowsAsOf, referenceDate, cities, customers);
 
+  // Aging Breakdown: cities + customers only — ignore as-of and period date filters
   const agingReferenceDate = endOfDay(toInputDate(new Date()));
-  const rowsForAging = filterRowsByCity(rows, cities, customers);
+  const rowsForAging = filterRowsByScope(rows, cities, customers);
   const { agingBreakdown } = computePortfolioAging(rowsForAging, agingReferenceDate, cities, customers);
 
   const { from, to } = resolvePeriodRange(

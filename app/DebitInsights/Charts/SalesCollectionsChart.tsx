@@ -17,6 +17,7 @@ import { InsightsTrendPoint } from '../Utils/InsightsTypes';
 
 interface SalesCollectionsChartProps {
   data: InsightsTrendPoint[];
+  forPdf?: boolean;
 }
 
 type DebtLabelProps = RechartsLabelProps;
@@ -48,13 +49,13 @@ function formatDebtBoxAmount(value: number) {
   return `${sign}${abs.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
 }
 
-const DEBT_BOX_HEIGHT = 26;
-const DEBT_BOX_Y = 8;
+const DEBT_BOX_HEIGHT = 30;
+const DEBT_BOX_Y = 6;
 
 function createOpenDebtLabel(chartData: InsightsTrendPoint[]) {
   const boxWidth = Math.max(
-    64,
-    ...chartData.map((point) => formatDebtBoxAmount(point.openDebt).length * 6.5 + 16)
+    72,
+    ...chartData.map((point) => formatDebtBoxAmount(point.openDebt).length * 7.5 + 18)
   );
 
   return function OpenDebtLabel({ x, width, index }: DebtLabelProps) {
@@ -80,10 +81,10 @@ function createOpenDebtLabel(chartData: InsightsTrendPoint[]) {
         />
         <text
           x={centerX}
-          y={DEBT_BOX_Y + DEBT_BOX_HEIGHT / 2 + 4}
+          y={DEBT_BOX_Y + DEBT_BOX_HEIGHT / 2 + 5}
           textAnchor="middle"
           fill="#1E40AF"
-          fontSize={10}
+          fontSize={13}
           fontWeight={700}
         >
           {formatDebtBoxAmount(openDebt)}
@@ -132,56 +133,64 @@ function SalesCollectionsTooltip({
   );
 }
 
-export default function SalesCollectionsChart({ data }: SalesCollectionsChartProps) {
+export default function SalesCollectionsChart({ data, forPdf = false }: SalesCollectionsChartProps) {
   const debtLabel = useMemo(() => createOpenDebtLabel(data), [data]);
+
+  const chart = (
+    <ResponsiveContainer width="100%" height={forPdf ? 620 : 440}>
+      <BarChart data={data} barGap="12%" barCategoryGap="18%" margin={{ top: 56, right: 20, left: 10, bottom: 20 }}>
+        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+        <XAxis
+          dataKey="monthLabel"
+          tick={{ fill: '#374151', fontSize: 13, fontWeight: 600 }}
+          axisLine={false}
+          tickLine={false}
+          interval={0}
+          height={64}
+          dy={10}
+        />
+        <YAxis
+          tick={{ fill: '#9CA3AF', fontSize: 11 }}
+          axisLine={false}
+          tickLine={false}
+          tickFormatter={(value) =>
+            new Intl.NumberFormat('en-US', { notation: 'compact', compactDisplay: 'short' }).format(value)
+          }
+        />
+        {!forPdf && <Tooltip content={<SalesCollectionsTooltip />} />}
+        <Legend />
+        <Bar
+          dataKey="netSales"
+          name="Net Sales"
+          fill="#6EE7B7"
+          stroke="#34D399"
+          strokeWidth={1}
+          radius={[6, 6, 0, 0]}
+          isAnimationActive={false}
+        >
+          <LabelList dataKey="openDebt" content={debtLabel} />
+        </Bar>
+        <Bar
+          dataKey="collections"
+          name="Collections"
+          fill="#C4B5FD"
+          stroke="#A78BFA"
+          strokeWidth={1}
+          radius={[6, 6, 0, 0]}
+          isAnimationActive={false}
+        />
+      </BarChart>
+    </ResponsiveContainer>
+  );
+
+  if (forPdf) {
+    return <div style={{ width: '100%', height: 620, backgroundColor: '#ffffff' }}>{chart}</div>;
+  }
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-4 h-[500px]">
       <h3 className="text-sm font-semibold text-gray-900 mb-4">Net Sales vs Collections</h3>
-      <ResponsiveContainer width="100%" height={440}>
-        <BarChart data={data} barGap="12%" barCategoryGap="18%" margin={{ top: 56, right: 20, left: 10, bottom: 20 }}>
-          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-          <XAxis
-            dataKey="monthLabel"
-            tick={{ fill: '#374151', fontSize: 13, fontWeight: 600 }}
-            axisLine={false}
-            tickLine={false}
-            interval={0}
-            height={64}
-            dy={10}
-          />
-          <YAxis
-            tick={{ fill: '#9CA3AF', fontSize: 11 }}
-            axisLine={false}
-            tickLine={false}
-            tickFormatter={(value) =>
-              new Intl.NumberFormat('en-US', { notation: 'compact', compactDisplay: 'short' }).format(value)
-            }
-          />
-          <Tooltip content={<SalesCollectionsTooltip />} />
-          <Legend />
-          <Bar
-            dataKey="netSales"
-            name="Net Sales"
-            fill="#6EE7B7"
-            stroke="#34D399"
-            strokeWidth={1}
-            radius={[6, 6, 0, 0]}
-            isAnimationActive={false}
-          >
-            <LabelList dataKey="openDebt" content={debtLabel} />
-          </Bar>
-          <Bar
-            dataKey="collections"
-            name="Collections"
-            fill="#C4B5FD"
-            stroke="#A78BFA"
-            strokeWidth={1}
-            radius={[6, 6, 0, 0]}
-            isAnimationActive={false}
-          />
-        </BarChart>
-      </ResponsiveContainer>
+      {chart}
     </div>
   );
 }

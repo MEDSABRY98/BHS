@@ -46,10 +46,11 @@ import {
   restoreAppliedByRowFromLoadedLines,
 } from './paymentReconciliationSession';
 import SavePaymentReconciliationModal from './SavePaymentReconciliationModal';
-import PaymentReconciliationSessionPicker from './PaymentReconciliationSessionPicker';
 
 interface PaymentReconciliationTabProps {
   data: InvoiceRow[];
+  sessionToLoad?: PaymentReconciliationSessionSummary | null;
+  onSessionLoaded?: () => void;
 }
 
 const columnHelper = createColumnHelper<OpenInvoiceRow>();
@@ -120,7 +121,11 @@ function ApplyAmountInput({
   );
 }
 
-export default function PaymentReconciliationTab({ data = [] }: PaymentReconciliationTabProps) {
+export default function PaymentReconciliationTab({
+  data = [],
+  sessionToLoad = null,
+  onSessionLoaded,
+}: PaymentReconciliationTabProps) {
   const safeData = Array.isArray(data) ? data : [];
 
   const [groupCustomers, setGroupCustomers] = useState<string[]>([]);
@@ -145,7 +150,6 @@ export default function PaymentReconciliationTab({ data = [] }: PaymentReconcili
     null,
   );
   const [showSaveModal, setShowSaveModal] = useState(false);
-  const [sessionsRefreshKey, setSessionsRefreshKey] = useState(0);
 
   const dropdownRef = useRef<HTMLDivElement>(null);
   const skipClearAppliedRef = useRef(false);
@@ -452,7 +456,6 @@ export default function PaymentReconciliationTab({ data = [] }: PaymentReconcili
         remainingAmount: line.remainingAmount,
       })),
     );
-    setSessionsRefreshKey((key) => key + 1);
   };
 
   const handleLoadSession = async (session: PaymentReconciliationSessionSummary) => {
@@ -487,11 +490,12 @@ export default function PaymentReconciliationTab({ data = [] }: PaymentReconcili
     }
   };
 
-  const handleClearLoadedSession = () => {
-    setLoadedSessionId(null);
-    setLoadedSessionLines([]);
-    setPendingSessionRestore(null);
-  };
+  useEffect(() => {
+    if (!sessionToLoad) return;
+    void handleLoadSession(sessionToLoad).finally(() => {
+      onSessionLoaded?.();
+    });
+  }, [sessionToLoad]);
 
   const handlePdf = async (print: boolean) => {
     if (!canExport) {
@@ -635,7 +639,7 @@ export default function PaymentReconciliationTab({ data = [] }: PaymentReconcili
   return (
     <div className="p-6 space-y-6">
       <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-100 rounded-2xl p-6 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <div className="flex flex-wrap items-center gap-3 mb-4">
           <div className="flex flex-wrap items-center gap-2 min-w-0">
             <Wallet className="w-6 h-6 text-emerald-600 shrink-0" />
             <h1 className="text-xl font-bold text-slate-800">Payment Reconciliation</h1>
@@ -648,12 +652,6 @@ export default function PaymentReconciliationTab({ data = [] }: PaymentReconcili
               </span>
             )}
           </div>
-          <PaymentReconciliationSessionPicker
-            selectedId={loadedSessionId}
-            refreshKey={sessionsRefreshKey}
-            onSelect={(session) => void handleLoadSession(session)}
-            onClear={handleClearLoadedSession}
-          />
         </div>
 
         <div className="space-y-4">

@@ -9,6 +9,7 @@ export const DEBIT_TAB_LABELS: Record<string, string> = {
   'credit-limit': 'Credit Limit',
   'customers-group': 'Customers Group',
   'payment-reconciliation': 'Payment Reconciliation',
+  'payment-reconciliation-saved': 'Saved Reconciliations',
   'all-transactions': 'All Transactions',
   'customers-open-matches': 'Open Transactions',
   'payment-tracker': 'Payment Tracker',

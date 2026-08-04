@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Calendar, Check, ChevronDown, Filter, MapPin, Users } from 'lucide-react';
+import { Calendar, Check, ChevronDown, FileText, Filter, Loader2, MapPin, Users } from 'lucide-react';
 import { InsightsFilters, InsightsPeriodPreset } from '../Utils/InsightsTypes';
 import CustomersFilterModal from './CustomersFilterModal';
 
@@ -11,13 +11,18 @@ interface InsightsFiltersBarProps {
   customers: string[];
   onChange: (next: InsightsFilters) => void;
   onApply: () => void;
+  onExportPdf?: () => void;
   hasPendingChanges: boolean;
   isApplying?: boolean;
+  isExportingPdf?: boolean;
+  canExportPdf?: boolean;
 }
 
 const PERIOD_OPTIONS: { value: InsightsPeriodPreset; label: string }[] = [
   { value: 'trailing12m', label: 'Trailing 12M' },
   { value: 'ytd', label: 'Year to Date' },
+  { value: 'trailing6m', label: 'Last 6 Months' },
+  { value: 'trailing3m', label: 'Last 3 Months' },
   { value: 'custom', label: 'Custom Range' },
 ];
 
@@ -229,8 +234,11 @@ export default function InsightsFiltersBar({
   customers,
   onChange,
   onApply,
+  onExportPdf,
   hasPendingChanges,
   isApplying = false,
+  isExportingPdf = false,
+  canExportPdf = true,
 }: InsightsFiltersBarProps) {
   const isApplyActive = hasPendingChanges || isApplying;
   const [customersOpen, setCustomersOpen] = useState(false);
@@ -359,6 +367,32 @@ export default function InsightsFiltersBar({
             )}
           </button>
         </div>
+
+        {onExportPdf && (
+          <div className="shrink-0">
+            <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1.5">
+              &nbsp;
+            </label>
+            <button
+              type="button"
+              onClick={onExportPdf}
+              disabled={!canExportPdf || isExportingPdf || isApplying}
+              title="Export ZIP (All + each city)"
+              aria-label={isExportingPdf ? 'Generating ZIP' : 'Export ZIP'}
+              className={`flex items-center justify-center w-[42px] h-[42px] rounded-xl transition-all shadow-sm border ${
+                canExportPdf && !isExportingPdf
+                  ? 'bg-red-50 border-red-200 text-red-600 hover:bg-red-100 hover:border-red-300 hover:text-red-700'
+                  : 'bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed'
+              }`}
+            >
+              {isExportingPdf ? (
+                <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+              ) : (
+                <FileText className="w-4 h-4 shrink-0" />
+              )}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
