@@ -61,7 +61,7 @@ export default function CustomersFilterModal({
       <button
         type="button"
         aria-label="Close customers filter"
-        className="absolute inset-0 bg-slate-900/40 backdrop-blur-[1px]"
+        className="absolute inset-0 bg-slate-900/20 backdrop-blur-[2px]"
         onClick={onClose}
       />
 

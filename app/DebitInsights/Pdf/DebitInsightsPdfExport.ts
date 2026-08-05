@@ -158,22 +158,38 @@ export type DebitInsightsZipOptions = {
   rows: InvoiceRow[];
   filters: InsightsFilters;
   cities: string[];
+  /** When set, only these scopes are exported. Cities should already be sorted. */
+  selection?: {
+    includeAll: boolean;
+    cities: string[];
+  };
   userId?: string;
   onProgress?: (current: number, total: number, label?: string) => void;
 };
 
 export async function exportDebitInsightsPdfZip(options: DebitInsightsZipOptions): Promise<void> {
-  const { rows, filters, onProgress, userId } = options;
+  const { rows, filters, onProgress, userId, selection } = options;
   const JSZip = (await import('jszip')).default;
   const zip = new JSZip();
   const dateStamp = fileDateStamp(new Date());
 
-  const cities =
+  const availableCities =
     filters.salesRep.length > 0
       ? [...filters.salesRep].sort((a, b) => a.localeCompare(b))
       : [...options.cities].sort((a, b) => a.localeCompare(b));
 
-  const total = 1 + cities.length;
+  const includeAll = selection ? selection.includeAll : true;
+  const cities = selection
+    ? [...selection.cities]
+        .filter((city) => availableCities.includes(city))
+        .sort((a, b) => a.localeCompare(b))
+    : availableCities;
+
+  if (!includeAll && cities.length === 0) {
+    throw new Error('Select at least one PDF to export.');
+  }
+
+  const total = (includeAll ? 1 : 0) + cities.length;
   let current = 0;
   const tick = (label?: string) => {
     current += 1;
@@ -216,11 +232,13 @@ export async function exportDebitInsightsPdfZip(options: DebitInsightsZipOptions
       salesByCity = batch.byCity;
     }
 
-    const allMetrics = buildMetricsLocal(rows, allFilters, allSalesOverlay);
-    const allBlob = await generateDebitInsightsPdfBlob(allMetrics, allFilters, container);
-    zip.file(`Debit_Insights_All_${dateStamp}.pdf`, allBlob);
-    tick('All');
-    await yieldToBrowser();
+    if (includeAll) {
+      const allMetrics = buildMetricsLocal(rows, allFilters, allSalesOverlay);
+      const allBlob = await generateDebitInsightsPdfBlob(allMetrics, allFilters, container);
+      zip.file(`Debit_Insights_All_${dateStamp}.pdf`, allBlob);
+      tick('All');
+      await yieldToBrowser();
+    }
 
     for (const city of cities) {
       const cityFilters: InsightsFilters = {

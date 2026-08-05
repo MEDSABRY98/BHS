@@ -10,7 +10,10 @@ import { collectCustomers } from './Utils/AsOfLedgerEngine';
 import { InsightsFilters, InsightsSalesOverlay } from './Utils/InsightsTypes';
 import { toInputDate } from './Utils/DateUtils';
 import { applySalesNetOverlay } from './Utils/SalesSourceOverlay';
-import InsightsFiltersBar from './Module/InsightsFiltersBar';
+import InsightsFiltersPanel from './Module/InsightsFiltersPanel';
+import InsightsExportScopeModal, {
+  type InsightsExportSelection,
+} from './Module/InsightsExportScopeModal';
 import InsightsKpiCards from './Cards/InsightsKpiCards';
 import DebtTrendChart from './Charts/DebtTrendChart';
 import SalesCollectionsChart from './Charts/SalesCollectionsChart';
@@ -19,9 +22,20 @@ import AgingBreakdownChart from './Charts/AgingBreakdownChart';
 import { exportDebitInsightsPdfZip } from './Export/PdfExport';
 import { fetchSalesOverlayForFilters } from './Service/insights_service';
 
+export type DebitInsightsChromeState = {
+  filtersActive: boolean;
+  filtersPending: boolean;
+  exportingPdf: boolean;
+  canExportPdf: boolean;
+  onExportPdf: () => void;
+};
+
 interface DebitInsightsDashboardProps {
   data: InvoiceRow[];
   loading: boolean;
+  filtersOpen: boolean;
+  onFiltersOpenChange: (open: boolean) => void;
+  onChromeChange?: (state: DebitInsightsChromeState) => void;
 }
 
 function defaultFilters(): InsightsFilters {
@@ -71,11 +85,15 @@ function readUserId(): string {
 export default function DebitInsightsDashboard({
   data,
   loading,
+  filtersOpen,
+  onFiltersOpenChange,
+  onChromeChange,
 }: DebitInsightsDashboardProps) {
   const [draftFilters, setDraftFilters] = useState<InsightsFilters>(defaultFilters);
   const [appliedFilters, setAppliedFilters] = useState<InsightsFilters>(defaultFilters);
   const [isApplying, startTransition] = useTransition();
   const [exportingPdf, setExportingPdf] = useState(false);
+  const [exportScopeOpen, setExportScopeOpen] = useState(false);
   const [salesOverlay, setSalesOverlay] = useState<InsightsSalesOverlay | null>(null);
   const [salesLoading, setSalesLoading] = useState(false);
   const debitMetrics = useDebitInsightsMetrics(data, appliedFilters);
@@ -91,6 +109,11 @@ export default function DebitInsightsDashboard({
     [data, draftFilters.salesRep]
   );
   const hasPendingChanges = !filtersEqual(draftFilters, appliedFilters);
+  const filtersActive =
+    appliedFilters.salesRep.length > 0 ||
+    appliedFilters.customers.length > 0 ||
+    appliedFilters.salesSource !== 'debit' ||
+    appliedFilters.periodPreset !== 'trailing12m';
 
   useEffect(() => {
     if (appliedFilters.salesSource !== 'sales') {
@@ -139,8 +162,19 @@ export default function DebitInsightsDashboard({
     setDraftFilters(next);
   };
 
-  const handleExportPdf = async () => {
+  const availableExportCities = useMemo(() => {
+    const list =
+      appliedFilters.salesRep.length > 0 ? appliedFilters.salesRep : salesReps;
+    return [...list].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+  }, [appliedFilters.salesRep, salesReps]);
+
+  const handleExportPdf = async (selection: InsightsExportSelection) => {
     if (exportingPdf || data.length === 0 || salesLoading) return;
+    if (!selection.includeAll && selection.cities.length === 0) {
+      toast.error('Select at least one PDF to export.');
+      return;
+    }
+
     setExportingPdf(true);
     const loadingId = toast.loading('Generating ZIP...');
     try {
@@ -148,6 +182,7 @@ export default function DebitInsightsDashboard({
         rows: data,
         filters: appliedFilters,
         cities: salesReps,
+        selection,
         userId: readUserId(),
         onProgress: (current, total, label) => {
           toast.loading(`Generating PDF ${current}/${total}${label ? ` — ${label}` : ''}...`, {
@@ -157,6 +192,7 @@ export default function DebitInsightsDashboard({
       });
       toast.dismiss(loadingId);
       toast.success('ZIP exported successfully.');
+      setExportScopeOpen(false);
     } catch (error) {
       console.error('Debit Insights PDF export failed:', error);
       toast.dismiss(loadingId);
@@ -170,6 +206,24 @@ export default function DebitInsightsDashboard({
     }
   };
 
+  useEffect(() => {
+    onChromeChange?.({
+      filtersActive,
+      filtersPending: hasPendingChanges,
+      exportingPdf,
+      canExportPdf: !loading && !salesLoading && data.length > 0,
+      onExportPdf: () => setExportScopeOpen(true),
+    });
+  }, [
+    filtersActive,
+    hasPendingChanges,
+    exportingPdf,
+    loading,
+    salesLoading,
+    data.length,
+    onChromeChange,
+  ]);
+
   if (loading && data.length === 0) {
     return <TabLoader />;
   }
@@ -182,7 +236,9 @@ export default function DebitInsightsDashboard({
 
   return (
     <div className="space-y-4">
-      <InsightsFiltersBar
+      <InsightsFiltersPanel
+        open={filtersOpen}
+        onClose={() => onFiltersOpenChange(false)}
         filters={draftFilters}
         salesReps={salesReps}
         customers={availableCustomers}
@@ -193,11 +249,18 @@ export default function DebitInsightsDashboard({
             toast.success('Filters applied.');
           });
         }}
-        onExportPdf={() => void handleExportPdf()}
         hasPendingChanges={hasPendingChanges}
         isApplying={busy}
-        isExportingPdf={exportingPdf}
-        canExportPdf={!loading && !salesLoading && data.length > 0}
+      />
+
+      <InsightsExportScopeModal
+        open={exportScopeOpen}
+        onClose={() => {
+          if (!exportingPdf) setExportScopeOpen(false);
+        }}
+        cities={availableExportCities}
+        isExporting={exportingPdf}
+        onConfirm={(selection) => void handleExportPdf(selection)}
       />
 
       {salesLoading && (
