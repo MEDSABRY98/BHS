@@ -13,20 +13,15 @@ import type {
   InsightsFilters,
   InsightsSalesOverlay,
 } from '@/app/DebitInsights/Utils/InsightsTypes';
-import {
-  getInsightsSalesOverlay,
-  type InsightsSalesOverlayInput,
-} from '@/app/DebitInsights/Service/insights_sales_service';
+import { getInsightsSalesOverlay } from '@/app/DebitInsights/Service/insights_sales_service';
 
-export type { InsightsSalesOverlayInput };
-
-export interface DebitInsightsDataResult {
+interface DebitInsightsDataResult {
   success: boolean;
   data: InvoiceRow[];
   error?: string;
 }
 
-export interface DebitInsightsComputeInput {
+interface DebitInsightsComputeInput {
   rows: InvoiceRow[];
   filters: InsightsFilters;
   userId?: string;
@@ -96,6 +91,3 @@ export async function fetchSalesOverlayForFilters(
     customers: filters.customers,
   });
 }
-
-/** Re-export sales overlay entry for Insights callers. */
-export { getInsightsSalesOverlay };

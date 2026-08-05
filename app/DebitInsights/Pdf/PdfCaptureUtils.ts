@@ -110,7 +110,7 @@ export function createOffScreenContainer(): HTMLDivElement {
 export async function capturePage(element: HTMLElement): Promise<string> {
   const html2canvas = (await import('html2canvas')).default;
   const canvas = await html2canvas(element, {
-    scale: 2,
+    scale: 1.5,
     useCORS: true,
     logging: false,
     backgroundColor: '#ffffff',
@@ -124,7 +124,7 @@ export async function capturePage(element: HTMLElement): Promise<string> {
       }
     },
   });
-  return canvas.toDataURL('image/jpeg', 0.95);
+  return canvas.toDataURL('image/jpeg', 0.85);
 }
 
 export function waitForRender(ms = PDF_RENDER_WAIT_MS): Promise<void> {

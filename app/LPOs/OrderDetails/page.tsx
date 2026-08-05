@@ -67,8 +67,7 @@ function OrderDetailsPageContent() {
         .from('app_lpos_ORDERS')
         .select(`
           *,
-          bhs_CUSTOMERS ( *, "CUSTOMER NAME":"CUSTOMER SUB NAME" ),
-          bhs_USERS ( "NAME" )
+          bhs_CUSTOMERS ( *, "CUSTOMER NAME":"CUSTOMER SUB NAME" )
         `)
         .or(`ID.eq.${id},ORDER_ID.eq.${id}`)
         .maybeSingle();

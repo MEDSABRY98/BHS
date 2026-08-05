@@ -75,6 +75,7 @@ import {
   getPaymentAmount,
   parseInvoiceDate,
   compareInvoicesByDateAsc,
+  sortInvoicesByDateThenNumber,
   shortenInvoiceNumber,
   renderNoteWithLinks,
   autoResizeTextarea,
@@ -1697,8 +1698,9 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
 
   const exportToExcel = async (invoicesToExport: any[], monthsLabel: string) => {
     const headers = ['Date', 'Type', 'Invoice Number', 'Debit', 'Credit', 'Net Debt'];
+    const sortedForExport = sortInvoicesByDateThenNumber(invoicesToExport);
 
-    const rows = invoicesToExport.map(inv => {
+    const rows = sortedForExport.map(inv => {
       const dateStr = inv.date ? (() => {
         const d = new Date(inv.date);
         if (isNaN(d.getTime())) return '';

@@ -62,7 +62,6 @@ export default function CreateOrderPage() {
 
   // Form State for the current entry
   const [formData, setFormData] = useState({
-    CREATED_BY: '',
     CUSTOMER_ID: '',
     LPO_ID: '',
     INVOICE_ID: '',
@@ -89,25 +88,6 @@ export default function CreateOrderPage() {
 
       setUsers(users);
       setCustomers(customers);
-
-      // Auto-set the logged-in user as the Sales Rep by matching NAME
-      const storedUser = localStorage.getItem('currentUser');
-      if (storedUser) {
-        try {
-          const userData = JSON.parse(storedUser);
-          const userName = userData.name || userData.NAME;
-
-          if (userName) {
-            // Find the corresponding user in the Supabase users table to get their ID
-            const dbUser = users.find(u => u.NAME.toLowerCase() === userName.toLowerCase());
-            if (dbUser) {
-              setFormData(prev => ({ ...prev, CREATED_BY: dbUser.ID }));
-            }
-          }
-        } catch (e) {
-          console.error('Error parsing stored user:', e);
-        }
-      }
     } catch (err) {
       console.error('Error fetching data:', err);
     } finally {
@@ -159,20 +139,18 @@ export default function CreateOrderPage() {
     }
 
     const customer = customers.find(c => c['CUSTOMER ID'] === formData.CUSTOMER_ID);
-    const user = users.find(u => u.ID === formData.CREATED_BY);
     const matchedDriver = users.find(u => u.ID === formData.DRIVER_ID);
 
     const newOrder = {
       ...formData,
       tempId: Math.random().toString(36).substr(2, 9),
       customerName: customer?.["CUSTOMER NAME"],
-      userName: user?.NAME || 'Current User',
       driverId: formData.DRIVER_ID || null,
       driverName: matchedDriver?.NAME || ''
     };
 
     setPendingOrders([...pendingOrders, newOrder]);
-    // Reset fields but keep Sales Rep
+    // Reset fields for next entry
     setFormData(prev => ({
       ...prev,
       CUSTOMER_ID: '',
@@ -240,7 +218,7 @@ export default function CreateOrderPage() {
       const baseNum = parseInt(startId.split('-')[1]);
 
       const tempIdToOrderId: Record<string, string> = {};
-      const ordersToInsert = pendingOrders.map(({ tempId, customerName, userName, driverId, driverName, DRIVER_ID, ...rest }, index) => {
+      const ordersToInsert = pendingOrders.map(({ tempId, customerName, driverId, driverName, DRIVER_ID, ...rest }, index) => {
         const currentPkId = `R-${(baseNum + index).toString().padStart(4, '0')}`;
         const currentOrderId = `ONI-${(baseNum + index).toString().padStart(4, '0')}`;
         tempIdToOrderId[tempId] = currentOrderId;
@@ -492,14 +470,12 @@ export default function CreateOrderPage() {
               }
 
               newPendingOrders.push({
-                CREATED_BY: formData.CREATED_BY,
                 CUSTOMER_ID: customer['CUSTOMER ID'],
                 LPO_ID: lpoId || '',
                 INVOICE_ID: invoiceId || '',
                 AMOUNT: row["Amount"] || 0,
                 tempId: Math.random().toString(36).substr(2, 9),
                 customerName: customer["CUSTOMER NAME"],
-                userName: users.find(u => u.ID === formData.CREATED_BY)?.NAME || 'Current User',
                 driverId: driverId,
                 driverName: matchedDriverName,
                 ORDER_DATE: parsedOrderDate

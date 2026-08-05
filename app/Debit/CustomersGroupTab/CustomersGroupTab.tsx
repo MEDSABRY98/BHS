@@ -16,7 +16,7 @@ import { saveTrackedPdf } from '@/app/Audit/Utils/TrackedDownload';
 import { InvoiceRow } from '@/types';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import FilterBar from '../CustomerDetailsTab/FilterBar';
-import { isPaymentTxn } from '../CustomerDetailsTab/Utils';
+import { isPaymentTxn, sortInvoicesByDateThenNumber } from '../CustomerDetailsTab/Utils';
 import { getInvoiceType } from '@/app/Debit/Utils/InvoiceType';
 import { printPdfInSameTab } from '@/app/LPOs/Pdf/DeliveryUtils';
 
@@ -676,12 +676,8 @@ export default function CustomersGroupTab({ data }: CustomersGroupTabProps) {
     doc.text(`Date Generated: ${currentDate}`, margin, yPosition);
     yPosition += 8;
 
-    // Sort by date (oldest first)
-    const sortedInvoices = [...invoicesForSummary].sort((a, b) => {
-      const dateA = a.date ? new Date(a.date).getTime() : 0;
-      const dateB = b.date ? new Date(b.date).getTime() : 0;
-      return dateA - dateB;
-    });
+    // Sort by date, then invoice number (oldest first)
+    const sortedInvoices = sortInvoicesByDateThenNumber(invoicesForSummary);
 
     // Prepare table data
     const tableData = sortedInvoices.map((inv) => {
@@ -788,12 +784,8 @@ export default function CustomersGroupTab({ data }: CustomersGroupTabProps) {
     }
     const headers = ['Customer Name', 'Date', 'Type', 'Number', 'Debit', 'Credit', 'Net Debt', 'Matching', 'Days Overdue'];
 
-    // Sort by date (oldest first)
-    const sortedExcelInvoices = [...invoicesForSummary].sort((a, b) => {
-      const dateA = a.date ? new Date(a.date).getTime() : 0;
-      const dateB = b.date ? new Date(b.date).getTime() : 0;
-      return dateA - dateB;
-    });
+    // Sort by date, then invoice number (oldest first)
+    const sortedExcelInvoices = sortInvoicesByDateThenNumber(invoicesForSummary);
 
     const rows = sortedExcelInvoices.map(inv => {
       let dateStr = '';

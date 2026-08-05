@@ -34,14 +34,30 @@ export const getInvoiceDateTimestamp = (inv: {
   return parsed && !isNaN(parsed.getTime()) ? parsed.getTime() : 0;
 };
 
-export const compareInvoicesByDateAsc = (
-  a: { parsedDate?: Date | null; date?: string | null; originalIndex?: number },
-  b: { parsedDate?: Date | null; date?: string | null; originalIndex?: number },
-): number => {
+export type InvoiceSortable = {
+  parsedDate?: Date | null;
+  date?: string | null;
+  number?: string | null;
+  originalIndex?: number;
+};
+
+/** Ascending: date → invoice number → original index. */
+export const compareInvoicesByDateAsc = (a: InvoiceSortable, b: InvoiceSortable): number => {
   const dateDiff = getInvoiceDateTimestamp(a) - getInvoiceDateTimestamp(b);
   if (dateDiff !== 0) return dateDiff;
+
+  const numDiff = String(a.number || '').localeCompare(String(b.number || ''), undefined, {
+    numeric: true,
+    sensitivity: 'base',
+  });
+  if (numDiff !== 0) return numDiff;
+
   return (a.originalIndex ?? 0) - (b.originalIndex ?? 0);
 };
+
+export function sortInvoicesByDateThenNumber<T extends InvoiceSortable>(invoices: T[]): T[] {
+  return [...invoices].sort(compareInvoicesByDateAsc);
+}
 
 export const parseInvoiceDate = (dateStr?: string | null): Date | null => {
   if (!dateStr) return null;

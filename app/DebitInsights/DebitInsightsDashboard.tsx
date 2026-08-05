@@ -160,7 +160,11 @@ export default function DebitInsightsDashboard({
     } catch (error) {
       console.error('Debit Insights PDF export failed:', error);
       toast.dismiss(loadingId);
-      toast.error('Failed to export ZIP.');
+      const message =
+        error instanceof Error && error.message
+          ? error.message
+          : 'Failed to export ZIP.';
+      toast.error(message);
     } finally {
       setExportingPdf(false);
     }

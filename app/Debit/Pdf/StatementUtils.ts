@@ -3,6 +3,7 @@
 import { getInvoiceType } from '@/app/Debit/Utils/InvoiceType';
 import { addArabicFont, TYPE_BADGE_COLORS } from '@/app/Components/Pdf/shared';
 import { saveTrackedPdf } from '@/app/Audit/Utils/TrackedDownload';
+import { sortInvoicesByDateThenNumber } from '@/app/Debit/CustomerDetailsTab/Utils';
 
 export async function generateAccountStatementPDF(
   customerName: string,
@@ -59,11 +60,13 @@ export async function generateAccountStatementPDF(
   doc.setFont('helvetica', 'normal');
   const now = new Date();
   const currentDate = `${now.getDate()}-${now.toLocaleDateString('en-US', { month: 'short' })}-${now.getFullYear()}`;
+
+  const sortedInvoices = sortInvoicesByDateThenNumber(invoices);
   
   let balanceDateStr = '';
-  for (let i = invoices.length - 1; i >= 0; i--) {
-    if (invoices[i].date) {
-      const d = new Date(invoices[i].date);
+  for (let i = sortedInvoices.length - 1; i >= 0; i--) {
+    if (sortedInvoices[i].date) {
+      const d = new Date(sortedInvoices[i].date);
       if (!isNaN(d.getTime())) {
         balanceDateStr = `${d.getDate()}-${d.toLocaleDateString('en-US', { month: 'short' })}-${d.getFullYear()}`;
         break;
@@ -76,7 +79,7 @@ export async function generateAccountStatementPDF(
   doc.text(`Date Generated: ${currentDate}   #   Date Balance: ${balanceDateStr}`, margin, yPosition);
   yPosition += 8;
 
-  const tableData = invoices.map((inv) => {
+  const tableData = sortedInvoices.map((inv) => {
     let dateStr = '';
     if (inv.date) {
       const date = new Date(inv.date);
@@ -117,8 +120,8 @@ export async function generateAccountStatementPDF(
     ];
   });
 
-  const totalDebit = invoices.reduce((sum, inv) => sum + inv.debit, 0);
-  const totalCredit = invoices.reduce((sum, inv) => sum + inv.credit, 0);
+  const totalDebit = sortedInvoices.reduce((sum, inv) => sum + inv.debit, 0);
+  const totalCredit = sortedInvoices.reduce((sum, inv) => sum + inv.credit, 0);
   const totalNetDebt = totalDebit - totalCredit;
 
   const tableOptions = {
@@ -163,7 +166,7 @@ export async function generateAccountStatementPDF(
         data.cell.styles.textColor = 255;
         return;
       }
-      const inv = invoices[data.row.index];
+      const inv = sortedInvoices[data.row.index];
       const isReturnPayment = inv && getInvoiceType(inv) === 'R-Payment';
       if (isReturnPayment && data.column.index !== 1) {
         data.cell.styles.fillColor = [255, 235, 235];
@@ -178,14 +181,14 @@ export async function generateAccountStatementPDF(
         }
       }
       if (data.column.index === 5 && data.row.index < tableData.length) {
-        const nd = invoices[data.row.index].netDebt;
+        const nd = sortedInvoices[data.row.index].netDebt;
         if (nd > 0) data.cell.styles.textColor = [204, 0, 0];
         else if (nd < 0) data.cell.styles.textColor = [0, 153, 0];
       }
     },
     didDrawCell: function (data: any) {
       if (data.section === 'body' && data.column.index === 1 && data.row.index < tableData.length) {
-        const inv = invoices[data.row.index];
+        const inv = sortedInvoices[data.row.index];
         if (!inv) return;
         const text = Array.isArray(data.cell.text) ? data.cell.text.join('') : data.cell.text;
         if (!text || !text.trim() || text === '-') return; // Don't draw badge for empty text or dash
@@ -276,7 +279,8 @@ export async function generateBulkCustomerStatementsPDF(
   await addArabicFont(doc);
 
   for (let i = 0; i < statements.length; i++) {
-    const { customerName, invoices } = statements[i];
+    const { customerName, invoices: rawInvoices } = statements[i];
+    const invoices = sortInvoicesByDateThenNumber(rawInvoices);
     if (i > 0) doc.addPage();
     const startPage = doc.getNumberOfPages();
 
@@ -314,9 +318,9 @@ export async function generateBulkCustomerStatementsPDF(
     const currentDate = `${now.getDate()}-${now.toLocaleDateString('en-US', { month: 'short' })}-${now.getFullYear()}`;
     
     let balanceDateStr = '';
-    for (let i = invoices.length - 1; i >= 0; i--) {
-      if (invoices[i].date) {
-        const d = new Date(invoices[i].date);
+    for (let idx = invoices.length - 1; idx >= 0; idx--) {
+      if (invoices[idx].date) {
+        const d = new Date(invoices[idx].date);
         if (!isNaN(d.getTime())) {
           balanceDateStr = `${d.getDate()}-${d.toLocaleDateString('en-US', { month: 'short' })}-${d.getFullYear()}`;
           break;
@@ -517,7 +521,7 @@ export async function generateMonthlySeparatedPDF(
 
   for (let i = 0; i < sortedKeys.length; i++) {
     const key = sortedKeys[i];
-    const monthInvoices = invoicesByMonth[key];
+    const monthInvoices = sortInvoicesByDateThenNumber(invoicesByMonth[key]);
     const [yearStr, monthStr] = key.split('-');
     const dateObj = new Date(parseInt(yearStr), parseInt(monthStr) - 1);
     const monthLabel = dateObj.toLocaleString('en-US', { month: 'long', year: 'numeric' });

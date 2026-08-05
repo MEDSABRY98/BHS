@@ -1,5 +1,6 @@
 ﻿import { InvoiceRow } from '@/types';
 import { getInvoiceType } from './CstomersUtils';
+import { sortInvoicesByDateThenNumber } from '@/app/Debit/CustomerDetailsTab/Utils';
 
 export const generateSingleCustomerExcelBlob = async (customerName: string, invoices: InvoiceRow[], isShortInvoiceId: boolean = true): Promise<Blob> => {
   const ExcelJS = (await import('exceljs')).default;
@@ -69,7 +70,8 @@ export const generateSingleCustomerExcelBlob = async (customerName: string, invo
 
   // Data Rows
   let currentRowNum = 3;
-  invoices.forEach(inv => {
+  const sortedInvoices = sortInvoicesByDateThenNumber(invoices);
+  sortedInvoices.forEach(inv => {
     const row = ws.getRow(currentRowNum);
     row.height = 30;
     

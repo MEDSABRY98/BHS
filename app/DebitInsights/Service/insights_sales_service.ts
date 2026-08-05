@@ -17,6 +17,22 @@ export type InsightsSalesOverlayInput = {
   customers: string[];
 };
 
+export type InsightsSalesOverlayBatchInput = {
+  userId: string;
+  periodFrom: string;
+  periodTo: string;
+  /** Cities to build per-city overlays for (export list). */
+  cities: string[];
+  /** Combined "All" scope cities — empty means all cities. */
+  allCities: string[];
+  customers: string[];
+};
+
+export type InsightsSalesOverlayBatch = {
+  all: InsightsSalesOverlay;
+  byCity: Record<string, InsightsSalesOverlay>;
+};
+
 function isSalesOrReturn(invoiceNumber?: string | null): boolean {
   const num = (invoiceNumber || '').toString().toUpperCase().trim();
   return num.startsWith('SAL') || num.startsWith('RSAL');
@@ -76,39 +92,80 @@ function sumAmountInRange(
   return total;
 }
 
-const EMPTY_OVERLAY: InsightsSalesOverlay = {
+const EMPTY_SALES_OVERLAY: InsightsSalesOverlay = {
   periodNetSales: 0,
   priorYearNetSales: 0,
   monthly: [],
 };
 
+function buildOverlay(
+  rows: any[],
+  from: Date,
+  to: Date,
+  cities: string[],
+  customers: string[]
+): InsightsSalesOverlay {
+  const priorFrom = shiftYears(from, -1);
+  const priorTo = shiftYears(to, -1);
+  const monthlyMap = new Map<string, number>();
+
+  const periodNetSales = sumAmountInRange(rows, from, to, cities, customers, monthlyMap);
+  const priorYearNetSales = sumAmountInRange(rows, priorFrom, priorTo, cities, customers);
+
+  const monthly = Array.from(monthlyMap.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([month, netSales]) => ({ month, netSales }));
+
+  return { periodNetSales, priorYearNetSales, monthly };
+}
+
 export async function getInsightsSalesOverlay(
   input: InsightsSalesOverlayInput
 ): Promise<InsightsSalesOverlay> {
   const userId = String(input.userId || '').trim();
-  if (!userId) return EMPTY_OVERLAY;
+  if (!userId) return EMPTY_SALES_OVERLAY;
 
   const from = startOfDay(input.periodFrom);
   const to = endOfDay(input.periodTo);
-  const priorFrom = shiftYears(from, -1);
-  const priorTo = shiftYears(to, -1);
   const cities = input.cities || [];
   const customers = input.customers || [];
 
   try {
     const rows = await getFilteredSalesData(userId);
-    const monthlyMap = new Map<string, number>();
-
-    const periodNetSales = sumAmountInRange(rows, from, to, cities, customers, monthlyMap);
-    const priorYearNetSales = sumAmountInRange(rows, priorFrom, priorTo, cities, customers);
-
-    const monthly = Array.from(monthlyMap.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([month, netSales]) => ({ month, netSales }));
-
-    return { periodNetSales, priorYearNetSales, monthly };
+    return buildOverlay(rows, from, to, cities, customers);
   } catch (error) {
     console.error('getInsightsSalesOverlay failed:', error);
-    return EMPTY_OVERLAY;
+    return EMPTY_SALES_OVERLAY;
+  }
+}
+
+/**
+ * One Sales DB load → overlays for All + each city (for ZIP export).
+ */
+export async function getInsightsSalesOverlayBatch(
+  input: InsightsSalesOverlayBatchInput
+): Promise<InsightsSalesOverlayBatch> {
+  const userId = String(input.userId || '').trim();
+  if (!userId) {
+    return { all: EMPTY_SALES_OVERLAY, byCity: {} };
+  }
+
+  const from = startOfDay(input.periodFrom);
+  const to = endOfDay(input.periodTo);
+  const customers = input.customers || [];
+  const cities = input.cities || [];
+  const allCities = input.allCities || [];
+
+  try {
+    const rows = await getFilteredSalesData(userId);
+    const all = buildOverlay(rows, from, to, allCities, customers);
+    const byCity: Record<string, InsightsSalesOverlay> = {};
+    cities.forEach((city) => {
+      byCity[city] = buildOverlay(rows, from, to, [city], customers);
+    });
+    return { all, byCity };
+  } catch (error) {
+    console.error('getInsightsSalesOverlayBatch failed:', error);
+    return { all: EMPTY_SALES_OVERLAY, byCity: {} };
   }
 }

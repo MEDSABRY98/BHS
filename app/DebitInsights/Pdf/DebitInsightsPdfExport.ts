@@ -3,12 +3,20 @@
 import { createElement, type ReactElement } from 'react';
 import { InvoiceRow } from '@/types';
 import { saveTrackedAs } from '@/app/Audit/Utils/TrackedDownload';
-import type { DebitInsightsMetrics, InsightsFilters } from '../Utils/InsightsTypes';
-import { computeDebitInsightsMetrics } from '../Service/insights_service';
+import { computeDebitInsights, resolvePeriodRange } from '../Utils/AsOfLedgerEngine';
+import { applySalesNetOverlay } from '../Utils/SalesSourceOverlay';
+import { toInputDate } from '../Utils/DateUtils';
+import type {
+  DebitInsightsMetrics,
+  InsightsFilters,
+  InsightsSalesOverlay,
+} from '../Utils/InsightsTypes';
+import { getInsightsSalesOverlayBatch } from '../Service/insights_sales_service';
 import {
   capturePage,
   createOffScreenContainer,
   formatGeneratedDate,
+  PDF_RENDER_WAIT_MS,
   waitForRender,
 } from './PdfCaptureUtils';
 import CoverPage from './Pages/CoverPage';
@@ -31,12 +39,20 @@ function sanitizeFileName(name: string): string {
   return name.replace(/[<>:"/\\|?*]/g, '').replace(/\s+/g, '_').trim() || 'Unknown';
 }
 
-async function buildMetricsWithSalesSource(
+function yieldToBrowser(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+function buildMetricsLocal(
   rows: InvoiceRow[],
   filters: InsightsFilters,
-  userId?: string
-): Promise<DebitInsightsMetrics> {
-  return computeDebitInsightsMetrics({ rows, filters, userId });
+  salesOverlay?: InsightsSalesOverlay | null
+): DebitInsightsMetrics {
+  const metrics = computeDebitInsights(rows, filters);
+  if (filters.salesSource === 'sales' && salesOverlay) {
+    return applySalesNetOverlay(metrics, salesOverlay);
+  }
+  return metrics;
 }
 
 function buildPages(
@@ -107,10 +123,12 @@ export async function generateDebitInsightsPdfBlob(
     for (const page of pages) {
       const root = ReactDOM.createRoot(renderContainer);
       root.render(page);
-      await waitForRender();
+      // Charts disable animation; shorter wait is enough and safer on live tabs
+      await waitForRender(Math.min(PDF_RENDER_WAIT_MS, 900));
       const imgData = await capturePage(renderContainer);
       images.push(imgData);
       root.unmount();
+      await yieldToBrowser();
     }
 
     const pdf = new jsPDF({
@@ -169,23 +187,58 @@ export async function exportDebitInsightsPdfZip(options: DebitInsightsZipOptions
       ...filters,
       salesRep: filters.salesRep.length > 0 ? filters.salesRep : [],
     };
-    const allMetrics = await buildMetricsWithSalesSource(rows, allFilters, userId);
+
+    // Sales overlays: one lightweight server call (no debit rows over the wire).
+    // Debit metrics stay fully client-side to avoid live payload/timeout failures.
+    let allSalesOverlay: InsightsSalesOverlay | null = null;
+    let salesByCity: Record<string, InsightsSalesOverlay> = {};
+
+    if (filters.salesSource === 'sales') {
+      const uid = String(userId || '').trim();
+      if (!uid) {
+        throw new Error('Unable to export Sales DB ZIP: user not found.');
+      }
+      const { from, to } = resolvePeriodRange(
+        filters.asOfDate,
+        filters.periodPreset,
+        filters.periodFrom,
+        filters.periodTo
+      );
+      const batch = await getInsightsSalesOverlayBatch({
+        userId: uid,
+        periodFrom: toInputDate(from),
+        periodTo: toInputDate(to),
+        cities,
+        allCities: allFilters.salesRep,
+        customers: filters.customers,
+      });
+      allSalesOverlay = batch.all;
+      salesByCity = batch.byCity;
+    }
+
+    const allMetrics = buildMetricsLocal(rows, allFilters, allSalesOverlay);
     const allBlob = await generateDebitInsightsPdfBlob(allMetrics, allFilters, container);
     zip.file(`Debit_Insights_All_${dateStamp}.pdf`, allBlob);
     tick('All');
+    await yieldToBrowser();
 
     for (const city of cities) {
       const cityFilters: InsightsFilters = {
         ...filters,
         salesRep: [city],
       };
-      const cityMetrics = await buildMetricsWithSalesSource(rows, cityFilters, userId);
+      const cityMetrics = buildMetricsLocal(rows, cityFilters, salesByCity[city] ?? null);
       const cityBlob = await generateDebitInsightsPdfBlob(cityMetrics, cityFilters, container);
       zip.file(`Debit_Insights_${sanitizeFileName(city)}_${dateStamp}.pdf`, cityBlob);
       tick(city);
+      await yieldToBrowser();
     }
 
-    const zipBlob = await zip.generateAsync({ type: 'blob' });
+    const zipBlob = await zip.generateAsync({
+      type: 'blob',
+      compression: 'DEFLATE',
+      compressionOptions: { level: 6 },
+    });
     saveTrackedAs(zipBlob, `Debit_Insights_${dateStamp}.zip`);
   } finally {
     if (container.parentNode) {

@@ -6,9 +6,6 @@ import SearchSelect from '../../Components/DropDownList';
 import { toast } from '@/app/Components/Notification';
 import {
   User,
-  CheckCircle2,
-  XCircle,
-  Loader2,
   Calendar,
   Banknote,
   Copy,
@@ -30,7 +27,6 @@ interface OrderInfoTabProps {
 
 type OrderFormData = {
   CUSTOMER_ID: string;
-  CREATED_BY: string;
   INVOICE_ID: string;
   LPO_ID: string;
   ORDER_DATE: string;
@@ -47,7 +43,6 @@ function toDateInputValue(value?: string | null): string {
 function buildFormData(order: any): OrderFormData {
   return {
     CUSTOMER_ID: order.CUSTOMER_ID || '',
-    CREATED_BY: order.CREATED_BY || '',
     INVOICE_ID: order.INVOICE_ID || '',
     LPO_ID: order.LPO_ID || '',
     ORDER_DATE: toDateInputValue(order.ORDER_DATE || order.CREATED_AT),
@@ -62,7 +57,6 @@ const OrderInfoTab = forwardRef<OrderInfoTabHandle, OrderInfoTabProps>(function 
   const [isSaving, setIsSaving] = useState(false);
   const [isLoadingOptions, setIsLoadingOptions] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
-  const [users, setUsers] = useState<any[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
   const [formData, setFormData] = useState<OrderFormData>(() => buildFormData(order));
 
@@ -76,20 +70,16 @@ const OrderInfoTab = forwardRef<OrderInfoTabHandle, OrderInfoTabProps>(function 
     const fetchOptions = async () => {
       setIsLoadingOptions(true);
       try {
-        const [users, customers] = await Promise.all([
-          fetchAllData(() => bhs_supabas.from('bhs_USERS').select('*').order('NAME')),
-          fetchAllData(() =>
-            bhs_supabas
-              .from('bhs_CUSTOMERS')
-              .select('*, "CUSTOMER NAME":"CUSTOMER SUB NAME"')
-              .order('CUSTOMER SUB NAME')
-          ),
-        ]);
-        setUsers(users);
+        const customers = await fetchAllData(() =>
+          bhs_supabas
+            .from('bhs_CUSTOMERS')
+            .select('*, "CUSTOMER NAME":"CUSTOMER SUB NAME"')
+            .order('CUSTOMER SUB NAME')
+        );
         setCustomers(customers);
       } catch (err) {
         console.error('Error loading order info options:', err);
-        toast.error('Failed to load customers and users');
+        toast.error('Failed to load customers');
       } finally {
         setIsLoadingOptions(false);
       }
@@ -107,28 +97,12 @@ const OrderInfoTab = forwardRef<OrderInfoTabHandle, OrderInfoTabProps>(function 
     [customers]
   );
 
-  const userOptions = useMemo(
-    () =>
-      users.map((u) => ({
-        id: u.ID,
-        label: u.NAME,
-      })),
-    [users]
-  );
-
   const selectedCustomerName = useMemo(() => {
     if (isEditing) {
       return customers.find((c) => c['CUSTOMER ID'] === formData.CUSTOMER_ID)?.['CUSTOMER NAME'] || 'None';
     }
     return order.bhs_CUSTOMERS?.['CUSTOMER NAME'] || 'None';
   }, [isEditing, formData.CUSTOMER_ID, customers, order]);
-
-  const selectedSalesRepName = useMemo(() => {
-    if (isEditing) {
-      return users.find((u) => u.ID === formData.CREATED_BY)?.NAME || 'None';
-    }
-    return order.bhs_USERS?.NAME || 'None';
-  }, [isEditing, formData.CREATED_BY, users, order]);
 
   const handleCopy = (text: string, field: string) => {
     navigator.clipboard.writeText(text);
@@ -182,7 +156,6 @@ const OrderInfoTab = forwardRef<OrderInfoTabHandle, OrderInfoTabProps>(function 
 
       const updateData: any = {
         CUSTOMER_ID: formData.CUSTOMER_ID,
-        CREATED_BY: formData.CREATED_BY || null,
         INVOICE_ID: trimmedInvoice || null,
         LPO_ID: trimmedLpo || null,
         ORDER_DATE: orderDateVal,
@@ -226,6 +199,49 @@ const OrderInfoTab = forwardRef<OrderInfoTabHandle, OrderInfoTabProps>(function 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm flex flex-col justify-between hover:border-black transition-all duration-300">
+          <div className="flex items-center justify-between mb-4">
+            <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Order ID</span>
+            <button
+              onClick={() => handleCopy(order.ORDER_ID, 'order_id')}
+              className="w-8 h-8 rounded-xl bg-gray-50 text-gray-400 flex items-center justify-center hover:bg-gray-100 hover:text-black transition-all"
+              title="Copy ID"
+            >
+              {copiedField === 'order_id' ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
+            </button>
+          </div>
+          <div>
+            <h4 className="text-xl font-black text-black tracking-tight">{order.ORDER_ID}</h4>
+            <p className="text-xs font-semibold text-gray-400 mt-1">System reference ID</p>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm flex flex-col justify-between hover:border-black transition-all duration-300">
+          <div className="flex items-center justify-between mb-4">
+            <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Order Date</span>
+            <div className="w-8 h-8 rounded-xl bg-gray-50 text-gray-400 flex items-center justify-center">
+              <Calendar className="w-4 h-4" />
+            </div>
+          </div>
+          {isEditing ? (
+            <input
+              type="date"
+              value={formData.ORDER_DATE}
+              onChange={(e) => setFormData((prev) => ({ ...prev, ORDER_DATE: e.target.value }))}
+              className={inputClass}
+            />
+          ) : (
+            <div>
+              <h4 className="text-lg font-black text-black">
+                {order.ORDER_DATE
+                  ? new Date(order.ORDER_DATE).toLocaleDateString('en-GB')
+                  : new Date(order.CREATED_AT).toLocaleDateString('en-GB')}
+              </h4>
+              <p className="text-xs font-semibold text-gray-400 mt-1">Requested delivery/order date</p>
+            </div>
+          )}
+        </div>
+
         <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm flex flex-col justify-between hover:border-black transition-all duration-300 md:col-span-2">
           <div className="flex items-center justify-between mb-4">
             <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Customer</span>
@@ -249,61 +265,6 @@ const OrderInfoTab = forwardRef<OrderInfoTabHandle, OrderInfoTabProps>(function 
               <p className="text-xs font-semibold text-gray-400 mt-1">Customer account name</p>
             </div>
           )}
-        </div>
-
-        <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm flex flex-col justify-between hover:border-black transition-all duration-300">
-          <div className="flex items-center justify-between mb-4">
-            <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Order Status</span>
-            <div
-              className={`w-8 h-8 rounded-xl flex items-center justify-center ${
-                order.STATUS === 'Approved'
-                  ? 'bg-emerald-50 text-emerald-600'
-                  : order.STATUS === 'Partially Approved'
-                    ? 'bg-teal-50 text-teal-600'
-                    : order.STATUS === 'Rejected'
-                      ? 'bg-red-50 text-red-600'
-                      : 'bg-amber-50 text-amber-600'
-              }`}
-            >
-              {order.STATUS === 'Approved' && <CheckCircle2 className="w-4 h-4" />}
-              {order.STATUS === 'Partially Approved' && <CheckCircle2 className="w-4 h-4" />}
-              {order.STATUS === 'Rejected' && <XCircle className="w-4 h-4" />}
-              {order.STATUS === 'Pending' && <Loader2 className="w-4 h-4 animate-spin" />}
-            </div>
-          </div>
-          <div>
-            <h4
-              className={`text-xl font-black ${
-                order.STATUS === 'Approved'
-                  ? 'text-emerald-600'
-                  : order.STATUS === 'Partially Approved'
-                    ? 'text-teal-600'
-                    : order.STATUS === 'Rejected'
-                      ? 'text-red-600'
-                      : 'text-amber-500'
-              }`}
-            >
-              {order.STATUS}
-            </h4>
-            <p className="text-xs font-semibold text-gray-400 mt-1">Current processing stage</p>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm flex flex-col justify-between hover:border-black transition-all duration-300">
-          <div className="flex items-center justify-between mb-4">
-            <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Order ID</span>
-            <button
-              onClick={() => handleCopy(order.ORDER_ID, 'order_id')}
-              className="w-8 h-8 rounded-xl bg-gray-50 text-gray-400 flex items-center justify-center hover:bg-gray-100 hover:text-black transition-all"
-              title="Copy ID"
-            >
-              {copiedField === 'order_id' ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
-            </button>
-          </div>
-          <div>
-            <h4 className="text-xl font-black text-black tracking-tight">{order.ORDER_ID}</h4>
-            <p className="text-xs font-semibold text-gray-400 mt-1">System reference ID</p>
-          </div>
         </div>
 
         <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm flex flex-col justify-between hover:border-black transition-all duration-300">
@@ -366,45 +327,6 @@ const OrderInfoTab = forwardRef<OrderInfoTabHandle, OrderInfoTabProps>(function 
 
         <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm flex flex-col justify-between hover:border-black transition-all duration-300">
           <div className="flex items-center justify-between mb-4">
-            <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Created At</span>
-            <div className="w-8 h-8 rounded-xl bg-gray-50 text-gray-400 flex items-center justify-center">
-              <Calendar className="w-4 h-4" />
-            </div>
-          </div>
-          <div>
-            <h4 className="text-lg font-black text-black">{new Date(order.CREATED_AT).toLocaleString('en-GB')}</h4>
-            <p className="text-xs font-semibold text-gray-400 mt-1">System registration timestamp</p>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm flex flex-col justify-between hover:border-black transition-all duration-300">
-          <div className="flex items-center justify-between mb-4">
-            <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Order Date</span>
-            <div className="w-8 h-8 rounded-xl bg-gray-50 text-gray-400 flex items-center justify-center">
-              <Calendar className="w-4 h-4" />
-            </div>
-          </div>
-          {isEditing ? (
-            <input
-              type="date"
-              value={formData.ORDER_DATE}
-              onChange={(e) => setFormData((prev) => ({ ...prev, ORDER_DATE: e.target.value }))}
-              className={inputClass}
-            />
-          ) : (
-            <div>
-              <h4 className="text-lg font-black text-black">
-                {order.ORDER_DATE
-                  ? new Date(order.ORDER_DATE).toLocaleDateString('en-GB')
-                  : new Date(order.CREATED_AT).toLocaleDateString('en-GB')}
-              </h4>
-              <p className="text-xs font-semibold text-gray-400 mt-1">Requested delivery/order date</p>
-            </div>
-          )}
-        </div>
-
-        <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm flex flex-col justify-between hover:border-black transition-all duration-300">
-          <div className="flex items-center justify-between mb-4">
             <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Total Amount</span>
             <div className="w-8 h-8 rounded-xl bg-gray-50 text-[#D4AF37] flex items-center justify-center">
               <Banknote className="w-4 h-4" />
@@ -440,27 +362,15 @@ const OrderInfoTab = forwardRef<OrderInfoTabHandle, OrderInfoTabProps>(function 
 
         <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm flex flex-col justify-between hover:border-black transition-all duration-300">
           <div className="flex items-center justify-between mb-4">
-            <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Sales Rep</span>
+            <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Created At</span>
             <div className="w-8 h-8 rounded-xl bg-gray-50 text-gray-400 flex items-center justify-center">
-              <User className="w-4 h-4" />
+              <Calendar className="w-4 h-4" />
             </div>
           </div>
-          {isEditing ? (
-            <SearchSelect
-              label=""
-              options={userOptions}
-              value={formData.CREATED_BY}
-              onChange={(value) => setFormData((prev) => ({ ...prev, CREATED_BY: value }))}
-              placeholder="Select sales rep..."
-              isLoading={isLoadingOptions}
-              heightClass="h-[56px]"
-            />
-          ) : (
-            <div>
-              <h4 className="text-lg font-black text-black truncate">{selectedSalesRepName}</h4>
-              <p className="text-xs font-semibold text-gray-400 mt-1">Responsible account manager</p>
-            </div>
-          )}
+          <div>
+            <h4 className="text-lg font-black text-black">{new Date(order.CREATED_AT).toLocaleString('en-GB')}</h4>
+            <p className="text-xs font-semibold text-gray-400 mt-1">System registration timestamp</p>
+          </div>
         </div>
       </div>
     </div>
