@@ -61,8 +61,8 @@ export function buildPaymentReconciliationSaveLines(
 
   openRows.forEach((row) => {
     if (!appliedByRow.has(row.rowKey)) return;
-    const appliedAmount = appliedByRow.get(row.rowKey) || 0;
-    if (appliedAmount <= 0.009) return;
+    const appliedAmount = appliedByRow.get(row.rowKey);
+    if (appliedAmount === undefined || !Number.isFinite(appliedAmount)) return;
 
     const customerId = customerIdByName.get(normalize(row.customerName)) || '';
     if (!customerId || !row.number.trim()) return;
@@ -96,7 +96,7 @@ export function restoreAppliedByRowFromLoadedLines(
   let openAmountMismatchCount = 0;
 
   loadedLines.forEach((line) => {
-    if (line.appliedAmount <= 0.009) return;
+    if (!Number.isFinite(line.appliedAmount)) return;
 
     const candidates = openRows.filter((row) => {
       const rowCustomerId = customerIdByName.get(normalize(row.customerName)) || '';

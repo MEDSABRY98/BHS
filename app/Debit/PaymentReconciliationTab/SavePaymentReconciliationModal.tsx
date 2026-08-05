@@ -86,8 +86,8 @@ export default function SavePaymentReconciliationModal({
         <div className="px-6 py-5">
           <p className="text-xs font-medium text-slate-500">
             {isUpdate
-              ? 'Changes will overwrite the loaded session. Only allocated invoice lines are saved.'
-              : 'Payment header and allocated invoice lines will be saved for the whole team.'}
+              ? 'Changes will overwrite the loaded session. Every checked invoice line is saved with its applied amount (including zero or negative).'
+              : 'Payment header and every checked invoice line will be saved for the whole team (including zero or negative amounts).'}
           </p>
         </div>
 

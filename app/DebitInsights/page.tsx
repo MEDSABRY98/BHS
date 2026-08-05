@@ -99,7 +99,7 @@ function DebitInsightsContent({ currentUser }: { currentUser: any }) {
   return (
     <div className="flex min-h-screen bg-[#F8F9FA] text-black">
       <aside
-        className={`hidden lg:flex flex-col ${isSidebarCollapsed ? 'w-20' : 'w-72'} bg-[#0a0f1d] text-white shadow-2xl fixed h-screen left-0 top-0 z-50 transition-[width] duration-150 ease-out`}
+        className={`hidden lg:flex flex-col ${isSidebarCollapsed ? 'w-20' : 'w-72'} bg-[#0a0f1d] text-white shadow-2xl fixed h-screen left-0 top-0 z-50 transition-all duration-300`}
       >
         <DebitInsightsSidebar {...sidebarProps} />
       </aside>
@@ -112,7 +112,7 @@ function DebitInsightsContent({ currentUser }: { currentUser: any }) {
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-72 bg-[#0a0f1d] text-white transition-transform duration-150 ease-out transform lg:hidden ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'} flex flex-col`}
+        className={`fixed inset-y-0 left-0 z-50 w-72 bg-[#0a0f1d] text-white transition-transform duration-300 transform lg:hidden ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'} flex flex-col`}
       >
         <DebitInsightsSidebar
           {...sidebarProps}
@@ -123,7 +123,7 @@ function DebitInsightsContent({ currentUser }: { currentUser: any }) {
       </aside>
 
       <div
-        className={`flex-1 flex flex-col min-w-0 ${isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-72'} transition-[margin-left] duration-150 ease-out`}
+        className={`flex-1 flex flex-col min-w-0 ${isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-72'} transition-all duration-300`}
       >
         <div className="lg:hidden p-4 flex items-center bg-white border-b border-slate-200">
           <button

@@ -10,7 +10,7 @@ import CustomersGroupTab from './CustomersGroupTab/CustomersGroupTab';
 import OpenTransactionsTab from './OpenTransactionsTab/OpenTransactionsTab';
 import AllTransactionsTab from './AllTransactionsTab/AllTransactionsTab';
 import PaymentReconciliationTab from './PaymentReconciliationTab/PaymentReconciliationTab';
-import SavedPaymentReconciliationsPageTab from './PaymentReconciliationTab/SavedPaymentReconciliationsPageTab';
+import SavedPaymentReconciliationsPageTab from './SavedReconciliations/SavedPaymentReconciliationsPageTab';
 import PaymentTrackerTab from './PaymentTrackerTab/PaymentTrackerTab';
 import SalesRepsTab from './SalesRepsTab/SalesRepsTab';
 import HistoryTab from './HistoryTab/HistoryTab';
@@ -96,6 +96,11 @@ function DebitPageShell({
     }
   }, [activeTab]);
 
+  const handleRefreshAll = () => {
+    void refresh(true);
+    setSavedSessionsRefreshKey((key) => key + 1);
+  };
+
   const tabAllowed = () => {
     try {
       const perms = JSON.parse(currentUser?.role || '{}');
@@ -154,6 +159,7 @@ function DebitPageShell({
         </TabPanel>
         <TabPanel tabId="payment-reconciliation-saved" activeTab={activeTab} isVisited={visitedTabs.has('payment-reconciliation-saved')}>
           <SavedPaymentReconciliationsPageTab
+            data={data}
             refreshKey={savedSessionsRefreshKey}
             onOpenSession={(session) => {
               setSessionToOpenInReconcile(session);
@@ -211,7 +217,7 @@ function DebitPageShell({
           lastUpdated={lastUpdated}
           isCollapsed={isSidebarCollapsed}
           onToggleCollapse={toggleSidebar}
-          onRefresh={() => refresh(true)}
+          onRefresh={handleRefreshAll}
           isRefreshing={loading || isRefreshing}
         />
       </aside>
@@ -234,7 +240,7 @@ function DebitPageShell({
           isCollapsed={false}
           onToggleCollapse={() => {}}
           onCloseMobile={() => setIsMobileSidebarOpen(false)}
-          onRefresh={() => refresh(true)}
+          onRefresh={handleRefreshAll}
           isRefreshing={loading || isRefreshing}
         />
       </aside>

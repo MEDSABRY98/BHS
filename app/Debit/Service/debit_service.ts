@@ -299,14 +299,11 @@ export async function savePaymentReconciliationSession(input: {
 }) {
   try {
     const lines = input.lines.filter(
-      (line) =>
-        line.customerId.trim() &&
-        line.invoiceNumber.trim() &&
-        line.appliedAmount > 0.009,
+      (line) => line.customerId.trim() && line.invoiceNumber.trim() && Number.isFinite(line.appliedAmount),
     );
 
     if (lines.length === 0) {
-      return { success: false as const, error: 'No invoice lines with applied amount to save' };
+      return { success: false as const, error: 'No checked invoice lines to save' };
     }
 
     if (input.header.paymentAmount <= 0.009) {

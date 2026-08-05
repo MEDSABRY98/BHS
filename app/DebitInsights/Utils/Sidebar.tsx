@@ -54,18 +54,18 @@ export default function DebitInsightsSidebar({
         </button>
       )}
 
-      <div className={`px-4 ${isCollapsed ? 'px-2' : 'px-6'} pt-6 pb-2 shrink-0`}>
+      <div className={`px-4 ${isCollapsed ? 'px-2' : 'px-6'} pt-6 pb-2 shrink-0 transition-all duration-300`}>
         <button
           type="button"
           onClick={() => {
             window.location.href = '/';
           }}
-          className={`flex items-center justify-center ${isCollapsed ? 'gap-0' : 'gap-3'} py-2.5 text-blue-400 hover:text-blue-300 transition-colors duration-150 group w-full cursor-pointer bg-white/5 rounded-xl border border-white/10`}
+          className={`flex items-center justify-center ${isCollapsed ? 'gap-0' : 'gap-3'} py-2.5 text-blue-400 hover:text-blue-300 transition-all duration-200 group w-full cursor-pointer bg-white/5 rounded-xl border border-white/10`}
           title={isCollapsed ? 'Back to Home' : undefined}
         >
-          <ArrowLeft className="w-5 h-5 shrink-0 group-hover:-translate-x-1 transition-transform duration-150" />
+          <ArrowLeft className="w-5 h-5 shrink-0 group-hover:-translate-x-1 transition-transform" />
           {!isCollapsed && (
-            <span className="text-xs font-black uppercase tracking-[0.2em] whitespace-nowrap overflow-hidden">
+            <span className="text-xs font-black uppercase tracking-[0.2em] whitespace-nowrap overflow-hidden transition-all duration-300">
               Back Home
             </span>
           )}
@@ -73,14 +73,14 @@ export default function DebitInsightsSidebar({
       </div>
 
       <div
-        className={`px-4 ${isCollapsed ? 'py-4' : 'pt-2 pb-6'} shrink-0 flex flex-col items-center justify-center border-b border-white/5`}
+        className={`px-4 ${isCollapsed ? 'py-4' : 'pt-2 pb-6'} shrink-0 flex flex-col items-center justify-center transition-all duration-300 border-b border-white/5`}
       >
         <div className="flex flex-col items-center text-center">
-          <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center mb-3 shadow-lg shadow-indigo-950/50">
+          <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center mb-3 shadow-lg shadow-indigo-950/50 transition-all duration-300">
             <BarChart3 className="w-6 h-6 text-white" />
           </div>
           {!isCollapsed && (
-            <div>
+            <div className="animate-in fade-in duration-300">
               <h2 className="text-lg font-bold tracking-tight text-white">Debit Insights</h2>
               <p className="text-[10px] text-blue-400 font-bold tracking-[0.2em] uppercase">BHS Panel</p>
             </div>
@@ -104,7 +104,7 @@ export default function DebitInsightsSidebar({
             onOpenFilters();
             onCloseMobile?.();
           }}
-          className={`w-full flex items-center ${isCollapsed ? 'justify-center px-2' : 'px-4'} py-3.5 rounded-xl transition-colors duration-150 group relative text-slate-400 hover:text-white hover:bg-white/5`}
+          className={`w-full flex items-center ${isCollapsed ? 'justify-center px-2' : 'px-4'} py-3.5 rounded-xl transition-all duration-200 group relative text-slate-400 hover:text-white hover:bg-white/5`}
           title={isCollapsed ? 'Filters' : undefined}
         >
           <span className="relative shrink-0">
@@ -142,7 +142,7 @@ export default function DebitInsightsSidebar({
             type="button"
             onClick={onExportPdf}
             disabled={!canExportPdf || isExportingPdf}
-            className={`flex items-center justify-center ${isCollapsed ? 'w-10 h-10' : 'w-full py-2.5 px-4'} hover:bg-white/10 rounded-xl transition-colors duration-150 text-red-300 disabled:opacity-50 group`}
+            className={`flex items-center justify-center ${isCollapsed ? 'w-10 h-10' : 'w-full py-2.5 px-4'} hover:bg-white/10 rounded-xl transition-all duration-200 text-red-300 disabled:opacity-50 group`}
             title={isCollapsed ? 'Export ZIP' : undefined}
           >
             {isExportingPdf ? (
@@ -163,7 +163,7 @@ export default function DebitInsightsSidebar({
             type="button"
             onClick={onRefresh}
             disabled={isRefreshing}
-            className={`flex items-center justify-center ${isCollapsed ? 'w-10 h-10' : 'w-full py-2.5 px-4'} hover:bg-white/10 rounded-xl transition-colors duration-150 text-blue-400 disabled:opacity-50 group`}
+            className={`flex items-center justify-center ${isCollapsed ? 'w-10 h-10' : 'w-full py-2.5 px-4'} hover:bg-white/10 rounded-xl transition-all duration-200 text-blue-400 disabled:opacity-50 group`}
             title={isCollapsed ? 'Refresh Data' : undefined}
           >
             <RefreshCcw className={`w-5 h-5 shrink-0 ${isRefreshing ? 'animate-spin' : ''}`} />
@@ -174,7 +174,7 @@ export default function DebitInsightsSidebar({
         <button
           type="button"
           onClick={onToggleCollapse}
-          className="flex items-center justify-center w-10 h-10 mx-auto hover:bg-white/10 rounded-xl transition-colors duration-150 text-slate-400 group"
+          className="flex items-center justify-center w-10 h-10 mx-auto hover:bg-white/10 rounded-xl transition-all duration-200 text-slate-400 group"
           title={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
         >
           {isCollapsed ? (

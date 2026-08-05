@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import { toast } from '@/app/Components/Notification';
+import { InvoiceRow } from '@/types';
 import {
   deletePaymentReconciliationSession,
   fetchPaymentReconciliationSession,
@@ -29,6 +30,7 @@ import { generatePaymentReconciliationPDF } from '../Pdf/PaymentReconciliationUt
 import DeletePaymentReconciliationSessionModal from './DeletePaymentReconciliationSessionModal';
 
 interface SavedPaymentReconciliationsTabProps {
+  data?: InvoiceRow[];
   refreshKey?: number;
   onOpenSession: (session: PaymentReconciliationSessionSummary) => void;
   onSessionsChanged?: () => void;
@@ -113,6 +115,7 @@ function groupSessionsByCustomer(
 }
 
 export default function SavedPaymentReconciliationsTab({
+  data = [],
   refreshKey = 0,
   onOpenSession,
   onSessionsChanged,
@@ -131,6 +134,20 @@ export default function SavedPaymentReconciliationsTab({
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [sessionToDelete, setSessionToDelete] = useState<PaymentReconciliationSessionSummary | null>(null);
   const [pdfBusy, setPdfBusy] = useState(false);
+
+  const invoiceDateByKey = useMemo(() => {
+    const map = new Map<string, string>();
+    const safeData = Array.isArray(data) ? data : [];
+    safeData.forEach((row) => {
+      const customerId = row.customerId?.trim();
+      const invoiceNumber = row.number?.trim();
+      const date = row.date?.trim();
+      if (!customerId || !invoiceNumber || !date) return;
+      const key = `${normalize(customerId)}|${invoiceNumber}`;
+      if (!map.has(key)) map.set(key, date);
+    });
+    return map;
+  }, [data]);
 
   const customerGroups = useMemo(
     () => groupSessionsByCustomer(sessions, nameById),
@@ -290,16 +307,20 @@ export default function SavedPaymentReconciliationsTab({
       const customers = selectedSession.customersId.map(
         (id) => nameById.get(normalize(id)) || id,
       );
-      const lines = sessionLines.map((line) => ({
-        customerName: nameById.get(normalize(line.customerId)) || line.customerId,
-        date: '',
-        number: line.invoiceNumber,
-        totalAmount: line.openAmount,
-        appliedAmount: line.appliedAmount,
-        openAmount: line.remainingAmount,
-        matching: '',
-      }));
+      const lines = sessionLines.map((line) => {
+        const dateKey = `${normalize(line.customerId)}|${line.invoiceNumber.trim()}`;
+        return {
+          customerName: nameById.get(normalize(line.customerId)) || line.customerId,
+          date: invoiceDateByKey.get(dateKey) || '',
+          number: line.invoiceNumber,
+          totalAmount: line.openAmount,
+          appliedAmount: line.appliedAmount,
+          openAmount: line.remainingAmount,
+          matching: '',
+        };
+      });
       const totalApplied = lines.reduce((sum, line) => sum + line.appliedAmount, 0);
+      const selectedOpenTotal = lines.reduce((sum, line) => sum + line.totalAmount, 0);
 
       await generatePaymentReconciliationPDF(
         {
@@ -309,7 +330,7 @@ export default function SavedPaymentReconciliationsTab({
           customers: customers.length > 0 ? customers : selectedCustomer ? [selectedCustomer.customerName] : [],
           lines,
           totalApplied,
-          remainder: selectedSession.paymentAmount - totalApplied,
+          remainder: selectedSession.paymentAmount - selectedOpenTotal,
           remainderNote: sessionRemainderNote || undefined,
         },
         { print, download: !print },
@@ -361,7 +382,18 @@ export default function SavedPaymentReconciliationsTab({
     () => sessionLines.reduce((sum, line) => sum + line.appliedAmount, 0),
     [sessionLines],
   );
-  const detailRemainder = selectedSession ? selectedSession.paymentAmount - detailTotalApplied : 0;
+  const detailSelectedOpenTotal = useMemo(
+    () => sessionLines.reduce((sum, line) => sum + line.openAmount, 0),
+    [sessionLines],
+  );
+  const detailTotalRemaining = useMemo(
+    () => sessionLines.reduce((sum, line) => sum + line.remainingAmount, 0),
+    [sessionLines],
+  );
+  // Remainder = payment − sum of open amounts on selected (saved) lines
+  const detailRemainder = selectedSession
+    ? selectedSession.paymentAmount - detailSelectedOpenTotal
+    : 0;
 
   return (
     <div className="space-y-6">
@@ -387,11 +419,6 @@ export default function SavedPaymentReconciliationsTab({
                   {viewMode === 'detail' && selectedSession?.sessionId}
                 </h2>
               </div>
-              {viewMode === 'customers' && (
-                <p className="text-sm text-slate-500 mt-1">
-                  Select a customer to view their saved payment reconciliations.
-                </p>
-              )}
               {viewMode === 'sessions' && selectedCustomer && (
                 <p className="text-sm text-slate-500 mt-1">
                   {selectedCustomer.sessionCount} saved session
@@ -616,6 +643,24 @@ export default function SavedPaymentReconciliationsTab({
                           </tr>
                         ))}
                       </tbody>
+                      <tfoot>
+                        <tr className="bg-slate-50 border-t-2 border-slate-200">
+                          <td className="px-4 py-3" colSpan={3}>
+                            <span className="font-black text-slate-700 uppercase tracking-wide text-xs">
+                              Total
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 font-mono tabular-nums font-black text-slate-800">
+                            {formatAmount(detailSelectedOpenTotal)}
+                          </td>
+                          <td className="px-4 py-3 font-mono tabular-nums font-black text-emerald-700">
+                            {formatAmount(detailTotalApplied)}
+                          </td>
+                          <td className="px-4 py-3 font-mono tabular-nums font-black text-slate-800">
+                            {formatAmount(detailTotalRemaining)}
+                          </td>
+                        </tr>
+                      </tfoot>
                     </table>
                   </div>
                 )}

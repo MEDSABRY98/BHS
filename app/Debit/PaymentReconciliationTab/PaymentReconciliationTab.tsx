@@ -24,6 +24,7 @@ import {
   AlignLeft,
   AlignRight,
   Save,
+  Plus,
 } from 'lucide-react';
 import { InvoiceRow } from '@/types';
 import NoData from '@/app/Components/DataState/NoDataTab';
@@ -44,7 +45,7 @@ import {
   resolveCustomerIdsForNames,
   resolveCustomerNamesFromIds,
   restoreAppliedByRowFromLoadedLines,
-} from './paymentReconciliationSession';
+} from './PaymentReconciliationSession';
 import SavePaymentReconciliationModal from './SavePaymentReconciliationModal';
 
 interface PaymentReconciliationTabProps {
@@ -241,7 +242,17 @@ export default function PaymentReconciliationTab({
     return sum;
   }, [appliedByRow]);
 
-  const remainder = paymentAmount - totalApplied;
+  const selectedOpenTotal = useMemo(() => {
+    let sum = 0;
+    openRows.forEach((row) => {
+      if (!appliedByRow.has(row.rowKey)) return;
+      sum += row.openAmount;
+    });
+    return sum;
+  }, [openRows, appliedByRow]);
+
+  // Remainder = payment − sum of open amounts on selected (checked) rows
+  const remainder = paymentAmount - selectedOpenTotal;
   const isOverAllocated = remainder < -0.009;
   const hasValidPayment = paymentAmount > 0.009;
   const appliedLines = useMemo(() => {
@@ -490,6 +501,30 @@ export default function PaymentReconciliationTab({
     }
   };
 
+  const handleStartNew = () => {
+    skipClearAppliedRef.current = true;
+    setLoadedSessionId(null);
+    setLoadedSessionLines([]);
+    setPendingSessionRestore(null);
+    setGroupCustomers([]);
+    setPaymentAmountInput('');
+    setPaymentDate('');
+    setPaymentReference('');
+    setAppliedByRow(new Map());
+    setRemainderNote('');
+    setRemainderNoteAlign('left');
+    setTableSearchQuery('');
+    setDateFromFilter('');
+    setDateToFilter('');
+    setSelectedOverdueMonthFilter([]);
+    setIsOverdueMonthDropdownOpen(false);
+    setIsCustomerDropdownOpen(false);
+    setCustomerSearchQuery('');
+    setShowSaveModal(false);
+    setPagination({ pageIndex: 0, pageSize: 50 });
+    toast.success('Ready for a new reconciliation.');
+  };
+
   useEffect(() => {
     if (!sessionToLoad) return;
     void handleLoadSession(sessionToLoad).finally(() => {
@@ -639,7 +674,7 @@ export default function PaymentReconciliationTab({
   return (
     <div className="p-6 space-y-6">
       <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-100 rounded-2xl p-6 shadow-sm">
-        <div className="flex flex-wrap items-center gap-3 mb-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <div className="flex flex-wrap items-center gap-2 min-w-0">
             <Wallet className="w-6 h-6 text-emerald-600 shrink-0" />
             <h1 className="text-xl font-bold text-slate-800">Payment Reconciliation</h1>
@@ -652,6 +687,15 @@ export default function PaymentReconciliationTab({
               </span>
             )}
           </div>
+          <button
+            type="button"
+            onClick={handleStartNew}
+            className="inline-flex items-center justify-center w-9 h-9 rounded-xl text-emerald-700 bg-white border border-emerald-200 hover:bg-emerald-50 hover:border-emerald-300 transition-all shadow-sm"
+            title="New reconciliation"
+            aria-label="New reconciliation"
+          >
+            <Plus className="w-4 h-4" />
+          </button>
         </div>
 
         <div className="space-y-4">

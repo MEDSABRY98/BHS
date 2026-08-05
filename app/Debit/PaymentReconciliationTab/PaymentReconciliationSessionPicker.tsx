@@ -8,7 +8,7 @@ import {
   fetchPaymentReconciliationSessions,
   type PaymentReconciliationSessionSummary,
 } from '../Service/debit_service';
-import DeletePaymentReconciliationSessionModal from './DeletePaymentReconciliationSessionModal';
+import DeletePaymentReconciliationSessionModal from '../SavedReconciliations/DeletePaymentReconciliationSessionModal';
 
 function formatSavedAt(value: string): string {
   if (!value) return '';
