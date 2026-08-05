@@ -80,18 +80,6 @@ export default function CoverPage({ filters, generatedAt }: CoverPageProps) {
           flexShrink: 0,
         }}
       >
-        <p
-          style={{
-            fontSize: '12px',
-            fontWeight: 700,
-            letterSpacing: '0.12em',
-            textTransform: 'uppercase',
-            opacity: 0.85,
-            margin: '0 0 12px',
-          }}
-        >
-          Al Marai Al Arabia Trading
-        </p>
         <h1
           style={{
             fontSize: '36px',
@@ -154,13 +142,10 @@ export default function CoverPage({ filters, generatedAt }: CoverPageProps) {
         style={{
           padding: '16px 48px 28px',
           display: 'flex',
-          justifyContent: 'space-between',
+          justifyContent: 'flex-end',
           borderTop: '1px solid #E5E7EB',
         }}
       >
-        <p style={{ fontSize: '11px', color: '#9CA3AF', margin: 0, fontWeight: 500 }}>
-          Confidential — Internal use only
-        </p>
         <p style={{ fontSize: '11px', color: '#6B7280', margin: 0, fontWeight: 600 }}>
           Page 1 of 6
         </p>

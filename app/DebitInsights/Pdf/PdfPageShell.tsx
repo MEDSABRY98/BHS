@@ -96,7 +96,7 @@ export default function PdfPageShell({
       <div
         style={{
           display: 'flex',
-          justifyContent: 'space-between',
+          justifyContent: 'flex-end',
           alignItems: 'center',
           marginTop: '12px',
           paddingTop: '10px',
@@ -104,9 +104,6 @@ export default function PdfPageShell({
           flexShrink: 0,
         }}
       >
-        <p style={{ fontSize: '11px', color: '#9CA3AF', margin: 0, fontWeight: 500 }}>
-          Al Marai Al Arabia Trading
-        </p>
         <p style={{ fontSize: '11px', color: '#6B7280', margin: 0, fontWeight: 600 }}>
           Page {pageNumber} of {totalPages}
         </p>
