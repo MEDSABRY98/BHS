@@ -45,7 +45,7 @@ import {
   resolveCustomerIdsForNames,
   resolveCustomerNamesFromIds,
   restoreAppliedByRowFromLoadedLines,
-} from './PaymentReconciliationSession';
+} from './paymentReconciliationSession';
 import SavePaymentReconciliationModal from './SavePaymentReconciliationModal';
 
 interface PaymentReconciliationTabProps {
