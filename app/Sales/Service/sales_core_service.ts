@@ -188,7 +188,7 @@ export async function uploadSalesMappingsBulk(userId: string, mapping: any) {
   const { error: deleteError } = await bhs_supabas
     .from('web_Sales_DB_CUSTOMERSMAPPING')
     .delete()
-    .gt('ID', '');
+    .neq('CUSTOMER ID', '__never__');
 
   if (deleteError) {
     throw deleteError;
@@ -213,7 +213,6 @@ export async function uploadSalesMappingsBulk(userId: string, mapping: any) {
     const city = custCityById.get(customerId.toUpperCase()) || '';
 
     rowsByCustomer.set(customerId, {
-      ID: customerId,
       SALES_REP: repId,
       'CUSTOMER ID': customerId,
       AREA: city || data.area || '',

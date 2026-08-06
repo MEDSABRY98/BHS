@@ -37,9 +37,14 @@ interface MonthsOverviewProps {
     customer: CustomerView,
     initialTab?: "details" | "pending" | "semi" | "settled"
   ) => void;
+  refreshKey?: number;
 }
 
-export default function MonthsOverview({ customers, handleSelectCustomer }: MonthsOverviewProps) {
+export default function MonthsOverview({
+  customers,
+  handleSelectCustomer,
+  refreshKey = 0,
+}: MonthsOverviewProps) {
   const [loading, setLoading] = useState(true);
   const [allSettlements, setAllSettlements] = useState<Settlement[]>([]);
 
@@ -81,7 +86,7 @@ export default function MonthsOverview({ customers, handleSelectCustomer }: Mont
       }
     };
     fetchSettlements();
-  }, []);
+  }, [refreshKey]);
 
   const monthStatsMap = useMemo(() => {
     const map = new Map<

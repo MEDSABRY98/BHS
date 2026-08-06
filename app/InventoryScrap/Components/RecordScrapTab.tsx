@@ -39,6 +39,7 @@ interface ScrapEntry {
   REASON: 'EXPIRED' | 'DAMAGED';
   CREATED_AT: string;
   SESSION_ID: string;
+  REPORT_ID?: string | null;
 }
 
 interface RecordScrapTabProps {

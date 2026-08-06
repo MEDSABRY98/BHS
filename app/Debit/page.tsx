@@ -69,8 +69,6 @@ function DebitPageShell({
   const { data, loading, isRefreshing, error, lastUpdated, refresh, dataVersion, dataReady, dataLoading, ensureFullData } = useDebitData();
   const [visitedTabs, setVisitedTabs] = useState<Set<string>>(new Set(['customers']));
   const mainContentRef = useRef<HTMLDivElement>(null);
-  const searchParams = useSearchParams();
-  const isAutoDownload = initialCustomer && searchParams?.get('action') === 'download_report';
 
   useDebitTabAudit(activeTab);
 
@@ -83,12 +81,6 @@ function DebitPageShell({
       void ensureFullData();
     }
   }, [activeTab, visitedTabs, ensureFullData]);
-
-  useEffect(() => {
-    if (isAutoDownload) {
-      void ensureFullData();
-    }
-  }, [isAutoDownload, ensureFullData]);
 
   useEffect(() => {
     if (mainContentRef.current) {
@@ -189,21 +181,6 @@ function DebitPageShell({
       </>
     );
   };
-
-  if (isAutoDownload) {
-    if (!dataReady && (dataLoading || loading)) {
-      return (
-        <div className="min-h-screen bg-white flex items-center justify-center">
-          <TabLoader />
-        </div>
-      );
-    }
-    return (
-      <div className="min-h-screen bg-white">
-        <CustomersLandingTab data={data} initialCustomer={initialCustomer} />
-      </div>
-    );
-  }
 
   return (
     <div className="flex min-h-screen bg-[#F8F9FA] text-black">

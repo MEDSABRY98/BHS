@@ -4,7 +4,6 @@ import React, { useState, useEffect } from 'react';
 import { fetchAllScrapEntries, fetchActiveScrapSession, upsertActiveScrapSession } from '../Service/InventoryScrapService';
 import RecordScrapTab from './RecordScrapTab';
 import SessionsHistoryTab from './SessionsHistoryScrapTab';
-import InventoryScrapReportTab from './ReportTab';
 import SavedReportsTab from './SavedReportsTab';
 
 interface ScrapEntry {
@@ -16,16 +15,17 @@ interface ScrapEntry {
   REASON: 'EXPIRED' | 'DAMAGED';
   CREATED_AT: string;
   SESSION_ID: string;
+  REPORT_ID?: string | null;
 }
 
 interface InventoryScrapTabProps {
-  activeSubTab?: 'record' | 'sessions' | 'report' | 'history';
+  activeSubTab?: 'record' | 'sessions' | 'history';
 }
 
 const calculateNextSessionId = (entries: { SESSION_ID: string }[], currentSessionId?: string) => {
   const sessionIds = new Set<string>();
   if (entries) {
-    entries.forEach(e => {
+    entries.forEach((e) => {
       if (e.SESSION_ID) sessionIds.add(e.SESSION_ID);
     });
   }
@@ -34,7 +34,7 @@ const calculateNextSessionId = (entries: { SESSION_ID: string }[], currentSessio
   }
 
   let maxNum = 0;
-  sessionIds.forEach(id => {
+  sessionIds.forEach((id) => {
     const match = id.match(/^S-(\d+)$/);
     if (match) {
       const num = parseInt(match[1], 10);
@@ -102,8 +102,6 @@ export default function InventoryScrapTab({ activeSubTab = 'record' }: Inventory
           fetchScrapEntries={fetchScrapEntries}
           currentSession={currentSession}
         />
-      ) : activeSubTab === 'report' ? (
-        <InventoryScrapReportTab />
       ) : (
         <SavedReportsTab />
       )}

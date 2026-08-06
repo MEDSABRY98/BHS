@@ -156,7 +156,7 @@ export default function SalesSetCustomersTab({ userId }: SalesSetCustomersTabPro
         'SALES_REP': m ? m['SALES_REP'] : '',
         'MERCHANDISER_ID': m ? m['MERCHANDISER_ID'] : '',
         'MERCHANDISER': m ? m['MERCHANDISER'] : '',
-        'ID': m ? m.ID : null
+        isMapped: !!m,
       };
     });
   }, [globalCustomers, myCustomers]);
@@ -450,7 +450,7 @@ export default function SalesSetCustomersTab({ userId }: SalesSetCustomersTabPro
                         >
                           <Edit className="w-3.5 h-3.5" />
                         </button>
-                        {c.ID && (
+                        {c.isMapped && (
                           <button
                             onClick={() => setCustomerToDelete(c)}
                             className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors"

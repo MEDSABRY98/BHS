@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Search, User, ChevronRight, FileSpreadsheet, Loader2, Mail } from "lucide-react";
+import { Search, User, ChevronRight, FileSpreadsheet, Loader2, Mail, CheckCircle2 } from "lucide-react";
 import { exportCustomersExcel } from "./ExportExcel";
 import ExportExcelModal, { type ExportExcelOptions } from "./ExportExcelModal";
 import { hasCustomerEmail } from "@/lib/customerEmailLookup";
@@ -29,6 +29,8 @@ interface CustomersListProps {
   handleSelectCustomer: (c: CustomerView) => void;
   customersWithEmails: Map<string, string>;
   downloadTaxRebateEml: (customerId: string, customerName: string) => void;
+  onAutoSettleClearedMonths?: () => void | Promise<void>;
+  autoSettling?: boolean;
 }
 
 export default function CustomersList({
@@ -39,7 +41,9 @@ export default function CustomersList({
   filteredCustomers = [],
   handleSelectCustomer,
   customersWithEmails,
-  downloadTaxRebateEml
+  downloadTaxRebateEml,
+  onAutoSettleClearedMonths,
+  autoSettling = false,
 }: CustomersListProps) {
   const [exporting, setExporting] = useState(false);
   const [exportModalOpen, setExportModalOpen] = useState(false);
@@ -102,10 +106,26 @@ export default function CustomersList({
               <User className="w-6 h-6 text-[#D4AF37]" />
             </div>
             <h2 className="text-2xl font-bold text-gray-900">Customers List</h2>
+            {onAutoSettleClearedMonths && (
+              <button
+                type="button"
+                onClick={() => void onAutoSettleClearedMonths()}
+                disabled={autoSettling || safeCustomers.length === 0}
+                className="inline-flex items-center justify-center w-10 h-10 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 rounded-xl transition-all disabled:opacity-50 shadow-sm shrink-0"
+                title="Auto-settle past months with zero open balance"
+                aria-label="Auto-settle cleared months"
+              >
+                {autoSettling ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <CheckCircle2 className="w-5 h-5" />
+                )}
+              </button>
+            )}
           </div>
 
-          <div className="flex items-center gap-4 w-full sm:w-auto">
-            <div className="relative w-full sm:w-96">
+          <div className="flex items-center gap-3 w-full sm:w-auto">
+            <div className="relative w-full sm:w-80">
               <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                 <Search className="h-5 w-5 text-gray-400" />
               </div>

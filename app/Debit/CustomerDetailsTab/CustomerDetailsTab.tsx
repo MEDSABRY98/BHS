@@ -30,11 +30,9 @@ import {
   PaginationState,
 } from '@tanstack/react-table';
 import { InvoiceRow } from '@/types';
-import { Mail, FileText, Calendar, ArrowLeft, FileSpreadsheet, ListFilter, CheckSquare, BarChart3, Download, X, Settings2, CircleAlert } from 'lucide-react';
+import { Mail, FileText, Calendar, ArrowLeft, FileSpreadsheet, ListFilter, CheckSquare, Download, X, Settings2, CircleAlert } from 'lucide-react';
 import { getInvoiceType } from '@/app/Debit/Utils/InvoiceType';
-import { useSearchParams } from 'next/navigation';
 import NoData from '@/app/Components/DataState/NoDataTab';
-import { generateAnalyticalPDF as generateAnalyticalPDFUtil } from '@/app/Debit/Pdf/AnalysisByCustomerUtils';
 import { getCustomerNotes, createNote, updateCustomerNote, deleteCustomerNote } from '../Service/notes_service';
 import { useDebitData } from '../Context/DebitDataContext';
 import { getCustomerEmails } from '@/app/Emails/Service/email_service';
@@ -164,9 +162,6 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
   const { customersWithEmails } = useDebitData();
   const MATCHING_FILTER_ALL_OPEN = 'All Open Matchings';
   const MATCHING_FILTER_ALL_UNMATCHED = 'All Unmatched';
-  const searchParams = useSearchParams();
-  const downloadAction = searchParams?.get('action');
-  const hasDownloadedReport = useRef(false);
 
   const [activeTab, setActiveTab] = useState<'dashboard' | 'invoices' | 'ages' | 'notes' | 'overdue' | 'monthly'>(initialTab);
   useDebitCustomerDetailsTabAudit(activeTab);
@@ -228,7 +223,6 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
   const [emailStatementDate, setEmailStatementDate] = useState(new Date().toISOString().split('T')[0]);
   const [isProcessingEmail, setIsProcessingEmail] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [isGeneratingAutoReport, setIsGeneratingAutoReport] = useState(!!downloadAction);
 
   // Notes textarea auto-resize (grow with content; only scroll after max height)
   const newNoteRef = useRef<HTMLTextAreaElement | null>(null);
@@ -1814,52 +1808,6 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
     }
   };
 
-  const generateAnalyticalPDF = async () => {
-    try {
-      await generateAnalyticalPDFUtil({
-        customerName,
-        filteredInvoices,
-        totalNetDebt,
-        dashboardMetrics,
-        monthlyPaymentsTrendData,
-        monthlySalesTrendData,
-        filteredOverdueInvoices
-      });
-    } catch (error) {
-      console.error('Error generating analytical PDF:', error);
-      alert('Failed to generate PDF. Please try again.');
-    }
-  };
-  // Trigger auto-download if requested via URL
-  useEffect(() => {
-    if (downloadAction === 'download_report' && !hasDownloadedReport.current && invoices.length > 0) {
-      hasDownloadedReport.current = true;
-
-      const performAutoDownload = async () => {
-        // Wait a bit for everything to stabilize
-        await new Promise(r => setTimeout(r, 1000));
-
-        try {
-          await generateAnalyticalPDF();
-
-          // After successful download, attempt to close or go back
-          setTimeout(() => {
-            if (window.opener) {
-              window.close();
-            } else {
-              window.history.back();
-            }
-          }, 500);
-        } catch (e) {
-          console.error("Auto download failed", e);
-          setIsGeneratingAutoReport(false); // Show UI on error
-        }
-      };
-
-      performAutoDownload();
-    }
-  }, [downloadAction, invoices]);
-
   // Calculate Dashboard Metrics
   const dashboardMetrics = useMemo(() => {
     const totalSales = filteredInvoices.reduce((acc, inv) => acc + inv.debit, 0);
@@ -2196,14 +2144,7 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
   };
   return (
     <>
-      {isGeneratingAutoReport && (
-        <div className="fixed inset-0 z-[9999] bg-white flex flex-col items-center justify-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mb-4"></div>
-          <h2 className="text-2xl font-bold text-gray-800">Generating Analysis Report...</h2>
-          <p className="text-gray-500 mt-2">Please wait while we prepare your download.</p>
-        </div>
-      )}
-      <div className={`p-6 ${isGeneratingAutoReport ? 'opacity-0 h-0 overflow-hidden' : ''}`}>
+      <div className="p-6">
         {/* Payment Details Modal */}
         <PaymentModal
           show={showPaymentModal}
@@ -2267,9 +2208,6 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
             </button>
             <button onClick={() => setShowExportModal(true)} className="h-10 w-10 flex items-center justify-center bg-rose-600 text-white rounded-xl hover:bg-rose-700 transition-all shadow-sm group" title="Export Report (Combined)">
               <FileText className="h-5 w-5 transition-transform group-hover:scale-110" />
-            </button>
-            <button onClick={() => generateAnalyticalPDF()} className="h-10 w-10 flex items-center justify-center bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-all shadow-sm group" title="Analytical PDF Report">
-              <BarChart3 className="h-5 w-5 transition-transform group-hover:scale-110" />
             </button>
             {customerEmails.length > 0 && (
               <>

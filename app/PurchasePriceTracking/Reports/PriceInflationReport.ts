@@ -35,15 +35,12 @@ export async function generatePriceInflationReport(
 
     const latestPrice = latestPurchase.unitPrice;
     const previousPrice = previousPurchase.unitPrice;
-
-    let variancePercent = 0;
-    if (previousPrice > 0 && sorted.length >= 2) {
-      variancePercent = ((latestPrice - previousPrice) / previousPrice) * 100;
-    }
+    const variance =
+      sorted.length >= 2 ? latestPrice - previousPrice : 0;
 
     let trend = 'No Change';
-    if (variancePercent > 0) trend = 'Increased ↗';
-    else if (variancePercent < 0) trend = 'Decreased ↘';
+    if (variance > 0) trend = 'Increased ↗';
+    else if (variance < 0) trend = 'Decreased ↘';
 
     const product = products.find(p => p.id === productId);
     const productName = product ? product.name : productId;
@@ -56,19 +53,19 @@ export async function generatePriceInflationReport(
       'Previous Price (AED)': previousPrice,
       'Latest Date': latestPurchase.date,
       'Latest Price (AED)': latestPrice,
-      'Variance (%)': Number(variancePercent.toFixed(2)),
+      Variance: variance,
       'Trend': trend
     });
   });
 
   // Sort by highest inflation first
-  reportData.sort((a: any, b: any) => b['Variance (%)'] - a['Variance (%)']);
+  reportData.sort((a: any, b: any) => b.Variance - a.Variance);
 
   const fileName = `Price_Inflation_Report${filterSuffix(filters)}_${new Date().toISOString().split('T')[0]}`;
   
   await exportPurchasePriceTrackingExcel(reportData, fileName, {
     sheetName: 'Price Inflation',
     columnWidth: 20,
-    numericColumns: ['Previous Price (AED)', 'Latest Price (AED)', 'Variance (%)']
+    numericColumns: ['Previous Price (AED)', 'Latest Price (AED)', 'Variance']
   });
 }

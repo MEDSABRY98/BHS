@@ -16,6 +16,7 @@ import {
   splitMonthGroups,
   type MonthGroup,
 } from "./Utils/settlementUtils";
+import { autoSettleClearedMonths } from "./Utils/AutoSettleClearedMonths";
 import { useCustomersDiscountsTabAudit } from '@/app/Audit/Modules/CustomersDiscountsTabAudit';
 
 export type { MonthGroup } from "./Utils/settlementUtils";
@@ -75,6 +76,8 @@ export default function CustomerDiscountsPage() {
   
   // Sidebar UI State
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [autoSettling, setAutoSettling] = useState(false);
+  const [monthsOverviewRefreshKey, setMonthsOverviewRefreshKey] = useState(0);
   
   const [selectedAddCustomerId, setSelectedAddCustomerId] = useState<string>("");
   const [discountName, setDiscountName] = useState("");
@@ -426,6 +429,36 @@ export default function CustomerDiscountsPage() {
     }
   };
 
+  const handleAutoSettleClearedMonths = async () => {
+    if (autoSettling) return;
+    try {
+      setAutoSettling(true);
+      toast.info("Checking past pending months against open balances...");
+      const result = await autoSettleClearedMonths();
+
+      if (result.settledCount === 0) {
+        toast.info(
+          `No cleared months to settle (${result.scannedPending} past pending checked).`,
+        );
+        return;
+      }
+
+      const settledSet = new Set(result.settledIds);
+      setSettlements((prev) =>
+        prev.map((s) => (settledSet.has(s.id) ? { ...s, status: "Settled" } : s)),
+      );
+      setMonthsOverviewRefreshKey((key) => key + 1);
+      toast.success(
+        `Auto-settled ${result.settledCount} settlement(s) across cleared past months.`,
+      );
+    } catch (error) {
+      console.error("Auto-settle cleared months failed:", error);
+      toast.error("Failed to auto-settle cleared months.");
+    } finally {
+      setAutoSettling(false);
+    }
+  };
+
   const handleUnsettle = async (settlementIds: string[]) => {
     try {
       const { error } = await bhs_supabase
@@ -683,6 +716,8 @@ export default function CustomerDiscountsPage() {
             handleSelectCustomer={handleSelectCustomer}
             customersWithEmails={customersWithEmails}
             downloadTaxRebateEml={downloadTaxRebateEml}
+            onAutoSettleClearedMonths={handleAutoSettleClearedMonths}
+            autoSettling={autoSettling}
           />
         )}
 
@@ -743,6 +778,7 @@ export default function CustomerDiscountsPage() {
           <MonthsOverview 
             customers={customers}
             handleSelectCustomer={handleSelectCustomer}
+            refreshKey={monthsOverviewRefreshKey}
           />
         )}
         

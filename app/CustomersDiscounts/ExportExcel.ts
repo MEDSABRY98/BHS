@@ -68,6 +68,18 @@ function isNegativeMonthCell(value: unknown): boolean {
   return value === "X" || (typeof value === "string" && value !== "✔" && value !== "-");
 }
 
+const FIXED_EXPORT_COLUMNS = new Set([
+  "#",
+  "Customer Name",
+  "City",
+  "Discount (%)",
+  "Rent (AED)",
+]);
+
+function isMonthStatusColumn(columnKey: string): boolean {
+  return Boolean(columnKey) && !FIXED_EXPORT_COLUMNS.has(columnKey);
+}
+
 function formatShortMonth(year: number, month: number): string {
   return `${MONTH_SHORT[month - 1]}-${String(year).slice(-2)}`;
 }
@@ -179,7 +191,7 @@ function applyWorksheetStyles(worksheet: Worksheet, keys: string[]) {
         }
       }
 
-      if (isNegativeMonthCell(cell.value)) {
+      if (isMonthStatusColumn(columnKey) && isNegativeMonthCell(cell.value)) {
         cell.fill = {
           type: 'pattern',
           pattern: 'solid',
@@ -188,7 +200,7 @@ function applyWorksheetStyles(worksheet: Worksheet, keys: string[]) {
         cell.font = { color: { argb: NEGATIVE_TEXT }, bold: true };
       }
 
-      if (cell.value === "✔") {
+      if (isMonthStatusColumn(columnKey) && cell.value === "✔") {
         cell.font = { color: { argb: 'FF15803D' }, bold: true };
       }
 

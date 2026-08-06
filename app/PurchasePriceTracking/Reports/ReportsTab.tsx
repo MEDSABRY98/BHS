@@ -9,6 +9,7 @@ import {
   ListOrdered,
   Filter,
   Grid3x3,
+  CalendarRange,
 } from 'lucide-react';
 import { PurchaseRecord, Product, Supplier } from '../page';
 import { generateSupplierPriceHistoryReport } from './SupplierPriceHistoryReport';
@@ -19,6 +20,7 @@ import { generateProductPriceSequenceReport } from './ProductPriceSequenceReport
 import { generateSupplierPriceMatrixReport } from './SupplierPriceMatrixReport';
 import { usePurchaseModuleFilters, PurchaseFilterButton } from '../Model/PurchaseFilters';
 import { formatProductCategory } from '@/app/InventoryAnalysis/Utils/locationTypes';
+import PriceChangePeriodModal from './PriceChangePeriodModal';
 
 interface Props {
   purchases: PurchaseRecord[];
@@ -36,7 +38,6 @@ export default function ReportsTab({ purchases, products, suppliers }: Props) {
     productSupplierCount,
     fromDate,
     toDate,
-    openFilterModal,
   } = usePurchaseModuleFilters();
 
   const [isGenerating1, setIsGenerating1] = useState(false);
@@ -45,6 +46,7 @@ export default function ReportsTab({ purchases, products, suppliers }: Props) {
   const [isGenerating4, setIsGenerating4] = useState(false);
   const [isGenerating5, setIsGenerating5] = useState(false);
   const [isGenerating6, setIsGenerating6] = useState(false);
+  const [priceChangeModalOpen, setPriceChangeModalOpen] = useState(false);
 
   const filterSummary = useMemo(() => {
     const parts: string[] = [];
@@ -123,7 +125,26 @@ export default function ReportsTab({ purchases, products, suppliers }: Props) {
     setIsGenerating6(false);
   };
 
-  const reportCards = [
+  const reportCards: Array<{
+    title: string;
+    icon: typeof TrendingUp;
+    accent: string;
+    iconClass: string;
+    onClick: () => void;
+    disabled: boolean;
+    loading: boolean;
+    openOnTitleClick?: boolean;
+  }> = [
+    {
+      title: 'Price Change Period',
+      icon: CalendarRange,
+      accent: 'border-t-indigo-500',
+      iconClass: 'text-indigo-600 bg-indigo-50',
+      onClick: () => setPriceChangeModalOpen(true),
+      disabled: false,
+      loading: false,
+      openOnTitleClick: true,
+    },
     {
       title: 'Price Inflation',
       icon: TrendingUp,
@@ -196,23 +217,14 @@ export default function ReportsTab({ purchases, products, suppliers }: Props) {
       </div>
 
       <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2 text-slate-800">
-            <Filter className="w-5 h-5 text-[#D4AF37]" />
-            <h3 className="font-bold text-lg">Active Filters</h3>
-            {hasAnyFilter && (
-              <span className="text-[10px] font-black uppercase tracking-widest bg-[#D4AF37]/10 text-[#b8962e] px-2 py-0.5 rounded-full">
-                Applied
-              </span>
-            )}
-          </div>
-          <button
-            type="button"
-            onClick={openFilterModal}
-            className="text-sm font-bold text-[#b8962e] hover:text-[#D4AF37] transition-colors"
-          >
-            Edit Filters
-          </button>
+        <div className="flex flex-wrap items-center gap-2 text-slate-800">
+          <Filter className="w-5 h-5 text-[#D4AF37]" />
+          <h3 className="font-bold text-lg">Active Filters</h3>
+          {hasAnyFilter && (
+            <span className="text-[10px] font-black uppercase tracking-widest bg-[#D4AF37]/10 text-[#b8962e] px-2 py-0.5 rounded-full">
+              Applied
+            </span>
+          )}
         </div>
         <p className="text-sm font-medium text-slate-500 bg-slate-50 rounded-xl px-4 py-3 border border-slate-100 mt-4">
           Active scope: <span className="font-bold text-slate-700">{filterSummary}</span>
@@ -233,19 +245,36 @@ export default function ReportsTab({ purchases, products, suppliers }: Props) {
               key={report.title}
               className={`bg-white px-4 py-4 rounded-xl border border-slate-100 shadow-sm border-t-[3px] ${report.accent} flex items-center justify-between gap-3 hover:shadow-md transition-shadow min-h-[68px]`}
             >
-              <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                <div className={`p-2 rounded-lg shrink-0 ${report.iconClass}`}>
-                  <Icon className="w-5 h-5" />
+              {report.openOnTitleClick ? (
+                <button
+                  type="button"
+                  onClick={report.onClick}
+                  disabled={report.disabled}
+                  className="flex items-center gap-2.5 min-w-0 flex-1 text-left cursor-pointer hover:opacity-80 disabled:opacity-40"
+                  title={`Open ${report.title}`}
+                >
+                  <div className={`p-2 rounded-lg shrink-0 ${report.iconClass}`}>
+                    <Icon className="w-5 h-5" />
+                  </div>
+                  <h3 className="text-[15px] font-bold text-slate-800 leading-tight truncate">
+                    {report.title}
+                  </h3>
+                </button>
+              ) : (
+                <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                  <div className={`p-2 rounded-lg shrink-0 ${report.iconClass}`}>
+                    <Icon className="w-5 h-5" />
+                  </div>
+                  <h3 className="text-[15px] font-bold text-slate-800 leading-tight truncate">
+                    {report.title}
+                  </h3>
                 </div>
-                <h3 className="text-[15px] font-bold text-slate-800 leading-tight truncate">
-                  {report.title}
-                </h3>
-              </div>
+              )}
               <button
                 type="button"
                 onClick={report.onClick}
                 disabled={report.disabled}
-                title={`Download ${report.title}`}
+                title={report.openOnTitleClick ? `Open ${report.title}` : `Download ${report.title}`}
                 className="shrink-0 w-10 h-10 rounded-lg bg-slate-900 text-white flex items-center justify-center hover:bg-[#D4AF37] hover:text-black transition-all disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {report.loading ? (
@@ -258,6 +287,13 @@ export default function ReportsTab({ purchases, products, suppliers }: Props) {
           );
         })}
       </div>
+
+      <PriceChangePeriodModal
+        open={priceChangeModalOpen}
+        onClose={() => setPriceChangeModalOpen(false)}
+        purchases={purchases}
+        products={products}
+      />
     </div>
   );
 }

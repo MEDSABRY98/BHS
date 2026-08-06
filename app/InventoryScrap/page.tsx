@@ -15,16 +15,16 @@ import {
   Menu,
   X,
   Lock,
-  FileText,
   History
 } from 'lucide-react';
+import type { InventoryScrapTabId } from '@/app/Audit/Modules/InventoryScrapTabAudit';
 
 export default function InventoryScrapPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
   const [isAllowed, setIsAllowed] = useState(true);
   const [currentUser, setCurrentUser] = useState<any>(null);
-  const [activeSubTab, setActiveSubTab] = useState<'record' | 'sessions' | 'report' | 'history'>('record');
+  const [activeSubTab, setActiveSubTab] = useState<InventoryScrapTabId>('record');
   useInventoryScrapTabAudit(activeSubTab);
 
   // Sidebar Collapse states
@@ -217,21 +217,6 @@ export default function InventoryScrapPage() {
           </button>
 
           <button
-            onClick={() => setActiveSubTab('report')}
-            className={`w-full flex items-center ${isCollapsed ? 'justify-center px-4' : 'px-6'} py-4 transition-all duration-200 group cursor-pointer ${activeSubTab === 'report'
-              ? 'bg-gradient-to-r from-black/10 to-transparent border-l-4 border-[#D4AF37] text-white font-bold'
-              : 'text-gray-400 hover:text-white hover:bg-white/5'
-              }`}
-            title={isCollapsed ? "Scrap Report" : undefined}
-          >
-            <FileText className={`w-5 h-5 transition-colors ${isCollapsed ? '' : 'mr-4'} ${activeSubTab === 'report' ? 'text-[#D4AF37]' : 'group-hover:text-white'}`} />
-            {!isCollapsed && (
-              <span className="text-sm tracking-wide whitespace-nowrap">Scrap Report</span>
-            )}
-            {!isCollapsed && activeSubTab === 'report' && <ChevronRight className="w-4 h-4 ml-auto text-[#D4AF37]" />}
-          </button>
-
-          <button
             onClick={() => setActiveSubTab('history')}
             className={`w-full flex items-center ${isCollapsed ? 'justify-center px-4' : 'px-6'} py-4 transition-all duration-200 group cursor-pointer ${activeSubTab === 'history'
               ? 'bg-gradient-to-r from-black/10 to-transparent border-l-4 border-[#D4AF37] text-white font-bold'
@@ -341,20 +326,6 @@ export default function InventoryScrapPage() {
             >
               <Layers className={`w-5 h-5 mr-4 ${activeSubTab === 'sessions' ? 'text-[#D4AF37]' : 'group-hover:text-white'}`} />
               <span className="text-sm tracking-wide">View Sessions</span>
-            </button>
-
-            <button
-              onClick={() => {
-                setActiveSubTab('report');
-                setIsSidebarOpen(false);
-              }}
-              className={`w-full flex items-center px-6 py-4 transition-all duration-200 group cursor-pointer ${activeSubTab === 'report'
-                ? 'bg-gradient-to-r from-black/10 to-transparent border-l-4 border-[#D4AF37] text-white font-bold'
-                : 'text-gray-400 hover:text-white hover:bg-white/5'
-                }`}
-            >
-              <FileText className={`w-5 h-5 mr-4 ${activeSubTab === 'report' ? 'text-[#D4AF37]' : 'group-hover:text-white'}`} />
-              <span className="text-sm tracking-wide">Scrap Report</span>
             </button>
 
             <button

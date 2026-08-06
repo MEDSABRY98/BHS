@@ -81,7 +81,7 @@ export async function getGlobalMappings(): Promise<Map<string, any>> {
         : (userMapByName.get(rawMerch.toUpperCase()) || rawMerch);
 
       mappingMap.set(cId, {
-        id: m['CUSTOMER ID'] || m.ID,
+        id: m['CUSTOMER ID'],
         customerId: m['CUSTOMER ID'],
         userId: repId,
         salesRep: userMap.get(repId) || (userMapByName.has(rawRep.toUpperCase()) ? rawRep : ''),
@@ -378,112 +378,12 @@ export function resolveCustomerId(
   return '';
 }
 
-type MappingRow = {
-  ID: string;
-  'CUSTOMER ID': string;
-  SALES_REP?: string;
-  AREA?: string;
-  MARKET?: string;
-  MERCHANDISER?: string;
-};
-
-function pickKeeperRow(group: MappingRow[]): MappingRow {
-  const nonLegacy = group.find((r) => !isLegacyMappingRowId(String(r.ID || '')));
-  if (nonLegacy) return nonLegacy;
-  return [...group].sort((a, b) => String(a.ID).localeCompare(String(b.ID)))[0];
-}
-
-function mergeMappingFields(target: MappingRow, source: MappingRow): MappingRow {
-  return {
-    ...target,
-    SALES_REP: target.SALES_REP || source.SALES_REP || '',
-    AREA: target.AREA || source.AREA || '',
-    MARKET: target.MARKET || source.MARKET || '',
-    MERCHANDISER: target.MERCHANDISER || source.MERCHANDISER || '',
-  };
-}
-
-/** Converts legacy mapping row IDs (R-XXXX) to CUSTOMER ID as primary key. */
-export async function migrateLegacyMappingRowIds(): Promise<number> {
-  const { data: rows, error } = await bhs_supabas
-    .from('web_Sales_DB_CUSTOMERSMAPPING')
-    .select('ID, "CUSTOMER ID", SALES_REP, AREA, MARKET, MERCHANDISER');
-
-  if (error) throw error;
-  if (!rows?.length) return 0;
-
-  let changed = 0;
-  const byCustomer = new Map<string, MappingRow[]>();
-
-  for (const row of rows as MappingRow[]) {
-    const customerId = String(row['CUSTOMER ID'] || '').trim();
-    if (!customerId) continue;
-    const group = byCustomer.get(customerId) || [];
-    group.push(row);
-    byCustomer.set(customerId, group);
-  }
-
-  for (const [customerId, group] of byCustomer) {
-    if (group.length > 1) {
-      let keeper = pickKeeperRow(group);
-      for (const row of group) {
-        if (row.ID === keeper.ID) continue;
-        keeper = mergeMappingFields(keeper, row);
-      }
-
-      for (const row of group) {
-        if (row.ID === keeper.ID) continue;
-        const { error: deleteError } = await bhs_supabas
-          .from('web_Sales_DB_CUSTOMERSMAPPING')
-          .delete()
-          .eq('ID', row.ID);
-        if (deleteError) throw deleteError;
-        changed += 1;
-      }
-
-      const { error: mergeError } = await bhs_supabas
-        .from('web_Sales_DB_CUSTOMERSMAPPING')
-        .update({
-          SALES_REP: keeper.SALES_REP || '',
-          AREA: keeper.AREA || '',
-          MARKET: keeper.MARKET || '',
-          MERCHANDISER: keeper.MERCHANDISER || '',
-        })
-        .eq('ID', keeper.ID);
-      if (mergeError) throw mergeError;
-    }
-
-    const { data: current, error: fetchError } = await bhs_supabas
-      .from('web_Sales_DB_CUSTOMERSMAPPING')
-      .select('ID')
-      .eq('CUSTOMER ID', customerId)
-      .maybeSingle();
-    if (fetchError) throw fetchError;
-    if (!current) continue;
-
-    if (isLegacyMappingRowId(String(current.ID || '')) && current.ID !== customerId) {
-      const { error: updateError } = await bhs_supabas
-        .from('web_Sales_DB_CUSTOMERSMAPPING')
-        .update({ ID: customerId })
-        .eq('ID', current.ID);
-      if (updateError) throw updateError;
-      changed += 1;
-    }
-  }
-
-  if (changed > 0) {
-    invalidateMappingCache();
-  }
-
-  return changed;
-}
-
 /** Converts legacy free-text MERCHANDISER values to bhs_USERS.ID. */
 export async function migrateLegacyMerchandiserNames(): Promise<number> {
   const { userMapById, userMapByName } = await loadUserMaps();
   const { data: rows, error } = await bhs_supabas
     .from('web_Sales_DB_CUSTOMERSMAPPING')
-    .select('ID, MERCHANDISER')
+    .select('"CUSTOMER ID", MERCHANDISER')
     .not('MERCHANDISER', 'is', null);
 
   if (error) throw error;
@@ -491,6 +391,9 @@ export async function migrateLegacyMerchandiserNames(): Promise<number> {
 
   let updated = 0;
   for (const row of rows) {
+    const customerId = String(row['CUSTOMER ID'] || '').trim();
+    if (!customerId) continue;
+
     const raw = String(row.MERCHANDISER || '').trim();
     if (!raw || userMapById.has(raw)) continue;
 
@@ -500,7 +403,7 @@ export async function migrateLegacyMerchandiserNames(): Promise<number> {
     const { error: updateError } = await bhs_supabas
       .from('web_Sales_DB_CUSTOMERSMAPPING')
       .update({ MERCHANDISER: userId })
-      .eq('ID', row.ID);
+      .eq('CUSTOMER ID', customerId);
 
     if (updateError) throw updateError;
     updated += 1;

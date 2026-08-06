@@ -331,7 +331,7 @@ export default function SalesPage() {
       const mappingByCustomerId = new Map<string, Record<string, string>>();
       if (myCustomersResult) {
         (myCustomersResult || []).forEach((m: Record<string, string>) => {
-          const id = String(m['CUSTOMER ID'] || m.ID || '').trim();
+          const id = String(m['CUSTOMER ID'] || '').trim();
           if (id) mappingByCustomerId.set(id, m);
         });
       }

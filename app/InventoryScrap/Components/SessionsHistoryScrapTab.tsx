@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { upsertActiveScrapSession, deleteScrapEntry, deleteScrapSession } from '../Service/InventoryScrapService';
+import { upsertActiveScrapSession, deleteScrapEntry, deleteScrapSession, convertSessionsToScrapReport } from '../Service/InventoryScrapService';
 import {
   Layers,
   RefreshCw,
@@ -13,7 +13,8 @@ import {
   Box,
   Trash2,
   CheckCircle2,
-  Calendar
+  Calendar,
+  FileText
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { writeTrackedXlsxFile } from '@/app/Audit/Utils/TrackedDownload';
@@ -29,6 +30,7 @@ interface ScrapEntry {
   REASON: 'EXPIRED' | 'DAMAGED';
   CREATED_AT: string;
   SESSION_ID: string;
+  REPORT_ID?: string | null;
 }
 
 interface SessionsHistoryTabProps {
@@ -45,6 +47,9 @@ export default function SessionsHistoryTab({
   currentSession
 }: SessionsHistoryTabProps) {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const [selectedSessionIds, setSelectedSessionIds] = useState<Set<string>>(new Set());
+  const [isConvertModalOpen, setIsConvertModalOpen] = useState(false);
+  const [isConverting, setIsConverting] = useState(false);
 
   // Export Date Range Modal States
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
@@ -133,7 +138,18 @@ export default function SessionsHistoryTab({
 
   // Grouped unique sessions calculation
   const groupedSessions = useMemo(() => {
-    const map: Record<string, { sessionId: string; date: string; totalQty: number; itemsCount: number; entries: ScrapEntry[] }> = {};
+    const map: Record<
+      string,
+      {
+        sessionId: string;
+        date: string;
+        totalQty: number;
+        itemsCount: number;
+        entries: ScrapEntry[];
+        reportId: string | null;
+        isReported: boolean;
+      }
+    > = {};
 
     scrapEntries.forEach((entry) => {
       const sId = entry.SESSION_ID || 'UNTAGGED';
@@ -143,21 +159,56 @@ export default function SessionsHistoryTab({
           date: entry.CREATED_AT,
           totalQty: 0,
           itemsCount: 0,
-          entries: []
+          entries: [],
+          reportId: null,
+          isReported: false,
         };
       }
       map[sId].totalQty += Number(entry.QTY) || 0;
       map[sId].entries.push(entry);
+      const rid = entry.REPORT_ID != null ? String(entry.REPORT_ID).trim() : '';
+      if (rid) {
+        map[sId].isReported = true;
+        map[sId].reportId = rid;
+      }
     });
 
-    // Count unique products per session
     Object.keys(map).forEach((sId) => {
-      const uniqueProductIds = new Set(map[sId].entries.map(e => e['PRODUCT ID']));
+      const uniqueProductIds = new Set(map[sId].entries.map((e) => e['PRODUCT ID']));
       map[sId].itemsCount = uniqueProductIds.size;
     });
 
     return Object.values(map).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [scrapEntries]);
+
+  const toggleSessionSelection = (sessionId: string, isReported: boolean) => {
+    if (isReported || sessionId === 'UNTAGGED') return;
+    setSelectedSessionIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(sessionId)) next.delete(sessionId);
+      else next.add(sessionId);
+      return next;
+    });
+  };
+
+  const handleConfirmConvert = async () => {
+    const ids = [...selectedSessionIds];
+    if (ids.length === 0) return;
+
+    setIsConverting(true);
+    try {
+      const { reportId } = await convertSessionsToScrapReport(ids);
+      toast.success(`Converted to report ${reportId}`);
+      setSelectedSessionIds(new Set());
+      setIsConvertModalOpen(false);
+      await fetchScrapEntries();
+    } catch (err: any) {
+      console.error('Convert sessions error:', err);
+      toast.error(err.message || 'Failed to convert sessions to report');
+    } finally {
+      setIsConverting(false);
+    }
+  };
 
   // Delete entire session
   const handleDeleteSession = async () => {
@@ -228,6 +279,14 @@ export default function SessionsHistoryTab({
     return scrapEntries.filter(e => e.SESSION_ID === selectedSessionId);
   }, [scrapEntries, selectedSessionId]);
 
+  const selectedSessionIsReported = useMemo(() => {
+    if (!selectedSessionId) return false;
+    return selectedSessionEntries.some((e) => {
+      const rid = e.REPORT_ID != null ? String(e.REPORT_ID).trim() : '';
+      return rid !== '';
+    });
+  }, [selectedSessionId, selectedSessionEntries]);
+
   return (
     <div className="space-y-6">
 
@@ -240,6 +299,19 @@ export default function SessionsHistoryTab({
         </div>
 
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => setIsConvertModalOpen(true)}
+            disabled={selectedSessionIds.size === 0 || isConverting}
+            className="p-3 bg-white border border-gray-100 text-[#D4AF37] hover:text-[#b8942a] hover:border-[#D4AF37]/40 rounded-2xl shadow-sm transition-all flex items-center justify-center cursor-pointer hover:bg-[#D4AF37]/5 disabled:opacity-40 disabled:pointer-events-none"
+            title={
+              selectedSessionIds.size === 0
+                ? 'Select sessions to convert'
+                : `Convert ${selectedSessionIds.size} session(s) to report`
+            }
+          >
+            {isConverting ? <Loader2 className="w-5 h-5 animate-spin" /> : <FileText className="w-5 h-5" />}
+          </button>
+
           <button
             onClick={() => setIsExportModalOpen(true)}
             className="p-3 bg-white border border-gray-100 text-emerald-600 hover:text-emerald-700 hover:border-emerald-200 rounded-2xl shadow-sm transition-all flex items-center justify-center cursor-pointer hover:bg-emerald-50/50"
@@ -271,6 +343,9 @@ export default function SessionsHistoryTab({
         <table className="w-full border-collapse text-center">
           <thead>
             <tr className="border-b border-gray-100">
+              <th className="pb-4 px-3 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-12">
+                Select
+              </th>
               <th className="pb-4 px-4 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] text-center">Session ID</th>
               <th className="pb-4 px-4 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Created At</th>
               <th className="pb-4 px-4 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Total Items Count</th>
@@ -279,8 +354,27 @@ export default function SessionsHistoryTab({
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
-              {groupedSessions.map((s) => (
+              {groupedSessions.map((s) => {
+                const isChecked = selectedSessionIds.has(s.sessionId);
+                const canSelect = !s.isReported && s.sessionId !== 'UNTAGGED';
+                return (
                 <tr key={s.sessionId} className="group hover:bg-gray-50/30 transition-all text-center">
+                  <td className="py-5 px-3">
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      disabled={!canSelect}
+                      onChange={() => toggleSessionSelection(s.sessionId, s.isReported)}
+                      className="w-4 h-4 rounded border-gray-300 text-black accent-black cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                      title={
+                        s.isReported
+                          ? `Already in report ${s.reportId}`
+                          : canSelect
+                            ? 'Select for report'
+                            : 'Unavailable'
+                      }
+                    />
+                  </td>
                   <td className="py-5 px-4 text-center">
                     <span className="inline-flex px-3 py-1.5 bg-[#D4AF37]/10 rounded-xl text-xs font-black text-[#8a6d1a] border border-[#D4AF37]/20 uppercase">
                       {s.sessionId}
@@ -288,6 +382,14 @@ export default function SessionsHistoryTab({
                     {s.sessionId === currentSession && (
                       <span className="ml-2.5 px-2 py-0.5 bg-emerald-500 text-white rounded-lg text-[9px] font-black uppercase tracking-wider">
                         Active
+                      </span>
+                    )}
+                    {s.isReported && (
+                      <span
+                        className="ml-2.5 px-2 py-0.5 bg-slate-800 text-[#D4AF37] rounded-lg text-[9px] font-black uppercase tracking-wider"
+                        title={s.reportId || undefined}
+                      >
+                        Reported{s.reportId ? ` · ${s.reportId}` : ''}
                       </span>
                     )}
                   </td>
@@ -325,16 +427,22 @@ export default function SessionsHistoryTab({
                         <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
                       </button>
                       <button
-                        onClick={() => setSessionToDelete(s.sessionId)}
-                        className="p-2 bg-slate-50 hover:bg-red-50 hover:text-red-500 rounded-xl text-gray-400 transition-all border border-slate-100 flex items-center justify-center cursor-pointer"
-                        title="Delete Entire Session"
+                        onClick={() => !s.isReported && setSessionToDelete(s.sessionId)}
+                        disabled={s.isReported}
+                        className="p-2 bg-slate-50 hover:bg-red-50 hover:text-red-500 rounded-xl text-gray-400 transition-all border border-slate-100 flex items-center justify-center cursor-pointer disabled:opacity-40 disabled:pointer-events-none disabled:hover:bg-slate-50 disabled:hover:text-gray-400"
+                        title={
+                          s.isReported
+                            ? `Cannot delete — included in ${s.reportId}`
+                            : 'Delete Entire Session'
+                        }
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
           </tbody>
         </table>
       </div>
@@ -501,9 +609,14 @@ export default function SessionsHistoryTab({
                         </td>
                         <td className="py-4 px-4">
                           <button
-                            onClick={() => setEntryToDelete(e.ID)}
-                            className="p-2 hover:bg-red-50 rounded-xl text-gray-400 hover:text-red-500 transition-all border border-transparent hover:border-red-100 active:scale-90 cursor-pointer"
-                            title="Delete Entry"
+                            onClick={() => !selectedSessionIsReported && setEntryToDelete(e.ID)}
+                            disabled={selectedSessionIsReported}
+                            className="p-2 hover:bg-red-50 rounded-xl text-gray-400 hover:text-red-500 transition-all border border-transparent hover:border-red-100 active:scale-90 cursor-pointer disabled:opacity-40 disabled:pointer-events-none disabled:hover:bg-transparent disabled:hover:text-gray-400"
+                            title={
+                              selectedSessionIsReported
+                                ? 'Cannot delete — session included in a report'
+                                : 'Delete Entry'
+                            }
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -523,6 +636,46 @@ export default function SessionsHistoryTab({
                 className="px-6 py-3 bg-gray-50 text-gray-400 hover:bg-gray-100 rounded-2xl font-black text-xs uppercase tracking-widest transition-all cursor-pointer"
               >
                 Close Details
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Convert to Report Confirm Modal */}
+      {isConvertModalOpen && (
+        <div className="fixed inset-0 z-[600] flex items-center justify-center p-6 animate-in fade-in duration-200">
+          <div
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            onClick={() => !isConverting && setIsConvertModalOpen(false)}
+          />
+          <div className="bg-white rounded-[2.5rem] p-8 border border-gray-100 shadow-2xl relative w-full max-w-md z-10 animate-in zoom-in-95 duration-200">
+            <div className="w-12 h-12 bg-black rounded-2xl flex items-center justify-center text-[#D4AF37] mb-4">
+              <FileText className="w-6 h-6" />
+            </div>
+            <h4 className="text-xl font-black text-black">Convert to Report?</h4>
+            <p className="text-sm text-gray-500 font-bold mt-2 leading-relaxed">
+              Convert the selection into one Saved Scrap Report. Once converted, it cannot be
+              converted again.
+            </p>
+
+            <div className="flex gap-4 mt-8">
+              <button
+                type="button"
+                disabled={isConverting}
+                onClick={() => setIsConvertModalOpen(false)}
+                className="flex-1 py-3 bg-gray-50 text-gray-400 hover:bg-gray-100 rounded-2xl font-black text-xs uppercase tracking-widest transition-all cursor-pointer disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isConverting}
+                onClick={handleConfirmConvert}
+                className="flex-1 py-3 bg-black text-[#D4AF37] hover:bg-gray-900 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-black/10 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+              >
+                {isConverting ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                Convert
               </button>
             </div>
           </div>

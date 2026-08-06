@@ -473,7 +473,6 @@ function mapMappingToCustomerRow(m: {
   merchandiser?: string;
 }) {
   return {
-    ID: m.id,
     'CUSTOMER ID': m.customerId,
     'USER_ID': m.userId || '',
     'MERCHANDISER_ID': m.merchandiserId || '',
@@ -517,7 +516,7 @@ export async function syncCustomerMappingAreasFromCity(): Promise<number> {
 
   const { data: mappings, error } = await bhs_supabas
     .from('web_Sales_DB_CUSTOMERSMAPPING')
-    .select('ID, "CUSTOMER ID", AREA');
+    .select('"CUSTOMER ID", AREA');
 
   if (error) throw error;
 
@@ -534,12 +533,12 @@ export async function syncCustomerMappingAreasFromCity(): Promise<number> {
     const chunk = toUpdate.slice(i, i + chunkSize);
     const results = await Promise.all(
       chunk.map((m) => {
-        const cId = String(m['CUSTOMER ID'] || '').trim().toUpperCase();
-        const city = custCityById.get(cId)!;
+        const cId = String(m['CUSTOMER ID'] || '').trim();
+        const city = custCityById.get(cId.toUpperCase())!;
         return bhs_supabas
           .from('web_Sales_DB_CUSTOMERSMAPPING')
           .update({ AREA: city })
-          .eq('ID', m.ID);
+          .eq('CUSTOMER ID', cId);
       })
     );
 
@@ -588,7 +587,7 @@ export async function saveCustomerMapping(userId: string, mapping: any) {
 
   const { data: existing } = await bhs_supabas
     .from('web_Sales_DB_CUSTOMERSMAPPING')
-    .select('ID')
+    .select('"CUSTOMER ID"')
     .eq('CUSTOMER ID', customerId)
     .maybeSingle();
 
@@ -607,7 +606,6 @@ export async function saveCustomerMapping(userId: string, mapping: any) {
     const { error } = await bhs_supabas
       .from('web_Sales_DB_CUSTOMERSMAPPING')
       .insert({
-        ID: customerId,
         SALES_REP: salesRepId,
         'CUSTOMER ID': customerId,
         AREA: area,
@@ -634,7 +632,7 @@ export async function batchSaveCustomerMapping(userId: string, mapping: Record<s
   const { error: deleteError } = await bhs_supabas
     .from('web_Sales_DB_CUSTOMERSMAPPING')
     .delete()
-    .gt('ID', '');
+    .neq('CUSTOMER ID', '__never__');
 
   if (deleteError) {
     console.error('Error deleting old mappings:', deleteError);
@@ -660,7 +658,6 @@ export async function batchSaveCustomerMapping(userId: string, mapping: Record<s
     const city = custCityById.get(customerId.toUpperCase()) || '';
 
     rowsByCustomer.set(customerId, {
-      ID: customerId,
       SALES_REP: repId,
       'CUSTOMER ID': customerId,
       AREA: city || data.area || '',
