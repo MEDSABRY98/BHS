@@ -20,7 +20,7 @@ interface SalesCollectionsChartProps {
   forPdf?: boolean;
 }
 
-type DebtLabelProps = RechartsLabelProps;
+type NetSalesLabelProps = RechartsLabelProps;
 
 function toNumber(value: string | number | undefined, fallback = 0): number {
   if (typeof value === 'number') return value;
@@ -35,7 +35,7 @@ function formatAmount(value: number) {
   return value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-function formatDebtBoxAmount(value: number) {
+function formatNetSalesBoxAmount(value: number) {
   const abs = Math.abs(value);
   const sign = value < 0 ? '-' : '';
 
@@ -49,21 +49,21 @@ function formatDebtBoxAmount(value: number) {
   return `${sign}${abs.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
 }
 
-const DEBT_BOX_HEIGHT = 30;
-const DEBT_BOX_Y = 6;
+const NET_SALES_BOX_HEIGHT = 30;
+const NET_SALES_BOX_Y = 6;
 
-function createOpenDebtLabel(chartData: InsightsTrendPoint[]) {
+function createNetSalesLabel(chartData: InsightsTrendPoint[]) {
   const boxWidth = Math.max(
     72,
-    ...chartData.map((point) => formatDebtBoxAmount(point.openDebt).length * 7.5 + 18)
+    ...chartData.map((point) => formatNetSalesBoxAmount(point.netSales).length * 7.5 + 18)
   );
 
-  return function OpenDebtLabel({ x, width, index }: DebtLabelProps) {
+  return function NetSalesLabel({ x, width, index }: NetSalesLabelProps) {
     if (index === undefined || !chartData[index]) return null;
 
     const posX = toNumber(x);
     const barWidth = toNumber(width);
-    const openDebt = chartData[index].openDebt;
+    const netSales = chartData[index].netSales;
     const centerX = posX + barWidth * 1.56;
     const boxX = centerX - boxWidth / 2;
 
@@ -71,23 +71,23 @@ function createOpenDebtLabel(chartData: InsightsTrendPoint[]) {
       <g>
         <rect
           x={boxX}
-          y={DEBT_BOX_Y}
+          y={NET_SALES_BOX_Y}
           width={boxWidth}
-          height={DEBT_BOX_HEIGHT}
+          height={NET_SALES_BOX_HEIGHT}
           rx={6}
-          fill="#EFF6FF"
-          stroke="#60A5FA"
+          fill="#ECFDF5"
+          stroke="#34D399"
           strokeWidth={1.25}
         />
         <text
           x={centerX}
-          y={DEBT_BOX_Y + DEBT_BOX_HEIGHT / 2 + 5}
+          y={NET_SALES_BOX_Y + NET_SALES_BOX_HEIGHT / 2 + 5}
           textAnchor="middle"
-          fill="#1E40AF"
+          fill="#065F46"
           fontSize={13}
           fontWeight={700}
         >
-          {formatDebtBoxAmount(openDebt)}
+          {formatNetSalesBoxAmount(netSales)}
         </text>
       </g>
     );
@@ -134,7 +134,7 @@ function SalesCollectionsTooltip({
 }
 
 export default function SalesCollectionsChart({ data, forPdf = false }: SalesCollectionsChartProps) {
-  const debtLabel = useMemo(() => createOpenDebtLabel(data), [data]);
+  const netSalesLabel = useMemo(() => createNetSalesLabel(data), [data]);
 
   const chart = (
     <ResponsiveContainer width="100%" height={forPdf ? 620 : 440}>
@@ -168,7 +168,7 @@ export default function SalesCollectionsChart({ data, forPdf = false }: SalesCol
           radius={[6, 6, 0, 0]}
           isAnimationActive={false}
         >
-          <LabelList dataKey="openDebt" content={debtLabel} />
+          <LabelList dataKey="netSales" content={netSalesLabel} />
         </Bar>
         <Bar
           dataKey="collections"
