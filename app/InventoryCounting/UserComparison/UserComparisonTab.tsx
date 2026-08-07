@@ -122,10 +122,14 @@ export default function UserComparisonTab() {
   const currentStatus = statusOptions.find((opt) => opt.value === statusFilter);
 
   const visibleUsers = useMemo(() => {
-    if (selectedUsers.length > 0) {
-      return [...selectedUsers].sort((a, b) => a.localeCompare(b));
-    }
-    return allUsers;
+    const source =
+      selectedUsers.length > 0
+        ? selectedUsers
+        : allUsers;
+    return [...source]
+      .map((user) => user.trim())
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b));
   }, [selectedUsers, allUsers]);
 
   const comparisonRows = useMemo((): ComparisonRow[] => {
@@ -192,12 +196,12 @@ export default function UserComparisonTab() {
   };
 
   const sortableHeaderClass =
-    'px-4 py-5 text-center text-xs font-black uppercase tracking-widest text-white cursor-pointer hover:bg-white/10 transition-colors';
+    'px-4 py-5 text-center text-xs font-black uppercase tracking-widest text-white bg-black cursor-pointer hover:bg-zinc-900 transition-colors';
 
   const renderSortableHeader = (key: SortKey, label: string, className = '') => (
     <th key={key} onClick={() => handleSort(key)} className={`${sortableHeaderClass} ${className}`}>
       <div className="flex items-center justify-center gap-2">
-        <span className={key.startsWith('user:') ? 'truncate max-w-[120px]' : ''}>{label}</span>
+        <span className={key.startsWith('user:') ? 'truncate max-w-[120px]' : ''}>{label || '—'}</span>
         <ArrowUpDown className="w-3 h-3 text-white/50 shrink-0" />
       </div>
     </th>
@@ -323,10 +327,10 @@ export default function UserComparisonTab() {
       ) : (
         <div className="bg-white rounded-[2rem] shadow-xl shadow-slate-200/50 border border-gray-100 overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[900px]">
-              <thead className="bg-black text-white sticky top-0 z-10">
+            <table className="w-full min-w-[900px] border-separate border-spacing-0">
+              <thead className="bg-black text-white">
                 <tr>
-                  <th className="px-4 py-5 text-center text-xs font-black uppercase tracking-widest text-white w-[50px]">
+                  <th className="px-4 py-5 text-center text-xs font-black uppercase tracking-widest text-white bg-black w-[50px]">
                     #
                   </th>
                   {renderSortableHeader('barcodeName', 'Barcode', 'min-w-[120px]')}
