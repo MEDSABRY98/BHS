@@ -7,6 +7,8 @@ const PRODUCTS_CACHE_MS = 120_000;
 
 let cachedLiveStockMap: { map: Map<string, number>; expiresAt: number } | null = null;
 let cachedCountableProducts: { rows: MixCountProductRow[]; expiresAt: number } | null = null;
+let countableProductsInflight: Promise<MixCountProductRow[]> | null = null;
+let liveStockInflight: Promise<Map<string, number>> | null = null;
 
 export type CountType = 'Normal' | 'DamageExpire';
 
@@ -257,10 +259,19 @@ async function loadCountableProducts(): Promise<MixCountProductRow[]> {
   if (cachedCountableProducts && cachedCountableProducts.expiresAt > now) {
     return cachedCountableProducts.rows;
   }
+  if (countableProductsInflight) return countableProductsInflight;
 
-  const rows = await fetchAllMixCountRows<MixCountProductRow>('bhs_PRODUCTS', PRODUCT_SELECT);
-  cachedCountableProducts = { rows, expiresAt: now + PRODUCTS_CACHE_MS };
-  return rows;
+  countableProductsInflight = (async () => {
+    try {
+      const rows = await fetchAllMixCountRows<MixCountProductRow>('bhs_PRODUCTS', PRODUCT_SELECT);
+      cachedCountableProducts = { rows, expiresAt: Date.now() + PRODUCTS_CACHE_MS };
+      return rows;
+    } finally {
+      countableProductsInflight = null;
+    }
+  })();
+
+  return countableProductsInflight;
 }
 
 async function loadAvailableQtyMap(): Promise<Map<string, number>> {
@@ -268,33 +279,46 @@ async function loadAvailableQtyMap(): Promise<Map<string, number>> {
   if (cachedLiveStockMap && cachedLiveStockMap.expiresAt > now) {
     return cachedLiveStockMap.map;
   }
+  if (liveStockInflight) return liveStockInflight;
 
-  try {
-    const { data, error } = await bhs_supabase.rpc('get_live_available_quantities');
-    if (!error && Array.isArray(data)) {
-      const map = new Map<string, number>();
-      for (const row of data) {
-        const record = row as Record<string, unknown>;
-        const productId = String(record.product_id ?? record.productId ?? '').trim();
-        if (!productId) continue;
-        map.set(productId, parseNum(record.available_qty ?? record.availableQty));
+  liveStockInflight = (async () => {
+    try {
+      try {
+        const { data, error } = await bhs_supabase.rpc('get_live_available_quantities');
+        if (!error && Array.isArray(data)) {
+          const map = new Map<string, number>();
+          for (const row of data) {
+            const record = row as Record<string, unknown>;
+            const productId = String(record.product_id ?? record.productId ?? '').trim();
+            if (!productId) continue;
+            map.set(productId, parseNum(record.available_qty ?? record.availableQty));
+          }
+          if (map.size > 0) {
+            cachedLiveStockMap = { map, expiresAt: Date.now() + LIVE_STOCK_CACHE_MS };
+            return map;
+          }
+        }
+        if (error) console.warn('RPC get_live_available_quantities failed:', error.message);
+      } catch (err) {
+        console.warn('RPC get_live_available_quantities error:', err);
       }
-      if (map.size > 0) {
-        cachedLiveStockMap = { map, expiresAt: now + LIVE_STOCK_CACHE_MS };
-        return map;
-      }
+
+      const { getLiveAvailableQuantitiesFromMoves } = await import(
+        '@/app/InventoryAnalysis/Service/inventory_service'
+      );
+      const map = await getLiveAvailableQuantitiesFromMoves();
+      cachedLiveStockMap = { map, expiresAt: Date.now() + LIVE_STOCK_CACHE_MS };
+      return map;
+    } finally {
+      liveStockInflight = null;
     }
-    if (error) console.warn('RPC get_live_available_quantities failed:', error.message);
-  } catch (err) {
-    console.warn('RPC get_live_available_quantities error:', err);
-  }
+  })();
 
-  const { getLiveAvailableQuantitiesFromMoves } = await import(
-    '@/app/InventoryAnalysis/Service/inventory_service'
-  );
-  const map = await getLiveAvailableQuantitiesFromMoves();
-  cachedLiveStockMap = { map, expiresAt: now + LIVE_STOCK_CACHE_MS };
-  return map;
+  return liveStockInflight;
+}
+
+function invalidateCountableProductsCache() {
+  cachedCountableProducts = null;
 }
 
 function buildICTotalItems(
@@ -349,14 +373,22 @@ function buildICRecords(
 }
 
 async function generateNextRowId(table: 'mix_INVENTORY_COUNT_TOTALS'): Promise<string> {
-  const rows = await fetchAllMixCountRows<{ ID: string }>(table, 'ID');
+  // IDs are zero-padded (R-0001), so lexicographic max matches numeric max.
+  const { data, error } = await bhs_supabase
+    .from(table)
+    .select('ID')
+    .like('ID', 'R-%')
+    .order('ID', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw error;
+
   let maxNum = 0;
-  for (const row of rows) {
-    const id = row.ID?.toString().trim() || '';
-    if (id.startsWith('R-')) {
-      const numPart = parseInt(id.substring(2), 10);
-      if (Number.isFinite(numPart) && numPart > maxNum) maxNum = numPart;
-    }
+  const id = data?.ID?.toString().trim() || '';
+  if (id.startsWith('R-')) {
+    const numPart = parseInt(id.substring(2), 10);
+    if (Number.isFinite(numPart) && numPart > maxNum) maxNum = numPart;
   }
   return `R-${String(maxNum + 1).padStart(4, '0')}`;
 }
@@ -569,6 +601,76 @@ export async function fetchICCountTabData(countType: CountType) {
   }
 }
 
+/**
+ * Lightweight detail records for user/warehouse scope filters.
+ * Does not rebuild product×stock tables or call live stock.
+ */
+export async function fetchICDetailRecords() {
+  try {
+    const [products, normalDetails, damageDetails] = await Promise.all([
+      loadCountableProducts(),
+      fetchAllMixCountRows<MixCountDetailRow>(
+        'mix_INVENTORY_COUNT_DETAILS',
+        DETAIL_SELECT,
+        { column: 'COUNT_TYPE', value: 'Normal' }
+      ),
+      fetchAllMixCountRows<MixCountDetailRow>(
+        'mix_INVENTORY_COUNT_DETAILS',
+        DETAIL_SELECT,
+        { column: 'COUNT_TYPE', value: 'DamageExpire' }
+      ),
+    ]);
+
+    const productMap = buildProductMap(products);
+    return {
+      success: true as const,
+      normalRecords: buildICRecords(normalDetails, productMap, 'Normal'),
+      damageRecords: buildICRecords(damageDetails, productMap, 'DamageExpire'),
+    };
+  } catch (error: any) {
+    console.error('Error in fetchICDetailRecords:', error);
+    return {
+      success: false as const,
+      error: 'Failed to fetch IC detail records',
+      details: error.message,
+    };
+  }
+}
+
+export async function fetchArchivedICDetailRecords(archiveId: string) {
+  try {
+    const [products, normalDetails, damageDetails] = await Promise.all([
+      loadCountableProducts(),
+      fetchAllArchiveRows<MixCountDetailRow>(
+        'mix_INVENTORY_COUNT_DETAILS_ARCHIVE',
+        archiveId,
+        DETAIL_SELECT,
+        { column: 'COUNT_TYPE', value: 'Normal' }
+      ),
+      fetchAllArchiveRows<MixCountDetailRow>(
+        'mix_INVENTORY_COUNT_DETAILS_ARCHIVE',
+        archiveId,
+        DETAIL_SELECT,
+        { column: 'COUNT_TYPE', value: 'DamageExpire' }
+      ),
+    ]);
+
+    const productMap = buildProductMap(products);
+    return {
+      success: true as const,
+      normalRecords: buildICRecords(normalDetails, productMap, 'Normal'),
+      damageRecords: buildICRecords(damageDetails, productMap, 'DamageExpire'),
+    };
+  } catch (error: any) {
+    console.error('Error in fetchArchivedICDetailRecords:', error);
+    return {
+      success: false as const,
+      error: 'Failed to fetch archived IC detail records',
+      details: error.message,
+    };
+  }
+}
+
 export async function fetchICTotal(countType: CountType) {
   try {
     const [products, totals, liveStockMap] = await Promise.all([
@@ -613,12 +715,20 @@ export async function fetchAllICDetails() {
     taggedDetails.sort((a, b) => {
       const dateA = new Date(String(a.row.DATE || '')).getTime();
       const dateB = new Date(String(b.row.DATE || '')).getTime();
-      return dateB - dateA;
+      return (Number.isFinite(dateB) ? dateB : 0) - (Number.isFinite(dateA) ? dateA : 0);
     });
 
-    const data: ICRecord[] = taggedDetails.flatMap(({ row, countType }) =>
-      buildICRecords([row], productMap, countType)
-    );
+    const recordByKey = new Map<string, ICRecord>();
+    buildICRecords(normalDetails, productMap, 'Normal').forEach((record) => {
+      recordByKey.set(`Normal:${record.rowId}`, record);
+    });
+    buildICRecords(damageDetails, productMap, 'DamageExpire').forEach((record) => {
+      recordByKey.set(`DamageExpire:${record.rowId}`, record);
+    });
+
+    const data: ICRecord[] = taggedDetails
+      .map(({ row, countType }) => recordByKey.get(`${countType}:${row.ID}`))
+      .filter((record): record is ICRecord => !!record);
 
     return { success: true, data };
   } catch (error: any) {
@@ -709,6 +819,7 @@ export async function updateICItem(
 
     if (error) throw error;
 
+    invalidateCountableProductsCache();
     return { success: true, data: !!(data && data.length > 0) };
   } catch (error: any) {
     console.error('Error in updateICItem:', error);
@@ -1258,12 +1369,20 @@ export async function fetchArchivedAllICDetails(archiveId: string) {
     taggedDetails.sort((a, b) => {
       const dateA = new Date(String(a.row.DATE || '')).getTime();
       const dateB = new Date(String(b.row.DATE || '')).getTime();
-      return dateB - dateA;
+      return (Number.isFinite(dateB) ? dateB : 0) - (Number.isFinite(dateA) ? dateA : 0);
     });
 
-    const data: ICRecord[] = taggedDetails.flatMap(({ row, countType }) =>
-      buildICRecords([row], productMap, countType)
-    );
+    const recordByKey = new Map<string, ICRecord>();
+    buildICRecords(normalDetails, productMap, 'Normal').forEach((record) => {
+      recordByKey.set(`Normal:${record.rowId}`, record);
+    });
+    buildICRecords(damageDetails, productMap, 'DamageExpire').forEach((record) => {
+      recordByKey.set(`DamageExpire:${record.rowId}`, record);
+    });
+
+    const data: ICRecord[] = taggedDetails
+      .map(({ row, countType }) => recordByKey.get(`${countType}:${row.ID}`))
+      .filter((record): record is ICRecord => !!record);
 
     return { success: true, data };
   } catch (error: any) {

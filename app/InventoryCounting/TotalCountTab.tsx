@@ -9,9 +9,9 @@ import NoData from '@/app/Components/DataState/NoDataTab';
 import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import {
   fetchICTotalCountData,
-  fetchICCountTabData,
+  fetchICDetailRecords,
   fetchArchivedICTotalCountData,
-  fetchArchivedICCountTabData,
+  fetchArchivedICDetailRecords,
   updateICItem,
   ICTotalCountItem,
 } from './Service/InventoryCountingService';
@@ -52,17 +52,19 @@ export default function TotalCountTab() {
 
     setError(null);
     try {
-      const [result, normalResult, damageResult] = archiveId
-        ? await Promise.all([
-            fetchArchivedICTotalCountData(archiveId),
-            fetchArchivedICCountTabData(archiveId, 'Normal'),
-            fetchArchivedICCountTabData(archiveId, 'DamageExpire'),
-          ])
-        : await Promise.all([
-            fetchICTotalCountData(),
-            fetchICCountTabData('Normal'),
-            fetchICCountTabData('DamageExpire'),
-          ]);
+      const needScopeRecords = hasICScopeFilter(selectedUsers, selectedWarehouses);
+
+      const totalsPromise = archiveId
+        ? fetchArchivedICTotalCountData(archiveId)
+        : fetchICTotalCountData();
+
+      const detailsPromise = needScopeRecords
+        ? archiveId
+          ? fetchArchivedICDetailRecords(archiveId)
+          : fetchICDetailRecords()
+        : null;
+
+      const [result, detailsResult] = await Promise.all([totalsPromise, detailsPromise]);
 
       if (result.success && result.data) {
         setData(result.data);
@@ -70,11 +72,14 @@ export default function TotalCountTab() {
         throw new Error(result.error || 'Failed to load data');
       }
 
-      if (normalResult.success && normalResult.records) {
-        setNormalRecords(normalResult.records);
-      }
-      if (damageResult.success && damageResult.records) {
-        setDamageRecords(damageResult.records);
+      if (detailsResult?.success) {
+        setNormalRecords(detailsResult.normalRecords || []);
+        setDamageRecords(detailsResult.damageRecords || []);
+      } else if (!needScopeRecords) {
+        setNormalRecords([]);
+        setDamageRecords([]);
+      } else if (detailsResult && !detailsResult.success) {
+        throw new Error(detailsResult.error || 'Failed to load scope records');
       }
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : 'Failed to load data';
@@ -89,6 +94,31 @@ export default function TotalCountTab() {
   useEffect(() => {
     fetchData();
   }, [archiveId, sessionVersion]);
+
+  useEffect(() => {
+    if (!hasICScopeFilter(selectedUsers, selectedWarehouses)) return;
+    if (normalRecords.length > 0 || damageRecords.length > 0) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const detailsResult = archiveId
+          ? await fetchArchivedICDetailRecords(archiveId)
+          : await fetchICDetailRecords();
+        if (cancelled) return;
+        if (detailsResult.success) {
+          setNormalRecords(detailsResult.normalRecords || []);
+          setDamageRecords(detailsResult.damageRecords || []);
+        }
+      } catch (e) {
+        console.error('Failed to load scope detail records', e);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedUsers, selectedWarehouses, archiveId, normalRecords.length, damageRecords.length]);
 
   const statusOptions = [
     { value: 'All', label: 'All Items' },

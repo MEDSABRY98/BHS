@@ -7,7 +7,7 @@ import { writeTrackedXlsxFile } from '@/app/Audit/Utils/TrackedDownload';
 import TabLoader from '@/app/Components/Loading/TabLoader';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import TabFetchError from '@/app/Components/DataState/TabFetchError';
-import { fetchICCountTabData, fetchArchivedICCountTabData } from './Service/InventoryCountingService';
+import { fetchICTotalCountData, fetchICDetailRecords, fetchArchivedICTotalCountData, fetchArchivedICDetailRecords, ICTotalCountItem } from './Service/InventoryCountingService';
 import { useInventoryCountingArchive } from './InventoryCountingArchiveContext';
 import { ICItem, ICRecord } from './Utils/EditItemModal';
 import { useInventoryCountingFilters, matchesICUser, matchesICWarehouse, hasICScopeFilter } from './InventoryCountingFiltersContext';
@@ -25,6 +25,23 @@ type CountRow = {
 };
 
 type SortKey = keyof CountRow | '#';
+
+function totalItemsToNormalDamage(data: ICTotalCountItem[]): { normalData: ICItem[]; damageData: ICItem[] } {
+  const normalData: ICItem[] = [];
+  const damageData: ICItem[] = [];
+  data.forEach((item) => {
+    const base = {
+      productId: item.productId,
+      barcodeName: item.barcodeName,
+      productName: item.productName,
+      availableQty: item.availableQty,
+      qtyInBox: item.qtyInBox,
+    };
+    normalData.push({ ...base, countedQty: item.normalQty });
+    damageData.push({ ...base, countedQty: item.damageQty });
+  });
+  return { normalData, damageData };
+}
 
 function buildRowsFromTotals(normalData: ICItem[], damageData: ICItem[]): CountRow[] {
   const damageMap = new Map(damageData.map((item) => [item.productId, item.countedQty]));
@@ -140,27 +157,39 @@ export default function CountTab() {
 
     setError(null);
     try {
-      const [normalResult, damageResult] = archiveId
-        ? await Promise.all([
-            fetchArchivedICCountTabData(archiveId, 'Normal'),
-            fetchArchivedICCountTabData(archiveId, 'DamageExpire'),
-          ])
-        : await Promise.all([
-            fetchICCountTabData('Normal'),
-            fetchICCountTabData('DamageExpire'),
-          ]);
+      const needScopeRecords = hasICScopeFilter(selectedUsers, selectedWarehouses);
 
-      if (!normalResult.success || !normalResult.data) {
-        throw new Error(normalResult.error || 'Failed to load normal count data');
-      }
-      if (!damageResult.success || !damageResult.data) {
-        throw new Error(damageResult.error || 'Failed to load damage count data');
+      const totalsPromise = archiveId
+        ? fetchArchivedICTotalCountData(archiveId)
+        : fetchICTotalCountData();
+
+      const detailsPromise = needScopeRecords
+        ? archiveId
+          ? fetchArchivedICDetailRecords(archiveId)
+          : fetchICDetailRecords()
+        : null;
+
+      const [totalsResult, detailsResult] = await Promise.all([totalsPromise, detailsPromise]);
+
+      if (!totalsResult.success || !totalsResult.data) {
+        throw new Error(totalsResult.error || 'Failed to load count data');
       }
 
-      setNormalData(normalResult.data);
-      setDamageData(damageResult.data);
-      setNormalRecords(normalResult.records || []);
-      setDamageRecords(damageResult.records || []);
+      const { normalData: nextNormal, damageData: nextDamage } = totalItemsToNormalDamage(
+        totalsResult.data,
+      );
+      setNormalData(nextNormal);
+      setDamageData(nextDamage);
+
+      if (detailsResult?.success) {
+        setNormalRecords(detailsResult.normalRecords || []);
+        setDamageRecords(detailsResult.damageRecords || []);
+      } else if (!needScopeRecords) {
+        setNormalRecords([]);
+        setDamageRecords([]);
+      } else if (detailsResult && !detailsResult.success) {
+        throw new Error(detailsResult.error || 'Failed to load scope records');
+      }
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : 'Failed to load data';
       console.error('Failed to load count data', e);
@@ -174,6 +203,31 @@ export default function CountTab() {
   useEffect(() => {
     fetchData();
   }, [archiveId, sessionVersion]);
+
+  useEffect(() => {
+    if (!hasICScopeFilter(selectedUsers, selectedWarehouses)) return;
+    if (normalRecords.length > 0 || damageRecords.length > 0) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const detailsResult = archiveId
+          ? await fetchArchivedICDetailRecords(archiveId)
+          : await fetchICDetailRecords();
+        if (cancelled) return;
+        if (detailsResult.success) {
+          setNormalRecords(detailsResult.normalRecords || []);
+          setDamageRecords(detailsResult.damageRecords || []);
+        }
+      } catch (e) {
+        console.error('Failed to load scope detail records', e);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedUsers, selectedWarehouses, archiveId, normalRecords.length, damageRecords.length]);
 
   const rows: CountRow[] = hasICScopeFilter(selectedUsers, selectedWarehouses)
     ? buildRowsFromRecords(normalData, normalRecords, damageRecords, selectedUsers, selectedWarehouses)
