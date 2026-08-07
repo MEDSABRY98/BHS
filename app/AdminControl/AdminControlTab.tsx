@@ -17,10 +17,10 @@ interface UserPermissions {
 
 const INVENTORY_COUNTING_VIEW_TAB_IDS = [
     'total_count',
-    'count',
     'reconciliation',
     'user_comparison',
     'record',
+    'archives',
 ] as const;
 
 const INVENTORY_COUNTING_TAB_IDS = [
@@ -35,6 +35,7 @@ const LEGACY_INVENTORY_COUNTING_IDS = [
     'damage_record',
     'normal_total',
     'damage_total',
+    'count',
 ] as const;
 
 function migrateInventoryCountingTabs(tabs: string[]): string[] {
@@ -45,9 +46,9 @@ function migrateInventoryCountingTabs(tabs: string[]): string[] {
         if (!result.includes('record')) result.push('record');
     }
 
-    if (result.some((id) => id === 'normal_total' || id === 'damage_total')) {
-        result = result.filter((id) => id !== 'normal_total' && id !== 'damage_total');
-        if (!result.includes('count')) result.push('count');
+    if (result.some((id) => id === 'normal_total' || id === 'damage_total' || id === 'count')) {
+        result = result.filter((id) => id !== 'normal_total' && id !== 'damage_total' && id !== 'count');
+        if (!result.includes('total_count')) result.push('total_count');
     }
 
     if (result.includes('inventory_count')) {
@@ -175,10 +176,10 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
     ],
     'inventory-counting': [
         { id: 'total_count', label: 'Total Count' },
-        { id: 'count', label: 'Count' },
         { id: 'reconciliation', label: 'Count Reconciliation' },
         { id: 'user_comparison', label: 'User Comparison' },
         { id: 'record', label: 'Record' },
+        { id: 'archives', label: 'Archives' },
         { id: 'close_session', label: 'Close Count Session' },
     ],
     'inventory-scrap': [

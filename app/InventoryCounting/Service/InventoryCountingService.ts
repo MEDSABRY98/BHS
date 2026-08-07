@@ -570,37 +570,6 @@ export async function fetchICUserComparisonData() {
   }
 }
 
-/** Single fetch for Count tabs — products loaded once, parallel DB reads. */
-export async function fetchICCountTabData(countType: CountType) {
-  try {
-    const [products, totals, details, liveStockMap] = await Promise.all([
-      loadCountableProducts(),
-      fetchAllMixCountRows<{ 'PRODUCT ID': string; 'COUNTED QTY': number | null }>(
-        'mix_INVENTORY_COUNT_TOTALS',
-        '"PRODUCT ID","COUNTED QTY"',
-        { column: 'COUNT_TYPE', value: countType }
-      ),
-      fetchAllMixCountRows<MixCountDetailRow>(
-        'mix_INVENTORY_COUNT_DETAILS',
-        DETAIL_SELECT,
-        { column: 'COUNT_TYPE', value: countType }
-      ),
-      loadAvailableQtyMap(),
-    ]);
-
-    const productMap = buildProductMap(products);
-
-    return {
-      success: true,
-      data: buildICTotalItems(products, totals, liveStockMap),
-      records: buildICRecords(details, productMap, countType),
-    };
-  } catch (error: any) {
-    console.error('Error in fetchICCountTabData:', error);
-    return { success: false, error: 'Failed to fetch IC count data', details: error.message };
-  }
-}
-
 /**
  * Lightweight detail records for user/warehouse scope filters.
  * Does not rebuild product×stock tables or call live stock.
@@ -1307,38 +1276,6 @@ export async function fetchArchivedICUserComparisonData(archiveId: string) {
       error: 'Failed to fetch archived user comparison data',
       details: error.message,
     };
-  }
-}
-
-export async function fetchArchivedICCountTabData(archiveId: string, countType: CountType) {
-  try {
-    const [products, totals, details, liveStockMap] = await Promise.all([
-      loadCountableProducts(),
-      fetchAllArchiveRows<{ 'PRODUCT ID': string; 'COUNTED QTY': number | null }>(
-        'mix_INVENTORY_COUNT_TOTALS_ARCHIVE',
-        archiveId,
-        '"PRODUCT ID","COUNTED QTY"',
-        { column: 'COUNT_TYPE', value: countType }
-      ),
-      fetchAllArchiveRows<MixCountDetailRow>(
-        'mix_INVENTORY_COUNT_DETAILS_ARCHIVE',
-        archiveId,
-        DETAIL_SELECT,
-        { column: 'COUNT_TYPE', value: countType }
-      ),
-      loadAvailableQtyMap(),
-    ]);
-
-    const productMap = buildProductMap(products);
-
-    return {
-      success: true,
-      data: buildICTotalItems(products, totals, liveStockMap),
-      records: buildICRecords(details, productMap, countType),
-    };
-  } catch (error: any) {
-    console.error('Error in fetchArchivedICCountTabData:', error);
-    return { success: false, error: 'Failed to fetch archived IC count data', details: error.message };
   }
 }
 

@@ -37,13 +37,13 @@ import {
   type ICReconciliationLoadedRow,
   type ICReconciliationSaveLine,
   type ICReconciliationSessionSummary,
-} from './Service/InventoryCountingService';
-import { useInventoryCountingArchive } from './InventoryCountingArchiveContext';
-import SourcePickerModal from './Utils/SourcePickerModal';
-import RemoveManualRowModal from './Utils/RemoveManualRowModal';
-import SaveReconciliationModal from './Utils/SaveReconciliationModal';
-import ReconciliationSessionPicker from './Utils/ReconciliationSessionPicker';
-import AddCategoryProductsPicker from './Utils/AddCategoryProductsPicker';
+} from '../Service/InventoryCountingService';
+import { useInventoryCountingArchive } from '../InventoryCountingArchiveContext';
+import SourcePickerModal from './SourcePickerModal';
+import RemoveManualRowModal from './RemoveManualRowModal';
+import SaveReconciliationModal from './SaveReconciliationModal';
+import ReconciliationSessionPicker from './ReconciliationSessionPicker';
+import AddCategoryProductsPicker from './AddCategoryProductsPicker';
 
 const REQUIRED_COLUMNS = ['Product ID', 'Product Name', 'Counted Quantity'] as const;
 
@@ -965,8 +965,13 @@ export default function CountReconciliationTab() {
   const [toolbarHost, setToolbarHost] = useState<HTMLElement | null>(null);
 
   useEffect(() => {
-    setToolbarHost(document.getElementById('ic-reconciliation-toolbar-host'));
-  }, []);
+    const syncHost = () => {
+      setToolbarHost(document.getElementById('ic-reconciliation-toolbar-host'));
+    };
+    syncHost();
+    const frame = window.requestAnimationFrame(syncHost);
+    return () => window.cancelAnimationFrame(frame);
+  }, [archiveId, isReadOnly, sessionVersion]);
 
   const toolbar = (
     <>

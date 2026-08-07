@@ -7,7 +7,7 @@ import { writeTrackedXlsxFile } from '@/app/Audit/Utils/TrackedDownload';
 import TabLoader from '@/app/Components/Loading/TabLoader';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import TabFetchError from '@/app/Components/DataState/TabFetchError';
-import EditRecordModal from './Utils/EditRecordModal';
+import EditRecordModal from './EditRecordModal';
 import {
   fetchAllICDetails,
   fetchArchivedAllICDetails,
@@ -15,9 +15,9 @@ import {
   deleteICRecord,
   type ICRecord,
   type CountType,
-} from './Service/InventoryCountingService';
-import { useInventoryCountingArchive } from './InventoryCountingArchiveContext';
-import { useInventoryCountingFilters, matchesICUser, matchesICWarehouse } from './InventoryCountingFiltersContext';
+} from '../Service/InventoryCountingService';
+import { useInventoryCountingArchive } from '../InventoryCountingArchiveContext';
+import { useInventoryCountingFilters, matchesICUser, matchesICWarehouse } from '../InventoryCountingFiltersContext';
 
 function formatCountType(countType: CountType): string {
   return countType === 'Normal' ? 'Normal' : 'Damage & Expire';

@@ -1,24 +1,27 @@
 'use client';
 
 import {
+  Archive,
   ArrowLeft,
   ChevronLeft,
   ChevronRight,
   ClipboardCheck,
   ClipboardList,
+  Filter,
   History,
   Layers,
   Users,
   X,
   type LucideIcon,
 } from 'lucide-react';
+import { useInventoryCountingFilters } from '../InventoryCountingFiltersContext';
 
 export type InventoryCountingTabId =
   | 'total_count'
   | 'reconciliation'
   | 'user_comparison'
-  | 'count'
-  | 'record';
+  | 'record'
+  | 'archives';
 
 const INVENTORY_COUNTING_TABS: {
   id: InventoryCountingTabId;
@@ -26,10 +29,10 @@ const INVENTORY_COUNTING_TABS: {
   icon: LucideIcon;
 }[] = [
   { id: 'total_count', label: 'Total Count', icon: Layers },
-  { id: 'count', label: 'Count', icon: ClipboardList },
   { id: 'reconciliation', label: 'Count Reconciliation', icon: ClipboardCheck },
   { id: 'user_comparison', label: 'User Comparison', icon: Users },
   { id: 'record', label: 'Record', icon: History },
+  { id: 'archives', label: 'Archives', icon: Archive },
 ];
 
 export function isCountingTabAllowed(tabId: string): boolean {
@@ -52,8 +55,10 @@ export function isCountingTabAllowed(tabId: string): boolean {
         return true;
       }
       if (
-        tabId === 'count' &&
-        (countingTabs.includes('normal_total') || countingTabs.includes('damage_total'))
+        tabId === 'total_count' &&
+        (countingTabs.includes('count') ||
+          countingTabs.includes('normal_total') ||
+          countingTabs.includes('damage_total'))
       ) {
         return true;
       }
@@ -73,8 +78,10 @@ export function isCountingTabAllowed(tabId: string): boolean {
         return true;
       }
       if (
-        tabId === 'count' &&
-        (inventoryTabs.includes('normal_total') || inventoryTabs.includes('damage_total'))
+        tabId === 'total_count' &&
+        (inventoryTabs.includes('count') ||
+          inventoryTabs.includes('normal_total') ||
+          inventoryTabs.includes('damage_total'))
       ) {
         return true;
       }
@@ -94,16 +101,13 @@ export function getCountingTabLabel(tabId: InventoryCountingTabId): string {
   return INVENTORY_COUNTING_TABS.find((tab) => tab.id === tabId)?.label ?? 'Inventory Counting';
 }
 
-export function usesWarehouseFilters(tabId: InventoryCountingTabId): boolean {
-  return tabId !== 'reconciliation';
-}
-
 interface SidebarProps {
   activeTab: InventoryCountingTabId;
   onTabChange: (tab: InventoryCountingTabId) => void;
   isCollapsed: boolean;
   onToggleCollapse: () => void;
   onCloseMobile?: () => void;
+  onOpenFilters: () => void;
 }
 
 export default function Sidebar({
@@ -112,8 +116,10 @@ export default function Sidebar({
   isCollapsed,
   onToggleCollapse,
   onCloseMobile,
+  onOpenFilters,
 }: SidebarProps) {
   const tabs = getAllowedCountingTabs();
+  const { activeFilterCount, hasActiveFilters } = useInventoryCountingFilters();
 
   return (
     <div className="flex flex-col h-full bg-[#0f172a] text-white border-r border-blue-950/20">
@@ -189,11 +195,32 @@ export default function Sidebar({
         })}
       </nav>
 
-      <div className="p-4 border-t border-white/5 mt-auto flex flex-col gap-2 shrink-0">
+      <div className="p-4 border-t border-white/5 mt-auto flex flex-col items-center gap-3 shrink-0">
+        <button
+          type="button"
+          onClick={() => {
+            onOpenFilters();
+            onCloseMobile?.();
+          }}
+          className={`relative flex items-center justify-center w-12 h-12 rounded-2xl transition-all duration-200 ${
+            hasActiveFilters
+              ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-950/40'
+              : 'bg-white/5 text-slate-300 hover:text-white hover:bg-white/10 border border-white/10'
+          }`}
+          title="Filters"
+        >
+          <Filter className="w-5 h-5" />
+          {hasActiveFilters && (
+            <span className="absolute -top-1.5 -right-1.5 min-w-[1.25rem] h-5 px-1 rounded-full bg-amber-400 text-slate-900 text-[10px] font-black flex items-center justify-center shadow">
+              {activeFilterCount}
+            </span>
+          )}
+        </button>
+
         <button
           type="button"
           onClick={onToggleCollapse}
-          className="flex items-center justify-center w-10 h-10 mx-auto hover:bg-white/10 rounded-xl transition-all duration-200 text-slate-400 group"
+          className="flex items-center justify-center w-10 h-10 hover:bg-white/10 rounded-xl transition-all duration-200 text-slate-400 group"
           title={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
         >
           {isCollapsed ? <ChevronRight className="w-5 h-5 shrink-0" /> : <ChevronLeft className="w-5 h-5 shrink-0" />}

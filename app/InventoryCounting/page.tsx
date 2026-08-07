@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { Menu, Lock, ArrowLeft } from 'lucide-react';
+import { Menu, Lock, ArrowLeft, X } from 'lucide-react';
 import InventoryCountingTab from './InventoryCountingTab';
 import Sidebar, {
   getAllowedCountingTabs,
@@ -10,6 +10,8 @@ import Sidebar, {
 } from './Utils/Sidebar';
 import { useInventoryCountingTabAudit } from '@/app/Audit/Modules/InventoryCountingTabAudit';
 import { InventoryCountingArchiveProvider, useInventoryCountingArchive } from './InventoryCountingArchiveContext';
+import { InventoryCountingFiltersProvider } from './InventoryCountingFiltersContext';
+import FiltersModal from './Utils/FiltersModal';
 import Login from '@/app/Components/Auth/Login';
 import Loading from '@/app/Components/Loading';
 
@@ -35,10 +37,13 @@ function hasInventoryCountingAccess(user: any): boolean {
         'reconciliation',
         'inventory_count',
         'user_comparison',
-        'count',
         'record',
+        'archives',
         'normal_record',
         'damage_record',
+        'count',
+        'normal_total',
+        'damage_total',
       ];
       if (inventoryTabs.some((tabId: string) => legacyCountingIds.includes(tabId))) {
         return true;
@@ -149,16 +154,18 @@ export default function InventoryCountingPage() {
 
   return (
     <InventoryCountingArchiveProvider>
-      <InventoryCountingPageContent
-        isSidebarCollapsed={isSidebarCollapsed}
-        isMobileSidebarOpen={isMobileSidebarOpen}
-        setIsMobileSidebarOpen={setIsMobileSidebarOpen}
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        toggleSidebar={toggleSidebar}
-        allowedTabs={allowedTabs}
-        visitedTabs={visitedTabs}
-      />
+      <InventoryCountingFiltersProvider>
+        <InventoryCountingPageContent
+          isSidebarCollapsed={isSidebarCollapsed}
+          isMobileSidebarOpen={isMobileSidebarOpen}
+          setIsMobileSidebarOpen={setIsMobileSidebarOpen}
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          toggleSidebar={toggleSidebar}
+          allowedTabs={allowedTabs}
+          visitedTabs={visitedTabs}
+        />
+      </InventoryCountingFiltersProvider>
     </InventoryCountingArchiveProvider>
   );
 }
@@ -182,7 +189,8 @@ function InventoryCountingPageContent({
   allowedTabs: ReturnType<typeof getAllowedCountingTabs>;
   visitedTabs: Set<InventoryCountingTabId>;
 }) {
-  const { isArchiveView, archiveMeta } = useInventoryCountingArchive();
+  const { isArchiveView, archiveMeta, setArchiveId } = useInventoryCountingArchive();
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const pageTitle = getCountingTabLabel(activeTab);
 
   return (
@@ -193,6 +201,7 @@ function InventoryCountingPageContent({
           onTabChange={setActiveTab}
           isCollapsed={isSidebarCollapsed}
           onToggleCollapse={toggleSidebar}
+          onOpenFilters={() => setFiltersOpen(true)}
         />
       </aside>
 
@@ -210,8 +219,11 @@ function InventoryCountingPageContent({
           isCollapsed={false}
           onToggleCollapse={() => {}}
           onCloseMobile={() => setIsMobileSidebarOpen(false)}
+          onOpenFilters={() => setFiltersOpen(true)}
         />
       </aside>
+
+      <FiltersModal open={filtersOpen} onClose={() => setFiltersOpen(false)} />
 
       <div className={`flex-1 flex flex-col min-w-0 ${isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-72'} transition-all duration-300`}>
         <div className="lg:hidden bg-white border-b border-slate-200">
@@ -233,6 +245,14 @@ function InventoryCountingPageContent({
                       Viewing archive {archiveMeta.archiveId} (read-only)
                       {archiveMeta.label ? ` — ${archiveMeta.label}` : ''}
                     </span>
+                    <button
+                      type="button"
+                      onClick={() => setArchiveId(null)}
+                      title="Back to current session"
+                      className="p-1.5 rounded-lg text-amber-700 hover:bg-amber-50 transition-colors shrink-0"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
                   </>
                 )}
               </div>
@@ -252,12 +272,24 @@ function InventoryCountingPageContent({
                   Viewing archive {archiveMeta.archiveId} (read-only)
                   {archiveMeta.label ? ` — ${archiveMeta.label}` : ''}
                 </p>
+                <button
+                  type="button"
+                  onClick={() => setArchiveId(null)}
+                  title="Back to current session"
+                  className="p-2 rounded-xl border border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100 transition-colors shrink-0"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </>
             )}
           </div>
 
           {allowedTabs.length > 0 ? (
-            <InventoryCountingTab activeTab={activeTab} visitedTabs={visitedTabs} />
+            <InventoryCountingTab
+              activeTab={activeTab}
+              visitedTabs={visitedTabs}
+              onTabChange={setActiveTab}
+            />
           ) : (
             <div className="bg-white rounded-3xl p-8 text-center border border-slate-100 shadow-sm">
               <p className="text-slate-500 font-bold">No counting tabs are enabled for your account.</p>

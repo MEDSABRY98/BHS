@@ -11,13 +11,13 @@ import {
   fetchICUserComparisonData,
   fetchArchivedICUserComparisonData,
   ICUserComparisonRow,
-} from './Service/InventoryCountingService';
-import { useInventoryCountingArchive } from './InventoryCountingArchiveContext';
-import { ICRecord } from './Utils/EditItemModal';
-import { useInventoryCountingFilters, matchesICWarehouse } from './InventoryCountingFiltersContext';
+} from '../Service/InventoryCountingService';
+import { useInventoryCountingArchive } from '../InventoryCountingArchiveContext';
+import { ICRecord } from '../Utils/EditItemModal';
+import { useInventoryCountingFilters, matchesICWarehouse } from '../InventoryCountingFiltersContext';
 
 type ComparisonRow = ICUserComparisonRow & { userQtys: Record<string, number> };
-type SortKey = 'barcodeName' | 'productName' | 'availableQty' | 'grandTotal' | 'difference' | `user:${string}`;
+type SortKey = 'barcodeName' | 'productName' | 'availableQty' | 'difference' | `user:${string}`;
 
 function getRowDifference(item: ComparisonRow) {
   return item.grandTotal - item.availableQty;
@@ -30,8 +30,7 @@ function getSortValue(item: ComparisonRow, key: SortKey): number | string {
   if (key === 'difference') return getRowDifference(item);
   if (key === 'barcodeName') return item.barcodeName;
   if (key === 'productName') return item.productName;
-  if (key === 'availableQty') return item.availableQty;
-  return item.grandTotal;
+  return item.availableQty;
 }
 
 function formatQty(qty: number) {
@@ -211,7 +210,6 @@ export default function UserComparisonTab() {
         Barcode: item.barcodeName,
         'Product Name': item.productName,
         'Available Qty': item.availableQty,
-        'Grand Total': item.grandTotal,
         Diff: getRowDifference(item),
       };
       visibleUsers.forEach((user) => {
@@ -334,7 +332,6 @@ export default function UserComparisonTab() {
                   {renderSortableHeader('barcodeName', 'Barcode', 'min-w-[120px]')}
                   {renderSortableHeader('productName', 'Product Name', 'min-w-[200px]')}
                   {renderSortableHeader('availableQty', 'Available', 'min-w-[90px]')}
-                  {renderSortableHeader('grandTotal', 'Grand Total', 'min-w-[100px]')}
                   {renderSortableHeader('difference', 'Diff', 'min-w-[90px]')}
                   {visibleUsers.map((user) => renderSortableHeader(`user:${user}`, user, 'min-w-[100px]'))}
                 </tr>
@@ -359,17 +356,6 @@ export default function UserComparisonTab() {
                       </td>
                       <td className="px-4 py-4 text-center text-sm font-bold text-slate-600 tabular-nums">
                         {item.availableQty.toLocaleString()}
-                      </td>
-                      <td className="px-4 py-4 text-center">
-                        <span
-                          className={`inline-flex px-3 py-1.5 rounded-xl text-sm font-black border shadow-sm tabular-nums ${
-                            hasGrandTotal
-                              ? 'bg-violet-50 text-violet-700 border-violet-100'
-                              : 'bg-slate-50 text-slate-400 border-slate-100'
-                          }`}
-                        >
-                          {formatQty(item.grandTotal)}
-                        </span>
                       </td>
                       <td className="px-4 py-4 text-center">
                         <span className={`text-sm font-black tabular-nums ${diffClass(difference, hasGrandTotal)}`}>

@@ -14,9 +14,12 @@ type InventoryCountingFiltersContextValue = {
   setSelectedWarehouses: (warehouses: string[]) => void;
   toggleUser: (user: string) => void;
   toggleWarehouse: (warehouse: string) => void;
+  clearFilters: () => void;
   users: string[];
   warehouses: string[];
   loadingOptions: boolean;
+  activeFilterCount: number;
+  hasActiveFilters: boolean;
 };
 
 const InventoryCountingFiltersContext = createContext<InventoryCountingFiltersContextValue | null>(null);
@@ -53,6 +56,14 @@ export function InventoryCountingFiltersProvider({ children }: { children: React
     );
   };
 
+  const clearFilters = () => {
+    setSelectedUsers([]);
+    setSelectedWarehouses([]);
+  };
+
+  const activeFilterCount = selectedUsers.length + selectedWarehouses.length;
+  const hasActiveFilters = activeFilterCount > 0;
+
   useEffect(() => {
     let cancelled = false;
 
@@ -87,9 +98,12 @@ export function InventoryCountingFiltersProvider({ children }: { children: React
         setSelectedWarehouses,
         toggleUser,
         toggleWarehouse,
+        clearFilters,
         users,
         warehouses,
         loadingOptions,
+        activeFilterCount,
+        hasActiveFilters,
       }}
     >
       {children}
