@@ -6,8 +6,8 @@ import { ChevronDown, Filter, Home, Loader2, User, X } from 'lucide-react';
 import {
   canCloseInventoryCountSession,
   useInventoryCountingArchive,
-} from '../InventoryCountingArchiveContext';
-import { useInventoryCountingFilters } from '../InventoryCountingFiltersContext';
+} from '../Archives/InventoryCountingArchiveContext';
+import { useInventoryCountingFilters } from '../Model/InventoryCountingFiltersContext';
 import CloseSessionButton from './CloseSessionButton';
 
 function CheckboxFilterDropdown({

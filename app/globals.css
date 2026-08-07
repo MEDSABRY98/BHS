@@ -64,3 +64,81 @@ body {
     background-position: -200% 0;
   }
 }
+
+/* TabLoader — DATABASE LOADING (FDS-style) */
+@keyframes dbLoadSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes dbLoadSpinReverse {
+  from { transform: rotate(360deg); }
+  to { transform: rotate(0deg); }
+}
+
+.db-load-title {
+  font-family: var(--font-bebas-neue), "Bebas Neue", sans-serif;
+  font-size: 64px;
+  letter-spacing: 12px;
+  color: #0a0a0a;
+  margin-bottom: 30px;
+  font-weight: 400;
+  text-transform: uppercase;
+  text-align: center;
+  line-height: 1;
+}
+
+.db-load-title span {
+  color: #c9a84c;
+}
+
+.db-load-spinner {
+  position: relative;
+  width: 90px;
+  height: 90px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 24px;
+}
+
+.db-load-spinner-outer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  border: 2px solid rgba(201, 168, 76, 0.1);
+  border-top: 2px solid #c9a84c;
+  border-radius: 50%;
+  animation: dbLoadSpin 1s cubic-bezier(0.68, -0.55, 0.27, 1.55) infinite;
+}
+
+.db-load-spinner-inner {
+  position: absolute;
+  top: 12.5%;
+  left: 12.5%;
+  width: 75%;
+  height: 75%;
+  border: 2px solid rgba(10, 10, 10, 0.05);
+  border-bottom: 2px solid #0a0a0a;
+  border-radius: 50%;
+  animation: dbLoadSpinReverse 1.5s linear infinite;
+}
+
+.db-load-pct {
+  position: relative;
+  z-index: 5;
+  font-family: var(--font-space-mono), "Space Mono", monospace;
+  font-size: 13px;
+  font-weight: 700;
+  color: #0a0a0a;
+  letter-spacing: 0.5px;
+}
+
+@media (max-width: 640px) {
+  .db-load-title {
+    font-size: 36px;
+    letter-spacing: 6px;
+  }
+}

@@ -151,13 +151,12 @@ export default function InventoryScrapPage() {
     <div className="flex min-h-screen bg-[#F8F9FA] text-black font-sans selection:bg-blue-100 selection:text-blue-900">
 
       {/* Desktop Sidebar */}
-      <aside className={`hidden lg:flex flex-col ${isCollapsed ? 'w-20' : 'w-72'} bg-black text-white shadow-2xl fixed h-screen left-0 top-0 z-50 transition-all duration-300`}>
-
-        {/* Back Home Button wrapper */}
-        <div className={`px-4 ${isCollapsed ? 'lg:px-4' : 'lg:px-8'} pt-6 pb-2 bg-black/50 backdrop-blur-md transition-all duration-300`}>
+      <aside className={`hidden lg:flex flex-col ${isCollapsed ? 'w-20' : 'w-72'} bg-[#0a0f1d] text-white border-r border-amber-950/20 shadow-2xl fixed h-screen left-0 top-0 z-50 transition-all duration-300`}>
+        <div className={`px-4 ${isCollapsed ? 'px-2' : 'px-6'} pt-6 pb-2 shrink-0 transition-all duration-300`}>
           <button
             onClick={() => window.location.href = '/'}
-            className={`flex items-center justify-center ${isCollapsed ? 'gap-0' : 'gap-3'} py-2.5 text-red-500 hover:text-red-400 transition-all duration-200 group w-full cursor-pointer`}
+            className={`flex items-center justify-center ${isCollapsed ? 'gap-0' : 'gap-3'} py-2.5 text-[#D4AF37] hover:text-amber-300 transition-all duration-200 group w-full cursor-pointer bg-white/5 rounded-xl border border-white/10`}
+            title={isCollapsed ? 'Back to Home' : undefined}
           >
             <ArrowLeft className="w-5 h-5 shrink-0 group-hover:-translate-x-1 transition-transform" />
             {!isCollapsed && (
@@ -168,77 +167,55 @@ export default function InventoryScrapPage() {
           </button>
         </div>
 
-        {/* Title and Icon */}
-        <div className={`px-4 ${isCollapsed ? 'py-4' : 'pt-2 pb-6'} shrink-0 flex flex-col items-center justify-center transition-all duration-300`}>
+        <div className={`px-4 ${isCollapsed ? 'py-4' : 'pt-2 pb-6'} shrink-0 flex flex-col items-center justify-center transition-all duration-300 border-b border-white/5`}>
           <div className="flex flex-col items-center text-center">
-            <div className="w-12 h-12 bg-[#D4AF37] rounded-xl flex items-center justify-center mb-3 shadow-lg shadow-[#D4AF37]/20 transition-all duration-300">
-              <Trash2 className="w-7 h-7 text-black" />
+            <div className="w-12 h-12 bg-gradient-to-br from-amber-500 to-[#D4AF37] rounded-2xl flex items-center justify-center mb-3 shadow-lg shadow-amber-950/50 transition-all duration-300">
+              <Trash2 className="w-6 h-6 text-white" />
             </div>
             {!isCollapsed && (
               <div className="animate-in fade-in duration-300">
-                <h2 className="text-xl font-bold tracking-tight text-white">BHS SCRAP</h2>
-                <p className="text-[10px] text-[#D4AF37] font-bold tracking-[0.2em] uppercase">Inventory Loss</p>
+                <h2 className="text-lg font-bold tracking-tight text-white">Inventory Scrap</h2>
               </div>
             )}
           </div>
         </div>
 
-        {/* Navigation Sidebar Options */}
-        <nav className="flex-1 mt-4 overflow-y-auto no-scrollbar">
-
-          <button
-            onClick={() => setActiveSubTab('record')}
-            className={`w-full flex items-center ${isCollapsed ? 'justify-center px-4' : 'px-6'} py-4 transition-all duration-200 group cursor-pointer ${activeSubTab === 'record'
-              ? 'bg-gradient-to-r from-black/10 to-transparent border-l-4 border-[#D4AF37] text-white font-bold'
-              : 'text-gray-400 hover:text-white hover:bg-white/5'
-              }`}
-            title={isCollapsed ? "Log Scrap" : undefined}
-          >
-            <Plus className={`w-5 h-5 transition-colors ${isCollapsed ? '' : 'mr-4'} ${activeSubTab === 'record' ? 'text-[#D4AF37]' : 'group-hover:text-white'}`} />
-            {!isCollapsed && (
-              <span className="text-sm tracking-wide whitespace-nowrap">Log Scrap</span>
-            )}
-            {!isCollapsed && activeSubTab === 'record' && <ChevronRight className="w-4 h-4 ml-auto text-[#D4AF37]" />}
-          </button>
-
-          <button
-            onClick={() => setActiveSubTab('sessions')}
-            className={`w-full flex items-center ${isCollapsed ? 'justify-center px-4' : 'px-6'} py-4 transition-all duration-200 group cursor-pointer ${activeSubTab === 'sessions'
-              ? 'bg-gradient-to-r from-black/10 to-transparent border-l-4 border-[#D4AF37] text-white font-bold'
-              : 'text-gray-400 hover:text-white hover:bg-white/5'
-              }`}
-            title={isCollapsed ? "View Sessions" : undefined}
-          >
-            <Layers className={`w-5 h-5 transition-colors ${isCollapsed ? '' : 'mr-4'} ${activeSubTab === 'sessions' ? 'text-[#D4AF37]' : 'group-hover:text-white'}`} />
-            {!isCollapsed && (
-              <span className="text-sm tracking-wide whitespace-nowrap">View Sessions</span>
-            )}
-            {!isCollapsed && activeSubTab === 'sessions' && <ChevronRight className="w-4 h-4 ml-auto text-[#D4AF37]" />}
-          </button>
-
-          <button
-            onClick={() => setActiveSubTab('history')}
-            className={`w-full flex items-center ${isCollapsed ? 'justify-center px-4' : 'px-6'} py-4 transition-all duration-200 group cursor-pointer ${activeSubTab === 'history'
-              ? 'bg-gradient-to-r from-black/10 to-transparent border-l-4 border-[#D4AF37] text-white font-bold'
-              : 'text-gray-400 hover:text-white hover:bg-white/5'
-              }`}
-            title={isCollapsed ? "Saved Reports" : undefined}
-          >
-            <History className={`w-5 h-5 transition-colors ${isCollapsed ? '' : 'mr-4'} ${activeSubTab === 'history' ? 'text-[#D4AF37]' : 'group-hover:text-white'}`} />
-            {!isCollapsed && (
-              <span className="text-sm tracking-wide whitespace-nowrap">Saved Reports</span>
-            )}
-            {!isCollapsed && activeSubTab === 'history' && <ChevronRight className="w-4 h-4 ml-auto text-[#D4AF37]" />}
-          </button>
-
+        <nav className="flex-1 mt-4 overflow-y-auto no-scrollbar px-3 space-y-1">
+          {[
+            { id: 'record' as const, label: 'Log Scrap', icon: Plus },
+            { id: 'sessions' as const, label: 'View Sessions', icon: Layers },
+            { id: 'history' as const, label: 'Saved Reports', icon: History },
+          ].map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeSubTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveSubTab(tab.id)}
+                className={`w-full flex items-center ${isCollapsed ? 'justify-center px-2' : 'px-4'} py-3.5 rounded-xl transition-all duration-200 group relative cursor-pointer ${
+                  isActive
+                    ? 'bg-gradient-to-r from-amber-600 to-[#D4AF37] text-white shadow-lg shadow-amber-950/40 border-l-4 border-[#D4AF37] font-bold'
+                    : 'text-slate-400 hover:text-white hover:bg-white/5'
+                }`}
+                title={isCollapsed ? tab.label : undefined}
+              >
+                <Icon className={`w-5 h-5 transition-colors shrink-0 ${isCollapsed ? '' : 'mr-3'} ${isActive ? 'text-white' : 'group-hover:text-white'}`} />
+                {!isCollapsed && (
+                  <span className="text-sm tracking-wide whitespace-nowrap overflow-hidden text-left">{tab.label}</span>
+                )}
+                {!isCollapsed && isActive && (
+                  <ChevronRight className="w-4 h-4 ml-auto text-amber-200 animate-in fade-in duration-200" />
+                )}
+              </button>
+            );
+          })}
         </nav>
 
-        {/* Expand/Collapse Trigger */}
-        <div className="p-4 border-t border-white/10 mt-auto flex justify-center">
+        <div className="p-4 border-t border-white/5 mt-auto flex justify-center shrink-0">
           <button
             onClick={toggleSidebar}
-            className="flex items-center justify-center w-10 h-10 hover:bg-white/10 rounded-xl transition-all duration-200 text-[#D4AF37] cursor-pointer"
-            title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+            className="flex items-center justify-center w-10 h-10 hover:bg-white/10 rounded-xl transition-all duration-200 text-slate-400 cursor-pointer"
+            title={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
           >
             {isCollapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
           </button>
@@ -273,74 +250,59 @@ export default function InventoryScrapPage() {
         )}
 
         {/* Mobile Sidebar Menu */}
-        <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-black text-white transition-transform duration-300 transform lg:hidden ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} flex flex-col`}>
-          <div className="px-8 pt-6 pb-2">
+        <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-[#0a0f1d] text-white border-r border-amber-950/20 transition-transform duration-300 transform lg:hidden ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} flex flex-col`}>
+          <button
+            onClick={() => setIsSidebarOpen(false)}
+            className="absolute right-4 top-4 p-2 text-slate-400 hover:text-white cursor-pointer"
+            title="Close Sidebar"
+          >
+            <X className="w-6 h-6" />
+          </button>
+
+          <div className="px-6 pt-6 pb-2 shrink-0">
             <button
               onClick={() => window.location.href = '/'}
-              className="flex items-center justify-center gap-3 py-2 text-red-500 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] w-full cursor-pointer"
+              className="flex items-center justify-center gap-3 py-2.5 text-[#D4AF37] hover:text-amber-300 transition-all duration-200 group w-full cursor-pointer bg-white/5 rounded-xl border border-white/10"
             >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              Back Home
+              <ArrowLeft className="w-5 h-5 shrink-0 group-hover:-translate-x-1 transition-transform" />
+              <span className="text-xs font-black uppercase tracking-[0.2em]">Back Home</span>
             </button>
           </div>
-          <div className="px-8 pt-2 pb-6 shrink-0 relative flex flex-col items-center justify-center">
-            <button
-              onClick={() => setIsSidebarOpen(false)}
-              className="absolute right-4 top-2 p-2 text-gray-400 hover:text-white cursor-pointer"
-            >
-              <X className="w-6 h-6" />
-            </button>
-            <div className="flex flex-col items-center text-center">
-              <div className="w-10 h-10 bg-[#D4AF37] rounded-lg flex items-center justify-center mb-3">
-                <Trash2 className="w-6 h-6 text-black" />
-              </div>
-              <h2 className="text-lg font-bold text-white">BHS SCRAP</h2>
-              <p className="text-[10px] text-[#D4AF37] font-bold tracking-[0.2em] uppercase">Inventory Loss</p>
+
+          <div className="px-4 pt-2 pb-6 shrink-0 flex flex-col items-center justify-center border-b border-white/5">
+            <div className="w-12 h-12 bg-gradient-to-br from-amber-500 to-[#D4AF37] rounded-2xl flex items-center justify-center mb-3 shadow-lg shadow-amber-950/50">
+              <Trash2 className="w-6 h-6 text-white" />
             </div>
+            <h2 className="text-lg font-bold tracking-tight text-white">Inventory Scrap</h2>
           </div>
 
-          <nav className="flex-1 overflow-y-auto no-scrollbar">
-            <button
-              onClick={() => {
-                setActiveSubTab('record');
-                setIsSidebarOpen(false);
-              }}
-              className={`w-full flex items-center px-6 py-4 transition-all duration-200 group cursor-pointer ${activeSubTab === 'record'
-                ? 'bg-gradient-to-r from-black/10 to-transparent border-l-4 border-[#D4AF37] text-white font-bold'
-                : 'text-gray-400 hover:text-white hover:bg-white/5'
-                }`}
-            >
-              <Plus className={`w-5 h-5 mr-4 ${activeSubTab === 'record' ? 'text-[#D4AF37]' : 'group-hover:text-white'}`} />
-              <span className="text-sm tracking-wide">Log Scrap</span>
-            </button>
-
-            <button
-              onClick={() => {
-                setActiveSubTab('sessions');
-                setIsSidebarOpen(false);
-              }}
-              className={`w-full flex items-center px-6 py-4 transition-all duration-200 group cursor-pointer ${activeSubTab === 'sessions'
-                ? 'bg-gradient-to-r from-black/10 to-transparent border-l-4 border-[#D4AF37] text-white font-bold'
-                : 'text-gray-400 hover:text-white hover:bg-white/5'
-                }`}
-            >
-              <Layers className={`w-5 h-5 mr-4 ${activeSubTab === 'sessions' ? 'text-[#D4AF37]' : 'group-hover:text-white'}`} />
-              <span className="text-sm tracking-wide">View Sessions</span>
-            </button>
-
-            <button
-              onClick={() => {
-                setActiveSubTab('history');
-                setIsSidebarOpen(false);
-              }}
-              className={`w-full flex items-center px-6 py-4 transition-all duration-200 group cursor-pointer ${activeSubTab === 'history'
-                ? 'bg-gradient-to-r from-black/10 to-transparent border-l-4 border-[#D4AF37] text-white font-bold'
-                : 'text-gray-400 hover:text-white hover:bg-white/5'
-                }`}
-            >
-              <History className={`w-5 h-5 mr-4 ${activeSubTab === 'history' ? 'text-[#D4AF37]' : 'group-hover:text-white'}`} />
-              <span className="text-sm tracking-wide">Saved Reports</span>
-            </button>
+          <nav className="flex-1 mt-4 overflow-y-auto no-scrollbar px-3 space-y-1">
+            {[
+              { id: 'record' as const, label: 'Log Scrap', icon: Plus },
+              { id: 'sessions' as const, label: 'View Sessions', icon: Layers },
+              { id: 'history' as const, label: 'Saved Reports', icon: History },
+            ].map((tab) => {
+              const Icon = tab.icon;
+              const isActive = activeSubTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => {
+                    setActiveSubTab(tab.id);
+                    setIsSidebarOpen(false);
+                  }}
+                  className={`w-full flex items-center px-4 py-3.5 rounded-xl transition-all duration-200 group relative cursor-pointer ${
+                    isActive
+                      ? 'bg-gradient-to-r from-amber-600 to-[#D4AF37] text-white shadow-lg shadow-amber-950/40 border-l-4 border-[#D4AF37] font-bold'
+                      : 'text-slate-400 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  <Icon className={`w-5 h-5 mr-3 shrink-0 ${isActive ? 'text-white' : 'group-hover:text-white'}`} />
+                  <span className="text-sm tracking-wide text-left">{tab.label}</span>
+                  {isActive && <ChevronRight className="w-4 h-4 ml-auto text-amber-200" />}
+                </button>
+              );
+            })}
           </nav>
         </aside>
 

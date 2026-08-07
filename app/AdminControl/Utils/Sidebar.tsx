@@ -67,7 +67,6 @@ export default function AdminSidebar({
           {!isCollapsed && (
             <div className="animate-in fade-in duration-300">
               <h2 className="text-lg font-bold tracking-tight text-white">Admin Control</h2>
-              <p className="text-[10px] text-violet-400 font-bold tracking-[0.2em] uppercase">BHS Panel</p>
             </div>
           )}
         </div>

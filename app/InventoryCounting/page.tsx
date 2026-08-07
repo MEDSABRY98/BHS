@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Menu, Lock, ArrowLeft, X } from 'lucide-react';
 import InventoryCountingTab from './InventoryCountingTab';
 import Sidebar, {
@@ -9,9 +9,10 @@ import Sidebar, {
   type InventoryCountingTabId,
 } from './Utils/Sidebar';
 import { useInventoryCountingTabAudit } from '@/app/Audit/Modules/InventoryCountingTabAudit';
-import { InventoryCountingArchiveProvider, useInventoryCountingArchive } from './InventoryCountingArchiveContext';
-import { InventoryCountingFiltersProvider } from './InventoryCountingFiltersContext';
+import { InventoryCountingArchiveProvider, useInventoryCountingArchive } from './Archives/InventoryCountingArchiveContext';
+import { InventoryCountingFiltersProvider } from './Model/InventoryCountingFiltersContext';
 import FiltersModal from './Utils/FiltersModal';
+import ICDataBootstrap from './Utils/ICDataBootstrap';
 import Login from '@/app/Components/Auth/Login';
 import Loading from '@/app/Components/Loading';
 
@@ -164,6 +165,7 @@ export default function InventoryCountingPage() {
           toggleSidebar={toggleSidebar}
           allowedTabs={allowedTabs}
           visitedTabs={visitedTabs}
+          setVisitedTabs={setVisitedTabs}
         />
       </InventoryCountingFiltersProvider>
     </InventoryCountingArchiveProvider>
@@ -179,6 +181,7 @@ function InventoryCountingPageContent({
   toggleSidebar,
   allowedTabs,
   visitedTabs,
+  setVisitedTabs,
 }: {
   isSidebarCollapsed: boolean;
   isMobileSidebarOpen: boolean;
@@ -188,14 +191,32 @@ function InventoryCountingPageContent({
   toggleSidebar: () => void;
   allowedTabs: ReturnType<typeof getAllowedCountingTabs>;
   visitedTabs: Set<InventoryCountingTabId>;
+  setVisitedTabs: React.Dispatch<React.SetStateAction<Set<InventoryCountingTabId>>>;
 }) {
   const { isArchiveView, archiveMeta, setArchiveId } = useInventoryCountingArchive();
   const [filtersOpen, setFiltersOpen] = useState(false);
   const pageTitle = getCountingTabLabel(activeTab);
 
+  const handleBootstrapReady = useCallback(() => {
+    setVisitedTabs(new Set(allowedTabs.map((tab) => tab.id)));
+  }, [allowedTabs, setVisitedTabs]);
+
+  const countingContent =
+    allowedTabs.length > 0 ? (
+      <InventoryCountingTab
+        activeTab={activeTab}
+        visitedTabs={visitedTabs}
+        onTabChange={setActiveTab}
+      />
+    ) : (
+      <div className="bg-white rounded-3xl p-8 text-center border border-slate-100 shadow-sm">
+        <p className="text-slate-500 font-bold">No counting tabs are enabled for your account.</p>
+      </div>
+    );
+
   return (
     <div className="flex min-h-screen bg-[#F8F9FA] text-black">
-      <aside className={`hidden lg:flex flex-col ${isSidebarCollapsed ? 'w-20' : 'w-72'} bg-[#0f172a] text-white shadow-2xl fixed h-screen left-0 top-0 z-50 transition-all duration-300`}>
+      <aside className={`hidden lg:flex flex-col ${isSidebarCollapsed ? 'w-20' : 'w-72'} bg-[#0a0f1d] text-white shadow-2xl fixed h-screen left-0 top-0 z-50 transition-all duration-300`}>
         <Sidebar
           activeTab={activeTab}
           onTabChange={setActiveTab}
@@ -212,7 +233,7 @@ function InventoryCountingPageContent({
         />
       )}
 
-      <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-[#0f172a] text-white transition-transform duration-300 transform lg:hidden ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'} flex flex-col`}>
+      <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-[#0a0f1d] text-white transition-transform duration-300 transform lg:hidden ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'} flex flex-col`}>
         <Sidebar
           activeTab={activeTab}
           onTabChange={setActiveTab}
@@ -284,17 +305,7 @@ function InventoryCountingPageContent({
             )}
           </div>
 
-          {allowedTabs.length > 0 ? (
-            <InventoryCountingTab
-              activeTab={activeTab}
-              visitedTabs={visitedTabs}
-              onTabChange={setActiveTab}
-            />
-          ) : (
-            <div className="bg-white rounded-3xl p-8 text-center border border-slate-100 shadow-sm">
-              <p className="text-slate-500 font-bold">No counting tabs are enabled for your account.</p>
-            </div>
-          )}
+          <ICDataBootstrap onReady={handleBootstrapReady}>{countingContent}</ICDataBootstrap>
         </div>
       </div>
     </div>

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { ArrowLeft, Search } from 'lucide-react';
-import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
+import TabLoader from '@/app/Components/Loading/TabLoader';
 import TabsNav from './TabsNav';
 import SubCustomerSummaryTab from './SubCustomerSummaryTab';
 import DashboardTab from './DashboardTab';
@@ -78,98 +78,98 @@ export default function SalesCustomerDetails({
   });
 
   if (loading) {
-    return <SalesTabLoader />;
+    return <TabLoader />;
   }
 
   return (
     <div className="w-full">
-        <div className="mb-6 flex items-center gap-4">
-          <button
-            onClick={onBack}
-            className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
-            title="Back to Customers"
-          >
-            <ArrowLeft className="w-5 h-5 text-gray-600" />
-          </button>
-          <h1 className="text-3xl font-bold text-gray-800">{customerName}</h1>
-        </div>
+      <div className="mb-6 flex items-center gap-4">
+        <button
+          onClick={onBack}
+          className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
+          title="Back to Customers"
+        >
+          <ArrowLeft className="w-5 h-5 text-gray-600" />
+        </button>
+        <h1 className="text-3xl font-bold text-gray-800">{customerName}</h1>
+      </div>
 
-        <div className="mb-6">
-          <div className="relative max-w-xl mx-auto">
-            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-            <input
-              type="text"
-              placeholder="Search by product, barcode, merchandiser, sales rep, invoice..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-12 pr-4 py-3 bg-white rounded-xl border-2 border-gray-200 focus:border-green-500 focus:outline-none shadow-sm text-base"
-            />
-          </div>
+      <div className="mb-6">
+        <div className="relative max-w-xl mx-auto">
+          <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+          <input
+            type="text"
+            placeholder="Search by product, barcode, merchandiser, sales rep, invoice..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-12 pr-4 py-3 bg-white rounded-xl border-2 border-gray-200 focus:border-green-500 focus:outline-none shadow-sm text-base"
+          />
         </div>
+      </div>
 
-        <TabsNav
-          activeTab={activeTab}
-          onTabChange={setActiveTab}
-          customerType={customerType}
-          subCustomersCount={subCustomersData.length}
+      <TabsNav
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        customerType={customerType}
+        subCustomersCount={subCustomersData.length}
+      />
+
+      {activeTab === 'summary' && customerType === 'sub' && (
+        <SubCustomerSummaryTab
+          customerName={customerName}
+          summary={subCustomerSummary}
+          onOpenMainCustomer={onOpenMainCustomer}
         />
+      )}
 
-        {activeTab === 'summary' && customerType === 'sub' && (
-          <SubCustomerSummaryTab
-            customerName={customerName}
-            summary={subCustomerSummary}
-            onOpenMainCustomer={onOpenMainCustomer}
-          />
-        )}
+      {activeTab === 'dashboard' && (
+        <DashboardTab dashboardMetrics={dashboardMetrics} chartData={chartData} />
+      )}
 
-        {activeTab === 'dashboard' && (
-          <DashboardTab dashboardMetrics={dashboardMetrics} chartData={chartData} />
-        )}
+      {activeTab === 'subcustomers' && customerType === 'main' && (
+        <SubCustomersTab
+          subCustomersData={subCustomersData}
+          onExport={() => exportSubCustomersToExcel(subCustomersData, customerName)}
+        />
+      )}
 
-        {activeTab === 'subcustomers' && customerType === 'main' && (
-          <SubCustomersTab
-            subCustomersData={subCustomersData}
-            onExport={() => exportSubCustomersToExcel(subCustomersData, customerName)}
-          />
-        )}
+      {activeTab === 'categories' && (
+        <CategoriesTab data={customerData} customerName={customerName} searchQuery={debouncedSearchQuery} />
+      )}
 
-        {activeTab === 'categories' && (
-          <CategoriesTab data={customerData} customerName={customerName} searchQuery={debouncedSearchQuery} />
-        )}
+      {activeTab === 'monthly' && <MonthlyTab monthlySales={monthlySales} />}
 
-        {activeTab === 'monthly' && <MonthlyTab monthlySales={monthlySales} />}
+      {activeTab === 'products' && (
+        <ProductsTab
+          productsData={productsData}
+          showCosts={showCosts}
+          onExport={() => exportProductsToExcel(productsData, customerName, showCosts)}
+        />
+      )}
 
-        {activeTab === 'products' && (
-          <ProductsTab
-            productsData={productsData}
-            showCosts={showCosts}
-            onExport={() => exportProductsToExcel(productsData, customerName, showCosts)}
-          />
-        )}
+      {activeTab === 'invoices' && (
+        <InvoicesTab
+          groupedInvoicesData={groupedInvoicesData}
+          customerType={customerType}
+          customerName={customerName}
+          invoiceTypeFilter={invoiceTypeFilter}
+          onInvoiceTypeFilterChange={setInvoiceTypeFilter}
+          invoicesPage={invoicesPage}
+          onInvoicesPageChange={setInvoicesPage}
+          invoicesPerPage={invoicesPerPage}
+          onSelectInvoice={setSelectedInvoice}
+          onExport={() => exportInvoicesToExcel(groupedInvoicesData, customerName, customerType)}
+        />
+      )}
 
-        {activeTab === 'invoices' && (
-          <InvoicesTab
-            groupedInvoicesData={groupedInvoicesData}
-            customerType={customerType}
-            customerName={customerName}
-            invoiceTypeFilter={invoiceTypeFilter}
-            onInvoiceTypeFilterChange={setInvoiceTypeFilter}
-            invoicesPage={invoicesPage}
-            onInvoicesPageChange={setInvoicesPage}
-            invoicesPerPage={invoicesPerPage}
-            onSelectInvoice={setSelectedInvoice}
-            onExport={() => exportInvoicesToExcel(groupedInvoicesData, customerName, customerType)}
-          />
-        )}
-
-        {selectedInvoice && (
-          <InvoiceDetailModal
-            selectedInvoice={selectedInvoice}
-            showCosts={showCosts}
-            onClose={() => setSelectedInvoice(null)}
-            onExport={(invoice) => exportSingleInvoiceToExcel(invoice, showCosts)}
-          />
-        )}
+      {selectedInvoice && (
+        <InvoiceDetailModal
+          selectedInvoice={selectedInvoice}
+          showCosts={showCosts}
+          onClose={() => setSelectedInvoice(null)}
+          onExport={(invoice) => exportSingleInvoiceToExcel(invoice, showCosts)}
+        />
+      )}
     </div>
   );
 }

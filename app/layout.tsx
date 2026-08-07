@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Bebas_Neue, Geist, Geist_Mono, Space_Mono } from "next/font/google";
 import "./globals.css";
 import { NotificationContainer } from "@/app/Components/Notification";
 import MobileBlocker from "@/lib/MobileBlocker";
 import ActivityTracker from "@/app/Audit/Components/ActivityTracker";
-
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -14,6 +13,18 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+});
+
+const bebasNeue = Bebas_Neue({
+  weight: "400",
+  subsets: ["latin"],
+  variable: "--font-bebas-neue",
+});
+
+const spaceMono = Space_Mono({
+  weight: ["400", "700"],
+  subsets: ["latin"],
+  variable: "--font-space-mono",
 });
 
 export const metadata: Metadata = {
@@ -29,7 +40,7 @@ export default function RootLayout({
   return (
     <html lang="en" dir="ltr" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} ${bebasNeue.variable} ${spaceMono.variable} antialiased`}
         suppressHydrationWarning
       >
         <div className="app-main-wrapper">
@@ -42,4 +53,3 @@ export default function RootLayout({
     </html>
   );
 }
-

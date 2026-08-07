@@ -16,8 +16,9 @@ import {
   type ICRecord,
   type CountType,
 } from '../Service/InventoryCountingService';
-import { useInventoryCountingArchive } from '../InventoryCountingArchiveContext';
-import { useInventoryCountingFilters, matchesICUser, matchesICWarehouse } from '../InventoryCountingFiltersContext';
+import { useInventoryCountingArchive } from '../Archives/InventoryCountingArchiveContext';
+import { useInventoryCountingFilters, matchesICUser, matchesICWarehouse } from '../Model/InventoryCountingFiltersContext';
+import { peekICPrefetch } from '../Utils/ICPrefetchCache';
 
 function formatCountType(countType: CountType): string {
   return countType === 'Normal' ? 'Normal' : 'Damage & Expire';
@@ -41,6 +42,16 @@ export default function RecordTab() {
 
     setError(null);
     try {
+      // Prefer session bootstrap cache on first paint (refresh always hits network).
+      if (!isSilent) {
+        const prefetched = peekICPrefetch(archiveId);
+        if (prefetched) {
+          setData(prefetched.records.data);
+          setLoading(false);
+          return;
+        }
+      }
+
       const json = archiveId
         ? await fetchArchivedAllICDetails(archiveId)
         : await fetchAllICDetails();

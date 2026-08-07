@@ -31,17 +31,20 @@ function NavItem({ href, icon: Icon, label, isActive, onClick, isCollapsed }: Na
       href={href}
       replace
       onClick={onClick}
-      className={`flex items-center ${isCollapsed ? 'justify-center px-4' : 'px-6'} py-4 transition-all duration-200 group ${isActive
-        ? 'bg-gradient-to-r from-black/10 to-transparent border-l-4 border-[#D4AF37] text-white'
-        : 'text-gray-400 hover:text-white hover:bg-white/5'
-        }`}
+      className={`w-full flex items-center ${isCollapsed ? 'justify-center px-2' : 'px-4'} py-3.5 rounded-xl transition-all duration-200 group relative ${
+        isActive
+          ? 'bg-gradient-to-r from-amber-600 to-[#D4AF37] text-white shadow-lg shadow-amber-950/40 border-l-4 border-[#D4AF37] font-bold'
+          : 'text-slate-400 hover:text-white hover:bg-white/5'
+      }`}
       title={isCollapsed ? label : undefined}
     >
-      <Icon className={`w-5 h-5 transition-colors ${isCollapsed ? '' : 'mr-4'} ${isActive ? 'text-[#D4AF37]' : 'group-hover:text-white'}`} />
+      <Icon className={`w-5 h-5 transition-colors shrink-0 ${isCollapsed ? '' : 'mr-3'} ${isActive ? 'text-white' : 'group-hover:text-white'}`} />
       {!isCollapsed && (
-        <span className="font-medium text-sm tracking-wide whitespace-nowrap animate-in fade-in duration-200">{label}</span>
+        <span className="text-sm tracking-wide whitespace-nowrap overflow-hidden text-left animate-in fade-in duration-200">{label}</span>
       )}
-      {!isCollapsed && isActive && <ChevronRight className="w-4 h-4 ml-auto text-[#D4AF37] animate-in fade-in duration-200" />}
+      {!isCollapsed && isActive && (
+        <ChevronRight className="w-4 h-4 ml-auto text-amber-200 animate-in fade-in duration-200" />
+      )}
     </Link>
   );
 }
@@ -112,11 +115,12 @@ export default function DatabaseLayout({ children }: { children: React.ReactNode
   return (
     <div className="flex min-h-screen bg-[#F8F9FA] text-black">
       {/* Sidebar - Desktop */}
-      <aside className={`hidden lg:flex flex-col ${isCollapsed ? 'w-20' : 'w-72'} bg-black text-white shadow-2xl fixed h-screen left-0 top-0 z-50 transition-all duration-300`}>
-        <div className={`px-4 ${isCollapsed ? 'lg:px-4' : 'lg:px-8'} pt-6 pb-2 bg-black/50 backdrop-blur-md transition-all duration-300`}>
+      <aside className={`hidden lg:flex flex-col ${isCollapsed ? 'w-20' : 'w-72'} bg-[#0a0f1d] text-white border-r border-amber-950/20 shadow-2xl fixed h-screen left-0 top-0 z-50 transition-all duration-300`}>
+        <div className={`px-4 ${isCollapsed ? 'px-2' : 'px-6'} pt-6 pb-2 shrink-0 transition-all duration-300`}>
           <button
             onClick={handleLogout}
-            className={`flex items-center justify-center ${isCollapsed ? 'gap-0' : 'gap-3'} py-2.5 text-red-500 hover:text-red-400 transition-all duration-200 group w-full cursor-pointer`}
+            className={`flex items-center justify-center ${isCollapsed ? 'gap-0' : 'gap-3'} py-2.5 text-[#D4AF37] hover:text-amber-300 transition-all duration-200 group w-full cursor-pointer bg-white/5 rounded-xl border border-white/10`}
+            title={isCollapsed ? 'Back to Home' : undefined}
           >
             <ArrowLeft className="w-5 h-5 shrink-0 group-hover:-translate-x-1 transition-transform" />
             {!isCollapsed && (
@@ -126,46 +130,46 @@ export default function DatabaseLayout({ children }: { children: React.ReactNode
             )}
           </button>
         </div>
-        <div className={`px-4 ${isCollapsed ? 'py-4' : 'pt-2 pb-6'} shrink-0 flex flex-col items-center justify-center transition-all duration-300`}>
+        <div className={`px-4 ${isCollapsed ? 'py-4' : 'pt-2 pb-6'} shrink-0 flex flex-col items-center justify-center transition-all duration-300 border-b border-white/5`}>
           <div className="flex flex-col items-center text-center">
-            <div className="w-12 h-12 bg-[#D4AF37] rounded-xl flex items-center justify-center mb-3 shadow-lg shadow-[#D4AF37]/20 transition-all duration-300">
-              <Database className="w-7 h-7 text-black" />
+            <div className="w-12 h-12 bg-gradient-to-br from-amber-500 to-[#D4AF37] rounded-2xl flex items-center justify-center mb-3 shadow-lg shadow-amber-950/50 transition-all duration-300">
+              <Database className="w-6 h-6 text-white" />
             </div>
             {!isCollapsed && (
               <div className="animate-in fade-in duration-300">
-                <h2 className="text-xl font-bold tracking-tight">BHS DATABASE</h2>
-                <p className="text-[10px] text-[#D4AF37] font-bold tracking-[0.2em] uppercase">Control Panel</p>
+                <h2 className="text-lg font-bold tracking-tight text-white">Database</h2>
               </div>
             )}
           </div>
         </div>
 
-        <nav className="flex-1 mt-4 overflow-y-auto no-scrollbar">
-          <div className="px-4 mb-4">
+        <nav className="flex-1 mt-4 overflow-y-auto no-scrollbar px-3 space-y-1">
+          <div className="mb-2 space-y-1">
             {!isHub && (
               <Link
                 href="/DataBase"
-                className={`flex items-center ${isCollapsed ? 'justify-center' : 'px-4'} py-3 bg-white/5 hover:bg-white/10 rounded-2xl transition-all group mb-2`}
+                className={`w-full flex items-center ${isCollapsed ? 'justify-center px-2' : 'px-4'} py-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all group`}
                 title="Back to Hub"
               >
-                <ArrowLeft className={`w-4 h-4 text-gray-400 group-hover:text-white transition-colors ${isCollapsed ? '' : 'mr-3'}`} />
-                {!isCollapsed && <span className="font-bold text-xs text-gray-300 uppercase tracking-widest">Hub</span>}
+                <ArrowLeft className={`w-4 h-4 text-slate-400 group-hover:text-white transition-colors shrink-0 ${isCollapsed ? '' : 'mr-3'}`} />
+                {!isCollapsed && <span className="font-bold text-xs text-slate-300 uppercase tracking-widest">Hub</span>}
               </Link>
             )}
             <Link
               href={DATABASE_DASHBOARD_HREF}
-              className={`flex items-center ${isCollapsed ? 'justify-center px-4' : 'px-4'} py-3 rounded-2xl transition-all group ${
+              className={`w-full flex items-center ${isCollapsed ? 'justify-center px-2' : 'px-4'} py-3.5 rounded-xl transition-all group relative ${
                 isDashboard
-                  ? 'bg-gradient-to-r from-black/10 to-transparent border-l-4 border-[#D4AF37] text-white'
-                  : 'bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white'
+                  ? 'bg-gradient-to-r from-amber-600 to-[#D4AF37] text-white shadow-lg shadow-amber-950/40 border-l-4 border-[#D4AF37] font-bold'
+                  : 'text-slate-400 hover:text-white hover:bg-white/5'
               }`}
               title={DATABASE_DASHBOARD_NAV.label}
             >
-              <DashboardIcon className={`w-4 h-4 ${isCollapsed ? '' : 'mr-3'} ${isDashboard ? 'text-[#D4AF37]' : 'text-gray-400 group-hover:text-white'}`} />
+              <DashboardIcon className={`w-5 h-5 shrink-0 ${isCollapsed ? '' : 'mr-3'} ${isDashboard ? 'text-white' : 'group-hover:text-white'}`} />
               {!isCollapsed && (
-                <span className={`font-bold text-xs uppercase tracking-widest ${isDashboard ? 'text-white' : 'text-gray-300'}`}>
-                  Dashboard
-                </span>
+                <span className="text-sm tracking-wide">{DATABASE_DASHBOARD_NAV.label}</span>
+              )}
+              {!isCollapsed && isDashboard && (
+                <ChevronRight className="w-4 h-4 ml-auto text-amber-200" />
               )}
             </Link>
           </div>
@@ -180,12 +184,11 @@ export default function DatabaseLayout({ children }: { children: React.ReactNode
           ))}
         </nav>
 
-        {/* Toggle Button */}
-        <div className="p-4 border-t border-white/10 mt-auto flex justify-center">
+        <div className="p-4 border-t border-white/5 mt-auto flex justify-center shrink-0">
           <button
             onClick={toggleSidebar}
-            className="flex items-center justify-center w-10 h-10 hover:bg-white/10 rounded-xl transition-all duration-200 text-[#D4AF37]"
-            title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+            className="flex items-center justify-center w-10 h-10 hover:bg-white/10 rounded-xl transition-all duration-200 text-slate-400"
+            title={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
           >
             {isCollapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
           </button>
@@ -215,50 +218,56 @@ export default function DatabaseLayout({ children }: { children: React.ReactNode
             <div className="fixed inset-0 bg-black/50" onClick={() => setIsSidebarOpen(false)} />
 
             {/* Menu */}
-            <aside className="relative flex flex-col w-72 max-w-xs bg-black text-white h-full z-10 animate-in slide-in-from-left duration-300">
-              <div className="p-4 flex justify-between items-center border-b border-white/10">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 bg-[#D4AF37] rounded-lg flex items-center justify-center">
-                    <Database className="w-5 h-5 text-black" />
-                  </div>
-                  <span className="font-black text-sm uppercase tracking-wider text-[#D4AF37]">BHS Database</span>
-                </div>
-                <button onClick={() => setIsSidebarOpen(false)} className="text-gray-400 hover:text-white p-1">
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
+            <aside className="relative flex flex-col w-72 max-w-xs bg-[#0a0f1d] text-white border-r border-amber-950/20 h-full z-10 animate-in slide-in-from-left duration-300">
+              <button
+                onClick={() => setIsSidebarOpen(false)}
+                className="absolute right-4 top-4 p-2 text-slate-400 hover:text-white"
+                title="Close Sidebar"
+              >
+                <X className="w-6 h-6" />
+              </button>
 
-              <div className="p-4 border-b border-white/10">
+              <div className="px-6 pt-6 pb-2 shrink-0">
                 <button
                   onClick={handleLogout}
-                  className="flex items-center gap-3 py-2 text-red-500 hover:text-red-400 transition-colors w-full cursor-pointer"
+                  className="flex items-center justify-center gap-3 py-2.5 text-[#D4AF37] hover:text-amber-300 transition-all duration-200 group w-full cursor-pointer bg-white/5 rounded-xl border border-white/10"
                 >
                   <ArrowLeft className="w-5 h-5 shrink-0 group-hover:-translate-x-1 transition-transform" />
-                  <span className="text-xs font-black uppercase tracking-widest">Back Home</span>
+                  <span className="text-xs font-black uppercase tracking-[0.2em]">Back Home</span>
                 </button>
               </div>
 
-              <nav className="flex-1 mt-4 overflow-y-auto">
-                <div className="px-4 mb-4 space-y-2">
+              <div className="px-4 pt-2 pb-6 shrink-0 flex flex-col items-center justify-center border-b border-white/5">
+                <div className="w-12 h-12 bg-gradient-to-br from-amber-500 to-[#D4AF37] rounded-2xl flex items-center justify-center mb-3 shadow-lg shadow-amber-950/50">
+                  <Database className="w-6 h-6 text-white" />
+                </div>
+                <h2 className="text-lg font-bold tracking-tight text-white">Database</h2>
+              </div>
+
+              <nav className="flex-1 mt-4 overflow-y-auto no-scrollbar px-3 space-y-1">
+                <div className="mb-2 space-y-1">
                   {!isHub && (
                     <Link
                       href="/DataBase"
                       onClick={() => setIsSidebarOpen(false)}
-                      className="flex items-center px-4 py-3 bg-white/5 hover:bg-white/10 rounded-2xl transition-all group"
+                      className="w-full flex items-center px-4 py-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all group"
                     >
-                      <ArrowLeft className="w-4 h-4 text-gray-400 group-hover:text-white transition-colors mr-3" />
-                      <span className="font-bold text-xs text-gray-300 uppercase tracking-widest">Database Hub</span>
+                      <ArrowLeft className="w-4 h-4 text-slate-400 group-hover:text-white transition-colors mr-3" />
+                      <span className="font-bold text-xs text-slate-300 uppercase tracking-widest">Database Hub</span>
                     </Link>
                   )}
                   <Link
                     href={DATABASE_DASHBOARD_HREF}
                     onClick={() => setIsSidebarOpen(false)}
-                    className={`flex items-center px-4 py-3 rounded-2xl transition-all group ${
-                      isDashboard ? 'bg-white/10 text-white border-l-4 border-[#D4AF37]' : 'bg-white/5 hover:bg-white/10 text-gray-300'
+                    className={`w-full flex items-center px-4 py-3.5 rounded-xl transition-all group relative ${
+                      isDashboard
+                        ? 'bg-gradient-to-r from-amber-600 to-[#D4AF37] text-white shadow-lg shadow-amber-950/40 border-l-4 border-[#D4AF37] font-bold'
+                        : 'text-slate-400 hover:text-white hover:bg-white/5'
                     }`}
                   >
-                    <DashboardIcon className={`w-4 h-4 mr-3 ${isDashboard ? 'text-[#D4AF37]' : 'text-gray-400'}`} />
-                    <span className="font-bold text-xs uppercase tracking-widest">Dashboard</span>
+                    <DashboardIcon className={`w-5 h-5 mr-3 ${isDashboard ? 'text-white' : 'group-hover:text-white'}`} />
+                    <span className="text-sm tracking-wide">{DATABASE_DASHBOARD_NAV.label}</span>
+                    {isDashboard && <ChevronRight className="w-4 h-4 ml-auto text-amber-200" />}
                   </Link>
                 </div>
                 {sidebarItems.map((item) => (

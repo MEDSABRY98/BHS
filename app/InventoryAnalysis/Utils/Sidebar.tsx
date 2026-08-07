@@ -44,7 +44,7 @@ export default function InventorySidebar({
   onCloseMobile,
 }: InventorySidebarProps) {
   return (
-    <div className="flex flex-col h-full bg-[#0f172a] text-white border-r border-indigo-950/20">
+    <div className="flex flex-col h-full bg-[#0a0f1d] text-white border-r border-indigo-950/20">
       {onCloseMobile && (
         <button
           type="button"
@@ -80,7 +80,6 @@ export default function InventorySidebar({
           {!isCollapsed && (
             <div className="animate-in fade-in duration-300">
               <h2 className="text-lg font-bold tracking-tight text-white">Inventory Analysis</h2>
-              <p className="text-[10px] text-indigo-400 font-bold tracking-[0.2em] uppercase">BHS Panel</p>
             </div>
           )}
         </div>

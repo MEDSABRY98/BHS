@@ -4,7 +4,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import {
   fetchInventoryCountArchives,
   type ICArchiveHeader,
-} from './Service/InventoryCountingService';
+} from '../Service/InventoryCountingService';
 
 const STORAGE_KEY = 'ic_archive_id';
 

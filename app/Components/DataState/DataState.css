@@ -4,8 +4,15 @@
   align-items: center;
   justify-content: center;
   width: 100%;
+  min-height: calc(100vh - 120px);
   padding: 48px 20px;
   text-align: center;
+  box-sizing: border-box;
+}
+
+/* Inside tables: keep a compact empty row, not full viewport */
+.data-state-table-row .data-state-simple {
+  min-height: 220px;
 }
 
 .data-state-title {

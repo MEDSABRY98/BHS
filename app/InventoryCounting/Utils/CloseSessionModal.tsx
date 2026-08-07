@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { Archive, Loader2, X } from 'lucide-react';
 import { toast } from '@/app/Components/Notification';
 import { closeInventoryCountSession } from '../Service/InventoryCountingService';
-import { useInventoryCountingArchive } from '../InventoryCountingArchiveContext';
+import { useInventoryCountingArchive } from '../Archives/InventoryCountingArchiveContext';
 
 interface CloseSessionModalProps {
   onClose: () => void;

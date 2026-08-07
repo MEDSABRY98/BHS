@@ -12,9 +12,10 @@ import {
   fetchArchivedICUserComparisonData,
   ICUserComparisonRow,
 } from '../Service/InventoryCountingService';
-import { useInventoryCountingArchive } from '../InventoryCountingArchiveContext';
+import { useInventoryCountingArchive } from '../Archives/InventoryCountingArchiveContext';
 import { ICRecord } from '../Utils/EditItemModal';
-import { useInventoryCountingFilters, matchesICWarehouse } from '../InventoryCountingFiltersContext';
+import { useInventoryCountingFilters, matchesICWarehouse } from '../Model/InventoryCountingFiltersContext';
+import { peekICPrefetch } from '../Utils/ICPrefetchCache';
 
 type ComparisonRow = ICUserComparisonRow & { userQtys: Record<string, number> };
 type SortKey = 'barcodeName' | 'productName' | 'availableQty' | 'difference' | `user:${string}`;
@@ -90,6 +91,19 @@ export default function UserComparisonTab() {
 
     setError(null);
     try {
+      // Prefer session bootstrap cache on first paint (refresh always hits network).
+      if (!isSilent) {
+        const prefetched = peekICPrefetch(archiveId);
+        if (prefetched) {
+          setBaseData(prefetched.userComparison.data);
+          setAllUsers(prefetched.userComparison.users);
+          setNormalRecords(prefetched.userComparison.normalRecords);
+          setDamageRecords(prefetched.userComparison.damageRecords);
+          setLoading(false);
+          return;
+        }
+      }
+
       const result = archiveId
         ? await fetchArchivedICUserComparisonData(archiveId)
         : await fetchICUserComparisonData();

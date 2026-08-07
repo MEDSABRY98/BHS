@@ -6,7 +6,6 @@ import {
   ChevronDown,
   CheckCircle2,
   X,
-  RotateCcw,
   Calendar,
   Layers,
   RefreshCcw,
@@ -413,22 +412,22 @@ export function SalesFilterModal({
           </div>
           <div className="flex items-center gap-3">
             <button
+              type="button"
               onClick={() => resetFilters()}
-              title="Reset All Filters"
-              className="p-3 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+              className="w-28 py-2.5 text-sm font-bold tracking-wide uppercase text-red-600 bg-transparent border-2 border-red-500 rounded-xl hover:bg-red-50 transition-all active:scale-95"
             >
-              <RotateCcw className="w-5 h-5" />
+              Clear
             </button>
             <button
+              type="button"
               onClick={onApply}
-              title="Apply Filters"
-              className={`p-3 rounded-xl shadow-lg transition-all hover:scale-[1.05] active:scale-95 ${
+              className={`w-28 py-2.5 text-sm font-bold tracking-wide uppercase bg-transparent border-2 rounded-xl transition-all active:scale-95 ${
                 hasPendingFilterChanges
-                  ? 'bg-amber-500 text-white shadow-amber-100 hover:bg-amber-600'
-                  : 'bg-green-600 text-white shadow-green-100 hover:bg-green-700'
+                  ? 'text-amber-600 border-amber-500 hover:bg-amber-50'
+                  : 'text-green-600 border-green-600 hover:bg-green-50'
               }`}
             >
-              <CheckCircle2 className="w-6 h-6" />
+              Apply
             </button>
             <div className="w-[1px] h-8 bg-slate-200 mx-2" />
             <button onClick={onClose} className="p-3 hover:bg-slate-100 rounded-xl transition-colors group">

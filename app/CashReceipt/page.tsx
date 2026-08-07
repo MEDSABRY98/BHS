@@ -92,7 +92,7 @@ export default function CashReceiptPage() {
   return (
     <div className="flex min-h-screen bg-[#F8F9FA] text-black">
       {/* Sidebar - Desktop */}
-      <aside className={`hidden lg:flex flex-col ${isSidebarCollapsed ? 'w-20' : 'w-72'} bg-[#0d0e10] text-white shadow-2xl fixed h-screen left-0 top-0 z-50 transition-all duration-300`}>
+      <aside className={`hidden lg:flex flex-col ${isSidebarCollapsed ? 'w-20' : 'w-72'} bg-[#0a0f1d] text-white shadow-2xl fixed h-screen left-0 top-0 z-50 transition-all duration-300`}>
         <CashReceiptSidebar
           activeTab={activeTab}
           onTabChange={setActiveTab}
@@ -111,7 +111,7 @@ export default function CashReceiptPage() {
       )}
 
       {/* Mobile Sidebar */}
-      <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-[#0d0e10] text-white transition-transform duration-300 transform lg:hidden ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'} flex flex-col`}>
+      <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-[#0a0f1d] text-white transition-transform duration-300 transform lg:hidden ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'} flex flex-col`}>
         <CashReceiptSidebar
           activeTab={activeTab}
           onTabChange={setActiveTab}

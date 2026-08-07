@@ -1,5 +1,16 @@
+'use client';
+
 import React from 'react';
-import { TrendingUp, ArrowLeft, ChevronRight, ChevronLeft, LineChart, Users, Building2, FileSpreadsheet } from 'lucide-react';
+import {
+  ArrowLeft,
+  Building2,
+  ChevronLeft,
+  ChevronRight,
+  FileSpreadsheet,
+  LineChart,
+  TrendingUp,
+  Users,
+} from 'lucide-react';
 
 interface SidebarProps {
   isSidebarOpen: boolean;
@@ -9,6 +20,13 @@ interface SidebarProps {
   FilterNode?: React.ReactNode;
 }
 
+const TABS = [
+  { id: 'product-history', label: 'Product History', icon: LineChart },
+  { id: 'supplier-comparison', label: 'Supplier Comparison', icon: Users },
+  { id: 'supplier-history', label: 'Supplier History', icon: Building2 },
+  { id: 'reports', label: 'Excel Reports', icon: FileSpreadsheet },
+];
+
 export default function Sidebar({
   isSidebarOpen,
   setIsSidebarOpen,
@@ -16,18 +34,22 @@ export default function Sidebar({
   onTabChange,
   FilterNode,
 }: SidebarProps) {
+  const isCollapsed = !isSidebarOpen;
+
   return (
-    <div className={`${isSidebarOpen ? 'w-64' : 'w-20'} transition-all duration-300 bg-black text-white flex flex-col shrink-0 shadow-2xl z-20 h-screen sticky top-0`}>
-      
-      {/* Top Header - Back Button */}
-      <div className={`px-4 ${isSidebarOpen ? 'px-6' : ''} pt-6 pb-2 bg-black/50 backdrop-blur-md transition-all duration-300`}>
+    <div
+      className={`flex flex-col h-full shrink-0 bg-[#0a0f1d] text-white border-r border-amber-950/20 transition-all duration-300 ${
+        isCollapsed ? 'w-20' : 'w-64'
+      }`}
+    >
+      <div className={`px-4 ${isCollapsed ? 'px-2' : 'px-6'} pt-6 pb-2 shrink-0 transition-all duration-300`}>
         <a
           href="/"
-          className={`flex items-center justify-center ${!isSidebarOpen ? 'gap-0' : 'gap-3'} py-2.5 text-red-500 hover:text-red-400 transition-all duration-200 group w-full cursor-pointer`}
-          title="Back Home"
+          className={`flex items-center justify-center ${isCollapsed ? 'gap-0' : 'gap-3'} py-2.5 text-[#D4AF37] hover:text-amber-300 transition-all duration-200 group w-full cursor-pointer bg-white/5 rounded-xl border border-white/10`}
+          title={isCollapsed ? 'Back to Home' : undefined}
         >
           <ArrowLeft className="w-5 h-5 shrink-0 group-hover:-translate-x-1 transition-transform" />
-          {isSidebarOpen && (
+          {!isCollapsed && (
             <span className="text-xs font-black uppercase tracking-[0.2em] whitespace-nowrap overflow-hidden transition-all duration-300">
               Back Home
             </span>
@@ -35,98 +57,63 @@ export default function Sidebar({
         </a>
       </div>
 
-      {/* Logo & Title */}
-      <div className={`px-4 ${!isSidebarOpen ? 'py-4' : 'pt-2 pb-6'} shrink-0 flex flex-col items-center justify-center transition-all duration-300`}>
+      <div
+        className={`px-4 ${isCollapsed ? 'py-4' : 'pt-2 pb-6'} shrink-0 flex flex-col items-center justify-center transition-all duration-300 border-b border-white/5`}
+      >
         <div className="flex flex-col items-center text-center">
-          <div className="w-12 h-12 bg-[#D4AF37] rounded-xl flex items-center justify-center mb-3 shadow-lg shadow-[#D4AF37]/20 transition-all duration-300">
-            <TrendingUp className="w-7 h-7 text-black" />
+          <div className="w-12 h-12 bg-gradient-to-br from-[#D4AF37] to-amber-600 rounded-2xl flex items-center justify-center mb-3 shadow-lg shadow-amber-950/50 transition-all duration-300">
+            <TrendingUp className="w-6 h-6 text-black" />
           </div>
-          {isSidebarOpen && (
+          {!isCollapsed && (
             <div className="animate-in fade-in duration-300">
-              <h2 className="text-xl font-bold tracking-tight">PURCHASE PRICE</h2>
-              <p className="text-[10px] text-[#D4AF37] font-bold tracking-[0.2em] uppercase">Tracking Hub</p>
+              <h2 className="text-lg font-bold tracking-tight text-white">Purchase Price</h2>
             </div>
           )}
         </div>
       </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 mt-4 overflow-y-auto no-scrollbar flex flex-col">
-        <button
-          onClick={() => onTabChange("product-history")}
-          className={`flex items-center ${!isSidebarOpen ? 'justify-center px-4' : 'px-6'} py-4 transition-all duration-200 group ${
-            activeTab === "product-history"
-              ? 'bg-gradient-to-r from-white/10 to-transparent border-l-4 border-[#D4AF37] text-white'
-              : 'text-gray-400 hover:text-white hover:bg-white/5 border-l-4 border-transparent'
-          }`}
-          title={!isSidebarOpen ? "Product Price History" : undefined}
-        >
-          <LineChart className={`w-5 h-5 transition-colors ${isSidebarOpen ? 'mr-4' : ''} ${activeTab === "product-history" ? 'text-[#D4AF37]' : 'group-hover:text-white'}`} />
-          {isSidebarOpen && (
-            <span className="font-medium text-sm tracking-wide whitespace-nowrap animate-in fade-in duration-200">Product History</span>
-          )}
-          {isSidebarOpen && activeTab === "product-history" && <ChevronRight className="w-4 h-4 ml-auto text-[#D4AF37] animate-in fade-in duration-200" />}
-        </button>
-
-        <button
-          onClick={() => onTabChange("supplier-comparison")}
-          className={`flex items-center ${!isSidebarOpen ? 'justify-center px-4' : 'px-6'} py-4 transition-all duration-200 group ${
-            activeTab === "supplier-comparison"
-              ? 'bg-gradient-to-r from-white/10 to-transparent border-l-4 border-[#D4AF37] text-white'
-              : 'text-gray-400 hover:text-white hover:bg-white/5 border-l-4 border-transparent'
-          }`}
-          title={!isSidebarOpen ? "Supplier Comparison" : undefined}
-        >
-          <Users className={`w-5 h-5 transition-colors ${isSidebarOpen ? 'mr-4' : ''} ${activeTab === "supplier-comparison" ? 'text-[#D4AF37]' : 'group-hover:text-white'}`} />
-          {isSidebarOpen && (
-            <span className="font-medium text-sm tracking-wide whitespace-nowrap animate-in fade-in duration-200">Supplier Comparison</span>
-          )}
-          {isSidebarOpen && activeTab === "supplier-comparison" && <ChevronRight className="w-4 h-4 ml-auto text-[#D4AF37] animate-in fade-in duration-200" />}
-        </button>
-
-        <button
-          onClick={() => onTabChange("supplier-history")}
-          className={`flex items-center ${!isSidebarOpen ? 'justify-center px-4' : 'px-6'} py-4 transition-all duration-200 group ${
-            activeTab === "supplier-history"
-              ? 'bg-gradient-to-r from-white/10 to-transparent border-l-4 border-[#D4AF37] text-white'
-              : 'text-gray-400 hover:text-white hover:bg-white/5 border-l-4 border-transparent'
-          }`}
-          title={!isSidebarOpen ? "Supplier History" : undefined}
-        >
-          <Building2 className={`w-5 h-5 transition-colors ${isSidebarOpen ? 'mr-4' : ''} ${activeTab === "supplier-history" ? 'text-[#D4AF37]' : 'group-hover:text-white'}`} />
-          {isSidebarOpen && (
-            <span className="font-medium text-sm tracking-wide whitespace-nowrap animate-in fade-in duration-200">Supplier History</span>
-          )}
-          {isSidebarOpen && activeTab === "supplier-history" && <ChevronRight className="w-4 h-4 ml-auto text-[#D4AF37] animate-in fade-in duration-200" />}
-        </button>
-
-        <button
-          onClick={() => onTabChange("reports")}
-          className={`flex items-center ${!isSidebarOpen ? 'justify-center px-4' : 'px-6'} py-4 transition-all duration-200 group ${
-            activeTab === "reports"
-              ? 'bg-gradient-to-r from-white/10 to-transparent border-l-4 border-[#D4AF37] text-white'
-              : 'text-gray-400 hover:text-white hover:bg-white/5 border-l-4 border-transparent'
-          }`}
-          title={!isSidebarOpen ? "Excel Reports" : undefined}
-        >
-          <FileSpreadsheet className={`w-5 h-5 transition-colors ${isSidebarOpen ? 'mr-4' : ''} ${activeTab === "reports" ? 'text-[#D4AF37]' : 'group-hover:text-white'}`} />
-          {isSidebarOpen && (
-            <span className="font-medium text-sm tracking-wide whitespace-nowrap animate-in fade-in duration-200">Excel Reports</span>
-          )}
-          {isSidebarOpen && activeTab === "reports" && <ChevronRight className="w-4 h-4 ml-auto text-[#D4AF37] animate-in fade-in duration-200" />}
-        </button>
+      <nav className="flex-1 mt-4 overflow-y-auto no-scrollbar px-3 space-y-1">
+        {TABS.map((tab) => {
+          const Icon = tab.icon;
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => onTabChange(tab.id)}
+              className={`w-full flex items-center ${isCollapsed ? 'justify-center px-2' : 'px-4'} py-3.5 rounded-xl transition-all duration-200 group relative ${
+                isActive
+                  ? 'bg-gradient-to-r from-amber-600 to-[#D4AF37] text-white shadow-lg shadow-amber-950/40 border-l-4 border-[#D4AF37] font-bold'
+                  : 'text-slate-400 hover:text-white hover:bg-white/5'
+              }`}
+              title={isCollapsed ? tab.label : undefined}
+            >
+              <Icon
+                className={`w-5 h-5 transition-colors shrink-0 ${isCollapsed ? '' : 'mr-3'} ${
+                  isActive ? 'text-white' : 'group-hover:text-white'
+                }`}
+              />
+              {!isCollapsed && (
+                <span className="text-sm tracking-wide whitespace-nowrap overflow-hidden text-left">{tab.label}</span>
+              )}
+              {!isCollapsed && isActive && (
+                <ChevronRight className="w-4 h-4 ml-auto text-amber-200 animate-in fade-in duration-200" />
+              )}
+            </button>
+          );
+        })}
       </nav>
 
-      {/* Actions */}
-      <div className="p-4 border-t border-white/10 mt-auto flex flex-col items-center gap-2">
-        <div className={`flex gap-2 ${isSidebarOpen ? 'flex-row items-center' : 'flex-col'}`}>
+      <div className="p-4 border-t border-white/5 mt-auto flex flex-col gap-2 shrink-0 items-center justify-center">
+        <div className={`flex gap-2 ${isCollapsed ? 'flex-col' : 'flex-row items-center'}`}>
           {FilterNode}
           <button
+            type="button"
             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-            className="flex items-center justify-center w-10 h-10 hover:bg-white/10 rounded-xl transition-all duration-200 text-[#D4AF37]"
-            title={isSidebarOpen ? 'Collapse Sidebar' : 'Expand Sidebar'}
+            className="flex items-center justify-center w-10 h-10 hover:bg-white/10 rounded-xl transition-all duration-200 text-slate-400"
+            title={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
           >
-            {isSidebarOpen ? <ChevronLeft className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
+            {isCollapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
           </button>
         </div>
       </div>

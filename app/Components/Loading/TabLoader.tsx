@@ -1,49 +1,47 @@
 'use client';
 
+import { useEffect, useState } from 'react';
+
 interface TabLoaderProps {
   className?: string;
 }
 
-function ShimmerBlock({ className = '', style }: { className?: string; style?: React.CSSProperties }) {
+export default function TabLoader({ className = '' }: TabLoaderProps) {
+  const [progress, setProgress] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setProgress((prev) => {
+        if (prev >= 95) return 95;
+
+        let inc = 0;
+        if (prev < 60) inc = Math.floor(Math.random() * 10) + 5;
+        else if (prev < 85) inc = Math.floor(Math.random() * 4) + 1;
+        else if (prev < 93) inc = Math.floor(Math.random() * 2) + 0.5;
+        else inc = Math.random() > 0.8 ? 0.1 : 0;
+
+        const nextVal = prev + inc;
+        return nextVal >= 95 ? 95 : parseFloat(nextVal.toFixed(1));
+      });
+    }, 100);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  const displayProgress = Math.floor(progress);
+
   return (
     <div
-      className={`rounded-xl bg-gradient-to-r from-slate-100 via-slate-50 to-slate-100 bg-[length:200%_100%] animate-[salesShimmer_1.4s_ease-in-out_infinite] ${className}`}
-      style={style}
-    />
-  );
-}
-
-export default function TabLoader({ className = '' }: TabLoaderProps) {
-  return (
-    <div className={`w-full min-h-[360px] py-2 animate-in fade-in duration-300 ${className}`}>
-      <div className="mb-8 flex items-center gap-4">
-        <ShimmerBlock className="h-12 w-12 rounded-2xl shrink-0" />
-        <div className="flex-1 space-y-2.5">
-          <ShimmerBlock className="h-6 w-52" />
-          <ShimmerBlock className="h-3 w-36 opacity-70" />
-        </div>
+      className={`w-full min-h-[calc(100vh-120px)] flex flex-col items-center justify-center select-none ${className}`}
+    >
+      <div className="db-load-title">
+        DATABASE <span>LOADING...</span>
       </div>
 
-      <div className="mb-8 grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <ShimmerBlock
-            key={i}
-            className="h-[108px]"
-            style={{ animationDelay: `${i * 0.1}s` } as React.CSSProperties}
-          />
-        ))}
-      </div>
-
-      <ShimmerBlock className="mb-8 h-56 rounded-2xl" />
-
-      <div className="space-y-3">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <ShimmerBlock
-            key={i}
-            className="h-11"
-            style={{ animationDelay: `${i * 0.08}s` } as React.CSSProperties}
-          />
-        ))}
+      <div className="db-load-spinner">
+        <div className="db-load-spinner-outer" />
+        <div className="db-load-spinner-inner" />
+        <div className="db-load-pct">{displayProgress}%</div>
       </div>
     </div>
   );

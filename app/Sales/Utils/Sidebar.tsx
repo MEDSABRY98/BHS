@@ -74,7 +74,7 @@ export default function SalesSidebar({
   }, [currentUser]);
 
   return (
-    <div className="flex flex-col h-full bg-[#0d1e16] text-white border-r border-emerald-950/20">
+    <div className="flex flex-col h-full bg-[#0a0f1d] text-white border-r border-emerald-950/20">
       {/* Header Close button for Mobile */}
       {onCloseMobile && (
         <button 
@@ -111,7 +111,6 @@ export default function SalesSidebar({
           {!isCollapsed && (
             <div className="animate-in fade-in duration-300">
               <h2 className="text-lg font-bold tracking-tight text-white">Sales Analysis</h2>
-              <p className="text-[10px] text-emerald-400 font-bold tracking-[0.2em] uppercase">BHS Panel</p>
             </div>
           )}
         </div>

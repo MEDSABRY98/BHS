@@ -1362,11 +1362,38 @@ function mapRpcProductsBalanceRows(data: unknown): ProductBalanceRow[] {
 
 export async function getProductsBalanceReportData(filters?: { dateFrom?: string; dateTo?: string; location?: string }) {
   try {
+    const dateFrom = filters?.dateFrom?.trim() || null;
+    const dateTo = filters?.dateTo?.trim() || null;
+    const location = filters?.location?.trim() || null;
+
+    const { data: rpcData, error: rpcError } = await bhs_supabase.rpc('get_inventory_products_balance', {
+      p_date_from: dateFrom,
+      p_date_to: dateTo,
+      p_location: location,
+    });
+
+    const rpcRows =
+      rpcData?.success && Array.isArray(rpcData.data)
+        ? mapRpcProductsBalanceRows(rpcData.data)
+        : null;
+
+    if (!rpcError && rpcRows && rpcRows.length > 0) {
+      return { success: true as const, data: rpcRows };
+    }
+
+    if (rpcError) {
+      console.warn('RPC get_inventory_products_balance failed, falling back to JS:', rpcError.message);
+    } else if (rpcData && rpcData.success === false) {
+      console.warn('RPC get_inventory_products_balance returned error, falling back to JS:', rpcData.error);
+    } else {
+      console.warn('RPC get_inventory_products_balance returned no rows, falling back to JS');
+    }
+
     const data = await computeProductsBalanceReportDataJs(filters);
-    return { success: true, data };
+    return { success: true as const, data };
   } catch (error: any) {
     console.error('Service Error getProductsBalanceReportData:', error);
-    return { success: false, error: 'Failed to fetch products balance data', details: error.message };
+    return { success: false as const, error: 'Failed to fetch products balance data', details: error.message };
   }
 }
 

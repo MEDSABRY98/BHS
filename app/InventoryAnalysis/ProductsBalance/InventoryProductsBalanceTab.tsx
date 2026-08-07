@@ -13,8 +13,13 @@ import { getProductsBalanceReportData, getInternalWarehouseLocationOptions } fro
 import type { ProductBalanceRow } from '../Service/inventory_types';
 import { exportSalesExcelTable } from '@/app/Sales/Utils/ExcelExport';
 import InventoryProductsBalanceDetailsTab from './InventoryProductsBalanceDetailsTab';
+import { peekIAPrefetch } from '../Utils/IAPrefetchCache';
 
 type BalanceFilter = 'All' | 'Positive' | 'Negative' | 'Zero';
+
+function isDefaultBalanceFilters(from: string, to: string, location: string) {
+  return !(from || '').trim() && !(to || '').trim() && (!location || location === 'All');
+}
 
 const BALANCE_FILTER_OPTIONS: { value: BalanceFilter; label: string }[] = [
   { value: 'All', label: 'All Balances' },
@@ -48,6 +53,11 @@ export default function InventoryProductsBalanceTab() {
   const fetchRequestId = useRef(0);
 
   useEffect(() => {
+    const prefetched = peekIAPrefetch();
+    if (prefetched?.locations?.length) {
+      setWarehouseLocations(prefetched.locations);
+      return;
+    }
     getInternalWarehouseLocationOptions().then((res) => {
       if (res.data?.length) setWarehouseLocations(res.data);
     });
@@ -57,11 +67,28 @@ export default function InventoryProductsBalanceTab() {
     fetchReport(appliedDateFrom, appliedDateTo, selectedLocation);
   }, [appliedDateFrom, appliedDateTo, selectedLocation]);
 
-  const fetchReport = async (from = appliedDateFrom, to = appliedDateTo, location = selectedLocation) => {
+  const fetchReport = async (
+    from = appliedDateFrom,
+    to = appliedDateTo,
+    location = selectedLocation,
+    opts?: { skipCache?: boolean },
+  ) => {
     const requestId = ++fetchRequestId.current;
     try {
       setLoading(true);
       setError(null);
+
+      if (!opts?.skipCache && isDefaultBalanceFilters(from, to, location)) {
+        const prefetched = peekIAPrefetch();
+        if (prefetched?.productsBalance) {
+          if (requestId !== fetchRequestId.current) return;
+          setData(prefetched.productsBalance);
+          setError(null);
+          setLoading(false);
+          return;
+        }
+      }
+
       const res = await getProductsBalanceReportData({
         dateFrom: from,
         dateTo: to,
@@ -298,7 +325,7 @@ export default function InventoryProductsBalanceTab() {
     return (
       <TabFetchError
         message={error}
-        onRetry={() => fetchReport()}
+        onRetry={() => fetchReport(appliedDateFrom, appliedDateTo, selectedLocation, { skipCache: true })}
         isRetrying={loading}
         className="min-h-[360px]"
       />
@@ -601,7 +628,7 @@ export default function InventoryProductsBalanceTab() {
             </button>
             <button
               type="button"
-              onClick={() => fetchReport()}
+              onClick={() => fetchReport(appliedDateFrom, appliedDateTo, selectedLocation, { skipCache: true })}
               disabled={loading}
               className="h-11 w-11 flex items-center justify-center rounded-xl border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all shadow-sm disabled:opacity-50"
               title="Refresh Data"
@@ -621,7 +648,7 @@ export default function InventoryProductsBalanceTab() {
         {error && data.length > 0 && (
           <TabFetchError
             message={error}
-            onRetry={() => fetchReport()}
+            onRetry={() => fetchReport(appliedDateFrom, appliedDateTo, selectedLocation, { skipCache: true })}
             isRetrying={loading}
           />
         )}

@@ -12,6 +12,7 @@ import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import InventoryProductOrdersDetailsTab from './InventoryCategoriesDetailsTab';
 import { getProductOrdersData, getProductMovementsData } from '../Service/inventory_service';
 import { formatProductCategory } from '../Utils/locationTypes';
+import { peekIAPrefetch } from '../Utils/IAPrefetchCache';
 
 export interface BaseProductOrder {
     productId: string;
@@ -46,9 +47,25 @@ export default function InventoryProductOrdersTab({ orderItems, setOrderItems }:
         fetchOrders();
     }, []);
 
-    const fetchOrders = async () => {
+    const fetchOrders = async (opts?: { skipCache?: boolean }) => {
         try {
             setLoading(true);
+
+            if (!opts?.skipCache) {
+                const prefetched = peekIAPrefetch();
+                if (prefetched?.productOrders) {
+                    const data = prefetched.productOrders.map((p) => ({
+                        ...p,
+                        formattedTag: formatProductCategory(p.tags),
+                        onHand: p.qty ?? 0,
+                    }));
+                    setProducts(data);
+                    setError(null);
+                    setLoading(false);
+                    return;
+                }
+            }
+
             const json = await getProductOrdersData();
 
             if (!json.success) throw new Error(json.details || json.error || 'Failed to fetch orders data');
@@ -116,7 +133,7 @@ export default function InventoryProductOrdersTab({ orderItems, setOrderItems }:
         return (
             <TabFetchError
                 message={error}
-                onRetry={fetchOrders}
+                onRetry={() => fetchOrders({ skipCache: true })}
                 isRetrying={loading}
                 className="min-h-[360px]"
             />
@@ -130,7 +147,7 @@ export default function InventoryProductOrdersTab({ orderItems, setOrderItems }:
                 products={products}
                 onBack={() => setSelectedCategory(null)}
                 loading={loading}
-                onRefresh={fetchOrders}
+                onRefresh={() => fetchOrders({ skipCache: true })}
                 orderItems={orderItems}
                 setOrderItems={setOrderItems}
             />
@@ -196,7 +213,7 @@ export default function InventoryProductOrdersTab({ orderItems, setOrderItems }:
                 </div>
                 <div className="flex items-center gap-3 w-full sm:w-auto">
                     <button
-                        onClick={fetchOrders}
+                        onClick={() => fetchOrders({ skipCache: true })}
                         disabled={loading}
                         className="flex items-center justify-center p-3.5 bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-200 rounded-2xl transition-all shadow-sm shrink-0"
                         title="Refresh Data"

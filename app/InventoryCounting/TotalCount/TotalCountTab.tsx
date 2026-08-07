@@ -17,8 +17,9 @@ import {
 } from '../Service/InventoryCountingService';
 import { ICItem, ICRecord } from '../Utils/EditItemModal';
 import EditItemModal from '../Utils/EditItemModal';
-import { useInventoryCountingArchive } from '../InventoryCountingArchiveContext';
-import { useInventoryCountingFilters, matchesICUser, matchesICWarehouse, hasICScopeFilter } from '../InventoryCountingFiltersContext';
+import { useInventoryCountingArchive } from '../Archives/InventoryCountingArchiveContext';
+import { useInventoryCountingFilters, matchesICUser, matchesICWarehouse, hasICScopeFilter } from '../Model/InventoryCountingFiltersContext';
+import { peekICPrefetch } from '../Utils/ICPrefetchCache';
 
 type SortKey = keyof ICTotalCountItem | '#';
 
@@ -52,6 +53,18 @@ export default function TotalCountTab() {
 
     setError(null);
     try {
+      // Prefer session bootstrap cache on first paint (refresh always hits network).
+      if (!isSilent) {
+        const prefetched = peekICPrefetch(archiveId);
+        if (prefetched) {
+          setData(prefetched.totalCount.data);
+          setNormalRecords([]);
+          setDamageRecords([]);
+          setLoading(false);
+          return;
+        }
+      }
+
       const needScopeRecords = hasICScopeFilter(selectedUsers, selectedWarehouses);
 
       const totalsPromise = archiveId

@@ -9,6 +9,7 @@ import InventoryCategoryBalanceTab from './CategoryBalance/InventoryCategoryBala
 import InventoryProductOrdersTab from './CategoriesAnalysis/InventoryCategoriesTab';
 import ReportsTab from './Reports/ReportsTab';
 import InventorySidebar, { type InventoryTabId } from './Utils/Sidebar';
+import IADataBootstrap from './Utils/IADataBootstrap';
 import { useInventoryTabAudit } from '@/app/Audit/Modules/InventoryTabAudit';
 import Login from '@/app/Components/Auth/Login';
 import Loading from '@/app/Components/Loading';
@@ -124,7 +125,7 @@ export default function InventoryPage() {
 
   return (
     <div className="flex min-h-screen bg-[#F8F9FA] text-black">
-      <aside className={`hidden lg:flex flex-col ${isSidebarCollapsed ? 'w-20' : 'w-72'} bg-[#0f172a] text-white shadow-2xl fixed h-screen left-0 top-0 z-50 transition-all duration-300`}>
+      <aside className={`hidden lg:flex flex-col ${isSidebarCollapsed ? 'w-20' : 'w-72'} bg-[#0a0f1d] text-white shadow-2xl fixed h-screen left-0 top-0 z-50 transition-all duration-300`}>
         <InventorySidebar
           activeTab={activeTab}
           onTabChange={setActiveTab}
@@ -140,7 +141,7 @@ export default function InventoryPage() {
         />
       )}
 
-      <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-[#0f172a] text-white transition-transform duration-300 transform lg:hidden ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'} flex flex-col`}>
+      <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-[#0a0f1d] text-white transition-transform duration-300 transform lg:hidden ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'} flex flex-col`}>
         <InventorySidebar
           activeTab={activeTab}
           onTabChange={setActiveTab}
@@ -163,7 +164,9 @@ export default function InventoryPage() {
         </div>
 
         <div className="max-w-[95%] 2xl:max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-12 flex-1 w-full">
-          {renderTabContent()}
+          <IADataBootstrap>
+            {renderTabContent()}
+          </IADataBootstrap>
         </div>
       </div>
     </div>

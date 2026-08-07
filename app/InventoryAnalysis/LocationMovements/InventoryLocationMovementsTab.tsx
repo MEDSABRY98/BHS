@@ -25,8 +25,13 @@ import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import { getLocationPeriodMovements, getInternalWarehouseLocationOptions } from '../Service/inventory_service';
 import type { LocationMovementRow } from '../Service/inventory_types';
 import { exportSalesExcelWorkbook, recordsFromTable } from '@/app/Sales/Utils/ExcelExport';
+import { peekIAPrefetch } from '../Utils/IAPrefetchCache';
 
 type DirectionFilter = 'All' | 'in' | 'out';
+
+function isDefaultMovementFilters(from: string, to: string) {
+  return !(from || '').trim() && !(to || '').trim();
+}
 
 const MOVEMENT_TYPES = [
   { value: 'All', label: 'All Movement Types' },
@@ -113,6 +118,14 @@ export default function InventoryLocationMovementsTab() {
   const categoryRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    const prefetched = peekIAPrefetch();
+    if (prefetched?.locations?.length) {
+      setWarehouseLocations(prefetched.locations);
+      setSelectedLocation((prev) =>
+        prev && prefetched.locations.includes(prev) ? prev : prefetched.locations[0] || '',
+      );
+      return;
+    }
     getInternalWarehouseLocationOptions().then((res) => {
       const list = res.data || [];
       setWarehouseLocations(list);
@@ -151,12 +164,28 @@ export default function InventoryLocationMovementsTab() {
     location = selectedLocation,
     from = appliedDateFrom,
     to = appliedDateTo,
+    opts?: { skipCache?: boolean },
   ) => {
     if (!location) return;
 
     const requestId = ++fetchRequestId.current;
     try {
       setLoading(true);
+
+      if (!opts?.skipCache && isDefaultMovementFilters(from, to)) {
+        const prefetched = peekIAPrefetch();
+        if (
+          prefetched?.locationMovements?.location === location &&
+          prefetched.locationMovements.data
+        ) {
+          if (requestId !== fetchRequestId.current) return;
+          setData(prefetched.locationMovements.data);
+          setError(null);
+          setLoading(false);
+          return;
+        }
+      }
+
       const res = await getLocationPeriodMovements({
         location,
         dateFrom: from || undefined,
@@ -443,7 +472,7 @@ export default function InventoryLocationMovementsTab() {
     return (
       <TabFetchError
         message={error}
-        onRetry={() => fetchReport()}
+        onRetry={() => fetchReport(selectedLocation, appliedDateFrom, appliedDateTo, { skipCache: true })}
         isRetrying={loading}
         className="min-h-[360px]"
       />
@@ -760,7 +789,7 @@ export default function InventoryLocationMovementsTab() {
             </button>
             <button
               type="button"
-              onClick={() => fetchReport()}
+              onClick={() => fetchReport(selectedLocation, appliedDateFrom, appliedDateTo, { skipCache: true })}
               disabled={loading}
               className="h-11 w-11 flex items-center justify-center rounded-xl border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all shadow-sm disabled:opacity-50"
               title="Refresh Data"
@@ -780,7 +809,7 @@ export default function InventoryLocationMovementsTab() {
         {error && data.length > 0 && (
           <TabFetchError
             message={error}
-            onRetry={() => fetchReport()}
+            onRetry={() => fetchReport(selectedLocation, appliedDateFrom, appliedDateTo, { skipCache: true })}
             isRetrying={loading}
           />
         )}
@@ -814,7 +843,7 @@ export default function InventoryLocationMovementsTab() {
       {error && !loading && data.length === 0 ? (
         <TabFetchError
           message={error}
-          onRetry={() => fetchReport()}
+          onRetry={() => fetchReport(selectedLocation, appliedDateFrom, appliedDateTo, { skipCache: true })}
           isRetrying={loading}
           className="min-h-[280px]"
         />

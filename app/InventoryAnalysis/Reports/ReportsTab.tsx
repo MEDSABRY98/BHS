@@ -16,6 +16,7 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import { getInventoryProductsForReports } from '../Service/inventory_service';
+import { peekIAPrefetch } from '../Utils/IAPrefetchCache';
 import { generateDeadStockReport } from './DeadStockReport';
 import { generateMonthlyNetPurchasesReport } from './MonthlyNetPurchasesReport';
 import { generateMonthlyNetSalesReport } from './MonthlyNetSalesReport';
@@ -136,6 +137,18 @@ export default function ReportsTab() {
     let cancelled = false;
     (async () => {
       setIsLoadingCategories(true);
+
+      const prefetched = peekIAPrefetch();
+      if (prefetched?.reportProducts) {
+        if (cancelled) return;
+        const unique = Array.from(new Set(prefetched.reportProducts.map((p) => p.category))).sort((a, b) =>
+          a.localeCompare(b),
+        );
+        setCategories(unique);
+        setIsLoadingCategories(false);
+        return;
+      }
+
       const result = await getInventoryProductsForReports();
       if (cancelled) return;
       if (result.success) {

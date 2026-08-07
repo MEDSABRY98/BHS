@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import TabLoader from '@/app/Components/Loading/TabLoader';
-import { useInventoryCountingArchive } from '../InventoryCountingArchiveContext';
+import { useInventoryCountingArchive } from './InventoryCountingArchiveContext';
 import type { InventoryCountingTabId } from '../Utils/Sidebar';
 
 function formatClosedAt(value: string): string {

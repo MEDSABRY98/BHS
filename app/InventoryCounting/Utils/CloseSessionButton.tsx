@@ -6,7 +6,7 @@ import CloseSessionModal from './CloseSessionModal';
 import {
   canCloseInventoryCountSession,
   useInventoryCountingArchive,
-} from '../InventoryCountingArchiveContext';
+} from '../Archives/InventoryCountingArchiveContext';
 
 export default function CloseSessionButton({ className = '' }: { className?: string }) {
   const { isReadOnly } = useInventoryCountingArchive();

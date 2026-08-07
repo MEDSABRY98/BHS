@@ -54,7 +54,7 @@ export default function CashReceiptSidebar({
   const tabs = getFilteredTabs();
 
   return (
-    <div className="flex flex-col h-full bg-[#0d0e10] text-white border-r border-amber-950/20">
+    <div className="flex flex-col h-full bg-[#0a0f1d] text-white border-r border-amber-950/20">
       {/* Header Close button for Mobile */}
       {onCloseMobile && (
         <button 
@@ -91,7 +91,6 @@ export default function CashReceiptSidebar({
           {!isCollapsed && (
             <div className="animate-in fade-in duration-300">
               <h2 className="text-lg font-bold tracking-tight text-white">Cash Receipt</h2>
-              <p className="text-[10px] text-amber-400 font-bold tracking-[0.2em] uppercase">BHS Panel</p>
             </div>
           )}
         </div>

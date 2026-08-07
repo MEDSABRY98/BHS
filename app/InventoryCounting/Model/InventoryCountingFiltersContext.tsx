@@ -4,8 +4,8 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import {
   fetchICFilterOptions,
   fetchArchivedICFilterOptions,
-} from './Service/InventoryCountingService';
-import { useInventoryCountingArchive } from './InventoryCountingArchiveContext';
+} from '../Service/InventoryCountingService';
+import { useInventoryCountingArchive } from '../Archives/InventoryCountingArchiveContext';
 
 type InventoryCountingFiltersContextValue = {
   selectedUsers: string[];
