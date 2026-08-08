@@ -97,6 +97,8 @@ export default function InventoryLocationMovementsTab() {
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [directionFilter, setDirectionFilter] = useState<DirectionFilter>('All');
   const [typeFilter, setTypeFilter] = useState('All');
+  const [isFiltersOpen, setIsFiltersOpen] = useState(false);
+  const filtersRef = useRef<HTMLDivElement>(null);
 
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 50;
@@ -211,6 +213,27 @@ export default function InventoryLocationMovementsTab() {
   useEffect(() => {
     if (!selectedLocation) return;
     fetchReport(selectedLocation, appliedDateFrom, appliedDateTo);
+  }, [selectedLocation, appliedDateFrom, appliedDateTo]);
+
+  useEffect(() => {
+    window.dispatchEvent(
+      new CustomEvent('inventory-analysis-refresh-state', {
+        detail: { activeTab: 'location_movements', isRefreshing: loading },
+      })
+    );
+  }, [loading]);
+
+  useEffect(() => {
+    const handleTrigger = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail?.activeTab === 'location_movements') {
+        fetchReport(selectedLocation, appliedDateFrom, appliedDateTo, { skipCache: true });
+      }
+    };
+    window.addEventListener('inventory-analysis-trigger-refresh', handleTrigger);
+    return () => {
+      window.removeEventListener('inventory-analysis-trigger-refresh', handleTrigger);
+    };
   }, [selectedLocation, appliedDateFrom, appliedDateTo]);
 
   useEffect(() => {
@@ -466,6 +489,16 @@ export default function InventoryLocationMovementsTab() {
     );
   };
 
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (selectedLocation && warehouseLocations.length > 0 && selectedLocation !== warehouseLocations[0]) count++;
+    if (selectedCategory !== 'All') count++;
+    if (directionFilter !== 'All') count++;
+    if (typeFilter !== 'All') count++;
+    if (appliedDateFrom !== '' || appliedDateTo !== '') count++;
+    return count;
+  }, [selectedLocation, warehouseLocations, selectedCategory, directionFilter, typeFilter, appliedDateFrom, appliedDateTo]);
+
   if (loading && data.length === 0) return <TabLoader />;
 
   if (error && !loading && data.length === 0) {
@@ -479,323 +512,76 @@ export default function InventoryLocationMovementsTab() {
     );
   }
 
+
   return (
     <div className="space-y-6">
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-6 space-y-4">
-        <div className="text-center">
-          <h2 className="text-xl font-bold text-slate-800 flex items-center justify-center gap-2">
-            <ArrowLeftRight className="w-5 h-5 text-indigo-600" />
+        {/* Header Row */}
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 pb-4 border-b border-slate-100">
+          <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+            <ArrowLeftRight className="w-5 h-5 text-indigo-600 shrink-0" />
             Location Movements In / Out
           </h2>
-        </div>
 
-        <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
-          <div className="relative flex items-center h-11 w-full sm:w-64 bg-slate-50/80 hover:bg-slate-100/60 focus-within:bg-white border border-slate-200/90 rounded-xl px-3.5 transition-all shadow-xs focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-500">
-            <Search className="w-4 h-4 text-slate-400 shrink-0 mr-2.5" />
-            <input
-              type="text"
-              placeholder="Search product, ref, barcode..."
-              value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="w-full bg-transparent text-xs font-semibold text-slate-700 placeholder:text-slate-400 outline-none"
-            />
-            {searchQuery && (
+          <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
+            {/* Search Bar */}
+            <div className="relative flex items-center h-11 flex-1 sm:flex-initial sm:w-64 bg-slate-50/80 hover:bg-slate-100/60 focus-within:bg-white border border-slate-200/90 rounded-xl px-3.5 transition-all shadow-xs focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-500">
+              <Search className="w-4 h-4 text-slate-400 shrink-0 mr-2.5" />
+              <input
+                type="text"
+                placeholder="Search product, ref, barcode..."
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="w-full bg-transparent text-xs font-semibold text-slate-700 placeholder:text-slate-400 outline-none"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="p-1 text-slate-400 hover:text-slate-600 rounded-md transition-colors"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* Advanced Filters Button with Popover */}
+            <div className="relative" ref={filtersRef}>
+              {/* Filters pop-up modal is rendered at the bottom of the file */}
               <button
                 type="button"
-                onClick={() => setSearchQuery('')}
-                className="p-1 text-slate-400 hover:text-slate-600 rounded-md transition-colors"
+                onClick={() => setIsFiltersOpen(!isFiltersOpen)}
+                className={`h-11 w-11 flex items-center justify-center rounded-xl border transition-all font-semibold text-xs shadow-xs hover:bg-slate-50 cursor-pointer relative ${
+                  isFiltersOpen ? 'bg-indigo-50 border-indigo-500 text-indigo-700' : 'bg-white border-slate-200 text-slate-600'
+                }`}
+                title="Advanced Filters"
               >
-                <X className="w-3.5 h-3.5" />
+                <Filter className="w-4 h-4" />
+                {activeFiltersCount > 0 && (
+                  <span className="absolute -top-1 -right-1 w-5 h-5 flex items-center justify-center bg-amber-500 text-white rounded-full text-[10px] font-bold shadow-sm">
+                    {activeFiltersCount}
+                  </span>
+                )}
               </button>
-            )}
-          </div>
 
-          <div className={`${FILTER_DROPDOWN_WIDTH}`} ref={locationRef}>
-            <button
-              type="button"
-              onClick={() => setIsLocationOpen(!isLocationOpen)}
-              className={`w-full flex items-center justify-between h-11 bg-slate-50/80 hover:bg-slate-100/60 border border-slate-200/90 rounded-xl px-3.5 transition-all shadow-xs cursor-pointer ${
-                isLocationOpen ? 'bg-white border-indigo-500 ring-2 ring-indigo-500/20' : ''
-              }`}
-            >
-              <div className="flex items-center gap-2.5 truncate">
-                <MapPin className="w-4 h-4 text-slate-400 shrink-0" />
-                <span className="text-xs font-semibold text-slate-700 truncate">
-                  Location: <strong className="text-indigo-900 font-bold">{formatLocationLabel(selectedLocation)}</strong>
-                </span>
-              </div>
-              <ChevronDown className={`w-4 h-4 text-slate-400 shrink-0 transition-transform duration-200 ${isLocationOpen ? 'rotate-180 text-indigo-600' : ''}`} />
-            </button>
 
-            {isLocationOpen && (
-              <div className="absolute left-0 right-0 top-12 z-50 bg-white border border-slate-200 shadow-2xl rounded-2xl p-2.5 space-y-2 animate-in fade-in slide-in-from-top-2 duration-150">
-                <div className="relative flex items-center h-9 bg-slate-50 border border-slate-200 rounded-xl px-2.5">
-                  <Search className="w-3.5 h-3.5 text-slate-400 shrink-0 mr-2" />
-                  <input
-                    type="text"
-                    placeholder="Search location..."
-                    value={locationSearch}
-                    onChange={(e) => setLocationSearch(e.target.value)}
-                    className="w-full bg-transparent text-xs font-semibold text-slate-700 placeholder:text-slate-400 outline-none"
-                    autoFocus
-                  />
-                </div>
-                <div className="max-h-56 overflow-y-auto space-y-0.5 pr-1 text-xs">
-                  {filteredLocations.map((loc) => {
-                    const isSelected = selectedLocation === loc;
-                    return (
-                      <button
-                        key={loc}
-                        type="button"
-                        onClick={() => {
-                          setSelectedLocation(loc);
-                          setCurrentPage(1);
-                          setIsLocationOpen(false);
-                          setLocationSearch('');
-                        }}
-                        className={`w-full text-left px-3 py-2 rounded-xl text-xs font-bold flex items-center justify-between transition-colors ${
-                          isSelected
-                            ? 'bg-indigo-50 text-indigo-700'
-                            : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-                        }`}
-                      >
-                        <span className="truncate" title={loc}>{formatLocationLabel(loc)}</span>
-                        {isSelected && <Check className="w-4 h-4 text-indigo-600 shrink-0 ml-2" />}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
+            </div>
 
-          <div className={`${FILTER_DROPDOWN_WIDTH}`} ref={categoryRef}>
-            <button
-              type="button"
-              onClick={() => setIsCategoryOpen(!isCategoryOpen)}
-              className={`w-full flex items-center justify-between h-11 bg-slate-50/80 hover:bg-slate-100/60 border border-slate-200/90 rounded-xl px-3.5 transition-all shadow-xs cursor-pointer ${
-                isCategoryOpen ? 'bg-white border-indigo-500 ring-2 ring-indigo-500/20' : ''
-              }`}
-            >
-              <div className="flex items-center gap-2.5 truncate">
-                <Filter className="w-4 h-4 text-slate-400 shrink-0" />
-                <span className="text-xs font-semibold text-slate-700 truncate">
-                  Category: <strong className="text-indigo-900 font-bold">{selectedCategory}</strong>
-                </span>
-              </div>
-              <ChevronDown className={`w-4 h-4 text-slate-400 shrink-0 transition-transform duration-200 ${isCategoryOpen ? 'rotate-180 text-indigo-600' : ''}`} />
-            </button>
-
-            {isCategoryOpen && (
-              <div className="absolute left-0 right-0 top-12 z-50 bg-white border border-slate-200 shadow-2xl rounded-2xl p-2.5 space-y-2 animate-in fade-in slide-in-from-top-2 duration-150">
-                <div className="relative flex items-center h-9 bg-slate-50 border border-slate-200 rounded-xl px-2.5">
-                  <Search className="w-3.5 h-3.5 text-slate-400 shrink-0 mr-2" />
-                  <input
-                    type="text"
-                    placeholder="Search category..."
-                    value={categorySearch}
-                    onChange={(e) => setCategorySearch(e.target.value)}
-                    className="w-full bg-transparent text-xs font-semibold text-slate-700 placeholder:text-slate-400 outline-none"
-                    autoFocus
-                  />
-                  {categorySearch && (
-                    <button
-                      type="button"
-                      onClick={() => setCategorySearch('')}
-                      className="p-0.5 text-slate-400 hover:text-slate-600 rounded"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  )}
-                </div>
-
-                <div className="max-h-56 overflow-y-auto space-y-0.5 pr-1 text-xs">
-                  {filteredCategories.length === 0 ? (
-                    <div className="p-3 text-center text-xs font-semibold text-slate-400">
-                      No category found
-                    </div>
-                  ) : (
-                    filteredCategories.map((cat) => {
-                      const isSelected = selectedCategory === cat;
-                      return (
-                        <button
-                          key={cat}
-                          type="button"
-                          onClick={() => {
-                            setSelectedCategory(cat);
-                            setCurrentPage(1);
-                            setIsCategoryOpen(false);
-                            setCategorySearch('');
-                          }}
-                          className={`w-full text-left px-3 py-2 rounded-xl text-xs font-bold flex items-center justify-between transition-colors ${
-                            isSelected
-                              ? 'bg-indigo-50 text-indigo-700'
-                              : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-                          }`}
-                        >
-                          <span className="truncate">{cat}</span>
-                          {isSelected && <Check className="w-4 h-4 text-indigo-600 shrink-0 ml-2" />}
-                        </button>
-                      );
-                    })
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className={`${FILTER_DROPDOWN_WIDTH}`} ref={directionRef}>
-            <button
-              type="button"
-              onClick={() => setIsDirectionOpen(!isDirectionOpen)}
-              className={`w-full flex items-center justify-between h-11 bg-slate-50/80 hover:bg-slate-100/60 border border-slate-200/90 rounded-xl px-3.5 transition-all shadow-xs ${
-                isDirectionOpen ? 'bg-white border-indigo-500 ring-2 ring-indigo-500/20' : ''
-              }`}
-            >
-              <div className="flex items-center gap-2.5 truncate">
-                <ArrowLeftRight className="w-4 h-4 text-slate-400 shrink-0" />
-                <span className="text-xs font-semibold text-slate-700 truncate">
-                  Direction: <strong className="text-indigo-900 font-bold">{directionFilter === 'All' ? 'All' : directionFilter === 'in' ? 'In' : 'Out'}</strong>
-                </span>
-              </div>
-              <ChevronDown className={`w-4 h-4 text-slate-400 shrink-0 transition-transform duration-200 ${isDirectionOpen ? 'rotate-180 text-indigo-600' : ''}`} />
-            </button>
-            {isDirectionOpen && (
-              <div className="absolute left-0 right-0 top-12 z-50 bg-white border border-slate-200 shadow-2xl rounded-2xl p-2 space-y-0.5">
-                {(['All', 'in', 'out'] as DirectionFilter[]).map((value) => (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => {
-                      setDirectionFilter(value);
-                      setCurrentPage(1);
-                      setIsDirectionOpen(false);
-                    }}
-                    className={`w-full text-left px-3 py-2 rounded-xl text-xs font-bold ${
-                      directionFilter === value ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-100'
-                    }`}
-                  >
-                    {value === 'All' ? 'All Directions' : value === 'in' ? 'In Only' : 'Out Only'}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className={`${FILTER_DROPDOWN_WIDTH}`} ref={typeRef}>
-            <button
-              type="button"
-              onClick={() => setIsTypeOpen(!isTypeOpen)}
-              className={`w-full flex items-center justify-between h-11 bg-slate-50/80 hover:bg-slate-100/60 border border-slate-200/90 rounded-xl px-3.5 transition-all shadow-xs ${
-                isTypeOpen ? 'bg-white border-indigo-500 ring-2 ring-indigo-500/20' : ''
-              }`}
-            >
-              <div className="flex items-center gap-2.5 truncate">
-                <Layers className="w-4 h-4 text-slate-400 shrink-0" />
-                <span className="text-xs font-semibold text-slate-700 truncate">
-                  Type: <strong className="text-indigo-900 font-bold">{typeFilter === 'All' ? 'All' : getMovementTypeLabel(typeFilter)}</strong>
-                </span>
-              </div>
-              <ChevronDown className={`w-4 h-4 text-slate-400 shrink-0 transition-transform duration-200 ${isTypeOpen ? 'rotate-180 text-indigo-600' : ''}`} />
-            </button>
-            {isTypeOpen && (
-              <div className="absolute left-0 right-0 top-12 z-50 bg-white border border-slate-200 shadow-2xl rounded-2xl p-2.5 space-y-2">
-                <div className="relative flex items-center h-9 bg-slate-50 border border-slate-200 rounded-xl px-2.5">
-                  <Search className="w-3.5 h-3.5 text-slate-400 shrink-0 mr-2" />
-                  <input
-                    type="text"
-                    placeholder="Search type..."
-                    value={typeSearch}
-                    onChange={(e) => setTypeSearch(e.target.value)}
-                    className="w-full bg-transparent text-xs font-semibold text-slate-700 placeholder:text-slate-400 outline-none"
-                  />
-                </div>
-                <div className="max-h-56 overflow-y-auto space-y-0.5">
-                  {filteredTypes.map((item) => (
-                    <button
-                      key={item.value}
-                      type="button"
-                      onClick={() => {
-                        setTypeFilter(item.value);
-                        setCurrentPage(1);
-                        setIsTypeOpen(false);
-                        setTypeSearch('');
-                      }}
-                      className={`w-full text-left px-3 py-2 rounded-xl text-xs font-bold ${
-                        typeFilter === item.value ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-100'
-                      }`}
-                    >
-                      {item.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="relative flex items-center h-11 w-full sm:w-56 bg-slate-50/80 hover:bg-slate-100/60 focus-within:bg-white border border-slate-200/90 rounded-xl px-3.5 transition-all shadow-xs focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-500">
-            <Calendar className="w-4 h-4 text-slate-400 shrink-0 mr-2" />
-            <span className="text-[11px] font-bold text-slate-400 shrink-0 mr-1.5 uppercase">From:</span>
-            <input
-              type="date"
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-              className="w-full bg-transparent text-xs font-bold text-slate-700 outline-none cursor-pointer"
-            />
-          </div>
-
-          <div className="relative flex items-center h-11 w-full sm:w-56 bg-slate-50/80 hover:bg-slate-100/60 focus-within:bg-white border border-slate-200/90 rounded-xl px-3.5 transition-all shadow-xs focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-500">
-            <Calendar className="w-4 h-4 text-slate-400 shrink-0 mr-2" />
-            <span className="text-[11px] font-bold text-slate-400 shrink-0 mr-1.5 uppercase">To:</span>
-            <input
-              type="date"
-              value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
-              className="w-full bg-transparent text-xs font-bold text-slate-700 outline-none cursor-pointer"
-            />
-          </div>
-
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={handleApplyDateFilter}
-              disabled={loading || !hasPendingDateChanges}
-              className="h-11 w-11 flex items-center justify-center rounded-xl transition-all shadow-sm border disabled:opacity-50 disabled:cursor-not-allowed bg-indigo-600 hover:bg-indigo-700 text-white border-indigo-600"
-              title="Apply Dates"
-            >
-              <CalendarCheck className="w-4 h-4" />
-            </button>
-            {(appliedDateFrom || appliedDateTo) && (
-              <button
-                type="button"
-                onClick={handleClearDateFilter}
-                className="h-11 w-11 flex items-center justify-center rounded-xl border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all shadow-sm"
-                title="Clear Dates"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            )}
+            {/* Export & Refresh */}
             <button
               type="button"
               onClick={handleExport}
               disabled={filteredRows.length === 0}
-              className="h-11 w-11 flex items-center justify-center bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition-all shadow-sm group shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="h-11 w-11 flex items-center justify-center bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition-all shadow-sm group shrink-0 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
               title="Export to Excel"
             >
               <FileSpreadsheet className="w-4 h-4 transition-transform group-hover:scale-110" />
             </button>
-            <button
-              type="button"
-              onClick={() => fetchReport(selectedLocation, appliedDateFrom, appliedDateTo, { skipCache: true })}
-              disabled={loading}
-              className="h-11 w-11 flex items-center justify-center rounded-xl border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all shadow-sm disabled:opacity-50"
-              title="Refresh Data"
-            >
-              <RefreshCcw className={`w-4 h-4 ${loading ? 'animate-spin text-indigo-600' : ''}`} />
-            </button>
+
+
           </div>
         </div>
 
@@ -936,6 +722,358 @@ export default function InventoryLocationMovementsTab() {
                 className="p-2 rounded-lg border border-slate-200 bg-white disabled:opacity-40"
               >
                 <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Advanced Filters Pop-up Modal */}
+      {isFiltersOpen && (
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-in fade-in duration-200"
+          onClick={() => setIsFiltersOpen(false)}
+        >
+          <div
+            className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-200 space-y-5"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex justify-between items-center pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <Filter className="w-5 h-5 text-indigo-600 shrink-0" />
+                <h3 className="text-base font-black text-slate-800">Filter Location Movements</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsFiltersOpen(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="space-y-4">
+              {/* Location Dropdown */}
+              <div className="space-y-1.5" ref={locationRef}>
+                <label className="block text-xs font-black text-slate-400 uppercase tracking-wider">
+                  Location
+                </label>
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setIsLocationOpen(!isLocationOpen)}
+                    className={`w-full flex items-center justify-between h-11 bg-slate-50 hover:bg-slate-100/60 border-2 border-transparent rounded-2xl px-4 transition-all shadow-sm text-sm font-bold text-slate-800 cursor-pointer ${
+                      isLocationOpen ? 'bg-white border-indigo-500 ring-2 ring-indigo-500/10' : ''
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 truncate">
+                      <MapPin className="w-4 h-4 text-slate-400 shrink-0" />
+                      <span className="text-xs font-bold text-slate-800 truncate">
+                        {formatLocationLabel(selectedLocation)}
+                      </span>
+                    </div>
+                    <ChevronDown className={`w-4 h-4 text-slate-400 shrink-0 transition-transform duration-200 ${isLocationOpen ? 'rotate-180 text-indigo-600' : ''}`} />
+                  </button>
+
+                  {isLocationOpen && (
+                    <div className="absolute left-0 right-0 top-12 z-50 bg-white border border-slate-200 shadow-2xl rounded-2xl p-2.5 space-y-2 animate-in fade-in duration-100">
+                      <div className="relative flex items-center h-9 bg-slate-50 border border-slate-200 rounded-xl px-2.5">
+                        <Search className="w-3.5 h-3.5 text-slate-400 shrink-0 mr-2" />
+                        <input
+                          type="text"
+                          placeholder="Search location..."
+                          value={locationSearch}
+                          onChange={(e) => setLocationSearch(e.target.value)}
+                          className="w-full bg-transparent text-xs font-semibold text-slate-700 placeholder:text-slate-400 outline-none"
+                          autoFocus
+                        />
+                      </div>
+                      <div className="max-h-40 overflow-y-auto space-y-0.5 pr-1 text-xs">
+                        {filteredLocations.map((loc) => {
+                          const isSelected = selectedLocation === loc;
+                          return (
+                            <button
+                              key={loc}
+                              type="button"
+                              onClick={() => {
+                                setSelectedLocation(loc);
+                                setCurrentPage(1);
+                                setIsLocationOpen(false);
+                                setLocationSearch('');
+                              }}
+                              className={`w-full text-left px-3 py-2 rounded-xl text-xs font-bold flex items-center justify-between transition-colors cursor-pointer ${
+                                isSelected
+                                  ? 'bg-indigo-50 text-indigo-700'
+                                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                              }`}
+                            >
+                              <span className="truncate" title={loc}>{formatLocationLabel(loc)}</span>
+                              {isSelected && <Check className="w-3.5 h-3.5 text-indigo-600 shrink-0 ml-2" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Category Dropdown */}
+              <div className="space-y-1.5" ref={categoryRef}>
+                <label className="block text-xs font-black text-slate-400 uppercase tracking-wider">
+                  Category
+                </label>
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setIsCategoryOpen(!isCategoryOpen)}
+                    className={`w-full flex items-center justify-between h-11 bg-slate-50 hover:bg-slate-100/60 border-2 border-transparent rounded-2xl px-4 transition-all shadow-sm text-sm font-bold text-slate-800 cursor-pointer ${
+                      isCategoryOpen ? 'bg-white border-indigo-500 ring-2 ring-indigo-500/10' : ''
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 truncate">
+                      <Filter className="w-4 h-4 text-slate-400 shrink-0" />
+                      <span className="text-xs font-bold text-slate-800 truncate">
+                        {selectedCategory}
+                      </span>
+                    </div>
+                    <ChevronDown className={`w-4 h-4 text-slate-400 shrink-0 transition-transform duration-200 ${isCategoryOpen ? 'rotate-180 text-indigo-600' : ''}`} />
+                  </button>
+
+                  {isCategoryOpen && (
+                    <div className="absolute left-0 right-0 top-12 z-50 bg-white border border-slate-200 shadow-2xl rounded-2xl p-2.5 space-y-2 animate-in fade-in duration-100">
+                      <div className="relative flex items-center h-9 bg-slate-50 border border-slate-200 rounded-xl px-2.5">
+                        <Search className="w-3.5 h-3.5 text-slate-400 shrink-0 mr-2" />
+                        <input
+                          type="text"
+                          placeholder="Search category..."
+                          value={categorySearch}
+                          onChange={(e) => setCategorySearch(e.target.value)}
+                          className="w-full bg-transparent text-xs font-semibold text-slate-700 placeholder:text-slate-400 outline-none"
+                          autoFocus
+                        />
+                        {categorySearch && (
+                          <button
+                            type="button"
+                            onClick={() => setCategorySearch('')}
+                            className="p-0.5 text-slate-400 hover:text-slate-600 rounded"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
+                      <div className="max-h-40 overflow-y-auto space-y-0.5 pr-1 text-xs">
+                        {filteredCategories.length === 0 ? (
+                          <div className="p-3 text-center text-xs font-semibold text-slate-400">
+                            No category found
+                          </div>
+                        ) : (
+                          filteredCategories.map((cat) => {
+                            const isSelected = selectedCategory === cat;
+                            return (
+                              <button
+                                key={cat}
+                                type="button"
+                                onClick={() => {
+                                  setSelectedCategory(cat);
+                                  setCurrentPage(1);
+                                  setIsCategoryOpen(false);
+                                  setCategorySearch('');
+                                }}
+                                className={`w-full text-left px-3 py-2 rounded-xl text-xs font-bold flex items-center justify-between transition-colors cursor-pointer ${
+                                  isSelected
+                                    ? 'bg-indigo-50 text-indigo-700'
+                                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                                }`}
+                              >
+                                <span className="truncate">{cat}</span>
+                                {isSelected && <Check className="w-3.5 h-3.5 text-indigo-600 shrink-0 ml-2" />}
+                              </button>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Direction Dropdown */}
+              <div className="space-y-1.5" ref={directionRef}>
+                <label className="block text-xs font-black text-slate-400 uppercase tracking-wider">
+                  Direction
+                </label>
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setIsDirectionOpen(!isDirectionOpen)}
+                    className={`w-full flex items-center justify-between h-11 bg-slate-50 hover:bg-slate-100/60 border-2 border-transparent rounded-2xl px-4 transition-all shadow-sm text-sm font-bold text-slate-800 cursor-pointer ${
+                      isDirectionOpen ? 'bg-white border-indigo-500 ring-2 ring-indigo-500/10' : ''
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 truncate">
+                      <ArrowLeftRight className="w-4 h-4 text-slate-400 shrink-0" />
+                      <span className="text-xs font-bold text-slate-800 truncate">
+                        {directionFilter === 'All' ? 'All Directions' : directionFilter === 'in' ? 'In Only' : 'Out Only'}
+                      </span>
+                    </div>
+                    <ChevronDown className={`w-4 h-4 text-slate-400 shrink-0 transition-transform duration-200 ${isDirectionOpen ? 'rotate-180 text-indigo-600' : ''}`} />
+                  </button>
+                  {isDirectionOpen && (
+                    <div className="absolute left-0 right-0 top-12 z-50 bg-white border border-slate-200 shadow-2xl rounded-2xl p-2 space-y-0.5 animate-in fade-in duration-100">
+                      {(['All', 'in', 'out'] as DirectionFilter[]).map((value) => (
+                        <button
+                          key={value}
+                          type="button"
+                          onClick={() => {
+                            setDirectionFilter(value);
+                            setCurrentPage(1);
+                            setIsDirectionOpen(false);
+                          }}
+                          className={`w-full text-left px-3 py-2 rounded-xl text-xs font-bold cursor-pointer ${
+                            directionFilter === value ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-100'
+                          }`}
+                        >
+                          {value === 'All' ? 'All Directions' : value === 'in' ? 'In Only' : 'Out Only'}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Type Dropdown */}
+              <div className="space-y-1.5" ref={typeRef}>
+                <label className="block text-xs font-black text-slate-400 uppercase tracking-wider">
+                  Movement Type
+                </label>
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setIsTypeOpen(!isTypeOpen)}
+                    className={`w-full flex items-center justify-between h-11 bg-slate-50 hover:bg-slate-100/60 border-2 border-transparent rounded-2xl px-4 transition-all shadow-sm text-sm font-bold text-slate-800 cursor-pointer ${
+                      isTypeOpen ? 'bg-white border-indigo-500 ring-2 ring-indigo-500/10' : ''
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 truncate">
+                      <Layers className="w-4 h-4 text-slate-400 shrink-0" />
+                      <span className="text-xs font-bold text-slate-800 truncate">
+                        {typeFilter === 'All' ? 'All Types' : getMovementTypeLabel(typeFilter)}
+                      </span>
+                    </div>
+                    <ChevronDown className={`w-4 h-4 text-slate-400 shrink-0 transition-transform duration-200 ${isTypeOpen ? 'rotate-180 text-indigo-600' : ''}`} />
+                  </button>
+                  {isTypeOpen && (
+                    <div className="absolute left-0 right-0 top-12 z-50 bg-white border border-slate-200 shadow-2xl rounded-2xl p-2.5 space-y-2 animate-in fade-in duration-100">
+                      <div className="relative flex items-center h-9 bg-slate-50 border border-slate-200 rounded-xl px-2.5">
+                        <Search className="w-3.5 h-3.5 text-slate-400 shrink-0 mr-2" />
+                        <input
+                          type="text"
+                          placeholder="Search type..."
+                          value={typeSearch}
+                          onChange={(e) => setTypeSearch(e.target.value)}
+                          className="w-full bg-transparent text-xs font-semibold text-slate-700 placeholder:text-slate-400 outline-none"
+                        />
+                      </div>
+                      <div className="max-h-40 overflow-y-auto space-y-0.5">
+                        {filteredTypes.map((item) => (
+                          <button
+                            key={item.value}
+                            type="button"
+                            onClick={() => {
+                              setTypeFilter(item.value);
+                              setCurrentPage(1);
+                              setIsTypeOpen(false);
+                              setTypeSearch('');
+                            }}
+                            className={`w-full text-left px-3 py-2 rounded-xl text-xs font-bold cursor-pointer ${
+                              typeFilter === item.value ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-100'
+                            }`}
+                          >
+                            {item.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Date Range */}
+              <div className="space-y-2">
+                <label className="block text-xs font-black text-slate-400 uppercase tracking-wider">
+                  Date Range
+                </label>
+                <div className="flex gap-2">
+                  <div className="relative flex items-center h-11 w-full bg-slate-50 border border-slate-200 rounded-xl px-3 focus-within:bg-white focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-500 transition-all">
+                    <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0 mr-1.5" />
+                    <input
+                      type="date"
+                      value={dateFrom}
+                      onChange={(e) => setDateFrom(e.target.value)}
+                      className="w-full bg-transparent text-xs font-bold text-slate-700 outline-none cursor-pointer"
+                    />
+                  </div>
+                  <div className="relative flex items-center h-11 w-full bg-slate-50 border border-slate-200 rounded-xl px-3 focus-within:bg-white focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-500 transition-all">
+                    <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0 mr-1.5" />
+                    <input
+                      type="date"
+                      value={dateTo}
+                      onChange={(e) => setDateTo(e.target.value)}
+                      className="w-full bg-transparent text-xs font-bold text-slate-700 outline-none cursor-pointer"
+                    />
+                  </div>
+                  <div className="flex gap-1 shrink-0">
+                    <button
+                      type="button"
+                      onClick={handleApplyDateFilter}
+                      disabled={loading || !hasPendingDateChanges}
+                      className="h-11 w-11 flex items-center justify-center rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white shadow-sm cursor-pointer"
+                      title="Apply Dates"
+                    >
+                      <CalendarCheck className="w-4 h-4" />
+                    </button>
+                    {(appliedDateFrom || appliedDateTo) && (
+                      <button
+                        type="button"
+                        onClick={handleClearDateFilter}
+                        className="h-11 w-11 flex items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 hover:text-slate-900 transition-all shadow-sm cursor-pointer"
+                        title="Clear Dates"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedLocation(warehouseLocations[0] || '');
+                  setSelectedCategory('All');
+                  setDirectionFilter('All');
+                  setTypeFilter('All');
+                  setDateFrom('');
+                  setDateTo('');
+                  setAppliedDateFrom('');
+                  setAppliedDateTo('');
+                  setIsFiltersOpen(false);
+                }}
+                className="px-4 py-2.5 text-xs font-bold text-slate-500 hover:text-slate-700 bg-slate-50 hover:bg-slate-100 rounded-xl transition-all cursor-pointer"
+              >
+                Reset All
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsFiltersOpen(false)}
+                className="px-4 py-2.5 text-xs font-black text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-md shadow-indigo-600/10 transition-all cursor-pointer"
+              >
+                Apply & Close
               </button>
             </div>
           </div>

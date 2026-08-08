@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Menu, Lock, ArrowLeft, X } from 'lucide-react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { Menu, Lock, ArrowLeft, X, AlertCircle } from 'lucide-react';
 import InventoryCountingTab from './InventoryCountingTab';
 import Sidebar, {
   getAllowedCountingTabs,
@@ -172,6 +172,79 @@ export default function InventoryCountingPage() {
   );
 }
 
+function ArchiveInfoButton({ archiveMeta, onExit }: { archiveMeta: any; onExit: () => void }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const popoverRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [isOpen]);
+
+  return (
+    <div className="relative inline-flex items-center gap-1 shrink-0">
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        title="Show Archive Details"
+        className="p-1.5 rounded-xl text-amber-500 hover:bg-amber-50 transition-all active:scale-95 shrink-0"
+      >
+        <AlertCircle className="w-5 h-5 animate-pulse" />
+      </button>
+
+      <button
+        type="button"
+        onClick={onExit}
+        title="Back to current session"
+        className="p-1.5 rounded-xl border border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100 transition-colors shrink-0"
+      >
+        <X className="w-4 h-4" />
+      </button>
+
+      {isOpen && (
+        <div
+          ref={popoverRef}
+          className="absolute left-0 top-full mt-2 w-72 bg-white border border-slate-200 rounded-2xl shadow-xl p-4 z-[999] animate-in fade-in slide-in-from-top-2 duration-200 text-left font-medium text-slate-800"
+        >
+          <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-2">
+            <span className="text-xs font-black text-amber-800 uppercase tracking-wider">Archive Details</span>
+            <button
+              type="button"
+              onClick={() => setIsOpen(false)}
+              className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+          <div className="space-y-2 text-slate-700 text-sm">
+            <div>
+              <span className="text-slate-400 text-xs block">Archive ID</span>
+              <span className="font-mono text-slate-800 font-bold">{archiveMeta.archiveId}</span>
+            </div>
+            <div>
+              <span className="text-slate-400 text-xs block">Description</span>
+              <span className="text-slate-800 font-bold block rtl text-right">{archiveMeta.label || 'No description'}</span>
+            </div>
+            <div>
+              <span className="text-slate-400 text-xs block">Count Date</span>
+              <span className="text-slate-800 font-bold">{archiveMeta.countDate || 'N/A'}</span>
+            </div>
+            <div className="pt-1.5 border-t border-slate-100 text-xs text-amber-700 font-bold">
+              • Viewing in read-only mode
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function InventoryCountingPageContent({
   isSidebarCollapsed,
   isMobileSidebarOpen,
@@ -260,21 +333,7 @@ function InventoryCountingPageContent({
               <div className="flex items-center gap-2 min-w-0 flex-1">
                 <span className="font-bold text-slate-800 shrink-0">{pageTitle}</span>
                 {isArchiveView && archiveMeta && (
-                  <>
-                    <span className="text-slate-300 shrink-0">·</span>
-                    <span className="text-xs font-bold text-amber-800 truncate">
-                      Viewing archive {archiveMeta.archiveId} (read-only)
-                      {archiveMeta.label ? ` — ${archiveMeta.label}` : ''}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setArchiveId(null)}
-                      title="Back to current session"
-                      className="p-1.5 rounded-lg text-amber-700 hover:bg-amber-50 transition-colors shrink-0"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </>
+                  <ArchiveInfoButton archiveMeta={archiveMeta} onExit={() => setArchiveId(null)} />
                 )}
               </div>
             </div>
@@ -282,26 +341,12 @@ function InventoryCountingPageContent({
         </div>
 
         <div className="max-w-[95%] 2xl:max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-12 flex-1 w-full">
-          <div className="hidden lg:flex items-center gap-4 pb-4 min-w-0">
+          <div className="hidden lg:flex items-center gap-2 pb-4 min-w-0">
             <h1 className="text-2xl font-black text-slate-900 tracking-tight shrink-0">
               {pageTitle}
             </h1>
             {isArchiveView && archiveMeta && (
-              <>
-                <span className="text-slate-300 shrink-0">·</span>
-                <p className="text-sm font-bold text-amber-800 truncate min-w-0">
-                  Viewing archive {archiveMeta.archiveId} (read-only)
-                  {archiveMeta.label ? ` — ${archiveMeta.label}` : ''}
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setArchiveId(null)}
-                  title="Back to current session"
-                  className="p-2 rounded-xl border border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100 transition-colors shrink-0"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </>
+              <ArchiveInfoButton archiveMeta={archiveMeta} onExit={() => setArchiveId(null)} />
             )}
           </div>
 

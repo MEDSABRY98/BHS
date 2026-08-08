@@ -47,6 +47,27 @@ export default function InventoryProductOrdersTab({ orderItems, setOrderItems }:
         fetchOrders();
     }, []);
 
+    useEffect(() => {
+        window.dispatchEvent(
+            new CustomEvent('inventory-analysis-refresh-state', {
+                detail: { activeTab: 'categories', isRefreshing: loading },
+            })
+        );
+    }, [loading]);
+
+    useEffect(() => {
+        const handleTrigger = (e: Event) => {
+            const customEvent = e as CustomEvent;
+            if (customEvent.detail?.activeTab === 'categories') {
+                fetchOrders({ skipCache: true });
+            }
+        };
+        window.addEventListener('inventory-analysis-trigger-refresh', handleTrigger);
+        return () => {
+            window.removeEventListener('inventory-analysis-trigger-refresh', handleTrigger);
+        };
+    }, []);
+
     const fetchOrders = async (opts?: { skipCache?: boolean }) => {
         try {
             setLoading(true);
@@ -212,14 +233,7 @@ export default function InventoryProductOrdersTab({ orderItems, setOrderItems }:
                     />
                 </div>
                 <div className="flex items-center gap-3 w-full sm:w-auto">
-                    <button
-                        onClick={() => fetchOrders({ skipCache: true })}
-                        disabled={loading}
-                        className="flex items-center justify-center p-3.5 bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-200 rounded-2xl transition-all shadow-sm shrink-0"
-                        title="Refresh Data"
-                    >
-                        <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
-                    </button>
+
                     <button
                         onClick={handleExportAll}
                         disabled={loading || exportingAll}

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ArrowUpDown, Search, Package, RefreshCw, ChevronDown, FileSpreadsheet } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { writeTrackedXlsxFile } from '@/app/Audit/Utils/TrackedDownload';
@@ -107,6 +107,39 @@ export default function TotalCountTab() {
   useEffect(() => {
     fetchData();
   }, [archiveId, sessionVersion]);
+
+  const fetchDataRef = useRef(fetchData);
+  useEffect(() => {
+    fetchDataRef.current = fetchData;
+  });
+
+  useEffect(() => {
+    const handleTriggerRefresh = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail?.activeTab === 'total_count') {
+        fetchDataRef.current(true);
+      }
+    };
+    window.addEventListener('inventory-counting-trigger-refresh', handleTriggerRefresh);
+    return () => {
+      window.removeEventListener('inventory-counting-trigger-refresh', handleTriggerRefresh);
+    };
+  }, []);
+
+  useEffect(() => {
+    window.dispatchEvent(
+      new CustomEvent('inventory-counting-refresh-state', {
+        detail: { activeTab: 'total_count', isRefreshing }
+      })
+    );
+    return () => {
+      window.dispatchEvent(
+        new CustomEvent('inventory-counting-refresh-state', {
+          detail: { activeTab: 'total_count', isRefreshing: false }
+        })
+      );
+    };
+  }, [isRefreshing]);
 
   useEffect(() => {
     if (!hasICScopeFilter(selectedUsers, selectedWarehouses)) return;
@@ -325,14 +358,6 @@ export default function TotalCountTab() {
         </div>
 
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => fetchData(true)}
-            disabled={isRefreshing}
-            className="w-12 h-12 flex items-center justify-center bg-indigo-600 text-white rounded-xl shadow-lg shadow-indigo-200/50 hover:bg-indigo-700 hover:scale-110 active:scale-95 transition-all disabled:opacity-50 disabled:scale-100"
-            title="Refresh Data"
-          >
-            <RefreshCw className={`w-6 h-6 ${isRefreshing ? 'animate-spin' : ''}`} />
-          </button>
           <button
             onClick={handleExport}
             className="w-12 h-12 flex items-center justify-center bg-emerald-600 text-white rounded-xl shadow-lg shadow-emerald-200/50 hover:bg-emerald-700 hover:scale-110 active:scale-95 transition-all"

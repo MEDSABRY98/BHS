@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 import { exportDebitExcelTable } from '@/app/Debit/Utils/ExcelExport';
 import { useDebouncedValue } from '../Hooks/useDebouncedValue';
 import {
@@ -11,7 +11,7 @@ import {
   createColumnHelper,
   SortingState,
 } from '@tanstack/react-table';
-import { FileSpreadsheet, FileText } from 'lucide-react';
+import { FileSpreadsheet, FileText, MapPin, ChevronDown, Check, MinusCircle } from 'lucide-react';
 import { saveTrackedAs } from '@/app/Audit/Utils/TrackedDownload';
 import { InvoiceRow } from '@/types';
 import NoData from '@/app/Components/DataState/NoDataTab';
@@ -68,6 +68,19 @@ export default function AgesTab({ data }: AgesTabProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const debouncedSearch = useDebouncedValue(searchQuery);
   const [selectedSalesRep, setSelectedSalesRep] = useState<string>('all');
+  const [showNegativeBalances, setShowNegativeBalances] = useState(false);
+  const [isCityDropdownOpen, setIsCityDropdownOpen] = useState(false);
+  const cityDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (cityDropdownRef.current && !cityDropdownRef.current.contains(event.target as Node)) {
+        setIsCityDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
 
 
@@ -229,14 +242,16 @@ export default function AgesTab({ data }: AgesTabProps) {
       );
     }
 
-    // Filter out negative balances
-    filtered = filtered.filter(customer => customer.total >= 0);
+    // Filter out negative balances if option is false
+    if (!showNegativeBalances) {
+      filtered = filtered.filter(customer => customer.total >= 0);
+    }
 
     return filtered;
-  }, [agingData, debouncedSearch, selectedSalesRep]);
+  }, [agingData, debouncedSearch, selectedSalesRep, showNegativeBalances]);
 
   const exportToExcel = async () => {
-    const headers = ['Customer Name', 'Sales Rep', '0 - 30', '31 - 60', '61 - 90', '91 - 120', 'OLDER', 'TOTAL'];
+    const headers = ['Customer Name', 'City', '0 - 30', '31 - 60', '61 - 90', '91 - 120', 'OLDER', 'TOTAL'];
     const rows = filteredData.map((item) => [
       item.customerName,
       item.salesReps.join(', ') || '',
@@ -385,18 +400,78 @@ export default function AgesTab({ data }: AgesTabProps) {
     <div className="p-6">
 
       <div className="mb-4 flex justify-center items-center gap-3 flex-wrap">
-        <select
-          value={selectedSalesRep}
-          onChange={(e) => setSelectedSalesRep(e.target.value)}
-          className="w-56 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-lg bg-white"
+        <div className="relative" ref={cityDropdownRef}>
+          <button
+            type="button"
+            onClick={() => setIsCityDropdownOpen(!isCityDropdownOpen)}
+            className={`h-11 min-w-[200px] flex items-center justify-between bg-white border border-gray-300 rounded-xl px-4 transition-all shadow-sm text-sm font-semibold text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500/20 cursor-pointer ${
+              isCityDropdownOpen ? 'border-blue-500 ring-2 ring-blue-500/20' : ''
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <MapPin className="w-4 h-4 text-gray-400 shrink-0" />
+              <span>{selectedSalesRep === 'all' ? 'All Cities' : selectedSalesRep}</span>
+            </div>
+            <ChevronDown className={`w-4 h-4 text-gray-400 shrink-0 transition-transform duration-200 ${isCityDropdownOpen ? 'rotate-180 text-blue-500' : ''}`} />
+          </button>
+
+          {isCityDropdownOpen && (
+            <div className="absolute left-0 mt-1.5 min-w-full z-50 bg-white border border-gray-200 shadow-xl rounded-xl p-1.5 max-h-60 overflow-y-auto space-y-0.5 animate-in fade-in slide-in-from-top-1 duration-100">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedSalesRep('all');
+                  setIsCityDropdownOpen(false);
+                }}
+                className={`w-full text-left px-3 py-2 rounded-lg text-xs font-bold flex items-center justify-between transition-colors cursor-pointer ${
+                  selectedSalesRep === 'all'
+                    ? 'bg-blue-50 text-blue-700'
+                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                }`}
+              >
+                <span>All Cities</span>
+                {selectedSalesRep === 'all' && <Check className="w-3.5 h-3.5 text-blue-600" />}
+              </button>
+              {salesReps.map((rep) => {
+                const isSelected = selectedSalesRep === rep;
+                return (
+                  <button
+                    key={rep}
+                    type="button"
+                    onClick={() => {
+                      setSelectedSalesRep(rep);
+                      setIsCityDropdownOpen(false);
+                    }}
+                    className={`w-full text-left px-3 py-2 rounded-lg text-xs font-bold flex items-center justify-between transition-colors cursor-pointer ${
+                      isSelected
+                        ? 'bg-blue-50 text-blue-700'
+                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                    }`}
+                  >
+                    <span className="truncate">{rep}</span>
+                    {isSelected && <Check className="w-3.5 h-3.5 text-blue-600" />}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setShowNegativeBalances(!showNegativeBalances)}
+          className={`h-11 w-11 flex items-center justify-center rounded-xl border transition-all shadow-sm cursor-pointer relative ${
+            showNegativeBalances
+              ? 'bg-rose-50 border-rose-500 text-rose-600 ring-2 ring-rose-500/10'
+              : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
+          }`}
+          title="Toggle Negative Balances"
         >
-          <option value="all">All Sales Reps</option>
-          {salesReps.map((rep) => (
-            <option key={rep} value={rep}>
-              {rep}
-            </option>
-          ))}
-        </select>
+          <MinusCircle className="w-5 h-5" />
+          {showNegativeBalances && (
+            <span className="absolute -top-1 -right-1 w-2 h-2 bg-rose-500 rounded-full animate-ping" />
+          )}
+        </button>
 
 
 

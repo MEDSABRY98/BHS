@@ -708,23 +708,48 @@ export async function fetchAllICDetails() {
 
 export async function updateICRecord(
   rowId: string,
-  countType: CountType,
-  productId: string,
-  values: { qtyInBox: number; countedQty: number; countDetails: string }
+  oldCountType: CountType,
+  oldProductId: string,
+  values: {
+    qtyInBox: number;
+    countedQty: number;
+    countDetails: string;
+    countType?: CountType;
+    productId?: string;
+    user?: string;
+    warehouse?: string;
+  }
 ) {
   try {
+    const updatePayload: Record<string, any> = {
+      'QTY IN BOX': parseNum(values.qtyInBox),
+      'COUNT DETAILS': values.countDetails.trim(),
+      'COUNTED QTY': parseNum(values.countedQty),
+    };
+
+    if (values.countType) updatePayload['COUNT_TYPE'] = values.countType;
+    if (values.productId) updatePayload['PRODUCT ID'] = values.productId.trim();
+    if (values.user) updatePayload['USER'] = values.user.trim();
+    if (values.warehouse) updatePayload['WAREHOUSE'] = values.warehouse.trim();
+
     const { error } = await bhs_supabase
       .from('mix_INVENTORY_COUNT_DETAILS')
-      .update({
-        'QTY IN BOX': parseNum(values.qtyInBox),
-        'COUNT DETAILS': values.countDetails.trim(),
-        'COUNTED QTY': parseNum(values.countedQty),
-      })
+      .update(updatePayload)
       .eq('ID', rowId.trim());
 
     if (error) throw error;
 
-    await recalcICTotalForProduct(productId, countType);
+    const newProductId = values.productId || oldProductId;
+    const newCountType = values.countType || oldCountType;
+
+    // Recalculate old product/type totals
+    await recalcICTotalForProduct(oldProductId, oldCountType);
+
+    // If product or count type changed, also recalculate new product/type totals
+    if (newProductId.trim() !== oldProductId.trim() || newCountType !== oldCountType) {
+      await recalcICTotalForProduct(newProductId, newCountType);
+    }
+
     return { success: true };
   } catch (error: any) {
     console.error('Error in updateICRecord:', error);

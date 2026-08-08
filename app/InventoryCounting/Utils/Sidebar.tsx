@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import {
   Archive,
   ArrowLeft,
@@ -10,6 +11,7 @@ import {
   Filter,
   History,
   Layers,
+  RefreshCw,
   Users,
   X,
   type LucideIcon,
@@ -39,7 +41,7 @@ export function isCountingTabAllowed(tabId: string): boolean {
   try {
     const savedUser = localStorage.getItem('currentUser');
     const currentUser = savedUser ? JSON.parse(savedUser) : null;
-    if (currentUser?.name === 'MED Sabry') return true;
+    if (currentUser?.name?.toLowerCase() === 'med sabry') return true;
 
     const perms = JSON.parse(currentUser?.role || '{}');
     const countingTabs = perms['inventory-counting'];
@@ -62,6 +64,7 @@ export function isCountingTabAllowed(tabId: string): boolean {
       ) {
         return true;
       }
+      return false;
     }
 
     const inventoryTabs = perms.inventory;
@@ -85,6 +88,7 @@ export function isCountingTabAllowed(tabId: string): boolean {
       ) {
         return true;
       }
+      return false;
     }
 
     return true;
@@ -120,6 +124,32 @@ export default function Sidebar({
 }: SidebarProps) {
   const tabs = getAllowedCountingTabs();
   const { activeFilterCount, hasActiveFilters } = useInventoryCountingFilters();
+  const [refreshingTabs, setRefreshingTabs] = useState<Record<string, boolean>>({});
+  const isCurrentTabRefreshing = refreshingTabs[activeTab] || false;
+
+  useEffect(() => {
+    const handleStateChange = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail && typeof customEvent.detail.activeTab === 'string') {
+        setRefreshingTabs((prev) => ({
+          ...prev,
+          [customEvent.detail.activeTab]: customEvent.detail.isRefreshing,
+        }));
+      }
+    };
+    window.addEventListener('inventory-counting-refresh-state', handleStateChange);
+    return () => {
+      window.removeEventListener('inventory-counting-refresh-state', handleStateChange);
+    };
+  }, []);
+
+  const handleTriggerRefresh = () => {
+    window.dispatchEvent(
+      new CustomEvent('inventory-counting-trigger-refresh', {
+        detail: { activeTab },
+      })
+    );
+  };
 
   return (
     <div className="flex flex-col h-full bg-[#0a0f1d] text-white border-r border-blue-950/20">
@@ -195,6 +225,23 @@ export default function Sidebar({
       </nav>
 
       <div className="p-4 border-t border-white/5 mt-auto flex flex-col items-center gap-3 shrink-0">
+        <button
+          type="button"
+          onClick={() => {
+            handleTriggerRefresh();
+            onCloseMobile?.();
+          }}
+          disabled={isCurrentTabRefreshing}
+          className={`relative flex items-center justify-center w-12 h-12 rounded-2xl transition-all duration-200 ${
+            isCurrentTabRefreshing
+              ? 'bg-blue-600 text-white shadow-lg shadow-blue-950/40'
+              : 'bg-white/5 text-slate-300 hover:text-white hover:bg-white/10 border border-white/10'
+          } disabled:opacity-50`}
+          title="Refresh Tab"
+        >
+          <RefreshCw className={`w-5 h-5 ${isCurrentTabRefreshing ? 'animate-spin' : ''}`} />
+        </button>
+
         <button
           type="button"
           onClick={() => {

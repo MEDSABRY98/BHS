@@ -484,6 +484,39 @@ export default function CountReconciliationTab() {
     await loadCountedProducts(appliedCountDate, true);
   };
 
+  const handleRefreshRef = useRef(handleRefresh);
+  useEffect(() => {
+    handleRefreshRef.current = handleRefresh;
+  });
+
+  useEffect(() => {
+    const handleTriggerRefresh = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail?.activeTab === 'reconciliation') {
+        void handleRefreshRef.current();
+      }
+    };
+    window.addEventListener('inventory-counting-trigger-refresh', handleTriggerRefresh);
+    return () => {
+      window.removeEventListener('inventory-counting-trigger-refresh', handleTriggerRefresh);
+    };
+  }, []);
+
+  useEffect(() => {
+    window.dispatchEvent(
+      new CustomEvent('inventory-counting-refresh-state', {
+        detail: { activeTab: 'reconciliation', isRefreshing: loading }
+      })
+    );
+    return () => {
+      window.dispatchEvent(
+        new CustomEvent('inventory-counting-refresh-state', {
+          detail: { activeTab: 'reconciliation', isRefreshing: false }
+        })
+      );
+    };
+  }, [loading]);
+
   const handleDownloadTemplate = async () => {
     const headers = [...REQUIRED_COLUMNS];
     const sampleRows = [
@@ -1050,15 +1083,7 @@ export default function CountReconciliationTab() {
           {loading && !uploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Check className="w-5 h-5" />}
         </button>
 
-        <button
-          type="button"
-          onClick={handleRefresh}
-          disabled={isBusy || !appliedCountDate || isReadOnly}
-          title="Refresh Counted Products"
-          className="p-3 bg-white border border-slate-200 rounded-xl text-slate-700 hover:border-indigo-200 hover:text-indigo-700 transition-all disabled:opacity-40"
-        >
-          <RefreshCw className={`w-5 h-5 ${loading && !uploading ? 'animate-spin' : ''}`} />
-        </button>
+
 
         <button
           type="button"

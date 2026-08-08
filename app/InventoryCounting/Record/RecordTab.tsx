@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Search, History, RefreshCw, FileSpreadsheet, Pencil, Trash2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { writeTrackedXlsxFile } from '@/app/Audit/Utils/TrackedDownload';
@@ -33,7 +33,7 @@ export default function RecordTab() {
   const [editingRecord, setEditingRecord] = useState<ICRecord | null>(null);
   const [deletingRecord, setDeletingRecord] = useState<ICRecord | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const { selectedUsers, selectedWarehouses } = useInventoryCountingFilters();
+  const { selectedUsers, selectedWarehouses, users: allUsers, warehouses: allWarehouses } = useInventoryCountingFilters();
   const [error, setError] = useState<string | null>(null);
 
   const fetchData = async (isSilent = false) => {
@@ -72,6 +72,39 @@ export default function RecordTab() {
   useEffect(() => {
     fetchData();
   }, [archiveId, sessionVersion]);
+
+  const fetchDataRef = useRef(fetchData);
+  useEffect(() => {
+    fetchDataRef.current = fetchData;
+  });
+
+  useEffect(() => {
+    const handleTriggerRefresh = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail?.activeTab === 'record') {
+        fetchDataRef.current(true);
+      }
+    };
+    window.addEventListener('inventory-counting-trigger-refresh', handleTriggerRefresh);
+    return () => {
+      window.removeEventListener('inventory-counting-trigger-refresh', handleTriggerRefresh);
+    };
+  }, []);
+
+  useEffect(() => {
+    window.dispatchEvent(
+      new CustomEvent('inventory-counting-refresh-state', {
+        detail: { activeTab: 'record', isRefreshing }
+      })
+    );
+    return () => {
+      window.dispatchEvent(
+        new CustomEvent('inventory-counting-refresh-state', {
+          detail: { activeTab: 'record', isRefreshing: false }
+        })
+      );
+    };
+  }, [isRefreshing]);
 
   const filteredData = data.filter((item) => {
     const query = searchQuery.toLowerCase().trim();
@@ -112,7 +145,17 @@ export default function RecordTab() {
     writeTrackedXlsxFile(workbook, `Inventory_Record_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
-  const handleSaveRecord = async (values: { qtyInBox: number; countedQty: number; countDetails: string }) => {
+  const handleSaveRecord = async (values: {
+    qtyInBox: number;
+    countedQty: number;
+    countDetails: string;
+    countType: CountType;
+    productId: string;
+    productName: string;
+    barcodeName: string;
+    user: string;
+    warehouse: string;
+  }) => {
     if (!editingRecord) return;
 
     const res = await updateICRecord(
@@ -134,6 +177,12 @@ export default function RecordTab() {
               qtyInBox: values.qtyInBox,
               countedQty: values.countedQty,
               countDetails: values.countDetails,
+              countType: values.countType,
+              productId: values.productId,
+              productName: values.productName,
+              barcodeName: values.barcodeName,
+              user: values.user,
+              warehouse: values.warehouse,
             }
           : row
       )
@@ -195,17 +244,6 @@ export default function RecordTab() {
 
         <div className="flex items-center gap-2">
           <button
-            onClick={() => fetchData(true)}
-            disabled={isRefreshing}
-            className="w-12 h-12 flex items-center justify-center bg-blue-600 text-white rounded-xl shadow-lg shadow-blue-200/50 hover:bg-blue-700 hover:scale-110 active:scale-95 transition-all disabled:opacity-50 disabled:scale-100 group/refresh"
-            title="Refresh Data"
-          >
-            <RefreshCw
-              className={`w-6 h-6 ${isRefreshing ? 'animate-spin' : 'group-hover/refresh:rotate-180'} transition-all duration-500`}
-            />
-          </button>
-
-          <button
             onClick={handleExport}
             className="w-12 h-12 flex items-center justify-center bg-emerald-600 text-white rounded-xl shadow-lg shadow-emerald-200/50 hover:bg-emerald-700 hover:scale-110 active:scale-95 transition-all group/export"
             title="Export to Excel"
@@ -262,11 +300,9 @@ export default function RecordTab() {
                   <th className="px-3 py-5 text-center text-[10px] font-black uppercase tracking-widest text-white">
                     Counted
                   </th>
-                  {!isReadOnly && (
                   <th className="px-3 py-5 text-center text-[10px] font-black uppercase tracking-widest text-white">
                     Actions
                   </th>
-                  )}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -325,26 +361,26 @@ export default function RecordTab() {
                         {item.countedQty === 0 ? '-' : item.countedQty.toLocaleString()}
                       </span>
                     </td>
-                    {!isReadOnly && (
                     <td className="px-3 py-4 text-center">
                       <div className="flex items-center justify-center gap-1">
                         <button
                           onClick={() => setEditingRecord(item)}
-                          className="w-8 h-8 flex items-center justify-center rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
-                          title="Edit Record"
+                          disabled={isReadOnly}
+                          className="w-8 h-8 flex items-center justify-center rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors disabled:opacity-30 disabled:hover:bg-blue-50 disabled:cursor-not-allowed"
+                          title={isReadOnly ? "Record is read-only" : "Edit Record"}
                         >
                           <Pencil className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => setDeletingRecord(item)}
-                          className="w-8 h-8 flex items-center justify-center rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
-                          title="Delete Record"
+                          disabled={isReadOnly}
+                          className="w-8 h-8 flex items-center justify-center rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors disabled:opacity-30 disabled:hover:bg-red-50 disabled:cursor-not-allowed"
+                          title={isReadOnly ? "Record is read-only" : "Delete Record"}
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
                     </td>
-                    )}
                   </tr>
                 ))}
               </tbody>
@@ -369,6 +405,8 @@ export default function RecordTab() {
       {editingRecord && (
         <EditRecordModal
           record={editingRecord}
+          users={allUsers}
+          warehouses={allWarehouses}
           onSave={handleSaveRecord}
           onClose={() => setEditingRecord(null)}
         />

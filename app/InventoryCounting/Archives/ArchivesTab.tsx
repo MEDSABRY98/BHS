@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import {
   Archive,
   Calendar,
@@ -70,6 +70,40 @@ export default function ArchivesTab({ onViewArchive }: ArchivesTabProps) {
     }
   };
 
+  const handleRefreshRef = useRef(handleRefresh);
+  useEffect(() => {
+    handleRefreshRef.current = handleRefresh;
+  });
+
+  useEffect(() => {
+    const handleTriggerRefresh = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail?.activeTab === 'archives') {
+        void handleRefreshRef.current();
+      }
+    };
+    window.addEventListener('inventory-counting-trigger-refresh', handleTriggerRefresh);
+    return () => {
+      window.removeEventListener('inventory-counting-trigger-refresh', handleTriggerRefresh);
+    };
+  }, []);
+
+  useEffect(() => {
+    const isCurrentlyRefreshing = isRefreshing || loadingArchives;
+    window.dispatchEvent(
+      new CustomEvent('inventory-counting-refresh-state', {
+        detail: { activeTab: 'archives', isRefreshing: isCurrentlyRefreshing }
+      })
+    );
+    return () => {
+      window.dispatchEvent(
+        new CustomEvent('inventory-counting-refresh-state', {
+          detail: { activeTab: 'archives', isRefreshing: false }
+        })
+      );
+    };
+  }, [isRefreshing, loadingArchives]);
+
   const openArchive = (id: string) => {
     setArchiveId(id);
     onViewArchive('total_count');
@@ -98,15 +132,7 @@ export default function ArchivesTab({ onViewArchive }: ArchivesTabProps) {
           />
         </div>
 
-        <button
-          type="button"
-          onClick={() => void handleRefresh()}
-          disabled={isRefreshing || loadingArchives}
-          className="w-12 h-12 flex items-center justify-center bg-amber-600 text-white rounded-xl shadow-lg shadow-amber-200/50 hover:bg-amber-700 hover:scale-110 active:scale-95 transition-all disabled:opacity-50 disabled:scale-100"
-          title="Refresh Archives"
-        >
-          <RefreshCw className={`w-6 h-6 ${isRefreshing || loadingArchives ? 'animate-spin' : ''}`} />
-        </button>
+
       </div>
 
       {filteredArchives.length === 0 ? (

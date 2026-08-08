@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import {
   ArrowLeft,
   ArrowLeftRight,
@@ -10,6 +11,7 @@ import {
   Grid3x3,
   Layers,
   Package,
+  RefreshCw,
   X,
 } from 'lucide-react';
 
@@ -43,6 +45,33 @@ export default function InventorySidebar({
   onToggleCollapse,
   onCloseMobile,
 }: InventorySidebarProps) {
+  const [refreshingTabs, setRefreshingTabs] = useState<Record<string, boolean>>({});
+  const isCurrentTabRefreshing = refreshingTabs[activeTab] || false;
+
+  useEffect(() => {
+    const handleStateChange = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail && typeof customEvent.detail.activeTab === 'string') {
+        setRefreshingTabs((prev) => ({
+          ...prev,
+          [customEvent.detail.activeTab]: customEvent.detail.isRefreshing,
+        }));
+      }
+    };
+    window.addEventListener('inventory-analysis-refresh-state', handleStateChange);
+    return () => {
+      window.removeEventListener('inventory-analysis-refresh-state', handleStateChange);
+    };
+  }, []);
+
+  const handleTriggerRefresh = () => {
+    window.dispatchEvent(
+      new CustomEvent('inventory-analysis-trigger-refresh', {
+        detail: { activeTab },
+      })
+    );
+  };
+
   return (
     <div className="flex flex-col h-full bg-[#0a0f1d] text-white border-r border-indigo-950/20">
       {onCloseMobile && (
@@ -116,11 +145,28 @@ export default function InventorySidebar({
         })}
       </nav>
 
-      <div className="p-4 border-t border-white/5 mt-auto flex flex-col gap-2 shrink-0">
+      <div className="p-4 border-t border-white/5 mt-auto flex flex-col items-center gap-3 shrink-0 w-full">
+        <button
+          type="button"
+          onClick={() => {
+            handleTriggerRefresh();
+            onCloseMobile?.();
+          }}
+          disabled={isCurrentTabRefreshing || activeTab === 'reports'}
+          className={`relative flex items-center justify-center w-12 h-12 rounded-2xl transition-all duration-200 ${
+            isCurrentTabRefreshing
+              ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-950/40'
+              : 'bg-white/5 text-slate-300 hover:text-white hover:bg-white/10 border border-white/10'
+          } disabled:opacity-50 cursor-pointer ${activeTab === 'reports' ? 'opacity-30 cursor-not-allowed' : ''}`}
+          title={activeTab === 'reports' ? 'Refresh not supported for Reports' : 'Refresh Data'}
+        >
+          <RefreshCw className={`w-5 h-5 ${isCurrentTabRefreshing ? 'animate-spin' : ''}`} />
+        </button>
+
         <button
           type="button"
           onClick={onToggleCollapse}
-          className="flex items-center justify-center w-10 h-10 mx-auto hover:bg-white/10 rounded-xl transition-all duration-200 text-slate-400 group"
+          className="flex items-center justify-center w-10 h-10 hover:bg-white/10 rounded-xl transition-all duration-200 text-slate-400 group cursor-pointer"
           title={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
         >
           {isCollapsed ? <ChevronRight className="w-5 h-5 shrink-0" /> : <ChevronLeft className="w-5 h-5 shrink-0" />}

@@ -344,7 +344,7 @@ export default function InventoryProductsBalanceDetailsTab({ selectedProduct, da
       </div>
 
       {/* KPI Metrics Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
           <p className="text-[10px] font-bold text-slate-400 uppercase">Opening Stock</p>
           <p className="text-lg font-black text-slate-800 mt-1">{selectedProduct.openingStock.toLocaleString('en-US')}</p>
@@ -375,34 +375,6 @@ export default function InventoryProductsBalanceDetailsTab({ selectedProduct, da
             {selectedProduct.netAdjustment >= 0
               ? `+${selectedProduct.netAdjustment.toLocaleString('en-US')}`
               : selectedProduct.netAdjustment.toLocaleString('en-US')}
-          </p>
-        </div>
-        <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs bg-cyan-50/20">
-          <p className="text-[10px] font-bold text-cyan-600 uppercase">Warehouse Transfer</p>
-          <p className={`text-lg font-black mt-1 ${
-            (selectedProduct.netWarehouseTransfer ?? 0) > 0
-              ? 'text-emerald-600'
-              : (selectedProduct.netWarehouseTransfer ?? 0) < 0
-                ? 'text-rose-600'
-                : 'text-slate-500'
-          }`}>
-            {(selectedProduct.netWarehouseTransfer ?? 0) >= 0
-              ? `+${(selectedProduct.netWarehouseTransfer ?? 0).toLocaleString('en-US')}`
-              : (selectedProduct.netWarehouseTransfer ?? 0).toLocaleString('en-US')}
-          </p>
-        </div>
-        <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
-          <p className="text-[10px] font-bold text-slate-400 uppercase">Internal Transfer</p>
-          <p className={`text-lg font-black mt-1 ${
-            (selectedProduct.netInternalTransfer ?? 0) > 0
-              ? 'text-emerald-600'
-              : (selectedProduct.netInternalTransfer ?? 0) < 0
-                ? 'text-rose-600'
-                : 'text-slate-500'
-          }`}>
-            {(selectedProduct.netInternalTransfer ?? 0) >= 0
-              ? `+${(selectedProduct.netInternalTransfer ?? 0).toLocaleString('en-US')}`
-              : (selectedProduct.netInternalTransfer ?? 0).toLocaleString('en-US')}
           </p>
         </div>
         <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs bg-indigo-50/20">

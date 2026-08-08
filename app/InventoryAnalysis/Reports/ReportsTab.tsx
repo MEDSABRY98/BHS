@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  AlertCircle,
   Calendar,
   ChevronDown,
   Download,
@@ -14,6 +15,7 @@ import {
   ShoppingCart,
   Tag,
   TrendingUp,
+  X,
 } from 'lucide-react';
 import { getInventoryProductsForReports } from '../Service/inventory_service';
 import { peekIAPrefetch } from '../Utils/IAPrefetchCache';
@@ -123,6 +125,8 @@ export default function ReportsTab() {
   const [selectedCategory, setSelectedCategory] = useState('');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
+  const [isFiltersOpen, setIsFiltersOpen] = useState(false);
+  const filtersRef = useRef<HTMLDivElement>(null);
   const [categories, setCategories] = useState<string[]>([]);
   const [isLoadingCategories, setIsLoadingCategories] = useState(true);
   const [isGeneratingMonthly, setIsGeneratingMonthly] = useState(false);
@@ -164,6 +168,7 @@ export default function ReportsTab() {
     };
   }, []);
 
+
   const categoryOptions = useMemo(
     () => [
       { id: '', label: 'All Categories' },
@@ -180,6 +185,13 @@ export default function ReportsTab() {
     }),
     [selectedCategory, fromDate, toDate],
   );
+
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (selectedCategory !== '') count++;
+    if (fromDate !== '' || toDate !== '') count++;
+    return count;
+  }, [selectedCategory, fromDate, toDate]);
 
   const filterSummary = selectedCategory || 'All Categories';
 
@@ -314,77 +326,55 @@ export default function ReportsTab() {
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
-      <div>
+      {/* Top Title & Filters Toolbar */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-slate-100">
         <h2 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
-          <FileSpreadsheet className="w-8 h-8 text-indigo-600" />
+          <FileSpreadsheet className="w-8 h-8 text-indigo-600 shrink-0" />
           Reports
         </h2>
-      </div>
 
-      <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-5">
-        <div className="flex items-center gap-2 text-slate-800">
-          <Filter className="w-5 h-5 text-indigo-600" />
-          <h3 className="font-bold text-lg">Report Filters</h3>
-        </div>
+        <div className="flex items-center gap-3 w-full sm:w-auto">
+          {/* Popover Filter Trigger */}
+          <div className="relative w-full sm:w-auto" ref={filtersRef}>
+            <button
+              type="button"
+              onClick={() => setIsFiltersOpen(!isFiltersOpen)}
+              className={`w-full sm:w-11 h-11 flex items-center justify-center rounded-xl border transition-all font-semibold text-xs shadow-xs hover:bg-slate-50 cursor-pointer relative ${
+                isFiltersOpen ? 'bg-indigo-50 border-indigo-500 text-indigo-700' : 'bg-white border-slate-200 text-slate-600'
+              }`}
+              title="Advanced Filters"
+            >
+              <Filter className="w-4 h-4" />
+              {activeFiltersCount > 0 && (
+                <span className="absolute -top-1 -right-1 w-5 h-5 flex items-center justify-center bg-amber-500 text-white rounded-full text-[10px] font-bold shadow-sm">
+                  {activeFiltersCount}
+                </span>
+              )}
+            </button>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          <div>
-            <label className="flex items-center gap-1.5 text-sm font-bold text-slate-700 mb-2">
-              <Tag className="w-4 h-4 text-teal-500" />
-              Category
-            </label>
-            {isLoadingCategories ? (
-              <div className="w-full bg-slate-50 border border-slate-200 p-3.5 rounded-xl flex items-center gap-2 text-slate-400 text-sm">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Loading categories...
-              </div>
-            ) : (
-              <SearchableSelect
-                options={categoryOptions}
-                value={selectedCategory}
-                onChange={setSelectedCategory}
-                placeholder="All Categories"
-              />
-            )}
-          </div>
-
-          <div>
-            <label className="flex items-center gap-1.5 text-sm font-bold text-slate-700 mb-2">
-              <Calendar className="w-4 h-4 text-indigo-600" />
-              From Date
-            </label>
-            <input
-              type="date"
-              value={fromDate}
-              onChange={(e) => setFromDate(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 px-3 py-3.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 font-medium transition-all"
-            />
-          </div>
-
-          <div>
-            <label className="flex items-center gap-1.5 text-sm font-bold text-slate-700 mb-2">
-              <Calendar className="w-4 h-4 text-indigo-600" />
-              To Date
-            </label>
-            <input
-              type="date"
-              value={toDate}
-              onChange={(e) => setToDate(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 px-3 py-3.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 font-medium transition-all"
-            />
+            {/* Filters pop-up modal is rendered at the bottom of the file */}
           </div>
         </div>
-
-        <p className="text-sm font-medium text-slate-500 bg-slate-50 rounded-xl px-4 py-3 border border-slate-100">
-          Active scope: <span className="font-bold text-slate-700">{filterSummary}</span>
-          {(fromDate || toDate) && (
-            <span className="text-slate-500">
-              {' '}
-              · {fromDate || '…'} → {toDate || '…'}
-            </span>
-          )}
-        </p>
       </div>
+
+      {/* Warning Banner / Status Scope on Main Page */}
+      {(!fromDate || !toDate) ? (
+        <div className="p-4 bg-amber-50 border border-amber-100 rounded-2xl text-sm font-semibold text-amber-800 flex items-center gap-2">
+          <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
+          Please select From/To dates in the filters above to enable Excel report downloads.
+        </div>
+      ) : (
+        <div className="p-4 bg-indigo-50/50 border border-indigo-100/50 rounded-2xl text-sm font-medium text-slate-600 flex flex-wrap items-center gap-2">
+          <span className="font-bold text-indigo-900">Active scope:</span>
+          <span className="bg-white px-2.5 py-1 rounded-lg border border-slate-100 text-xs font-bold text-slate-800">
+            {filterSummary}
+          </span>
+          <span className="text-slate-300">·</span>
+          <span className="bg-white px-2.5 py-1 rounded-lg border border-slate-100 text-xs font-bold text-slate-800">
+            {fromDate} → {toDate}
+          </span>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {reportCards.map((report) => {
@@ -420,6 +410,108 @@ export default function ReportsTab() {
           );
         })}
       </div>
+      {/* Advanced Filters Pop-up Modal */}
+      {isFiltersOpen && (
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-in fade-in duration-200"
+          onClick={() => setIsFiltersOpen(false)}
+        >
+          <div
+            className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-200 space-y-5"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex justify-between items-center pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <Filter className="w-5 h-5 text-indigo-600 shrink-0" />
+                <h3 className="text-base font-black text-slate-800">Filter Reports</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsFiltersOpen(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="space-y-4">
+              {/* Category */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-black text-slate-400 uppercase tracking-wider">
+                  Category
+                </label>
+                {isLoadingCategories ? (
+                  <div className="w-full bg-slate-50 border border-slate-200 p-3.5 rounded-xl flex items-center gap-2 text-slate-400 text-xs">
+                    <Loader2 className="w-4 h-4 animate-spin text-indigo-500" />
+                    Loading categories...
+                  </div>
+                ) : (
+                  <SearchableSelect
+                    options={categoryOptions}
+                    value={selectedCategory}
+                    onChange={setSelectedCategory}
+                    placeholder="All Categories"
+                  />
+                )}
+              </div>
+
+              {/* Date Range */}
+              <div className="space-y-2">
+                <label className="block text-xs font-black text-slate-400 uppercase tracking-wider">
+                  Date Range
+                </label>
+                <div className="space-y-2">
+                  <div className="relative flex items-center h-11 w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 focus-within:bg-white focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-500 transition-all">
+                    <Calendar className="w-4 h-4 text-slate-400 shrink-0 mr-2" />
+                    <span className="text-[10px] font-black text-slate-400 shrink-0 mr-1.5 uppercase">From:</span>
+                    <input
+                      type="date"
+                      value={fromDate}
+                      onChange={(e) => setFromDate(e.target.value)}
+                      className="w-full bg-transparent text-xs font-bold text-slate-700 outline-none cursor-pointer"
+                    />
+                  </div>
+                  <div className="relative flex items-center h-11 w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 focus-within:bg-white focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-500 transition-all">
+                    <Calendar className="w-4 h-4 text-slate-400 shrink-0 mr-2" />
+                    <span className="text-[10px] font-black text-slate-400 shrink-0 mr-1.5 uppercase">To:</span>
+                    <input
+                      type="date"
+                      value={toDate}
+                      onChange={(e) => setToDate(e.target.value)}
+                      className="w-full bg-transparent text-xs font-bold text-slate-700 outline-none cursor-pointer"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedCategory('');
+                  setFromDate('');
+                  setToDate('');
+                  setIsFiltersOpen(false);
+                }}
+                className="px-4 py-2.5 text-xs font-bold text-slate-500 hover:text-slate-700 bg-slate-50 hover:bg-slate-100 rounded-xl transition-all cursor-pointer"
+              >
+                Reset All
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsFiltersOpen(false)}
+                className="px-4 py-2.5 text-xs font-black text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-md shadow-indigo-600/10 transition-all cursor-pointer"
+              >
+                Apply & Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
