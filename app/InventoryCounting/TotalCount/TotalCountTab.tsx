@@ -368,25 +368,28 @@ export default function TotalCountTab() {
         </div>
       </div>
 
-      {filteredData.length === 0 ? (
+      {scopedData.length === 0 ? (
         <NoData title="No Data Found" />
       ) : (
         <div className="bg-white rounded-[2rem] shadow-xl shadow-slate-200/50 border border-gray-100 overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[900px]" style={{ tableLayout: 'fixed' }}>
+            <table
+              className="w-full"
+              style={{ tableLayout: 'fixed', minWidth: 890 }}
+            >
               <colgroup>
-                <col style={{ width: '50px' }} />
-                <col style={{ width: '140px' }} />
-                <col style={{ width: '220px' }} />
-                <col style={{ width: '100px' }} />
-                <col style={{ width: '100px' }} />
-                <col style={{ width: '90px' }} />
-                <col style={{ width: '90px' }} />
-                <col style={{ width: '100px' }} />
+                <col style={{ width: 50 }} />
+                <col style={{ width: 140 }} />
+                <col style={{ width: 220 }} />
+                <col style={{ width: 100 }} />
+                <col style={{ width: 100 }} />
+                <col style={{ width: 90 }} />
+                <col style={{ width: 90 }} />
+                <col style={{ width: 100 }} />
               </colgroup>
               <thead className="bg-black text-white sticky top-0 z-10">
                 <tr>
-                  <th className="px-4 py-5 text-center text-xs font-black uppercase tracking-widest text-white">#</th>
+                  <th className="px-4 py-5 text-center text-xs font-black uppercase tracking-widest text-white overflow-hidden">#</th>
                   {(
                     [
                       ['barcodeName', 'Barcode'],
@@ -401,18 +404,25 @@ export default function TotalCountTab() {
                     <th
                       key={key}
                       onClick={() => handleSort(key)}
-                      className="px-4 py-5 text-center text-xs font-black uppercase tracking-widest text-white cursor-pointer hover:bg-white/10 transition-colors"
+                      className="px-4 py-5 text-center text-xs font-black uppercase tracking-widest text-white cursor-pointer hover:bg-white/10 transition-colors overflow-hidden"
                     >
                       <div className="flex items-center justify-center gap-2">
                         {label}
-                        <ArrowUpDown className="w-3 h-3 text-white/50" />
+                        <ArrowUpDown className="w-3 h-3 text-white/50 shrink-0" />
                       </div>
                     </th>
                   ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {filteredData.map((item, idx) => {
+                {filteredData.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="px-4 py-16 text-center text-sm font-bold text-slate-400">
+                      No matching items
+                    </td>
+                  </tr>
+                ) : (
+                  filteredData.map((item, idx) => {
                   const hasCount = item.totalCountedQty > 0;
                   return (
                     <tr
@@ -420,19 +430,19 @@ export default function TotalCountTab() {
                       onClick={() => !isReadOnly && setEditingItem(toICItem(item))}
                       className={`hover:bg-indigo-50/40 transition-all group ${isReadOnly ? '' : 'cursor-pointer'}`}
                     >
-                      <td className="px-4 py-4 text-center text-sm font-bold text-slate-400 group-hover:text-indigo-600">
+                      <td className="px-4 py-4 text-center text-sm font-bold text-slate-400 group-hover:text-indigo-600 overflow-hidden">
                         {idx + 1}
                       </td>
-                      <td className="px-4 py-4 text-center text-sm font-black text-slate-600 truncate">
+                      <td className="px-4 py-4 text-center text-sm font-black text-slate-600 truncate overflow-hidden">
                         {item.barcodeName || '-'}
                       </td>
-                      <td className="px-4 py-4 text-center text-xs font-black text-slate-800 truncate">
+                      <td className="px-4 py-4 text-center text-xs font-black text-slate-800 truncate overflow-hidden">
                         {item.productName}
                       </td>
-                      <td className="px-4 py-4 text-center text-sm font-bold text-slate-600">
+                      <td className="px-4 py-4 text-center text-sm font-bold text-slate-600 overflow-hidden">
                         {item.availableQty.toLocaleString()}
                       </td>
-                      <td className="px-4 py-4 text-center">
+                      <td className="px-4 py-4 text-center overflow-hidden">
                         <span
                           className={`inline-flex px-3 py-1.5 rounded-xl text-sm font-black border shadow-sm ${
                             hasCount
@@ -443,7 +453,7 @@ export default function TotalCountTab() {
                           {hasCount ? item.totalCountedQty.toLocaleString() : '-'}
                         </span>
                       </td>
-                      <td className="px-4 py-4 text-center">
+                      <td className="px-4 py-4 text-center overflow-hidden">
                         <span className={`text-sm font-black ${diffClass(item.difference, hasCount)}`}>
                           {hasCount ? (
                             <>
@@ -455,19 +465,20 @@ export default function TotalCountTab() {
                           )}
                         </span>
                       </td>
-                      <td className="px-4 py-4 text-center">
+                      <td className="px-4 py-4 text-center overflow-hidden">
                         <span className="text-sm font-bold text-blue-700">
                           {item.normalQty > 0 ? item.normalQty.toLocaleString() : '-'}
                         </span>
                       </td>
-                      <td className="px-4 py-4 text-center">
+                      <td className="px-4 py-4 text-center overflow-hidden">
                         <span className="text-sm font-bold text-red-600">
                           {item.damageQty > 0 ? item.damageQty.toLocaleString() : '-'}
                         </span>
                       </td>
                     </tr>
                   );
-                })}
+                  })
+                )}
               </tbody>
             </table>
           </div>

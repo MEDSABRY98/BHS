@@ -1197,18 +1197,32 @@ export default function CountReconciliationTab() {
       ) : (
         <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-center min-w-[980px]">
+            <table
+              className="w-full text-center"
+              style={{ tableLayout: 'fixed', minWidth: 980 }}
+            >
+              <colgroup>
+                <col style={{ width: 50 }} />
+                <col style={{ width: 130 }} />
+                <col style={{ width: 220 }} />
+                <col style={{ width: 180 }} />
+                <col style={{ width: 110 }} />
+                <col style={{ width: 120 }} />
+                <col style={{ width: 100 }} />
+                <col style={{ width: 110 }} />
+                <col style={{ width: 52 }} />
+              </colgroup>
               <thead className="bg-black text-white sticky top-0 z-10">
                 <tr className="text-[10px] font-black uppercase tracking-wider">
-                  <th className="px-4 py-4 text-center">#</th>
-                  <th className="px-4 py-4 text-center">Barcode</th>
-                  <th className="px-4 py-4 text-center">Product Name</th>
-                  <th className="px-4 py-4 text-center">Source</th>
-                  <th className="px-4 py-4 text-center">Result Qty</th>
-                  <th className="px-4 py-4 text-center">Ending Balance</th>
-                  <th className="px-4 py-4 text-center">Difference</th>
-                  <th className="px-4 py-4 text-center">Status</th>
-                  <th className="px-2 py-4 text-center w-[52px]" aria-label="Actions" />
+                  <th className="px-4 py-4 text-center overflow-hidden">#</th>
+                  <th className="px-4 py-4 text-center overflow-hidden">Barcode</th>
+                  <th className="px-4 py-4 text-center overflow-hidden">Product Name</th>
+                  <th className="px-4 py-4 text-center overflow-hidden">Source</th>
+                  <th className="px-4 py-4 text-center overflow-hidden">Result Qty</th>
+                  <th className="px-4 py-4 text-center overflow-hidden">Ending Balance</th>
+                  <th className="px-4 py-4 text-center overflow-hidden">Difference</th>
+                  <th className="px-4 py-4 text-center overflow-hidden">Status</th>
+                  <th className="px-2 py-4 text-center overflow-hidden" aria-label="Actions" />
                 </tr>
               </thead>
               <tbody>
@@ -1225,27 +1239,29 @@ export default function CountReconciliationTab() {
                           : 'hover:bg-slate-50/70'
                       }`}
                     >
-                      <td className="px-4 py-4 text-xs font-bold text-slate-400 text-center">{index + 1}</td>
-                      <td className="px-4 py-4 text-sm font-black text-slate-800 text-center">
-                        {row.barcodeName || '-'}
+                      <td className="px-4 py-4 text-xs font-bold text-slate-400 text-center overflow-hidden">{index + 1}</td>
+                      <td className="px-4 py-4 text-sm font-black text-slate-800 text-center overflow-hidden">
+                        <span className="truncate block">{row.barcodeName || '-'}</span>
                         {row.isManuallyAdded && (
                           <span className="block text-[10px] font-black uppercase tracking-wider text-amber-700 mt-1">
                             Added manually
                           </span>
                         )}
                       </td>
-                      <td className="px-4 py-4 text-sm font-bold text-slate-700 text-center">{row.productName || '-'}</td>
-                      <td className="px-4 py-4 text-center">
+                      <td className="px-4 py-4 text-sm font-bold text-slate-700 text-center overflow-hidden">
+                        <span className="truncate block">{row.productName || '-'}</span>
+                      </td>
+                      <td className="px-4 py-4 text-center overflow-hidden">
                         <button
                           type="button"
                           onClick={() => setSourcePickerRow(row)}
-                          className={`inline-flex items-center justify-center gap-2 min-w-[160px] max-w-[220px] px-3 py-2.5 text-xs font-black border rounded-xl transition-all ${sourceButtonClass(row.source)}`}
+                          className={`inline-flex items-center justify-center gap-2 w-full max-w-[220px] px-3 py-2.5 text-xs font-black border rounded-xl transition-all ${sourceButtonClass(row.source)}`}
                         >
                           <span className="truncate">{getSourceLabel(row.source)}</span>
                           <ChevronDown className="w-3.5 h-3.5 shrink-0 opacity-60" />
                         </button>
                       </td>
-                      <td className="px-4 py-4 text-sm font-black text-slate-800 text-center">
+                      <td className="px-4 py-4 text-sm font-black text-slate-800 text-center overflow-hidden">
                         <ResultQtyInput
                           value={row.resultQty}
                           disabled={!isManual}
@@ -1255,11 +1271,11 @@ export default function CountReconciliationTab() {
                           <span className="block text-[10px] font-bold text-amber-600 mt-1">No qty for this user</span>
                         )}
                       </td>
-                      <td className="px-4 py-4 text-sm font-black text-slate-800 text-center">
+                      <td className="px-4 py-4 text-sm font-black text-slate-800 text-center overflow-hidden">
                         {row.endingBalance !== null ? row.endingBalance.toLocaleString() : '-'}
                       </td>
                       <td
-                        className={`px-4 py-4 text-sm font-black text-center ${
+                        className={`px-4 py-4 text-sm font-black text-center overflow-hidden ${
                           row.difference === null
                             ? 'text-slate-400'
                             : row.difference < 0
@@ -1271,7 +1287,7 @@ export default function CountReconciliationTab() {
                       >
                         {row.difference !== null ? row.difference.toLocaleString() : '-'}
                       </td>
-                      <td className="px-4 py-4 text-center">
+                      <td className="px-4 py-4 text-center overflow-hidden">
                         <span
                           className={`inline-flex px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
                             row.matchStatus === 'Matched'
@@ -1282,7 +1298,7 @@ export default function CountReconciliationTab() {
                           {row.matchStatus}
                         </span>
                       </td>
-                      <td className="px-2 py-4 text-center">
+                      <td className="px-2 py-4 text-center overflow-hidden">
                         {row.isManuallyAdded && (
                           <button
                             type="button"

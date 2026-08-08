@@ -253,65 +253,75 @@ export default function RecordTab() {
         </div>
       </div>
 
-      {filteredData.length === 0 ? (
+      {data.length === 0 ? (
         <NoData title="No Records Found" />
       ) : (
         <div className="bg-white rounded-[2rem] shadow-xl shadow-slate-200/50 border border-gray-100 overflow-hidden">
           <div className="overflow-x-auto overflow-y-visible">
-            <table className="w-full border-collapse" style={{ tableLayout: 'fixed' }}>
+            <table
+              className="w-full border-collapse"
+              style={{ tableLayout: 'fixed', minWidth: 1150 }}
+            >
               <colgroup>
-                <col style={{ width: '90px' }} />
-                <col style={{ width: '110px' }} />
-                <col style={{ width: '120px' }} />
-                <col style={{ width: '100px' }} />
-                <col style={{ width: '140px' }} />
-                <col style={{ width: '200px' }} />
-                <col style={{ width: '70px' }} />
-                <col style={{ width: '140px' }} />
-                <col style={{ width: '90px' }} />
-                <col style={{ width: '90px' }} />
+                <col style={{ width: 90 }} />
+                <col style={{ width: 110 }} />
+                <col style={{ width: 120 }} />
+                <col style={{ width: 100 }} />
+                <col style={{ width: 140 }} />
+                <col style={{ width: 200 }} />
+                <col style={{ width: 70 }} />
+                <col style={{ width: 140 }} />
+                <col style={{ width: 90 }} />
+                <col style={{ width: 90 }} />
               </colgroup>
               <thead className="bg-black text-white sticky top-0 z-10">
                 <tr>
-                  <th className="px-3 py-5 text-center text-[10px] font-black uppercase tracking-widest text-white">
+                  <th className="px-3 py-5 text-center text-[10px] font-black uppercase tracking-widest text-white overflow-hidden">
                     Date
                   </th>
-                  <th className="px-3 py-5 text-center text-[10px] font-black uppercase tracking-widest text-white">
+                  <th className="px-3 py-5 text-center text-[10px] font-black uppercase tracking-widest text-white overflow-hidden">
                     Type
                   </th>
-                  <th className="px-3 py-5 text-center text-[10px] font-black uppercase tracking-widest text-white">
+                  <th className="px-3 py-5 text-center text-[10px] font-black uppercase tracking-widest text-white overflow-hidden">
                     User
                   </th>
-                  <th className="px-3 py-5 text-center text-[10px] font-black uppercase tracking-widest text-white">
+                  <th className="px-3 py-5 text-center text-[10px] font-black uppercase tracking-widest text-white overflow-hidden">
                     Warehouse
                   </th>
-                  <th className="px-3 py-5 text-center text-[10px] font-black uppercase tracking-widest text-white">
+                  <th className="px-3 py-5 text-center text-[10px] font-black uppercase tracking-widest text-white overflow-hidden">
                     Barcode
                   </th>
-                  <th className="px-3 py-5 text-center text-[10px] font-black uppercase tracking-widest text-white">
+                  <th className="px-3 py-5 text-center text-[10px] font-black uppercase tracking-widest text-white overflow-hidden">
                     Product Name
                   </th>
-                  <th className="px-3 py-5 text-center text-[10px] font-black uppercase tracking-widest text-white">
+                  <th className="px-3 py-5 text-center text-[10px] font-black uppercase tracking-widest text-white overflow-hidden">
                     In Box
                   </th>
-                  <th className="px-3 py-5 text-center text-[10px] font-black uppercase tracking-widest text-white">
+                  <th className="px-3 py-5 text-center text-[10px] font-black uppercase tracking-widest text-white overflow-hidden">
                     Details
                   </th>
-                  <th className="px-3 py-5 text-center text-[10px] font-black uppercase tracking-widest text-white">
+                  <th className="px-3 py-5 text-center text-[10px] font-black uppercase tracking-widest text-white overflow-hidden">
                     Counted
                   </th>
-                  <th className="px-3 py-5 text-center text-[10px] font-black uppercase tracking-widest text-white">
+                  <th className="px-3 py-5 text-center text-[10px] font-black uppercase tracking-widest text-white overflow-hidden">
                     Actions
                   </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {filteredData.map((item) => (
+                {filteredData.length === 0 ? (
+                  <tr>
+                    <td colSpan={10} className="px-4 py-16 text-center text-sm font-bold text-slate-400">
+                      No matching records
+                    </td>
+                  </tr>
+                ) : (
+                  filteredData.map((item) => (
                   <tr key={item.rowId} className="hover:bg-slate-50 transition-all group border-b border-gray-50">
-                    <td className="px-3 py-4 text-center whitespace-nowrap">
+                    <td className="px-3 py-4 text-center whitespace-nowrap overflow-hidden">
                       <span className="text-[11px] font-semibold text-slate-700 tabular-nums">{item.date}</span>
                     </td>
-                    <td className="px-3 py-4 text-center">
+                    <td className="px-3 py-4 text-center overflow-hidden">
                       <span
                         className={`inline-flex px-2 py-1 rounded-md text-[10px] font-black uppercase ${
                           item.countType === 'Normal'
@@ -322,46 +332,46 @@ export default function RecordTab() {
                         {formatCountType(item.countType)}
                       </span>
                     </td>
-                    <td className="px-3 py-4 text-center">
-                      <div className="flex items-center justify-center gap-2">
-                        <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-black text-slate-500">
+                    <td className="px-3 py-4 text-center overflow-hidden">
+                      <div className="flex items-center justify-center gap-2 min-w-0">
+                        <div className="w-6 h-6 shrink-0 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-black text-slate-500">
                           {item.user.charAt(0).toUpperCase()}
                         </div>
-                        <span className="text-xs font-bold text-slate-600 truncate max-w-[80px]">{item.user}</span>
+                        <span className="text-xs font-bold text-slate-600 truncate">{item.user}</span>
                       </div>
                     </td>
-                    <td className="px-3 py-4 text-center">
-                      <span className="inline-flex px-2 py-1 rounded-md bg-indigo-50 text-indigo-600 text-[10px] font-black uppercase">
+                    <td className="px-3 py-4 text-center overflow-hidden">
+                      <span className="inline-flex max-w-full px-2 py-1 rounded-md bg-indigo-50 text-indigo-600 text-[10px] font-black uppercase truncate">
                         {item.warehouse}
                       </span>
                     </td>
-                    <td className="px-3 py-4 text-center">
+                    <td className="px-3 py-4 text-center overflow-hidden">
                       <span className="text-[11px] font-bold text-slate-700 truncate block">{item.barcodeName}</span>
                     </td>
-                    <td className="px-3 py-4 text-center">
+                    <td className="px-3 py-4 text-center overflow-hidden">
                       <span className="text-xs font-black text-slate-800 leading-tight truncate block">
                         {item.productName}
                       </span>
                     </td>
-                    <td className="px-3 py-4 text-center">
+                    <td className="px-3 py-4 text-center overflow-hidden">
                       <span className="text-sm font-bold text-slate-600">
                         {item.qtyInBox === 0 ? '-' : item.qtyInBox}
                       </span>
                     </td>
-                    <td className="px-3 py-4 text-center">
+                    <td className="px-3 py-4 text-center overflow-hidden">
                       <span
-                        className="text-[11px] font-bold text-slate-600 truncate max-w-[130px] inline-block"
+                        className="text-[11px] font-bold text-slate-600 truncate block"
                         title={item.countDetails}
                       >
                         {item.countDetails}
                       </span>
                     </td>
-                    <td className="px-3 py-4 text-center">
+                    <td className="px-3 py-4 text-center overflow-hidden">
                       <span className="inline-flex px-3 py-1 rounded-lg bg-blue-50 text-blue-700 text-sm font-black border border-blue-100 shadow-sm">
                         {item.countedQty === 0 ? '-' : item.countedQty.toLocaleString()}
                       </span>
                     </td>
-                    <td className="px-3 py-4 text-center">
+                    <td className="px-3 py-4 text-center overflow-hidden">
                       <div className="flex items-center justify-center gap-1">
                         <button
                           onClick={() => setEditingRecord(item)}
@@ -382,7 +392,8 @@ export default function RecordTab() {
                       </div>
                     </td>
                   </tr>
-                ))}
+                  ))
+                )}
               </tbody>
             </table>
           </div>

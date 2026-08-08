@@ -246,9 +246,9 @@ export default function UserComparisonTab() {
     'px-4 py-5 text-center text-xs font-black uppercase tracking-widest text-white bg-black cursor-pointer hover:bg-zinc-900 transition-colors';
 
   const renderSortableHeader = (key: SortKey, label: string, className = '') => (
-    <th key={key} onClick={() => handleSort(key)} className={`${sortableHeaderClass} ${className}`}>
-      <div className="flex items-center justify-center gap-2">
-        <span className={key.startsWith('user:') ? 'truncate max-w-[120px]' : ''}>{label || '—'}</span>
+    <th key={key} onClick={() => handleSort(key)} className={`${sortableHeaderClass} overflow-hidden ${className}`}>
+      <div className="flex items-center justify-center gap-2 min-w-0">
+        <span className="truncate">{label || '—'}</span>
         <ArrowUpDown className="w-3 h-3 text-white/50 shrink-0" />
       </div>
     </th>
@@ -361,26 +361,52 @@ export default function UserComparisonTab() {
         </div>
       </div>
 
-      {sortedData.length === 0 ? (
+      {comparisonRows.length === 0 ? (
         <NoData title="No Data Found" />
       ) : (
         <div className="bg-white rounded-[2rem] shadow-xl shadow-slate-200/50 border border-gray-100 overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[900px] border-separate border-spacing-0">
+            <table
+              className="w-full border-separate border-spacing-0"
+              style={{
+                tableLayout: 'fixed',
+                minWidth: 550 + visibleUsers.length * 100,
+              }}
+            >
+              <colgroup>
+                <col style={{ width: 50 }} />
+                <col style={{ width: 120 }} />
+                <col style={{ width: 200 }} />
+                <col style={{ width: 90 }} />
+                <col style={{ width: 90 }} />
+                {visibleUsers.map((user) => (
+                  <col key={user} style={{ width: 100 }} />
+                ))}
+              </colgroup>
               <thead className="bg-black text-white">
                 <tr>
-                  <th className="px-4 py-5 text-center text-xs font-black uppercase tracking-widest text-white bg-black w-[50px]">
+                  <th className="px-4 py-5 text-center text-xs font-black uppercase tracking-widest text-white bg-black overflow-hidden">
                     #
                   </th>
-                  {renderSortableHeader('barcodeName', 'Barcode', 'min-w-[120px]')}
-                  {renderSortableHeader('productName', 'Product Name', 'min-w-[200px]')}
-                  {renderSortableHeader('availableQty', 'Available', 'min-w-[90px]')}
-                  {renderSortableHeader('difference', 'Diff', 'min-w-[90px]')}
-                  {visibleUsers.map((user) => renderSortableHeader(`user:${user}`, user, 'min-w-[100px]'))}
+                  {renderSortableHeader('barcodeName', 'Barcode')}
+                  {renderSortableHeader('productName', 'Product Name')}
+                  {renderSortableHeader('availableQty', 'Available')}
+                  {renderSortableHeader('difference', 'Diff')}
+                  {visibleUsers.map((user) => renderSortableHeader(`user:${user}`, user))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {sortedData.map((item, idx) => {
+                {sortedData.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={5 + visibleUsers.length}
+                      className="px-4 py-16 text-center text-sm font-bold text-slate-400"
+                    >
+                      No matching items
+                    </td>
+                  </tr>
+                ) : (
+                  sortedData.map((item, idx) => {
                   const userValues = visibleUsers.map((user) => item.userQtys[user] || 0);
                   const { hasMismatch, reference } = getUserMismatchInfo(userValues);
                   const hasGrandTotal = item.grandTotal > 0;
@@ -388,19 +414,19 @@ export default function UserComparisonTab() {
 
                   return (
                     <tr key={item.productId} className="hover:bg-violet-50/40 transition-all group">
-                      <td className="px-4 py-4 text-center text-sm font-bold text-slate-400 group-hover:text-violet-600">
+                      <td className="px-4 py-4 text-center text-sm font-bold text-slate-400 group-hover:text-violet-600 overflow-hidden">
                         {idx + 1}
                       </td>
-                      <td className="px-4 py-4 text-center text-sm font-black text-slate-600 truncate">
+                      <td className="px-4 py-4 text-center text-sm font-black text-slate-600 truncate overflow-hidden">
                         {item.barcodeName || '-'}
                       </td>
-                      <td className="px-4 py-4 text-center text-xs font-black text-slate-800">
+                      <td className="px-4 py-4 text-center text-xs font-black text-slate-800 truncate overflow-hidden">
                         {item.productName}
                       </td>
-                      <td className="px-4 py-4 text-center text-sm font-bold text-slate-600 tabular-nums">
+                      <td className="px-4 py-4 text-center text-sm font-bold text-slate-600 tabular-nums overflow-hidden">
                         {item.availableQty.toLocaleString()}
                       </td>
-                      <td className="px-4 py-4 text-center">
+                      <td className="px-4 py-4 text-center overflow-hidden">
                         <span className={`text-sm font-black tabular-nums ${diffClass(difference, hasGrandTotal)}`}>
                           {hasGrandTotal ? (
                             <>
@@ -415,7 +441,7 @@ export default function UserComparisonTab() {
                       {visibleUsers.map((user) => {
                         const qty = item.userQtys[user] || 0;
                         return (
-                          <td key={user} className="px-4 py-4 text-center">
+                          <td key={user} className="px-4 py-4 text-center overflow-hidden">
                             <span
                               className={`inline-flex px-3 py-1.5 rounded-xl text-sm font-black border shadow-sm tabular-nums ${userCellClass(
                                 qty,
@@ -430,7 +456,8 @@ export default function UserComparisonTab() {
                       })}
                     </tr>
                   );
-                })}
+                  })
+                )}
               </tbody>
             </table>
           </div>
