@@ -35,10 +35,11 @@ const statCards = [
 
 const PaymentTDashboardTab: React.FC<PaymentTDashboardTabProps> = ({
   dashboardData,
-  chartPeriodType,
-  setChartPeriodType,
   averageCollections,
 }) => {
+  const currentYear = dashboardData.currentYear ?? new Date().getFullYear();
+  const previousYear = dashboardData.previousYear ?? currentYear - 1;
+
   const getValue = (card: typeof statCards[number]) => {
     if ('source' in card && card.source === 'avg') {
       return averageCollections[card.key];
@@ -65,27 +66,13 @@ const PaymentTDashboardTab: React.FC<PaymentTDashboardTabProps> = ({
       <div className="bg-white rounded-xl border border-gray-200 p-4 h-[680px]">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <h3 className="text-sm font-semibold text-gray-900">
-            Collections — {chartPeriodType === 'weekly' ? 'Weekly' : 'Monthly'}
+            Collections — Monthly ({currentYear} vs {previousYear})
           </h3>
-          <div className="flex gap-1 p-1 bg-gray-100 rounded-lg border border-gray-200">
-            {(['monthly', 'weekly'] as const).map((type) => (
-              <button
-                key={type}
-                onClick={() => setChartPeriodType(type)}
-                className={`px-3 py-1.5 rounded-md text-xs font-semibold uppercase ${chartPeriodType === type
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-500 hover:text-gray-700'
-                  }`}
-              >
-                {type}
-              </button>
-            ))}
-          </div>
         </div>
 
         <ResponsiveContainer width="100%" height={580}>
           <BarChart
-            data={dashboardData.chartData.slice(-12)}
+            data={dashboardData.chartData}
             barGap="15%"
             barCategoryGap="15%"
             margin={{ top: 40, right: 30, left: 20, bottom: 60 }}
@@ -113,7 +100,7 @@ const PaymentTDashboardTab: React.FC<PaymentTDashboardTabProps> = ({
               contentStyle={{ borderRadius: '8px', border: '1px solid #E5E7EB', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}
               formatter={(value: number, name: string, props: any) => {
                 const rowData = props?.payload || {};
-                if (name === 'Net Collections') {
+                if (name === String(currentYear)) {
                   return [
                     <div key="custom-tooltip">
                       <div className="text-gray-900 text-base font-bold">{new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value)}</div>
@@ -121,13 +108,13 @@ const PaymentTDashboardTab: React.FC<PaymentTDashboardTabProps> = ({
                         {rowData.paymentCount || 0} Payments / {rowData.customerCount || 0} Customers
                       </div>
                     </div>,
-                    'Current Year'
+                    String(currentYear)
                   ];
                 }
-                if (name === 'Last Year') {
+                if (name === String(previousYear)) {
                   return [
                     new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value),
-                    'Last Year'
+                    String(previousYear)
                   ];
                 }
                 return value;
@@ -136,7 +123,7 @@ const PaymentTDashboardTab: React.FC<PaymentTDashboardTabProps> = ({
             <Legend verticalAlign="top" height={36} />
             <Bar
               dataKey="displayCollections"
-              name="Net Collections"
+              name={String(currentYear)}
               fill="#374151"
               radius={[4, 4, 0, 0]}
               barSize={32}
@@ -151,7 +138,7 @@ const PaymentTDashboardTab: React.FC<PaymentTDashboardTabProps> = ({
             />
             <Bar
               dataKey="lastYearCollections"
-              name="Last Year"
+              name={String(previousYear)}
               fill="#D1D5DB"
               radius={[4, 4, 0, 0]}
               barSize={32}

@@ -9,6 +9,7 @@ import {
   YAxis, 
   CartesianGrid, 
   Tooltip, 
+  Legend,
   ResponsiveContainer 
 } from 'recharts';
 import { formatDate } from './PaymentTUtilsTab';
@@ -26,7 +27,17 @@ interface PaymentTCustomerTabProps {
   filteredByCustomer: PaymentByCustomer[];
   customerTotals: { totalPayments: number; paymentCount: number };
   customerDetailPayments: PaymentEntry[];
-  customerChartData: any[];
+  customerChartData: {
+    chartData: Array<{
+      name: string;
+      monthIndex: number;
+      amount: number;
+      lastYearAmount: number;
+      count: number;
+    }>;
+    currentYear: number;
+    previousYear: number;
+  };
   customerAvgDays: number;
   lastCustomerSelection: string | null;
   setLastCustomerSelection: (name: string | null) => void;
@@ -299,19 +310,64 @@ const PaymentTCustomerTab: React.FC<PaymentTCustomerTabProps> = ({
             ))}
           </div>
 
-          <div className="border border-gray-200 rounded-lg p-3 h-72">
-            <h4 className="text-sm font-semibold text-gray-900 mb-2">Last 12 Months</h4>
+          <div className="border border-gray-200 rounded-lg p-3 h-80">
+            <h4 className="text-sm font-semibold text-gray-900 mb-2">
+              Monthly Collections ({customerChartData.currentYear} vs {customerChartData.previousYear})
+            </h4>
             <ResponsiveContainer width="100%" height="90%">
-              <BarChart data={customerChartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+              <BarChart
+                data={customerChartData.chartData}
+                margin={{ top: 16, right: 10, left: 0, bottom: 0 }}
+                barGap="12%"
+                barCategoryGap="18%"
+              >
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#6B7280', fontSize: 12 }} dy={10} />
+                <XAxis
+                  dataKey="name"
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: '#6B7280', fontSize: 11 }}
+                  interval={0}
+                  dy={8}
+                />
                 <YAxis hide />
                 <Tooltip
                   cursor={{ fill: '#F9FAFB' }}
                   contentStyle={{ borderRadius: '8px', border: '1px solid #E5E7EB' }}
-                  formatter={(value: number) => [new Intl.NumberFormat('en-US', { minimumFractionDigits: 0 }).format(value), 'Amount']}
+                  formatter={(value: number, name: string, props: any) => {
+                    const row = props?.payload || {};
+                    if (name === String(customerChartData.currentYear)) {
+                      return [
+                        <div key="cy">
+                          <div className="font-bold text-gray-900">
+                            {new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value)}
+                          </div>
+                          <div className="text-xs text-gray-500 mt-0.5">{row.count || 0} Payments</div>
+                        </div>,
+                        String(customerChartData.currentYear),
+                      ];
+                    }
+                    return [
+                      new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value),
+                      String(customerChartData.previousYear),
+                    ];
+                  }}
                 />
-                <Bar dataKey="amount" name="Amount" fill="#374151" radius={[4, 4, 0, 0]} barSize={32} />
+                <Legend verticalAlign="top" height={28} />
+                <Bar
+                  dataKey="amount"
+                  name={String(customerChartData.currentYear)}
+                  fill="#374151"
+                  radius={[4, 4, 0, 0]}
+                  barSize={18}
+                />
+                <Bar
+                  dataKey="lastYearAmount"
+                  name={String(customerChartData.previousYear)}
+                  fill="#D1D5DB"
+                  radius={[4, 4, 0, 0]}
+                  barSize={18}
+                />
               </BarChart>
             </ResponsiveContainer>
           </div>

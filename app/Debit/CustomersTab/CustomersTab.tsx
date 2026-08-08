@@ -114,6 +114,7 @@ export default function CustomersTab({
     emailFilter: 'ALL',
     overdueMonth: [] as string[],
     overdueYear: [] as string[],
+    selectedCustomerTags: [] as string[],
   });
 
   const debouncedSearch = useDebouncedValue(filters.search);
@@ -262,68 +263,91 @@ export default function CustomersTab({
       const JSZip = (await import('jszip')).default;
       const zip = new JSZip();
       let count = 0;
+      const normalize = (s: any) => String(s || '').toLowerCase().trim().replace(/\s+/g, ' ');
+      const dateLabel = effectiveDate
+        ? `Up To ${formatDmy(new Date(effectiveDate))}`
+        : 'All Months (Net Only)';
+      const asOfText = effectiveDate ? ` as of ${formatDmy(new Date(effectiveDate))}` : '';
+      const shortInvoice = isShort ?? true;
+      const subject = 'Statement of Account - Al Marai Al Arabia Trading Sole Proprietorship L.L.C';
 
-      for (const customerName of selectedCustomersForDownload) {
+      const prepareCustomerExport = async (customerName: string) => {
         const customerInvoices = getCustomerInvoices(customerName);
-        if (customerInvoices.length === 0) continue;
+        if (customerInvoices.length === 0) return null;
 
-        let netOnlyInvoices = toNetOnlyOpenInvoicesForExport(buildInvoicesWithNetDebtForExport(customerInvoices));
+        let netOnlyInvoices = toNetOnlyOpenInvoicesForExport(
+          buildInvoicesWithNetDebtForExport(customerInvoices)
+        );
 
         if (effectiveDate) {
           const limitDate = new Date(effectiveDate);
           limitDate.setHours(23, 59, 59, 999);
-          netOnlyInvoices = netOnlyInvoices.filter(inv => {
+          netOnlyInvoices = netOnlyInvoices.filter((inv) => {
             const rowDate = parseDate(inv.date);
             return !rowDate || rowDate <= limitDate;
           });
         }
 
-        if (netOnlyInvoices.length === 0) continue;
+        if (netOnlyInvoices.length === 0) return null;
 
         const netDebt = netOnlyInvoices.reduce((sum, inv) => sum + (inv.netDebt || 0), 0);
-        const dateLabel = effectiveDate ? `Up To ${formatDmy(new Date(effectiveDate))}` : 'All Months (Net Only)';
-        const pdfBlob = await generateAccountStatementPDF(customerName, netOnlyInvoices, true, dateLabel, isShort ?? true);
-        if (!pdfBlob) continue;
+        const pdfBlob = await generateAccountStatementPDF(
+          customerName,
+          netOnlyInvoices,
+          true,
+          dateLabel,
+          shortInvoice
+        );
+        if (!pdfBlob) return null;
 
-        const reader = new FileReader();
         const pdfBase64 = await new Promise<string>((resolve) => {
+          const reader = new FileReader();
           reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
           reader.readAsDataURL(pdfBlob as Blob);
         });
 
-        const excelBlob = await generateSingleCustomerExcelBlob(customerName, netOnlyInvoices, isShort ?? true);
+        const excelBlob = await generateSingleCustomerExcelBlob(
+          customerName,
+          netOnlyInvoices,
+          shortInvoice
+        );
         const excelBase64 = await new Promise<string>((resolve) => {
           const excelReader = new FileReader();
           excelReader.onloadend = () => resolve((excelReader.result as string).split(',')[1]);
           excelReader.readAsDataURL(excelBlob);
         });
 
-        const cleanName = customerName.replace(/[^a-zA-Z0-9\u0600-\u06FF \-_]/g, '').trim();
-        const boundary = "----=_NextPart_000_0001_01C2A9A1.12345678";
-        const subject = 'Statement of Account - Al Marai Al Arabia Trading Sole Proprietorship L.L.C';
-        const htmlBody = `
-<div style="font-family: Arial, sans-serif; font-size: 14px; color: #333; line-height: 1.6;">
-  <p>Dear Team,</p>
-  <p>We hope this message finds you well.</p>
-  <p>Please find attached your account statement.</p>
-  <p><strong style="color: #dc2626; font-size: 15px;">Your current balance ${effectiveDate ? 'as of ' + formatDmy(new Date(effectiveDate)) : ''} is: ${netDebt.toLocaleString('en-US')} AED</strong></p>
-  <p>Kindly provide us with your statement of account and any Tax-Rebeat invoices for reconciliation.</p>
-  <p>Best regards,<br><br>Accounts<br>Al Marai Al Arabia Trading Sole Proprietorship L.L.C</p>
-</div>
-        `.trim();
+        const customerData =
+          customerAnalysis.find((c) => c.customerName === customerName) ||
+          filteredData.find((c) => c.customerName === customerName);
+        const targetEmail =
+          customersWithEmails.get(normalize(customerData?.customerId)) || '';
 
-        const normalize = (s: any) => String(s || '').toLowerCase().trim().replace(/\s+/g, ' ');
-        const customerData = filteredData.find(c => c.customerName === customerName);
-        const targetEmail = customersWithEmails.get(normalize(customerData?.customerId)) || '';
+        return {
+          customerName,
+          cleanName: customerName.replace(/[^a-zA-Z0-9\u0600-\u06FF \-_]/g, '').trim(),
+          netDebt,
+          pdfBase64,
+          excelBase64,
+          targetEmail,
+        };
+      };
 
-        const emlLines = [
+      const buildEml = (
+        toEmails: string[],
+        htmlBody: string,
+        attachments: Array<{ cleanName: string; pdfBase64: string; excelBase64: string }>,
+        fileBaseName: string
+      ) => {
+        const boundary = `----=_NextPart_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+        const parts: string[] = [
           `Date: ${new Date().toUTCString()}`,
-          `To: ${targetEmail}`,
+          `To: ${toEmails.join(', ')}`,
           'From: accounting@marae.ae',
           'Subject: ' + subject,
           'MIME-Version: 1.0',
           'X-Unsent: 1',
-          'Content-Type: multipart/mixed; boundary="' + boundary + '"',
+          `Content-Type: multipart/mixed; boundary="${boundary}"`,
           '',
           '--' + boundary,
           'Content-Type: text/html; charset="UTF-8"',
@@ -331,24 +355,122 @@ export default function CustomersTab({
           '',
           htmlBody,
           '',
-          '--' + boundary,
-          `Content-Type: application/pdf; name="${cleanName}.pdf"`,
-          'Content-Transfer-Encoding: base64',
-          `Content-Disposition: attachment; filename="${cleanName}.pdf"`,
-          '',
-          pdfBase64,
-          '',
-          '--' + boundary,
-          `Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet; name="${cleanName}.xlsx"`,
-          'Content-Transfer-Encoding: base64',
-          `Content-Disposition: attachment; filename="${cleanName}.xlsx"`,
-          '',
-          excelBase64,
-          '',
-          '--' + boundary + '--'
         ];
 
-        zip.file(`${cleanName}.eml`, emlLines.join('\r\n'));
+        attachments.forEach((att) => {
+          parts.push(
+            '--' + boundary,
+            `Content-Type: application/pdf; name="${att.cleanName}.pdf"`,
+            'Content-Transfer-Encoding: base64',
+            `Content-Disposition: attachment; filename="${att.cleanName}.pdf"`,
+            '',
+            att.pdfBase64,
+            '',
+            '--' + boundary,
+            `Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet; name="${att.cleanName}.xlsx"`,
+            'Content-Transfer-Encoding: base64',
+            `Content-Disposition: attachment; filename="${att.cleanName}.xlsx"`,
+            '',
+            att.excelBase64,
+            ''
+          );
+        });
+
+        parts.push('--' + boundary + '--');
+        zip.file(`${fileBaseName}.eml`, parts.join('\r\n'));
+      };
+
+      // Lulu customers stay on the Lulu email flow — never group them into a tag email
+      const luluIds = new Set(luluEmails.map((l) => normalize(l.customerId)).filter(Boolean));
+      const luluCodes = new Set(luluEmails.map((l) => normalize(l.customerCode)).filter(Boolean));
+      const isLuluCustomer = (customerName: string, customerId?: string) =>
+        luluIds.has(normalize(customerId)) || luluCodes.has(normalize(customerName));
+
+      // Tags from selected (non-Lulu) customers → one email per tag with ALL non-Lulu customers sharing that tag
+      const tagsFromSelection = new Set<string>();
+      const untaggedSelected: string[] = [];
+
+      selectedCustomersForDownload.forEach((customerName) => {
+        const row =
+          customerAnalysis.find((c) => c.customerName === customerName) ||
+          filteredData.find((c) => c.customerName === customerName);
+        if (isLuluCustomer(customerName, row?.customerId)) return;
+
+        const tags = row?.customerTags;
+        if (tags && tags.size > 0) {
+          tags.forEach((tag) => tagsFromSelection.add(tag));
+        } else {
+          untaggedSelected.push(customerName);
+        }
+      });
+
+      for (const tag of tagsFromSelection) {
+        const members = customerAnalysis
+          .filter(
+            (c) =>
+              c.customerTags &&
+              c.customerTags.has(tag) &&
+              !isLuluCustomer(c.customerName, c.customerId)
+          )
+          .map((c) => c.customerName);
+
+        const prepared: NonNullable<Awaited<ReturnType<typeof prepareCustomerExport>>>[] = [];
+        for (const name of members) {
+          const item = await prepareCustomerExport(name);
+          if (item) prepared.push(item);
+        }
+        if (prepared.length === 0) continue;
+
+        const totalDebt = prepared.reduce((sum, item) => sum + item.netDebt, 0);
+        const balanceLines = prepared
+          .map(
+            (item) =>
+              `<p style="margin: 4px 0;"><strong>${item.customerName}</strong>: <span style="color: #dc2626;">${item.netDebt.toLocaleString('en-US')} AED</span></p>`
+          )
+          .join('');
+
+        const htmlBody = `
+<div style="font-family: Arial, sans-serif; font-size: 14px; color: #333; line-height: 1.6;">
+  <p>Dear Team,</p>
+  <p>We hope this message finds you well.</p>
+  <p>Please find attached the account statements for customer tag <strong>${tag}</strong>.</p>
+  ${balanceLines}
+  <p><strong style="color: #dc2626; font-size: 15px;">Total balance${asOfText}: ${totalDebt.toLocaleString('en-US')} AED</strong></p>
+  <p>Kindly provide us with your statement of account and any Tax-Rebeat invoices for reconciliation.</p>
+  <p>Best regards,<br><br>Accounts<br>Al Marai Al Arabia Trading Sole Proprietorship L.L.C</p>
+</div>
+        `.trim();
+
+        const toEmails = Array.from(
+          new Set(prepared.map((item) => item.targetEmail).filter(Boolean))
+        );
+        const cleanTag = tag.replace(/[^a-zA-Z0-9\u0600-\u06FF \-_]/g, '').trim() || 'Tag';
+        buildEml(toEmails, htmlBody, prepared, `Tag_${cleanTag}`);
+        count++;
+      }
+
+      // Customers without a tag → one email each (unchanged)
+      for (const customerName of untaggedSelected) {
+        const item = await prepareCustomerExport(customerName);
+        if (!item) continue;
+
+        const htmlBody = `
+<div style="font-family: Arial, sans-serif; font-size: 14px; color: #333; line-height: 1.6;">
+  <p>Dear Team,</p>
+  <p>We hope this message finds you well.</p>
+  <p>Please find attached your account statement.</p>
+  <p><strong style="color: #dc2626; font-size: 15px;">Your current balance${asOfText} is: ${item.netDebt.toLocaleString('en-US')} AED</strong></p>
+  <p>Kindly provide us with your statement of account and any Tax-Rebeat invoices for reconciliation.</p>
+  <p>Best regards,<br><br>Accounts<br>Al Marai Al Arabia Trading Sole Proprietorship L.L.C</p>
+</div>
+        `.trim();
+
+        buildEml(
+          item.targetEmail ? [item.targetEmail] : [],
+          htmlBody,
+          [item],
+          item.cleanName
+        );
         count++;
       }
 
@@ -356,6 +478,8 @@ export default function CustomersTab({
         const content = await zip.generateAsync({ type: 'blob' });
         saveTrackedAs(content, `Customer_Emails_${new Date().toISOString().split('T')[0]}.zip`);
         setStatementModalAction(null);
+      } else {
+        alert('No emails generated.');
       }
     } catch (error) {
       console.error('Error in bulk email:', error);

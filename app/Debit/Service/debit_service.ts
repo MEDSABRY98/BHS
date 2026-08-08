@@ -44,6 +44,7 @@ function mapDebitRpcRow(row: Record<string, unknown>): InvoiceRow {
     residualAmount: Number(row.residualAmount) || 0,
     matching: (row.matching as string) || '',
     creditLimit: Number(row.creditLimit) || 0,
+    customerTag: String(row.customerTag || '').trim(),
   };
 }
 

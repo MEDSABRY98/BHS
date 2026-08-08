@@ -3,7 +3,7 @@
 import { createElement, type ReactElement } from 'react';
 import { InvoiceRow } from '@/types';
 import { saveTrackedAs } from '@/app/Audit/Utils/TrackedDownload';
-import { computeDebitInsights, resolvePeriodRange } from '../Utils/AsOfLedgerEngine';
+import { computeDebitInsights, resolvePeriodRange, resolveEffectiveCustomers } from '../Utils/AsOfLedgerEngine';
 import { applySalesNetOverlay } from '../Utils/SalesSourceOverlay';
 import { toInputDate } from '../Utils/DateUtils';
 import type {
@@ -226,7 +226,15 @@ export async function exportDebitInsightsPdfZip(options: DebitInsightsZipOptions
         periodTo: toInputDate(to),
         cities,
         allCities: allFilters.salesRep,
-        customers: filters.customers,
+        customers:
+          filters.customers.length > 0 || (filters.customerTags?.length || 0) > 0
+            ? resolveEffectiveCustomers(
+                rows,
+                filters.salesRep,
+                filters.customers,
+                filters.customerTags || []
+              )
+            : [],
       });
       allSalesOverlay = batch.all;
       salesByCity = batch.byCity;

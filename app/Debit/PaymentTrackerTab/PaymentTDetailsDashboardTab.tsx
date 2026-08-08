@@ -1,5 +1,4 @@
 import React, { useMemo } from 'react';
-import NoData from '@/app/Components/DataState/NoDataTab';
 import { InvoiceRow } from '@/types';
 import { getInvoiceType } from '@/app/Debit/Utils/InvoiceType';
 import { parseDate } from './PaymentTUtilsTab';
@@ -21,7 +20,26 @@ export default function PaymentTDetailsDashboardTab({
   salesRep
 }: PaymentTDetailsDashboardTabProps) {
   const metrics = useMemo(() => {
-    if (!startDate || !endDate) return null;
+    const zeros = { total: 0, count: 0, uniqueCustomers: 0 };
+
+    if (!startDate || !endDate) {
+      return {
+        curMet: zeros,
+        prevMet: zeros,
+        lyMet: zeros,
+        startDate: null as Date | null,
+        endDate: null as Date | null,
+        prevStartDate: null as Date | null,
+        prevEndDate: null as Date | null,
+        lyStartDate: null as Date | null,
+        lyEndDate: null as Date | null,
+        curDays: 0,
+        prevDays: 0,
+        lyDays: 0,
+        formatDate: (_date: Date) => '—',
+        hasRange: false,
+      };
+    }
 
     const baseData = data.filter(inv => {
       const t = getInvoiceType(inv);
@@ -91,36 +109,40 @@ export default function PaymentTDetailsDashboardTab({
       prevStartDate, prevEndDate,
       lyStartDate, lyEndDate,
       curDays, prevDays, lyDays,
-      formatDate
+      formatDate,
+      hasRange: true,
     };
   }, [data, startDate, endDate, searchQuery, salesRep]);
-
-  if (!metrics) {
-    return <NoData title="SELECT A VALID DATE RANGE" />;
-  }
 
   const {
     curMet, prevMet, lyMet,
     prevStartDate, prevEndDate,
     lyStartDate, lyEndDate,
     curDays, prevDays, lyDays,
-    formatDate
+    formatDate,
+    hasRange,
   } = metrics;
 
   const periods = [
     {
       title: 'Current',
-      range: `${formatDate(startDate as Date)} – ${formatDate(endDate as Date)} (${curDays} Days)`,
+      range: hasRange && startDate && endDate
+        ? `${formatDate(startDate)} – ${formatDate(endDate)} (${curDays} Days)`
+        : 'Select From / To dates',
       amount: curMet.total,
     },
     {
       title: 'Previous',
-      range: `${prevStartDate ? formatDate(prevStartDate) : ''} – ${prevEndDate ? formatDate(prevEndDate) : ''} (${prevDays} Days)`,
+      range: hasRange && prevStartDate && prevEndDate
+        ? `${formatDate(prevStartDate)} – ${formatDate(prevEndDate)} (${prevDays} Days)`
+        : '—',
       amount: prevMet.total,
     },
     {
       title: 'Last Year',
-      range: `${lyStartDate ? formatDate(lyStartDate) : ''} – ${lyEndDate ? formatDate(lyEndDate) : ''} (${lyDays} Days)`,
+      range: hasRange && lyStartDate && lyEndDate
+        ? `${formatDate(lyStartDate)} – ${formatDate(lyEndDate)} (${lyDays} Days)`
+        : '—',
       amount: lyMet.total,
     }
   ];

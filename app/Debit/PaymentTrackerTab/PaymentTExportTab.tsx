@@ -21,8 +21,6 @@ const EXPORT_SECTION_LABELS: Record<keyof PdfExportSections, string> = {
   summary: 'Summary',
   summaryPrevious: 'Summary Previous',
   summaryLastYear: 'Summary Last Year',
-  daily: 'Daily',
-  weekly: 'Weekly',
   monthly: 'Monthly',
   customerList: 'Customers Who Paid',
   nonPayerList: 'Customers Who Did Not Pay',

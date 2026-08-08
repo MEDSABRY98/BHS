@@ -12,6 +12,7 @@ interface InsightsFiltersPanelProps {
   filters: InsightsFilters;
   salesReps: string[];
   customers: string[];
+  customerTags: string[];
   onChange: (next: InsightsFilters) => void;
   onApply: () => void;
   hasPendingChanges: boolean;
@@ -307,6 +308,7 @@ export default function InsightsFiltersPanel({
   filters,
   salesReps,
   customers,
+  customerTags,
   onChange,
   onApply,
   hasPendingChanges,
@@ -315,7 +317,23 @@ export default function InsightsFiltersPanel({
   const isApplyActive = hasPendingChanges || isApplying;
   const [customersOpen, setCustomersOpen] = useState(false);
   const update = (patch: Partial<InsightsFilters>) => onChange({ ...filters, ...patch });
-  const hasCustomerFilter = filters.customers.length > 0;
+  const hasCustomerFilter = filters.customers.length > 0 || (filters.customerTags?.length || 0) > 0;
+  const customerFilterLabel = (() => {
+    const parts: string[] = [];
+    if (filters.customers.length > 0) {
+      parts.push(
+        `${filters.customers.length} customer${filters.customers.length === 1 ? '' : 's'}`
+      );
+    }
+    if ((filters.customerTags?.length || 0) > 0) {
+      parts.push(
+        `${filters.customerTags.length} tag${filters.customerTags.length === 1 ? '' : 's'}`
+      );
+    }
+    return parts.length > 0 ? parts.join(' · ') : 'All Customers';
+  })();
+  const customerFilterCount =
+    filters.customers.length + (filters.customerTags?.length || 0);
 
   if (!open || typeof document === 'undefined') return null;
 
@@ -430,15 +448,11 @@ export default function InsightsFiltersPanel({
               >
                 <span className="inline-flex items-center gap-2 min-w-0">
                   <Users className="w-4 h-4 shrink-0" />
-                  <span className="text-sm font-semibold truncate">
-                    {hasCustomerFilter
-                      ? `${filters.customers.length} customer${filters.customers.length === 1 ? '' : 's'}`
-                      : 'All Customers'}
-                  </span>
+                  <span className="text-sm font-semibold truncate">{customerFilterLabel}</span>
                 </span>
                 {hasCustomerFilter && (
                   <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-indigo-600 text-white text-[10px] font-bold leading-[18px] text-center">
-                    {filters.customers.length}
+                    {customerFilterCount}
                   </span>
                 )}
               </button>
@@ -447,8 +461,11 @@ export default function InsightsFiltersPanel({
             <CustomersFilterModal
               open={customersOpen}
               customers={customers}
-              selected={filters.customers}
-              onChange={(value) => update({ customers: value })}
+              customerTags={customerTags}
+              selectedCustomers={filters.customers}
+              selectedTags={filters.customerTags || []}
+              onChangeCustomers={(value) => update({ customers: value })}
+              onChangeTags={(value) => update({ customerTags: value })}
               onClose={() => setCustomersOpen(false)}
             />
           </div>

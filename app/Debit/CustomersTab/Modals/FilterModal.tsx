@@ -94,7 +94,7 @@ const FilterModal: React.FC<FilterModalProps> = ({
   filteredDataCount,
   data
 }) => {
-  const [activeTab, setActiveTab] = useState<'GENERAL' | 'OVERDUE_YEARS' | 'OVERDUE_MONTHS'>('GENERAL');
+  const [activeTab, setActiveTab] = useState<'GENERAL' | 'CUSTOMER_TAGS' | 'OVERDUE_YEARS' | 'OVERDUE_MONTHS'>('GENERAL');
   const [isRatingOpen, setIsRatingOpen] = useState(false);
   const [isAreaOpen, setIsAreaOpen] = useState(false);
   const [isEmailOpen, setIsEmailOpen] = useState(false);
@@ -105,6 +105,7 @@ const FilterModal: React.FC<FilterModalProps> = ({
     emailFilter: 'ALL',
     overdueMonth: [] as string[],
     overdueYear: [] as string[],
+    selectedCustomerTags: [] as string[],
   });
 
   // Sync draft filters with parent filters when modal opens
@@ -116,6 +117,7 @@ const FilterModal: React.FC<FilterModalProps> = ({
         emailFilter: filters.emailFilter || 'ALL',
         overdueMonth: filters.overdueMonth || [],
         overdueYear: filters.overdueYear || [],
+        selectedCustomerTags: filters.selectedCustomerTags || [],
       });
     }
   }, [isOpen, filters]);
@@ -220,6 +222,25 @@ const FilterModal: React.FC<FilterModalProps> = ({
     updateDraftFilter('overdueMonth', next);
   };
 
+  const uniqueCustomerTags = useMemo(() => {
+    const tags = new Set<string>();
+    data.forEach((row) => {
+      const tag = row.customerTag?.trim();
+      if (tag) tags.add(tag);
+    });
+    return Array.from(tags).sort((a, b) => a.localeCompare(b));
+  }, [data]);
+
+  const toggleCustomerTag = (tag: string) => {
+    const current = Array.isArray(draftFilters.selectedCustomerTags)
+      ? draftFilters.selectedCustomerTags
+      : [];
+    const next = current.includes(tag)
+      ? current.filter((t: string) => t !== tag)
+      : [...current, tag];
+    updateDraftFilter('selectedCustomerTags', next);
+  };
+
   const ratingOptions = [
     { value: 'ALL', label: 'All Ratings' },
     { value: 'GOOD', label: 'Good' },
@@ -253,6 +274,7 @@ const FilterModal: React.FC<FilterModalProps> = ({
       emailFilter: 'ALL',
       overdueMonth: [],
       overdueYear: [],
+      selectedCustomerTags: [],
     });
   };
 
@@ -264,6 +286,7 @@ const FilterModal: React.FC<FilterModalProps> = ({
       emailFilter: draftFilters.emailFilter,
       overdueMonth: draftFilters.overdueMonth,
       overdueYear: draftFilters.overdueYear,
+      selectedCustomerTags: draftFilters.selectedCustomerTags,
     }));
     onClose();
   };
@@ -292,6 +315,7 @@ const FilterModal: React.FC<FilterModalProps> = ({
           <div className="w-52 bg-gray-50 border-r border-gray-100 p-2 space-y-1 overflow-y-auto rounded-bl-2xl">
             {[
               { id: 'GENERAL', label: 'General Filters' },
+              { id: 'CUSTOMER_TAGS', label: 'Customer Tags' },
               { id: 'OVERDUE_YEARS', label: 'Overdue Years' },
               { id: 'OVERDUE_MONTHS', label: 'Overdue Months' }
             ].map(tab => (
@@ -347,6 +371,69 @@ const FilterModal: React.FC<FilterModalProps> = ({
                     }}
                   />
                 </div>
+              </div>
+            )}
+
+            {activeTab === 'CUSTOMER_TAGS' && (
+              <div className="space-y-6">
+                <div>
+                  <h4 className="text-base font-semibold text-gray-800 border-b pb-2">Customer Tags</h4>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      updateDraftFilter('selectedCustomerTags', [...uniqueCustomerTags])
+                    }
+                    className="w-full py-2.5 text-xs font-bold uppercase tracking-wide text-emerald-700 bg-transparent border-2 border-emerald-500 rounded-xl hover:bg-emerald-50 transition-all"
+                  >
+                    Select All
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => updateDraftFilter('selectedCustomerTags', [])}
+                    className="w-full py-2.5 text-xs font-bold uppercase tracking-wide text-red-600 bg-transparent border-2 border-red-500 rounded-xl hover:bg-red-50 transition-all"
+                  >
+                    Clear
+                  </button>
+                </div>
+
+                {uniqueCustomerTags.length === 0 ? (
+                  <div className="text-center py-8 text-gray-400 text-sm font-medium">
+                    No customer tags found in the dataset.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => updateDraftFilter('selectedCustomerTags', [])}
+                      className={`px-4 py-3.5 rounded-xl border text-sm font-semibold transition-all text-center flex items-center justify-center ${
+                        !draftFilters.selectedCustomerTags ||
+                        draftFilters.selectedCustomerTags.length === 0
+                          ? 'border-blue-600 bg-blue-50 text-blue-700 shadow-sm ring-1 ring-blue-100'
+                          : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      All Tags
+                    </button>
+                    {uniqueCustomerTags.map((tag) => (
+                      <button
+                        key={tag}
+                        type="button"
+                        onClick={() => toggleCustomerTag(tag)}
+                        className={`px-4 py-3.5 rounded-xl border text-sm font-semibold transition-all text-center flex items-center justify-center ${
+                          draftFilters.selectedCustomerTags &&
+                          draftFilters.selectedCustomerTags.includes(tag)
+                            ? 'border-blue-600 bg-blue-50 text-blue-700 shadow-sm ring-1 ring-blue-100 font-bold'
+                            : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50'
+                        }`}
+                      >
+                        {tag}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 

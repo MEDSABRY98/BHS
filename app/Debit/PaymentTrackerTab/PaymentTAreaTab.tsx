@@ -18,7 +18,7 @@ const PaymentTAreaTab: React.FC<PaymentTAreaTabProps> = ({ areaStats }) => {
       <table className="min-w-full">
         <thead className="bg-gray-50 border-b border-gray-200">
           <tr>
-            <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase">Area Name</th>
+            <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase">City</th>
             <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase">Total Collected</th>
             <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase">Payment Count</th>
             <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase">Avg Payment Amount</th>

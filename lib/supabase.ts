@@ -270,7 +270,7 @@ export async function getMixDebit() {
   let customersData: any[] = [];
   let customersError = null;
   try {
-    customersData = await fetchAllData(() => bhs_supabase.from('bhs_CUSTOMERS').select('"CUSTOMER ID", "CUSTOMER MAIN NAME", "CUSTOMER CITY", "CREDIT LIMIT"'));
+    customersData = await fetchAllData(() => bhs_supabase.from('bhs_CUSTOMERS').select('"CUSTOMER ID", "CUSTOMER MAIN NAME", "CUSTOMER CITY", "CREDIT LIMIT", "CUSTOMER TAG"'));
   } catch (err) {
     customersError = err;
   }
@@ -278,16 +278,19 @@ export async function getMixDebit() {
   const customerNameMap = new Map<string, string>();
   const customerCityMap = new Map<string, string>();
   const customerCreditLimitMap = new Map<string, number>();
+  const customerTagMap = new Map<string, string>();
   if (!customersError && customersData) {
     customersData.forEach((row: any) => {
       const id = row['CUSTOMER ID']?.toString().trim();
       const name = row['CUSTOMER MAIN NAME']?.toString().trim();
       const city = row['CUSTOMER CITY']?.toString().trim();
       const limit = Number(row['CREDIT LIMIT']) || 0;
+      const tag = row['CUSTOMER TAG']?.toString().trim();
       if (id) {
         if (name) customerNameMap.set(id, name);
         if (city) customerCityMap.set(id, city);
         customerCreditLimitMap.set(id, limit);
+        if (tag) customerTagMap.set(id, tag);
       }
     });
   } else if (customersError) {
@@ -312,7 +315,8 @@ export async function getMixDebit() {
       credit: Number(row.CREDIT) || 0,
       residualAmount: Number(row['RESIDUAL AMOUNT']) || 0,
       matching: row.MATCHING || '',
-      creditLimit: customerCreditLimitMap.get(custId) || 0
+      creditLimit: customerCreditLimitMap.get(custId) || 0,
+      customerTag: customerTagMap.get(custId) || '',
     };
   });
 }

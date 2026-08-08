@@ -25,6 +25,7 @@ import {
   AlignRight,
   Save,
   Plus,
+  Tag,
 } from 'lucide-react';
 import { InvoiceRow } from '@/types';
 import NoData from '@/app/Components/DataState/NoDataTab';
@@ -47,6 +48,7 @@ import {
   restoreAppliedByRowFromLoadedLines,
 } from './PaymentReconciliationSession';
 import SavePaymentReconciliationModal from './SavePaymentReconciliationModal';
+import CustomerTagsPickerModal from '../Modals/CustomerTagsPickerModal';
 
 interface PaymentReconciliationTabProps {
   data: InvoiceRow[];
@@ -131,6 +133,8 @@ export default function PaymentReconciliationTab({
 
   const [groupCustomers, setGroupCustomers] = useState<string[]>([]);
   const [isCustomerDropdownOpen, setIsCustomerDropdownOpen] = useState(false);
+  const [isTagsPickerOpen, setIsTagsPickerOpen] = useState(false);
+  const [selectedCustomerTags, setSelectedCustomerTags] = useState<string[]>([]);
   const [customerSearchQuery, setCustomerSearchQuery] = useState('');
   const [paymentAmountInput, setPaymentAmountInput] = useState('');
   const [paymentDate, setPaymentDate] = useState('');
@@ -157,6 +161,37 @@ export default function PaymentReconciliationTab({
 
   const allCustomers = useMemo(() => getUniqueCustomerNames(safeData), [safeData]);
   const customerIdByName = useMemo(() => buildCustomerIdByName(safeData), [safeData]);
+
+  const allCustomerTags = useMemo(() => {
+    const tags = new Set<string>();
+    safeData.forEach((item) => {
+      const tag = item.customerTag?.trim();
+      if (tag) tags.add(tag);
+    });
+    return Array.from(tags).sort((a, b) => a.localeCompare(b));
+  }, [safeData]);
+
+  const customersForTags = (tags: string[]) => {
+    if (tags.length === 0) return [] as string[];
+    const tagSet = new Set(tags);
+    const names = new Set<string>();
+    safeData.forEach((item) => {
+      const tag = item.customerTag?.trim();
+      const name = item.customerName?.trim();
+      if (tag && name && tagSet.has(tag)) names.add(name);
+    });
+    return Array.from(names).sort();
+  };
+
+  const handleApplyCustomerTags = (nextTags: string[]) => {
+    const prevTagCustomers = new Set(customersForTags(selectedCustomerTags));
+    const nextTagCustomers = customersForTags(nextTags);
+    setSelectedCustomerTags(nextTags);
+    setGroupCustomers((prev) => {
+      const kept = prev.filter((name) => !prevTagCustomers.has(name));
+      return Array.from(new Set([...kept, ...nextTagCustomers])).sort();
+    });
+  };
 
   const filteredDropdownCustomers = useMemo(() => {
     const q = customerSearchQuery.toLowerCase().trim();
@@ -507,6 +542,8 @@ export default function PaymentReconciliationTab({
     setLoadedSessionLines([]);
     setPendingSessionRestore(null);
     setGroupCustomers([]);
+    setSelectedCustomerTags([]);
+    setIsTagsPickerOpen(false);
     setPaymentAmountInput('');
     setPaymentDate('');
     setPaymentReference('');
@@ -704,64 +741,90 @@ export default function PaymentReconciliationTab({
               <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">
                 Select Customers
               </label>
-              <div
-                onClick={() => setIsCustomerDropdownOpen(!isCustomerDropdownOpen)}
-                className="w-full pl-4 pr-10 py-3 bg-white border border-slate-300 rounded-xl text-sm font-semibold text-slate-700 shadow-sm flex items-center justify-between min-h-[46px] cursor-pointer hover:border-slate-400"
-              >
-                <span className="truncate">
-                  {groupCustomers.length === 0
-                    ? 'Select customers...'
-                    : `${groupCustomers.length} customer${groupCustomers.length > 1 ? 's' : ''} selected`}
-                </span>
-                <ChevronDown
-                  className={`w-4 h-4 text-slate-400 transition-transform shrink-0 ${isCustomerDropdownOpen ? 'rotate-180' : ''}`}
-                />
-              </div>
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1 min-w-0">
+                  <div
+                    onClick={() => setIsCustomerDropdownOpen(!isCustomerDropdownOpen)}
+                    className="w-full pl-4 pr-10 py-3 bg-white border border-slate-300 rounded-xl text-sm font-semibold text-slate-700 shadow-sm flex items-center justify-between min-h-[46px] cursor-pointer hover:border-slate-400"
+                  >
+                    <span className="truncate">
+                      {groupCustomers.length === 0
+                        ? 'Select customers...'
+                        : `${groupCustomers.length} customer${groupCustomers.length > 1 ? 's' : ''} selected`}
+                    </span>
+                    <ChevronDown
+                      className={`w-4 h-4 text-slate-400 transition-transform shrink-0 ${isCustomerDropdownOpen ? 'rotate-180' : ''}`}
+                    />
+                  </div>
 
-              {isCustomerDropdownOpen && (
-                <div className="absolute left-0 right-0 top-full mt-2 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 max-h-80 overflow-hidden flex flex-col">
-                  <div className="p-3 border-b border-slate-100">
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-                      <input
-                        type="text"
-                        placeholder="Search customers..."
-                        value={customerSearchQuery}
-                        onChange={(e) => setCustomerSearchQuery(e.target.value)}
-                        className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm"
-                        onClick={(e) => e.stopPropagation()}
-                      />
+                  {isCustomerDropdownOpen && (
+                    <div className="absolute left-0 right-0 top-full mt-2 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 max-h-80 overflow-hidden flex flex-col">
+                      <div className="p-3 border-b border-slate-100">
+                        <div className="relative">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+                          <input
+                            type="text"
+                            placeholder="Search customers..."
+                            value={customerSearchQuery}
+                            onChange={(e) => setCustomerSearchQuery(e.target.value)}
+                            className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm"
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleSelectAllCustomers(filteredDropdownCustomers);
+                          }}
+                          className="mt-2 text-xs font-semibold text-blue-600 hover:text-blue-800"
+                        >
+                          Toggle all visible
+                        </button>
+                      </div>
+                      <div className="overflow-y-auto flex-1 p-2">
+                        {filteredDropdownCustomers.map((cust) => (
+                          <label
+                            key={cust}
+                            className="flex items-center gap-2 px-3 py-2 hover:bg-slate-50 rounded-lg cursor-pointer text-sm"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={groupCustomers.includes(cust)}
+                              onChange={() => toggleCustomer(cust)}
+                              className="rounded border-gray-300 text-blue-600"
+                            />
+                            <span className="truncate">{cust}</span>
+                          </label>
+                        ))}
+                      </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleSelectAllCustomers(filteredDropdownCustomers);
-                      }}
-                      className="mt-2 text-xs font-semibold text-blue-600 hover:text-blue-800"
-                    >
-                      Toggle all visible
-                    </button>
-                  </div>
-                  <div className="overflow-y-auto flex-1 p-2">
-                    {filteredDropdownCustomers.map((cust) => (
-                      <label
-                        key={cust}
-                        className="flex items-center gap-2 px-3 py-2 hover:bg-slate-50 rounded-lg cursor-pointer text-sm"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={groupCustomers.includes(cust)}
-                          onChange={() => toggleCustomer(cust)}
-                          className="rounded border-gray-300 text-blue-600"
-                        />
-                        <span className="truncate">{cust}</span>
-                      </label>
-                    ))}
-                  </div>
+                  )}
                 </div>
-              )}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsCustomerDropdownOpen(false);
+                    setIsTagsPickerOpen(true);
+                  }}
+                  className={`relative shrink-0 w-[46px] h-[46px] flex items-center justify-center rounded-xl border shadow-sm transition-all ${
+                    selectedCustomerTags.length > 0
+                      ? 'bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100'
+                      : 'bg-white border-slate-300 text-slate-600 hover:border-slate-400 hover:bg-slate-50'
+                  }`}
+                  title="Select by customer tags"
+                  aria-label="Select by customer tags"
+                >
+                  <Tag className="w-4 h-4" />
+                  {selectedCustomerTags.length > 0 && (
+                    <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-indigo-600 text-white text-[10px] font-bold leading-[18px] text-center">
+                      {selectedCustomerTags.length}
+                    </span>
+                  )}
+                </button>
+              </div>
             </div>
 
             <div className="xl:col-span-3">
@@ -803,7 +866,7 @@ export default function PaymentReconciliationTab({
           </div>
 
           {groupCustomers.length > 0 && (
-            <div className="flex flex-wrap gap-2 w-full pt-1">
+            <div className="flex flex-wrap gap-2 w-full pt-1 justify-center">
               {groupCustomers.map((c) => (
                 <span
                   key={c}
@@ -1157,6 +1220,14 @@ export default function PaymentReconciliationTab({
           onSuccess={handleSaveSuccess}
         />
       )}
+
+      <CustomerTagsPickerModal
+        open={isTagsPickerOpen}
+        tags={allCustomerTags}
+        selectedTags={selectedCustomerTags}
+        onChange={handleApplyCustomerTags}
+        onClose={() => setIsTagsPickerOpen(false)}
+      />
     </div>
   );
 }

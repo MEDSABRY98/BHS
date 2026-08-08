@@ -54,10 +54,18 @@ function summarizeList(items: string[], emptyLabel: string): string {
 export default function CoverPage({ filters, generatedAt }: CoverPageProps) {
   const generated = generatedAt ?? formatGeneratedDate();
   const citiesLabel = summarizeList(filters.salesRep, 'All Cities');
-  const customersLabel =
-    filters.customers.length === 0
-      ? 'All Customers'
-      : `${filters.customers.length} customer${filters.customers.length === 1 ? '' : 's'} selected`;
+  const customerParts: string[] = [];
+  if (filters.customers.length > 0) {
+    customerParts.push(
+      `${filters.customers.length} customer${filters.customers.length === 1 ? '' : 's'}`
+    );
+  }
+  if ((filters.customerTags?.length || 0) > 0) {
+    customerParts.push(
+      `${filters.customerTags.length} tag${filters.customerTags.length === 1 ? '' : 's'}`
+    );
+  }
+  const customersLabel = customerParts.length > 0 ? customerParts.join(' · ') : 'All Customers';
 
   return (
     <div

@@ -418,6 +418,30 @@ export const exportToExcel = async (
     return '-';
   };
 
+  const getTagsString = (customer: CustomerAnalysis | undefined | null) => {
+    if (!customer?.customerTags) return '';
+    if (customer.customerTags instanceof Set) {
+      return Array.from(customer.customerTags).sort().join(', ');
+    }
+    if (Array.isArray(customer.customerTags)) {
+      return (customer.customerTags as string[]).join(', ');
+    }
+    return '';
+  };
+
+  const getDaysSinceLastPayment = (customer: CustomerAnalysis | undefined | null) => {
+    if (!customer?.lastPaymentDate) return '-';
+    const lastPay = customer.lastPaymentDate instanceof Date
+      ? customer.lastPaymentDate
+      : new Date(customer.lastPaymentDate);
+    if (Number.isNaN(lastPay.getTime())) return '-';
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const payDay = new Date(lastPay);
+    payDay.setHours(0, 0, 0, 0);
+    return Math.floor((today.getTime() - payDay.getTime()) / (1000 * 60 * 60 * 24));
+  };
+
   const uniqueRegions = new Set<string>();
   if (opts.groupByRegion) {
     data.forEach(c => {
@@ -431,7 +455,7 @@ export const exportToExcel = async (
   }
 
   // --- Net Only Details ---
-  const netOnlyHeaders = ['Customer Name', 'Date', 'Type', 'Invoice Number', 'Debit', 'Credit', 'Net Debt'];
+  const netOnlyHeaders = ['Customer Name', 'Customer Tag', 'Date', 'Type', 'Invoice Number', 'Debit', 'Credit', 'Net Debt'];
   const buildNetOnlyRows = (dataset: CustomerAnalysis[]) => {
     const rows: any[] = [];
     for (const customer of dataset) {
@@ -441,8 +465,9 @@ export const exportToExcel = async (
       const netOnlyInvoices = invoicesWithNetDebt
         .filter(inv => !inv.matching || (inv.residual !== undefined && Math.abs(inv.residual) > 0.01))
         .map(inv => inv.matching && inv.residual !== undefined ? { ...inv, credit: inv.debit - inv.residual, netDebt: inv.residual } : inv);
+      const tag = getTagsString(customer);
       netOnlyInvoices.forEach(inv => {
-        rows.push([customer.customerName, formatDmy(parseDate(inv.date)), getInvoiceType(inv), inv.number || '', (inv.debit || 0).toFixed(2), (inv.credit || 0).toFixed(2), (inv.netDebt || 0).toFixed(2)]);
+        rows.push([customer.customerName, tag, formatDmy(parseDate(inv.date)), getInvoiceType(inv), inv.number || '', (inv.debit || 0).toFixed(2), (inv.credit || 0).toFixed(2), (inv.netDebt || 0).toFixed(2)]);
       });
     }
     return rows;
@@ -473,10 +498,10 @@ export const exportToExcel = async (
   }
 
   // --- Dashboard ---
-  const dashboardHeaders = ['#', 'Customer Name', 'City', 'Net Debit', 'Debt Rating', 'OB Amount', 'Overdue Amount', 'Collection Rate %', 'Payment Rate %', 'Return Rate %', 'Discount Rate %', 'Average Payment Interval (Days)', 'Last Payment Date', 'Payments Count 90d', 'Payments 90d Amt', 'Net Sales', 'Sales Count 90d', 'Sales 90d Amt'];
+  const dashboardHeaders = ['#', 'Customer Name', 'Customer Tag', 'City', 'Net Debit', 'Debt Rating', 'OB Amount', 'Overdue Amount', 'Collection Rate %', 'Payment Rate %', 'Return Rate %', 'Discount Rate %', 'Average Payment Interval (Days)', 'Last Payment Date', 'Payments Count 90d', 'Payments 90d Amt', 'Net Sales', 'Sales Count 90d', 'Sales 90d Amt'];
   const buildDashboardRows = (dataset: CustomerAnalysis[]) => dataset.map((customer, index) => {
     return [
-      index + 1, customer.customerName || '', getRepsString(customer), customer.netDebt.toFixed(2), calculateDebtRating(customer), (customer.openOBAmount || 0).toFixed(2), (customer.overdueAmount || 0).toFixed(2),
+      index + 1, customer.customerName || '', getTagsString(customer), getRepsString(customer), customer.netDebt.toFixed(2), calculateDebtRating(customer), (customer.openOBAmount || 0).toFixed(2), (customer.overdueAmount || 0).toFixed(2),
       customer.totalDebit > 0 ? ((customer.totalCredit / customer.totalDebit) * 100).toFixed(1) + '%' : '0.0%',
       (customer.totalCredit || 0) > 0 ? ((customer.creditPayments || 0) / customer.totalCredit * 100).toFixed(0) + '%' : '0%',
       (customer.totalCredit || 0) > 0 ? ((customer.creditReturns || 0) / customer.totalCredit * 100).toFixed(0) + '%' : '0%',
@@ -512,10 +537,11 @@ export const exportToExcel = async (
   }
 
   // --- Summary View ---
-  const summaryHeaders = ['#', 'Customer Name', 'City / Rep', 'Total Debt', 'Last Pay Date', 'Last Pay Amt', 'Pay (90d)', '# Pay (90d)', 'Last Sale Date', 'Last Sale Amt', 'Sales (90d)', '# Sales (90d)', 'Rating'];
+  const summaryHeaders = ['#', 'Customer Name', 'Customer Tag', 'City / Rep', 'Total Debt', 'Last Pay Date', 'Last Pay Amt', 'Days Since', 'Pay (90d)', '# Pay (90d)', 'Last Sale Date', 'Last Sale Amt', 'Sales (90d)', '# Sales (90d)', 'Rating'];
   const buildSummaryRows = (dataset: CustomerAnalysis[]) => dataset.map((customer, index) => {
     return [
-      index + 1, customer.customerName || '', getRepsString(customer), customer.netDebt.toFixed(2), customer.lastPaymentDate ? formatDmy(customer.lastPaymentDate) : '-', (customer.lastPaymentAmount || 0).toFixed(2),
+      index + 1, customer.customerName || '', getTagsString(customer), getRepsString(customer), customer.netDebt.toFixed(2), customer.lastPaymentDate ? formatDmy(customer.lastPaymentDate) : '-', (customer.lastPaymentAmount || 0).toFixed(2),
+      getDaysSinceLastPayment(customer),
       (customer as any).payments3m?.toFixed(2) || '0.00', (customer as any).paymentsCount3m ?? 0,
       customer.lastSalesDate ? formatDmy(customer.lastSalesDate) : '-', (customer.lastSalesAmount || 0).toFixed(2), (customer as any).sales3m?.toFixed(2) || '0.00', (customer as any).salesCount3m ?? 0, calculateDebtRating(customer)
     ];
@@ -525,7 +551,7 @@ export const exportToExcel = async (
     sheets.push({
       name: 'Summary View',
       data: recordsFromTable(summaryHeaders, buildSummaryRows(data)),
-      options: { numericColumns: ['Total Debt', 'Last Pay Amt', 'Pay (90d)', 'Last Sale Amt', 'Sales (90d)'] },
+      options: { numericColumns: ['Total Debt', 'Last Pay Amt', 'Days Since', 'Pay (90d)', 'Last Sale Amt', 'Sales (90d)'] },
     });
     if (opts.groupByRegion) {
       Array.from(uniqueRegions).forEach(region => {
@@ -538,7 +564,7 @@ export const exportToExcel = async (
           sheets.push({
             name: `Summary - ${region}`.substring(0, 31),
             data: recordsFromTable(summaryHeaders, buildSummaryRows(filtered)),
-            options: { numericColumns: ['Total Debt', 'Last Pay Amt', 'Pay (90d)', 'Last Sale Amt', 'Sales (90d)'] },
+            options: { numericColumns: ['Total Debt', 'Last Pay Amt', 'Days Since', 'Pay (90d)', 'Last Sale Amt', 'Sales (90d)'] },
           });
         }
       });
@@ -562,17 +588,19 @@ export const exportToExcel = async (
       const sortedActiveYears = yearlyData.sortedYears.filter((yr: string) => activeYears.has(yr));
       const yearsWithSpaces = sortedActiveYears.map((yr: string) => yr === 'OB' ? yr : `${yr} `);
       
-      const yearlyHeaders = ['#', 'Customer Name', 'City', 'Net Debt', 'Last Payment Date', 'Last Payment Amount', ...yearsWithSpaces];
+      const yearlyHeaders = ['#', 'Customer Name', 'Customer Tag', 'City', 'Last Payment Date', 'Last Payment Amount', 'Days Since', 'Net Debt', ...yearsWithSpaces];
 
       const rows = dataset.map((row: any, index: number) => {
         const customerInfo = data.find(c => c.customerName === row.customerName);
         const rowData = [
           index + 1, 
-          row.customerName, 
-          row.region, 
-          row.totalNetDebt.toFixed(2),
+          row.customerName,
+          getTagsString(customerInfo),
+          row.region,
           customerInfo?.lastPaymentDate ? formatDmy(customerInfo.lastPaymentDate) : '-',
-          (customerInfo?.lastPaymentAmount || 0).toFixed(2)
+          (customerInfo?.lastPaymentAmount || 0).toFixed(2),
+          getDaysSinceLastPayment(customerInfo),
+          row.totalNetDebt.toFixed(2),
         ];
         sortedActiveYears.forEach((yr: string) => rowData.push((row.yearlyAmounts[yr] || 0).toFixed(2)));
         return rowData;
@@ -581,7 +609,7 @@ export const exportToExcel = async (
       return {
         name,
         data: recordsFromTable(yearlyHeaders, rows),
-        options: { numericColumns: ['Net Debt', 'Last Payment Amount', ...yearsWithSpaces] }
+        options: { numericColumns: ['Last Payment Amount', 'Days Since', 'Net Debt', ...yearsWithSpaces] }
       };
     };
 
@@ -638,7 +666,7 @@ export const exportToExcel = async (
         return `${monthNames[parseInt(m, 10) - 1]}-${y.slice(-2)} `; 
       });
 
-      const monthlyHeaders = ['#', 'Customer Name', 'City', 'Net Debt', 'Last Payment Date', 'Last Payment Amount', ...monthHeaders];
+      const monthlyHeaders = ['#', 'Customer Name', 'Customer Tag', 'City', 'Last Payment Date', 'Last Payment Amount', 'Days Since', 'Net Debt', ...monthHeaders];
 
       const rows = dataset.map((c, idx) => {
         const breakdown = customerBreakdowns.get(c.customerName);
@@ -647,10 +675,12 @@ export const exportToExcel = async (
         const rowData = [
           idx + 1,
           c.customerName || '',
+          getTagsString(c),
           getRepsString(c),
-          netTotal.toFixed(2),
           c.lastPaymentDate ? formatDmy(c.lastPaymentDate) : '-',
-          (c.lastPaymentAmount || 0).toFixed(2)
+          (c.lastPaymentAmount || 0).toFixed(2),
+          getDaysSinceLastPayment(c),
+          netTotal.toFixed(2),
         ];
 
         sortedMonthKeys.forEach(k => {
@@ -664,7 +694,7 @@ export const exportToExcel = async (
       return {
         name,
         data: recordsFromTable(monthlyHeaders, rows),
-        options: { numericColumns: ['Net Debt', 'Last Payment Amount', ...monthHeaders] }
+        options: { numericColumns: ['Last Payment Amount', 'Days Since', 'Net Debt', ...monthHeaders] }
       };
     };
 
@@ -703,10 +733,12 @@ export const exportToExcel = async (
       const agesHeaders = [
         '#',
         'Customer Name',
+        'Customer Tag',
         'City',
-        'Net Debt',
         'Last Payment Date',
         'Last Payment Amount',
+        'Days Since',
+        'Net Debt',
         ...ageHeaders,
       ];
 
@@ -715,10 +747,12 @@ export const exportToExcel = async (
         return [
           idx + 1,
           c.customerName || '',
+          getTagsString(c),
           getRepsString(c),
-          (c.netDebt || 0).toFixed(2),
           c.lastPaymentDate ? formatDmy(c.lastPaymentDate) : '-',
           (c.lastPaymentAmount || 0).toFixed(2),
+          getDaysSinceLastPayment(c),
+          (c.netDebt || 0).toFixed(2),
           buckets.zeroToThirty.toFixed(2),
           buckets.thirtyOneToSixty.toFixed(2),
           buckets.sixtyOneToNinety.toFixed(2),
@@ -731,7 +765,7 @@ export const exportToExcel = async (
         name,
         data: recordsFromTable(agesHeaders, rows),
         options: {
-          numericColumns: ['Net Debt', 'Last Payment Amount', ...ageHeaders],
+          numericColumns: ['Last Payment Amount', 'Days Since', 'Net Debt', ...ageHeaders],
         },
       };
     };

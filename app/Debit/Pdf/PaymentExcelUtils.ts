@@ -11,8 +11,6 @@ const SECTION_LABELS: Record<keyof NonNullable<PaymentPdfFilterContext['sections
   summary: 'Summary',
   summaryPrevious: 'Summary Previous',
   summaryLastYear: 'Summary Last Year',
-  daily: 'Daily',
-  weekly: 'Weekly',
   monthly: 'Monthly',
   customerList: 'Customers Paid',
   nonPayerList: 'Customers Not Paid',
@@ -101,26 +99,6 @@ function buildSheets(
         { Metric: 'Active Customers', Value: payload.lyMet.uniqueCustomers },
       ],
       options: { numericColumns: ['Value'] },
-    });
-  }
-
-  if (selected.daily !== false && payload.days.length > 0) {
-    sheets.push({
-      name: sanitizeSheetName(SECTION_LABELS.daily),
-      data: periodMetricRows(payload.days, 'Date'),
-      options: {
-        numericColumns: ['Current', 'Previous', 'Change %', 'Last Year', 'YoY %'],
-      },
-    });
-  }
-
-  if (selected.weekly !== false && payload.weeks.length > 0) {
-    sheets.push({
-      name: sanitizeSheetName(SECTION_LABELS.weekly),
-      data: periodMetricRows(payload.weeks, 'Week'),
-      options: {
-        numericColumns: ['Current', 'Previous', 'Change %', 'Last Year', 'YoY %'],
-      },
     });
   }
 

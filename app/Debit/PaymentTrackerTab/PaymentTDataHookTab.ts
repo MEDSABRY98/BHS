@@ -43,8 +43,6 @@ export function usePaymentTDataTab(data: InvoiceRow[]) {
     summary: true,
     summaryPrevious: true,
     summaryLastYear: true,
-    daily: true,
-    weekly: true,
     monthly: true,
     customerList: true,
     nonPayerList: true,
@@ -54,6 +52,8 @@ export function usePaymentTDataTab(data: InvoiceRow[]) {
   const [pdfSelectedCustomers, setPdfSelectedCustomers] = useState<Set<string>>(new Set());
   const [isCustomerSelectionOpen, setIsCustomerSelectionOpen] = useState(false);
   const [checklistSearch, setChecklistSearch] = useState('');
+  const [isTagsPickerOpen, setIsTagsPickerOpen] = useState(false);
+  const [selectedCustomerTags, setSelectedCustomerTags] = useState<string[]>([]);
 
   // Detail views state
   const [selectedCustomer, setSelectedCustomer] = useState<PaymentByCustomer | null>(null);
@@ -76,16 +76,49 @@ export function usePaymentTDataTab(data: InvoiceRow[]) {
     return Array.from(reps).sort();
   }, [data]);
 
+  const allCustomerTags = useMemo(() => {
+    const tags = new Set<string>();
+    data.forEach((row) => {
+      const tag = row.customerTag?.trim();
+      if (tag) tags.add(tag);
+    });
+    return Array.from(tags).sort((a, b) => a.localeCompare(b));
+  }, [data]);
+
+  const customerTagsByName = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    data.forEach((row) => {
+      const name = row.customerName?.trim().toLowerCase();
+      const tag = row.customerTag?.trim();
+      if (!name || !tag) return;
+      const existing = map.get(name) || new Set<string>();
+      existing.add(tag);
+      map.set(name, existing);
+    });
+    return map;
+  }, [data]);
+
+  // When tags are selected, scope ALL tracker views + export to matching customers
+  const effectiveData = useMemo(() => {
+    if (selectedCustomerTags.length === 0) return data;
+    const tagSet = new Set(selectedCustomerTags);
+    const allowedNames = new Set<string>();
+    customerTagsByName.forEach((tags, name) => {
+      if (Array.from(tags).some((tag) => tagSet.has(tag))) allowedNames.add(name);
+    });
+    return data.filter((row) => allowedNames.has(row.customerName?.trim().toLowerCase() || ''));
+  }, [data, selectedCustomerTags, customerTagsByName]);
+
   const allCustomers = useMemo(() => {
     return Array.from(new Set(
-      data
+      effectiveData
         .filter(row => {
           const t = getInvoiceType(row);
           return t === 'Payment' || t === 'R-Payment';
         })
         .map(p => p.customerName)
     )).sort();
-  }, [data]);
+  }, [effectiveData]);
 
   const filteredCustomerChecklist = useMemo(() => {
     return allCustomers.filter(c =>
@@ -114,7 +147,7 @@ export function usePaymentTDataTab(data: InvoiceRow[]) {
       let maxDataDate = new Date(0);
       let minDataDate = new Date(8640000000000000);
       let hasAnyData = false;
-      data.forEach(row => {
+      effectiveData.forEach(row => {
         const d = parseDate(row.date);
         if (d) {
           if (d > maxDataDate) maxDataDate = d;
@@ -151,7 +184,7 @@ export function usePaymentTDataTab(data: InvoiceRow[]) {
       let maxDate = new Date(0);
       let minDate = new Date(8640000000000000);
       let hasDataData = false;
-      data.forEach(row => {
+      effectiveData.forEach(row => {
         const d = parseDate(row.date);
         if (d) {
           if (d > maxDate) maxDate = d;
@@ -168,172 +201,192 @@ export function usePaymentTDataTab(data: InvoiceRow[]) {
       }
     }
     return { startDate, endDate };
-  }, [data, chartYear, chartMonth, dateFrom, dateTo]);
+  }, [effectiveData, chartYear, chartMonth, dateFrom, dateTo, selectedCustomerTags]);
 
   const dashboardData = useMemo(() => {
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const { startDate, endDate } = dateRange;
-    const yearNum = chartYear.trim() ? parseInt(chartYear.trim(), 10) : null;
-    const monthNum = chartMonth.trim() ? parseInt(chartMonth.trim(), 10) : null;
-
-    const periodStats = new Map<string, any>();
-    const allTimeStats = new Map<string, number>();
-
-    if (chartPeriodType === 'weekly') {
-      const weekKeys = new Set<string>();
-      let iterDate = new Date(startDate);
-      while (iterDate <= endDate) {
-        weekKeys.add(getWeeklyKey(iterDate));
-        iterDate = new Date(iterDate);
-        iterDate.setDate(iterDate.getDate() + 1);
-      }
-      Array.from(weekKeys).sort().forEach(key => {
-        periodStats.set(key, { periodLabel: formatPeriodLabel(key, 'weekly'), periodKey: key, grossSales: 0, returns: 0, discounts: 0, collections: 0, paymentCount: 0, customerSet: new Set() });
-      });
-    } else {
-      let iterDate = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
-      while (iterDate <= endDate) {
-        const key = getMonthlyKey(iterDate);
-        periodStats.set(key, { 
-          periodLabel: formatPeriodLabel(key, 'monthly'), 
-          periodKey: key, 
-          grossSales: 0, 
-          returns: 0, 
-          discounts: 0, 
-          collections: 0, 
-          paymentCount: 0, 
-          customerSet: new Set() 
-        });
-        iterDate = new Date(iterDate);
-        iterDate.setMonth(iterDate.getMonth() + 1);
-      }
-    }
+    const sTime = new Date(startDate).setHours(0, 0, 0, 0);
+    const eTime = new Date(endDate).setHours(23, 59, 59, 999);
 
     const searchLower = debouncedSearch.toLowerCase().trim();
-    let filteredData = searchLower ? data.filter(row => row.customerName?.toLowerCase().includes(searchLower) || row.number?.toLowerCase().includes(searchLower)) : data;
-    if (selectedSalesRep) filteredData = filteredData.filter(row => row.salesRep?.trim() === selectedSalesRep);
+    let filteredData = searchLower
+      ? effectiveData.filter(
+          (row) =>
+            row.customerName?.toLowerCase().includes(searchLower) ||
+            row.number?.toLowerCase().includes(searchLower)
+        )
+      : effectiveData;
+    if (selectedSalesRep) {
+      filteredData = filteredData.filter((row) => row.salesRep?.trim() === selectedSalesRep);
+    }
 
-    filteredData.forEach(row => {
+    // Cards: same simple range math as Details Dashboard
+    let totalCollections = 0;
+    let netPaymentCount = 0;
+
+    const paymentYears = new Set<number>();
+    filteredData.forEach((row) => {
+      const t = getInvoiceType(row);
+      if (t !== 'Payment' && t !== 'R-Payment') return;
       const d = parseDate(row.date);
       if (!d) return;
+      paymentYears.add(d.getFullYear());
 
-      const key = chartPeriodType === 'weekly' ? getWeeklyKey(d) : getMonthlyKey(d);
-      const type = getInvoiceType(row);
-      const debit = row.debit || 0;
-      const credit = row.credit || 0;
-
-      if (type === 'Payment' || type === 'R-Payment') {
-        const netAmount = credit - debit;
-        allTimeStats.set(key, (allTimeStats.get(key) || 0) + netAmount);
-
-        if (d >= startDate && d <= endDate) {
-          const stats = periodStats.get(key);
-          if (stats) {
-            stats.collections += netAmount;
-            if (netAmount > 0.001) {
-              stats.paymentCount += 1;
-              if (row.customerName) stats.customerSet.add(row.customerName.trim());
-            }
-          }
-        }
-      } else if (d >= startDate && d <= endDate) {
-        const stats = periodStats.get(key);
-        if (stats) {
-          if (type === 'Sale') stats.grossSales += debit;
-          else if (type === 'Return') { stats.returns += credit; if (debit < 0) stats.returns += Math.abs(debit); }
-          else if (type === 'Discount') { stats.discounts += credit; if (debit < 0) stats.discounts += Math.abs(debit); }
+      const dTime = d.getTime();
+      if (dTime >= sTime && dTime <= eTime) {
+        const val = (row.credit || 0) - (row.debit || 0);
+        if (val !== 0) {
+          totalCollections += val;
+          if (val > 0.001) netPaymentCount += 1;
         }
       }
     });
 
-    const result = Array.from(periodStats.values()).sort((a, b) => a.periodKey.localeCompare(b.periodKey)).map(item => {
-      const netSales = item.grossSales - item.returns;
+    const chartYearNum = chartYear.trim() ? parseInt(chartYear.trim(), 10) : NaN;
+    let currentYear =
+      !Number.isNaN(chartYearNum) && chartYearNum > 1900
+        ? chartYearNum
+        : paymentYears.size > 0
+          ? Math.max(...Array.from(paymentYears))
+          : new Date().getFullYear();
 
-      // Calculate last year key for comparison
-      let lastYearKey = '';
-      if (chartPeriodType === 'weekly') {
-        const [y, w] = item.periodKey.split('-W');
-        lastYearKey = `${parseInt(y) - 1}-W${w}`;
-      } else {
-        const [y, m] = item.periodKey.split('-');
-        lastYearKey = `${parseInt(y) - 1}-${m}`;
-      }
-      const lastYearCollections = allTimeStats.get(lastYearKey) || 0;
-
-      return {
-        ...item,
-        netSales,
-        netSalesMinusDiscounts: netSales - item.discounts,
-        displaySales: Math.round((netSales - item.discounts) * 100) / 100,
-        displayCollections: Math.round(item.collections * 100) / 100,
-        lastYearCollections: Math.round(lastYearCollections * 100) / 100,
-        paymentCount: item.paymentCount,
-        customerCount: item.customerSet.size
-      };
-    });
-
-    return {
-      chartData: result,
-      totals: {
-        totalNetSalesMinusDiscounts: result.reduce((sum, i) => sum + i.netSalesMinusDiscounts, 0),
-        totalCollections: result.reduce((sum, i) => sum + i.collections, 0),
-        difference: result.reduce((sum, i) => sum + i.netSalesMinusDiscounts, 0) - result.reduce((sum, i) => sum + i.collections, 0),
-        netPaymentCount: result.reduce((sum, i) => sum + i.paymentCount, 0)
-      }
-    };
-  }, [data, dateFrom, dateTo, debouncedSearch, selectedSalesRep, chartPeriodType, chartYear, chartMonth]);
-
-  const averageCollections = useMemo(() => {
-    const searchLower = debouncedSearch.toLowerCase().trim();
-    const yearNum = chartYear.trim() ? parseInt(chartYear.trim(), 10) : null;
-    const monthNum = chartMonth.trim() ? parseInt(chartMonth.trim(), 10) : null;
-    let startDate, endDate;
-    if ((yearNum && !isNaN(yearNum)) || (monthNum && !isNaN(monthNum) && monthNum >= 1 && monthNum <= 12)) {
-      const y = yearNum && !isNaN(yearNum) ? yearNum : new Date().getFullYear();
-      if (monthNum && !isNaN(monthNum) && monthNum >= 1 && monthNum <= 12) { startDate = new Date(y, monthNum - 1, 1); endDate = new Date(y, monthNum, 0); }
-      else { startDate = new Date(y, 0, 1); endDate = new Date(y, 11, 31); }
-      endDate.setHours(23, 59, 59, 999);
-    } else if (dateFrom || dateTo) {
-      const fromDate = dateFrom ? parseDate(dateFrom) : null;
-      const toDate = dateTo ? parseDate(dateTo) : null;
-      if (fromDate && toDate) { startDate = fromDate; startDate.setHours(0, 0, 0, 0); endDate = new Date(toDate); endDate.setHours(23, 59, 59, 999); }
-      else if (fromDate) { startDate = fromDate; startDate.setHours(0, 0, 0, 0); endDate = new Date(); endDate.setHours(23, 59, 59, 999); }
-      else if (toDate) { endDate = new Date(toDate); endDate.setHours(23, 59, 59, 999); startDate = new Date(0); }
-      else { const today = new Date(); endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0); startDate = new Date(today.getFullYear(), today.getMonth() - 11, 1); }
-    } else {
-      let maxDate = new Date(0);
-      data.forEach(row => { if (getInvoiceType(row) === 'Payment' || getInvoiceType(row) === 'R-Payment') { const d = parseDate(row.date); if (d && d > maxDate) maxDate = d; } });
-      if (maxDate.getTime() === 0) maxDate = new Date();
-      endDate = new Date(maxDate.getFullYear(), maxDate.getMonth() + 1, 0); startDate = new Date(maxDate.getFullYear(), maxDate.getMonth() - 11, 1);
+    let previousYear = currentYear - 1;
+    if (!paymentYears.has(previousYear)) {
+      const earlier = Array.from(paymentYears)
+        .filter((y) => y < currentYear)
+        .sort((a, b) => b - a);
+      if (earlier.length > 0) previousYear = earlier[0];
     }
 
-    let filteredPayments = data.filter((row) => {
-      const t = getInvoiceType(row);
-      if (t !== 'Payment' && t !== 'R-Payment') return false;
-      if (selectedSalesRep && row.salesRep?.trim() !== selectedSalesRep) return false;
+    type MonthBucket = {
+      periodLabel: string;
+      monthIndex: number;
+      collections: number;
+      paymentCount: number;
+      customerSet: Set<string>;
+      lastYearCollections: number;
+    };
+
+    const buckets: MonthBucket[] = monthNames.map((label, monthIndex) => ({
+      periodLabel: label,
+      monthIndex,
+      collections: 0,
+      paymentCount: 0,
+      customerSet: new Set<string>(),
+      lastYearCollections: 0,
+    }));
+
+    filteredData.forEach((row) => {
       const d = parseDate(row.date);
-      if (!d || d < startDate || d > endDate) return false;
-      if (searchLower && !row.customerName?.toLowerCase().includes(searchLower) && !row.number?.toLowerCase().includes(searchLower)) return false;
-      return true;
+      if (!d) return;
+      const year = d.getFullYear();
+      const monthIndex = d.getMonth();
+      if (monthIndex < 0 || monthIndex > 11) return;
+
+      const type = getInvoiceType(row);
+      if (type !== 'Payment' && type !== 'R-Payment') return;
+
+      const netAmount = (row.credit || 0) - (row.debit || 0);
+      const bucket = buckets[monthIndex];
+
+      if (year === currentYear) {
+        bucket.collections += netAmount;
+        if (netAmount > 0.001) {
+          bucket.paymentCount += 1;
+          if (row.customerName) bucket.customerSet.add(row.customerName.trim());
+        }
+      } else if (year === previousYear) {
+        bucket.lastYearCollections += netAmount;
+      }
     });
+
+    const chartData = buckets.map((item) => ({
+      periodLabel: item.periodLabel,
+      monthIndex: item.monthIndex,
+      collections: item.collections,
+      displayCollections: Math.round(item.collections * 100) / 100,
+      lastYearCollections: Math.round(item.lastYearCollections * 100) / 100,
+      paymentCount: item.paymentCount,
+      customerCount: item.customerSet.size,
+    }));
+
+    return {
+      chartData,
+      currentYear,
+      previousYear,
+      totals: {
+        totalNetSalesMinusDiscounts: 0,
+        totalCollections: Math.round(totalCollections * 100) / 100,
+        difference: 0,
+        netPaymentCount,
+      },
+    };
+  }, [
+    effectiveData,
+    dateRange,
+    debouncedSearch,
+    selectedSalesRep,
+    chartYear,
+    selectedCustomerTags,
+  ]);
+
+  const averageCollections = useMemo(() => {
+    const { startDate, endDate } = dateRange;
+    const sTime = new Date(startDate).setHours(0, 0, 0, 0);
+    const eTime = new Date(endDate).setHours(23, 59, 59, 999);
+    const searchLower = debouncedSearch.toLowerCase().trim();
 
     const monthlyTotals = new Map<string, number>();
     const weeklyTotals = new Map<string, number>();
-    filteredPayments.forEach((row) => {
-      const d = parseDate(row.date);
-      if (d) {
-        const yearMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-        const amount = (row.credit || 0) - (row.debit || 0);
-        monthlyTotals.set(yearMonth, (monthlyTotals.get(yearMonth) || 0) + amount);
-        const year = d.getFullYear(), startOfYear = new Date(year, 0, 1), days = Math.floor((d.getTime() - startOfYear.getTime()) / 86400000), week = Math.floor(days / 7), weekKey = `${year}-W${String(week).padStart(2, '0')}`;
-        weeklyTotals.set(weekKey, (weeklyTotals.get(weekKey) || 0) + amount);
+
+    effectiveData.forEach((row) => {
+      const t = getInvoiceType(row);
+      if (t !== 'Payment' && t !== 'R-Payment') return;
+      if (selectedSalesRep && row.salesRep?.trim() !== selectedSalesRep) return;
+      if (
+        searchLower &&
+        !row.customerName?.toLowerCase().includes(searchLower) &&
+        !row.number?.toLowerCase().includes(searchLower)
+      ) {
+        return;
       }
+
+      const d = parseDate(row.date);
+      if (!d || d.getTime() < sTime || d.getTime() > eTime) return;
+
+      const amount = (row.credit || 0) - (row.debit || 0);
+      if (amount === 0) return;
+
+      const yearMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      monthlyTotals.set(yearMonth, (monthlyTotals.get(yearMonth) || 0) + amount);
+
+      const year = d.getFullYear();
+      const startOfYear = new Date(year, 0, 1);
+      const days = Math.floor((d.getTime() - startOfYear.getTime()) / 86400000);
+      const week = Math.floor(days / 7);
+      const weekKey = `${year}-W${String(week).padStart(2, '0')}`;
+      weeklyTotals.set(weekKey, (weeklyTotals.get(weekKey) || 0) + amount);
     });
 
     const totalMonthly = Array.from(monthlyTotals.values()).reduce((s, v) => s + v, 0);
     const totalWeekly = Array.from(weeklyTotals.values()).reduce((s, v) => s + v, 0);
-    const monthsCount = Math.max(1, monthlyTotals.size), weeksCount = Math.max(1, weeklyTotals.size);
-    return { averageMonthly: totalMonthly / monthsCount, averageWeekly: totalWeekly / weeksCount, monthsCount, weeksCount };
-  }, [data, selectedSalesRep, debouncedSearch, dateFrom, dateTo, chartYear, chartMonth]);
+    const monthsCount = Math.max(1, monthlyTotals.size);
+    const weeksCount = Math.max(1, weeklyTotals.size);
+
+    return {
+      averageMonthly: totalMonthly / monthsCount,
+      averageWeekly: totalWeekly / weeksCount,
+      monthsCount,
+      weeksCount,
+    };
+  }, [
+    effectiveData,
+    dateRange,
+    selectedSalesRep,
+    debouncedSearch,
+    selectedCustomerTags,
+  ]);
 
 
 
@@ -347,7 +400,7 @@ export function usePaymentTDataTab(data: InvoiceRow[]) {
       if (dateFrom) { const d = parseDate(dateFrom); if (d) { filterStartDate = new Date(d); filterStartDate.setHours(0, 0, 0, 0); } }
       if (dateTo) { const d = parseDate(dateTo); if (d) { filterEndDate = new Date(d); filterEndDate.setHours(23, 59, 59, 999); } }
     }
-    return data.filter(row => { const t = getInvoiceType(row); return (t === 'Payment' || t === 'R-Payment') && (!selectedSalesRep || row.salesRep?.trim() === selectedSalesRep); })
+    return effectiveData.filter(row => { const t = getInvoiceType(row); return (t === 'Payment' || t === 'R-Payment') && (!selectedSalesRep || row.salesRep?.trim() === selectedSalesRep); })
       .map(row => ({ date: row.date, number: row.number, customerName: row.customerName, type: getInvoiceType(row), credit: (row.credit || 0) - (row.debit || 0), rawCredit: row.credit || 0, debit: row.debit || 0, rawDebit: row.debit || 0, amountSource: 'creditMinusDebit' as any, salesRep: row.salesRep, matching: row.matching, parsedDate: parseDate(row.date) }))
       .filter(p => {
         if (!p.parsedDate) return false;
@@ -356,7 +409,7 @@ export function usePaymentTDataTab(data: InvoiceRow[]) {
         if (filterEndDate && p.parsedDate > filterEndDate) return false;
         return true;
       });
-  }, [data, dateFrom, dateTo, selectedSalesRep, chartYear, chartMonth]);
+  }, [effectiveData, dateFrom, dateTo, selectedSalesRep, chartYear, chartMonth, selectedCustomerTags]);
 
   const visiblePayments = useMemo<PaymentEntry[]>(() => {
     const searchLower = debouncedSearch.trim().toLowerCase();
@@ -391,7 +444,10 @@ export function usePaymentTDataTab(data: InvoiceRow[]) {
 
   const filteredByCustomer = useMemo(() => {
     let filtered = paymentsByCustomer;
-    if (debouncedSearch) { const s = debouncedSearch.toLowerCase(); filtered = filtered.filter(item => item.customerName.toLowerCase().includes(s)); }
+    if (debouncedSearch) {
+      const s = debouncedSearch.toLowerCase();
+      filtered = filtered.filter((item) => item.customerName.toLowerCase().includes(s));
+    }
     return [...filtered].sort((a, b) => {
       let av, bv;
       switch (sortColumn) {
@@ -411,14 +467,101 @@ export function usePaymentTDataTab(data: InvoiceRow[]) {
 
   const customerDetailPayments = useMemo(() => (selectedCustomer ? visiblePayments.filter(p => p.customerName.trim().toLowerCase() === selectedCustomer.customerName.trim().toLowerCase()) : []), [visiblePayments, selectedCustomer]);
   const customerChartData = useMemo(() => {
-    if (!selectedCustomer) return []; const today = new Date(), res = [];
-    for (let i = 11; i >= 0; i--) {
-      const d = new Date(today.getFullYear(), today.getMonth() - i, 1), y = d.getFullYear(), m = d.getMonth(), label = d.toLocaleString('en-US', { month: 'short', year: 'numeric' });
-      const pinm = customerDetailPayments.filter(p => p.parsedDate?.getFullYear() === y && p.parsedDate?.getMonth() === m);
-      res.push({ name: label, amount: pinm.reduce((s, p) => s + p.credit, 0), count: pinm.filter(p => p.rawCredit > 0.01).length });
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const empty = {
+      chartData: monthNames.map((name, monthIndex) => ({
+        name,
+        monthIndex,
+        amount: 0,
+        lastYearAmount: 0,
+        count: 0,
+      })),
+      currentYear: new Date().getFullYear(),
+      previousYear: new Date().getFullYear() - 1,
+    };
+
+    if (!selectedCustomer) return empty;
+
+    const customerKey = selectedCustomer.customerName.trim().toLowerCase();
+    const searchLower = debouncedSearch.toLowerCase().trim();
+
+    // Use full scoped ledger (not date-filtered) so YoY comparison has both years
+    let rows = effectiveData.filter((row) => {
+      const t = getInvoiceType(row);
+      if (t !== 'Payment' && t !== 'R-Payment') return false;
+      if (row.customerName?.trim().toLowerCase() !== customerKey) return false;
+      if (selectedSalesRep && row.salesRep?.trim() !== selectedSalesRep) return false;
+      if (
+        searchLower &&
+        !row.customerName?.toLowerCase().includes(searchLower) &&
+        !row.number?.toLowerCase().includes(searchLower)
+      ) {
+        return false;
+      }
+      return true;
+    });
+
+    const parsedRows = rows
+      .map((row) => ({
+        date: parseDate(row.date),
+        credit: (row.credit || 0) - (row.debit || 0),
+        rawCredit: row.credit || 0,
+      }))
+      .filter((row) => row.date);
+
+    const paymentYears = new Set<number>();
+    parsedRows.forEach((p) => {
+      if (p.date) paymentYears.add(p.date.getFullYear());
+    });
+
+    const chartYearNum = chartYear.trim() ? parseInt(chartYear.trim(), 10) : NaN;
+    let currentYear =
+      !Number.isNaN(chartYearNum) && chartYearNum > 1900
+        ? chartYearNum
+        : paymentYears.size > 0
+          ? Math.max(...Array.from(paymentYears))
+          : new Date().getFullYear();
+
+    let previousYear = currentYear - 1;
+    if (!paymentYears.has(previousYear)) {
+      const earlier = Array.from(paymentYears)
+        .filter((y) => y < currentYear)
+        .sort((a, b) => b - a);
+      if (earlier.length > 0) previousYear = earlier[0];
     }
-    return res;
-  }, [selectedCustomer, customerDetailPayments]);
+
+    const buckets = monthNames.map((name, monthIndex) => ({
+      name,
+      monthIndex,
+      amount: 0,
+      lastYearAmount: 0,
+      count: 0,
+    }));
+
+    parsedRows.forEach((p) => {
+      if (!p.date) return;
+      const year = p.date.getFullYear();
+      const monthIndex = p.date.getMonth();
+      if (monthIndex < 0 || monthIndex > 11) return;
+      const bucket = buckets[monthIndex];
+      if (year === currentYear) {
+        bucket.amount += p.credit || 0;
+        if ((p.rawCredit || 0) > 0.01) bucket.count += 1;
+      } else if (year === previousYear) {
+        bucket.lastYearAmount += p.credit || 0;
+      }
+    });
+
+    return {
+      chartData: buckets.map((b) => ({
+        ...b,
+        amount: Math.round(b.amount * 100) / 100,
+        lastYearAmount: Math.round(b.lastYearAmount * 100) / 100,
+      })),
+      currentYear,
+      previousYear,
+    };
+  }, [selectedCustomer, effectiveData, selectedSalesRep, debouncedSearch, chartYear]);
 
   const customerAvgDays = useMemo(() => {
     if (!selectedCustomer || !customerDetailPayments.length) return 0;
@@ -476,6 +619,8 @@ export function usePaymentTDataTab(data: InvoiceRow[]) {
     pdfSelectedCustomers, setPdfSelectedCustomers,
     isCustomerSelectionOpen, setIsCustomerSelectionOpen,
     checklistSearch, setChecklistSearch,
+    isTagsPickerOpen, setIsTagsPickerOpen,
+    selectedCustomerTags, setSelectedCustomerTags,
     selectedCustomer, setSelectedCustomer,
     selectedPeriod, setSelectedPeriod,
     detailMode, setDetailMode,
@@ -485,6 +630,8 @@ export function usePaymentTDataTab(data: InvoiceRow[]) {
     // Memos
     salesReps,
     allCustomers,
+    allCustomerTags,
+    effectiveData,
     filteredCustomerChecklist,
     dashboardData,
     averageCollections,

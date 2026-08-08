@@ -107,7 +107,8 @@ export function computePortfolioAging(
   rows: InvoiceRow[],
   referenceDate: Date = new Date(),
   cities: string[] = [],
-  customers: string[] = []
+  customers: string[] = [],
+  customerTags: string[] = []
 ): PortfolioAgingResult {
   const customerMap = new Map<string, InvoiceRow[]>();
 
@@ -119,6 +120,10 @@ export function computePortfolioAging(
     if (customers.length > 0) {
       const name = row.customerName?.trim();
       if (!name || !customers.includes(name)) return;
+    }
+    if (customerTags.length > 0) {
+      const tag = row.customerTag?.trim();
+      if (!tag || !customerTags.includes(tag)) return;
     }
     const existing = customerMap.get(row.customerName) || [];
     existing.push(row);

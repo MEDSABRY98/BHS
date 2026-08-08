@@ -11,7 +11,7 @@ import {
   createColumnHelper,
   SortingState,
 } from '@tanstack/react-table';
-import { Search, Plus, X, FileText, Printer, FileSpreadsheet, AlertCircle, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
+import { Search, Plus, X, FileText, Printer, FileSpreadsheet, AlertCircle, ChevronLeft, ChevronRight, ChevronDown, Tag } from 'lucide-react';
 import { saveTrackedPdf } from '@/app/Audit/Utils/TrackedDownload';
 import { InvoiceRow } from '@/types';
 import NoData from '@/app/Components/DataState/NoDataTab';
@@ -19,6 +19,7 @@ import FilterBar from '../CustomerDetailsTab/FilterBar';
 import { isPaymentTxn, sortInvoicesByDateThenNumber } from '../CustomerDetailsTab/Utils';
 import { getInvoiceType } from '@/app/Debit/Utils/InvoiceType';
 import { printPdfInSameTab } from '@/app/LPOs/Pdf/DeliveryUtils';
+import CustomerTagsPickerModal from '../Modals/CustomerTagsPickerModal';
 
 interface CustomersGroupTabProps {
   data: InvoiceRow[];
@@ -44,6 +45,8 @@ export default function CustomersGroupTab({ data }: CustomersGroupTabProps) {
   const [groupCustomers, setGroupCustomers] = useState<string[]>([]);
   const [viewMode, setViewMode] = useState<'overdue' | 'all'>('overdue');
   const [isCustomerDropdownOpen, setIsCustomerDropdownOpen] = useState(false);
+  const [isTagsPickerOpen, setIsTagsPickerOpen] = useState(false);
+  const [selectedCustomerTags, setSelectedCustomerTags] = useState<string[]>([]);
   const [customerSearchQuery, setCustomerSearchQuery] = useState('');
   const [sorting, setSorting] = useState<SortingState>([
     { id: 'date', desc: false }
@@ -88,6 +91,37 @@ export default function CustomersGroupTab({ data }: CustomersGroupTabProps) {
     });
     return Array.from(names).sort();
   }, [data]);
+
+  const allCustomerTags = useMemo(() => {
+    const tags = new Set<string>();
+    data.forEach((item) => {
+      const tag = item.customerTag?.trim();
+      if (tag) tags.add(tag);
+    });
+    return Array.from(tags).sort((a, b) => a.localeCompare(b));
+  }, [data]);
+
+  const customersForTags = (tags: string[]) => {
+    if (tags.length === 0) return [] as string[];
+    const tagSet = new Set(tags);
+    const names = new Set<string>();
+    data.forEach((item) => {
+      const tag = item.customerTag?.trim();
+      const name = item.customerName?.trim();
+      if (tag && name && tagSet.has(tag)) names.add(name);
+    });
+    return Array.from(names).sort();
+  };
+
+  const handleApplyCustomerTags = (nextTags: string[]) => {
+    const prevTagCustomers = new Set(customersForTags(selectedCustomerTags));
+    const nextTagCustomers = customersForTags(nextTags);
+    setSelectedCustomerTags(nextTags);
+    setGroupCustomers((prev) => {
+      const kept = prev.filter((name) => !prevTagCustomers.has(name));
+      return Array.from(new Set([...kept, ...nextTagCustomers])).sort();
+    });
+  };
 
   // Extract unique sales rep names
   const allSalesReps = useMemo(() => {
@@ -1031,7 +1065,8 @@ export default function CustomersGroupTab({ data }: CustomersGroupTabProps) {
             <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 text-center md:text-left">
               Select Customers Group
             </label>
-            <div className="relative">
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
               <div
                 onClick={() => setIsCustomerDropdownOpen(!isCustomerDropdownOpen)}
                 className="w-full pl-4 pr-10 py-3 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm font-semibold text-slate-700 shadow-sm flex items-center justify-between min-h-[46px] text-left hover:border-slate-400 transition-colors cursor-pointer"
@@ -1048,6 +1083,7 @@ export default function CustomersGroupTab({ data }: CustomersGroupTabProps) {
                       onClick={(e) => {
                         e.stopPropagation();
                         setGroupCustomers([]);
+                        setSelectedCustomerTags([]);
                       }}
                       className="hover:text-red-500 p-0.5 rounded-full hover:bg-slate-100 transition-colors"
                       title="Clear all"
@@ -1119,6 +1155,29 @@ export default function CustomersGroupTab({ data }: CustomersGroupTabProps) {
                   </div>
                 </div>
               )}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setIsCustomerDropdownOpen(false);
+                  setIsTagsPickerOpen(true);
+                }}
+                className={`relative shrink-0 w-[46px] h-[46px] flex items-center justify-center rounded-xl border shadow-sm transition-all ${
+                  selectedCustomerTags.length > 0
+                    ? 'bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100'
+                    : 'bg-white border-slate-300 text-slate-600 hover:border-slate-400 hover:bg-slate-50'
+                }`}
+                title="Select by customer tags"
+                aria-label="Select by customer tags"
+              >
+                <Tag className="w-4 h-4" />
+                {selectedCustomerTags.length > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-indigo-600 text-white text-[10px] font-bold leading-[18px] text-center">
+                    {selectedCustomerTags.length}
+                  </span>
+                )}
+              </button>
             </div>
           </div>
 
@@ -1447,6 +1506,13 @@ export default function CustomersGroupTab({ data }: CustomersGroupTabProps) {
         <NoData title="NO CUSTOMERS ADDED" />
       )}
 
+      <CustomerTagsPickerModal
+        open={isTagsPickerOpen}
+        tags={allCustomerTags}
+        selectedTags={selectedCustomerTags}
+        onChange={handleApplyCustomerTags}
+        onClose={() => setIsTagsPickerOpen(false)}
+      />
     </div>
   );
 }

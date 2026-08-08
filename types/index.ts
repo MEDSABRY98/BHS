@@ -12,6 +12,7 @@ export interface InvoiceRow {
   matching?: string;
   residualAmount?: number;
   creditLimit?: number;
+  customerTag?: string;
 }
 
 export interface CustomerAnalysis {
@@ -25,6 +26,7 @@ export interface CustomerAnalysis {
   transactionCount: number;
   hasOpenMatchings?: boolean;
   salesReps?: Set<string>;
+  customerTags?: Set<string>;
   invoiceNumbers?: Set<string>;
   lastPaymentDate?: Date | null;
   lastPaymentMatching?: string | null; // Matching ID tied to last payment (if any)

@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useMemo } from 'react';
-import { FileText, X } from 'lucide-react';
+import React from 'react';
+import { FileText, Tag, X } from 'lucide-react';
 import { InvoiceRow } from '@/types';
 
 // Sub-components
@@ -12,43 +12,16 @@ import PaymentTCustomerTab from './PaymentTCustomerTab';
 import PaymentTPeriodTab from './PaymentTPeriodTab';
 import PaymentTAreaTab from './PaymentTAreaTab';
 import PaymentTExportTab from './PaymentTExportTab';
-import { useDebitPaymentsSummary } from '../Hooks/useDebitPaymentsSummary';
+import CustomerTagsPickerModal from '../Modals/CustomerTagsPickerModal';
 
 interface PaymentTrackerTabProps {
   data: InvoiceRow[];
   dataVersion: number;
 }
 
-export default function PaymentTrackerTab({ data, dataVersion }: PaymentTrackerTabProps) {
+export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
   // Use our modular hook for all logic
   const p = usePaymentTDataTab(data);
-
-  const rpcSummary = useDebitPaymentsSummary({
-    dateFrom: p.dateFrom || undefined,
-    dateTo: p.dateTo || undefined,
-    dataVersion,
-    enabled: p.activeSubTab === 'dashboard',
-  });
-
-  const dashboardData = useMemo(() => {
-    const useRpcTotals =
-      rpcSummary.fromRpc &&
-      !p.search &&
-      !p.selectedSalesRep &&
-      !p.chartYear.trim() &&
-      !p.chartMonth.trim();
-
-    if (!useRpcTotals) return p.dashboardData;
-
-    return {
-      ...p.dashboardData,
-      totals: {
-        ...p.dashboardData.totals,
-        totalCollections: rpcSummary.totalAmount,
-        netPaymentCount: rpcSummary.totalPayments,
-      },
-    };
-  }, [p.dashboardData, p.search, p.selectedSalesRep, p.chartYear, p.chartMonth, rpcSummary]);
 
   const inputClass = 'w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-300 text-sm';
   const labelClass = 'text-xs font-medium text-gray-500 mb-1 block';
@@ -60,13 +33,33 @@ export default function PaymentTrackerTab({ data, dataVersion }: PaymentTrackerT
         <div className="flex flex-wrap lg:flex-nowrap items-end gap-3">
           <div className="flex-1 min-w-[200px]">
             <label className={labelClass}>Search</label>
-            <input
-              type="text"
-              placeholder="Customer, invoice or ID..."
-              value={p.search}
-              onChange={(e) => p.setSearch(e.target.value)}
-              className={inputClass}
-            />
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                placeholder="Customer, invoice or ID..."
+                value={p.search}
+                onChange={(e) => p.setSearch(e.target.value)}
+                className={`${inputClass} flex-1`}
+              />
+              <button
+                type="button"
+                onClick={() => p.setIsTagsPickerOpen(true)}
+                className={`relative shrink-0 h-9 w-9 flex items-center justify-center rounded-lg border transition-all ${
+                  p.selectedCustomerTags.length > 0
+                    ? 'bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100'
+                    : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                }`}
+                title="Filter by customer tags"
+                aria-label="Filter by customer tags"
+              >
+                <Tag className="w-4 h-4" />
+                {p.selectedCustomerTags.length > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-indigo-600 text-white text-[10px] font-bold leading-[18px] text-center">
+                    {p.selectedCustomerTags.length}
+                  </span>
+                )}
+              </button>
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-2 w-full sm:w-44 shrink-0">
@@ -88,9 +81,9 @@ export default function PaymentTrackerTab({ data, dataVersion }: PaymentTrackerT
             <input type="date" value={p.dateTo} onChange={(e) => p.setDateTo(e.target.value)} className={inputClass} />
           </div>
           <div className="w-full sm:w-48">
-            <label className={labelClass}>Representative</label>
+            <label className={labelClass}>City</label>
             <select value={p.selectedSalesRep} onChange={(e) => p.setSelectedSalesRep(e.target.value)} className={inputClass}>
-              <option value="">All Reps</option>
+              <option value="">All Cities</option>
               {p.salesReps.map((rep) => (
                 <option key={rep} value={rep}>{rep}</option>
               ))}
@@ -106,6 +99,7 @@ export default function PaymentTrackerTab({ data, dataVersion }: PaymentTrackerT
                 p.setDateFrom('');
                 p.setDateTo('');
                 p.setSelectedSalesRep('');
+                p.setSelectedCustomerTags([]);
               }}
               className="h-9 w-9 border border-gray-200 text-gray-500 rounded-lg flex items-center justify-center hover:bg-gray-50"
               title="Clear filters"
@@ -146,7 +140,7 @@ export default function PaymentTrackerTab({ data, dataVersion }: PaymentTrackerT
       <div className="min-h-0 pb-12 px-2 sm:px-6 lg:px-8 mt-4">
         {p.activeSubTab === 'dashboard' && (
           <PaymentTDashboardTab
-            dashboardData={dashboardData}
+            dashboardData={p.dashboardData}
             chartPeriodType={p.chartPeriodType}
             setChartPeriodType={p.setChartPeriodType}
             chartYear={p.chartYear}
@@ -162,9 +156,17 @@ export default function PaymentTrackerTab({ data, dataVersion }: PaymentTrackerT
 
         {p.activeSubTab === 'details-dashboard' && (
           <PaymentTDetailsDashboardTab
-            data={data}
-            startDate={p.startDate}
-            endDate={p.endDate}
+            data={p.effectiveData}
+            startDate={
+              p.dateFrom || p.dateTo || p.chartYear.trim() || p.chartMonth.trim()
+                ? p.startDate
+                : null
+            }
+            endDate={
+              p.dateFrom || p.dateTo || p.chartYear.trim() || p.chartMonth.trim()
+                ? p.endDate
+                : null
+            }
             searchQuery={p.search}
             salesRep={p.selectedSalesRep}
           />
@@ -224,11 +226,19 @@ export default function PaymentTrackerTab({ data, dataVersion }: PaymentTrackerT
         pdfSelectedCustomers={p.pdfSelectedCustomers}
         setPdfSelectedCustomers={p.setPdfSelectedCustomers}
         allCustomers={p.allCustomers}
-        data={data}
+        data={p.effectiveData}
         startDate={p.startDate}
         endDate={p.endDate}
         salesRep={p.selectedSalesRep}
         searchQuery={p.search}
+      />
+
+      <CustomerTagsPickerModal
+        open={p.isTagsPickerOpen}
+        tags={p.allCustomerTags}
+        selectedTags={p.selectedCustomerTags}
+        onChange={p.setSelectedCustomerTags}
+        onClose={() => p.setIsTagsPickerOpen(false)}
       />
     </div>
   );

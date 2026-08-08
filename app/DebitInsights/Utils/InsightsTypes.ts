@@ -9,6 +9,7 @@ export interface InsightsFilters {
   periodTo: string;
   salesRep: string[];
   customers: string[];
+  customerTags: string[];
   salesSource: InsightsSalesSource;
 }
 

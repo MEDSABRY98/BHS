@@ -39,8 +39,6 @@ export interface PdfExportSections {
   summary: boolean;
   summaryPrevious: boolean;
   summaryLastYear: boolean;
-  daily: boolean;
-  weekly: boolean;
   monthly: boolean;
   customerList: boolean;
   nonPayerList: boolean;

@@ -6,7 +6,7 @@ import TabLoader from '@/app/Components/Loading/TabLoader';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import { toast } from '@/app/Components/Notification';
 import { useDebitInsightsMetrics } from './Hooks/UseDebitInsightsMetrics';
-import { collectCustomers } from './Utils/AsOfLedgerEngine';
+import { collectCustomers, collectCustomerTags, resolveEffectiveCustomers } from './Utils/AsOfLedgerEngine';
 import { InsightsFilters, InsightsSalesOverlay } from './Utils/InsightsTypes';
 import { toInputDate } from './Utils/DateUtils';
 import { applySalesNetOverlay } from './Utils/SalesSourceOverlay';
@@ -48,6 +48,7 @@ function defaultFilters(): InsightsFilters {
     periodTo: today,
     salesRep: [],
     customers: [],
+    customerTags: [],
     salesSource: 'debit',
   };
 }
@@ -67,6 +68,7 @@ function filtersEqual(a: InsightsFilters, b: InsightsFilters): boolean {
     a.periodTo === b.periodTo &&
     arraysEqual(a.salesRep, b.salesRep) &&
     arraysEqual(a.customers, b.customers) &&
+    arraysEqual(a.customerTags || [], b.customerTags || []) &&
     a.salesSource === b.salesSource
   );
 }
@@ -108,10 +110,15 @@ export default function DebitInsightsDashboard({
     () => collectCustomers(data, draftFilters.salesRep),
     [data, draftFilters.salesRep]
   );
+  const availableCustomerTags = useMemo(
+    () => collectCustomerTags(data, draftFilters.salesRep),
+    [data, draftFilters.salesRep]
+  );
   const hasPendingChanges = !filtersEqual(draftFilters, appliedFilters);
   const filtersActive =
     appliedFilters.salesRep.length > 0 ||
     appliedFilters.customers.length > 0 ||
+    (appliedFilters.customerTags?.length || 0) > 0 ||
     appliedFilters.salesSource !== 'debit' ||
     appliedFilters.periodPreset !== 'trailing12m';
 
@@ -131,7 +138,7 @@ export default function DebitInsightsDashboard({
     }
 
     setSalesLoading(true);
-    void fetchSalesOverlayForFilters(appliedFilters, userId)
+    void fetchSalesOverlayForFilters(appliedFilters, userId, data)
       .then((overlay) => {
         if (!cancelled) setSalesOverlay(overlay);
       })
@@ -149,14 +156,16 @@ export default function DebitInsightsDashboard({
     return () => {
       cancelled = true;
     };
-  }, [appliedFilters]);
+  }, [appliedFilters, data]);
 
   const handleFilterChange = (next: InsightsFilters) => {
     if (!arraysEqual(next.salesRep, draftFilters.salesRep)) {
-      const allowed = new Set(collectCustomers(data, next.salesRep));
+      const allowedCustomers = new Set(collectCustomers(data, next.salesRep));
+      const allowedTags = new Set(collectCustomerTags(data, next.salesRep));
       next = {
         ...next,
-        customers: next.customers.filter((customer) => allowed.has(customer)),
+        customers: next.customers.filter((customer) => allowedCustomers.has(customer)),
+        customerTags: (next.customerTags || []).filter((tag) => allowedTags.has(tag)),
       };
     }
     setDraftFilters(next);
@@ -242,6 +251,7 @@ export default function DebitInsightsDashboard({
         filters={draftFilters}
         salesReps={salesReps}
         customers={availableCustomers}
+        customerTags={availableCustomerTags}
         onChange={handleFilterChange}
         onApply={() => {
           startTransition(() => {

@@ -5,6 +5,7 @@ import { getDebitData } from '@/app/Debit/Service/debit_service';
 import {
   computeDebitInsights,
   resolvePeriodRange,
+  resolveEffectiveCustomers,
 } from '@/app/DebitInsights/Utils/AsOfLedgerEngine';
 import { applySalesNetOverlay } from '@/app/DebitInsights/Utils/SalesSourceOverlay';
 import { toInputDate } from '@/app/DebitInsights/Utils/DateUtils';
@@ -69,7 +70,8 @@ export async function computeDebitInsightsMetrics(
  */
 export async function fetchSalesOverlayForFilters(
   filters: InsightsFilters,
-  userId?: string
+  userId?: string,
+  rows: InvoiceRow[] = []
 ): Promise<InsightsSalesOverlay> {
   const uid = String(userId || '').trim();
   if (!uid) {
@@ -83,11 +85,21 @@ export async function fetchSalesOverlayForFilters(
     filters.periodTo
   );
 
+  const customers =
+    filters.customers.length > 0 || (filters.customerTags?.length || 0) > 0
+      ? resolveEffectiveCustomers(
+          rows,
+          filters.salesRep,
+          filters.customers,
+          filters.customerTags || []
+        )
+      : [];
+
   return getInsightsSalesOverlay({
     userId: uid,
     periodFrom: toInputDate(from),
     periodTo: toInputDate(to),
     cities: filters.salesRep,
-    customers: filters.customers,
+    customers,
   });
 }

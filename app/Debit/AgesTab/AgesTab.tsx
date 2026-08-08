@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { exportDebitExcelTable } from '@/app/Debit/Utils/ExcelExport';
 import { useDebouncedValue } from '../Hooks/useDebouncedValue';
 import {
@@ -11,7 +12,7 @@ import {
   createColumnHelper,
   SortingState,
 } from '@tanstack/react-table';
-import { FileSpreadsheet, FileText, MapPin, ChevronDown, Check, MinusCircle } from 'lucide-react';
+import { FileSpreadsheet, FileText, MapPin, ChevronDown, Check, MinusCircle, Tag, Users, X, Loader2 } from 'lucide-react';
 import { saveTrackedAs } from '@/app/Audit/Utils/TrackedDownload';
 import { InvoiceRow } from '@/types';
 import NoData from '@/app/Components/DataState/NoDataTab';
@@ -20,9 +21,12 @@ interface AgesTabProps {
   data: InvoiceRow[];
 }
 
+type AgesPdfExportMode = 'normal' | 'without_tags' | 'tags_only';
+
 interface CustomerAgingSummary {
   customerName: string;
   salesReps: string[];
+  customerTags: string[];
   oneToThirty: number;
   thirtyOneToSixty: number;
   sixtyOneToNinety: number;
@@ -70,6 +74,8 @@ export default function AgesTab({ data }: AgesTabProps) {
   const [selectedSalesRep, setSelectedSalesRep] = useState<string>('all');
   const [showNegativeBalances, setShowNegativeBalances] = useState(false);
   const [isCityDropdownOpen, setIsCityDropdownOpen] = useState(false);
+  const [isPdfExportOpen, setIsPdfExportOpen] = useState(false);
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
   const cityDropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -103,17 +109,21 @@ export default function AgesTab({ data }: AgesTabProps) {
       const totalCredit = customerInvoices.reduce((sum, inv) => sum + inv.credit, 0);
       const netDebt = totalDebit - totalCredit;
 
-      // Collect unique sales reps
+      // Collect unique sales reps + customer tags
       const salesRepsSet = new Set<string>();
+      const tagsSet = new Set<string>();
       customerInvoices.forEach((inv) => {
         if (inv.salesRep && inv.salesRep.trim()) {
           salesRepsSet.add(inv.salesRep.trim());
         }
+        const tag = inv.customerTag?.trim();
+        if (tag) tagsSet.add(tag);
       });
 
       const summary: CustomerAgingSummary = {
         customerName,
         salesReps: Array.from(salesRepsSet).sort(),
+        customerTags: Array.from(tagsSet).sort(),
         oneToThirty: 0,
         thirtyOneToSixty: 0,
         sixtyOneToNinety: 0,
@@ -271,43 +281,92 @@ export default function AgesTab({ data }: AgesTabProps) {
     });
   };
 
-  const handleExportPDF = async () => {
+  const handleExportPDF = async (mode: AgesPdfExportMode) => {
+    setIsExportingPdf(true);
     try {
       const JSZip = (await import('jszip')).default;
       const { generateAgesPDF, generateSingleRegionAgesPDF } = await import('@/app/Debit/Pdf/AgesUtils');
 
-      let filterDesc = 'All Customers';
       const dateStr = new Date().toISOString().split('T')[0];
+      const zip = new JSZip();
 
-      // 1. Generate full report PDF
-      const fullPdfBlob = await generateAgesPDF(filteredData, filterDesc);
+      if (mode === 'tags_only') {
+        const tagged = filteredData.filter((item) => item.customerTags.length > 0);
+        if (tagged.length === 0) {
+          alert('No customers with tags found in the current view.');
+          return;
+        }
 
-      // 2. Group by region (salesReps)
-      const regionMap = new Map<string, typeof filteredData>();
-      filteredData.forEach(item => {
+        const tagMap = new Map<string, typeof filteredData>();
+        tagged.forEach((item) => {
+          item.customerTags.forEach((tag) => {
+            const group = tagMap.get(tag) || [];
+            group.push(item);
+            tagMap.set(tag, group);
+          });
+        });
+
+        const sortedTags = Array.from(tagMap.keys()).sort((a, b) => a.localeCompare(b));
+        for (const tag of sortedTags) {
+          const tagData = tagMap.get(tag) || [];
+          const tagPdf = await generateSingleRegionAgesPDF(tag, tagData, `Customer Tag: ${tag}`);
+          const safeTagName = tag.replace(/[\/\\:*?"<>|]/g, '_').trim() || 'Tag';
+          zip.file(`Tag_${safeTagName}_Aging_${dateStr}.pdf`, tagPdf);
+        }
+
+        const zipBlob = await zip.generateAsync({ type: 'blob' });
+        saveTrackedAs(zipBlob, `Aging_By_Tags_${dateStr}.zip`);
+        setIsPdfExportOpen(false);
+        return;
+      }
+
+      const exportData =
+        mode === 'without_tags'
+          ? filteredData.filter((item) => item.customerTags.length === 0)
+          : filteredData;
+
+      if (exportData.length === 0) {
+        alert(
+          mode === 'without_tags'
+            ? 'No untagged customers found in the current view.'
+            : 'No customers found in the current view.'
+        );
+        return;
+      }
+
+      const filterDesc =
+        mode === 'without_tags' ? 'Without Customer Tags' : 'All Customers';
+
+      const fullPdfBlob = await generateAgesPDF(exportData, filterDesc);
+
+      const regionMap = new Map<string, typeof exportData>();
+      exportData.forEach((item) => {
         const regionKey = item.salesReps.join(', ') || 'No Region';
         const group = regionMap.get(regionKey) || [];
         group.push(item);
         regionMap.set(regionKey, group);
       });
 
-      // 3. Create ZIP
-      const zip = new JSZip();
       zip.file(`Aging_Report_${dateStr}.pdf`, fullPdfBlob);
 
-      // 4. Generate per-region PDFs and add to ZIP
       for (const [region, regionData] of regionMap) {
         const regionPdfBlob = await generateSingleRegionAgesPDF(region, regionData, filterDesc);
         const safeRegionName = region.replace(/[\/\\:*?"<>|]/g, '_');
         zip.file(`${safeRegionName}_Aging_${dateStr}.pdf`, regionPdfBlob);
       }
 
-      // 5. Download ZIP
       const zipBlob = await zip.generateAsync({ type: 'blob' });
-      saveTrackedAs(zipBlob, `Aging_Report_${dateStr}.zip`);
+      const zipName =
+        mode === 'without_tags'
+          ? `Aging_Report_NoTags_${dateStr}.zip`
+          : `Aging_Report_${dateStr}.zip`;
+      saveTrackedAs(zipBlob, zipName);
+      setIsPdfExportOpen(false);
     } catch (error) {
       console.error('Error generating PDF:', error);
       alert('Failed to generate PDF');
+    } finally {
+      setIsExportingPdf(false);
     }
   };
 
@@ -490,13 +549,105 @@ export default function AgesTab({ data }: AgesTabProps) {
           <FileSpreadsheet className="h-5 w-5" />
         </button>
         <button
-          onClick={handleExportPDF}
-          className="flex items-center justify-center h-10 w-10 bg-rose-600 text-white rounded-xl shadow-sm hover:bg-rose-700 transition-colors"
+          onClick={() => setIsPdfExportOpen(true)}
+          disabled={isExportingPdf}
+          className="flex items-center justify-center h-10 w-10 bg-rose-600 text-white rounded-xl shadow-sm hover:bg-rose-700 transition-colors disabled:opacity-60"
           title="Export to PDF"
         >
-          <FileText className="h-5 w-5" />
+          {isExportingPdf ? <Loader2 className="h-5 w-5 animate-spin" /> : <FileText className="h-5 w-5" />}
         </button>
       </div>
+
+      {isPdfExportOpen &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+            <button
+              type="button"
+              aria-label="Close PDF export options"
+              className="absolute inset-0 bg-slate-900/20 backdrop-blur-[2px]"
+              onClick={() => !isExportingPdf && setIsPdfExportOpen(false)}
+            />
+            <div className="relative w-full max-w-md bg-white rounded-2xl border border-slate-200 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+              <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-slate-100">
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">Export Aging PDF</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">Choose how customer tags are included</p>
+                </div>
+                <button
+                  type="button"
+                  disabled={isExportingPdf}
+                  onClick={() => setIsPdfExportOpen(false)}
+                  className="p-2 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors disabled:opacity-50"
+                  aria-label="Close"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="p-4 space-y-2">
+                <button
+                  type="button"
+                  disabled={isExportingPdf}
+                  onClick={() => handleExportPDF('normal')}
+                  className="w-full flex items-start gap-3 px-4 py-3.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 text-left transition-all disabled:opacity-60"
+                >
+                  <div className="w-9 h-9 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center shrink-0">
+                    <Users className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-sm font-bold text-slate-800">Normal Download</div>
+                    <div className="text-xs text-slate-500 mt-0.5">
+                      Full aging report + one PDF per city (all customers)
+                    </div>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={isExportingPdf}
+                  onClick={() => handleExportPDF('without_tags')}
+                  className="w-full flex items-start gap-3 px-4 py-3.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 text-left transition-all disabled:opacity-60"
+                >
+                  <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center shrink-0">
+                    <FileText className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-sm font-bold text-slate-800">Without Customer Tags</div>
+                    <div className="text-xs text-slate-500 mt-0.5">
+                      Same report layout, only customers with no tag
+                    </div>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={isExportingPdf}
+                  onClick={() => handleExportPDF('tags_only')}
+                  className="w-full flex items-start gap-3 px-4 py-3.5 rounded-xl border border-indigo-200 bg-indigo-50/50 hover:bg-indigo-50 text-left transition-all disabled:opacity-60"
+                >
+                  <div className="w-9 h-9 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0">
+                    <Tag className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-sm font-bold text-indigo-900">Customer Tags Only</div>
+                    <div className="text-xs text-indigo-700/80 mt-0.5">
+                      One separate PDF file for each customer tag
+                    </div>
+                  </div>
+                </button>
+              </div>
+
+              {isExportingPdf && (
+                <div className="px-5 pb-4 flex items-center justify-center gap-2 text-sm font-semibold text-slate-600">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Generating PDF...
+                </div>
+              )}
+            </div>
+          </div>,
+          document.body
+        )}
 
       <div className="bg-white rounded-lg shadow overflow-hidden">
         <div className="overflow-x-auto">
