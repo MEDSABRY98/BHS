@@ -398,12 +398,8 @@ function InvoiceRankTable({
 export default function SalesReportsTab({ userId, allowedReportTableTabIds = null, showCosts = true }: SalesReportsTabProps) {
   const {
     commonFilters: filters,
-    dateFrom,
-    dateTo,
-    setDateFrom,
-    setDateTo,
-    setFilterYear,
-    setFilterMonth,
+    reportCompareMode: compareMode,
+    reportCustomerView: customerView,
   } = useSalesModuleFilters();
   const { dataVersion } = useSalesDataContext();
   const { data, isInitialLoading, error, reload, loading } = useSalesTabFetch<ReportsPayload | null>({
@@ -415,8 +411,6 @@ export default function SalesReportsTab({ userId, allowedReportTableTabIds = nul
     initialData: null,
   });
   const [exportingPdf, setExportingPdf] = useState(false);
-  const [compareMode, setCompareMode] = useState<CompareMode>('prevMonth');
-  const [customerView, setCustomerView] = useState<CustomerView>('main');
   const [activeTableTab, setActiveTableTab] = useState<ReportsTableTab>('top-customers');
 
   useEffect(() => {
@@ -498,26 +492,8 @@ export default function SalesReportsTab({ userId, allowedReportTableTabIds = nul
 
   const monthRange = getMonthDateRange(filters.year, filters.month);
   const defaultRange = getDefaultMonthRange();
-  const displayFrom = dateFrom || monthRange.from || defaultRange.from;
-  const displayTo = dateTo || monthRange.to || defaultRange.to;
-
-  const handleDateFromChange = (value: string) => {
-    setDateFrom(value);
-    if (value) {
-      setFilterYear('');
-      setFilterMonth('');
-      if (!dateTo) setDateTo(displayTo);
-    }
-  };
-
-  const handleDateToChange = (value: string) => {
-    setDateTo(value);
-    if (value) {
-      setFilterYear('');
-      setFilterMonth('');
-      if (!dateFrom) setDateFrom(displayFrom);
-    }
-  };
+  const displayFrom = filters.dateFrom || monthRange.from || defaultRange.from;
+  const displayTo = filters.dateTo || monthRange.to || defaultRange.to;
 
   const handleExport = useCallback(() => {
     if (!data || !compareBlock) return;
@@ -556,10 +532,10 @@ export default function SalesReportsTab({ userId, allowedReportTableTabIds = nul
         data: data.monthlyComparison.map((r) => ({
           Month: r.month,
           Actual: r.actual,
-          Target: r.target,
           [chartCompareLabel]: r[chartCompareKey as 'prevMonth' | 'lastYear'],
+          Target: r.target,
         })),
-        options: { numericColumns: ['Actual', 'Target', chartCompareLabel] },
+        options: { numericColumns: ['Actual', chartCompareLabel, 'Target'] },
       },
       ...(data.topSalesInvoices?.length
         ? [{
@@ -717,99 +693,23 @@ export default function SalesReportsTab({ userId, allowedReportTableTabIds = nul
   ]);
 
   const toolbar = (
-    <div className="sticky top-0 z-20 w-full flex items-center justify-between gap-4 px-4 sm:px-6 py-3 border-b border-slate-200 bg-white">
-      <div className="flex items-center gap-3 sm:gap-4 flex-wrap flex-1 min-w-0">
-        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-          <label className="flex items-center gap-2 text-xs font-semibold text-slate-500">
-            <span className="hidden sm:inline">From</span>
-            <input
-              type="date"
-              value={displayFrom}
-              onChange={(e) => handleDateFromChange(e.target.value)}
-              className="px-2.5 py-1.5 text-xs font-medium text-slate-800 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-400"
-            />
-          </label>
-          <span className="text-slate-300 font-light">—</span>
-          <label className="flex items-center gap-2 text-xs font-semibold text-slate-500">
-            <span className="hidden sm:inline">To</span>
-            <input
-              type="date"
-              value={displayTo}
-              onChange={(e) => handleDateToChange(e.target.value)}
-              className="px-2.5 py-1.5 text-xs font-medium text-slate-800 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-400"
-            />
-          </label>
-        </div>
-
-        <div className="hidden sm:block w-px h-6 bg-slate-200 shrink-0" />
-
-        {reportingModeLabel && (
-          <span className="px-3 py-1.5 rounded-full text-xs font-bold bg-green-50 text-green-700 border border-green-200 whitespace-nowrap">
-            {reportingModeLabel}
-          </span>
-        )}
-
-        <div className="hidden sm:block w-px h-6 bg-slate-200 shrink-0" />
-
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">Compare vs:</span>
-          {(['prevMonth', 'sameMonthLastYear'] as CompareMode[]).map((mode) => (
-            <button
-              key={mode}
-              type="button"
-              onClick={() => setCompareMode(mode)}
-              className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors whitespace-nowrap ${
-                compareMode === mode
-                  ? 'bg-emerald-600 text-white shadow-sm'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              {mode === 'prevMonth' ? 'Previous Period' : 'Same Period Last Year'}
-            </button>
-          ))}
-          {compareLabel && (
-            <span className="text-[11px] text-slate-400 whitespace-nowrap">({compareLabel})</span>
-          )}
-        </div>
-
-        <div className="hidden sm:block w-px h-6 bg-slate-200 shrink-0" />
-
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">View:</span>
-          {(['main', 'sub'] as CustomerView[]).map((view) => (
-            <button
-              key={view}
-              type="button"
-              onClick={() => setCustomerView(view)}
-              className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors whitespace-nowrap ${
-                customerView === view
-                  ? 'bg-slate-800 text-white shadow-sm'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              {view === 'main' ? 'Main Customer' : 'Sub Customer'}
-            </button>
-          ))}
-        </div>
-      </div>
-      <div className="flex items-center gap-2 shrink-0">
-        <button
-          onClick={handleExport}
-          disabled={!data}
-          className="flex items-center justify-center w-9 h-9 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white rounded-lg transition-colors shadow-sm"
-          title="Export Excel"
-        >
-          <FileSpreadsheet className="w-4 h-4" />
-        </button>
-        <button
-          onClick={() => void handleExportPdf()}
-          disabled={!data || !compareBlock || exportingPdf}
-          className="flex items-center justify-center w-9 h-9 bg-slate-800 hover:bg-slate-900 disabled:opacity-40 text-white rounded-lg transition-colors shadow-sm"
-          title="Export PDF (ZIP)"
-        >
-          {exportingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
-        </button>
-      </div>
+    <div className="sticky top-0 z-20 w-full flex items-center justify-end gap-2 px-4 sm:px-6 py-3 border-b border-slate-200 bg-white">
+      <button
+        onClick={handleExport}
+        disabled={!data}
+        className="flex items-center justify-center w-9 h-9 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white rounded-lg transition-colors shadow-sm"
+        title="Export Excel"
+      >
+        <FileSpreadsheet className="w-4 h-4" />
+      </button>
+      <button
+        onClick={() => void handleExportPdf()}
+        disabled={!data || !compareBlock || exportingPdf}
+        className="flex items-center justify-center w-9 h-9 bg-slate-800 hover:bg-slate-900 disabled:opacity-40 text-white rounded-lg transition-colors shadow-sm"
+        title="Export PDF (ZIP)"
+      >
+        {exportingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
+      </button>
     </div>
   );
 
@@ -897,6 +797,15 @@ export default function SalesReportsTab({ userId, allowedReportTableTabIds = nul
                     offset={6}
                   />
                 </Bar>
+                <Bar dataKey={chartCompareKey} name={chartCompareLabel} fill="#8B5CF6" radius={[6, 6, 0, 0]} barSize={28}>
+                  <LabelList
+                    dataKey={chartCompareKey}
+                    position="top"
+                    formatter={fmtBarLabel}
+                    style={{ fontSize: 11, fontWeight: 800, fill: '#7C3AED' }}
+                    offset={6}
+                  />
+                </Bar>
                 {showTargetInChart && (
                   <Bar dataKey="target" name="Target" fill="#0F172A" radius={[6, 6, 0, 0]} barSize={28}>
                     <LabelList
@@ -908,15 +817,6 @@ export default function SalesReportsTab({ userId, allowedReportTableTabIds = nul
                     />
                   </Bar>
                 )}
-                <Bar dataKey={chartCompareKey} name={chartCompareLabel} fill="#8B5CF6" radius={[6, 6, 0, 0]} barSize={28}>
-                  <LabelList
-                    dataKey={chartCompareKey}
-                    position="top"
-                    formatter={fmtBarLabel}
-                    style={{ fontSize: 11, fontWeight: 800, fill: '#7C3AED' }}
-                    offset={6}
-                  />
-                </Bar>
               </ComposedChart>
             </ResponsiveContainer>
           </div>

@@ -10,7 +10,7 @@ export async function getProductsData(userId: string, filters: any) {
 
   let globallyFilteredData = augmentedData;
   if (filters) {
-    const { invoiceType, year, month, dateFrom, dateTo, area, market, merchandiser, salesRep, productTag } = filters;
+    const { invoiceType, year, month, dateFrom, dateTo, area, market, merchandiser, salesRep, productTag, customerTag } = filters;
 
     if (invoiceType && invoiceType !== 'all') {
       globallyFilteredData = globallyFilteredData.filter(item => {
@@ -21,6 +21,7 @@ export async function getProductsData(userId: string, filters: any) {
       });
     }
     if (productTag) globallyFilteredData = globallyFilteredData.filter(i => i.productTag === productTag);
+    if (customerTag) globallyFilteredData = globallyFilteredData.filter(i => i.customerTag === customerTag);
     if (area) globallyFilteredData = globallyFilteredData.filter(i => i.area === area);
     if (market) globallyFilteredData = globallyFilteredData.filter(i => i.market === market);
     if (merchandiser) globallyFilteredData = globallyFilteredData.filter(i => i.merchandiser === merchandiser);
@@ -122,7 +123,7 @@ export async function getProductDetailsData(userId: string, filters: any, produc
 
   let allData = productRawData;
   if (filters) {
-    const { invoiceType, area, market, merchandiser, salesRep, productTag } = filters;
+    const { invoiceType, area, market, merchandiser, salesRep, productTag, customerTag } = filters;
     if (invoiceType && invoiceType !== 'all') {
       allData = allData.filter(item => {
         const num = item.invoiceNumber?.trim().toUpperCase() || '';
@@ -132,6 +133,7 @@ export async function getProductDetailsData(userId: string, filters: any, produc
       });
     }
     if (productTag) allData = allData.filter(i => i.productTag === productTag);
+    if (customerTag) allData = allData.filter(i => i.customerTag === customerTag);
     if (area) allData = allData.filter(i => i.area === area);
     if (market) allData = allData.filter(i => i.market === market);
     if (merchandiser) allData = allData.filter(i => i.merchandiser === merchandiser);
@@ -184,7 +186,7 @@ export async function getCategoriesData(userId: string, filters: any) {
 
   let globallyFilteredData = augmentedData;
   if (filters) {
-    const { invoiceType, year, month, dateFrom, dateTo, area, market, merchandiser, salesRep, productTag } = filters;
+    const { invoiceType, year, month, dateFrom, dateTo, area, market, merchandiser, salesRep, productTag, customerTag } = filters;
 
     if (invoiceType && invoiceType !== 'all') {
       globallyFilteredData = globallyFilteredData.filter(item => {
@@ -195,6 +197,7 @@ export async function getCategoriesData(userId: string, filters: any) {
       });
     }
     if (productTag) globallyFilteredData = globallyFilteredData.filter(i => i.productTag === productTag);
+    if (customerTag) globallyFilteredData = globallyFilteredData.filter(i => i.customerTag === customerTag);
     if (area) globallyFilteredData = globallyFilteredData.filter(i => i.area === area);
     if (market) globallyFilteredData = globallyFilteredData.filter(i => i.market === market);
     if (merchandiser) globallyFilteredData = globallyFilteredData.filter(i => i.merchandiser === merchandiser);
@@ -278,8 +281,9 @@ export async function getNewListingsData(userId: string, filters: any) {
 
   let preFilteredData = augmentedData;
   if (filters) {
-    const { area, market, merchandiser, salesRep, productTag } = filters;
+    const { area, market, merchandiser, salesRep, productTag, customerTag } = filters;
     if (productTag) preFilteredData = preFilteredData.filter(i => i.productTag === productTag);
+    if (customerTag) preFilteredData = preFilteredData.filter(i => i.customerTag === customerTag);
     if (area) preFilteredData = preFilteredData.filter(i => i.area === area);
     if (market) preFilteredData = preFilteredData.filter(i => i.market === market);
     if (merchandiser) preFilteredData = preFilteredData.filter(i => i.merchandiser === merchandiser);

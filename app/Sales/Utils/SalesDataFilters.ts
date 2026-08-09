@@ -12,6 +12,7 @@ export function applySalesCommonFilters(data: any[], filters: any): any[] {
     merchandiser,
     salesRep,
     productTag,
+    customerTag,
   } = filters;
 
   let result = data;
@@ -26,6 +27,7 @@ export function applySalesCommonFilters(data: any[], filters: any): any[] {
   }
 
   if (productTag) result = result.filter((i) => i.productTag === productTag);
+  if (customerTag) result = result.filter((i) => i.customerTag === customerTag);
   if (area) result = result.filter((i) => i.area === area);
   if (market) result = result.filter((i) => i.market === market);
   if (merchandiser) result = result.filter((i) => i.merchandiser === merchandiser);

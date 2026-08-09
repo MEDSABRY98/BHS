@@ -131,6 +131,7 @@ export async function getSalesMetadata(userId: string, forceRefresh: boolean = f
   const merchandisers = new Set<string>();
   const salesReps = new Set<string>();
   const productTags = new Set<string>();
+  const customerTags = new Set<string>();
   const years = new Set<string>();
 
   myMappings.forEach(m => {
@@ -138,6 +139,7 @@ export async function getSalesMetadata(userId: string, forceRefresh: boolean = f
     if (m.market) markets.add(m.market);
     if (m.merchandiser) merchandisers.add(m.merchandiser);
     if (m.salesRep) salesReps.add(m.salesRep);
+    if (m.customerTag) customerTags.add(m.customerTag);
   });
 
   let latestDate = 0;
@@ -148,6 +150,7 @@ export async function getSalesMetadata(userId: string, forceRefresh: boolean = f
     if (item.merchandiser) merchandisers.add(item.merchandiser);
     if (item.salesRep) salesReps.add(item.salesRep);
     if (item.productTag) productTags.add(item.productTag);
+    if (item.customerTag) customerTags.add(item.customerTag);
 
     if (item.invoiceDate) {
       const d = new Date(item.invoiceDate);
@@ -169,6 +172,7 @@ export async function getSalesMetadata(userId: string, forceRefresh: boolean = f
       merchandisers: Array.from(merchandisers).sort(),
       salesReps: Array.from(salesReps).sort(),
       productTags: Array.from(productTags).sort(),
+      customerTags: Array.from(customerTags).sort(),
       years: Array.from(years).sort((a, b) => b.localeCompare(a))
     },
     lastUpdated

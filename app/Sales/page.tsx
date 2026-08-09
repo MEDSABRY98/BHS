@@ -64,6 +64,7 @@ export default function SalesPage() {
     merchandisers: [] as string[],
     salesReps: [] as string[],
     productTags: [] as string[],
+    customerTags: [] as string[],
     years: [] as string[]
   });
   const [customerMapping, setCustomerMapping] = useState<Record<string, any>>({});

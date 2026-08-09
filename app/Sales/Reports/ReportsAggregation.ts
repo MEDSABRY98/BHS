@@ -9,6 +9,7 @@ export type SalesFilters = {
   merchandiser?: string;
   salesRep?: string;
   productTag?: string;
+  customerTag?: string;
 };
 
 export type SalesItemWithDate = {
@@ -20,6 +21,7 @@ export type SalesItemWithDate = {
   productId?: string;
   product?: string;
   productTag?: string;
+  customerTag?: string;
   barcode?: string;
   amount?: number;
   qty?: number;
@@ -140,6 +142,7 @@ export function applyGeoFilters(data: SalesItemWithDate[], filters?: SalesFilter
   if (!filters) return data;
   let result = data.filter((item) => matchesInvoiceType(item, filters.invoiceType));
   if (filters.productTag) result = result.filter((i) => i.productTag === filters.productTag);
+  if (filters.customerTag) result = result.filter((i) => i.customerTag === filters.customerTag);
   if (filters.area) result = result.filter((i) => i.area === filters.area);
   if (filters.market) result = result.filter((i) => i.market === filters.market);
   if (filters.merchandiser) result = result.filter((i) => i.merchandiser === filters.merchandiser);

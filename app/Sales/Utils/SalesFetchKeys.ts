@@ -22,5 +22,6 @@ export function buildSalesFetchKey(
     filters.merchandiser,
     filters.salesRep,
     filters.productTag,
+    filters.customerTag,
   ].join('|');
 }

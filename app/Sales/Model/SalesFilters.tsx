@@ -12,11 +12,26 @@ import {
   TrendingUp,
   Tag,
   Search,
+  ArrowLeft,
+  Users,
+  SlidersHorizontal,
+  BarChart3,
 } from 'lucide-react';
 import Loading from '@/app/Components/Loading';
 
 export type InvoiceTypeFilter = 'all' | 'sales' | 'returns';
-export type SalesFilterTab = 'mode' | 'timing' | 'product' | 'outreach' | 'advanced';
+export type SalesFilterTab = 'mode' | 'timing' | 'product' | 'outreach' | 'advanced' | 'reporting';
+export type ReportCompareMode = 'prevMonth' | 'sameMonthLastYear';
+export type ReportCustomerView = 'main' | 'sub';
+
+const DEFAULT_REPORT_COMPARE_MODE: ReportCompareMode = 'prevMonth';
+const DEFAULT_REPORT_CUSTOMER_VIEW: ReportCustomerView = 'main';
+
+const REPORTING_MODE_BADGE_LABELS: Record<InvoiceTypeFilter, string> = {
+  all: 'Net Sales',
+  sales: 'Sales Only',
+  returns: 'GRV Only',
+};
 
 export type SalesCommonFilters = {
   invoiceType: InvoiceTypeFilter;
@@ -29,6 +44,7 @@ export type SalesCommonFilters = {
   merchandiser: string;
   salesRep: string;
   productTag: string;
+  customerTag: string;
 };
 
 export type SalesFilterOptions = {
@@ -37,6 +53,7 @@ export type SalesFilterOptions = {
   merchandisers: string[];
   salesReps: string[];
   productTags: string[];
+  customerTags: string[];
   years: string[];
 };
 
@@ -47,6 +64,27 @@ const MONTH_OPTIONS = [
     value: (i + 1).toString(),
   })),
 ];
+
+function pad2(n: number) {
+  return String(n).padStart(2, '0');
+}
+
+function monthDateRange(year: string, month: string): { from: string; to: string } {
+  if (!year || !month) return { from: '', to: '' };
+  const y = Number(year);
+  const m = Number(month);
+  if (!Number.isFinite(y) || !Number.isFinite(m) || m < 1 || m > 12) return { from: '', to: '' };
+  const lastDay = new Date(y, m, 0).getDate();
+  return { from: `${y}-${pad2(m)}-01`, to: `${y}-${pad2(m)}-${pad2(lastDay)}` };
+}
+
+function defaultMonthRange(): { from: string; to: string } {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth() + 1;
+  const lastDay = new Date(y, m, 0).getDate();
+  return { from: `${y}-${pad2(m)}-01`, to: `${y}-${pad2(m)}-${pad2(lastDay)}` };
+}
 
 export const DEFAULT_SALES_COMMON_FILTERS: SalesCommonFilters = {
   invoiceType: 'all',
@@ -59,6 +97,7 @@ export const DEFAULT_SALES_COMMON_FILTERS: SalesCommonFilters = {
   merchandiser: '',
   salesRep: '',
   productTag: '',
+  customerTag: '',
 };
 
 function filtersEqual(a: SalesCommonFilters, b: SalesCommonFilters): boolean {
@@ -72,7 +111,8 @@ function filtersEqual(a: SalesCommonFilters, b: SalesCommonFilters): boolean {
     a.market === b.market &&
     a.merchandiser === b.merchandiser &&
     a.salesRep === b.salesRep &&
-    a.productTag === b.productTag
+    a.productTag === b.productTag &&
+    a.customerTag === b.customerTag
   );
 }
 
@@ -195,12 +235,28 @@ export function useSalesFilters() {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [isFiltering, setIsFiltering] = useState(false);
   const [activeFilterTab, setActiveFilterTab] = useState<SalesFilterTab>('mode');
+  const [appliedReportCompareMode, setAppliedReportCompareMode] =
+    useState<ReportCompareMode>(DEFAULT_REPORT_COMPARE_MODE);
+  const [draftReportCompareMode, setDraftReportCompareMode] =
+    useState<ReportCompareMode>(DEFAULT_REPORT_COMPARE_MODE);
+  const [appliedReportCustomerView, setAppliedReportCustomerView] =
+    useState<ReportCustomerView>(DEFAULT_REPORT_CUSTOMER_VIEW);
+  const [draftReportCustomerView, setDraftReportCustomerView] =
+    useState<ReportCustomerView>(DEFAULT_REPORT_CUSTOMER_VIEW);
 
   const syncDraftFromApplied = useCallback(() => {
     setDraftFilters({ ...appliedFilters });
     setDraftInactiveDays(appliedInactiveDays);
     setDraftInactiveMinAmount(appliedInactiveMinAmount);
-  }, [appliedFilters, appliedInactiveDays, appliedInactiveMinAmount]);
+    setDraftReportCompareMode(appliedReportCompareMode);
+    setDraftReportCustomerView(appliedReportCustomerView);
+  }, [
+    appliedFilters,
+    appliedInactiveDays,
+    appliedInactiveMinAmount,
+    appliedReportCompareMode,
+    appliedReportCustomerView,
+  ]);
 
   const openFilterModal = useCallback(() => {
     syncDraftFromApplied();
@@ -216,8 +272,16 @@ export function useSalesFilters() {
     setAppliedFilters({ ...draftFilters });
     setAppliedInactiveDays(draftInactiveDays);
     setAppliedInactiveMinAmount(draftInactiveMinAmount);
+    setAppliedReportCompareMode(draftReportCompareMode);
+    setAppliedReportCustomerView(draftReportCustomerView);
     setIsFilterOpen(false);
-  }, [draftFilters, draftInactiveDays, draftInactiveMinAmount]);
+  }, [
+    draftFilters,
+    draftInactiveDays,
+    draftInactiveMinAmount,
+    draftReportCompareMode,
+    draftReportCustomerView,
+  ]);
 
   const hasAnyFilter = useMemo(() => {
     const f = appliedFilters;
@@ -231,7 +295,8 @@ export function useSalesFilters() {
       !!f.market ||
       !!f.merchandiser ||
       !!f.salesRep ||
-      !!f.productTag
+      !!f.productTag ||
+      !!f.customerTag
     );
   }, [appliedFilters]);
 
@@ -239,7 +304,9 @@ export function useSalesFilters() {
     return (
       !filtersEqual(draftFilters, appliedFilters) ||
       draftInactiveDays !== appliedInactiveDays ||
-      draftInactiveMinAmount !== appliedInactiveMinAmount
+      draftInactiveMinAmount !== appliedInactiveMinAmount ||
+      draftReportCompareMode !== appliedReportCompareMode ||
+      draftReportCustomerView !== appliedReportCustomerView
     );
   }, [
     draftFilters,
@@ -248,6 +315,10 @@ export function useSalesFilters() {
     appliedInactiveDays,
     draftInactiveMinAmount,
     appliedInactiveMinAmount,
+    draftReportCompareMode,
+    appliedReportCompareMode,
+    draftReportCustomerView,
+    appliedReportCustomerView,
   ]);
 
   const resetFilters = useCallback(() => {
@@ -257,10 +328,36 @@ export function useSalesFilters() {
     setDraftInactiveDays('30');
     setAppliedInactiveMinAmount('');
     setDraftInactiveMinAmount('');
+    setAppliedReportCompareMode(DEFAULT_REPORT_COMPARE_MODE);
+    setDraftReportCompareMode(DEFAULT_REPORT_COMPARE_MODE);
+    setAppliedReportCustomerView(DEFAULT_REPORT_CUSTOMER_VIEW);
+    setDraftReportCustomerView(DEFAULT_REPORT_CUSTOMER_VIEW);
   }, []);
 
   const updateDraftFilter = useCallback(<K extends keyof SalesCommonFilters>(key: K, value: SalesCommonFilters[K]) => {
     setDraftFilters((prev) => ({ ...prev, [key]: value }));
+  }, []);
+
+  const setReportDateFrom = useCallback((value: string) => {
+    setDraftFilters((prev) => {
+      const next = { ...prev, dateFrom: value };
+      if (value) {
+        next.year = '';
+        next.month = '';
+      }
+      return next;
+    });
+  }, []);
+
+  const setReportDateTo = useCallback((value: string) => {
+    setDraftFilters((prev) => {
+      const next = { ...prev, dateTo: value };
+      if (value) {
+        next.year = '';
+        next.month = '';
+      }
+      return next;
+    });
   }, []);
 
   const getCommonFilters = (): SalesCommonFilters => appliedFilters;
@@ -283,6 +380,14 @@ export function useSalesFilters() {
     setDateFrom: (value: string) => updateDraftFilter('dateFrom', value),
     dateTo: draftFilters.dateTo,
     setDateTo: (value: string) => updateDraftFilter('dateTo', value),
+    setReportDateFrom,
+    setReportDateTo,
+    reportCompareMode: appliedReportCompareMode,
+    draftReportCompareMode,
+    setDraftReportCompareMode,
+    reportCustomerView: appliedReportCustomerView,
+    draftReportCustomerView,
+    setDraftReportCustomerView,
     filterArea: draftFilters.area,
     setFilterArea: (value: string) => updateDraftFilter('area', value),
     filterMarket: draftFilters.market,
@@ -293,6 +398,8 @@ export function useSalesFilters() {
     setFilterSalesRep: (value: string) => updateDraftFilter('salesRep', value),
     filterProductTag: draftFilters.productTag,
     setFilterProductTag: (value: string) => updateDraftFilter('productTag', value),
+    filterCustomerTag: draftFilters.customerTag,
+    setFilterCustomerTag: (value: string) => updateDraftFilter('customerTag', value),
     inactiveDays: appliedInactiveDays,
     draftInactiveDays,
     setInactiveDays: setDraftInactiveDays,
@@ -339,10 +446,18 @@ export type SalesFilterModalProps = {
   setFilterSalesRep: (value: string) => void;
   filterProductTag: string;
   setFilterProductTag: (value: string) => void;
+  filterCustomerTag: string;
+  setFilterCustomerTag: (value: string) => void;
   inactiveDays: string;
   setInactiveDays: (value: string) => void;
   inactiveMinAmount: string;
   setInactiveMinAmount: (value: string) => void;
+  setReportDateFrom: (value: string) => void;
+  setReportDateTo: (value: string) => void;
+  draftReportCompareMode: ReportCompareMode;
+  setDraftReportCompareMode: (value: ReportCompareMode) => void;
+  draftReportCustomerView: ReportCustomerView;
+  setDraftReportCustomerView: (value: ReportCustomerView) => void;
   isFiltering: boolean;
   setIsFiltering: (value: boolean) => void;
   activeFilterTab: SalesFilterTab;
@@ -377,17 +492,84 @@ export function SalesFilterModal({
   setFilterSalesRep,
   filterProductTag,
   setFilterProductTag,
+  filterCustomerTag,
+  setFilterCustomerTag,
   inactiveDays,
   setInactiveDays,
   inactiveMinAmount,
   setInactiveMinAmount,
+  setReportDateFrom,
+  setReportDateTo,
+  draftReportCompareMode,
+  setDraftReportCompareMode,
+  draftReportCustomerView,
+  setDraftReportCustomerView,
   isFiltering,
   setIsFiltering,
   activeFilterTab,
   setActiveFilterTab,
   resetFilters,
 }: SalesFilterModalProps) {
+  const [isHomeView, setIsHomeView] = useState(true);
+
+  useEffect(() => {
+    if (isOpen) setIsHomeView(true);
+  }, [isOpen]);
+
   if (!isOpen) return null;
+
+  const categoryTabs = [
+    {
+      id: 'mode' as SalesFilterTab,
+      label: 'Reporting Mode',
+      icon: Layers,
+    },
+    {
+      id: 'timing' as SalesFilterTab,
+      label: 'Dates',
+      icon: Calendar,
+    },
+    {
+      id: 'product' as SalesFilterTab,
+      label: 'Product Category',
+      icon: Tag,
+    },
+    {
+      id: 'outreach' as SalesFilterTab,
+      label: 'Teams',
+      icon: Users,
+    },
+    ...(activeTab === 'sales-inactive-customers'
+      ? [
+          {
+            id: 'advanced' as SalesFilterTab,
+            label: 'Comprehensive Filters',
+            icon: SlidersHorizontal,
+          },
+        ]
+      : []),
+    ...(activeTab === 'sales-reports'
+      ? [
+          {
+            id: 'reporting' as SalesFilterTab,
+            label: 'Reporting',
+            icon: BarChart3,
+          },
+        ]
+      : []),
+  ];
+
+  const activeCategory = categoryTabs.find((tab) => tab.id === activeFilterTab);
+
+  const monthRange = monthDateRange(filterYear, filterMonth);
+  const fallbackRange = defaultMonthRange();
+  const reportDisplayFrom = dateFrom || monthRange.from || fallbackRange.from;
+  const reportDisplayTo = dateTo || monthRange.to || fallbackRange.to;
+
+  const enterCategory = (id: SalesFilterTab) => {
+    setActiveFilterTab(id);
+    setIsHomeView(false);
+  };
 
   return (
     <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
@@ -436,32 +618,55 @@ export function SalesFilterModal({
           </div>
         </div>
 
-        <div className="flex flex-col flex-1 bg-white">
-          <div className="px-10 py-5 bg-slate-50 border-b border-slate-100 flex items-center gap-2 shrink-0">
-            {[
-              { id: 'mode', label: 'Reporting Mode' },
-              { id: 'timing', label: 'Timing & Periods' },
-              { id: 'product', label: 'Product Category' },
-              { id: 'outreach', label: 'Team & Territory' },
-              ...(activeTab === 'sales-inactive-customers'
-                ? [{ id: 'advanced', label: 'Comprehensive Filters' }]
-                : []),
-            ].map((tab) => (
+        <div className="flex flex-col flex-1 bg-white min-h-0">
+          {!isHomeView && (
+            <div className="px-10 py-4 bg-slate-50 border-b border-slate-100 flex items-center gap-3 shrink-0">
               <button
-                key={tab.id}
-                onClick={() => setActiveFilterTab(tab.id as SalesFilterTab)}
-                className={`flex-1 flex items-center justify-center px-2 py-4 rounded-2xl text-xs font-black uppercase tracking-widest transition-all ${
-                  activeFilterTab === tab.id
-                    ? 'bg-slate-900 text-white shadow-xl shadow-slate-200 ring-4 ring-slate-900/10'
-                    : 'text-slate-400 hover:bg-white hover:text-slate-600 border border-transparent hover:border-slate-100'
-                }`}
+                type="button"
+                onClick={() => setIsHomeView(true)}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest text-slate-600 bg-white border border-slate-200 hover:bg-slate-100 transition-all"
               >
-                <span className="truncate">{tab.label}</span>
+                <ArrowLeft className="w-4 h-4" />
+                Back
               </button>
-            ))}
-          </div>
+              <div className="h-6 w-px bg-slate-200" />
+              <p className="text-sm font-black uppercase tracking-widest text-slate-900">
+                {activeCategory?.label || 'Filters'}
+              </p>
+            </div>
+          )}
 
           <div className="p-10 overflow-y-auto custom-scrollbar flex-1 min-h-[450px] relative">
+            {isHomeView ? (
+              <div className="h-full flex flex-col justify-center animate-in fade-in zoom-in-95 duration-300 px-4">
+                <div
+                  className={`grid gap-8 md:gap-10 ${
+                    categoryTabs.length > 4 ? 'grid-cols-2 md:grid-cols-3' : 'grid-cols-1 md:grid-cols-2'
+                  }`}
+                >
+                  {categoryTabs.map((tab) => {
+                    const Icon = tab.icon;
+                    return (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => enterCategory(tab.id)}
+                        className="flex flex-col items-center justify-center gap-5 text-center p-10 md:p-12 rounded-[36px] transition-all border-2 min-h-[220px] w-full bg-white border-slate-100 hover:border-slate-900 hover:shadow-xl hover:shadow-slate-200/60 hover:-translate-y-0.5"
+                      >
+                        <div className="w-16 h-16 rounded-[22px] flex items-center justify-center shadow-lg bg-slate-900 text-white">
+                          <Icon className="w-8 h-8" />
+                        </div>
+                        <div>
+                          <p className="font-black text-base uppercase tracking-[0.18em] text-slate-900">
+                            {tab.label}
+                          </p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
             <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
               {activeFilterTab === 'mode' && (
                 <div className="space-y-8 h-full flex flex-col justify-center">
@@ -625,6 +830,20 @@ export function SalesFilterModal({
                   <div className="grid grid-cols-2 gap-x-12 gap-y-8 bg-slate-50 p-10 rounded-[40px] border border-slate-100">
                     <div className="space-y-2">
                       <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">
+                        Customer Tag
+                      </label>
+                      <ModernSelect
+                        value={filterCustomerTag}
+                        onChange={setFilterCustomerTag}
+                        options={[
+                          { label: 'All Tags', value: '' },
+                          ...(uniqueValues.customerTags || []).map((v) => ({ label: v, value: v })),
+                        ]}
+                        placeholder="All Tags"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">
                         Area
                       </label>
                       <ModernSelect
@@ -721,7 +940,115 @@ export function SalesFilterModal({
                   )}
                 </div>
               )}
+
+              {activeFilterTab === 'reporting' && activeTab === 'sales-reports' && (
+                <div className="space-y-4 animate-in slide-in-from-right-4 duration-500 h-full flex flex-col justify-center">
+                  <div className="bg-emerald-50/40 p-5 rounded-[28px] border border-emerald-100/60 space-y-4">
+                    <div className="flex flex-wrap items-center gap-2.5">
+                      <h4 className="flex items-center gap-2 text-[11px] font-black text-emerald-500 uppercase tracking-[0.25em]">
+                        <span className="w-8 h-[2px] bg-emerald-200" />
+                        Report Period
+                      </h4>
+                      <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-green-50 text-green-700 border border-green-200 whitespace-nowrap">
+                        {REPORTING_MODE_BADGE_LABELS[invoiceTypeFilter]}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
+                          From
+                        </label>
+                        <input
+                          type="date"
+                          value={reportDisplayFrom}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setReportDateFrom(value);
+                            if (value && !dateTo) setReportDateTo(reportDisplayTo);
+                          }}
+                          className="w-full px-4 py-2.5 bg-white border border-slate-100 rounded-xl font-bold text-slate-700 outline-none shadow-sm focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-400/40 transition-all text-sm"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
+                          To
+                        </label>
+                        <input
+                          type="date"
+                          value={reportDisplayTo}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setReportDateTo(value);
+                            if (value && !dateFrom) setReportDateFrom(reportDisplayFrom);
+                          }}
+                          className="w-full px-4 py-2.5 bg-white border border-slate-100 rounded-xl font-bold text-slate-700 outline-none shadow-sm focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-400/40 transition-all text-sm"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="bg-slate-50 p-5 rounded-[28px] border border-slate-100 space-y-3 min-w-0">
+                      <h4 className="flex items-center gap-2 text-[11px] font-black text-slate-400 uppercase tracking-[0.25em]">
+                        <span className="w-8 h-[2px] bg-slate-200" />
+                        Compare vs
+                      </h4>
+                      <div className="grid grid-cols-2 gap-2">
+                        {(
+                          [
+                            { id: 'prevMonth' as ReportCompareMode, label: 'Previous Period' },
+                            { id: 'sameMonthLastYear' as ReportCompareMode, label: 'Same Period Last Year' },
+                          ] as const
+                        ).map((mode) => (
+                          <button
+                            key={mode.id}
+                            type="button"
+                            onClick={() => setDraftReportCompareMode(mode.id)}
+                            className={`w-full px-3 py-2.5 rounded-xl text-xs font-bold transition-all text-center border-2 ${
+                              draftReportCompareMode === mode.id
+                                ? 'bg-emerald-600 text-white border-emerald-600 shadow-md shadow-emerald-100'
+                                : 'bg-white text-slate-600 border-slate-100 hover:border-slate-300'
+                            }`}
+                          >
+                            {mode.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="bg-slate-50 p-5 rounded-[28px] border border-slate-100 space-y-3 min-w-0">
+                      <h4 className="flex items-center gap-2 text-[11px] font-black text-slate-400 uppercase tracking-[0.25em]">
+                        <span className="w-8 h-[2px] bg-slate-200" />
+                        View
+                      </h4>
+                      <div className="grid grid-cols-2 gap-2">
+                        {(
+                          [
+                            { id: 'main' as ReportCustomerView, label: 'Main Customer' },
+                            { id: 'sub' as ReportCustomerView, label: 'Sub Customer' },
+                          ] as const
+                        ).map((view) => (
+                          <button
+                            key={view.id}
+                            type="button"
+                            onClick={() => setDraftReportCustomerView(view.id)}
+                            className={`w-full px-3 py-2.5 rounded-xl text-xs font-bold transition-all text-center border-2 ${
+                              draftReportCustomerView === view.id
+                                ? 'bg-slate-800 text-white border-slate-800 shadow-md shadow-slate-200'
+                                : 'bg-white text-slate-600 border-slate-100 hover:border-slate-300'
+                            }`}
+                          >
+                            {view.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
+            )}
           </div>
         </div>
       </div>
@@ -817,6 +1144,12 @@ export function SalesFiltersProvider({
   const filterState = useSalesFilters();
   const commonFilters = filterState.appliedFilters;
 
+  useEffect(() => {
+    if (activeTab !== 'sales-reports' && filterState.activeFilterTab === 'reporting') {
+      filterState.setActiveFilterTab('mode');
+    }
+  }, [activeTab, filterState.activeFilterTab, filterState.setActiveFilterTab]);
+
   const value = useMemo(
     () => ({
       ...filterState,
@@ -857,10 +1190,18 @@ export function SalesFiltersProvider({
         setFilterSalesRep={filterState.setFilterSalesRep}
         filterProductTag={filterState.filterProductTag}
         setFilterProductTag={filterState.setFilterProductTag}
+        filterCustomerTag={filterState.filterCustomerTag}
+        setFilterCustomerTag={filterState.setFilterCustomerTag}
         inactiveDays={filterState.draftInactiveDays}
         setInactiveDays={filterState.setInactiveDays}
         inactiveMinAmount={filterState.draftInactiveMinAmount}
         setInactiveMinAmount={filterState.setInactiveMinAmount}
+        setReportDateFrom={filterState.setReportDateFrom}
+        setReportDateTo={filterState.setReportDateTo}
+        draftReportCompareMode={filterState.draftReportCompareMode}
+        setDraftReportCompareMode={filterState.setDraftReportCompareMode}
+        draftReportCustomerView={filterState.draftReportCustomerView}
+        setDraftReportCustomerView={filterState.setDraftReportCustomerView}
         isFiltering={filterState.isFiltering}
         setIsFiltering={filterState.setIsFiltering}
         activeFilterTab={filterState.activeFilterTab}

@@ -321,6 +321,7 @@ function drawCoverPage(doc: any, data: ReportsPayload, input: SalesReportsInput)
   if (input.filters.area) paramItems.push({ label: 'Area', value: input.filters.area });
   if (input.filters.market) paramItems.push({ label: 'Market', value: input.filters.market });
   if (input.filters.productTag) paramItems.push({ label: 'Product Tag', value: input.filters.productTag });
+  if (input.filters.customerTag) paramItems.push({ label: 'Customer Tag', value: input.filters.customerTag });
 
   const panelY = computeCoverPanelY(pageHeight, paramItems.length);
   drawCoverParameterList(doc, MARGIN, panelY, contentW, paramItems);
@@ -633,8 +634,8 @@ function drawMonthlyChartPage(doc: any, data: ReportsPayload, compareMode: Compa
   const legendY = chartBoxY + 12;
   const legendItems: { label: string; color: [number, number, number] }[] = [
     { label: chartCfg.actualLabel, color: C.emerald500 },
-    ...(chartCfg.showTarget ? [{ label: 'Target', color: C.grayBar }] : []),
     { label: chartCfg.legendLabel, color: C.violet500 },
+    ...(chartCfg.showTarget ? [{ label: 'Target', color: C.grayBar }] : []),
   ];
   let lx = chartBoxX + 14;
   legendItems.forEach((item) => {
@@ -693,8 +694,8 @@ function drawMonthlyChartPage(doc: any, data: ReportsPayload, compareMode: Compa
     const gx = groupCenter - totalBarsW / 2;
     const series: { val: number; color: [number, number, number] }[] = [
       { val: d.actual, color: C.emerald500 },
-      ...(chartCfg.showTarget ? [{ val: d.target, color: C.grayBar }] : []),
       { val: d[chartCfg.key], color: C.violet500 },
+      ...(chartCfg.showTarget ? [{ val: d.target, color: C.grayBar }] : []),
     ];
     series.forEach((s, si) => {
       const bx = gx + si * (barW + barGap);

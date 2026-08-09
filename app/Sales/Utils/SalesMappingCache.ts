@@ -9,6 +9,7 @@ import { getSalesDataServer } from '@/app/Sales/Utils/SalesCache';
 
 let globalMappingCache: Map<string, any> | null = null;
 let cachedUsersList: { id: string; name: string }[] | null = null;
+let globalCustomerTagCache: Map<string, string> | null = null;
 
 /**
  * Fetches and builds the global customer mappings.
@@ -51,19 +52,24 @@ export async function getGlobalMappings(): Promise<Map<string, any>> {
   // 3. Fetch customers
   const { data: customers, error: custErr } = await bhs_supabas
     .from('bhs_CUSTOMERS')
-    .select('"CUSTOMER ID", "CUSTOMER MAIN NAME", "CUSTOMER SUB NAME", "CUSTOMER CITY"');
+    .select('"CUSTOMER ID", "CUSTOMER MAIN NAME", "CUSTOMER SUB NAME", "CUSTOMER CITY", "CUSTOMER TAG"');
 
-  const custMap = new Map<string, { mainName: string; subName: string; city: string }>();
+  const custMap = new Map<string, { mainName: string; subName: string; city: string; tag: string }>();
+  const tagMap = new Map<string, string>();
   if (!custErr && customers) {
     customers.forEach(c => {
       const cId = String(c['CUSTOMER ID']).trim().toUpperCase();
+      const tag = String(c['CUSTOMER TAG'] || '').trim();
       custMap.set(cId, {
         mainName: c['CUSTOMER MAIN NAME'] || '',
         subName: c['CUSTOMER SUB NAME'] || '',
         city: String(c['CUSTOMER CITY'] || '').trim(),
+        tag,
       });
+      if (tag) tagMap.set(cId, tag);
     });
   }
+  globalCustomerTagCache = tagMap;
 
   // 4. Merge mapping records
   const mappingMap = new Map<string, any>();
@@ -91,6 +97,7 @@ export async function getGlobalMappings(): Promise<Map<string, any>> {
         merchandiser: userMap.get(merchId) || (userMapByName.has(rawMerch.toUpperCase()) ? rawMerch : ''),
         customerMainName: custMap.get(cId)?.mainName || '',
         customerSubName: custMap.get(cId)?.subName || '',
+        customerTag: custMap.get(cId)?.tag || '',
       });
     });
   }
@@ -174,6 +181,7 @@ export async function getMappingServer(userId: string): Promise<Map<string, any>
 export function invalidateMappingCache(userId?: string) {
   globalMappingCache = null;
   cachedUsersList = null;
+  globalCustomerTagCache = null;
   console.log('🗑️ Global mapping cache invalidated');
 }
 
@@ -201,6 +209,7 @@ export function applyMapping(item: any, mappingMap: Map<string, any>): any {
     merchandiserId: mapping.merchandiserId || '',
     salesRep: mapping.salesRep || item.salesRep,
     salesRepId: mapping.userId || '',
+    customerTag: mapping.customerTag || globalCustomerTagCache?.get(cId) || item.customerTag || '',
   };
 }
 
@@ -236,6 +245,7 @@ export async function getFilteredSalesData(userId: string): Promise<any[]> {
         merchandiserId: mapping?.merchandiserId || '',
         salesRep: mapping?.salesRep || '',
         salesRepId: mapping?.userId || '',
+        customerTag: mapping?.customerTag || globalCustomerTagCache?.get(cId) || item.customerTag || '',
       });
     }
   });
