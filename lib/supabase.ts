@@ -121,6 +121,7 @@ export interface SalesInvoice {
   barcode: string;
   product: string;
   productTag: string;
+  customerTag: string;
   productCost: number;
   productPrice: number;
   amount: number;

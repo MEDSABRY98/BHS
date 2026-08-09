@@ -153,6 +153,7 @@ async function buildFromDB(): Promise<any[]> {
       customerId: s['CUSTOMER ID'],
       productId: s['PRODUCT ID'],
       productTag: p['PRODUCT CATEGORY'] || 'Uncategorized',
+      customerTag: c['CUSTOMER TAG'] || '',
       productCost: p['PRODUCT COST'] || 0,
       productPrice: s['PRODUCT PRICE'],
       amount: s['AMOUNT'],
