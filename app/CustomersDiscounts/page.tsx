@@ -11,6 +11,7 @@ import AddDiscount from "./AddDiscount";
 import CustomerDetails from "./CustomerDiscountsDetails/CustomerDetails";
 import MonthsOverview from "./MonthsOverview";
 import Statistics from "./Statistics";
+import DiscountValues from "./DiscountValues";
 import {
   buildMonthGroups,
   splitMonthGroups,
@@ -43,6 +44,7 @@ export type CustomerView = {
   customerId: string;
   customerName: string;
   city: string;
+  customerTag: string;
   discounts: Discount[];
 };
 
@@ -51,9 +53,123 @@ type AllCustomerItem = {
   name: string;
 };
 
+const TAX_REBATE_MONTH_NAMES = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+
+function isEligiblePendingMonth(month: number, year: number, currentYear: number, currentMonth: number) {
+  if (year < currentYear) return true;
+  if (year === currentYear && month < currentMonth) return true;
+  return false;
+}
+
+function buildTaxRebateEmlContent(input: {
+  tag: string;
+  sections: { customerId: string; customerName: string; periods: { month: number; year: number }[] }[];
+  toEmails: string[];
+  fallbackCustomerName?: string;
+}): { emlContent: string; fileLabel: string } | null {
+  const { tag, sections, toEmails, fallbackCustomerName } = input;
+  if (sections.length === 0 || toEmails.length === 0) return null;
+
+  const subject =
+    "Request for Outstanding Tax Rebate Invoices - Al Marai Al Arabia Trading Sole Proprietorship L.L.C";
+
+  const customersHtml = sections
+    .map((c) => {
+      const monthsHtml = c.periods
+        .map(
+          (p) =>
+            `    <li style="margin-bottom: 4px;">${TAX_REBATE_MONTH_NAMES[p.month - 1]} ${p.year}</li>`
+        )
+        .join("\n");
+      return `
+  <p style="margin: 16px 0 6px;"><strong>${c.customerName}</strong></p>
+  <ul style="font-size: 15px; color: #dc2626; font-weight: bold; margin: 0 0 0 10px; padding-left: 20px; list-style-type: square;">
+${monthsHtml}
+  </ul>`;
+    })
+    .join("\n");
+
+  const intro = tag
+    ? `We are writing to kindly request the outstanding <strong>Tax Rebate Invoices</strong> (Discounts) for customers under tag <strong>${tag}</strong> for the following pending periods:`
+    : `We are writing to kindly request the outstanding <strong>Tax Rebate Invoices</strong> (Discounts) for the following pending periods for <strong>${fallbackCustomerName || sections[0].customerName}</strong>:`;
+
+  const htmlBody = `
+<div style="font-family: Arial, sans-serif; font-size: 14px; color: #333; line-height: 1.6;">
+  <p>Dear Team,</p>
+  <p>We hope this email finds you well.</p>
+  <p>${intro}</p>
+  ${customersHtml}
+  <p>Please share the pending Tax Rebate Invoices at your earliest convenience so we can reconcile and update our accounts.</p>
+  <p>Best regards,<br><br>Accounts Department<br>Al Marai Al Arabia Trading Sole Proprietorship L.L.C</p>
+</div>
+  `.trim();
+
+  const boundary = "----=_NextPart_000_0001_01C2A9A1.12345678";
+  const emlLines = [
+    `Date: ${new Date().toUTCString()}`,
+    `To: ${toEmails.join(", ")}`,
+    "From: accounting@marae.ae",
+    "Subject: " + subject,
+    "MIME-Version: 1.0",
+    "X-Unsent: 1",
+    'Content-Type: multipart/mixed; boundary="' + boundary + '"',
+    "",
+    "--" + boundary,
+    'Content-Type: text/html; charset="UTF-8"',
+    "Content-Transfer-Encoding: 7bit",
+    "",
+    htmlBody,
+    "",
+    "--" + boundary + "--",
+  ];
+
+  const fileLabel = tag
+    ? `Tag_${tag.replace(/[^a-zA-Z0-9\u0600-\u06FF\-_]/g, "_")}`
+    : (fallbackCustomerName || sections[0].customerName).replace(
+        /[^a-zA-Z0-9\u0600-\u06FF]/g,
+        "_"
+      );
+
+  return { emlContent: emlLines.join("\r\n"), fileLabel };
+}
+
+function collectTaxRebateGroups(list: CustomerView[]): { tag: string; group: CustomerView[] }[] {
+  const seenTags = new Set<string>();
+  const groups: { tag: string; group: CustomerView[] }[] = [];
+
+  for (const customer of list) {
+    const tag = (customer.customerTag || "").trim();
+    if (tag) {
+      if (seenTags.has(tag)) continue;
+      seenTags.add(tag);
+      groups.push({
+        tag,
+        group: list.filter((c) => (c.customerTag || "").trim() === tag),
+      });
+    } else {
+      groups.push({ tag: "", group: [customer] });
+    }
+  }
+
+  return groups;
+}
+
 export default function CustomerDiscountsPage() {
   // Navigation State
-  const [currentView, setCurrentView] = useState<"grid" | "add" | "details" | "months" | "stats">("grid");
+  const [currentView, setCurrentView] = useState<"grid" | "add" | "details" | "months" | "stats" | "values">("grid");
   
   // Data State
   const [customers, setCustomers] = useState<CustomerView[]>([]);
@@ -87,6 +203,7 @@ export default function CustomerDiscountsPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [addError, setAddError] = useState("");
   const [customersWithEmails, setCustomersWithEmails] = useState<Map<string, string>>(new Map());
+  const [downloadingEmailsZip, setDownloadingEmailsZip] = useState(false);
 
   // Edit State
   const [editingDiscountId, setEditingDiscountId] = useState<string | null>(null);
@@ -187,96 +304,193 @@ export default function CustomerDiscountsPage() {
 
   const downloadTaxRebateEml = async (customerId: string, customerName: string) => {
     try {
-      const targetEmail = getCustomerEmail(customersWithEmails, customerId, customerName);
-      
+      const clicked = customers.find((c) => c.customerId === customerId);
+      const tag = (clicked?.customerTag || "").trim();
+      const group = tag
+        ? customers.filter((c) => (c.customerTag || "").trim() === tag)
+        : [
+            {
+              customerId,
+              customerName,
+              city: clicked?.city || "",
+              customerTag: "",
+              discounts: clicked?.discounts || [],
+            },
+          ];
+
+      const groupIds = group.map((c) => c.customerId);
       const { data: settlementsData, error } = await bhs_supabase
         .from("web_CUSTOMERS_DISCOUNTS_SETTLEMENTS")
         .select("*")
-        .eq("CUSTOMER_ID", customerId)
+        .in("CUSTOMER_ID", groupIds)
         .eq("STATUS", "Pending");
-        
+
       if (error) throw error;
-      
-      const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
       const now = new Date();
       const currentYear = now.getFullYear();
       const currentMonth = now.getMonth() + 1;
 
-      const isEligiblePendingMonth = (month: number, year: number) => {
-        if (year < currentYear) return true;
-        if (year === currentYear && month < currentMonth) return true;
-        return false;
-      };
-
-      // Deduplicate pending months and sort chronologically
-      const uniqueMonths = new Set<string>();
-      const pendingPeriods: { month: number; year: number }[] = [];
-
-      if (settlementsData) {
-        settlementsData.forEach((s: any) => {
-          if (!isEligiblePendingMonth(s.MONTH, s.YEAR)) return;
-          const key = `${s.MONTH}-${s.YEAR}`;
-          if (!uniqueMonths.has(key)) {
-            uniqueMonths.add(key);
-            pendingPeriods.push({ month: s.MONTH, year: s.YEAR });
-          }
-        });
-      }
-
-      pendingPeriods.sort((a, b) => {
-        if (a.year !== b.year) return a.year - b.year;
-        return a.month - b.month;
+      const pendingByCustomer = new Map<string, { month: number; year: number }[]>();
+      (settlementsData || []).forEach((s: any) => {
+        if (!isEligiblePendingMonth(s.MONTH, s.YEAR, currentYear, currentMonth)) return;
+        const cId = String(s.CUSTOMER_ID || "").trim();
+        if (!cId) return;
+        const list = pendingByCustomer.get(cId) || [];
+        const key = `${s.MONTH}-${s.YEAR}`;
+        if (!list.some((p) => `${p.month}-${p.year}` === key)) {
+          list.push({ month: s.MONTH, year: s.YEAR });
+          pendingByCustomer.set(cId, list);
+        }
       });
 
-      if (pendingPeriods.length === 0) {
+      const sections = group
+        .map((c) => {
+          const periods = (pendingByCustomer.get(c.customerId) || []).sort((a, b) => {
+            if (a.year !== b.year) return a.year - b.year;
+            return a.month - b.month;
+          });
+          return { customerId: c.customerId, customerName: c.customerName, periods };
+        })
+        .filter((c) => c.periods.length > 0);
+
+      if (sections.length === 0) {
         toast.warning("No outstanding pending months before the current month.");
         return;
       }
 
-      const pendingMonthsHtml = pendingPeriods
-        .map((p) => `  <li style="margin-bottom: 6px;">${monthNames[p.month - 1]} ${p.year}</li>`)
-        .join("\n");
+      const toEmails = Array.from(
+        new Set(
+          sections
+            .map((c) => getCustomerEmail(customersWithEmails, c.customerId, c.customerName))
+            .filter(Boolean)
+        )
+      );
 
-      const subject = "Request for Outstanding Tax Rebate Invoices - Al Marai Al Arabia Trading Sole Proprietorship L.L.C";
-      const htmlBody = `
-<div style="font-family: Arial, sans-serif; font-size: 14px; color: #333; line-height: 1.6;">
-  <p>Dear Team,</p>
-  <p>We hope this email finds you well.</p>
-  <p>We are writing to kindly request the outstanding <strong>Tax Rebate Invoices</strong> (Discounts) for the following pending periods for <strong>${customerName}</strong>:</p>
-  <ul style="font-size: 15px; color: #dc2626; font-weight: bold; margin-left: 10px; padding-left: 20px; list-style-type: square;">
-    ${pendingMonthsHtml}
-  </ul>
-  <p>Please share the pending Tax Rebate Invoices at your earliest convenience so we can reconcile and update our accounts.</p>
-  <p>Best regards,<br><br>Accounts Department<br>Al Marai Al Arabia Trading Sole Proprietorship L.L.C</p>
-</div>
-      `.trim();
+      if (toEmails.length === 0) {
+        toast.warning("No email found for the selected customer(s).");
+        return;
+      }
 
-      const boundary = "----=_NextPart_000_0001_01C2A9A1.12345678";
-      const emlLines = [
-        `Date: ${new Date().toUTCString()}`,
-        `To: ${targetEmail}`,
-        'From: accounting@marae.ae',
-        'Subject: ' + subject,
-        'MIME-Version: 1.0',
-        'X-Unsent: 1',
-        'Content-Type: multipart/mixed; boundary="' + boundary + '"',
-        '',
-        '--' + boundary,
-        'Content-Type: text/html; charset="UTF-8"',
-        'Content-Transfer-Encoding: 7bit',
-        '',
-        htmlBody,
-        '',
-        '--' + boundary + '--'
-      ];
+      const built = buildTaxRebateEmlContent({
+        tag,
+        sections,
+        toEmails,
+        fallbackCustomerName: customerName,
+      });
+      if (!built) return;
 
-      const blob = new Blob([emlLines.join('\r\n')], { type: 'message/rfc822' });
-      const { saveTrackedAs } = await import('@/app/Audit/Utils/TrackedDownload');
-      saveTrackedAs(blob, `Tax_Rebate_Request_${customerName.replace(/[^a-zA-Z0-9\u0600-\u06FF]/g, '_')}.eml`);
-      toast.success("Email draft downloaded successfully!");
+      const blob = new Blob([built.emlContent], { type: "message/rfc822" });
+      const { saveTrackedAs } = await import("@/app/Audit/Utils/TrackedDownload");
+      saveTrackedAs(blob, `Tax_Rebate_Request_${built.fileLabel}.eml`);
+      toast.success(
+        tag
+          ? `Email draft downloaded for tag "${tag}" (${sections.length} customers).`
+          : "Email draft downloaded successfully!"
+      );
     } catch (err) {
       console.error("Error generating EML:", err);
       toast.error("Failed to generate EML file.");
+    }
+  };
+
+  const downloadAllTaxRebateEmlsZip = async () => {
+    if (customers.length === 0 || downloadingEmailsZip) return;
+
+    try {
+      setDownloadingEmailsZip(true);
+      toast.loading("Preparing email drafts ZIP...", { id: "tax-rebate-zip" });
+
+      const allIds = customers.map((c) => c.customerId);
+      const { data: settlementsData, error } = await bhs_supabase
+        .from("web_CUSTOMERS_DISCOUNTS_SETTLEMENTS")
+        .select("*")
+        .in("CUSTOMER_ID", allIds)
+        .eq("STATUS", "Pending");
+
+      if (error) throw error;
+
+      const now = new Date();
+      const currentYear = now.getFullYear();
+      const currentMonth = now.getMonth() + 1;
+
+      const pendingByCustomer = new Map<string, { month: number; year: number }[]>();
+      (settlementsData || []).forEach((s: any) => {
+        if (!isEligiblePendingMonth(s.MONTH, s.YEAR, currentYear, currentMonth)) return;
+        const cId = String(s.CUSTOMER_ID || "").trim();
+        if (!cId) return;
+        const list = pendingByCustomer.get(cId) || [];
+        const key = `${s.MONTH}-${s.YEAR}`;
+        if (!list.some((p) => `${p.month}-${p.year}` === key)) {
+          list.push({ month: s.MONTH, year: s.YEAR });
+          pendingByCustomer.set(cId, list);
+        }
+      });
+
+      const JSZip = (await import("jszip")).default;
+      const zip = new JSZip();
+      const usedNames = new Set<string>();
+      let count = 0;
+
+      for (const { tag, group } of collectTaxRebateGroups(customers)) {
+        const sections = group
+          .map((c) => {
+            const periods = (pendingByCustomer.get(c.customerId) || []).sort((a, b) => {
+              if (a.year !== b.year) return a.year - b.year;
+              return a.month - b.month;
+            });
+            return { customerId: c.customerId, customerName: c.customerName, periods };
+          })
+          .filter((c) => c.periods.length > 0);
+
+        if (sections.length === 0) continue;
+
+        const toEmails = Array.from(
+          new Set(
+            sections
+              .map((c) => getCustomerEmail(customersWithEmails, c.customerId, c.customerName))
+              .filter(Boolean)
+          )
+        );
+        if (toEmails.length === 0) continue;
+
+        const built = buildTaxRebateEmlContent({
+          tag,
+          sections,
+          toEmails,
+          fallbackCustomerName: group[0]?.customerName,
+        });
+        if (!built) continue;
+
+        let fileName = `Tax_Rebate_Request_${built.fileLabel}.eml`;
+        if (usedNames.has(fileName)) {
+          fileName = `Tax_Rebate_Request_${built.fileLabel}_${count + 1}.eml`;
+        }
+        usedNames.add(fileName);
+        zip.file(fileName, built.emlContent);
+        count++;
+      }
+
+      if (count === 0) {
+        toast.dismiss("tax-rebate-zip");
+        toast.warning("No email drafts to download (no pending months or emails).");
+        return;
+      }
+
+      const content = await zip.generateAsync({ type: "blob" });
+      const { saveTrackedAs } = await import("@/app/Audit/Utils/TrackedDownload");
+      saveTrackedAs(
+        content,
+        `Tax_Rebate_Emails_${new Date().toISOString().split("T")[0]}.zip`
+      );
+      toast.dismiss("tax-rebate-zip");
+      toast.success(`Downloaded ZIP with ${count} email draft(s).`);
+    } catch (err) {
+      console.error("Error generating emails ZIP:", err);
+      toast.dismiss("tax-rebate-zip");
+      toast.error("Failed to generate emails ZIP.");
+    } finally {
+      setDownloadingEmailsZip(false);
     }
   };
 
@@ -291,7 +505,9 @@ export default function CustomerDiscountsPage() {
         }),
         fetchAllData(() => bhs_supabase.from("web_CUSTOMERS_DISCOUNTS").select("*")),
         fetchAllData(() =>
-          bhs_supabase.from("bhs_CUSTOMERS").select('"CUSTOMER ID", "CUSTOMER MAIN NAME", "CUSTOMER CITY"')
+          bhs_supabase
+            .from("bhs_CUSTOMERS")
+            .select('"CUSTOMER ID", "CUSTOMER MAIN NAME", "CUSTOMER CITY", "CUSTOMER TAG"')
         ),
       ]);
 
@@ -327,14 +543,17 @@ export default function CustomerDiscountsPage() {
 
       const customerNameMap = new Map<string, string>();
       const customerCityMap = new Map<string, string>();
-      
+      const customerTagMap = new Map<string, string>();
+
       customersData.forEach((row: any) => {
         const id = row["CUSTOMER ID"]?.toString().trim();
         const name = row["CUSTOMER MAIN NAME"]?.toString().trim();
         const city = row["CUSTOMER CITY"]?.toString().trim();
+        const tag = row["CUSTOMER TAG"]?.toString().trim() || "";
         if (id) {
           if (name) customerNameMap.set(id, name);
           if (city) customerCityMap.set(id, city);
+          if (tag) customerTagMap.set(id, tag);
         }
       });
 
@@ -342,6 +561,7 @@ export default function CustomerDiscountsPage() {
         customerId: cId,
         customerName: customerNameMap.get(cId) || cId,
         city: customerCityMap.get(cId) || "Unknown",
+        customerTag: customerTagMap.get(cId) || "",
         discounts: discountsByCustomer[cId],
       }));
 
@@ -716,6 +936,8 @@ export default function CustomerDiscountsPage() {
             handleSelectCustomer={handleSelectCustomer}
             customersWithEmails={customersWithEmails}
             downloadTaxRebateEml={downloadTaxRebateEml}
+            downloadAllTaxRebateEmlsZip={downloadAllTaxRebateEmlsZip}
+            downloadingEmailsZip={downloadingEmailsZip}
             onAutoSettleClearedMonths={handleAutoSettleClearedMonths}
             autoSettling={autoSettling}
           />
@@ -784,6 +1006,10 @@ export default function CustomerDiscountsPage() {
         
         {currentView === "stats" && (
           <Statistics customers={customers} />
+        )}
+
+        {currentView === "values" && (
+          <DiscountValues customers={customers} />
         )}
 
       </div>

@@ -6,7 +6,6 @@ import {
   ChevronRight,
   LayoutGrid,
   UserRound,
-  Boxes,
   Activity,
   X,
 } from 'lucide-react';
@@ -21,7 +20,6 @@ interface AdminSidebarProps {
 
 const TABS = [
   { id: 'by-user', label: 'By User', icon: UserRound },
-  { id: 'by-module', label: 'By Module', icon: Boxes },
   { id: 'user-activity', label: 'User Activity', icon: Activity },
 ];
 

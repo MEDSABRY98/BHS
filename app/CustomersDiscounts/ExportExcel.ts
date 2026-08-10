@@ -327,3 +327,146 @@ export async function exportCustomersExcel(
   });
   saveTrackedAs(blob, buildExportFilename(labelOptions));
 }
+
+export type DiscountValuesExportRow = {
+  customerName: string;
+  customerId: string;
+  discountPercent: number;
+  netSales: number;
+  discountValue: number;
+  rent: number;
+};
+
+export async function exportDiscountValuesExcel(
+  rows: DiscountValuesExportRow[],
+  dateFrom: string,
+  dateTo: string,
+) {
+  if (rows.length === 0) {
+    alert('No rows to export.');
+    return;
+  }
+
+  const ExcelJSModule = (await import('exceljs')).default;
+  const workbook = new ExcelJSModule.Workbook();
+  const keys = [
+    '#',
+    'Customer Name',
+    'Customer ID',
+    'Discount (%)',
+    'Net Sales',
+    'Discount Value',
+    'Rent (AED)',
+  ];
+
+  const worksheet = workbook.addWorksheet('Values', {
+    views: [{ showGridLines: false }],
+  });
+
+  worksheet.columns = keys.map((key) => {
+    let width = 16;
+    if (key === '#') width = 9;
+    if (key === 'Customer Name') width = 40;
+    if (key === 'Customer ID') width = 18;
+    if (key === 'Discount (%)') width = 14;
+    return { header: key, key, width };
+  });
+
+  const totals = rows.reduce(
+    (acc, row) => {
+      acc.netSales += row.netSales;
+      acc.discountValue += row.discountValue;
+      acc.rent += row.rent;
+      return acc;
+    },
+    { netSales: 0, discountValue: 0, rent: 0 },
+  );
+
+  const exportData = [
+    ...rows.map((row, index) => ({
+      '#': index + 1,
+      'Customer Name': row.customerName,
+      'Customer ID': row.customerId,
+      'Discount (%)': row.discountPercent > 0 ? row.discountPercent : 0,
+      'Net Sales': row.netSales,
+      'Discount Value': row.discountValue,
+      'Rent (AED)': row.rent > 0 ? row.rent : 0,
+    })),
+    {
+      '#': '',
+      'Customer Name': 'TOTALS',
+      'Customer ID': '',
+      'Discount (%)': '',
+      'Net Sales': totals.netSales,
+      'Discount Value': totals.discountValue,
+      'Rent (AED)': totals.rent,
+    },
+  ];
+
+  worksheet.addRows(exportData);
+
+  worksheet.eachRow((row, rowNumber) => {
+    row.height = 25;
+    const isTotal = rowNumber === exportData.length + 1;
+
+    row.eachCell((cell, colNumber) => {
+      const columnKey = keys[colNumber - 1];
+
+      cell.alignment = {
+        vertical: 'middle',
+        horizontal: 'center',
+        wrapText: true,
+      };
+
+      if (rowNumber === 1) {
+        cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+        cell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FF000000' },
+        };
+        cell.border = {
+          bottom: { style: 'medium', color: { argb: GOLD_BORDER } },
+        };
+        return;
+      }
+
+      if (isTotal) {
+        cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+        cell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FF0F172A' },
+        };
+      }
+
+      if (columnKey === 'Discount (%)' && !isTotal) {
+        const val = Number(cell.value);
+        if (!isNaN(val) && val > 0) {
+          cell.value = `${val}%`;
+        }
+      }
+
+      if (
+        columnKey === 'Net Sales' ||
+        columnKey === 'Discount Value' ||
+        columnKey === 'Rent (AED)'
+      ) {
+        const val = Number(cell.value);
+        if (!isNaN(val)) {
+          cell.numFmt = NUM_FMT;
+        }
+      }
+
+      cell.border = {
+        bottom: { style: 'thin', color: { argb: LIGHT_ROW_BORDER } },
+      };
+    });
+  });
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+  saveTrackedAs(blob, `Discount_Values_${dateFrom}_to_${dateTo}.xlsx`);
+}

@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import { TrackModuleSubTab } from '@/app/Audit/Utils/ActivityQueue';
 
-export type CustomersDiscountsViewId = 'grid' | 'add' | 'details' | 'months' | 'stats';
+export type CustomersDiscountsViewId = 'grid' | 'add' | 'details' | 'months' | 'stats' | 'values';
 export type CustomersDiscountsDetailsTabId = 'details' | 'pending' | 'semi' | 'settled';
 export type CustomersDiscountsMonthsTabId = 'pending' | 'semi' | 'settled';
 
@@ -13,6 +13,7 @@ export const DISCOUNTS_VIEW_LABELS: Record<CustomersDiscountsViewId, string> = {
   details: 'Customer Details',
   months: 'Months Overview',
   stats: 'Statistics',
+  values: 'Values',
 };
 
 export const DISCOUNTS_DETAILS_TAB_LABELS: Record<CustomersDiscountsDetailsTabId, string> = {

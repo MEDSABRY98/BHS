@@ -47,6 +47,7 @@ export interface ProductSalesRow {
 export interface SubCustomerRow {
   customerId: string;
   subCustomerName: string;
+  city: string;
   totalAmount: number;
   totalQty: number;
   productsCount: number;

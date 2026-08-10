@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Search, User, ChevronRight, FileSpreadsheet, Loader2, Mail, CheckCircle2 } from "lucide-react";
+import { Search, User, ChevronRight, FileSpreadsheet, Loader2, Mail, CheckCircle2, Archive } from "lucide-react";
 import { exportCustomersExcel } from "./ExportExcel";
 import ExportExcelModal, { type ExportExcelOptions } from "./ExportExcelModal";
 import { hasCustomerEmail } from "@/lib/customerEmailLookup";
@@ -17,6 +17,7 @@ type CustomerView = {
   customerId: string;
   customerName: string;
   city: string;
+  customerTag?: string;
   discounts: Discount[];
 };
 
@@ -29,6 +30,8 @@ interface CustomersListProps {
   handleSelectCustomer: (c: CustomerView) => void;
   customersWithEmails: Map<string, string>;
   downloadTaxRebateEml: (customerId: string, customerName: string) => void;
+  downloadAllTaxRebateEmlsZip?: () => void;
+  downloadingEmailsZip?: boolean;
   onAutoSettleClearedMonths?: () => void | Promise<void>;
   autoSettling?: boolean;
 }
@@ -42,6 +45,8 @@ export default function CustomersList({
   handleSelectCustomer,
   customersWithEmails,
   downloadTaxRebateEml,
+  downloadAllTaxRebateEmlsZip,
+  downloadingEmailsZip = false,
   onAutoSettleClearedMonths,
   autoSettling = false,
 }: CustomersListProps) {
@@ -106,6 +111,22 @@ export default function CustomersList({
               <User className="w-6 h-6 text-[#D4AF37]" />
             </div>
             <h2 className="text-2xl font-bold text-gray-900">Customers List</h2>
+            {downloadAllTaxRebateEmlsZip && (
+              <button
+                type="button"
+                onClick={() => void downloadAllTaxRebateEmlsZip()}
+                disabled={downloadingEmailsZip || safeCustomers.length === 0}
+                className="inline-flex items-center justify-center w-10 h-10 bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 rounded-xl transition-all disabled:opacity-50 shadow-sm shrink-0"
+                title="Download all tax rebate email drafts (ZIP)"
+                aria-label="Download all email drafts as ZIP"
+              >
+                {downloadingEmailsZip ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <Archive className="w-5 h-5" />
+                )}
+              </button>
+            )}
             {onAutoSettleClearedMonths && (
               <button
                 type="button"
@@ -186,18 +207,34 @@ export default function CustomersList({
                     <User className="w-7 h-7 text-[#D4AF37]" />
                   </div>
                   <div className="flex items-center gap-2">
-                    {hasCustomerEmail(customersWithEmails, c.customerId, c.customerName) && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          downloadTaxRebateEml(c.customerId, c.customerName);
-                        }}
-                        className="bg-blue-50 text-blue-600 hover:bg-blue-100 p-2.5 rounded-xl transition-all border border-blue-100 flex items-center justify-center cursor-pointer shadow-sm relative z-20"
-                        title="Download Tax Rebate Request EML Draft"
-                      >
-                        <Mail className="w-4.5 h-4.5" />
-                      </button>
-                    )}
+                    {(() => {
+                      const tag = (c.customerTag || "").trim();
+                      const tagMates = tag
+                        ? safeCustomers.filter(
+                            (x) => (x.customerTag || "").trim() === tag
+                          )
+                        : [c];
+                      const canMail = tagMates.some((x) =>
+                        hasCustomerEmail(customersWithEmails, x.customerId, x.customerName)
+                      );
+                      if (!canMail) return null;
+                      return (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            downloadTaxRebateEml(c.customerId, c.customerName);
+                          }}
+                          className="bg-blue-50 text-blue-600 hover:bg-blue-100 p-2.5 rounded-xl transition-all border border-blue-100 flex items-center justify-center cursor-pointer shadow-sm relative z-20"
+                          title={
+                            tag
+                              ? `Download Tax Rebate EML for tag "${tag}" (all tagged customers)`
+                              : "Download Tax Rebate Request EML Draft"
+                          }
+                        >
+                          <Mail className="w-4.5 h-4.5" />
+                        </button>
+                      );
+                    })()}
                     <span className="bg-gray-100 text-gray-600 px-3 py-1 rounded-full text-xs font-bold">
                       {c.discounts.length} item(s)
                     </span>

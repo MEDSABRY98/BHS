@@ -4,6 +4,7 @@ import React from 'react';
 import {
   ArrowLeft,
   BarChart3,
+  Calculator,
   Calendar,
   ChevronLeft,
   ChevronRight,
@@ -15,8 +16,8 @@ import {
 interface SidebarProps {
   isSidebarOpen: boolean;
   setIsSidebarOpen: (val: boolean) => void;
-  currentView: 'grid' | 'add' | 'details' | 'months' | 'stats';
-  setCurrentView: (view: 'grid' | 'add' | 'details' | 'months' | 'stats') => void;
+  currentView: 'grid' | 'add' | 'details' | 'months' | 'stats' | 'values';
+  setCurrentView: (view: 'grid' | 'add' | 'details' | 'months' | 'stats' | 'values') => void;
   setSelectedCustomer: (val: null) => void;
 }
 
@@ -24,6 +25,7 @@ const TABS = [
   { id: 'grid' as const, label: 'Customers List', icon: Users, match: (v: string) => v === 'grid' || v === 'details' },
   { id: 'months' as const, label: 'Monthly Overview', icon: Calendar, match: (v: string) => v === 'months' },
   { id: 'stats' as const, label: 'Statistics', icon: BarChart3, match: (v: string) => v === 'stats' },
+  { id: 'values' as const, label: 'Values', icon: Calculator, match: (v: string) => v === 'values' },
   { id: 'add' as const, label: 'Add New Config', icon: PlusCircle, match: (v: string) => v === 'add' },
 ];
 

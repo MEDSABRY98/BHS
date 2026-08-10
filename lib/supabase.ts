@@ -122,6 +122,7 @@ export interface SalesInvoice {
   product: string;
   productTag: string;
   customerTag: string;
+  customerClass: string;
   productCost: number;
   productPrice: number;
   amount: number;

@@ -45,6 +45,7 @@ export type SalesCommonFilters = {
   salesRep: string;
   productTag: string;
   customerTag: string;
+  customerClass: string;
 };
 
 export type SalesFilterOptions = {
@@ -54,6 +55,7 @@ export type SalesFilterOptions = {
   salesReps: string[];
   productTags: string[];
   customerTags: string[];
+  customerClasses: string[];
   years: string[];
 };
 
@@ -98,6 +100,7 @@ export const DEFAULT_SALES_COMMON_FILTERS: SalesCommonFilters = {
   salesRep: '',
   productTag: '',
   customerTag: '',
+  customerClass: '',
 };
 
 function filtersEqual(a: SalesCommonFilters, b: SalesCommonFilters): boolean {
@@ -112,7 +115,8 @@ function filtersEqual(a: SalesCommonFilters, b: SalesCommonFilters): boolean {
     a.merchandiser === b.merchandiser &&
     a.salesRep === b.salesRep &&
     a.productTag === b.productTag &&
-    a.customerTag === b.customerTag
+    a.customerTag === b.customerTag &&
+    a.customerClass === b.customerClass
   );
 }
 
@@ -296,7 +300,8 @@ export function useSalesFilters() {
       !!f.merchandiser ||
       !!f.salesRep ||
       !!f.productTag ||
-      !!f.customerTag
+      !!f.customerTag ||
+      !!f.customerClass
     );
   }, [appliedFilters]);
 
@@ -400,6 +405,8 @@ export function useSalesFilters() {
     setFilterProductTag: (value: string) => updateDraftFilter('productTag', value),
     filterCustomerTag: draftFilters.customerTag,
     setFilterCustomerTag: (value: string) => updateDraftFilter('customerTag', value),
+    filterCustomerClass: draftFilters.customerClass,
+    setFilterCustomerClass: (value: string) => updateDraftFilter('customerClass', value),
     inactiveDays: appliedInactiveDays,
     draftInactiveDays,
     setInactiveDays: setDraftInactiveDays,
@@ -448,6 +455,8 @@ export type SalesFilterModalProps = {
   setFilterProductTag: (value: string) => void;
   filterCustomerTag: string;
   setFilterCustomerTag: (value: string) => void;
+  filterCustomerClass: string;
+  setFilterCustomerClass: (value: string) => void;
   inactiveDays: string;
   setInactiveDays: (value: string) => void;
   inactiveMinAmount: string;
@@ -494,6 +503,8 @@ export function SalesFilterModal({
   setFilterProductTag,
   filterCustomerTag,
   setFilterCustomerTag,
+  filterCustomerClass,
+  setFilterCustomerClass,
   inactiveDays,
   setInactiveDays,
   inactiveMinAmount,
@@ -840,6 +851,20 @@ export function SalesFilterModal({
                           ...(uniqueValues.customerTags || []).map((v) => ({ label: v, value: v })),
                         ]}
                         placeholder="All Tags"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">
+                        Customer Class
+                      </label>
+                      <ModernSelect
+                        value={filterCustomerClass}
+                        onChange={setFilterCustomerClass}
+                        options={[
+                          { label: 'All Classes', value: '' },
+                          ...(uniqueValues.customerClasses || []).map((v) => ({ label: v, value: v })),
+                        ]}
+                        placeholder="All Classes"
                       />
                     </div>
                     <div className="space-y-2">
@@ -1192,6 +1217,8 @@ export function SalesFiltersProvider({
         setFilterProductTag={filterState.setFilterProductTag}
         filterCustomerTag={filterState.filterCustomerTag}
         setFilterCustomerTag={filterState.setFilterCustomerTag}
+        filterCustomerClass={filterState.filterCustomerClass}
+        setFilterCustomerClass={filterState.setFilterCustomerClass}
         inactiveDays={filterState.draftInactiveDays}
         setInactiveDays={filterState.setInactiveDays}
         inactiveMinAmount={filterState.draftInactiveMinAmount}

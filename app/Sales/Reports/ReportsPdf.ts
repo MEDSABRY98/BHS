@@ -322,6 +322,7 @@ function drawCoverPage(doc: any, data: ReportsPayload, input: SalesReportsInput)
   if (input.filters.market) paramItems.push({ label: 'Market', value: input.filters.market });
   if (input.filters.productTag) paramItems.push({ label: 'Product Tag', value: input.filters.productTag });
   if (input.filters.customerTag) paramItems.push({ label: 'Customer Tag', value: input.filters.customerTag });
+  if (input.filters.customerClass) paramItems.push({ label: 'Customer Class', value: input.filters.customerClass });
 
   const panelY = computeCoverPanelY(pageHeight, paramItems.length);
   drawCoverParameterList(doc, MARGIN, panelY, contentW, paramItems);

@@ -3,5 +3,5 @@
 import AdminControlTab from './AdminControlTab';
 
 export default function ByUserTab() {
-  return <AdminControlTab adminMode="by-user" />;
+  return <AdminControlTab />;
 }

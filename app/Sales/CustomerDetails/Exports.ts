@@ -121,18 +121,28 @@ export async function exportSubCustomersToExcel(
   subCustomersData: SubCustomerRow[],
   customerName: string
 ) {
-  const headers = ['#', 'Sub Customer Name', 'Total Amount', 'Total QTY', 'SKUs', 'Invoices Count'];
-  const rows = subCustomersData.map((item, index) => [
-    index + 1,
-    item.subCustomerName,
-    item.totalAmount,
-    item.totalQty,
-    item.productsCount,
-    item.invoicesCount,
-  ]);
+  const totalSalesAmount = subCustomersData.reduce(
+    (sum, item) => sum + (Number(item.totalAmount) || 0),
+    0
+  );
+  const headers = ['#', 'Sub Customer Name', 'City', 'Total Amount', 'Total QTY', 'SKUs', 'Invoices Count', '% of Sales'];
+  const rows = subCustomersData.map((item, index) => {
+    const amount = Number(item.totalAmount) || 0;
+    const salesShare = totalSalesAmount > 0 ? (amount / totalSalesAmount) * 100 : 0;
+    return [
+      index + 1,
+      item.subCustomerName,
+      item.city || 'Unknown',
+      amount,
+      item.totalQty,
+      item.productsCount,
+      item.invoicesCount,
+      Number(salesShare.toFixed(2)),
+    ];
+  });
   const safeCustomer = customerName.replace(/[^a-zA-Z0-9\u0600-\u06FF \-_]/g, '').trim() || 'customer';
   await exportSalesExcelTable(headers, rows, `sub_customers_${safeCustomer}_${new Date().toISOString().split('T')[0]}.xlsx`, {
     sheetName: 'Sub Customers',
-    numericColumns: ['Total Amount', 'Total QTY'],
+    numericColumns: ['Total Amount', 'Total QTY', '% of Sales'],
   });
 }

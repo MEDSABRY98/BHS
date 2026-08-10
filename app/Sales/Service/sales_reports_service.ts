@@ -419,7 +419,7 @@ export async function getStockReportData(userId: string, filters: any) {
 
   let globallyFilteredData = augmentedData;
   if (filters) {
-    const { invoiceType, year, month, dateFrom, dateTo, area, market, merchandiser, salesRep, productTag, customerTag } = filters;
+    const { invoiceType, year, month, dateFrom, dateTo, area, market, merchandiser, salesRep, productTag, customerTag, customerClass } = filters;
 
     if (invoiceType && invoiceType !== 'all') {
       globallyFilteredData = globallyFilteredData.filter(item => {
@@ -435,6 +435,7 @@ export async function getStockReportData(userId: string, filters: any) {
     if (dateTo) globallyFilteredData = globallyFilteredData.filter(i => new Date(i.invoiceDate) <= new Date(dateTo));
     if (productTag) globallyFilteredData = globallyFilteredData.filter(i => i.productTag === productTag);
     if (customerTag) globallyFilteredData = globallyFilteredData.filter(i => i.customerTag === customerTag);
+    if (customerClass) globallyFilteredData = globallyFilteredData.filter(i => i.customerClass === customerClass);
     if (area) globallyFilteredData = globallyFilteredData.filter(i => i.area === area);
     if (market) globallyFilteredData = globallyFilteredData.filter(i => i.market === market);
     if (merchandiser) globallyFilteredData = globallyFilteredData.filter(i => i.merchandiser === merchandiser);
@@ -631,7 +632,7 @@ export async function getTop10Data(userId: string, filters: any) {
 
   let globallyFilteredData = augmentedData;
   if (filters) {
-    const { invoiceType, year, month, dateFrom, dateTo, area, market, merchandiser, salesRep, productTag, customerTag } = filters;
+    const { invoiceType, year, month, dateFrom, dateTo, area, market, merchandiser, salesRep, productTag, customerTag, customerClass } = filters;
 
     if (invoiceType && invoiceType !== 'all') {
       globallyFilteredData = globallyFilteredData.filter(item => {
@@ -643,6 +644,7 @@ export async function getTop10Data(userId: string, filters: any) {
     }
     if (productTag) globallyFilteredData = globallyFilteredData.filter(i => i.productTag === productTag);
     if (customerTag) globallyFilteredData = globallyFilteredData.filter(i => i.customerTag === customerTag);
+    if (customerClass) globallyFilteredData = globallyFilteredData.filter(i => i.customerClass === customerClass);
     if (area) globallyFilteredData = globallyFilteredData.filter(i => i.area === area);
     if (market) globallyFilteredData = globallyFilteredData.filter(i => i.market === market);
     if (merchandiser) globallyFilteredData = globallyFilteredData.filter(i => i.merchandiser === merchandiser);
@@ -743,9 +745,10 @@ export async function getNewListingsData(userId: string, filters: any) {
   // We apply non-date global filters FIRST (Area, Market, etc)
   let preFilteredData = augmentedData;
   if (filters) {
-    const { area, market, merchandiser, salesRep, productTag, customerTag } = filters;
+    const { area, market, merchandiser, salesRep, productTag, customerTag, customerClass } = filters;
     if (productTag) preFilteredData = preFilteredData.filter(i => i.productTag === productTag);
     if (customerTag) preFilteredData = preFilteredData.filter(i => i.customerTag === customerTag);
+    if (customerClass) preFilteredData = preFilteredData.filter(i => i.customerClass === customerClass);
     if (area) preFilteredData = preFilteredData.filter(i => i.area === area);
     if (market) preFilteredData = preFilteredData.filter(i => i.market === market);
     if (merchandiser) preFilteredData = preFilteredData.filter(i => i.merchandiser === merchandiser);

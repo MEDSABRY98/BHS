@@ -357,6 +357,7 @@ export function useCustomerDetailsData({
     const map = new Map<string, {
       customerId: string;
       subCustomerName: string;
+      city: string;
       totalAmount: number;
       totalQty: number;
       products: Set<string>;
@@ -366,16 +367,22 @@ export function useCustomerDetailsData({
     customerData.forEach(item => {
       const subName = (item.customerName || (item as any).customername || 'Unknown').trim();
       const subId = (item.customerId || (item as any).customerid || '').trim();
+      const city = String(item.area || (item as any).city || '').trim();
       const key = subId ? `${subId}::${subName}` : subName;
 
       const existing = map.get(key) || {
         customerId: subId,
         subCustomerName: subName,
+        city: city || 'Unknown',
         totalAmount: 0,
         totalQty: 0,
         products: new Set<string>(),
         invoices: new Set<string>(),
       };
+
+      if (!existing.city || existing.city === 'Unknown') {
+        if (city) existing.city = city;
+      }
 
       existing.totalAmount += item.amount || 0;
       existing.totalQty += item.qty || 0;
@@ -391,6 +398,7 @@ export function useCustomerDetailsData({
     return Array.from(map.values()).map(item => ({
       customerId: item.customerId,
       subCustomerName: item.subCustomerName,
+      city: item.city || 'Unknown',
       totalAmount: item.totalAmount,
       totalQty: item.totalQty,
       productsCount: item.products.size,
@@ -677,11 +685,16 @@ export function useCustomerDetailsData({
       const existing = map.get(key) || {
         customerId: subId,
         subCustomerName: subName,
+        city: String(item.area || '').trim() || 'Unknown',
         totalAmount: 0,
         totalQty: 0,
         productsCount: 0,
         invoicesCount: 0,
       };
+
+      if ((!existing.city || existing.city === 'Unknown') && item.area) {
+        existing.city = String(item.area).trim();
+      }
 
       existing.totalAmount += item.amount || 0;
       existing.totalQty += item.qty || 0;

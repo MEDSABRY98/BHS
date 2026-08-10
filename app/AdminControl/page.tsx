@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Menu } from 'lucide-react';
 import ByUserTab from './ByUserTab';
-import ByModuleTab from './ByModuleTab';
 import UserActivityTab from './UserActivityTab';
 import AdminSidebar from './Utils/Sidebar';
 import TabPanel from '@/app/Components/Layout/TabPanel';
@@ -147,9 +146,6 @@ export default function AdminControlPage() {
         <div className="max-w-[95%] 2xl:max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-12 flex-1 w-full">
           <TabPanel tabId="by-user" activeTab={activeTab} isVisited={visitedTabs.has('by-user')}>
             <ByUserTab />
-          </TabPanel>
-          <TabPanel tabId="by-module" activeTab={activeTab} isVisited={visitedTabs.has('by-module')}>
-            <ByModuleTab />
           </TabPanel>
           <TabPanel tabId="user-activity" activeTab={activeTab} isVisited={visitedTabs.has('user-activity')}>
             <UserActivityTab adminName={adminName} />
