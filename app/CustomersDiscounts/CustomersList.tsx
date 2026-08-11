@@ -3,23 +3,7 @@ import { Search, User, ChevronRight, FileSpreadsheet, Loader2, Mail, CheckCircle
 import { exportCustomersExcel } from "./ExportExcel";
 import ExportExcelModal, { type ExportExcelOptions } from "./ExportExcelModal";
 import { hasCustomerEmail } from "@/lib/customerEmailLookup";
-
-type Discount = {
-  id: string;
-  customerId: string;
-  name: string;
-  type: string;
-  value: number;
-  settlementType: string;
-};
-
-type CustomerView = {
-  customerId: string;
-  customerName: string;
-  city: string;
-  customerTag?: string;
-  discounts: Discount[];
-};
+import type { CustomerView } from "./page";
 
 interface CustomersListProps {
   searchQuery: string;
