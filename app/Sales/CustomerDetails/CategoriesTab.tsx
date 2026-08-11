@@ -70,23 +70,27 @@ export default function CategoriesTab({
   }, [categoriesData]);
 
   const exportToExcel = async () => {
-    const headers = ['#', 'Category', 'Amount', 'Quantity', 'Transactions'];
+    const headers = ['#', 'Category', 'Amount', '% of Total', 'Quantity', 'Transactions'];
 
-    const rows = categoriesData.map((item, index) => [
-      index + 1,
-      item.category,
-      item.amount,
-      item.qty,
-      item.invoiceNumbers.size,
-    ]);
+    const rows = categoriesData.map((item, index) => {
+      const salesShare = totals.amount > 0 ? (item.amount / totals.amount) * 100 : 0;
+      return [
+        index + 1,
+        item.category,
+        item.amount,
+        Number(salesShare.toFixed(2)),
+        item.qty,
+        item.invoiceNumbers.size,
+      ];
+    });
 
-    rows.push(['', 'GRAND TOTAL', totals.amount, totals.qty, '']);
+    rows.push(['', 'GRAND TOTAL', totals.amount, 100, totals.qty, '']);
 
     const safeCustomer = customerName.replace(/[^a-zA-Z0-9\u0600-\u06FF \-_]/g, '').trim() || 'customer';
     const filename = `customer_categories_${safeCustomer}_${new Date().toISOString().split('T')[0]}.xlsx`;
     await exportSalesExcelTable(headers, rows, filename, {
       sheetName: 'Categories',
-      numericColumns: ['Amount', 'Quantity'],
+      numericColumns: ['Amount', '% of Total', 'Quantity'],
     });
   };
 
@@ -110,31 +114,38 @@ export default function CategoriesTab({
           <table className="w-full table-fixed">
             <thead>
               <tr className="border-b-2 border-gray-100">
-                <th className="py-4 px-4 text-center text-sm font-bold text-gray-500 uppercase tracking-wider w-[10%]">#</th>
-                <th className="py-4 px-4 text-center text-sm font-bold text-gray-500 uppercase tracking-wider w-[40%]">Category</th>
+                <th className="py-4 px-4 text-center text-sm font-bold text-gray-500 uppercase tracking-wider w-[8%]">#</th>
+                <th className="py-4 px-4 text-center text-sm font-bold text-gray-500 uppercase tracking-wider w-[34%]">Category</th>
                 <th className="py-4 px-4 text-center text-sm font-bold text-gray-500 uppercase tracking-wider w-[16%]">Amount</th>
-                <th className="py-4 px-4 text-center text-sm font-bold text-gray-500 uppercase tracking-wider w-[17%]">Quantity</th>
-                <th className="py-4 px-4 text-center text-sm font-bold text-gray-500 uppercase tracking-wider w-[17%]">Transactions</th>
+                <th className="py-4 px-4 text-center text-sm font-bold text-gray-500 uppercase tracking-wider w-[12%]">% of Total</th>
+                <th className="py-4 px-4 text-center text-sm font-bold text-gray-500 uppercase tracking-wider w-[15%]">Quantity</th>
+                <th className="py-4 px-4 text-center text-sm font-bold text-gray-500 uppercase tracking-wider w-[15%]">Transactions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {categoriesData.map((item, index) => (
-                <tr key={item.category} className="hover:bg-gray-50 transition-colors group">
-                  <td className="py-4 px-4 text-center text-gray-400 font-medium">{index + 1}</td>
-                  <td className="py-4 px-4 text-center text-gray-800 font-medium group-hover:text-green-600 transition-colors">
-                    {item.category}
-                  </td>
-                  <td className="py-4 px-4 text-center text-gray-900 font-medium">
-                    {item.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </td>
-                  <td className="py-4 px-4 text-center text-gray-700 font-medium">
-                    {item.qty.toLocaleString('en-US')}
-                  </td>
-                  <td className="py-4 px-4 text-center text-gray-600 font-medium">
-                    {item.invoiceNumbers.size}
-                  </td>
-                </tr>
-              ))}
+              {categoriesData.map((item, index) => {
+                const salesShare = totals.amount > 0 ? (item.amount / totals.amount) * 100 : 0;
+                return (
+                  <tr key={item.category} className="hover:bg-gray-50 transition-colors group">
+                    <td className="py-4 px-4 text-center text-gray-400 font-medium">{index + 1}</td>
+                    <td className="py-4 px-4 text-center text-gray-800 font-medium group-hover:text-green-600 transition-colors">
+                      {item.category}
+                    </td>
+                    <td className="py-4 px-4 text-center text-gray-900 font-medium">
+                      {item.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </td>
+                    <td className="py-4 px-4 text-center text-indigo-600 font-bold">
+                      {salesShare.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%
+                    </td>
+                    <td className="py-4 px-4 text-center text-gray-700 font-medium">
+                      {item.qty.toLocaleString('en-US')}
+                    </td>
+                    <td className="py-4 px-4 text-center text-gray-600 font-medium">
+                      {item.invoiceNumbers.size}
+                    </td>
+                  </tr>
+                );
+              })}
 
               <tr className="bg-gray-50/50 border-t-2 border-gray-100">
                 <td className="py-5 px-4"></td>
@@ -142,6 +153,7 @@ export default function CategoriesTab({
                 <td className="py-5 px-4 text-center text-green-700 font-black text-lg">
                   {totals.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </td>
+                <td className="py-5 px-4 text-center text-indigo-600 font-black text-lg">100.00%</td>
                 <td className="py-5 px-4 text-center text-gray-900 font-black text-lg">
                   {totals.qty.toLocaleString('en-US')}
                 </td>
