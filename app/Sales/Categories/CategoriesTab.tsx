@@ -16,13 +16,16 @@ interface SalesCategoriesTabProps {
   userId: string;
 }
 
-const CategoryRow = memo(({ item, rowNumber }: { item: { category: string; amount: number; qty: number; customers: number }; rowNumber: number }) => {
+const CategoryRow = memo(({ item, rowNumber, salesShare }: { item: { category: string; amount: number; qty: number; customers: number }; rowNumber: number; salesShare: number }) => {
   return (
     <tr className="border-b border-gray-100 hover:bg-gray-50 text-center">
       <td className="py-3 px-4 text-sm text-gray-600 font-medium">{rowNumber}</td>
       <td className="py-3 px-4 text-sm text-gray-800 font-medium">{item.category}</td>
       <td className="py-3 px-4 text-sm text-gray-800 font-semibold">
         {item.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+      </td>
+      <td className="py-3 px-4 text-sm text-indigo-600 font-bold">
+        {salesShare.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%
       </td>
       <td className="py-3 px-4 text-sm text-gray-800 font-semibold">
         {item.qty.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
@@ -89,24 +92,28 @@ export default function SalesCategoriesTab({ userId }: SalesCategoriesTabProps) 
   }, [filteredCategories]);
 
   const exportToExcel = async () => {
-    const headers = ['#', 'Category', 'Amount', 'Qty', 'Customers'];
+    const headers = ['#', 'Category', 'Amount', '% of Total', 'Qty', 'Customers'];
 
-    const rows = filteredCategories.map((item, index) => [
-      index + 1,
-      item.category,
-      item.amount,
-      item.qty,
-      item.customers,
-    ]);
+    const rows = filteredCategories.map((item, index) => {
+      const salesShare = totals.totalAmount > 0 ? (item.amount / totals.totalAmount) * 100 : 0;
+      return [
+        index + 1,
+        item.category,
+        item.amount,
+        Number(salesShare.toFixed(2)),
+        item.qty,
+        item.customers,
+      ];
+    });
 
     if (filteredCategories.length > 0) {
-      rows.push(['', 'Total', totals.totalAmount, totals.totalQty, totals.totalCustomers]);
+      rows.push(['', 'Total', totals.totalAmount, 100, totals.totalQty, totals.totalCustomers]);
     }
 
     const filename = `sales_categories_${new Date().toISOString().split('T')[0]}.xlsx`;
     await exportSalesExcelTable(headers, rows, filename, {
       sheetName: 'Categories',
-      numericColumns: ['Amount', 'Qty'],
+      numericColumns: ['Amount', '% of Total', 'Qty'],
     });
   };
 
@@ -165,10 +172,11 @@ export default function SalesCategoriesTab({ userId }: SalesCategoriesTabProps) 
               <thead>
                 <tr className="bg-gray-50/50 border-b border-gray-100 text-center">
                   <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-[5%]">#</th>
-                  <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-[35%]">Category</th>
-                  <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-[20%]">Amount</th>
+                  <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-[30%]">Category</th>
+                  <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-[18%]">Amount</th>
+                  <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-[12%]">% of Total</th>
                   <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-[15%]">Qty</th>
-                  <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-[25%]">Customers Count</th>
+                  <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-[20%]">Customers Count</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -177,6 +185,7 @@ export default function SalesCategoriesTab({ userId }: SalesCategoriesTabProps) 
                     key={item.category}
                     item={item}
                     rowNumber={index + 1}
+                    salesShare={totals.totalAmount > 0 ? (item.amount / totals.totalAmount) * 100 : 0}
                   />
                 ))}
               </tbody>
@@ -186,6 +195,7 @@ export default function SalesCategoriesTab({ userId }: SalesCategoriesTabProps) 
                   <td className="py-4 px-4 text-sm text-gray-800">
                     {totals.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </td>
+                  <td className="py-4 px-4 text-sm text-indigo-600">100.00%</td>
                   <td className="py-4 px-4 text-sm text-gray-800">
                     {totals.totalQty.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                   </td>
