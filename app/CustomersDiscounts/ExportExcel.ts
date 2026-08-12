@@ -330,7 +330,7 @@ export async function exportCustomersExcel(
 
 export type DiscountValuesExportRow = {
   customerName: string;
-  customerId: string;
+  city: string;
   discountPercent: number;
   netSales: number;
   discountValue: number;
@@ -352,7 +352,7 @@ export async function exportDiscountValuesExcel(
   const keys = [
     '#',
     'Customer Name',
-    'Customer ID',
+    'City',
     'Discount (%)',
     'Net Sales',
     'Discount Value',
@@ -367,7 +367,7 @@ export async function exportDiscountValuesExcel(
     let width = 16;
     if (key === '#') width = 9;
     if (key === 'Customer Name') width = 40;
-    if (key === 'Customer ID') width = 18;
+    if (key === 'City') width = 22;
     if (key === 'Discount (%)') width = 14;
     return { header: key, key, width };
   });
@@ -386,7 +386,7 @@ export async function exportDiscountValuesExcel(
     ...rows.map((row, index) => ({
       '#': index + 1,
       'Customer Name': row.customerName,
-      'Customer ID': row.customerId,
+      City: row.city || 'Unknown',
       'Discount (%)': row.discountPercent > 0 ? row.discountPercent : 0,
       'Net Sales': row.netSales,
       'Discount Value': row.discountValue,
@@ -395,7 +395,7 @@ export async function exportDiscountValuesExcel(
     {
       '#': '',
       'Customer Name': 'TOTALS',
-      'Customer ID': '',
+      City: '',
       'Discount (%)': '',
       'Net Sales': totals.netSales,
       'Discount Value': totals.discountValue,
