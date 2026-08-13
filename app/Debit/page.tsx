@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, Suspense, type Dispatch, type SetStateAction } from 'react';
+import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
 import { useSearchParams } from 'next/navigation';
 import { Menu } from 'lucide-react';
 
@@ -258,6 +259,7 @@ function DebitPageContent() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  useSyncLiveUser(setCurrentUser);
   const [activeTab, setActiveTab] = useState('customers');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);

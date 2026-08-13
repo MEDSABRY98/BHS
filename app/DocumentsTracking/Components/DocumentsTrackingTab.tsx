@@ -53,6 +53,13 @@ export default function DocumentsTrackingTab({ currentUser }: { currentUser?: an
     const [activeSubTab, setActiveSubTab] = useState<'register' | 'list' | 'receivers'>(
         (allowedSubTabs[0] as 'register' | 'list' | 'receivers') || 'register'
     );
+
+    useEffect(() => {
+        const allowed = getAllowedModuleTabIds(currentUser, 'documents-tracking', DOCUMENTS_TRACKING_TAB_IDS);
+        if (allowed.length > 0 && !allowed.includes(activeSubTab)) {
+            setActiveSubTab(allowed[0] as 'register' | 'list' | 'receivers');
+        }
+    }, [currentUser, activeSubTab]);
     useDocumentsTrackingTabAudit(activeSubTab);
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
 

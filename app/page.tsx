@@ -6,12 +6,14 @@ import HomeSelection from '@/app/Components/Layout/HomeSelection';
 import Login from '@/app/Components/Auth/Login';
 import Loading from '@/app/Components/Loading';
 import { verifyUserCredentials } from '@/app/DataBase/Service/database_service';
+import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
 
 export default function Home() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
+  useSyncLiveUser(setCurrentUser);
 
   useEffect(() => {
     const validateAndSetUser = async () => {

@@ -7,9 +7,11 @@ import { useAuditAfterAuth } from '@/app/Audit/Utils/useModuleTabAudit';
 import { ChevronLeft } from 'lucide-react';
 import Loading from '@/app/Components/Loading';
 import { verifyUserCredentials } from '@/app/DataBase/Service/database_service';
+import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
 
 export default function DocumentsTrackingPage() {
     const [currentUser, setCurrentUser] = useState<any>(null);
+    useSyncLiveUser(setCurrentUser);
     const [isChecking, setIsChecking] = useState(true);
     const router = useRouter();
     useAuditAfterAuth(!!currentUser);

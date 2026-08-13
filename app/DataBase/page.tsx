@@ -4,19 +4,21 @@ import { useMemo } from 'react';
 import Link from 'next/link';
 import { ArrowRight, Database, LayoutDashboard } from 'lucide-react';
 import { DATABASE_CATEGORIES, DATABASE_DASHBOARD_HREF, DATABASE_NAV_ITEMS } from './Utils/DatabaseHubConfig';
-import { getAllowedModuleTabIds, getCurrentUserFromStorage } from '@/app/AdminControl/AdminControlTab';
+import { getAllowedModuleTabIds } from '@/app/AdminControl/AdminControlTab';
+import { useLiveCurrentUser } from '@/app/Components/Auth/AppSessionProvider';
 
 export default function DatabaseHub() {
+  const liveUser = useLiveCurrentUser();
   const categories = useMemo(() => {
     const allowedIds = new Set(
-      getAllowedModuleTabIds(getCurrentUserFromStorage(), 'database', DATABASE_NAV_ITEMS.map((item) => item.id))
+      getAllowedModuleTabIds(liveUser, 'database', DATABASE_NAV_ITEMS.map((item) => item.id))
     );
     return DATABASE_CATEGORIES.map((category) => {
       const items = DATABASE_NAV_ITEMS.filter((item) => item.category === category.id && allowedIds.has(item.id));
       if (items.length === 0) return null;
       return { ...category, href: items[0].href };
     }).filter((category): category is (typeof DATABASE_CATEGORIES)[number] => category !== null);
-  }, []);
+  }, [liveUser]);
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex items-center gap-4 border-b border-gray-200 pb-8">

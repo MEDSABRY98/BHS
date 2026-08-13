@@ -5,6 +5,7 @@ import { bhs_supabase, fetchAllData, getAllCustomerEmails } from "@/lib/supabase
 import { buildCustomerEmailMap, getCustomerEmail } from "@/lib/customerEmailLookup";
 import Sidebar, { CUSTOMERS_DISCOUNTS_TAB_IDS } from "./Utils/Sidebar";
 import { getAllowedModuleTabIds, getCurrentUserFromStorage } from '@/app/AdminControl/AdminControlTab';
+import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
 import ConfirmModal from "./ConfirmModal";
 import { toast, NotificationContainer } from "@/app/Components/Notification";
 import CustomersList from "./CustomersList/CustomersList";
@@ -172,6 +173,7 @@ export default function CustomerDiscountsPage() {
   // Navigation State
   const [currentView, setCurrentView] = useState<"grid" | "add" | "details" | "months" | "stats" | "values">("grid");
   const [currentUser, setCurrentUser] = useState<any>(null);
+  useSyncLiveUser(setCurrentUser);
   
   // Data State
   const [customers, setCustomers] = useState<CustomerView[]>([]);
@@ -244,13 +246,17 @@ export default function CustomerDiscountsPage() {
   useEffect(() => {
     const user = getCurrentUserFromStorage();
     setCurrentUser(user);
-    const allowed = getAllowedModuleTabIds(user, 'customers-discounts', CUSTOMERS_DISCOUNTS_TAB_IDS);
+  }, []);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    const allowed = getAllowedModuleTabIds(currentUser, 'customers-discounts', CUSTOMERS_DISCOUNTS_TAB_IDS);
     setCurrentView((prev) => {
       const effective = prev === 'details' ? 'grid' : prev;
       if (allowed.includes(effective)) return prev;
       return (allowed[0] as typeof prev) || 'grid';
     });
-  }, []);
+  }, [currentUser]);
 
   // Filter customers in Grid view
   useEffect(() => {

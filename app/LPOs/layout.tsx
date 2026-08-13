@@ -7,6 +7,7 @@ import Login from '@/app/Components/Auth/Login';
 import Loading from '@/app/Components/Loading';
 import { useLposRouteAudit } from '@/app/Audit/Modules/LPOsTabAudit';
 import { LpoDataProvider } from './Context/LpoDataContext';
+import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -123,6 +124,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [user, setUser] = useState<any>(null);
   const [isChecking, setIsChecking] = useState(true);
   useLposRouteAudit(pathname);
+  useSyncLiveUser(setUser);
 
   useEffect(() => {
     const stored = localStorage.getItem('sidebarCollapsed');

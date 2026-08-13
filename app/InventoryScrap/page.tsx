@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import type { InventoryScrapTabId } from '@/app/Audit/Modules/InventoryScrapTabAudit';
 import { getAllowedModuleTabIds } from '@/app/AdminControl/AdminControlTab';
+import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
 
 const SCRAP_TABS: { id: InventoryScrapTabId; label: string; icon: typeof Plus }[] = [
   { id: 'record', label: 'Log Scrap', icon: Plus },
@@ -32,8 +33,25 @@ export default function InventoryScrapPage() {
   const [isChecking, setIsChecking] = useState(true);
   const [isAllowed, setIsAllowed] = useState(true);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  useSyncLiveUser(setCurrentUser);
   const [activeSubTab, setActiveSubTab] = useState<InventoryScrapTabId>('record');
   useInventoryScrapTabAudit(activeSubTab);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    const allowedTabs = getAllowedModuleTabIds(currentUser, 'inventory-scrap', SCRAP_TAB_IDS);
+    if (allowedTabs.length > 0 && !allowedTabs.includes(activeSubTab)) {
+      setActiveSubTab(allowedTabs[0] as InventoryScrapTabId);
+    }
+    try {
+      const perms = JSON.parse(currentUser.role || '{}');
+      if (Array.isArray(perms.systems)) {
+        setIsAllowed(perms.systems.includes('inventory-scrap') || currentUser.name?.toLowerCase() === 'med sabry');
+      }
+    } catch {
+      // keep current allow state
+    }
+  }, [currentUser, activeSubTab]);
 
   // Sidebar Collapse states
   const [isCollapsed, setIsCollapsed] = useState(true);

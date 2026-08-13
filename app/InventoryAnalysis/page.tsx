@@ -14,6 +14,7 @@ import IADataBootstrap from './Utils/IADataBootstrap';
 import { useInventoryTabAudit } from '@/app/Audit/Modules/InventoryTabAudit';
 import Login from '@/app/Components/Auth/Login';
 import Loading from '@/app/Components/Loading';
+import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
 
 function TabPanel({
   active,
@@ -37,12 +38,22 @@ export default function InventoryPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  useSyncLiveUser(setCurrentUser);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   const [orderItems, setOrderItems] = useState<any[]>([]);
 
   useInventoryTabAudit(activeTab);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    const allowed = getAllowedModuleTabIds(currentUser, 'inventory', INVENTORY_ANALYSIS_TAB_IDS);
+    if (allowed.length > 0 && !allowed.includes(activeTab)) {
+      setActiveTab(allowed[0] as InventoryTabId);
+      setMountedTabs((prev) => new Set(prev).add(allowed[0] as InventoryTabId));
+    }
+  }, [currentUser, activeTab]);
 
   useEffect(() => {
     const savedUser = localStorage.getItem('currentUser');

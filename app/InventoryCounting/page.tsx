@@ -15,6 +15,7 @@ import FiltersModal from './Utils/FiltersModal';
 import ICDataBootstrap from './Utils/ICDataBootstrap';
 import Login from '@/app/Components/Auth/Login';
 import Loading from '@/app/Components/Loading';
+import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
 
 function hasInventoryCountingAccess(user: any): boolean {
   const userName = user?.name?.toLowerCase() || '';
@@ -63,18 +64,21 @@ export default function InventoryCountingPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
   const [isAllowed, setIsAllowed] = useState(true);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  useSyncLiveUser(setCurrentUser);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<InventoryCountingTabId>('total_count');
   const [visitedTabs, setVisitedTabs] = useState<Set<InventoryCountingTabId>>(new Set(['total_count']));
 
-  const allowedTabs = useMemo(() => getAllowedCountingTabs(), [isAuthenticated, isAllowed]);
+  const allowedTabs = useMemo(() => getAllowedCountingTabs(), [isAuthenticated, isAllowed, currentUser]);
 
   useEffect(() => {
     const savedUser = localStorage.getItem('currentUser');
     if (savedUser) {
       try {
         const parsed = JSON.parse(savedUser);
+        setCurrentUser(parsed);
         setIsAuthenticated(true);
         setIsAllowed(hasInventoryCountingAccess(parsed));
       } catch {
@@ -104,13 +108,18 @@ export default function InventoryCountingPage() {
       setActiveTab(firstTab);
       setVisitedTabs(new Set([firstTab]));
     }
-  }, [activeTab, isAuthenticated, isAllowed]);
+  }, [activeTab, isAuthenticated, isAllowed, currentUser]);
 
   useEffect(() => {
     setVisitedTabs((prev) => new Set([...prev, activeTab]));
   }, [activeTab]);
 
   useInventoryCountingTabAudit(activeTab);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    setIsAllowed(hasInventoryCountingAccess(currentUser));
+  }, [currentUser]);
 
   const toggleSidebar = () => {
     const nextState = !isSidebarCollapsed;
@@ -120,6 +129,7 @@ export default function InventoryCountingPage() {
 
   const handleLogin = (user: any) => {
     setIsAuthenticated(true);
+    setCurrentUser(user);
     localStorage.setItem('currentUser', JSON.stringify(user));
     setIsAllowed(hasInventoryCountingAccess(user));
   };

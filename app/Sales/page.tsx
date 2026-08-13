@@ -17,7 +17,7 @@ import SalesTabPanel from './Shared/TabPanel';
 import SalesTabLoader from './Shared/TabLoader';
 import SalesSetCustomersTab from './SetCustomers/SetCustomersTab';
 import SalesTargetsTab from './Targets/TargetsTab';
-import { fetchUsersList } from '@/app/DataBase/Service/database_service';
+import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
 import SalesNewListingsTab from './NewListings/NewListingsTab';
 import { SalesFiltersProvider, SalesFilterButton } from './Model/SalesFilters';
 import { SalesDataProvider } from '@/app/Sales/Context/SalesDataContext';
@@ -75,6 +75,7 @@ export default function SalesPage() {
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  useSyncLiveUser(setCurrentUser);
 
   // Load sidebar collapsed state on mount
   useEffect(() => {
@@ -109,25 +110,6 @@ export default function SalesPage() {
         const parsed = JSON.parse(savedUser);
         setCurrentUser(parsed);
         setIsAuthenticated(true);
-
-        // Silently sync and update session from database to catch permission or role changes
-        fetchUsersList()
-          .then(data => {
-            if (data?.users) {
-              const fresh = data.users.find((u: any) => u.id === parsed.id || u.name === parsed.name);
-              if (fresh) {
-                const updatedUser = {
-                  ...parsed,
-                  role: fresh.role,
-                  userAdmin: fresh.userAdmin,
-                  salesDataAccess: fresh.salesDataAccess,
-                };
-                setCurrentUser(updatedUser);
-                localStorage.setItem('currentUser', JSON.stringify(updatedUser));
-              }
-            }
-          })
-          .catch(err => console.warn('Failed to auto-refresh user session:', err));
       } catch (e) {
         localStorage.removeItem('currentUser');
       } finally {

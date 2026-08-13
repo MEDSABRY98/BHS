@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Sidebar, { PURCHASE_PRICE_TAB_IDS } from './Utils/Sidebar';
 import { getAllowedModuleTabIds, getCurrentUserFromStorage } from '@/app/AdminControl/AdminControlTab';
+import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
 import { bhs_supabase, fetchAllData } from '@/lib/supabase';
 import ProductPriceHistory from './ProductPriceHistory';
 import SupplierComparison from './SupplierComparison';
@@ -153,6 +154,7 @@ export default function PurchasePriceTrackingPage() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('product-history');
   const [currentUser, setCurrentUser] = useState<any>(null);
+  useSyncLiveUser(setCurrentUser);
   const [purchases, setPurchases] = useState<PurchaseRecord[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -168,9 +170,13 @@ export default function PurchasePriceTrackingPage() {
   useEffect(() => {
     const user = getCurrentUserFromStorage();
     setCurrentUser(user);
-    const allowed = getAllowedModuleTabIds(user, 'purchase-price-tracking', PURCHASE_PRICE_TAB_IDS);
-    if (allowed.length > 0 && !allowed.includes('product-history')) setActiveTab(allowed[0]);
   }, []);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    const allowed = getAllowedModuleTabIds(currentUser, 'purchase-price-tracking', PURCHASE_PRICE_TAB_IDS);
+    if (allowed.length > 0 && !allowed.includes(activeTab)) setActiveTab(allowed[0]);
+  }, [currentUser, activeTab]);
 
   async function fetchData() {
     try {

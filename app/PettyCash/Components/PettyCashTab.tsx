@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
+import { getAllowedModuleTabIds } from '@/app/AdminControl/AdminControlTab';
 import { Menu, X, ArrowLeft, FileSpreadsheet, RefreshCcw, Archive } from 'lucide-react';
 
 import Sidebar, { tabs } from '../Utils/Sidebar';
@@ -37,6 +39,7 @@ interface Expense {
 
 export default function PettyCashTab() {
   const [currentUser, setCurrentUser] = useState<any>(null);
+  useSyncLiveUser(setCurrentUser);
 
   useEffect(() => {
     const savedUser = localStorage.getItem('currentUser');
@@ -50,6 +53,15 @@ export default function PettyCashTab() {
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [activeTab, setActiveTab] = useState<'receipts' | 'expenses' | 'stats' | 'voucher' | 'history'>('receipts');
+  const pettyCashTabIds = ['receipts', 'expenses', 'voucher', 'stats', 'history'] as const;
+
+  useEffect(() => {
+    if (!currentUser) return;
+    const allowed = getAllowedModuleTabIds(currentUser, 'petty-cash', pettyCashTabIds);
+    if (allowed.length > 0 && !allowed.includes(activeTab)) {
+      setActiveTab(allowed[0] as typeof activeTab);
+    }
+  }, [currentUser, activeTab]);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 

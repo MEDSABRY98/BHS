@@ -792,6 +792,41 @@ export async function fetchUsersList() {
   }
 }
 
+export async function fetchUserSession(name: string) {
+  try {
+    if (!name) {
+      return { success: false, error: 'Name is required' };
+    }
+
+    const { data: user, error } = await bhs_supabase
+      .from('bhs_USERS')
+      .select('ID, NAME, ROLE, AUTHORITY, SALES_DATA_ACCESS')
+      .eq('NAME', name)
+      .maybeSingle();
+
+    if (error) throw error;
+    if (!user) {
+      return { success: false, error: 'User not found' };
+    }
+
+    const parseBool = (val: any) => val === true || val === 'TRUE' || val === 'true' || val === 1;
+
+    return {
+      success: true,
+      user: {
+        id: user.ID,
+        name: user.NAME,
+        role: user.AUTHORITY || '',
+        userAdmin: user.ROLE,
+        salesDataAccess: parseBool(user.SALES_DATA_ACCESS),
+      },
+    };
+  } catch (error: any) {
+    console.error('Service Error:', error);
+    return { success: false, error: error.message || 'Failed to fetch user session' };
+  }
+}
+
 export async function updateUserRole(name: string, role: string) {
   try {
     if (!name || role === undefined) {

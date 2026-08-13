@@ -9,11 +9,13 @@ import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import { ArrowLeft, RefreshCcw, FileSpreadsheet } from 'lucide-react';
 import { InvoiceRow } from '@/types';
 import { getCustomersSummariesData } from '@/app/CustomersSummaries/Service/summaries_service';
+import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
 
 function CustomersSummariesPageContent() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  useSyncLiveUser(setCurrentUser);
   const [data, setData] = useState<InvoiceRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

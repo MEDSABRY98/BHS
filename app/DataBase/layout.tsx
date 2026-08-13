@@ -16,6 +16,7 @@ import {
 import { useDataBaseRouteAudit } from '@/app/Audit/Modules/DataBaseTabAudit';
 import { findDatabaseNavItemByPath, getDatabaseNavItemsByCategory, DATABASE_DASHBOARD_HREF, DATABASE_DASHBOARD_NAV, DATABASE_NAV_ITEMS } from './Utils/DatabaseHubConfig';
 import { getAllowedModuleTabIds } from '@/app/AdminControl/AdminControlTab';
+import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
 
 interface NavItemProps {
   href: string;
@@ -58,6 +59,7 @@ export default function DatabaseLayout({ children }: { children: React.ReactNode
   const [user, setUser] = useState<any>(null);
   const [isChecking, setIsChecking] = useState(true);
   useDataBaseRouteAudit(pathname);
+  useSyncLiveUser(setUser);
 
   useEffect(() => {
     const stored = localStorage.getItem('dbSidebarCollapsed');

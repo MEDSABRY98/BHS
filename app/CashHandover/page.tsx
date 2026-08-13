@@ -7,6 +7,7 @@ import Loading from '@/app/Components/Loading';
 import HandoverForm from './Components/HandoverForm';
 import HandoverSidebar, { CASH_HANDOVER_TAB_IDS } from './Utils/Sidebar';
 import { getAllowedModuleTabIds } from '@/app/AdminControl/AdminControlTab';
+import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
 import { useCashHandoverTabAudit } from '@/app/Audit/Modules/CashHandoverTabAudit';
 import SavedHandoversTab from './Components/SavedHandoversTab';
 import { verifyUserCredentials } from '@/app/DataBase/Service/database_service';
@@ -17,6 +18,7 @@ export default function CashHandoverPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  useSyncLiveUser(setCurrentUser);
   const router = useRouter();
 
   const [activeTab, setActiveTab] = useState<'new' | 'saved'>('new');
@@ -61,6 +63,14 @@ export default function CashHandoverPage() {
 
     validateAndSetUser();
   }, []);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    const allowed = getAllowedModuleTabIds(currentUser, 'cash-handover', CASH_HANDOVER_TAB_IDS);
+    if (allowed.length > 0 && !allowed.includes(activeTab)) {
+      setActiveTab(allowed[0] as 'new' | 'saved');
+    }
+  }, [currentUser, activeTab]);
 
   const handleLogin = (user: any) => {
     setIsAuthenticated(true);

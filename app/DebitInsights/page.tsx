@@ -12,6 +12,7 @@ import DebitInsightsDashboard, {
 } from './DebitInsightsDashboard';
 import DebitInsightsSidebar from './Utils/Sidebar';
 import { useDebitInsightsTabAudit } from '@/app/Audit/Modules/DebitInsightsTabAudit';
+import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
 
 function isInsightsAllowed(currentUser: any): boolean {
   const userName = currentUser?.name?.toLowerCase() || '';
@@ -168,6 +169,7 @@ function DebitInsightsPageInner() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  useSyncLiveUser(setCurrentUser);
 
   useEffect(() => {
     const savedUser = localStorage.getItem('currentUser');

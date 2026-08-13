@@ -8,11 +8,13 @@ import CashReceiptSidebar from './Utils/Sidebar';
 import { useCashReceiptTabAudit } from '@/app/Audit/Modules/CashReceiptTabAudit';
 import { Menu, Search } from 'lucide-react';
 import { verifyUserCredentials } from '@/app/DataBase/Service/database_service';
+import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
 
 export default function CashReceiptPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  useSyncLiveUser(setCurrentUser);
 
   const [activeTab, setActiveTab] = useState<'new' | 'saved' | 'stats'>('new');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
@@ -73,6 +75,21 @@ export default function CashReceiptPage() {
 
     validateAndSetUser();
   }, []);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    const perms = (() => {
+      try {
+        return JSON.parse(currentUser.role || '{}');
+      } catch {
+        return {};
+      }
+    })();
+    const allowed = Array.isArray(perms['cash-receipt']) ? perms['cash-receipt'] : ['new', 'saved', 'stats'];
+    if (allowed.length > 0 && !allowed.includes(activeTab) && currentUser?.name !== 'MED Sabry') {
+      setActiveTab(allowed[0]);
+    }
+  }, [currentUser, activeTab]);
 
   const handleLogin = (user: any) => {
     setIsAuthenticated(true);

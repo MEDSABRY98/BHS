@@ -8,11 +8,13 @@ import Login from '@/app/Components/Auth/Login';
 import CustomersDocumentsGrid from './Components/CustomersDocumentsGrid';
 import { useCustomersDocumentsTabAudit } from '@/app/Audit/Modules/CustomersDocumentsTabAudit';
 import { getCustomersDocuments, updateCustomerDocument } from './Service/customers_documents_service';
+import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
 
 export default function CustomersDocumentsPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  useSyncLiveUser(setCurrentUser);
   const [searchQuery, setSearchQuery] = useState('');
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [data, setData] = useState<any[]>([]);

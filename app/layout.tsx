@@ -4,6 +4,7 @@ import "./globals.css";
 import { NotificationContainer } from "@/app/Components/Notification";
 import MobileBlocker from "@/lib/MobileBlocker";
 import ActivityTracker from "@/app/Audit/Components/ActivityTracker";
+import { AppSessionProvider } from "@/app/Components/Auth/AppSessionProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -44,9 +45,11 @@ export default function RootLayout({
         suppressHydrationWarning
       >
         <div className="app-main-wrapper">
-          {children}
-          <NotificationContainer />
-          <ActivityTracker />
+          <AppSessionProvider>
+            {children}
+            <NotificationContainer />
+            <ActivityTracker />
+          </AppSessionProvider>
         </div>
         <MobileBlocker />
       </body>
