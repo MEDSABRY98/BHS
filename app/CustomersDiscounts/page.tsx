@@ -3,15 +3,16 @@ import React, { useEffect, useState } from "react";
 import { CheckCircle } from "lucide-react";
 import { bhs_supabase, fetchAllData, getAllCustomerEmails } from "@/lib/supabase";
 import { buildCustomerEmailMap, getCustomerEmail } from "@/lib/customerEmailLookup";
-import Sidebar from "./Utils/Sidebar";
+import Sidebar, { CUSTOMERS_DISCOUNTS_TAB_IDS } from "./Utils/Sidebar";
+import { getAllowedModuleTabIds, getCurrentUserFromStorage } from '@/app/AdminControl/AdminControlTab';
 import ConfirmModal from "./ConfirmModal";
 import { toast, NotificationContainer } from "@/app/Components/Notification";
-import CustomersList from "./CustomersList";
-import AddDiscount from "./AddDiscount";
-import CustomerDetails from "./CustomerDiscountsDetails/CustomerDetails";
-import MonthsOverview from "./MonthsOverview";
-import Statistics from "./Statistics";
-import DiscountValues from "./DiscountValues";
+import CustomersList from "./CustomersList/CustomersList";
+import AddDiscount from "./AddDiscount/AddDiscount";
+import CustomerDetails from "./CustomerDetails/CustomerDetails";
+import MonthsOverview from "./MonthsOverview/MonthsOverview";
+import Statistics from "./Statistics/Statistics";
+import DiscountValues from "./Values/DiscountValues";
 import {
   buildMonthGroups,
   splitMonthGroups,
@@ -170,6 +171,7 @@ function collectTaxRebateGroups(list: CustomerView[]): { tag: string; group: Cus
 export default function CustomerDiscountsPage() {
   // Navigation State
   const [currentView, setCurrentView] = useState<"grid" | "add" | "details" | "months" | "stats" | "values">("grid");
+  const [currentUser, setCurrentUser] = useState<any>(null);
   
   // Data State
   const [customers, setCustomers] = useState<CustomerView[]>([]);
@@ -237,6 +239,17 @@ export default function CustomerDiscountsPage() {
 
   useEffect(() => {
     fetchCustomersAndDiscounts();
+  }, []);
+
+  useEffect(() => {
+    const user = getCurrentUserFromStorage();
+    setCurrentUser(user);
+    const allowed = getAllowedModuleTabIds(user, 'customers-discounts', CUSTOMERS_DISCOUNTS_TAB_IDS);
+    setCurrentView((prev) => {
+      const effective = prev === 'details' ? 'grid' : prev;
+      if (allowed.includes(effective)) return prev;
+      return (allowed[0] as typeof prev) || 'grid';
+    });
   }, []);
 
   // Filter customers in Grid view
@@ -919,6 +932,7 @@ export default function CustomerDiscountsPage() {
         currentView={currentView}
         setCurrentView={setCurrentView}
         setSelectedCustomer={setSelectedCustomer}
+        currentUser={currentUser}
       />
 
       {/* Main Workspace Area (Right) */}

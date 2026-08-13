@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import Sidebar from './Utils/Sidebar';
+import Sidebar, { PURCHASE_PRICE_TAB_IDS } from './Utils/Sidebar';
+import { getAllowedModuleTabIds, getCurrentUserFromStorage } from '@/app/AdminControl/AdminControlTab';
 import { bhs_supabase, fetchAllData } from '@/lib/supabase';
 import ProductPriceHistory from './ProductPriceHistory';
 import SupplierComparison from './SupplierComparison';
@@ -105,6 +106,7 @@ function PurchasePriceTrackingLoaded({
   products,
   suppliers,
   onPurchasePriceUpdated,
+  currentUser,
 }: {
   activeTab: string;
   setActiveTab: (tab: string) => void;
@@ -114,6 +116,7 @@ function PurchasePriceTrackingLoaded({
   products: Product[];
   suppliers: Supplier[];
   onPurchasePriceUpdated: (id: string, unitPrice: number) => void;
+  currentUser?: any;
 }) {
   return (
     <PurchaseFiltersProvider purchases={purchases} products={products} suppliers={suppliers}>
@@ -123,6 +126,7 @@ function PurchasePriceTrackingLoaded({
           setIsSidebarOpen={setIsSidebarOpen}
           activeTab={activeTab}
           onTabChange={setActiveTab}
+          currentUser={currentUser}
           FilterNode={
             <PurchaseFilterButton inSidebar={true} isCollapsed={!isSidebarOpen} />
           }
@@ -148,6 +152,7 @@ function PurchasePriceTrackingLoaded({
 export default function PurchasePriceTrackingPage() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('product-history');
+  const [currentUser, setCurrentUser] = useState<any>(null);
   const [purchases, setPurchases] = useState<PurchaseRecord[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -158,6 +163,13 @@ export default function PurchasePriceTrackingPage() {
 
   useEffect(() => {
     fetchData();
+  }, []);
+
+  useEffect(() => {
+    const user = getCurrentUserFromStorage();
+    setCurrentUser(user);
+    const allowed = getAllowedModuleTabIds(user, 'purchase-price-tracking', PURCHASE_PRICE_TAB_IDS);
+    if (allowed.length > 0 && !allowed.includes('product-history')) setActiveTab(allowed[0]);
   }, []);
 
   async function fetchData() {
@@ -242,6 +254,7 @@ export default function PurchasePriceTrackingPage() {
           setIsSidebarOpen={setIsSidebarOpen}
           activeTab={activeTab}
           onTabChange={setActiveTab}
+          currentUser={currentUser}
         />
         <main className="flex-1 flex items-center justify-center p-8">
           <TabFetchError
@@ -263,6 +276,7 @@ export default function PurchasePriceTrackingPage() {
           setIsSidebarOpen={setIsSidebarOpen}
           activeTab={activeTab}
           onTabChange={setActiveTab}
+          currentUser={currentUser}
         />
 
         <main className="flex-1 flex flex-col h-full overflow-hidden relative">
@@ -288,6 +302,7 @@ export default function PurchasePriceTrackingPage() {
       onPurchasePriceUpdated={(id, unitPrice) => {
         setPurchases((prev) => prev.map((p) => (p.id === id ? { ...p, unitPrice } : p)));
       }}
+      currentUser={currentUser}
     />
   );
 }

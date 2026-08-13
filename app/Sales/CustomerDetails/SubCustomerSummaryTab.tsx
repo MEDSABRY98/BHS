@@ -27,9 +27,6 @@ export default function SubCustomerSummaryTab({
   }
 
   const isPositive = summary.ytdDiff >= 0;
-  const targetId = summary.siblingRanking.find(
-    (row) => row.subCustomerName.trim() === customerName.trim()
-  )?.customerId;
 
   return (
     <div className="space-y-6">
@@ -123,45 +120,6 @@ export default function SubCustomerSummaryTab({
           </div>
         </div>
       </div>
-
-      {summary.siblingRanking.length > 0 && (
-        <div className="bg-white rounded-xl border border-gray-200 p-6">
-          <h2 className="text-xl font-bold text-gray-800 mb-4">Sub Customers Ranking</h2>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-200">
-                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700 w-16">#</th>
-                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">Sub Customer</th>
-                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700 w-40">Total Amount</th>
-                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700 w-32">Share</th>
-                </tr>
-              </thead>
-              <tbody>
-                {summary.siblingRanking.map((row, index) => {
-                  const isCurrent =
-                    row.subCustomerName.trim() === customerName.trim() ||
-                    (!!targetId && row.customerId.trim().toUpperCase() === targetId.trim().toUpperCase());
-                  const groupTotal = summary.siblingRanking.reduce((sum, item) => sum + item.totalAmount, 0);
-                  const share = groupTotal > 0 ? (row.totalAmount / groupTotal) * 100 : 0;
-
-                  return (
-                    <tr
-                      key={`${row.customerId}-${row.subCustomerName}`}
-                      className={`border-b border-gray-100 ${isCurrent ? 'bg-gray-50 font-semibold' : 'hover:bg-gray-50'}`}
-                    >
-                      <td className="py-3 px-4 text-center text-sm text-gray-600">{index + 1}</td>
-                      <td className="py-3 px-4 text-center text-sm text-gray-800">{row.subCustomerName}</td>
-                      <td className="py-3 px-4 text-center text-sm text-gray-800 font-bold">{fmt(row.totalAmount)}</td>
-                      <td className="py-3 px-4 text-center text-sm text-gray-700">{share.toFixed(1)}%</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

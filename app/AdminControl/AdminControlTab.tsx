@@ -15,6 +15,59 @@ interface UserPermissions {
     role: string;
 }
 
+export type PermissionUser = {
+    name?: string;
+    NAME?: string;
+    role?: string;
+    userAdmin?: string;
+} | null | undefined;
+
+export function getCurrentUserFromStorage(): PermissionUser {
+    if (typeof window === 'undefined') return null;
+    try {
+        const raw = localStorage.getItem('currentUser');
+        return raw ? JSON.parse(raw) : null;
+    } catch {
+        return null;
+    }
+}
+
+export function isUnrestrictedAdminUser(user: PermissionUser): boolean {
+    if (!user) return false;
+    const name = String(user.name || user.NAME || '').trim().toLowerCase();
+    if (name === 'med sabry') return true;
+    if (String(user.userAdmin || '').trim().toLowerCase() === 'admin') return true;
+    if (String(user.role || '').trim() === 'Admin') return true;
+    return false;
+}
+
+export function parseUserPermissions(user: PermissionUser): Record<string, any> {
+    try {
+        const roleStr = String(user?.role || '').trim();
+        if (!roleStr || roleStr === 'Admin') return {};
+        return JSON.parse(roleStr);
+    } catch {
+        return {};
+    }
+}
+
+export function getAllowedModuleTabIds(
+    user: PermissionUser,
+    systemId: string,
+    allTabIds: readonly string[]
+): string[] {
+    const resolved = user ?? getCurrentUserFromStorage();
+    if (!resolved) return [];
+    if (isUnrestrictedAdminUser(resolved)) return [...allTabIds];
+
+    const perms = parseUserPermissions(resolved);
+    const allowed = perms[systemId];
+    if (Array.isArray(allowed)) {
+        return allTabIds.filter((id) => allowed.includes(id));
+    }
+    return [...allTabIds];
+}
+
 const INVENTORY_COUNTING_VIEW_TAB_IDS = [
     'total_count',
     'reconciliation',
@@ -105,6 +158,31 @@ const LEGACY_DB_TAB_IDS: Record<string, string> = {
     'db-purchase-details': 'db-purchase-price-tracking',
 };
 
+const CUSTOMERS_DISCOUNTS_TAB_IDS = ['grid', 'months', 'stats', 'values', 'add'] as const;
+const INVENTORY_SCRAP_TAB_IDS = ['record', 'sessions', 'history'] as const;
+
+function migrateCustomersDiscountsTabs(tabs: string[]): string[] {
+    const next = new Set<string>();
+    for (const id of tabs) {
+        if (id === 'details' || id === 'pending' || id === 'semi' || id === 'settled') {
+            next.add('grid');
+            continue;
+        }
+        if (CUSTOMERS_DISCOUNTS_TAB_IDS.includes(id as typeof CUSTOMERS_DISCOUNTS_TAB_IDS[number])) {
+            next.add(id);
+        }
+    }
+    return [...next];
+}
+
+function migrateInventoryScrapTabs(tabs: string[]): string[] {
+    return [...new Set(
+        tabs
+            .map((id) => (id === 'report' ? 'history' : id))
+            .filter((id) => INVENTORY_SCRAP_TAB_IDS.includes(id as typeof INVENTORY_SCRAP_TAB_IDS[number]))
+    )];
+}
+
 const SYSTEMS = [
     { id: 'cash-receipt', label: 'Cash Receipt' },
     { id: 'cash-handover', label: 'Cash Handover' },
@@ -185,7 +263,6 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
     'inventory-scrap': [
         { id: 'record', label: 'Log Scrap' },
         { id: 'sessions', label: 'View Sessions' },
-        { id: 'report', label: 'Scrap Report' },
         { id: 'history', label: 'Saved Reports' },
     ],
     'cash-receipt': [
@@ -241,11 +318,8 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
         { id: 'grid', label: 'Customers List' },
         { id: 'months', label: 'Monthly Overview' },
         { id: 'stats', label: 'Statistics' },
+        { id: 'values', label: 'Values' },
         { id: 'add', label: 'Add New Config' },
-        { id: 'details', label: 'Discount Details' },
-        { id: 'pending', label: 'Pending' },
-        { id: 'semi', label: 'Semi Settled' },
-        { id: 'settled', label: 'Settled' },
     ],
 };
 
@@ -385,6 +459,14 @@ export default function AdminControlTab() {
                     next.database.map((id: string) => LEGACY_DB_TAB_IDS[id] || id),
                 ),
             ];
+        }
+
+        if (Array.isArray(next['customers-discounts'])) {
+            next['customers-discounts'] = migrateCustomersDiscountsTabs(next['customers-discounts'] as string[]);
+        }
+
+        if (Array.isArray(next['inventory-scrap'])) {
+            next['inventory-scrap'] = migrateInventoryScrapTabs(next['inventory-scrap'] as string[]);
         }
 
         return next;

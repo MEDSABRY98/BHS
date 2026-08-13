@@ -9,13 +9,13 @@ import {
   Calendar as CalendarIcon,
   User,
 } from "lucide-react";
-import { CustomerView } from "./page";
+import { CustomerView } from "../page";
 import { trackCustomersDiscountsMonthsTab } from '@/app/Audit/Modules/CustomersDiscountsTabAudit';
 import {
   classifyCustomerMonth,
   getCustomerMonthStats,
   type CustomerMonthBucket,
-} from "./Utils/settlementUtils";
+} from "../Utils/settlementUtils";
 
 type Settlement = {
   id: string;

@@ -1,26 +1,20 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { bhs_supabas, fetchAllData } from '@/lib/supabase';
+import { useMemo } from 'react';
 import {
-  TrendingUp,
   Clock,
   CheckCircle2,
-  Users,
   ArrowUpRight,
   Activity,
   Calendar,
-  User,
-  AlertCircle,
   XCircle,
-  Package,
-  Trophy,
   Truck,
   FileCheck,
   FileText
 } from 'lucide-react';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import TabLoader from '@/app/Components/Loading/TabLoader';
+import { useLpoData } from './Context/LpoDataContext';
 
 interface Stats {
   total: number;
@@ -41,87 +35,59 @@ interface DriverPerformance {
 }
 
 export default function DashboardPage() {
-  const [stats, setStats] = useState<Stats>({ total: 0, delivered: 0, officeConfirmed: 0, pending: 0, cancelled: 0 });
-  const [driverPerformance, setDriverPerformance] = useState<DriverPerformance[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { drivers, users, loading } = useLpoData();
 
-  useEffect(() => {
-    fetchDashboardData();
-  }, []);
+  const { stats, driverPerformance } = useMemo(() => {
+    let total = 0;
+    let delivered = 0;
+    let officeConfirmed = 0;
+    let pending = 0;
+    let cancelled = 0;
+    const performanceMap: Record<string, DriverPerformance> = {};
 
-  async function fetchDashboardData() {
-    try {
-      const drivers = await fetchAllData(() =>
-        bhs_supabas.from('app_lpos_DRIVERS').select('*').order('ID', { ascending: false })
-      );
+    drivers.forEach((driver: any) => {
+      total++;
+      const isCancelled = driver.TRACKING_NOTES === 'SYSTEM_CANCELLED';
+      const isDelivered = driver.STATUS === 'Delivered' && !isCancelled;
+      const isOfficeConfirmed = driver.OFFICE_HANDOVER_STATUS === 'Confirmed' && !isCancelled;
+      const isPending = driver.STATUS !== 'Delivered' && !isCancelled;
 
-      let total = 0;
-      let delivered = 0;
-      let officeConfirmed = 0;
-      let pending = 0;
-      let cancelled = 0;
+      if (isCancelled) cancelled++;
+      else if (isDelivered) delivered++;
 
-      const performanceMap: Record<string, DriverPerformance> = {};
+      if (isOfficeConfirmed) officeConfirmed++;
+      if (isPending) pending++;
 
-      const allUsers = await fetchAllData(() => bhs_supabas.from('bhs_USERS').select('*'));
+      const driverId = driver.DRIVERS_NAME;
+      if (!driverId) return;
 
-      drivers.forEach((driver: any) => {
-        total++;
-        const isCancelled = driver.TRACKING_NOTES === 'SYSTEM_CANCELLED';
-        const isDelivered = driver.STATUS === 'Delivered' && !isCancelled;
-        const isOfficeConfirmed = driver.OFFICE_HANDOVER_STATUS === 'Confirmed' && !isCancelled;
-        const isPending = driver.STATUS !== 'Delivered' && !isCancelled;
+      if (!performanceMap[driverId]) {
+        const userObj = users.find((u) => u.ID === driverId);
+        performanceMap[driverId] = {
+          id: driverId,
+          name: userObj?.NAME || driverId,
+          total: 0,
+          delivered: 0,
+          officeConfirmed: 0,
+          pending: 0,
+          cancelled: 0,
+        };
+      }
 
-        if (isCancelled) cancelled++;
-        else if (isDelivered) delivered++;
+      performanceMap[driverId].total++;
+      if (isCancelled) performanceMap[driverId].cancelled++;
+      else if (isDelivered) performanceMap[driverId].delivered++;
+      if (isOfficeConfirmed) performanceMap[driverId].officeConfirmed++;
+      if (isPending) performanceMap[driverId].pending++;
+    });
 
-        if (isOfficeConfirmed) officeConfirmed++;
-        if (isPending) pending++;
+    return {
+      stats: { total, delivered, officeConfirmed, pending, cancelled },
+      driverPerformance: Object.values(performanceMap).sort((a, b) => b.total - a.total),
+    };
+  }, [drivers, users]);
 
-        const driverId = driver.DRIVERS_NAME;
-        if (!driverId) return; // Skip unassigned
-
-        if (!performanceMap[driverId]) {
-          const userObj = allUsers.find(u => u.ID === driverId);
-          performanceMap[driverId] = {
-            id: driverId,
-            name: userObj?.NAME || driverId,
-            total: 0,
-            delivered: 0,
-            officeConfirmed: 0,
-            pending: 0,
-            cancelled: 0
-          };
-        }
-
-        performanceMap[driverId].total++;
-        if (isCancelled) performanceMap[driverId].cancelled++;
-        else if (isDelivered) performanceMap[driverId].delivered++;
-        if (isOfficeConfirmed) performanceMap[driverId].officeConfirmed++;
-        if (isPending) performanceMap[driverId].pending++;
-      });
-
-      setStats({
-        total,
-        delivered,
-        officeConfirmed,
-        pending,
-        cancelled
-      });
-
-      const performanceArray = Object.values(performanceMap)
-        .sort((a, b) => b.total - a.total) as DriverPerformance[];
-
-      setDriverPerformance(performanceArray);
-
-    } catch (err) {
-      console.error('Dashboard Data Fetch Error:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
-  if (isLoading) {
+  if (loading) {
     return <TabLoader />;
   }
 

@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { bhs_supabas, fetchAllData } from '@/lib/supabase';
+import { bhs_supabas } from '@/lib/supabase';
+import { useLpoData } from '../Context/LpoDataContext';
 import {
   Search,
   Eye,
@@ -39,7 +40,7 @@ function canConfirmInvoiceHandover(driver: any, currentUserProfile: any): boolea
   return String(currentUserProfile.ID) === String(driver.OFFICE_HANDOVER_ID);
 }
 
-async function resolveCurrentUserProfile() {
+function resolveCurrentUserProfile(users: any[]) {
   const mainUserStr = localStorage.getItem('currentUser');
   if (!mainUserStr) return null;
 
@@ -48,18 +49,9 @@ async function resolveCurrentUserProfile() {
     const name = parsed.name || parsed.NAME;
     if (!name) return null;
 
-    const cleanName = name.trim();
-    const { data } = await bhs_supabas
-      .from('bhs_USERS')
-      .select('*')
-      .ilike('NAME', cleanName)
-      .maybeSingle();
-
-    if (data) return data;
-
-    const allUsers = await fetchAllData(() => bhs_supabas.from('bhs_USERS').select('*'));
-    const matchedUser = allUsers.find(
-      (u: any) => u.NAME.trim().toLowerCase() === cleanName.toLowerCase(),
+    const cleanName = name.trim().toLowerCase();
+    const matchedUser = users.find(
+      (u: any) => String(u.NAME || '').trim().toLowerCase() === cleanName,
     );
     if (matchedUser) return matchedUser;
 
@@ -77,12 +69,11 @@ async function resolveCurrentUserProfile() {
 
 export default function OrdersPage() {
   const { canEdit } = usePermissions();
-  const [orders, setOrders] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { orders, users, loading, refresh } = useLpoData();
   const [currentUserProfile, setCurrentUserProfile] = useState<any>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
-  const [staffList, setStaffList] = useState<any[]>([]);
+  const staffList = users;
   const [advancedFilters, setAdvancedFilters] = useState<FilterCriteria>({
     invoiceStatus: 'All',
     driverId: 'All'
@@ -101,10 +92,8 @@ export default function OrdersPage() {
   }, [searchTerm, statusFilter, advancedFilters, currentPage]);
 
   useEffect(() => {
-    fetchStaff();
-    fetchOrders();
-    resolveCurrentUserProfile().then(setCurrentUserProfile);
-  }, []);
+    setCurrentUserProfile(resolveCurrentUserProfile(users));
+  }, [users]);
 
   // Load saved filters from sessionStorage on mount to avoid hydration mismatch
   useEffect(() => {
@@ -151,47 +140,10 @@ export default function OrdersPage() {
     setCurrentPage(1);
   }, [searchTerm, statusFilter, advancedFilters]);
 
-  async function fetchStaff() {
-    const data = await fetchAllData(() =>
-      bhs_supabas.from('bhs_USERS').select('ID, NAME').order('NAME')
-    );
-    setStaffList(data);
-  }
-
-  async function fetchOrders() {
-    try {
-      const data = await fetchAllData(() =>
-        bhs_supabas
-          .from('app_lpos_ORDERS')
-          .select(`
-          *,
-          bhs_CUSTOMERS ( "CUSTOMER NAME":"CUSTOMER SUB NAME", "CUSTOMER CITY" ),
-          app_lpos_DRIVERS ( 
-            ID,
-            DRIVERS_NAME, 
-            OFFICE_HANDOVER_ID,
-            OFFICE_HANDOVER_STATUS,
-            TRACKING_NOTES,
-            STATUS
-          )
-        `)
-          .order('CREATED_AT', { ascending: false })
-      );
-
-      setOrders(data);
-    } catch (err: any) {
-      console.error('Fetch orders error:', err?.message || err, err);
-      if (err?.details) console.error('Details:', err.details);
-      if (err?.hint) console.error('Hint:', err.hint);
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
   const handleBulkConfirmReceipt = async () => {
     if (selectedOrderIds.length === 0) return;
 
-    const userProfile = currentUserProfile || (await resolveCurrentUserProfile());
+    const userProfile = currentUserProfile || resolveCurrentUserProfile(users);
     if (!userProfile?.ID) {
       toast.error('Could not resolve the current user profile.');
       return;
@@ -235,7 +187,7 @@ export default function OrdersPage() {
         toast.success(`Confirmed ${confirmableOrders.length} invoice(s).`);
       }
 
-      await fetchOrders();
+      await refresh();
       setSelectedOrderIds([]);
     } catch (err) {
       console.error(err);
@@ -364,7 +316,7 @@ export default function OrdersPage() {
     );
   };
 
-  if (isLoading) {
+  if (loading) {
     return <TabLoader />;
   }
 

@@ -64,6 +64,7 @@ export default function SalesPage() {
     merchandisers: [] as string[],
     salesReps: [] as string[],
     productTags: [] as string[],
+    customerNames: [] as string[],
     customerTags: [] as string[],
     customerClasses: [] as string[],
     years: [] as string[]

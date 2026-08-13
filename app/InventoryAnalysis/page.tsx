@@ -8,7 +8,8 @@ import InventoryLocationMovementsTab from './LocationMovements/InventoryLocation
 import InventoryCategoryBalanceTab from './CategoryBalance/InventoryCategoryBalanceTab';
 import InventoryProductOrdersTab from './CategoriesAnalysis/InventoryCategoriesTab';
 import ReportsTab from './Reports/ReportsTab';
-import InventorySidebar, { type InventoryTabId } from './Utils/Sidebar';
+import InventorySidebar, { INVENTORY_ANALYSIS_TAB_IDS, type InventoryTabId } from './Utils/Sidebar';
+import { getAllowedModuleTabIds } from '@/app/AdminControl/AdminControlTab';
 import IADataBootstrap from './Utils/IADataBootstrap';
 import { useInventoryTabAudit } from '@/app/Audit/Modules/InventoryTabAudit';
 import Login from '@/app/Components/Auth/Login';
@@ -35,6 +36,7 @@ export default function InventoryPage() {
   );
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
+  const [currentUser, setCurrentUser] = useState<any>(null);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
@@ -46,8 +48,14 @@ export default function InventoryPage() {
     const savedUser = localStorage.getItem('currentUser');
     if (savedUser) {
       try {
-        JSON.parse(savedUser);
+        const user = JSON.parse(savedUser);
+        setCurrentUser(user);
         setIsAuthenticated(true);
+        const allowed = getAllowedModuleTabIds(user, 'inventory', INVENTORY_ANALYSIS_TAB_IDS);
+        if (allowed.length > 0 && !allowed.includes('products_balance')) {
+          setActiveTab(allowed[0] as InventoryTabId);
+          setMountedTabs(new Set([allowed[0] as InventoryTabId]));
+        }
       } catch {
         localStorage.removeItem('currentUser');
       } finally {
@@ -82,7 +90,13 @@ export default function InventoryPage() {
 
   const handleLogin = (user: any) => {
     setIsAuthenticated(true);
+    setCurrentUser(user);
     localStorage.setItem('currentUser', JSON.stringify(user));
+    const allowed = getAllowedModuleTabIds(user, 'inventory', INVENTORY_ANALYSIS_TAB_IDS);
+    if (allowed.length > 0 && !allowed.includes('products_balance')) {
+      setActiveTab(allowed[0] as InventoryTabId);
+      setMountedTabs(new Set([allowed[0] as InventoryTabId]));
+    }
   };
 
   const renderTabContent = () => (
@@ -131,6 +145,7 @@ export default function InventoryPage() {
           onTabChange={setActiveTab}
           isCollapsed={isSidebarCollapsed}
           onToggleCollapse={toggleSidebar}
+          currentUser={currentUser}
         />
       </aside>
 
@@ -148,6 +163,7 @@ export default function InventoryPage() {
           isCollapsed={false}
           onToggleCollapse={() => {}}
           onCloseMobile={() => setIsMobileSidebarOpen(false)}
+          currentUser={currentUser}
         />
       </aside>
 

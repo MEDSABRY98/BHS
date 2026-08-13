@@ -14,7 +14,8 @@ import {
   ArrowLeft,
 } from 'lucide-react';
 import { useDataBaseRouteAudit } from '@/app/Audit/Modules/DataBaseTabAudit';
-import { findDatabaseNavItemByPath, getDatabaseNavItemsByCategory, DATABASE_DASHBOARD_HREF, DATABASE_DASHBOARD_NAV } from './Utils/DatabaseHubConfig';
+import { findDatabaseNavItemByPath, getDatabaseNavItemsByCategory, DATABASE_DASHBOARD_HREF, DATABASE_DASHBOARD_NAV, DATABASE_NAV_ITEMS } from './Utils/DatabaseHubConfig';
+import { getAllowedModuleTabIds } from '@/app/AdminControl/AdminControlTab';
 
 interface NavItemProps {
   href: string;
@@ -79,6 +80,16 @@ export default function DatabaseLayout({ children }: { children: React.ReactNode
     setIsChecking(false);
   }, []);
 
+  useEffect(() => {
+    if (!user) return;
+    const navItem = findDatabaseNavItemByPath(pathname);
+    if (!navItem) return;
+    const allowed = getAllowedModuleTabIds(user, 'database', DATABASE_NAV_ITEMS.map((item) => item.id));
+    if (!allowed.includes(navItem.id)) {
+      router.replace('/DataBase');
+    }
+  }, [user, pathname, router]);
+
   const toggleSidebar = () => {
     const nextState = !isCollapsed;
     setIsCollapsed(nextState);
@@ -109,7 +120,10 @@ export default function DatabaseLayout({ children }: { children: React.ReactNode
   const isDashboard = pathname === DATABASE_DASHBOARD_HREF;
   const activeNavItem = findDatabaseNavItemByPath(pathname);
   const activeCategoryId = activeNavItem?.category || null;
-  const sidebarItems = isHub || isDashboard || !activeCategoryId ? [] : getDatabaseNavItemsByCategory(activeCategoryId);
+  const allowedDbTabIds = new Set(getAllowedModuleTabIds(user, 'database', DATABASE_NAV_ITEMS.map((item) => item.id)));
+  const sidebarItems = isHub || isDashboard || !activeCategoryId
+    ? []
+    : getDatabaseNavItemsByCategory(activeCategoryId).filter((item) => allowedDbTabIds.has(item.id));
   const DashboardIcon = DATABASE_DASHBOARD_NAV.icon;
 
   return (

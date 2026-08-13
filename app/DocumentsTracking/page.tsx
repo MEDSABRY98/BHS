@@ -62,7 +62,7 @@ export default function DocumentsTrackingPage() {
                         العودة للرئيسية
                     </button>
                 </div>
-                <DocumentsTrackingTab />
+                <DocumentsTrackingTab currentUser={currentUser} />
             </main>
         </div>
     );

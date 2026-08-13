@@ -14,4 +14,5 @@ export {
 } from '@/app/Components/Export/ExcelExport';
 
 // Module-specific Excel exports
-export * from '../ExportExcel';
+export * from '../CustomersList/ExportExcel';
+export * from '../Values/ExportExcel';

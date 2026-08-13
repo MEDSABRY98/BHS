@@ -19,7 +19,7 @@ export function buildOverviewFromFilteredData(augmentedData: any[], filters: any
   let geographyFilteredData = augmentedWithDates;
 
   if (filters) {
-    const { invoiceType, year, month, dateFrom, dateTo, area, market, merchandiser, salesRep, productTag, customerTag, customerClass } = filters;
+    const { invoiceType, year, month, dateFrom, dateTo, area, market, merchandiser, salesRep, productTag, customerName, customerTag, customerClass } = filters;
 
     if (invoiceType && invoiceType !== 'all') {
       globallyFilteredData = globallyFilteredData.filter((item) => {
@@ -33,6 +33,11 @@ export function buildOverviewFromFilteredData(augmentedData: any[], filters: any
     geographyFilteredData = [...globallyFilteredData];
 
     if (productTag) geographyFilteredData = geographyFilteredData.filter((i) => i.productTag === productTag);
+    if (customerName) {
+      geographyFilteredData = geographyFilteredData.filter(
+        (i) => i.customerName === customerName || i.customerMainName === customerName
+      );
+    }
     if (customerTag) geographyFilteredData = geographyFilteredData.filter(i => i.customerTag === customerTag);
     if (customerClass) geographyFilteredData = geographyFilteredData.filter(i => i.customerClass === customerClass);
     if (area) geographyFilteredData = geographyFilteredData.filter((i) => i.area === area);

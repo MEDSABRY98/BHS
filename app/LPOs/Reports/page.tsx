@@ -76,12 +76,19 @@ export default function ReportsPage() {
         </button>
       </div>
 
-      {/* Render active report sub-component */}
       <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-        {activeTab === 'pending' && <PendingDriverInvoices />}
-        {activeTab === 'pending-customer' && <PendingCustomerInvoices />}
-        {activeTab === 'delivered' && <DeliveredDriverInvoices />}
-        {activeTab === 'handover' && <HandoverReports />}
+        <div className={activeTab === 'pending' ? '' : 'hidden'}>
+          <PendingDriverInvoices />
+        </div>
+        <div className={activeTab === 'pending-customer' ? '' : 'hidden'}>
+          <PendingCustomerInvoices />
+        </div>
+        <div className={activeTab === 'delivered' ? '' : 'hidden'}>
+          <DeliveredDriverInvoices />
+        </div>
+        <div className={activeTab === 'handover' ? '' : 'hidden'}>
+          <HandoverReports />
+        </div>
       </div>
     </div>
   );

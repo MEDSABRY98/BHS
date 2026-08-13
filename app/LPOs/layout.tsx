@@ -6,6 +6,7 @@ import Link from 'next/link';
 import Login from '@/app/Components/Auth/Login';
 import Loading from '@/app/Components/Loading';
 import { useLposRouteAudit } from '@/app/Audit/Modules/LPOsTabAudit';
+import { LpoDataProvider } from './Context/LpoDataContext';
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -304,7 +305,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         <main className="flex-1 p-4 md:p-8 lg:p-12">
           <div className={`${(pathname === '/LPOs' || pathname === '/LPOs/Orders' || pathname === '/LPOs/CreateOrders' || pathname === '/LPOs/InvoiceCancel' || pathname.startsWith('/DataBase')) ? 'max-w-[1600px]' : 'max-w-7xl'} mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500`}>
-            {children}
+            <LpoDataProvider>{children}</LpoDataProvider>
           </div>
         </main>
       </div>

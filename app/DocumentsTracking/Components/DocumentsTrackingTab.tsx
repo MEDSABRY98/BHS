@@ -38,15 +38,21 @@ import BulkDeliverModal from './Modals/BulkDeliverModal';
 import ReceiverExcelModal from './Modals/ReceiverExcelModal';
 import { exportDebitExcelTable } from '../../Debit/Utils/ExcelExport';
 import { getDocumentsTracking, updateDocumentTrackingRecord, deleteDocumentTrackingRecord, bulkUpdateDocumentsTrackingRecords } from '../Service/documents_tracking_service';
+import { getAllowedModuleTabIds } from '@/app/AdminControl/AdminControlTab';
 
-export default function DocumentsTrackingTab() {
+const DOCUMENTS_TRACKING_TAB_IDS = ['register', 'list', 'receivers'] as const;
+
+export default function DocumentsTrackingTab({ currentUser }: { currentUser?: any }) {
     const router = useRouter();
     const [checks, setChecks] = useState<Check[]>([]);
     const [currentFilter, setCurrentFilter] = useState<'all' | 'received' | 'delivered'>('all');
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedCheckId, setSelectedCheckId] = useState<string | null>(null);
     const [headerDate, setHeaderDate] = useState('');
-    const [activeSubTab, setActiveSubTab] = useState<'register' | 'list' | 'receivers'>('register');
+    const allowedSubTabs = getAllowedModuleTabIds(currentUser, 'documents-tracking', DOCUMENTS_TRACKING_TAB_IDS);
+    const [activeSubTab, setActiveSubTab] = useState<'register' | 'list' | 'receivers'>(
+        (allowedSubTabs[0] as 'register' | 'list' | 'receivers') || 'register'
+    );
     useDocumentsTrackingTabAudit(activeSubTab);
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
@@ -582,24 +588,30 @@ export default function DocumentsTrackingTab() {
 
             <div className={`main ${activeSubTab === 'register' ? 'wide' : ''}`}>
                 <div className="sub-tabs">
+                    {allowedSubTabs.includes('register') && (
                     <button
                         className={`sub-tab ${activeSubTab === 'register' ? 'active' : ''}`}
                         onClick={() => setActiveSubTab('register')}
                     >
                         <span>📝</span> تسجيل شيك جديد
                     </button>
+                    )}
+                    {allowedSubTabs.includes('list') && (
                     <button
                         className={`sub-tab ${activeSubTab === 'list' ? 'active' : ''}`}
                         onClick={() => setActiveSubTab('list')}
                     >
                         <span>📋</span> استعراض الشيكات
                     </button>
+                    )}
+                    {allowedSubTabs.includes('receivers') && (
                     <button
                         className={`sub-tab ${activeSubTab === 'receivers' ? 'active' : ''}`}
                         onClick={() => setActiveSubTab('receivers')}
                     >
                         <span>🏢</span> مستلمي المكتب
                     </button>
+                    )}
                 </div>
 
                 {activeSubTab === 'register' && (

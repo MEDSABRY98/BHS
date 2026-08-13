@@ -1,22 +1,30 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ArrowLeft, ChevronLeft, ChevronRight, ClipboardList, PlusCircle, Save } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { getAllowedModuleTabIds } from '@/app/AdminControl/AdminControlTab';
 
 interface HandoverSidebarProps {
   activeTab: 'new' | 'saved';
   setActiveTab: (tab: 'new' | 'saved') => void;
+  currentUser?: any;
 }
 
-export default function HandoverSidebar({ activeTab, setActiveTab }: HandoverSidebarProps) {
+export const CASH_HANDOVER_TAB_IDS = ['new', 'saved'] as const;
+
+const ALL_TABS = [
+  { id: 'new' as const, label: 'New Handover', icon: PlusCircle },
+  { id: 'saved' as const, label: 'Saved Handovers', icon: Save },
+];
+
+export default function HandoverSidebar({ activeTab, setActiveTab, currentUser }: HandoverSidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(true);
   const router = useRouter();
-
-  const tabs = [
-    { id: 'new' as const, label: 'New Handover', icon: PlusCircle },
-    { id: 'saved' as const, label: 'Saved Handovers', icon: Save },
-  ];
+  const tabs = useMemo(() => {
+    const allowed = new Set(getAllowedModuleTabIds(currentUser, 'cash-handover', CASH_HANDOVER_TAB_IDS));
+    return ALL_TABS.filter((tab) => allowed.has(tab.id));
+  }, [currentUser]);
 
   return (
     <aside

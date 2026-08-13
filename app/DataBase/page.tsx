@@ -1,8 +1,22 @@
+'use client';
+
+import { useMemo } from 'react';
 import Link from 'next/link';
 import { ArrowRight, Database, LayoutDashboard } from 'lucide-react';
-import { DATABASE_CATEGORIES, DATABASE_DASHBOARD_HREF } from './Utils/DatabaseHubConfig';
+import { DATABASE_CATEGORIES, DATABASE_DASHBOARD_HREF, DATABASE_NAV_ITEMS } from './Utils/DatabaseHubConfig';
+import { getAllowedModuleTabIds, getCurrentUserFromStorage } from '@/app/AdminControl/AdminControlTab';
 
 export default function DatabaseHub() {
+  const categories = useMemo(() => {
+    const allowedIds = new Set(
+      getAllowedModuleTabIds(getCurrentUserFromStorage(), 'database', DATABASE_NAV_ITEMS.map((item) => item.id))
+    );
+    return DATABASE_CATEGORIES.map((category) => {
+      const items = DATABASE_NAV_ITEMS.filter((item) => item.category === category.id && allowedIds.has(item.id));
+      if (items.length === 0) return null;
+      return { ...category, href: items[0].href };
+    }).filter((category): category is (typeof DATABASE_CATEGORIES)[number] => category !== null);
+  }, []);
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex items-center gap-4 border-b border-gray-200 pb-8">
@@ -36,7 +50,7 @@ export default function DatabaseHub() {
       </Link>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {DATABASE_CATEGORIES.map((category) => (
+        {categories.map((category) => (
           <Link
             key={category.id}
             href={category.href}

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { bhs_supabas, fetchAllData, fetchAssignedDrivers } from '@/lib/supabase';
+import { useLpoData } from '../../Context/LpoDataContext';
 import SearchSelect from '../../Components/DropDownList';
 import { FileText, Loader2, Download, Printer, AlertCircle } from 'lucide-react';
 import { generateDailyHandoverPDF } from '@/app/LPOs/Pdf/DailyHandoverPdf';
@@ -18,15 +18,14 @@ interface HandoverGroup {
 }
 
 export default function HandoverReports() {
-  const [drivers, setDrivers] = useState<any[]>([]);
+  const { assignedDrivers: drivers, orders, loading } = useLpoData();
   const [selectedDriverId, setSelectedDriverId] = useState('');
-  const [allConfirmedOrders, setAllConfirmedOrders] = useState<any[]>([]);
-  const [isDriversLoading, setIsDriversLoading] = useState(true);
-  const [isOrdersLoading, setIsOrdersLoading] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [currentAdmin, setCurrentAdmin] = useState<any>(null);
+  const isDriversLoading = loading;
+  const isOrdersLoading = loading;
 
   useEffect(() => {
     const mainUserStr = localStorage.getItem('currentUser');
@@ -39,49 +38,14 @@ export default function HandoverReports() {
     }
   }, []);
 
-  useEffect(() => {
-    fetchDrivers();
-    fetchConfirmedOrders();
-  }, []);
-
-  async function fetchDrivers() {
-    setIsDriversLoading(true);
-    try {
-      setDrivers(await fetchAssignedDrivers());
-    } catch (err) {
-      console.error('Error fetching drivers:', err);
-    } finally {
-      setIsDriversLoading(false);
-    }
-  }
-
-  async function fetchConfirmedOrders() {
-    setIsOrdersLoading(true);
-    try {
-      const data = await fetchAllData(() =>
-        bhs_supabas
-          .from('app_lpos_ORDERS')
-          .select(`
-          *,
-          bhs_CUSTOMERS ( "CUSTOMER NAME":"CUSTOMER SUB NAME" ),
-          app_lpos_DRIVERS!inner (
-            DRIVERS_NAME,
-            STATUS,
-            OFFICE_HANDOVER_STATUS,
-            OFFICE_HANDOVER_TIME,
-            DELIVERY_TIME,
-            TRACKING_NOTES
-          )
-        `)
-          .eq('app_lpos_DRIVERS.OFFICE_HANDOVER_STATUS', 'Confirmed')
-      );
-      setAllConfirmedOrders(data);
-    } catch (err) {
-      console.error('Error fetching confirmed handover orders:', err);
-    } finally {
-      setIsOrdersLoading(false);
-    }
-  }
+  const allConfirmedOrders = useMemo(
+    () =>
+      orders.filter((order: any) => {
+        const driverRecord = order.app_lpos_DRIVERS?.[0];
+        return driverRecord && driverRecord.OFFICE_HANDOVER_STATUS === 'Confirmed';
+      }),
+    [orders],
+  );
 
   // Group confirmed orders by driver and handover date
   const groupedHandovers = useMemo(() => {

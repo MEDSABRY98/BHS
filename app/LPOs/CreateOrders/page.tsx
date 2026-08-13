@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { bhs_supabas, fetchAllData } from '@/lib/supabase';
+import { useLpoData } from '../Context/LpoDataContext';
 import {
   ReceiptText,
   Send,
@@ -49,9 +50,7 @@ function downloadUploadErrorsReport(errors: string[], action: 'import' | 'update
 
 export default function CreateOrderPage() {
   const router = useRouter();
-  const [users, setUsers] = useState<any[]>([]);
-  const [customers, setCustomers] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { users, customers, loading: isLoading, refresh } = useLpoData();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isExcelModalOpen, setIsExcelModalOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -69,31 +68,6 @@ export default function CreateOrderPage() {
     DRIVER_ID: '',
     ORDER_DATE: ''
   });
-
-  useEffect(() => {
-    fetchInitialData();
-  }, []);
-
-  async function fetchInitialData() {
-    try {
-      const [users, customers] = await Promise.all([
-        fetchAllData(() => bhs_supabas.from('bhs_USERS').select('*').order('NAME')),
-        fetchAllData(() =>
-          bhs_supabas
-            .from('bhs_CUSTOMERS')
-            .select('*, "CUSTOMER NAME":"CUSTOMER SUB NAME"')
-            .order('CUSTOMER SUB NAME')
-        ),
-      ]);
-
-      setUsers(users);
-      setCustomers(customers);
-    } catch (err) {
-      console.error('Error fetching data:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  }
 
   const addOrderToList = async () => {
     if (!formData.CUSTOMER_ID) {
@@ -269,6 +243,7 @@ export default function CreateOrderPage() {
 
       toast.success(`${pendingOrders.length} Orders created successfully!`);
       setPendingOrders([]);
+      void refresh();
     } catch (err: any) {
       console.error('Submit Error:', err);
       toast.error(err.message || 'Failed to create orders');
@@ -649,6 +624,7 @@ export default function CreateOrderPage() {
         }
 
         if (updatedCount > 0) {
+          void refresh();
           if (errors.length > 0) {
             downloadUploadErrorsReport(errors, 'update');
             toast.warning(`Successfully updated ${updatedCount} orders. ${errors.length} row(s) failed — error report downloaded.`);

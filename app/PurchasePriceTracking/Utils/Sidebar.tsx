@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   ArrowLeft,
   Building2,
@@ -11,6 +11,7 @@ import {
   TrendingUp,
   Users,
 } from 'lucide-react';
+import { getAllowedModuleTabIds } from '@/app/AdminControl/AdminControlTab';
 
 interface SidebarProps {
   isSidebarOpen: boolean;
@@ -18,7 +19,15 @@ interface SidebarProps {
   activeTab: string;
   onTabChange: (tab: string) => void;
   FilterNode?: React.ReactNode;
+  currentUser?: any;
 }
+
+export const PURCHASE_PRICE_TAB_IDS = [
+  'product-history',
+  'supplier-comparison',
+  'supplier-history',
+  'reports',
+] as const;
 
 const TABS = [
   { id: 'product-history', label: 'Product History', icon: LineChart },
@@ -33,8 +42,13 @@ export default function Sidebar({
   activeTab,
   onTabChange,
   FilterNode,
+  currentUser,
 }: SidebarProps) {
   const isCollapsed = !isSidebarOpen;
+  const tabs = useMemo(() => {
+    const allowed = new Set(getAllowedModuleTabIds(currentUser, 'purchase-price-tracking', PURCHASE_PRICE_TAB_IDS));
+    return TABS.filter((tab) => allowed.has(tab.id));
+  }, [currentUser]);
 
   return (
     <div
@@ -73,7 +87,7 @@ export default function Sidebar({
       </div>
 
       <nav className="flex-1 mt-4 overflow-y-auto no-scrollbar px-3 space-y-1">
-        {TABS.map((tab) => {
+        {tabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
           return (

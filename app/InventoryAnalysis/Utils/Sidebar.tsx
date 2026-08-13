@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   ArrowLeft,
   ArrowLeftRight,
@@ -14,6 +14,7 @@ import {
   RefreshCw,
   X,
 } from 'lucide-react';
+import { getAllowedModuleTabIds } from '@/app/AdminControl/AdminControlTab';
 
 export type InventoryTabId =
   | 'products_balance'
@@ -28,7 +29,16 @@ interface InventorySidebarProps {
   isCollapsed: boolean;
   onToggleCollapse: () => void;
   onCloseMobile?: () => void;
+  currentUser?: any;
 }
+
+export const INVENTORY_ANALYSIS_TAB_IDS: InventoryTabId[] = [
+  'products_balance',
+  'location_movements',
+  'category_balance',
+  'categories',
+  'reports',
+];
 
 const TABS: { id: InventoryTabId; label: string; icon: typeof Package }[] = [
   { id: 'products_balance', label: 'Products Balance', icon: Package },
@@ -44,9 +54,14 @@ export default function InventorySidebar({
   isCollapsed,
   onToggleCollapse,
   onCloseMobile,
+  currentUser,
 }: InventorySidebarProps) {
   const [refreshingTabs, setRefreshingTabs] = useState<Record<string, boolean>>({});
   const isCurrentTabRefreshing = refreshingTabs[activeTab] || false;
+  const tabs = useMemo(() => {
+    const allowed = new Set(getAllowedModuleTabIds(currentUser, 'inventory', INVENTORY_ANALYSIS_TAB_IDS));
+    return TABS.filter((tab) => allowed.has(tab.id));
+  }, [currentUser]);
 
   useEffect(() => {
     const handleStateChange = (e: Event) => {
@@ -115,7 +130,7 @@ export default function InventorySidebar({
       </div>
 
       <nav className="flex-1 mt-4 overflow-y-auto no-scrollbar px-3 space-y-1">
-        {TABS.map((tab) => {
+        {tabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
           return (

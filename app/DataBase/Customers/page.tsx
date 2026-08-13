@@ -21,6 +21,7 @@ import {
   ChevronRight,
   GitMerge,
   Tag,
+  Award,
 } from 'lucide-react';
 import { toast } from '@/app/Components/Notification';
 import * as XLSX from 'xlsx';
@@ -59,6 +60,7 @@ export default function CustomersPage() {
   const [CUSTOMER_CITY, setCUSTOMER_CITY] = useState('');
   const [CUSTOMER_ID, setCUSTOMER_ID] = useState('');
   const [CUSTOMER_TAG, setCUSTOMER_TAG] = useState('');
+  const [CUSTOMER_CLASS, setCUSTOMER_CLASS] = useState('');
   const [CREDIT_LIMIT, setCREDIT_LIMIT] = useState('0');
 
   // Fetch customers when page or search term changes (debounced)
@@ -80,7 +82,7 @@ export default function CustomersPage() {
 
       if (search.trim()) {
         const term = `%${search.trim()}%`;
-        query = query.or(`"CUSTOMER SUB NAME".ilike.${term},"CUSTOMER MAIN NAME".ilike.${term},"CUSTOMER ID".ilike.${term},"CUSTOMER CITY".ilike.${term},"CUSTOMER TAG".ilike.${term}`);
+        query = query.or(`"CUSTOMER SUB NAME".ilike.${term},"CUSTOMER MAIN NAME".ilike.${term},"CUSTOMER ID".ilike.${term},"CUSTOMER CITY".ilike.${term},"CUSTOMER TAG".ilike.${term},"CUSTOMER CLASS".ilike.${term}`);
       }
 
       const { data, error, count } = await query
@@ -104,6 +106,7 @@ export default function CustomersPage() {
     setCUSTOMER_CITY(customer ? customer["CUSTOMER CITY"] : '');
     setCUSTOMER_ID(customer ? customer["CUSTOMER ID"] : '');
     setCUSTOMER_TAG(customer ? customer["CUSTOMER TAG"] || '' : '');
+    setCUSTOMER_CLASS(customer ? customer["CUSTOMER CLASS"] || '' : '');
     setCREDIT_LIMIT(customer ? String(customer["CREDIT LIMIT"] || 0) : '0');
     setIsModalOpen(true);
   };
@@ -136,6 +139,7 @@ export default function CustomersPage() {
       }
 
       const tagValue = CUSTOMER_TAG.trim() || null;
+      const classValue = CUSTOMER_CLASS.trim() || null;
 
       if (editingCustomer) {
         const { error } = await bhs_supabas
@@ -146,10 +150,20 @@ export default function CustomersPage() {
             "CUSTOMER CITY": CUSTOMER_CITY,
             "CUSTOMER ID": CUSTOMER_ID,
             "CUSTOMER TAG": tagValue,
+            "CUSTOMER CLASS": classValue,
             "CREDIT LIMIT": Number(CREDIT_LIMIT) || 0
           })
           .eq('ID', editingCustomer.ID);
         if (error) throw error;
+
+        const mainName = CUSTOMER_MAIN_NAME.trim();
+        if (mainName) {
+          const { error: classError } = await bhs_supabas
+            .from('bhs_CUSTOMERS')
+            .update({ "CUSTOMER CLASS": classValue })
+            .eq('CUSTOMER MAIN NAME', mainName);
+          if (classError) throw classError;
+        }
       } else {
         const { data: maxIdData, error: maxIdError } = await bhs_supabas
           .from('bhs_CUSTOMERS_MAX_ID')
@@ -178,6 +192,7 @@ export default function CustomersPage() {
             "CUSTOMER CITY": CUSTOMER_CITY,
             "CUSTOMER ID": CUSTOMER_ID,
             "CUSTOMER TAG": tagValue,
+            "CUSTOMER CLASS": classValue,
             "CREDIT LIMIT": Number(CREDIT_LIMIT) || 0
           });
         if (error) throw error;
@@ -268,6 +283,7 @@ export default function CustomersPage() {
         "Customer Sub Name": c["CUSTOMER SUB NAME"] || '',
         "Customer City": c["CUSTOMER CITY"] || '',
         "Customer Tag": c["CUSTOMER TAG"] || '',
+        "Customer Class": c["CUSTOMER CLASS"] || '',
         "Credit Limit": Number(c["CREDIT LIMIT"]) || 0
       }));
 
@@ -414,6 +430,7 @@ export default function CustomersPage() {
             'CUSTOMER SUB NAME': String(subNameSource ?? '').trim(),
             'CUSTOMER CITY': String(row['Customer City'] ?? '').trim(),
             'CUSTOMER TAG': String(row['Customer Tag'] ?? row['CUSTOMER TAG'] ?? '').trim() || null,
+            'CUSTOMER CLASS': String(row['Customer Class'] ?? row['CUSTOMER CLASS'] ?? '').trim() || null,
             'CREDIT LIMIT': isNaN(creditLimitVal) ? 0 : creditLimitVal
           };
 
@@ -605,6 +622,11 @@ export default function CustomersPage() {
                           <Tag className="w-2.5 h-2.5" /> {customer["CUSTOMER TAG"]}
                         </span>
                       )}
+                      {customer["CUSTOMER CLASS"] && (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-xl text-[9px] font-black uppercase tracking-widest">
+                          <Award className="w-2.5 h-2.5" /> {customer["CUSTOMER CLASS"]}
+                        </span>
+                      )}
                       {customer["CREDIT LIMIT"] !== undefined && customer["CREDIT LIMIT"] !== null && (
                         <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-purple-50 text-purple-600 rounded-xl text-[9px] font-black uppercase tracking-widest font-mono">
                           Limit: {Number(customer["CREDIT LIMIT"]).toLocaleString()} AED
@@ -777,6 +799,20 @@ export default function CustomersPage() {
                       value={CUSTOMER_TAG}
                       onChange={(e) => setCUSTOMER_TAG(e.target.value)}
                       placeholder="Group label (optional)"
+                      className="w-full pl-14 pr-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">CUSTOMER CLASS</label>
+                  <div className="relative">
+                    <Award className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <input
+                      type="text"
+                      value={CUSTOMER_CLASS}
+                      onChange={(e) => setCUSTOMER_CLASS(e.target.value)}
+                      placeholder="e.g. B-CLASS"
                       className="w-full pl-14 pr-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold"
                     />
                   </div>

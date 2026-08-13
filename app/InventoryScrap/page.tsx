@@ -18,6 +18,14 @@ import {
   History
 } from 'lucide-react';
 import type { InventoryScrapTabId } from '@/app/Audit/Modules/InventoryScrapTabAudit';
+import { getAllowedModuleTabIds } from '@/app/AdminControl/AdminControlTab';
+
+const SCRAP_TABS: { id: InventoryScrapTabId; label: string; icon: typeof Plus }[] = [
+  { id: 'record', label: 'Log Scrap', icon: Plus },
+  { id: 'sessions', label: 'View Sessions', icon: Layers },
+  { id: 'history', label: 'Saved Reports', icon: History },
+];
+const SCRAP_TAB_IDS = SCRAP_TABS.map((tab) => tab.id);
 
 export default function InventoryScrapPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -45,7 +53,7 @@ export default function InventoryScrapPage() {
 
         // Check permission for inventory-scrap
         const userName = parsed.name?.toLowerCase() || '';
-        if (userName === 'med sabry') {
+                if (userName === 'med sabry') {
           setIsAllowed(true);
         } else {
           try {
@@ -63,6 +71,10 @@ export default function InventoryScrapPage() {
           } catch (e) {
             setIsAllowed(true);
           }
+        }
+        const allowedTabs = getAllowedModuleTabIds(parsed, 'inventory-scrap', SCRAP_TAB_IDS);
+        if (allowedTabs.length > 0 && !allowedTabs.includes('record')) {
+          setActiveSubTab(allowedTabs[0] as InventoryScrapTabId);
         }
       } catch (e) {
         localStorage.removeItem('currentUser');
@@ -115,6 +127,10 @@ export default function InventoryScrapPage() {
       } catch (e) {
         setIsAllowed(true);
       }
+    }
+    const allowedTabs = getAllowedModuleTabIds(user, 'inventory-scrap', SCRAP_TAB_IDS);
+    if (allowedTabs.length > 0 && !allowedTabs.includes('record')) {
+      setActiveSubTab(allowedTabs[0] as InventoryScrapTabId);
     }
   };
 
@@ -181,11 +197,9 @@ export default function InventoryScrapPage() {
         </div>
 
         <nav className="flex-1 mt-4 overflow-y-auto no-scrollbar px-3 space-y-1">
-          {[
-            { id: 'record' as const, label: 'Log Scrap', icon: Plus },
-            { id: 'sessions' as const, label: 'View Sessions', icon: Layers },
-            { id: 'history' as const, label: 'Saved Reports', icon: History },
-          ].map((tab) => {
+          {SCRAP_TABS.filter((tab) =>
+            getAllowedModuleTabIds(currentUser, 'inventory-scrap', SCRAP_TAB_IDS).includes(tab.id)
+          ).map((tab) => {
             const Icon = tab.icon;
             const isActive = activeSubTab === tab.id;
             return (
@@ -277,11 +291,9 @@ export default function InventoryScrapPage() {
           </div>
 
           <nav className="flex-1 mt-4 overflow-y-auto no-scrollbar px-3 space-y-1">
-            {[
-              { id: 'record' as const, label: 'Log Scrap', icon: Plus },
-              { id: 'sessions' as const, label: 'View Sessions', icon: Layers },
-              { id: 'history' as const, label: 'Saved Reports', icon: History },
-            ].map((tab) => {
+            {SCRAP_TABS.filter((tab) =>
+              getAllowedModuleTabIds(currentUser, 'inventory-scrap', SCRAP_TAB_IDS).includes(tab.id)
+            ).map((tab) => {
               const Icon = tab.icon;
               const isActive = activeSubTab === tab.id;
               return (

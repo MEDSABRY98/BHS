@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import { CustomerView } from "./page";
+import { CustomerView } from "../page";
 import { BarChart3, Percent, Building2, Users, MapPin, ArrowUpRight, ArrowDownRight, Activity } from "lucide-react";
 
 interface StatisticsProps {

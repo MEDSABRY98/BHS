@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
-import { bhs_supabas, fetchAllData, fetchAssignedDrivers } from '@/lib/supabase';
+import { useState, useMemo } from 'react';
+import { useLpoData } from '../../Context/LpoDataContext';
 import { FileText, Loader2, Download, Printer, Search } from 'lucide-react';
 import { generatePendingCustomerInvoicesPDF } from '@/app/LPOs/Pdf/PendingCustomerInvoicesPdf';
 import NoData from '@/app/Components/DataState/NoDataTab';
@@ -9,56 +9,21 @@ import TabLoader from '@/app/Components/Loading/TabLoader';
 import SearchSelect from '../../Components/DropDownList';
 
 export default function PendingCustomerInvoices() {
+  const { assignedDrivers: drivers, orders, loading: isInvoicesLoading } = useLpoData();
   const [customerSearch, setCustomerSearch] = useState('');
   const [selectedDriverId, setSelectedDriverId] = useState('');
-  const [drivers, setDrivers] = useState<any[]>([]);
-  const [invoices, setInvoices] = useState<any[]>([]);
-  const [isInvoicesLoading, setIsInvoicesLoading] = useState(true);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
 
-  useEffect(() => {
-    fetchDrivers();
-    fetchPendingInvoices();
-  }, []);
-
-  async function fetchDrivers() {
-    try {
-      setDrivers(await fetchAssignedDrivers());
-    } catch (err) {
-      console.error('Error fetching drivers:', err);
-    }
-  }
-
-  async function fetchPendingInvoices() {
-    setIsInvoicesLoading(true);
-    try {
-      const data = await fetchAllData(() =>
-        bhs_supabas.from('app_lpos_ORDERS').select(`
-          *,
-          bhs_CUSTOMERS ( "CUSTOMER NAME":"CUSTOMER SUB NAME" ),
-          app_lpos_DRIVERS!inner (
-            DRIVERS_NAME,
-            STATUS,
-            OFFICE_HANDOVER_STATUS
-          )
-        `)
-      );
-
-      // Filter in frontend to handle NULLs and non-Confirmed handovers accurately
-      const pendingList = data.filter((order: any) => {
+  const invoices = useMemo(
+    () =>
+      orders.filter((order: any) => {
         const driverRecord = order.app_lpos_DRIVERS?.[0];
         return driverRecord && driverRecord.OFFICE_HANDOVER_STATUS !== 'Confirmed';
-      });
-
-      setInvoices(pendingList);
-    } catch (err) {
-      console.error('Error fetching pending customer invoices:', err);
-    } finally {
-      setIsInvoicesLoading(false);
-    }
-  }
+      }),
+    [orders],
+  );
 
   const isSearchValid = customerSearch.trim().length >= 2;
 

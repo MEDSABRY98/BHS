@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { bhs_supabas, fetchAllData, fetchAssignedDrivers } from '@/lib/supabase';
+import { bhs_supabas } from '@/lib/supabase';
+import { useLpoData } from '../../Context/LpoDataContext';
 import { FileText, Loader2, Download, Printer, AlertCircle, Search, Calendar, Archive } from 'lucide-react';
 import { generatePendingDriverInvoicesPDF } from '@/app/LPOs/Pdf/PendingDriverInvoicesPdf';
 import NoData from '@/app/Components/DataState/NoDataTab';
@@ -11,9 +12,7 @@ import { saveTrackedAs } from '@/app/Audit/Utils/TrackedDownload';
 import { toast } from '@/app/Components/Notification';
 
 export default function PendingDriverInvoices() {
-  const [drivers, setDrivers] = useState<any[]>([]);
-  const [invoices, setInvoices] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { assignedDrivers: drivers, orders, loading: isLoading } = useLpoData();
   const [generatingDriverId, setGeneratingDriverId] = useState<string | null>(null);
   const [isGeneratingZip, setIsGeneratingZip] = useState(false);
   const [fromDate, setFromDate] = useState('');
@@ -32,39 +31,14 @@ export default function PendingDriverInvoices() {
     }
   }, []);
 
-  useEffect(() => {
-    fetchInitialData();
-  }, []);
-
-  async function fetchInitialData() {
-    setIsLoading(true);
-    try {
-      const driversData = await fetchAssignedDrivers();
-      setDrivers(driversData);
-      const ordersData = await fetchAllData(() =>
-        bhs_supabas.from('app_lpos_ORDERS').select(`
-          *,
-          bhs_CUSTOMERS ( "CUSTOMER NAME":"CUSTOMER SUB NAME" ),
-          app_lpos_DRIVERS (
-            DRIVERS_NAME,
-            STATUS,
-            OFFICE_HANDOVER_STATUS
-          )
-        `)
-      );
-
-      // Filter in frontend to handle NULLs and non-Confirmed handovers accurately
-      const pendingList = ordersData.filter((order: any) => {
+  const invoices = useMemo(
+    () =>
+      orders.filter((order: any) => {
         const driverRecord = order.app_lpos_DRIVERS?.[0];
         return driverRecord && driverRecord.OFFICE_HANDOVER_STATUS !== 'Confirmed';
-      });
-      setInvoices(pendingList);
-    } catch (err) {
-      console.error('Error fetching initial data:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  }
+      }),
+    [orders],
+  );
 
   // Filter invoices by Date Range and Customer Name:
   const filteredInvoices = useMemo(() => {

@@ -14,12 +14,12 @@ import {
 import { getDebitData } from '@/app/Debit/Service/debit_service';
 import { bhs_supabase, fetchAllData } from '@/lib/supabase';
 import type { InvoiceRow } from '@/types';
-import type { CustomerView } from './page';
-import { buildNetSalesByCustomerId } from './Utils/DiscountValuesNetSales';
+import type { CustomerView } from '../page';
+import { buildNetSalesByCustomerId } from './DiscountValuesNetSales';
 import {
   classifyCustomerMonth,
   getCustomerMonthStats,
-} from './Utils/settlementUtils';
+} from '../Utils/settlementUtils';
 import { exportDiscountValuesExcel } from './ExportExcel';
 import { toast } from '@/app/Components/Notification';
 

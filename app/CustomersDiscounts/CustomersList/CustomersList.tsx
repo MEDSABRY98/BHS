@@ -3,7 +3,7 @@ import { Search, User, ChevronRight, FileSpreadsheet, Loader2, Mail, CheckCircle
 import { exportCustomersExcel } from "./ExportExcel";
 import ExportExcelModal, { type ExportExcelOptions } from "./ExportExcelModal";
 import { hasCustomerEmail } from "@/lib/customerEmailLookup";
-import type { CustomerView } from "./page";
+import type { CustomerView } from "../page";
 
 interface CustomersListProps {
   searchQuery: string;

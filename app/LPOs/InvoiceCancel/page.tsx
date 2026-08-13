@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { bhs_supabas, fetchAllData } from '@/lib/supabase';
+import { useLpoData } from '../Context/LpoDataContext';
 import {
   FileX2,
   Plus,
@@ -51,8 +51,7 @@ interface OrderSuggestion {
 }
 
 export default function InvoiceCancelPage() {
-  const [customers, setCustomers] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { customers, orders, loading: isLoading } = useLpoData();
   const [entries, setEntries] = useState<CancelFormEntry[]>([]);
   const [notes, setNotes] = useState('');
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
@@ -68,10 +67,6 @@ export default function InvoiceCancelPage() {
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    fetchInitialData();
-  }, []);
-
-  useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (invoiceSearchRef.current && !invoiceSearchRef.current.contains(event.target as Node)) {
         setShowSuggestions(false);
@@ -80,22 +75,6 @@ export default function InvoiceCancelPage() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
-
-  async function fetchInitialData() {
-    try {
-      const customerRows = await fetchAllData(() =>
-        bhs_supabas
-          .from('bhs_CUSTOMERS')
-          .select('*, "CUSTOMER NAME":"CUSTOMER SUB NAME"')
-          .order('CUSTOMER SUB NAME'),
-      );
-      setCustomers(customerRows);
-    } catch (err) {
-      console.error('Error loading customers:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  }
 
   const customerOptions = customers.map((c) => ({
     id: c['CUSTOMER ID'],
@@ -108,8 +87,8 @@ export default function InvoiceCancelPage() {
   };
 
   const searchInvoices = useCallback(
-    async (query: string, customerId: string) => {
-      const trimmed = query.trim();
+    (query: string, customerId: string) => {
+      const trimmed = query.trim().toLowerCase();
       if (trimmed.length < 2) {
         setInvoiceSuggestions([]);
         return;
@@ -117,28 +96,30 @@ export default function InvoiceCancelPage() {
 
       setIsSearchingInvoices(true);
       try {
-        let request = bhs_supabas
-          .from('app_lpos_ORDERS')
-          .select(`
-            ORDER_ID,
-            INVOICE_ID,
-            AMOUNT,
-            ORDER_DATE,
-            CREATED_AT,
-            CUSTOMER_ID,
-            bhs_CUSTOMERS ( "CUSTOMER NAME":"CUSTOMER SUB NAME" )
-          `)
-          .ilike('INVOICE_ID', `%${trimmed}%`)
-          .order('ORDER_DATE', { ascending: false })
-          .limit(15);
+        const matches = orders
+          .filter((order: any) => {
+            const invoiceId = String(order.INVOICE_ID || '').toLowerCase();
+            if (!invoiceId.includes(trimmed)) return false;
+            if (customerId && String(order.CUSTOMER_ID || '') !== customerId) return false;
+            return true;
+          })
+          .sort((a: any, b: any) =>
+            String(b.ORDER_DATE || b.CREATED_AT || '').localeCompare(
+              String(a.ORDER_DATE || a.CREATED_AT || ''),
+            ),
+          )
+          .slice(0, 15)
+          .map((order: any) => ({
+            ORDER_ID: order.ORDER_ID,
+            INVOICE_ID: order.INVOICE_ID,
+            AMOUNT: order.AMOUNT,
+            ORDER_DATE: order.ORDER_DATE,
+            CREATED_AT: order.CREATED_AT,
+            CUSTOMER_ID: order.CUSTOMER_ID,
+            bhs_CUSTOMERS: order.bhs_CUSTOMERS,
+          }));
 
-        if (customerId) {
-          request = request.eq('CUSTOMER_ID', customerId);
-        }
-
-        const { data, error } = await request;
-        if (error) throw error;
-        setInvoiceSuggestions((data as OrderSuggestion[]) || []);
+        setInvoiceSuggestions(matches);
         setShowSuggestions(true);
       } catch (err) {
         console.error('Invoice search failed:', err);
@@ -147,7 +128,7 @@ export default function InvoiceCancelPage() {
         setIsSearchingInvoices(false);
       }
     },
-    [],
+    [orders],
   );
 
   const handleInvoiceInputChange = (value: string) => {

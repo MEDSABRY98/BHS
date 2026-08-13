@@ -48,11 +48,7 @@ const allTabs = [
 
 export function isDebitTabAllowed(tabId: string, allowedTabs?: string[]): boolean {
   if (!allowedTabs) return true;
-  if (allowedTabs.includes(tabId)) return true;
-  if (tabId === 'payment-reconciliation-saved' && allowedTabs.includes('payment-reconciliation')) {
-    return true;
-  }
-  return false;
+  return allowedTabs.includes(tabId);
 }
 
 export default function DebitSidebar({

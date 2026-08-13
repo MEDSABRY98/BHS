@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   ArrowLeft,
   BarChart3,
@@ -12,6 +12,7 @@ import {
   ShieldCheck,
   Users,
 } from 'lucide-react';
+import { getAllowedModuleTabIds } from '@/app/AdminControl/AdminControlTab';
 
 interface SidebarProps {
   isSidebarOpen: boolean;
@@ -19,7 +20,10 @@ interface SidebarProps {
   currentView: 'grid' | 'add' | 'details' | 'months' | 'stats' | 'values';
   setCurrentView: (view: 'grid' | 'add' | 'details' | 'months' | 'stats' | 'values') => void;
   setSelectedCustomer: (val: null) => void;
+  currentUser?: any;
 }
+
+export const CUSTOMERS_DISCOUNTS_TAB_IDS = ['grid', 'months', 'stats', 'values', 'add'] as const;
 
 const TABS = [
   { id: 'grid' as const, label: 'Customers List', icon: Users, match: (v: string) => v === 'grid' || v === 'details' },
@@ -35,8 +39,13 @@ export default function Sidebar({
   currentView,
   setCurrentView,
   setSelectedCustomer,
+  currentUser,
 }: SidebarProps) {
   const isCollapsed = !isSidebarOpen;
+  const tabs = useMemo(() => {
+    const allowed = new Set(getAllowedModuleTabIds(currentUser, 'customers-discounts', CUSTOMERS_DISCOUNTS_TAB_IDS));
+    return TABS.filter((tab) => allowed.has(tab.id));
+  }, [currentUser]);
 
   return (
     <div
@@ -75,7 +84,7 @@ export default function Sidebar({
       </div>
 
       <nav className="flex-1 mt-4 overflow-y-auto no-scrollbar px-3 space-y-1">
-        {TABS.map((tab) => {
+        {tabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = tab.match(currentView);
           return (

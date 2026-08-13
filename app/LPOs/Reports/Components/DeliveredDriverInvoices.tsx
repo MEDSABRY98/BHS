@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { bhs_supabas, fetchAllData, fetchAssignedDrivers } from '@/lib/supabase';
+import { useLpoData } from '../../Context/LpoDataContext';
 import SearchSelect from '../../Components/DropDownList';
 import { FileText, Loader2, Download, Printer, AlertCircle } from 'lucide-react';
 import { generateDeliveredDriverInvoicesPDF } from '@/app/LPOs/Pdf/DeliveredDriverInvoicesPdf';
@@ -9,16 +9,15 @@ import NoData from '@/app/Components/DataState/NoDataTab';
 import TabLoader from '@/app/Components/Loading/TabLoader';
 
 export default function DeliveredDriverInvoices() {
-  const [drivers, setDrivers] = useState<any[]>([]);
+  const { assignedDrivers: drivers, orders, loading } = useLpoData();
   const [selectedDriverId, setSelectedDriverId] = useState('');
-  const [invoices, setInvoices] = useState<any[]>([]);
-  const [isDriversLoading, setIsDriversLoading] = useState(true);
-  const [isInvoicesLoading, setIsInvoicesLoading] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [customerSearch, setCustomerSearch] = useState('');
   const [currentAdmin, setCurrentAdmin] = useState<any>(null);
+  const isDriversLoading = loading;
+  const isInvoicesLoading = false;
 
   useEffect(() => {
     const mainUserStr = localStorage.getItem('currentUser');
@@ -31,64 +30,17 @@ export default function DeliveredDriverInvoices() {
     }
   }, []);
 
-  useEffect(() => {
-    fetchDrivers();
-  }, []);
-
-  useEffect(() => {
-    if (selectedDriverId) {
-      fetchDeliveredInvoices();
-    } else {
-      setInvoices([]);
-    }
-  }, [selectedDriverId]);
-
-  async function fetchDrivers() {
-    setIsDriversLoading(true);
-    try {
-      setDrivers(await fetchAssignedDrivers());
-    } catch (err) {
-      console.error('Error fetching drivers:', err);
-    } finally {
-      setIsDriversLoading(false);
-    }
-  }
-
-  async function fetchDeliveredInvoices() {
-    setIsInvoicesLoading(true);
-    try {
-      // Fetch all invoices assigned to this driver
-      const data = await fetchAllData(() =>
-        bhs_supabas
-          .from('app_lpos_ORDERS')
-          .select(`
-          *,
-          bhs_CUSTOMERS ( "CUSTOMER NAME":"CUSTOMER SUB NAME" ),
-          app_lpos_DRIVERS!inner (
-            DRIVERS_NAME,
-            STATUS,
-            OFFICE_HANDOVER_STATUS,
-            OFFICE_HANDOVER_TIME,
-            DELIVERY_TIME,
-            TRACKING_NOTES
-          )
-        `)
-          .eq('app_lpos_DRIVERS.DRIVERS_NAME', selectedDriverId)
+  const invoices = useMemo(() => {
+    if (!selectedDriverId) return [];
+    return orders.filter((order: any) => {
+      const driverRecord = order.app_lpos_DRIVERS?.[0];
+      return (
+        driverRecord &&
+        driverRecord.OFFICE_HANDOVER_STATUS === 'Confirmed' &&
+        driverRecord.DRIVERS_NAME === selectedDriverId
       );
-
-      // Filter in frontend to show ONLY Confirmed handovers
-      const deliveredList = data.filter((order: any) => {
-        const driverRecord = order.app_lpos_DRIVERS?.[0];
-        return driverRecord && driverRecord.OFFICE_HANDOVER_STATUS === 'Confirmed';
-      });
-
-      setInvoices(deliveredList);
-    } catch (err) {
-      console.error('Error fetching delivered invoices:', err);
-    } finally {
-      setIsInvoicesLoading(false);
-    }
-  }
+    });
+  }, [orders, selectedDriverId]);
 
   // Filter invoices by Office Handover Date Range and Customer Name:
   const filteredInvoices = useMemo(() => {
