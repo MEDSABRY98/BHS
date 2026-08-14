@@ -6,7 +6,7 @@ import { getAllowedModuleTabIds } from '@/app/AdminControl/AdminControlTab';
 import { Menu, X, ArrowLeft, FileSpreadsheet, RefreshCcw, Archive } from 'lucide-react';
 
 import Sidebar, { tabs } from '../Utils/Sidebar';
-import { usePettyCashTabAudit } from '@/app/Audit/Modules/PettyCashTabAudit';
+import { usePettyCashTabAudit } from '@/app/Audit/Model/PettyCashTabAudit';
 import ReceiptsForm from './ReceiptsForm';
 import ExpensesForm from './ExpensesForm';
 import VoucherTab from './VoucherTab';

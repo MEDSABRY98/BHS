@@ -13,7 +13,7 @@ import {
   ChevronLeft,
   ArrowLeft,
 } from 'lucide-react';
-import { useDataBaseRouteAudit } from '@/app/Audit/Modules/DataBaseTabAudit';
+import { useDataBaseRouteAudit } from '@/app/Audit/Model/DataBaseTabAudit';
 import { findDatabaseNavItemByPath, getDatabaseNavItemsByCategory, DATABASE_DASHBOARD_HREF, DATABASE_DASHBOARD_NAV, DATABASE_NAV_ITEMS } from './Utils/DatabaseHubConfig';
 import { getAllowedModuleTabIds } from '@/app/AdminControl/AdminControlTab';
 import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';

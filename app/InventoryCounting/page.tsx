@@ -8,7 +8,7 @@ import Sidebar, {
   getCountingTabLabel,
   type InventoryCountingTabId,
 } from './Utils/Sidebar';
-import { useInventoryCountingTabAudit } from '@/app/Audit/Modules/InventoryCountingTabAudit';
+import { useInventoryCountingTabAudit } from '@/app/Audit/Model/InventoryCountingTabAudit';
 import { InventoryCountingArchiveProvider, useInventoryCountingArchive } from './Archives/InventoryCountingArchiveContext';
 import { InventoryCountingFiltersProvider } from './Model/InventoryCountingFiltersContext';
 import FiltersModal from './Utils/FiltersModal';

@@ -10,10 +10,10 @@ import { collectCustomers, collectCustomerTags, resolveEffectiveCustomers } from
 import { InsightsFilters, InsightsSalesOverlay } from './Utils/InsightsTypes';
 import { toInputDate } from './Utils/DateUtils';
 import { applySalesNetOverlay } from './Utils/SalesSourceOverlay';
-import InsightsFiltersPanel from './Module/InsightsFiltersPanel';
+import InsightsFiltersPanel from './Model/InsightsFiltersPanel';
 import InsightsExportScopeModal, {
   type InsightsExportSelection,
-} from './Module/InsightsExportScopeModal';
+} from './Model/InsightsExportScopeModal';
 import InsightsKpiCards from './Cards/InsightsKpiCards';
 import DebtTrendChart from './Charts/DebtTrendChart';
 import SalesCollectionsChart from './Charts/SalesCollectionsChart';

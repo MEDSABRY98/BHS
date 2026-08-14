@@ -6,7 +6,7 @@ import { exportDebitExcelTable } from '@/app/Debit/Utils/ExcelExport';
 import Loading from '@/app/Components/Loading';
 import Login from '@/app/Components/Auth/Login';
 import CustomersDocumentsGrid from './Components/CustomersDocumentsGrid';
-import { useCustomersDocumentsTabAudit } from '@/app/Audit/Modules/CustomersDocumentsTabAudit';
+import { useCustomersDocumentsTabAudit } from '@/app/Audit/Model/CustomersDocumentsTabAudit';
 import { getCustomersDocuments, updateCustomerDocument } from './Service/customers_documents_service';
 import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
 

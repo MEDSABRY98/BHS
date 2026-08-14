@@ -22,6 +22,7 @@ export function buildSalesFetchKey(
     filters.merchandiser,
     filters.salesRep,
     filters.productTag,
+    filters.product,
     filters.customerName,
     filters.customerTag,
     filters.customerClass,

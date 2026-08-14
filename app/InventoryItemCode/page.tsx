@@ -5,7 +5,7 @@ import Login from '@/app/Components/Auth/Login';
 import Loading from '@/app/Components/Loading';
 import { ArrowLeft, Hash } from 'lucide-react';
 import InventoryItemCodeTab from './InventoryItemCodeTab';
-import { useInventoryItemCodeTabAudit } from '@/app/Audit/Modules/InventoryItemCodeTabAudit';
+import { useInventoryItemCodeTabAudit } from '@/app/Audit/Model/InventoryItemCodeTabAudit';
 
 export default function InventoryItemCodePage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);

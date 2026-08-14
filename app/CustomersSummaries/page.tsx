@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState } from 'react';
 import CustomersSummariesTab from '@/app/Debit/CustomersSummariesTab/CustomersSummariesTab';
-import { useCustomersSummariesTabAudit } from '@/app/Audit/Modules/CustomersSummariesTabAudit';
+import { useCustomersSummariesTabAudit } from '@/app/Audit/Model/CustomersSummariesTabAudit';
 import Login from '@/app/Components/Auth/Login';
 import Loading from '@/app/Components/Loading';
 import TabFetchError from '@/app/Components/DataState/TabFetchError';

@@ -28,7 +28,7 @@ import OrderDeliveryTab from './Components/OrderDeliveryTab';
 import InvoicesStatusTab from './Components/InvoicesStatusTab';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import { exportLPOsExcel } from '../Export/ExcelExport';
-import { useLposOrderDetailsTabAudit } from '@/app/Audit/Modules/LPOsTabAudit';
+import { useLposOrderDetailsTabAudit } from '@/app/Audit/Model/LPOsTabAudit';
 
 function OrderDetailsPageContent() {
   const { canEdit, canDelete, isLoaded } = usePermissions();

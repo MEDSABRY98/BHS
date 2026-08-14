@@ -419,7 +419,7 @@ export async function getStockReportData(userId: string, filters: any) {
 
   let globallyFilteredData = augmentedData;
   if (filters) {
-    const { invoiceType, year, month, dateFrom, dateTo, area, market, merchandiser, salesRep, productTag, customerName, customerTag, customerClass } = filters;
+    const { invoiceType, year, month, dateFrom, dateTo, area, market, merchandiser, salesRep, productTag, product, customerName, customerTag, customerClass } = filters;
 
     if (invoiceType && invoiceType !== 'all') {
       globallyFilteredData = globallyFilteredData.filter(item => {
@@ -434,6 +434,7 @@ export async function getStockReportData(userId: string, filters: any) {
     if (dateFrom) globallyFilteredData = globallyFilteredData.filter(i => new Date(i.invoiceDate) >= new Date(dateFrom));
     if (dateTo) globallyFilteredData = globallyFilteredData.filter(i => new Date(i.invoiceDate) <= new Date(dateTo));
     if (productTag) globallyFilteredData = globallyFilteredData.filter(i => i.productTag === productTag);
+    if (product) globallyFilteredData = globallyFilteredData.filter(i => i.product === product);
     if (customerTag) globallyFilteredData = globallyFilteredData.filter(i => i.customerTag === customerTag);
     if (customerName) globallyFilteredData = globallyFilteredData.filter(i => i.customerName === customerName || i.customerMainName === customerName);
     if (customerClass) globallyFilteredData = globallyFilteredData.filter(i => i.customerClass === customerClass);
@@ -633,7 +634,7 @@ export async function getTop10Data(userId: string, filters: any) {
 
   let globallyFilteredData = augmentedData;
   if (filters) {
-    const { invoiceType, year, month, dateFrom, dateTo, area, market, merchandiser, salesRep, productTag, customerName, customerTag, customerClass } = filters;
+    const { invoiceType, year, month, dateFrom, dateTo, area, market, merchandiser, salesRep, productTag, product, customerName, customerTag, customerClass } = filters;
 
     if (invoiceType && invoiceType !== 'all') {
       globallyFilteredData = globallyFilteredData.filter(item => {
@@ -644,6 +645,7 @@ export async function getTop10Data(userId: string, filters: any) {
       });
     }
     if (productTag) globallyFilteredData = globallyFilteredData.filter(i => i.productTag === productTag);
+    if (product) globallyFilteredData = globallyFilteredData.filter(i => i.product === product);
     if (customerTag) globallyFilteredData = globallyFilteredData.filter(i => i.customerTag === customerTag);
     if (customerName) globallyFilteredData = globallyFilteredData.filter(i => i.customerName === customerName || i.customerMainName === customerName);
     if (customerClass) globallyFilteredData = globallyFilteredData.filter(i => i.customerClass === customerClass);
@@ -737,66 +739,100 @@ export async function getTop10Data(userId: string, filters: any) {
   return { productsData, mainCustomersData, subCustomersData };
 }
 
+function normListingId(value: any): string {
+  if (value == null || value === '') return '';
+  const text = String(value).trim().toUpperCase();
+  if (!text || text === '-' || text === 'NULL' || text === 'UNDEFINED') return '';
+  return /^\d+\.0+$/.test(text) ? text.replace(/\.0+$/, '') : text;
+}
+
+function isSalesInvoiceNumber(invoiceNumber: any): boolean {
+  const inv = String(invoiceNumber || '').trim().toUpperCase();
+  return inv.startsWith('SAL') && !inv.startsWith('RSAL');
+}
+
+function parseInvoiceTime(invoiceDate: any): number {
+  if (!invoiceDate) return NaN;
+  if (invoiceDate instanceof Date) {
+    const time = invoiceDate.getTime();
+    return isNaN(time) ? NaN : time;
+  }
+  const time = Date.parse(String(invoiceDate).trim());
+  return time;
+}
+
+function buildCanonicalProductIds(rows: any[]): Map<string, string> {
+  const canonical = new Map<string, string>();
+
+  for (const item of rows) {
+    const rawId = normListingId(item.productId);
+    const barcode = normListingId(item.barcode);
+    if (!rawId || !barcode || rawId === barcode) continue;
+
+    canonical.set(rawId, rawId);
+    canonical.set(barcode, rawId);
+  }
+
+  return canonical;
+}
+
+function resolveListingProductId(item: any, canonical: Map<string, string>): string {
+  const rawId = normListingId(item.productId);
+  const barcode = normListingId(item.barcode);
+  return canonical.get(rawId) || canonical.get(barcode) || rawId || barcode;
+}
+
+function matchesListingFilters(item: any, filters: any): boolean {
+  if (!filters) return true;
+  const { area, market, merchandiser, salesRep, productTag, product, customerName, customerTag, customerClass } = filters;
+  if (productTag && item.productTag !== productTag) return false;
+  if (product && item.product !== product) return false;
+  if (customerTag && item.customerTag !== customerTag) return false;
+  if (customerName && item.customerName !== customerName && item.customerMainName !== customerName) return false;
+  if (customerClass && item.customerClass !== customerClass) return false;
+  if (area && item.area !== area) return false;
+  if (market && item.market !== market) return false;
+  if (merchandiser && item.merchandiser !== merchandiser) return false;
+  if (salesRep && item.salesRep !== salesRep) return false;
+  return true;
+}
+
 // -------------------------------------------------------------
 // 4. New Listings Data
+// First purchase in a customer's lifetime, keyed by canonical Product ID.
 // -------------------------------------------------------------
 export async function getNewListingsData(userId: string, filters: any) {
   const augmentedData = await getFilteredSalesData(userId);
+  const canonicalProductIds = buildCanonicalProductIds(augmentedData);
 
-  // Find the absolute FIRST purchase date for each (Customer, Product) pair.
-  // We apply non-date global filters FIRST (Area, Market, etc)
-  let preFilteredData = augmentedData;
-  if (filters) {
-    const { area, market, merchandiser, salesRep, productTag, customerName, customerTag, customerClass } = filters;
-    if (productTag) preFilteredData = preFilteredData.filter(i => i.productTag === productTag);
-    if (customerTag) preFilteredData = preFilteredData.filter(i => i.customerTag === customerTag);
-    if (customerName) preFilteredData = preFilteredData.filter(i => i.customerName === customerName || i.customerMainName === customerName);
-    if (customerClass) preFilteredData = preFilteredData.filter(i => i.customerClass === customerClass);
-    if (area) preFilteredData = preFilteredData.filter(i => i.area === area);
-    if (market) preFilteredData = preFilteredData.filter(i => i.market === market);
-    if (merchandiser) preFilteredData = preFilteredData.filter(i => i.merchandiser === merchandiser);
-    if (salesRep) preFilteredData = preFilteredData.filter(i => i.salesRep === salesRep);
-  }
-
-  // Step 1: Find first purchase date for each Customer+Product pair
   const firstPurchaseMap = new Map<string, { time: number, invoiceItem: any }>();
 
-  for (const item of preFilteredData) {
-    // ONLY consider SALES invoices
-    if (!item.invoiceNumber || typeof item.invoiceNumber !== 'string') continue;
+  for (const item of augmentedData) {
+    if (!isSalesInvoiceNumber(item.invoiceNumber)) continue;
 
-    const invNum = item.invoiceNumber;
-    // Fast check for 'SAL' prefix (ignoring case, avoiding trim/toUpperCase for speed)
-    if (!(invNum[0] === 'S' || invNum[0] === 's') || !(invNum[1] === 'A' || invNum[1] === 'a') || !(invNum[2] === 'L' || invNum[2] === 'l')) {
-      continue;
-    }
-
-    if (!item.invoiceDate) continue;
-
-    const customerId = item.customerId || item.customerName;
-    const productId = item.productId || item.product;
-
+    const customerId = normListingId(item.customerId);
+    const productId = resolveListingProductId(item, canonicalProductIds);
     if (!customerId || !productId) continue;
 
-    const key = `${customerId}|||${productId}`;
-    const itemTime = Date.parse(item.invoiceDate);
-
+    const itemTime = parseInvoiceTime(item.invoiceDate);
     if (isNaN(itemTime)) continue;
 
+    const key = `${customerId}|||${productId}`;
     const existing = firstPurchaseMap.get(key);
     if (!existing || itemTime < existing.time) {
       firstPurchaseMap.set(key, { time: itemTime, invoiceItem: item });
     }
   }
 
-  // Step 2: Group by Month and apply date filters
+  // Step 2: Keep only first-purchase events that match the current filters, then group by month
   const monthlyListings: Record<string, any> = {};
 
   for (const [key, data] of firstPurchaseMap.entries()) {
     const { time, invoiceItem } = data;
+    if (!matchesListingFilters(invoiceItem, filters)) continue;
+
     const date = new Date(time);
 
-    // Apply date filters to the "First Purchase Event"
     if (filters) {
       const { year, month, dateFrom, dateTo } = filters;
       if (year && date.getFullYear() !== parseInt(year, 10)) continue;
@@ -819,17 +855,17 @@ export async function getNewListingsData(userId: string, filters: any) {
       };
     }
 
-    const productId = invoiceItem.productId || invoiceItem.product;
+    const [, productId] = key.split('|||');
     const barcode = invoiceItem.barcode || '-';
     const productName = invoiceItem.product;
-    const customerId = invoiceItem.customerId || invoiceItem.customerName;
+    const customerId = normListingId(invoiceItem.customerId);
     const customerName = invoiceItem.customerName || invoiceItem.customerMainName || 'Unknown';
 
     if (!monthlyListings[monthKey].products[productId]) {
       monthlyListings[monthKey].products[productId] = {
         barcode,
         productName,
-        customersMap: new Map() // to ensure unique customers
+        customersMap: new Map()
       };
     }
 

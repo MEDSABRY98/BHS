@@ -8,7 +8,7 @@ import { exportSalesExcelTable } from '@/app/Sales/Utils/ExcelExport';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
 import { getProductDetailsData } from '../Service/sales_products_service';
-import { trackSalesProductDetailsTab } from '@/app/Audit/Modules/SalesTabAudit';
+import { trackSalesProductDetailsTab } from '@/app/Audit/Model/SalesTabAudit';
 import {
   ComposedChart,
   Bar,

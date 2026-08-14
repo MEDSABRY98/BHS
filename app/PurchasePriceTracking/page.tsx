@@ -15,7 +15,7 @@ import {
   usePurchaseModuleFilters,
 } from './Model/PurchaseFilters';
 import TabFetchError from '@/app/Components/DataState/TabFetchError';
-import { usePurchasePriceTrackingTabAudit } from '@/app/Audit/Modules/PurchasePriceTrackingTabAudit';
+import { usePurchasePriceTrackingTabAudit } from '@/app/Audit/Model/PurchasePriceTrackingTabAudit';
 
 export type PurchaseRecord = {
   id: string;

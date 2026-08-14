@@ -12,7 +12,7 @@ import { useSalesTabFetch } from '@/app/Sales/Hooks/useSalesTabFetch';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
-import { trackSalesCustomersTab } from '@/app/Audit/Modules/SalesTabAudit';
+import { trackSalesCustomersTab } from '@/app/Audit/Model/SalesTabAudit';
 
 interface SalesCustomersTabProps {
   userId: string;

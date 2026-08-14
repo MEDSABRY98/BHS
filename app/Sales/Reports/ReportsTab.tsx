@@ -22,7 +22,7 @@ import { toast } from '@/app/Components/Notification';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import TabFetchError from '@/app/Components/DataState/TabFetchError';
-import { trackSalesReportsTableTab } from '@/app/Audit/Modules/SalesTabAudit';
+import { trackSalesReportsTableTab } from '@/app/Audit/Model/SalesTabAudit';
 import ReportsDailyCalendar from './DailyCalendar';
 import { getReportsData } from '../Service/sales_reports_service';
 import { useSalesDataContext } from '@/app/Sales/Context/SalesDataContext';

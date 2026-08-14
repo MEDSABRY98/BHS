@@ -67,7 +67,7 @@ import MonthlyTab from './Tabs/MonthlyTab';
 import AgesTab from './Tabs/AgesTab';
 import NotesTab from './Tabs/NotesTab';
 import { SharedTabProps, InvoiceWithNetDebt, MonthlyDebt, AgingSummary, OverdueInvoice } from './Types';
-import { useDebitCustomerDetailsTabAudit } from '@/app/Audit/Modules/DebitTabAudit';
+import { useDebitCustomerDetailsTabAudit } from '@/app/Audit/Model/DebitTabAudit';
 import {
   isPaymentTxn,
   getPaymentAmount,

@@ -23,7 +23,7 @@ import {
 
 // Tab imports
 import RegisterTab from './RegisterTab';
-import { useDocumentsTrackingTabAudit } from '@/app/Audit/Modules/DocumentsTrackingTabAudit';
+import { useDocumentsTrackingTabAudit } from '@/app/Audit/Model/DocumentsTrackingTabAudit';
 import ListTab from './ListTab';
 import ReceiversTab from './ReceiversTab';
 

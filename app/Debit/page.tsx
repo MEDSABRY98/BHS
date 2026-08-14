@@ -23,7 +23,7 @@ import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import Login from '@/app/Components/Auth/Login';
 import TabPanel from '@/app/Components/Layout/TabPanel';
 import DebitSidebar, { isDebitTabAllowed } from './Utils/Sidebar';
-import { useDebitTabAudit } from '@/app/Audit/Modules/DebitTabAudit';
+import { useDebitTabAudit } from '@/app/Audit/Model/DebitTabAudit';
 import { DebitDataProvider, useDebitData } from './Context/DebitDataContext';
 import type { PaymentReconciliationSessionSummary } from './Service/debit_service';
 

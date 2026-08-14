@@ -8,7 +8,7 @@ import HandoverForm from './Components/HandoverForm';
 import HandoverSidebar, { CASH_HANDOVER_TAB_IDS } from './Utils/Sidebar';
 import { getAllowedModuleTabIds } from '@/app/AdminControl/AdminControlTab';
 import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
-import { useCashHandoverTabAudit } from '@/app/Audit/Modules/CashHandoverTabAudit';
+import { useCashHandoverTabAudit } from '@/app/Audit/Model/CashHandoverTabAudit';
 import SavedHandoversTab from './Components/SavedHandoversTab';
 import { verifyUserCredentials } from '@/app/DataBase/Service/database_service';
 import { CashHandover } from './Service/cash_handover_service';

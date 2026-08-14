@@ -151,7 +151,7 @@ async function buildFromDB(): Promise<any[]> {
       invoiceDate: s['INVOICE DATE'],
       invoiceNumber: s['INVOICE NUMBER'],
       customerId: s['CUSTOMER ID'],
-      productId: s['PRODUCT ID'],
+      productId: p['PRODUCT ID'] || s['PRODUCT ID'],
       productTag: p['PRODUCT CATEGORY'] || 'Uncategorized',
       customerTag: c['CUSTOMER TAG'] || '',
       customerClass: c['CUSTOMER CLASS'] || '',

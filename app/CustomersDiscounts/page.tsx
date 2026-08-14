@@ -20,7 +20,7 @@ import {
   type MonthGroup,
 } from "./Utils/settlementUtils";
 import { autoSettleClearedMonths } from "./Utils/AutoSettleClearedMonths";
-import { useCustomersDiscountsTabAudit } from '@/app/Audit/Modules/CustomersDiscountsTabAudit';
+import { useCustomersDiscountsTabAudit } from '@/app/Audit/Model/CustomersDiscountsTabAudit';
 
 export type { MonthGroup } from "./Utils/settlementUtils";
 

@@ -5,7 +5,7 @@ import CashReceiptTab from './Components/CashReceiptTab';
 import Login from '@/app/Components/Auth/Login';
 import Loading from '@/app/Components/Loading';
 import CashReceiptSidebar from './Utils/Sidebar';
-import { useCashReceiptTabAudit } from '@/app/Audit/Modules/CashReceiptTabAudit';
+import { useCashReceiptTabAudit } from '@/app/Audit/Model/CashReceiptTabAudit';
 import { Menu, Search } from 'lucide-react';
 import { verifyUserCredentials } from '@/app/DataBase/Service/database_service';
 import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';

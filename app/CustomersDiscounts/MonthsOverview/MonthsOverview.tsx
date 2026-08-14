@@ -10,7 +10,7 @@ import {
   User,
 } from "lucide-react";
 import { CustomerView } from "../page";
-import { trackCustomersDiscountsMonthsTab } from '@/app/Audit/Modules/CustomersDiscountsTabAudit';
+import { trackCustomersDiscountsMonthsTab } from '@/app/Audit/Model/CustomersDiscountsTabAudit';
 import {
   classifyCustomerMonth,
   getCustomerMonthStats,

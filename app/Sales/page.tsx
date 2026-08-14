@@ -36,7 +36,7 @@ import { getAllowedReportTableTabIds } from '@/app/Sales/Reports/ReportsTableTab
 import { getAllowedSalesTabIds, isSalesTabAllowed } from '@/app/Sales/Utils/salesTabPermissions';
 import { getCustomersList, getMyCustomersData, batchSaveCustomerMapping } from '@/app/Sales/Service/sales_customers_service';
 import { getSalesMetadata } from '@/app/Sales/Service/sales_core_service';
-import { trackSalesTab } from '@/app/Audit/Modules/SalesTabAudit';
+import { trackSalesTab } from '@/app/Audit/Model/SalesTabAudit';
 
 const MAPPING_EXPORT_HEADERS = [
   'CUSTOMER ID',
@@ -64,6 +64,8 @@ export default function SalesPage() {
     merchandisers: [] as string[],
     salesReps: [] as string[],
     productTags: [] as string[],
+    products: [] as string[],
+    productCategoryByName: {} as Record<string, string>,
     customerNames: [] as string[],
     customerTags: [] as string[],
     customerClasses: [] as string[],

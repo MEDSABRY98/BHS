@@ -11,7 +11,7 @@ import ReportsTab from './Reports/ReportsTab';
 import InventorySidebar, { INVENTORY_ANALYSIS_TAB_IDS, type InventoryTabId } from './Utils/Sidebar';
 import { getAllowedModuleTabIds } from '@/app/AdminControl/AdminControlTab';
 import IADataBootstrap from './Utils/IADataBootstrap';
-import { useInventoryTabAudit } from '@/app/Audit/Modules/InventoryTabAudit';
+import { useInventoryTabAudit } from '@/app/Audit/Model/InventoryTabAudit';
 import Login from '@/app/Components/Auth/Login';
 import Loading from '@/app/Components/Loading';
 import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';

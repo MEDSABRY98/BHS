@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useDataBaseProductsTabAudit } from '@/app/Audit/Modules/DataBaseTabAudit';
+import { useDataBaseProductsTabAudit } from '@/app/Audit/Model/DataBaseTabAudit';
 import { bhs_supabas } from '@/lib/supabase';
 import * as XLSX from 'xlsx';
 import {

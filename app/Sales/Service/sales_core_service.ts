@@ -131,6 +131,8 @@ export async function getSalesMetadata(userId: string, forceRefresh: boolean = f
   const merchandisers = new Set<string>();
   const salesReps = new Set<string>();
   const productTags = new Set<string>();
+  const products = new Set<string>();
+  const productCategoryByName: Record<string, string> = {};
   const customerNames = new Set<string>();
   const customerTags = new Set<string>();
   const customerClasses = new Set<string>();
@@ -155,6 +157,10 @@ export async function getSalesMetadata(userId: string, forceRefresh: boolean = f
     if (item.merchandiser) merchandisers.add(item.merchandiser);
     if (item.salesRep) salesReps.add(item.salesRep);
     if (item.productTag) productTags.add(item.productTag);
+    if (item.product) {
+      products.add(item.product);
+      if (item.productTag) productCategoryByName[item.product] = item.productTag;
+    }
     if (item.customerName) customerNames.add(item.customerName);
     if (item.customerMainName) customerNames.add(item.customerMainName);
     if (item.customerTag) customerTags.add(item.customerTag);
@@ -180,6 +186,8 @@ export async function getSalesMetadata(userId: string, forceRefresh: boolean = f
       merchandisers: Array.from(merchandisers).sort(),
       salesReps: Array.from(salesReps).sort(),
       productTags: Array.from(productTags).sort(),
+      products: Array.from(products).sort(),
+      productCategoryByName,
       customerNames: Array.from(customerNames).sort(),
       customerTags: Array.from(customerTags).sort(),
       customerClasses: Array.from(customerClasses).sort(),

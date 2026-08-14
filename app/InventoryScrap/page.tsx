@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import InventoryScrapTab from '@/app/InventoryScrap/Components/InventoryScrapTab';
-import { useInventoryScrapTabAudit } from '@/app/Audit/Modules/InventoryScrapTabAudit';
+import { useInventoryScrapTabAudit } from '@/app/Audit/Model/InventoryScrapTabAudit';
 import Login from '@/app/Components/Auth/Login';
 import Loading from '@/app/Components/Loading';
 import {
@@ -17,7 +17,7 @@ import {
   Lock,
   History
 } from 'lucide-react';
-import type { InventoryScrapTabId } from '@/app/Audit/Modules/InventoryScrapTabAudit';
+import type { InventoryScrapTabId } from '@/app/Audit/Model/InventoryScrapTabAudit';
 import { getAllowedModuleTabIds } from '@/app/AdminControl/AdminControlTab';
 import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
 

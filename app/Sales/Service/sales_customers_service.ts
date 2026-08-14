@@ -49,7 +49,7 @@ export async function getCustomersData(userId: string, filters: any, activeTab: 
 
   let globallyFilteredData = augmentedData;
   if (filters) {
-    const { invoiceType, year, month, dateFrom, dateTo, area, market, merchandiser, salesRep, productTag, customerName, customerTag, customerClass } = filters;
+    const { invoiceType, year, month, dateFrom, dateTo, area, market, merchandiser, salesRep, productTag, product, customerName, customerTag, customerClass } = filters;
 
     if (invoiceType && invoiceType !== 'all') {
       globallyFilteredData = globallyFilteredData.filter(item => {
@@ -60,6 +60,7 @@ export async function getCustomersData(userId: string, filters: any, activeTab: 
       });
     }
     if (productTag) globallyFilteredData = globallyFilteredData.filter(i => i.productTag === productTag);
+    if (product) globallyFilteredData = globallyFilteredData.filter(i => i.product === product);
     if (customerTag) globallyFilteredData = globallyFilteredData.filter(i => i.customerTag === customerTag);
     if (customerName) globallyFilteredData = globallyFilteredData.filter(i => i.customerName === customerName || i.customerMainName === customerName);
     if (customerClass) globallyFilteredData = globallyFilteredData.filter(i => i.customerClass === customerClass);
@@ -215,7 +216,7 @@ export async function getCustomerDetailsData(userId: string, filters: any, custo
 
   let allData = customerRawData;
   if (filters) {
-    const { invoiceType, area, market, merchandiser, salesRep, productTag, customerName, customerTag, customerClass } = filters;
+    const { invoiceType, area, market, merchandiser, salesRep, productTag, product, customerName, customerTag, customerClass } = filters;
     if (invoiceType && invoiceType !== 'all') {
       allData = allData.filter(item => {
         const num = item.invoiceNumber?.trim().toUpperCase() || '';
@@ -225,6 +226,7 @@ export async function getCustomerDetailsData(userId: string, filters: any, custo
       });
     }
     if (productTag) allData = allData.filter(i => i.productTag === productTag);
+    if (product) allData = allData.filter(i => i.product === product);
     if (customerTag) allData = allData.filter(i => i.customerTag === customerTag);
     if (customerName) allData = allData.filter(i => i.customerName === customerName || i.customerMainName === customerName);
     if (customerClass) allData = allData.filter(i => i.customerClass === customerClass);
@@ -292,7 +294,7 @@ function buildMainGroupDataForSub(
   );
 
   if (filters) {
-    const { invoiceType, area, market, merchandiser, salesRep, productTag, customerName, customerTag, customerClass } = filters;
+    const { invoiceType, area, market, merchandiser, salesRep, productTag, product, customerName, customerTag, customerClass } = filters;
     if (invoiceType && invoiceType !== 'all') {
       mainGroupData = mainGroupData.filter((item) => {
         const num = item.invoiceNumber?.trim().toUpperCase() || '';
@@ -302,6 +304,7 @@ function buildMainGroupDataForSub(
       });
     }
     if (productTag) mainGroupData = mainGroupData.filter((i) => i.productTag === productTag);
+    if (product) mainGroupData = mainGroupData.filter((i) => i.product === product);
     if (customerTag) mainGroupData = mainGroupData.filter(i => i.customerTag === customerTag);
     if (customerName) mainGroupData = mainGroupData.filter(i => i.customerName === customerName || i.customerMainName === customerName);
     if (customerClass) mainGroupData = mainGroupData.filter(i => i.customerClass === customerClass);
@@ -341,7 +344,7 @@ export async function getCustomersComparisonData(userId: string, filters: any, c
 
   let globallyFilteredData = augmentedData;
   if (filters) {
-    const { invoiceType, area, market, merchandiser, salesRep, productTag, customerName, customerTag, customerClass } = filters;
+    const { invoiceType, area, market, merchandiser, salesRep, productTag, product, customerName, customerTag, customerClass } = filters;
 
     if (invoiceType && invoiceType !== 'all') {
       globallyFilteredData = globallyFilteredData.filter(item => {
@@ -352,6 +355,7 @@ export async function getCustomersComparisonData(userId: string, filters: any, c
       });
     }
     if (productTag) globallyFilteredData = globallyFilteredData.filter(i => i.productTag === productTag);
+    if (product) globallyFilteredData = globallyFilteredData.filter(i => i.product === product);
     if (customerTag) globallyFilteredData = globallyFilteredData.filter(i => i.customerTag === customerTag);
     if (customerName) globallyFilteredData = globallyFilteredData.filter(i => i.customerName === customerName || i.customerMainName === customerName);
     if (customerClass) globallyFilteredData = globallyFilteredData.filter(i => i.customerClass === customerClass);
@@ -722,7 +726,7 @@ export async function getInactiveCustomersData(userId: string, filters: any, day
 
   let globallyFilteredData = augmentedData;
   if (filters) {
-    const { invoiceType, year, month, dateFrom, dateTo, area, market, merchandiser, salesRep, productTag, customerName, customerTag, customerClass } = filters;
+    const { invoiceType, year, month, dateFrom, dateTo, area, market, merchandiser, salesRep, productTag, product, customerName, customerTag, customerClass } = filters;
 
     if (invoiceType && invoiceType !== 'all') {
       globallyFilteredData = globallyFilteredData.filter(item => {
@@ -733,6 +737,7 @@ export async function getInactiveCustomersData(userId: string, filters: any, day
       });
     }
     if (productTag) globallyFilteredData = globallyFilteredData.filter(i => i.productTag === productTag);
+    if (product) globallyFilteredData = globallyFilteredData.filter(i => i.product === product);
     if (customerTag) globallyFilteredData = globallyFilteredData.filter(i => i.customerTag === customerTag);
     if (customerName) globallyFilteredData = globallyFilteredData.filter(i => i.customerName === customerName || i.customerMainName === customerName);
     if (customerClass) globallyFilteredData = globallyFilteredData.filter(i => i.customerClass === customerClass);

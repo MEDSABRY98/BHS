@@ -6,7 +6,7 @@ import PendingDriverInvoices from './Components/PendingDriverInvoices';
 import DeliveredDriverInvoices from './Components/DeliveredDriverInvoices';
 import PendingCustomerInvoices from './Components/PendingCustomerInvoices';
 import HandoverReports from './Components/DailyHandover';
-import { useLposReportsTabAudit } from '@/app/Audit/Modules/LPOsTabAudit';
+import { useLposReportsTabAudit } from '@/app/Audit/Model/LPOsTabAudit';
 
 type ReportTab = 'pending' | 'pending-customer' | 'delivered' | 'handover';
 

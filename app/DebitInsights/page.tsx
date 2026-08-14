@@ -11,7 +11,7 @@ import DebitInsightsDashboard, {
   type DebitInsightsChromeState,
 } from './DebitInsightsDashboard';
 import DebitInsightsSidebar from './Utils/Sidebar';
-import { useDebitInsightsTabAudit } from '@/app/Audit/Modules/DebitInsightsTabAudit';
+import { useDebitInsightsTabAudit } from '@/app/Audit/Model/DebitInsightsTabAudit';
 import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
 
 function isInsightsAllowed(currentUser: any): boolean {

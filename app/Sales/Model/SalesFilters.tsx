@@ -10,7 +10,7 @@ import {
   Layers,
   RefreshCcw,
   TrendingUp,
-  Tag,
+  Package,
   Search,
   ArrowLeft,
   Users,
@@ -45,6 +45,7 @@ export type SalesCommonFilters = {
   merchandiser: string;
   salesRep: string;
   productTag: string;
+  product: string;
   customerName: string;
   customerTag: string;
   customerClass: string;
@@ -56,6 +57,8 @@ export type SalesFilterOptions = {
   merchandisers: string[];
   salesReps: string[];
   productTags: string[];
+  products: string[];
+  productCategoryByName?: Record<string, string>;
   customerNames: string[];
   customerTags: string[];
   customerClasses: string[];
@@ -102,6 +105,7 @@ export const DEFAULT_SALES_COMMON_FILTERS: SalesCommonFilters = {
   merchandiser: '',
   salesRep: '',
   productTag: '',
+  product: '',
   customerName: '',
   customerTag: '',
   customerClass: '',
@@ -119,6 +123,7 @@ function filtersEqual(a: SalesCommonFilters, b: SalesCommonFilters): boolean {
     a.merchandiser === b.merchandiser &&
     a.salesRep === b.salesRep &&
     a.productTag === b.productTag &&
+    a.product === b.product &&
     a.customerName === b.customerName &&
     a.customerTag === b.customerTag &&
     a.customerClass === b.customerClass
@@ -305,6 +310,7 @@ export function useSalesFilters() {
       !!f.merchandiser ||
       !!f.salesRep ||
       !!f.productTag ||
+      !!f.product ||
       !!f.customerName ||
       !!f.customerTag ||
       !!f.customerClass
@@ -409,6 +415,8 @@ export function useSalesFilters() {
     setFilterSalesRep: (value: string) => updateDraftFilter('salesRep', value),
     filterProductTag: draftFilters.productTag,
     setFilterProductTag: (value: string) => updateDraftFilter('productTag', value),
+    filterProduct: draftFilters.product,
+    setFilterProduct: (value: string) => updateDraftFilter('product', value),
     filterCustomerName: draftFilters.customerName,
     setFilterCustomerName: (value: string) => updateDraftFilter('customerName', value),
     filterCustomerTag: draftFilters.customerTag,
@@ -461,6 +469,8 @@ export type SalesFilterModalProps = {
   setFilterSalesRep: (value: string) => void;
   filterProductTag: string;
   setFilterProductTag: (value: string) => void;
+  filterProduct: string;
+  setFilterProduct: (value: string) => void;
   filterCustomerName: string;
   setFilterCustomerName: (value: string) => void;
   filterCustomerTag: string;
@@ -511,6 +521,8 @@ export function SalesFilterModal({
   setFilterSalesRep,
   filterProductTag,
   setFilterProductTag,
+  filterProduct,
+  setFilterProduct,
   filterCustomerName,
   setFilterCustomerName,
   filterCustomerTag,
@@ -544,7 +556,7 @@ export function SalesFilterModal({
   const categoryTabs = [
     {
       id: 'mode' as SalesFilterTab,
-      label: 'Reporting Mode',
+      label: 'Sales Mode',
       icon: Layers,
     },
     {
@@ -564,8 +576,8 @@ export function SalesFilterModal({
     },
     {
       id: 'product' as SalesFilterTab,
-      label: 'Product Category',
-      icon: Tag,
+      label: 'Product',
+      icon: Package,
     },
     ...(activeTab === 'sales-inactive-customers'
       ? [
@@ -585,7 +597,7 @@ export function SalesFilterModal({
           },
         ]
       : []),
-  ];
+  ].sort((a, b) => a.label.localeCompare(b.label, 'en', { sensitivity: 'base' }));
 
   const activeCategory = categoryTabs.find((tab) => tab.id === activeFilterTab);
 
@@ -830,27 +842,55 @@ export function SalesFilterModal({
 
               {activeFilterTab === 'product' && (
                 <div className="space-y-10">
-                  <div className="bg-slate-50 p-10 rounded-[40px] border border-slate-100">
-                    <div className="space-y-4">
-                      <h5 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
-                        <Tag className="w-3 h-3" /> Product Category (Tag)
-                      </h5>
-                      <div className="grid grid-cols-1 gap-6">
-                        <div className="space-y-2">
-                          <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">
-                            Select Category
-                          </label>
-                          <ModernSelect
-                            value={filterProductTag}
-                            onChange={setFilterProductTag}
-                            options={[
-                              { label: 'All Categories', value: '' },
-                              ...uniqueValues.productTags.map((v) => ({ label: v, value: v })),
-                            ]}
-                            placeholder="All Categories"
-                          />
-                        </div>
-                      </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8 bg-slate-50 p-10 rounded-[40px] border border-slate-100">
+                    <div className="space-y-2">
+                      <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">
+                        Product Category
+                      </label>
+                      <ModernSelect
+                        value={filterProductTag}
+                        onChange={(value) => {
+                          setFilterProductTag(value);
+                          if (
+                            value &&
+                            filterProduct &&
+                            uniqueValues.productCategoryByName?.[filterProduct] !== value
+                          ) {
+                            setFilterProduct('');
+                          }
+                        }}
+                        options={[
+                          { label: 'All Categories', value: '' },
+                          ...uniqueValues.productTags.map((v) => ({ label: v, value: v })),
+                        ]}
+                        placeholder="All Categories"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">
+                        Product
+                      </label>
+                      <ModernSelect
+                        value={filterProduct}
+                        onChange={(value) => {
+                          setFilterProduct(value);
+                          if (value) {
+                            const tag = uniqueValues.productCategoryByName?.[value];
+                            if (tag) setFilterProductTag(tag);
+                          }
+                        }}
+                        options={[
+                          { label: 'All Products', value: '' },
+                          ...(uniqueValues.products || [])
+                            .filter(
+                              (name) =>
+                                !filterProductTag ||
+                                uniqueValues.productCategoryByName?.[name] === filterProductTag
+                            )
+                            .map((v) => ({ label: v, value: v })),
+                        ]}
+                        placeholder="All Products"
+                      />
                     </div>
                   </div>
                 </div>
@@ -1256,6 +1296,8 @@ export function SalesFiltersProvider({
         setFilterSalesRep={filterState.setFilterSalesRep}
         filterProductTag={filterState.filterProductTag}
         setFilterProductTag={filterState.setFilterProductTag}
+        filterProduct={filterState.filterProduct}
+        setFilterProduct={filterState.setFilterProduct}
         filterCustomerName={filterState.filterCustomerName}
         setFilterCustomerName={filterState.setFilterCustomerName}
         filterCustomerTag={filterState.filterCustomerTag}
