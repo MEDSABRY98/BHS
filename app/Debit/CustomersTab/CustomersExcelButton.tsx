@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { FileSpreadsheet, X } from 'lucide-react';
 import { exportToExcel } from './CstomersUtils';
 import { CustomerAnalysis, InvoiceRow } from '@/types';
@@ -25,8 +26,14 @@ export default function CustomersExcelButton({
     includeMonthly: true,
     includeAges: true,
     groupByRegion: false,
+    includeNegativeBalances: true,
   });
   const [isExporting, setIsExporting] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const handleExport = async () => {
     try {
@@ -55,7 +62,7 @@ export default function CustomersExcelButton({
         <FileSpreadsheet size={20} />
       </button>
 
-      {isOpen && (
+      {isOpen && mounted && createPortal(
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-gray-50/50">
@@ -74,6 +81,25 @@ export default function CustomersExcelButton({
             </div>
 
             <div className="p-6 space-y-4">
+              <div className="pb-4 border-b border-gray-100">
+                <label className="flex items-center justify-between p-3 bg-green-50/50 border border-green-100 rounded-xl cursor-pointer hover:bg-green-50 transition-colors">
+                  <div>
+                    <span className="block font-bold text-green-900">Include Negative Balances</span>
+                    <span className="block text-xs text-green-700 mt-0.5">Includes customers whose balance is negative.</span>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="checkbox"
+                      className="sr-only"
+                      checked={options.includeNegativeBalances}
+                      onChange={() => toggleOption('includeNegativeBalances')}
+                    />
+                    <div className={`block w-10 h-6 rounded-full transition-colors ${options.includeNegativeBalances ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                    <div className={`absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${options.includeNegativeBalances ? 'translate-x-4' : 'translate-x-0'}`}></div>
+                  </div>
+                </label>
+              </div>
+
               <div className="space-y-3">
                 <label className="flex items-center gap-3 p-3 bg-gray-50 border border-gray-100 rounded-xl cursor-pointer hover:bg-gray-100 transition-colors">
                   <input
@@ -151,12 +177,6 @@ export default function CustomersExcelButton({
 
             <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end gap-3">
               <button
-                onClick={() => setIsOpen(false)}
-                className="px-4 py-2 font-bold text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
                 onClick={handleExport}
                 disabled={isExporting || (!options.includeNetOnly && !options.includeDashboard && !options.includeSummary && !options.includeYearly && !options.includeMonthly && !options.includeAges)}
                 className="px-6 py-2 font-bold text-white bg-green-600 rounded-xl hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
@@ -178,7 +198,8 @@ export default function CustomersExcelButton({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );

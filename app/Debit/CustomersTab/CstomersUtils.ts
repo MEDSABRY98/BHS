@@ -390,6 +390,7 @@ export interface ExportExcelOptions {
   includeMonthly?: boolean;
   includeAges?: boolean;
   groupByRegion?: boolean;
+  includeNegativeBalances?: boolean;
 }
 
 export const exportToExcel = async (
@@ -407,8 +408,19 @@ export const exportToExcel = async (
     includeMonthly: true,
     includeAges: true,
     groupByRegion: false,
+    includeNegativeBalances: true,
     ...options
   };
+
+  if (opts.includeNegativeBalances === false) {
+    data = data.filter(c => c.netDebt >= 0);
+    if (yearlyData && yearlyData.rows) {
+      yearlyData.rows = yearlyData.rows.filter((row: any) => {
+        const cInfo = data.find(c => c.customerName === row.customerName);
+        return !!cInfo;
+      });
+    }
+  }
 
   const sheets: any[] = [];
 
