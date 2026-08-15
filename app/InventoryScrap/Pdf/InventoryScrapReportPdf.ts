@@ -5,9 +5,17 @@ export type ScrapReportPdfItem = {
   barcode?: string;
   name?: string;
   qty: number;
+  cost?: number;
   unit?: string;
   reason?: string;
 };
+
+function formatScrapCost(value: number): string {
+  return value.toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
 
 /**
  * Downloads an Inventory Scrap Report PDF named with the report serial
@@ -65,12 +73,17 @@ export async function downloadInventoryScrapReportPDF(
   y += 6;
 
   let totalQty = 0;
+  let totalCost = 0;
   const body = items.map((item, idx) => {
-    totalQty += Number(item.qty || 0);
+    const qty = Number(item.qty || 0);
+    const unitCost = Number(item.cost || 0);
+    totalQty += qty;
+    totalCost += qty * unitCost;
     return [
       String(idx + 1),
       item.barcode || '—',
       item.name || 'Unknown Product',
+      formatScrapCost(unitCost),
       String(item.qty ?? 0),
       item.unit || 'PCS',
       item.reason || '—',
@@ -79,7 +92,7 @@ export async function downloadInventoryScrapReportPDF(
 
   autoTable(doc, {
     startY: y,
-    head: [['#', 'Barcode', 'Product Name', 'Qty', 'Unit', 'Reason']],
+    head: [['#', 'Barcode', 'Product Name', 'Cost', 'Qty', 'Unit', 'Reason']],
     body,
     theme: 'grid',
     headStyles: {
@@ -97,14 +110,15 @@ export async function downloadInventoryScrapReportPDF(
     },
     columnStyles: {
       0: { cellWidth: 10 },
-      1: { cellWidth: 32, font: 'courier', fontSize: 7 },
+      1: { cellWidth: 28, font: 'courier', fontSize: 7 },
       2: { halign: 'center' },
-      3: { cellWidth: 14, fontStyle: 'bold' },
-      4: { cellWidth: 14 },
-      5: { cellWidth: 28 },
+      3: { cellWidth: 20, fontStyle: 'bold' },
+      4: { cellWidth: 14, fontStyle: 'bold' },
+      5: { cellWidth: 12 },
+      6: { cellWidth: 24 },
     },
     margin: { left: margin, right: margin },
-    foot: [['', '', 'Total', String(totalQty), '', '']],
+    foot: [['', '', 'Total', '', String(totalQty), '', '']],
     footStyles: {
       fillColor: [240, 232, 208],
       textColor: black,
@@ -114,7 +128,27 @@ export async function downloadInventoryScrapReportPDF(
     },
   });
 
-  y = ((doc as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY || y) + 10;
+  y = ((doc as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY || y) + 8;
+
+  const summaryH = 12;
+  const contentW = pageWidth - margin * 2;
+  if (y + summaryH + 40 > doc.internal.pageSize.getHeight()) {
+    doc.addPage();
+    y = 16;
+  }
+  doc.setFillColor(253, 252, 248);
+  doc.setDrawColor(...gold);
+  doc.setLineWidth(0.4);
+  doc.rect(margin, y, contentW, summaryH, 'FD');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setTextColor(...gold);
+  doc.text('TOTAL SCRAP COST', margin + 4, y + 7.5);
+  doc.setTextColor(...black);
+  doc.setFontSize(10);
+  doc.text(`AED ${formatScrapCost(totalCost)}`, pageWidth - margin - 4, y + 7.5, { align: 'right' });
+
+  y += summaryH + 10;
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8);

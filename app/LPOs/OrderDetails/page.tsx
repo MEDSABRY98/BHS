@@ -61,7 +61,16 @@ function OrderDetailsPageContent() {
     if (id) fetchOrderDetails();
   }, [id]);
 
-  async function fetchOrderDetails() {
+  useEffect(() => {
+    if (!id) return;
+    const onRefresh = () => {
+      void fetchOrderDetails(true);
+    };
+    window.addEventListener('lpo-data-refresh', onRefresh);
+    return () => window.removeEventListener('lpo-data-refresh', onRefresh);
+  }, [id]);
+
+  async function fetchOrderDetails(silent = false) {
     try {
       const { data: orderData, error: orderError } = await bhs_supabas
         .from('app_lpos_ORDERS')
@@ -85,7 +94,7 @@ function OrderDetailsPageContent() {
       setAdminNotes(orderData.NOTES || '');
     } catch (err) {
       console.error(err);
-      router.push('/LPOs/Orders');
+      if (!silent) router.push('/LPOs/Orders');
     } finally {
       setIsLoading(false);
     }

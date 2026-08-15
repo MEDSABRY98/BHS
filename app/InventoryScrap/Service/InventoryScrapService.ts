@@ -30,6 +30,7 @@ type ProductLookup = {
   'PRODUCT ID': string;
   'PRODUCT BARCODE': string;
   'PRODUCT NAME': string;
+  'PRODUCT COST'?: number | null;
 };
 
 /** Full product catalog keyed by PRODUCT ID (paginated — Supabase caps at 1000/page). */
@@ -44,7 +45,7 @@ async function fetchProductLookupMap(): Promise<Map<string, ProductLookup>> {
     const end = start + pageSize - 1;
     const { data, error } = await bhs_supabas
       .from('bhs_PRODUCTS')
-      .select('"PRODUCT ID", "PRODUCT BARCODE", "PRODUCT NAME"')
+      .select('"PRODUCT ID", "PRODUCT BARCODE", "PRODUCT NAME", "PRODUCT COST"')
       .range(start, end);
 
     if (error) throw error;
@@ -98,6 +99,7 @@ function enrichScrapWithProduct(
     ...entry,
     'PRODUCT BARCODE': p?.['PRODUCT BARCODE'] || '',
     'PRODUCT NAME': p?.['PRODUCT NAME'] || 'Unknown Product',
+    'PRODUCT COST': Number(p?.['PRODUCT COST'] || 0),
   };
 }
 

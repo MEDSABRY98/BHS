@@ -56,11 +56,10 @@ export function getAllowedModuleTabIds(
     systemId: string,
     allTabIds: readonly string[]
 ): string[] {
-    const resolved = user ?? getCurrentUserFromStorage();
-    if (!resolved) return [];
-    if (isUnrestrictedAdminUser(resolved)) return [...allTabIds];
+    if (!user) return [...allTabIds];
+    if (isUnrestrictedAdminUser(user)) return [...allTabIds];
 
-    const perms = parseUserPermissions(resolved);
+    const perms = parseUserPermissions(user);
     const allowed = perms[systemId];
     if (Array.isArray(allowed)) {
         return allTabIds.filter((id) => allowed.includes(id));

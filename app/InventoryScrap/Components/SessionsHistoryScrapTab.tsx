@@ -3,7 +3,6 @@
 import React, { useState, useMemo } from 'react';
 import { upsertActiveScrapSession, deleteScrapEntry, deleteScrapSession, convertSessionsToScrapReport } from '../Service/InventoryScrapService';
 import {
-  Layers,
   RefreshCw,
   Loader2,
   Eye,
@@ -288,21 +287,18 @@ export default function SessionsHistoryTab({
   }, [selectedSessionId, selectedSessionEntries]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8 select-none font-sans text-black">
 
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-100 pb-4">
         <div>
-          <h3 className="text-xl font-black text-black flex items-center gap-2">
-            <Layers className="w-5 h-5 text-[#D4AF37]" />
-            Saved Scrap Sessions
-          </h3>
+          <h1 className="text-3xl font-bold tracking-tight text-slate-900">Saved Scrap Sessions</h1>
         </div>
 
         <div className="flex items-center gap-3">
           <button
             onClick={() => setIsConvertModalOpen(true)}
             disabled={selectedSessionIds.size === 0 || isConverting}
-            className="p-3 bg-white border border-gray-100 text-[#D4AF37] hover:text-[#b8942a] hover:border-[#D4AF37]/40 rounded-2xl shadow-sm transition-all flex items-center justify-center cursor-pointer hover:bg-[#D4AF37]/5 disabled:opacity-40 disabled:pointer-events-none"
+            className="p-3 bg-white border border-slate-200 text-[#D4AF37] hover:text-[#b8942a] hover:border-[#D4AF37]/40 rounded-xl shadow-sm transition-all flex items-center justify-center cursor-pointer hover:bg-[#D4AF37]/5 disabled:opacity-40 disabled:pointer-events-none"
             title={
               selectedSessionIds.size === 0
                 ? 'Select sessions to convert'
@@ -314,7 +310,7 @@ export default function SessionsHistoryTab({
 
           <button
             onClick={() => setIsExportModalOpen(true)}
-            className="p-3 bg-white border border-gray-100 text-emerald-600 hover:text-emerald-700 hover:border-emerald-200 rounded-2xl shadow-sm transition-all flex items-center justify-center cursor-pointer hover:bg-emerald-50/50"
+            className="p-3 bg-white border border-slate-200 text-emerald-600 hover:text-emerald-700 hover:border-emerald-200 rounded-xl shadow-sm transition-all flex items-center justify-center cursor-pointer hover:bg-emerald-50/50"
             title="Export Date Range Excel"
           >
             <FileSpreadsheet className="w-5 h-5" />
@@ -323,7 +319,7 @@ export default function SessionsHistoryTab({
           <button
             onClick={fetchScrapEntries}
             disabled={isEntriesLoading}
-            className="p-3 bg-white border border-gray-100 text-gray-400 hover:text-black hover:border-black rounded-2xl shadow-sm transition-all flex items-center justify-center cursor-pointer bg-slate-50 hover:bg-slate-100 disabled:opacity-50"
+            className="p-3 bg-slate-50 border border-slate-200 text-slate-400 hover:text-black hover:border-black rounded-xl shadow-sm transition-all flex items-center justify-center cursor-pointer hover:bg-slate-100 disabled:opacity-50"
             title="Reload History"
           >
             <RefreshCw className={`w-5 h-5 ${isEntriesLoading ? 'animate-spin' : ''}`} />

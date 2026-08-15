@@ -6,6 +6,7 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import { bhs_supabas, fetchAllData } from '@/lib/supabase';
@@ -17,6 +18,7 @@ export type LpoDataContextValue = {
   assignedDrivers: any[];
   orders: any[];
   loading: boolean;
+  refreshing: boolean;
   error: string | null;
   refresh: () => Promise<void>;
 };
@@ -63,6 +65,8 @@ export function LpoDataProvider({ children }: { children: React.ReactNode }) {
   const [drivers, setDrivers] = useState<any[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const refreshingRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
 
   const loadAll = useCallback(async (isInitial = false) => {
@@ -109,7 +113,18 @@ export function LpoDataProvider({ children }: { children: React.ReactNode }) {
     [drivers, users],
   );
 
-  const refresh = useCallback(() => loadAll(false), [loadAll]);
+  const refresh = useCallback(async () => {
+    if (refreshingRef.current) return;
+    refreshingRef.current = true;
+    setRefreshing(true);
+    try {
+      await loadAll(false);
+      window.dispatchEvent(new Event('lpo-data-refresh'));
+    } finally {
+      refreshingRef.current = false;
+      setRefreshing(false);
+    }
+  }, [loadAll]);
 
   const value = useMemo<LpoDataContextValue>(
     () => ({
@@ -119,10 +134,11 @@ export function LpoDataProvider({ children }: { children: React.ReactNode }) {
       assignedDrivers,
       orders,
       loading,
+      refreshing,
       error,
       refresh,
     }),
-    [users, customers, drivers, assignedDrivers, orders, loading, error, refresh],
+    [users, customers, drivers, assignedDrivers, orders, loading, refreshing, error, refresh],
   );
 
   return <LpoDataContext.Provider value={value}>{children}</LpoDataContext.Provider>;

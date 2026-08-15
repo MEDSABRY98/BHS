@@ -11,6 +11,7 @@ interface ReportItem {
   barcode: string;
   name: string;
   qty: number;
+  cost: number;
   reason: string;
   unit: string;
 }
@@ -48,6 +49,7 @@ export default function SavedReportsTab() {
           barcode: row['PRODUCT BARCODE'] || '—',
           name: row['PRODUCT NAME'] || 'Unknown Product',
           qty,
+          cost: Number(row['PRODUCT COST'] || 0),
           reason: row.REASON || 'UNSPECIFIED',
           unit: row.UNIT || 'PCS',
         };

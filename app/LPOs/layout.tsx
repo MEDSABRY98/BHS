@@ -6,8 +6,7 @@ import Link from 'next/link';
 import Login from '@/app/Components/Auth/Login';
 import Loading from '@/app/Components/Loading';
 import { useLposRouteAudit } from '@/app/Audit/Model/LPOsTabAudit';
-import { LpoDataProvider } from './Context/LpoDataContext';
-import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
+import { LpoDataProvider, useLpoData } from './Context/LpoDataContext';
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -22,8 +21,30 @@ import {
   ChevronLeft,
   FileText,
   ArrowLeft,
-  FileX2
+  FileX2,
+  RefreshCw,
 } from 'lucide-react';
+import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
+
+function LpoRefreshButton() {
+  const { refresh, refreshing } = useLpoData();
+
+  return (
+    <button
+      type="button"
+      onClick={() => void refresh()}
+      disabled={refreshing}
+      className={`relative flex items-center justify-center w-12 h-12 rounded-2xl transition-all duration-200 ${
+        refreshing
+          ? 'bg-amber-600 text-white shadow-lg shadow-amber-950/40'
+          : 'bg-white/5 text-slate-300 hover:text-white hover:bg-white/10 border border-white/10'
+      } disabled:opacity-50 cursor-pointer`}
+      title="Refresh data"
+    >
+      <RefreshCw className={`w-5 h-5 ${refreshing ? 'animate-spin' : ''}`} />
+    </button>
+  );
+}
 
 interface NavItemProps {
   href: string;
@@ -188,6 +209,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const navItems = getFilteredNavItems(user);
 
   return (
+    <LpoDataProvider>
     <div className="flex min-h-screen bg-[#F8F9FA] text-black">
       {/* Sidebar - Desktop */}
       <aside className={`hidden lg:flex flex-col ${isCollapsed ? 'w-20' : 'w-72'} bg-[#0a0f1d] text-white border-r border-amber-950/20 shadow-2xl fixed h-screen left-0 top-0 z-50 transition-all duration-300`}>
@@ -229,7 +251,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           ))}
         </nav>
 
-        <div className="p-4 border-t border-white/5 mt-auto flex justify-center shrink-0">
+        <div className="p-4 border-t border-white/5 mt-auto flex flex-col items-center gap-3 shrink-0">
+          <LpoRefreshButton />
           <button
             onClick={toggleSidebar}
             className="flex items-center justify-center w-10 h-10 hover:bg-white/10 rounded-xl transition-all duration-200 text-slate-400"
@@ -303,14 +326,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               />
             ))}
           </nav>
+
+          <div className="p-4 border-t border-white/5 mt-auto flex justify-center shrink-0">
+            <LpoRefreshButton />
+          </div>
         </aside>
 
         <main className="flex-1 p-4 md:p-8 lg:p-12">
           <div className={`${(pathname === '/LPOs' || pathname === '/LPOs/Orders' || pathname === '/LPOs/CreateOrders' || pathname === '/LPOs/InvoiceCancel' || pathname.startsWith('/DataBase')) ? 'max-w-[1600px]' : 'max-w-7xl'} mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500`}>
-            <LpoDataProvider>{children}</LpoDataProvider>
+            {children}
           </div>
         </main>
       </div>
     </div>
+    </LpoDataProvider>
   );
 }
