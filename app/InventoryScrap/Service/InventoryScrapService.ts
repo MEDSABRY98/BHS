@@ -90,7 +90,7 @@ function resolveProduct(
 }
 
 function enrichScrapWithProduct(
-  entry: Record<string, unknown>,
+  entry: any,
   productId: unknown,
   productMap: Map<string, ProductLookup>,
 ) {
