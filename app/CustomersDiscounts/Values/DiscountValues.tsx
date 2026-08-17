@@ -187,7 +187,11 @@ export default function DiscountValues({ customers }: DiscountValuesProps) {
           else rent += val;
         });
 
-        const netSales = netSalesByCustomer.get(String(c.customerId).trim()) || 0;
+        let netSales = netSalesByCustomer.get(String(c.customerId).trim()) || 0;
+        if (netSales <= 0) {
+          netSales = 0;
+        }
+
         const discountValue = netSales * (discountPercent / 100);
 
         return {
@@ -200,6 +204,7 @@ export default function DiscountValues({ customers }: DiscountValuesProps) {
           rent,
         };
       })
+      .filter((row) => row.netSales > 0 || row.rent > 0)
       .sort((a, b) => a.customerName.localeCompare(b.customerName));
   }, [customers, netSalesByCustomer]);
 
@@ -253,7 +258,7 @@ export default function DiscountValues({ customers }: DiscountValuesProps) {
 
   return (
     <div className="flex-1 overflow-y-auto p-8 animate-in fade-in duration-300">
-      <div className="max-w-7xl mx-auto space-y-6">
+      <div className="max-w-[1450px] mx-auto space-y-6">
         <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="bg-[#D4AF37]/10 p-3 rounded-2xl">
@@ -446,14 +451,17 @@ export default function DiscountValues({ customers }: DiscountValuesProps) {
             ) : (
               <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
-                  <table className="w-full text-center">
+                  <table className="w-full text-center table-fixed min-w-[1000px]">
                     <thead>
-                      <tr className="bg-gray-50 border-b border-gray-100 text-[11px] font-black uppercase tracking-wider text-gray-400">
-                        <th className="px-5 py-4">Customer</th>
-                        <th className="px-5 py-4">Discount %</th>
-                        <th className="px-5 py-4">Net Sales</th>
-                        <th className="px-5 py-4">Discount Value</th>
-                        <th className="px-5 py-4">Rent</th>
+                      <tr className="bg-gray-50 border-b border-gray-100 text-[11px] font-black uppercase tracking-wider text-gray-400 whitespace-nowrap">
+                        <th className="px-5 py-4 w-[25%]">Customer</th>
+                        <th className="px-5 py-4 w-[12%]">City</th>
+                        <th className="px-5 py-4 w-[10%]">Discount %</th>
+                        <th className="px-5 py-4 w-[13%]">Net Sales</th>
+                        <th className="px-5 py-4 w-[14%]">Discount Value</th>
+                        <th className="px-5 py-4 w-[8%] text-[#D4AF37]">D %</th>
+                        <th className="px-5 py-4 w-[10%]">Rent</th>
+                        <th className="px-5 py-4 w-[8%] text-purple-400">R %</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -464,6 +472,11 @@ export default function DiscountValues({ customers }: DiscountValuesProps) {
                         >
                           <td className="px-5 py-4">
                             <p className="font-bold text-gray-900">{row.customerName}</p>
+                          </td>
+                          <td className="px-5 py-4">
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-700 whitespace-nowrap">
+                              {row.city}
+                            </span>
                           </td>
                           <td className="px-5 py-4 font-bold text-emerald-700">
                             {row.discountPercent.toLocaleString('en-US', {
@@ -477,23 +490,35 @@ export default function DiscountValues({ customers }: DiscountValuesProps) {
                           <td className="px-5 py-4 font-black text-[#D4AF37]">
                             {formatAed(row.discountValue)}
                           </td>
+                          <td className="px-5 py-4 font-bold text-gray-500">
+                            {totals.discountValue > 0 ? ((row.discountValue / totals.discountValue) * 100).toLocaleString('en-US', { maximumFractionDigits: 2 }) : '0'}%
+                          </td>
                           <td className="px-5 py-4 font-bold text-purple-700">
                             {formatAed(row.rent)}
+                          </td>
+                          <td className="px-5 py-4 font-bold text-gray-500">
+                            {totals.rent > 0 ? ((row.rent / totals.rent) * 100).toLocaleString('en-US', { maximumFractionDigits: 2 }) : '0'}%
                           </td>
                         </tr>
                       ))}
                     </tbody>
                     <tfoot>
                       <tr className="bg-slate-900 text-white">
-                        <td className="px-5 py-4 font-black uppercase tracking-wider text-sm" colSpan={2}>
+                        <td className="px-5 py-4 font-black uppercase tracking-wider text-sm" colSpan={3}>
                           Totals ({filteredRows.length} customers)
                         </td>
                         <td className="px-5 py-4 font-bold">{formatAed(totals.netSales)}</td>
                         <td className="px-5 py-4 font-black text-[#D4AF37]">
                           {formatAed(totals.discountValue)}
                         </td>
+                        <td className="px-5 py-4 font-bold text-gray-300">
+                          {totals.discountValue > 0 ? '100%' : '0%'}
+                        </td>
                         <td className="px-5 py-4 font-bold text-purple-300">
                           {formatAed(totals.rent)}
+                        </td>
+                        <td className="px-5 py-4 font-bold text-gray-300">
+                          {totals.rent > 0 ? '100%' : '0%'}
                         </td>
                       </tr>
                     </tfoot>

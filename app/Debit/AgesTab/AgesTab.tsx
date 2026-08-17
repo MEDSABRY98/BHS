@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { exportDebitExcelTable } from '@/app/Debit/Utils/ExcelExport';
+import { exportDebitExcelWorkbook } from '@/app/Debit/Utils/ExcelExport';
 import { useDebouncedValue } from '../Hooks/useDebouncedValue';
 import {
   useReactTable,
@@ -261,24 +261,106 @@ export default function AgesTab({ data }: AgesTabProps) {
   }, [agingData, debouncedSearch, selectedSalesRep, showNegativeBalances]);
 
   const exportToExcel = async () => {
-    const headers = ['Customer Name', 'City', '0 - 30', '31 - 60', '61 - 90', '91 - 120', 'OLDER', 'TOTAL'];
-    const rows = filteredData.map((item) => [
-      item.customerName,
-      item.salesReps.join(', ') || '',
-      item.oneToThirty,
-      item.thirtyOneToSixty,
-      item.sixtyOneToNinety,
-      item.ninetyOneToOneTwenty,
-      item.older,
-      item.total,
-    ]);
-
-    rows.push(['TOTAL', '', total1To30, total31To60, total61To90, total91To120, totalOlder, grandTotal]);
-
-    await exportDebitExcelTable(headers, rows, `ages_export_${new Date().toISOString().split('T')[0]}`, {
-      sheetName: 'Aging Report',
-      numericColumns: ['0 - 30', '31 - 60', '61 - 90', '91 - 120', 'OLDER', 'TOTAL'],
+    // Sort for main sheet: City first, then Net Debit
+    const sortedForExport = [...filteredData].sort((a, b) => {
+      const cityA = a.salesReps.join(', ') || 'No City';
+      const cityB = b.salesReps.join(', ') || 'No City';
+      if (cityA < cityB) return -1;
+      if (cityA > cityB) return 1;
+      return b.total - a.total; // then by Net Debit descending
     });
+
+    const numericColumns = ['NET DEBIT', '0 - 30', '31 - 60', '61 - 90', '91 - 120', 'OLDER'];
+    const options = { numericColumns };
+
+    const getRowData = (item: CustomerAgingSummary, index: number) => ({
+      '#': index + 1,
+      'Customer Name': item.customerName,
+      'City': item.salesReps.join(', ') || '',
+      'NET DEBIT': item.total,
+      '0 - 30': item.oneToThirty,
+      '31 - 60': item.thirtyOneToSixty,
+      '61 - 90': item.sixtyOneToNinety,
+      '91 - 120': item.ninetyOneToOneTwenty,
+      'OLDER': item.older,
+    });
+
+    // Main sheet data
+    const mainSheetData = sortedForExport.map((item, idx) => getRowData(item, idx));
+    mainSheetData.push({
+      '#': '',
+      'Customer Name': 'TOTAL',
+      'City': '',
+      'NET DEBIT': grandTotal,
+      '0 - 30': total1To30,
+      '31 - 60': total31To60,
+      '61 - 90': total61To90,
+      '91 - 120': total91To120,
+      'OLDER': totalOlder,
+    } as any);
+
+    const sheets = [
+      {
+        name: 'All Cities',
+        data: mainSheetData,
+        options,
+      }
+    ];
+
+    // Group by City
+    const cityMap = new Map<string, typeof sortedForExport>();
+    sortedForExport.forEach(item => {
+      const city = item.salesReps.join(', ') || 'No City';
+      const group = cityMap.get(city) || [];
+      group.push(item);
+      cityMap.set(city, group);
+    });
+
+    // Sort city names alphabetically
+    const sortedCities = Array.from(cityMap.keys()).sort();
+
+    sortedCities.forEach(city => {
+      const cityData = cityMap.get(city)!;
+      const cityTotal = cityData.reduce((sum, item) => sum + item.total, 0);
+      const city1To30 = cityData.reduce((sum, item) => sum + item.oneToThirty, 0);
+      const city31To60 = cityData.reduce((sum, item) => sum + item.thirtyOneToSixty, 0);
+      const city61To90 = cityData.reduce((sum, item) => sum + item.sixtyOneToNinety, 0);
+      const city91To120 = cityData.reduce((sum, item) => sum + item.ninetyOneToOneTwenty, 0);
+      const cityOlder = cityData.reduce((sum, item) => sum + item.older, 0);
+
+      const sheetData = cityData.map((item, idx) => getRowData(item, idx));
+      sheetData.push({
+        '#': '',
+        'Customer Name': 'TOTAL',
+        'City': '',
+        'NET DEBIT': cityTotal,
+        '0 - 30': city1To30,
+        '31 - 60': city31To60,
+        '61 - 90': city61To90,
+        '91 - 120': city91To120,
+        'OLDER': cityOlder,
+      } as any);
+
+      // Safe sheet name for Excel (max 31 chars, no invalid chars)
+      let safeSheetName = city.replace(/[\/\\:*?"<>|]/g, '_').substring(0, 31).trim();
+      if (!safeSheetName) safeSheetName = 'Sheet';
+
+      // Ensure unique sheet name
+      let finalSheetName = safeSheetName;
+      let counter = 1;
+      while (sheets.some(s => s.name.toLowerCase() === finalSheetName.toLowerCase())) {
+        finalSheetName = `${safeSheetName.substring(0, 28)}_${counter}`;
+        counter++;
+      }
+
+      sheets.push({
+        name: finalSheetName,
+        data: sheetData,
+        options,
+      });
+    });
+
+    await exportDebitExcelWorkbook(sheets, `ages_export_${new Date().toISOString().split('T')[0]}`);
   };
 
   const handleExportPDF = async (mode: AgesPdfExportMode) => {
@@ -372,6 +454,15 @@ export default function AgesTab({ data }: AgesTabProps) {
 
   const columns = useMemo(
     () => [
+      columnHelper.display({
+        id: 'index',
+        header: '#',
+        cell: (info) => (
+          <span className="text-gray-500 font-medium">
+            {info.row.index + 1}
+          </span>
+        ),
+      }),
       columnHelper.accessor('customerName', {
         header: 'Customer Name',
         cell: (info) => (
@@ -379,6 +470,17 @@ export default function AgesTab({ data }: AgesTabProps) {
             {info.getValue()}
           </div>
         ),
+      }),
+      columnHelper.accessor('total', {
+        header: 'NET DEBIT',
+        cell: (info) => {
+          const value = info.getValue();
+          return (
+            <span className={`font-bold whitespace-nowrap ${value > 0 ? 'text-gray-900' : 'text-green-600'}`}>
+              {value.toLocaleString('en-US')}
+            </span>
+          );
+        },
       }),
       columnHelper.accessor('oneToThirty', {
         header: '0 - 30',
@@ -419,17 +521,6 @@ export default function AgesTab({ data }: AgesTabProps) {
             {info.getValue().toLocaleString('en-US')}
           </span>
         ),
-      }),
-      columnHelper.accessor('total', {
-        header: 'TOTAL',
-        cell: (info) => {
-          const value = info.getValue();
-          return (
-            <span className={`font-bold whitespace-nowrap ${value > 0 ? 'text-gray-900' : 'text-green-600'}`}>
-              {value.toLocaleString('en-US')}
-            </span>
-          );
-        },
       }),
     ],
     []
@@ -661,7 +752,8 @@ export default function AgesTab({ data }: AgesTabProps) {
                     {headerGroup.headers.map((header) => {
                       const getWidth = () => {
                         const columnId = header.column.id;
-                        if (columnId === 'customerName') return '30%';
+                        if (columnId === 'index') return '5%';
+                        if (columnId === 'customerName') return '25%';
                         // 6 numeric columns remaining = 70% / 6 ~ 11.6%
                         return '11.6%';
                       };
@@ -689,7 +781,8 @@ export default function AgesTab({ data }: AgesTabProps) {
                     {row.getVisibleCells().map((cell) => {
                       const getWidth = () => {
                         const columnId = cell.column.id;
-                        if (columnId === 'customerName') return '30%';
+                        if (columnId === 'index') return '5%';
+                        if (columnId === 'customerName') return '25%';
                         return '11.6%';
                       };
                       return (
@@ -705,8 +798,12 @@ export default function AgesTab({ data }: AgesTabProps) {
                   </tr>
                 ))}
                 <tr className="bg-gradient-to-r from-gray-100 to-gray-200 font-bold border-t-4 border-gray-300">
-                  <td className="px-6 py-4 text-center text-lg text-gray-900 whitespace-nowrap" style={{ width: '30%' }}>
-                    TOTAL
+                  <td className="px-6 py-4" style={{ width: '5%' }}></td>
+                  <td className="px-6 py-4 text-center text-lg text-gray-900 whitespace-nowrap" style={{ width: '25%' }}>
+                    NET DEBIT
+                  </td>
+                  <td className="px-6 py-4 text-center text-lg whitespace-nowrap" style={{ width: '11.6%' }}>
+                    {grandTotal.toLocaleString('en-US')}
                   </td>
                   <td className="px-6 py-4 text-center text-lg whitespace-nowrap" style={{ width: '11.6%' }}>
                     {total1To30.toLocaleString('en-US')}
@@ -722,9 +819,6 @@ export default function AgesTab({ data }: AgesTabProps) {
                   </td>
                   <td className="px-6 py-4 text-center text-lg text-red-700 whitespace-nowrap" style={{ width: '11.6%' }}>
                     {totalOlder.toLocaleString('en-US')}
-                  </td>
-                  <td className="px-6 py-4 text-center text-lg whitespace-nowrap" style={{ width: '11.6%' }}>
-                    {grandTotal.toLocaleString('en-US')}
                   </td>
                 </tr>
               </tbody>

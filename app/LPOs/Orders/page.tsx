@@ -7,7 +7,9 @@ import {
   Search,
   Eye,
   CheckCircle2,
-  FileSpreadsheet
+  FileSpreadsheet,
+  XCircle,
+  Loader2
 } from 'lucide-react';
 import Link from 'next/link';
 import NoData from '@/app/Components/DataState/NoDataTab';
@@ -85,6 +87,7 @@ export default function OrdersPage() {
   const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
   const [isBulkConfirmModalOpen, setIsBulkConfirmModalOpen] = useState(false);
   const [isBulkSaving, setIsBulkSaving] = useState(false);
+  const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
 
   // Clear selected checkbox state when filters, pagination, or search change
   useEffect(() => {
@@ -139,6 +142,98 @@ export default function OrdersPage() {
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, statusFilter, advancedFilters]);
+
+  const handleUpdateStatus = async (orderId: string, newStatus: string) => {
+    const order = processedOrders.find((o) => o.ID === orderId);
+    if (!order) return;
+    const driverData = order.app_lpos_DRIVERS?.[0];
+    if (!driverData) return;
+
+    const userProfile = currentUserProfile || resolveCurrentUserProfile(users);
+    if (!userProfile?.ID) {
+      toast.error('Could not resolve the current user profile.');
+      return;
+    }
+
+    setUpdatingOrderId(order.ID);
+    try {
+      const isRegularHandover = Boolean(driverData.OFFICE_HANDOVER_ID) || driverData.TRACKING_NOTES === 'SYSTEM_CANCELLED';
+      const isBypassNote = driverData.TRACKING_NOTES === 'SYSTEM_ALREADY_RECEIVED' ||
+        driverData.TRACKING_NOTES === 'SYSTEM_CANCELLED';
+
+      let updatePayload: any = {};
+
+      if (isRegularHandover) {
+        updatePayload = {
+          OFFICE_HANDOVER_STATUS: newStatus,
+          OFFICE_HANDOVER_TIME: new Date().toISOString()
+        };
+
+        if (newStatus === 'Confirmed') {
+          updatePayload.OFFICE_HANDOVER_ID = userProfile.ID || 'R-0001';
+        }
+
+        if (newStatus === 'Rejected') {
+          if (isBypassNote) {
+            updatePayload = {
+              STATUS: 'Assigned',
+              DELIVERY_TIME: null,
+              IS_CUSTOMER_SIGNED: false,
+              OFFICE_HANDOVER_ID: null,
+              OFFICE_HANDOVER_STATUS: null,
+              OFFICE_HANDOVER_TIME: null,
+              TRACKING_NOTES: null
+            };
+          } else {
+            updatePayload = {
+              STATUS: 'Delivered',
+              IS_CUSTOMER_SIGNED: false,
+              OFFICE_HANDOVER_ID: null,
+              OFFICE_HANDOVER_STATUS: null,
+              OFFICE_HANDOVER_TIME: null,
+              TRACKING_NOTES: null
+            };
+          }
+        }
+      } else {
+        if (newStatus === 'Confirmed') {
+          updatePayload = {
+            STATUS: 'Delivered',
+            DELIVERY_TIME: new Date().toISOString(),
+            IS_CUSTOMER_SIGNED: true,
+            OFFICE_HANDOVER_ID: userProfile.ID || 'R-0001',
+            OFFICE_HANDOVER_STATUS: 'Confirmed',
+            OFFICE_HANDOVER_TIME: new Date().toISOString(),
+            TRACKING_NOTES: 'DIRECT_OFFICE_RECEIPT'
+          };
+        } else if (newStatus === 'Rejected') {
+          updatePayload = {
+            STATUS: 'Delivered',
+            DELIVERY_TIME: new Date().toISOString(),
+            IS_CUSTOMER_SIGNED: false,
+            OFFICE_HANDOVER_ID: userProfile.ID || 'R-0001',
+            OFFICE_HANDOVER_STATUS: 'Confirmed',
+            OFFICE_HANDOVER_TIME: new Date().toISOString(),
+            TRACKING_NOTES: 'SYSTEM_CANCELLED'
+          };
+        }
+      }
+
+      const { error } = await bhs_supabas
+        .from('app_lpos_DRIVERS')
+        .update(updatePayload)
+        .eq('ID', driverData.ID);
+
+      if (error) throw error;
+      toast.success(newStatus === 'Confirmed' ? 'Invoice confirmed successfully.' : 'Invoice rejected.');
+      await refresh();
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to update status');
+    } finally {
+      setUpdatingOrderId(null);
+    }
+  };
 
   const handleBulkConfirmReceipt = async () => {
     if (selectedOrderIds.length === 0) return;
@@ -427,7 +522,7 @@ export default function OrdersPage() {
                 <th className="px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] min-w-[250px] w-[30%]">Customer</th>
                 <th className="px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] min-w-[120px]">Amount</th>
                 <th className="px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] min-w-[70px]">Status</th>
-                <th className="px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] min-w-[100px]">Actions</th>
+                <th className="px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] min-w-[180px]">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -508,9 +603,9 @@ export default function OrdersPage() {
                       })()}
                     </td>
 
-                    {/* 7. Action (Icon Only) */}
+                    {/* Actions */}
                     <td className="px-6 py-6 whitespace-nowrap">
-                      <div className="flex justify-center">
+                      <div className="flex items-center justify-center gap-2">
                         <Link
                           href={`/LPOs/OrderDetails?id=${order.ORDER_ID || order.ID}`}
                           className="flex items-center justify-center w-10 h-10 bg-black text-[#D4AF37] rounded-xl hover:bg-gray-900 hover:scale-110 transition-all shadow-lg shadow-black/10"
@@ -518,6 +613,26 @@ export default function OrdersPage() {
                         >
                           <Eye className="w-5 h-5" />
                         </Link>
+                        {order.app_lpos_DRIVERS?.[0] && !['Confirmed', 'Rejected'].includes(order.app_lpos_DRIVERS[0].OFFICE_HANDOVER_STATUS) && (
+                          <>
+                            <button
+                              onClick={() => handleUpdateStatus(order.ID, 'Confirmed')}
+                              disabled={updatingOrderId === order.ID}
+                              className="flex items-center justify-center w-10 h-10 bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 hover:scale-110 transition-all shadow-lg shadow-emerald-500/10 disabled:opacity-50"
+                              title="Confirm Receipt"
+                            >
+                              {updatingOrderId === order.ID ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
+                            </button>
+                            <button
+                              onClick={() => handleUpdateStatus(order.ID, 'Rejected')}
+                              disabled={updatingOrderId === order.ID}
+                              className="flex items-center justify-center w-10 h-10 bg-white border border-red-100 text-red-500 rounded-xl hover:bg-red-50 hover:scale-110 transition-all shadow-sm disabled:opacity-50"
+                              title="Reject Receipt"
+                            >
+                              {updatingOrderId === order.ID ? <Loader2 className="w-5 h-5 animate-spin" /> : <XCircle className="w-5 h-5" />}
+                            </button>
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>

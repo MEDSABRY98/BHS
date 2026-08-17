@@ -1,7 +1,7 @@
 "use client";
 import React, { useEffect, useState } from "react";
 import { CheckCircle } from "lucide-react";
-import { bhs_supabase, fetchAllData, getAllCustomerEmails } from "@/lib/supabase";
+import { bhs_supabase, fetchAllData, getAllCustomerEmails, getLuluEmails } from "@/lib/supabase";
 import { buildCustomerEmailMap, getCustomerEmail } from "@/lib/customerEmailLookup";
 import Sidebar, { CUSTOMERS_DISCOUNTS_TAB_IDS } from "./Utils/Sidebar";
 import { getAllowedModuleTabIds, getCurrentUserFromStorage } from '@/app/AdminControl/AdminControlTab';
@@ -154,7 +154,9 @@ function collectTaxRebateGroups(list: CustomerView[]): { tag: string; group: Cus
 
   for (const customer of list) {
     const tag = (customer.customerTag || "").trim();
-    if (tag) {
+    const isLulu = tag.toUpperCase().includes('LULU');
+
+    if (tag && !isLulu) {
       if (seenTags.has(tag)) continue;
       seenTags.add(tag);
       groups.push({
@@ -162,7 +164,7 @@ function collectTaxRebateGroups(list: CustomerView[]): { tag: string; group: Cus
         group: list.filter((c) => (c.customerTag || "").trim() === tag),
       });
     } else {
-      groups.push({ tag: "", group: [customer] });
+      groups.push({ tag, group: [customer] });
     }
   }
 
@@ -325,14 +327,16 @@ export default function CustomerDiscountsPage() {
     try {
       const clicked = customers.find((c) => c.customerId === customerId);
       const tag = (clicked?.customerTag || "").trim();
-      const group = tag
+      const isLulu = tag.toUpperCase().includes('LULU');
+
+      const group = (tag && !isLulu)
         ? customers.filter((c) => (c.customerTag || "").trim() === tag)
         : [
             {
               customerId,
               customerName,
               city: clicked?.city || "",
-              customerTag: "",
+              customerTag: tag,
               discounts: clicked?.discounts || [],
             },
           ];
@@ -517,9 +521,13 @@ export default function CustomerDiscountsPage() {
     try {
       setLoading(true);
 
-      const [emailsData, discountsData, customersData] = await Promise.all([
+      const [emailsData, luluEmailsData, discountsData, customersData] = await Promise.all([
         getAllCustomerEmails().catch((err) => {
           console.error("Error loading customer emails:", err);
+          return [];
+        }),
+        getLuluEmails().catch((err) => {
+          console.error("Error loading lulu emails:", err);
           return [];
         }),
         fetchAllData(() => bhs_supabase.from("web_CUSTOMERS_DISCOUNTS").select("*")),
@@ -535,7 +543,18 @@ export default function CustomerDiscountsPage() {
         name: row["CUSTOMER MAIN NAME"]?.toString().trim() || "",
       })).filter((row) => row.id);
 
-      setCustomersWithEmails(buildCustomerEmailMap(emailsData || [], customerRows));
+      const allEmails = [...(emailsData || [])];
+      
+      if (luluEmailsData) {
+        luluEmailsData.forEach((lulu: any) => {
+           const combinedEmail = [lulu.to, lulu.cc].filter(Boolean).join(", ");
+           if (combinedEmail && lulu.customerId) {
+             allEmails.push({ customerId: lulu.customerId, email: combinedEmail });
+           }
+        });
+      }
+
+      setCustomersWithEmails(buildCustomerEmailMap(allEmails, customerRows));
 
       // Group discounts by customer ID
       const discountsByCustomer: Record<string, Discount[]> = {};

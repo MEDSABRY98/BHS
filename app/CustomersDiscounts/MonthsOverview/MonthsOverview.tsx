@@ -273,7 +273,7 @@ export default function MonthsOverview({
   if (loading) {
     return (
       <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-gray-50 animate-in fade-in duration-300">
-        <div className="max-w-7xl mx-auto space-y-8">
+        <div className="max-w-[1450px] mx-auto space-y-8">
           <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4 animate-pulse">
             <div className="flex items-center gap-3 w-full sm:w-auto">
               <div className="bg-gray-200 w-12 h-12 rounded-2xl" />
@@ -307,7 +307,7 @@ export default function MonthsOverview({
 
   return (
     <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-gray-50 animate-in fade-in duration-300">
-      <div className="max-w-7xl mx-auto space-y-8">
+      <div className="max-w-[1450px] mx-auto space-y-8">
         {!selectedMonthGroup ? (
           <>
             <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4">

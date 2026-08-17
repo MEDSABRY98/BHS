@@ -75,7 +75,7 @@ export default function CustomerDetails(props: CustomerDetailsProps) {
 
   return (
     <div className="flex-1 overflow-y-auto p-8 animate-in fade-in duration-300">
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-[1450px] mx-auto">
         <div className="bg-white rounded-3xl p-6 md:p-8 border border-gray-100 shadow-sm sticky top-0 z-10 mb-8">
           <div className="flex items-center gap-6 mb-8">
             <button

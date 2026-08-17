@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Search, User, ChevronRight, FileSpreadsheet, Loader2, Mail, CheckCircle2, Archive } from "lucide-react";
+import { Search, User, ChevronRight, FileSpreadsheet, Loader2, Mail, CheckCircle2, Archive, ChevronDown, Filter } from "lucide-react";
 import { exportCustomersExcel } from "./ExportExcel";
 import ExportExcelModal, { type ExportExcelOptions } from "./ExportExcelModal";
 import { hasCustomerEmail } from "@/lib/customerEmailLookup";
@@ -36,9 +36,19 @@ export default function CustomersList({
 }: CustomersListProps) {
   const [exporting, setExporting] = useState(false);
   const [exportModalOpen, setExportModalOpen] = useState(false);
+  const [settlementFilter, setSettlementFilter] = useState<"All" | "Monthly" | "WithPayment">("All");
+  const [filterOpen, setFilterOpen] = useState(false);
 
   const safeCustomers = customers ?? [];
   const safeFilteredCustomers = filteredCustomers ?? [];
+
+  const finalFilteredCustomers = safeFilteredCustomers.filter(c => {
+    if (settlementFilter === "All") return true;
+    const hasWithPayment = c.discounts.some(d => d.settlementType === "with_payment");
+    if (settlementFilter === "Monthly") return !hasWithPayment;
+    if (settlementFilter === "WithPayment") return hasWithPayment;
+    return true;
+  });
 
   const exportCities = Array.from(new Set(safeCustomers.map((c) => c.city || "Unknown"))).filter(Boolean);
 
@@ -88,13 +98,16 @@ export default function CustomersList({
 
   return (
     <div className="flex-1 overflow-y-auto p-8 animate-in fade-in duration-300">
-      <div className="max-w-7xl mx-auto">
-        <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4 mb-8">
+      <div className="max-w-[1450px] mx-auto">
+        <div className="relative z-30 bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4 mb-8">
           <div className="flex items-center gap-3 w-full sm:w-auto">
             <div className="bg-[#D4AF37]/10 p-3 rounded-2xl">
               <User className="w-6 h-6 text-[#D4AF37]" />
             </div>
-            <h2 className="text-2xl font-bold text-gray-900">Customers List</h2>
+            <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+              Customers List
+              <span className="text-gray-400 text-lg">({finalFilteredCustomers.length})</span>
+            </h2>
             {downloadAllTaxRebateEmlsZip && (
               <button
                 type="button"
@@ -130,7 +143,7 @@ export default function CustomersList({
           </div>
 
           <div className="flex items-center gap-3 w-full sm:w-auto">
-            <div className="relative w-full sm:w-80">
+            <div className="relative w-full sm:w-64">
               <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                 <Search className="h-5 w-5 text-gray-400" />
               </div>
@@ -139,8 +152,46 @@ export default function CustomersList({
                 placeholder="Search by name or ID..." 
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="block w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#D4AF37] focus:border-[#D4AF37] transition-all font-medium text-gray-900 placeholder-gray-400"
+                className="block w-full pl-11 pr-4 py-3 bg-white border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#D4AF37] focus:border-[#D4AF37] transition-all font-medium text-gray-900 placeholder-gray-400 shadow-sm"
               />
+            </div>
+
+            <div className="relative w-full sm:w-48">
+              <button
+                onClick={() => setFilterOpen(!filterOpen)}
+                className="w-full flex items-center justify-between px-4 py-3 bg-white border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#D4AF37] focus:border-[#D4AF37] transition-all font-medium text-gray-900 shadow-sm"
+              >
+                <div className="flex items-center gap-2 text-sm">
+                  <Filter className="w-4 h-4 text-gray-400" />
+                  {settlementFilter === "All" ? "All Types" : settlementFilter === "Monthly" ? "Monthly" : "With Payment"}
+                </div>
+                <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${filterOpen ? "rotate-180" : ""}`} />
+              </button>
+              
+              {filterOpen && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setFilterOpen(false)} />
+                  <div className="absolute top-full mt-2 w-full bg-white border border-gray-100 rounded-2xl shadow-xl overflow-hidden z-20 animate-in fade-in slide-in-from-top-2 duration-200">
+                    {[
+                      { value: "All", label: "All Types" },
+                      { value: "Monthly", label: "Monthly" },
+                      { value: "WithPayment", label: "With Payment" }
+                    ].map(opt => (
+                      <button
+                        key={opt.value}
+                        onClick={() => {
+                          setSettlementFilter(opt.value as any);
+                          setFilterOpen(false);
+                        }}
+                        className={`w-full text-left px-4 py-3 text-sm font-medium transition-colors hover:bg-gray-50 flex items-center justify-between ${settlementFilter === opt.value ? "text-[#D4AF37] bg-[#D4AF37]/5" : "text-gray-700"}`}
+                      >
+                        {opt.label}
+                        {settlementFilter === opt.value && <CheckCircle2 className="w-4 h-4 text-[#D4AF37]" />}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
             
             <button
@@ -172,7 +223,7 @@ export default function CustomersList({
               </div>
             ))}
           </div>
-        ) : safeFilteredCustomers.length === 0 ? (
+        ) : finalFilteredCustomers.length === 0 ? (
           <div className="text-center py-20 bg-white rounded-3xl shadow-sm border border-gray-100">
             <User className="mx-auto h-16 w-16 text-gray-300 mb-4" />
             <h3 className="text-xl font-bold text-gray-900">No Customers Found</h3>
@@ -180,11 +231,19 @@ export default function CustomersList({
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
-            {safeFilteredCustomers.map((c) => (
+            {finalFilteredCustomers.map((c) => {
+              const hasWithPayment = c.discounts.some(d => d.settlementType === "with_payment");
+              const borderClass = c.discounts.length > 0
+                ? hasWithPayment
+                  ? "border-t-[6px] border-t-cyan-400"
+                  : "border-t-[6px] border-t-green-400"
+                : "";
+                
+              return (
               <div
                 key={c.customerId}
                 onClick={() => handleSelectCustomer(c)}
-                className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm hover:shadow-lg hover:border-[#D4AF37]/40 transition-all cursor-pointer group flex flex-col h-full"
+                className={`bg-white rounded-3xl p-6 border border-gray-100 shadow-sm hover:shadow-lg transition-all cursor-pointer group flex flex-col h-full ${borderClass}`}
               >
                 <div className="flex justify-between items-start mb-5">
                   <div className="bg-[#D4AF37]/10 p-3 rounded-2xl group-hover:bg-[#D4AF37]/20 transition-colors">
@@ -228,16 +287,6 @@ export default function CustomersList({
                 <p className="text-sm text-gray-500 flex items-center gap-2 mb-6">
                   <span className="w-1.5 h-1.5 rounded-full bg-blue-400"></span>
                   {c.city}
-                  {c.discounts.length > 0 && (() => {
-                    const hasWithPayment = c.discounts.some(d => d.settlementType === "with_payment");
-                    const badgeText = hasWithPayment ? "مع السداد" : "شهرية";
-                    const badgeColor = hasWithPayment ? "bg-blue-50 text-blue-600 border-blue-100" : "bg-green-50 text-green-600 border-green-100";
-                    return (
-                      <span className={`ml-auto px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${badgeColor}`}>
-                        {badgeText}
-                      </span>
-                    );
-                  })()}
                 </p>
                 
                 <div className="mt-auto flex items-center justify-between text-sm font-bold text-gray-900 group-hover:text-[#D4AF37] transition-colors">
@@ -245,7 +294,7 @@ export default function CustomersList({
                   <ChevronRight className="w-5 h-5 transform group-hover:translate-x-1 transition-transform" />
                 </div>
               </div>
-            ))}
+            )})}
           </div>
         )}
       </div>

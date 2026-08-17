@@ -84,7 +84,7 @@ export default function Statistics({ customers }: StatisticsProps) {
 
   return (
     <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-gray-50 animate-in fade-in duration-300">
-       <div className="max-w-7xl mx-auto space-y-8">
+       <div className="max-w-[1450px] mx-auto space-y-8">
          
          {/* Header */}
          <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex items-center gap-4">

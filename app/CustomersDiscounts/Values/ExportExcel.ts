@@ -32,7 +32,9 @@ export async function exportDiscountValuesExcel(
     'Discount (%)',
     'Net Sales',
     'Discount Value',
+    'D %',
     'Rent (AED)',
+    'R %',
   ];
 
   const worksheet = workbook.addWorksheet('Values', {
@@ -45,6 +47,8 @@ export async function exportDiscountValuesExcel(
     if (key === 'Customer Name') width = 40;
     if (key === 'City') width = 22;
     if (key === 'Discount (%)') width = 14;
+    if (key === 'D %') width = 12;
+    if (key === 'R %') width = 12;
     return { header: key, key, width };
   });
 
@@ -66,7 +70,9 @@ export async function exportDiscountValuesExcel(
       'Discount (%)': row.discountPercent > 0 ? row.discountPercent : 0,
       'Net Sales': row.netSales,
       'Discount Value': row.discountValue,
+      'D %': totals.discountValue > 0 ? (row.discountValue / totals.discountValue) * 100 : 0,
       'Rent (AED)': row.rent > 0 ? row.rent : 0,
+      'R %': totals.rent > 0 ? (row.rent / totals.rent) * 100 : 0,
     })),
     {
       '#': '',
@@ -75,7 +81,9 @@ export async function exportDiscountValuesExcel(
       'Discount (%)': '',
       'Net Sales': totals.netSales,
       'Discount Value': totals.discountValue,
+      'D %': totals.discountValue > 0 ? 100 : 0,
       'Rent (AED)': totals.rent,
+      'R %': totals.rent > 0 ? 100 : 0,
     },
   ];
 
@@ -116,11 +124,21 @@ export async function exportDiscountValuesExcel(
         };
       }
 
-      if (columnKey === 'Discount (%)' && !isTotal) {
+      if ((columnKey === 'Discount (%)' || columnKey === 'D %' || columnKey === 'R %') && !isTotal) {
         const val = Number(cell.value);
         if (!isNaN(val) && val > 0) {
-          cell.value = `${val}%`;
+          if (columnKey === 'Discount (%)') {
+            cell.value = `${val}%`;
+          } else {
+            cell.value = `${val.toFixed(2)}%`;
+          }
+        } else {
+          cell.value = '0%';
         }
+      }
+
+      if (isTotal && (columnKey === 'D %' || columnKey === 'R %')) {
+        cell.value = `${cell.value}%`;
       }
 
       if (

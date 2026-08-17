@@ -1,13 +1,12 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { InvoiceRow } from '@/types';
-import { parseDate } from '../CstomersUtils';
+import { parseDate } from '../CustomersTab/CstomersUtils';
 
 interface FilterModalProps {
   isOpen: boolean;
   onClose: () => void;
   filters: any;
   setFilters: (filters: any) => void;
-  allSalesReps: string[];
   filteredDataCount: number;
   data: InvoiceRow[];
 }
@@ -90,7 +89,6 @@ const FilterModal: React.FC<FilterModalProps> = ({
   onClose,
   filters,
   setFilters,
-  allSalesReps,
   filteredDataCount,
   data
 }) => {
@@ -248,6 +246,12 @@ const FilterModal: React.FC<FilterModalProps> = ({
     { value: 'BAD', label: 'Bad' }
   ];
 
+  const allSalesReps = useMemo(() => {
+    const reps = new Set<string>();
+    data.forEach(row => { if (row.salesRep && row.salesRep.trim()) reps.add(row.salesRep.trim()); });
+    return Array.from(reps).sort();
+  }, [data]);
+
   const areaOptions = useMemo(() => {
     return [
       { value: 'ALL', label: 'All Regions' },
@@ -310,7 +314,7 @@ const FilterModal: React.FC<FilterModalProps> = ({
         </div>
 
         {/* Modal Body - Split Layout */}
-        <div className="flex flex-1 overflow-visible">
+        <div className="flex flex-1 overflow-visible min-h-0">
           {/* Sidebar Tabs */}
           <div className="w-52 bg-gray-50 border-r border-gray-100 p-2 space-y-1 overflow-y-auto rounded-bl-2xl">
             {[
@@ -330,7 +334,7 @@ const FilterModal: React.FC<FilterModalProps> = ({
           </div>
 
           {/* Content Area */}
-          <div className={`flex-1 p-6 bg-white ${activeTab === 'GENERAL' ? 'overflow-visible' : 'overflow-y-auto'}`}>
+          <div className={`flex-1 p-6 bg-white min-h-0 ${activeTab === 'GENERAL' ? 'overflow-visible' : 'overflow-y-auto'}`}>
             {activeTab === 'GENERAL' && (
               <div className="space-y-6 max-w-lg">
                 <h4 className="text-base font-semibold text-gray-800 border-b pb-2">General Filters</h4>

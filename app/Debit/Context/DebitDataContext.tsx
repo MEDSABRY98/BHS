@@ -13,6 +13,15 @@ export type LuluEmailRecord = {
   cc?: string;
 };
 
+export interface GlobalDebitFilters {
+  customerRating: string;
+  selectedSalesRep: string;
+  emailFilter: string;
+  overdueMonth: string[];
+  overdueYear: string[];
+  selectedCustomerTags: string[];
+}
+
 export interface DebitDataContextValue {
   data: InvoiceRow[];
   loading: boolean;
@@ -26,6 +35,8 @@ export interface DebitDataContextValue {
   customersWithEmails: Map<string, string>;
   luluEmails: LuluEmailRecord[];
   emailsReady: boolean;
+  globalFilters: GlobalDebitFilters;
+  setGlobalFilters: React.Dispatch<React.SetStateAction<GlobalDebitFilters>>;
   refresh: (silent?: boolean) => Promise<void>;
   ensureFullData: () => Promise<void>;
   getCustomerInvoices: (customerName: string) => InvoiceRow[];
@@ -68,6 +79,14 @@ export function DebitDataProvider({
   const [customersWithEmails, setCustomersWithEmails] = useState<Map<string, string>>(new Map());
   const [luluEmails, setLuluEmails] = useState<LuluEmailRecord[]>([]);
   const [emailsReady, setEmailsReady] = useState(false);
+  const [globalFilters, setGlobalFilters] = useState<GlobalDebitFilters>({
+    customerRating: 'ALL',
+    selectedSalesRep: 'ALL',
+    emailFilter: 'ALL',
+    overdueMonth: [],
+    overdueYear: [],
+    selectedCustomerTags: [],
+  });
   const metaRequestId = useRef(0);
   const fullDataRequestId = useRef(0);
   const fullDataPromiseRef = useRef<Promise<void> | null>(null);
@@ -219,6 +238,8 @@ export function DebitDataProvider({
       customersWithEmails,
       luluEmails,
       emailsReady,
+      globalFilters,
+      setGlobalFilters,
       refresh,
       ensureFullData,
       getCustomerInvoices,
@@ -236,6 +257,7 @@ export function DebitDataProvider({
       customersWithEmails,
       luluEmails,
       emailsReady,
+      globalFilters,
       refresh,
       ensureFullData,
       getCustomerInvoices,

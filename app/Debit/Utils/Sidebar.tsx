@@ -1,4 +1,5 @@
 'use client';
+import { useState, useMemo } from 'react';
 
 import {
   Users,
@@ -18,7 +19,11 @@ import {
   ShieldAlert,
   ClipboardCheck,
   FolderOpen,
+  Filter,
 } from 'lucide-react';
+import { useDebitData } from '../Context/DebitDataContext';
+import FilterModal from '../Modals/FilterModal';
+import { useGlobalDebitFilter } from '../Hooks/useGlobalDebitFilter';
 
 interface DebitSidebarProps {
   activeTab: string;
@@ -79,6 +84,18 @@ export default function DebitSidebar({
   };
 
   const tabs = getFilteredTabs();
+  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
+  const { data, globalFilters, setGlobalFilters, invoicesByCustomer, customersWithEmails, luluEmails } = useDebitData();
+
+  const globallyFilteredData = useGlobalDebitFilter(
+    data, globalFilters, invoicesByCustomer, customersWithEmails, luluEmails
+  );
+
+  const filteredDataCount = useMemo(() => {
+    const customers = new Set<string>();
+    globallyFilteredData.forEach(r => customers.add(r.customerName));
+    return customers.size;
+  }, [globallyFilteredData]);
 
   return (
     <div className="flex flex-col h-full bg-[#0a0f1d] text-white border-r border-indigo-950/20">
@@ -166,6 +183,19 @@ export default function DebitSidebar({
       )}
 
       <div className="p-4 border-t border-white/5 mt-auto flex flex-col gap-2 shrink-0">
+        <button
+          onClick={() => setIsFilterModalOpen(true)}
+          className={`flex items-center justify-center ${isCollapsed ? 'w-10 h-10' : 'w-full py-2.5 px-4'} hover:bg-white/10 rounded-xl transition-all duration-200 text-purple-400 group relative border border-purple-500/30 bg-purple-500/5`}
+          title={isCollapsed ? 'Advanced Filters' : undefined}
+        >
+          <Filter className="w-5 h-5 shrink-0 group-hover:scale-110 transition-transform" />
+          {!isCollapsed && <span className="ml-3 text-sm font-bold tracking-wide">Advanced Filters</span>}
+          {/* Active filter indicator */}
+          {(globalFilters.customerRating !== 'ALL' || globalFilters.selectedSalesRep !== 'ALL' || globalFilters.emailFilter !== 'ALL' || globalFilters.overdueMonth.length > 0 || globalFilters.overdueYear.length > 0 || globalFilters.selectedCustomerTags.length > 0) && (
+            <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse border-2 border-[#0a0f1d]"></span>
+          )}
+        </button>
+
         {onRefresh && (
           <button
             onClick={onRefresh}
@@ -185,6 +215,15 @@ export default function DebitSidebar({
           {isCollapsed ? <ChevronRight className="w-5 h-5 shrink-0" /> : <ChevronLeft className="w-5 h-5 shrink-0" />}
         </button>
       </div>
+
+      <FilterModal
+        isOpen={isFilterModalOpen}
+        onClose={() => setIsFilterModalOpen(false)}
+        filters={globalFilters}
+        setFilters={setGlobalFilters}
+        filteredDataCount={filteredDataCount}
+        data={data}
+      />
     </div>
   );
 }

@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Search, MailPlus } from 'lucide-react';
+import { Plus, Edit2, Trash2, Search, MailPlus, FileSpreadsheet } from 'lucide-react';
+import { exportStyledExcel } from '@/app/Components/Export/ExcelExport';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import { toast } from '@/app/Components/Notification';
 import { fetchLuluEmails, addLuluEmail, updateLuluEmail, deleteLuluEmail } from '../Service/database_service';
@@ -45,6 +46,23 @@ export default function LuluEmailsDatabasePage() {
     (item['CUSTOMER CODE']?.toLowerCase() || '').includes(search.toLowerCase()) ||
     (item['TO:']?.toLowerCase() || '').includes(search.toLowerCase())
   );
+
+  const handleExport = async () => {
+    if (filteredData.length === 0) {
+      toast.warning('No data to export');
+      return;
+    }
+    
+    const exportData = filteredData.map(item => ({
+      'Customer ID': item['CUSTOMER ID'] || '',
+      'Customer Name': item['Customer Name'] || 'Unknown Customer',
+      'Customer Code': item['CUSTOMER CODE'] || '',
+      'To': item['TO:'] || '',
+      'CC': item['CC:'] || ''
+    }));
+
+    await exportStyledExcel(exportData, `LuluEmails_DB_${new Date().toISOString().split('T')[0]}.xlsx`);
+  };
 
   const handleOpenModal = (item: any = null) => {
     if (item) {
@@ -110,6 +128,13 @@ export default function LuluEmailsDatabasePage() {
         </div>
         <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
           <button
+            onClick={handleExport}
+            className="p-4 bg-white text-green-700 border border-green-200 rounded-2xl shadow-sm hover:bg-green-50 active:scale-[0.98] transition-all flex items-center justify-center"
+            title="Export to Excel"
+          >
+            <FileSpreadsheet className="w-6 h-6" />
+          </button>
+          <button
             onClick={() => handleOpenModal()}
             className="p-4 bg-black text-[#D4AF37] rounded-2xl shadow-xl shadow-black/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center"
             title="New Lulu Email"
@@ -137,6 +162,7 @@ export default function LuluEmailsDatabasePage() {
           <table className="w-full text-center border-collapse">
             <thead>
               <tr className="bg-gray-50 text-xs uppercase tracking-wider text-gray-500">
+                <th className="px-6 py-4 font-medium border-b border-gray-100 text-center w-32">Customer ID</th>
                 <th className="px-6 py-4 font-medium border-b border-gray-100 text-center w-64">Customer Name</th>
                 <th className="px-6 py-4 font-medium border-b border-gray-100 text-center w-32">Customer Code</th>
                 <th className="px-6 py-4 font-medium border-b border-gray-100 text-center w-64">To</th>
@@ -148,20 +174,21 @@ export default function LuluEmailsDatabasePage() {
               {loading ? (
                 Array(5).fill(0).map((_, i) => (
                   <tr key={i} className="animate-pulse">
-                    <td colSpan={5} className="px-6 py-6">
+                    <td colSpan={6} className="px-6 py-6">
                       <div className="h-6 bg-gray-50 rounded-xl w-full"></div>
                     </td>
                   </tr>
                 ))
               ) : filteredData.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="p-0">
+                  <td colSpan={6} className="p-0">
                     <NoData title="NO LULU EMAILS FOUND" />
                   </td>
                 </tr>
               ) : (
                 filteredData.map((item, idx) => (
                   <tr key={item.ID || idx} className="hover:bg-gray-50/50 transition-colors">
+                    <td className="px-6 py-4 text-sm text-gray-500 text-center">{item['CUSTOMER ID']}</td>
                     <td className="px-6 py-4 text-sm font-medium text-gray-900 text-center">{item['Customer Name']}</td>
                     <td className="px-6 py-4 text-sm text-gray-500 text-center">{item['CUSTOMER CODE']}</td>
                     <td className="px-6 py-4 text-sm text-gray-500 max-w-[200px] truncate mx-auto text-center">{item['TO:']}</td>

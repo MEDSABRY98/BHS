@@ -332,8 +332,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
         </aside>
 
-        <main className="flex-1 p-4 md:p-8 lg:p-12">
-          <div className={`${(pathname === '/LPOs' || pathname === '/LPOs/Orders' || pathname === '/LPOs/CreateOrders' || pathname === '/LPOs/InvoiceCancel' || pathname.startsWith('/DataBase')) ? 'max-w-[1600px]' : 'max-w-7xl'} mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500`}>
+        <main className="flex-1 p-4 md:p-8 lg:p-8">
+          <div className={`${(pathname === '/LPOs' || pathname === '/LPOs/Orders' || pathname === '/LPOs/CreateOrders' || pathname === '/LPOs/InvoiceCancel' || pathname.startsWith('/DataBase')) ? 'max-w-[1700px]' : 'max-w-7xl'} mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500`}>
             {children}
           </div>
         </main>

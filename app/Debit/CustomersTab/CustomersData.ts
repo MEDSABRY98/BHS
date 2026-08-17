@@ -5,6 +5,7 @@ import {
   isPaymentTxn,
   getPaymentAmount,
   calculateDebtRating,
+  generateCustomerAnalysis,
 } from './CstomersUtils';
 import { useDebitData } from '../Context/DebitDataContext';
 
@@ -18,293 +19,27 @@ interface UseCustomerDataProps {
 export const useCustomerData = (data: InvoiceRow[] = [], filters: any, mode: any, yearlySorting: any) => {
   const { customersWithEmails, luluEmails, invoicesByCustomer } = useDebitData();
   const customerAnalysis = useMemo(() => {
-    type CustomerData = CustomerAnalysis & {
-      customerId: string;
-      matchingsMap: Map<string, number>;
-      lastPaymentMatching: string | null;
-      lastPaymentAmount: number | null;
-      lastSalesAmount: number | null;
-      creditPayments: number;
-      creditReturns: number;
-      creditDiscounts: number;
-      sales3m: number;
-      salesCount3m: number;
-      payments3m: number;
-      paymentsCount3m: number;
-      paymentDates: Set<string>;
-    };
-    const customerMap = new Map<string, CustomerData>();
-    const now = new Date();
-    const date90DaysAgo = new Date();
-    date90DaysAgo.setDate(now.getDate() - 90);
-
-    data.forEach((row) => {
-      let existing = customerMap.get(row.customerName);
-      if (!existing) {
-        existing = {
-          customerId: row.customerId || '',
-          customerName: row.customerName,
-          creditLimit: row.creditLimit || 0,
-          totalDebit: 0,
-          totalCredit: 0,
-          netDebt: 0,
-          netSales: 0,
-          transactionCount: 0,
-          matchingsMap: new Map(),
-          salesReps: new Set(),
-          customerTags: new Set(),
-          invoiceNumbers: new Set(),
-          lastPaymentDate: null,
-          lastPaymentMatching: null,
-          lastPaymentAmount: null,
-          lastSalesDate: null,
-          lastSalesAmount: null,
-          lastTransactionDate: null,
-          creditPayments: 0,
-          creditReturns: 0,
-          creditDiscounts: 0,
-          sales3m: 0,
-          salesCount3m: 0,
-          payments3m: 0,
-          paymentsCount3m: 0,
-          paymentDates: new Set(),
-        };
-      }
-
-      const n = (row.number || '').toUpperCase();
-      let type = '';
-      if (n.startsWith('BNK')) type = 'Payment';
-      else if (n.startsWith('PBNK') && row.debit > 0.01) type = 'Other';
-      else if (n.startsWith('SAL')) type = 'Sales';
-      else if (n.startsWith('RSAL')) type = 'Return';
-      else if (n.startsWith('JV') || n.startsWith('BIL')) type = 'Discount';
-      else if (row.credit > 0.01 && !n.startsWith('PBNK')) type = 'Payment';
-
-      const netCollection = row.credit - row.debit;
-      if (type === 'Payment') {
-        existing.creditPayments += netCollection;
-        existing.totalCredit += netCollection;
-      } else if (type === 'Return') {
-        existing.creditReturns += netCollection;
-        existing.totalCredit += netCollection;
-      } else if (type === 'Discount') {
-        existing.creditDiscounts += netCollection;
-        existing.totalCredit += netCollection;
-      } else {
-        existing.totalDebit += row.debit;
-        existing.totalCredit += row.credit;
-      }
-
-      existing.netDebt = existing.totalDebit - existing.totalCredit;
-      existing.transactionCount += 1;
-
-      const rowDate = parseDate(row.date);
-      if (rowDate && rowDate >= date90DaysAgo) {
-        if (type === 'Payment') {
-          existing.payments3m += (row.credit - row.debit);
-          existing.paymentsCount3m += 1;
-        } else if (type === 'Sales') {
-          existing.sales3m += (row.debit - row.credit);
-          existing.salesCount3m += 1;
-        }
-      }
-
-      const num = row.number?.toString().toUpperCase() || '';
-      if (num.startsWith('SAL')) {
-        existing.netSales = (existing.netSales || 0) + row.debit;
-        existing.totalSalesDebit = (existing.totalSalesDebit || 0) + row.debit;
-      } else if (num.startsWith('RSAL')) {
-        existing.netSales = (existing.netSales || 0) - row.credit;
-      }
-
-      if (row.salesRep && row.salesRep.trim()) existing.salesReps?.add(row.salesRep.trim());
-      if (row.customerTag && row.customerTag.trim()) existing.customerTags?.add(row.customerTag.trim());
-      if (row.number) existing.invoiceNumbers?.add(row.number.toString());
-      if (row.matching) {
-        const currentMatchTotal = existing.matchingsMap.get(row.matching) || 0;
-        existing.matchingsMap.set(row.matching, currentMatchTotal + (row.debit - row.credit));
-      }
-
-      if (rowDate) {
-        if (!existing.lastTransactionDate || rowDate > existing.lastTransactionDate) existing.lastTransactionDate = rowDate;
-        if (isPaymentTxn(row) && (row.credit || 0) > 0.01) {
-          const amount = getPaymentAmount(row);
-          if (!existing.lastPaymentDate || rowDate > existing.lastPaymentDate) {
-            existing.lastPaymentDate = rowDate;
-            existing.lastPaymentMatching = row.matching || 'UNMATCHED';
-            existing.lastPaymentAmount = amount;
-          } else if (existing.lastPaymentDate && rowDate.getTime() === existing.lastPaymentDate.getTime()) {
-            existing.lastPaymentAmount = (existing.lastPaymentAmount || 0) + amount;
-          }
-          const dKey = rowDate.toISOString().split('T')[0];
-          existing.paymentDates.add(dKey);
-        }
-        const num = row.number?.toString().toUpperCase() || '';
-        if (num.startsWith('SAL') && row.debit > 0) {
-          if (!existing.lastSalesDate || rowDate > existing.lastSalesDate) {
-            existing.lastSalesDate = rowDate;
-            existing.lastSalesAmount = row.debit;
-          } else if (existing.lastSalesDate && rowDate.getTime() === existing.lastSalesDate.getTime()) {
-            existing.lastSalesAmount = (existing.lastSalesAmount || 0) + row.debit;
-          }
-        }
-      }
-      customerMap.set(row.customerName, existing);
-    });
-
-    const customerInvoicesMap = new Map<string, InvoiceRow[]>();
-    data.forEach(row => {
-      const invoices = customerInvoicesMap.get(row.customerName) || [];
-      invoices.push(row);
-      customerInvoicesMap.set(row.customerName, invoices);
-    });
-
-    return Array.from(customerMap.values()).map(c => {
-      let hasOpen = false;
-      for (const amount of c.matchingsMap.values()) {
-        if (Math.abs(amount) > 0.01) {
-          hasOpen = true;
-          break;
-        }
-      }
-
-      const pDates = Array.from(c.paymentDates).map(d => new Date(d)).sort((a, b) => a.getTime() - b.getTime());
-      let avgInterval = 0;
-      if (pDates.length > 1) {
-        let totalDays = 0;
-        for (let i = 1; i < pDates.length; i++) {
-          totalDays += (pDates[i].getTime() - pDates[i - 1].getTime()) / (1000 * 60 * 60 * 24);
-        }
-        avgInterval = totalDays / (pDates.length - 1);
-      }
-
-      const customerInvoices = customerInvoicesMap.get(c.customerName) || [];
-      const agingBreakdown = { atDate: 0, oneToThirty: 0, thirtyOneToSixty: 0, sixtyOneToNinety: 0, ninetyOneToOneTwenty: 0, older: 0 };
-      let totalOverdue = 0;
-      const matchingGroups = new Map<string, InvoiceRow[]>();
-      customerInvoices.forEach(inv => {
-        const key = inv.matching || 'UNMATCHED';
-        const group = matchingGroups.get(key) || [];
-        group.push(inv);
-        matchingGroups.set(key, group);
-      });
-
-      const matchingResiduals = new Map<string, InvoiceRow>();
-      matchingGroups.forEach((group, matchingKey) => {
-        if (matchingKey === 'UNMATCHED') return;
-        let groupNetDebt = group.reduce((sum, inv) => sum + (inv.debit - inv.credit), 0);
-        if (Math.abs(groupNetDebt) <= 0.01) return;
-        let residualHolder = group[0];
-        let maxDebit = -1;
-        group.forEach(inv => { if (inv.debit > maxDebit) { maxDebit = inv.debit; residualHolder = inv; } });
-        matchingResiduals.set(matchingKey, residualHolder);
-      });
-
-      matchingGroups.forEach((group, matchingKey) => {
-        const groupNetDebt = group.reduce((sum, inv) => sum + (inv.debit - inv.credit), 0);
-        if (Math.abs(groupNetDebt) <= 0.01) return;
-        if (matchingKey === 'UNMATCHED') {
-          group.forEach(inv => {
-            const invNetDebt = inv.debit - inv.credit;
-            if (Math.abs(invNetDebt) <= 0.01) return;
-            let daysOverdue = 0;
-            let targetDate = inv.dueDate ? parseDate(inv.dueDate) : (inv.date ? parseDate(inv.date) : null);
-            if (targetDate) {
-              const today = new Date(); today.setHours(0, 0, 0, 0); targetDate.setHours(0, 0, 0, 0);
-              daysOverdue = Math.ceil((today.getTime() - targetDate.getTime()) / (1000 * 60 * 60 * 24));
-            }
-            if (daysOverdue <= 0) agingBreakdown.atDate += invNetDebt;
-            else if (daysOverdue <= 30) agingBreakdown.oneToThirty += invNetDebt;
-            else if (daysOverdue <= 60) agingBreakdown.thirtyOneToSixty += invNetDebt;
-            else if (daysOverdue <= 90) agingBreakdown.sixtyOneToNinety += invNetDebt;
-            else if (daysOverdue <= 120) agingBreakdown.ninetyOneToOneTwenty += invNetDebt;
-            else agingBreakdown.older += invNetDebt;
-            totalOverdue += invNetDebt;
-          });
-        } else {
-          const firstInv = group[0];
-          let daysOverdue = 0;
-          let targetDate = firstInv.dueDate ? parseDate(firstInv.dueDate) : (firstInv.date ? parseDate(firstInv.date) : null);
-          if (targetDate) {
-            const today = new Date(); today.setHours(0, 0, 0, 0); targetDate.setHours(0, 0, 0, 0);
-            daysOverdue = Math.ceil((today.getTime() - targetDate.getTime()) / (1000 * 60 * 60 * 24));
-          }
-          if (daysOverdue <= 0) agingBreakdown.atDate += groupNetDebt;
-          else if (daysOverdue <= 30) agingBreakdown.oneToThirty += groupNetDebt;
-          else if (daysOverdue <= 60) agingBreakdown.thirtyOneToSixty += groupNetDebt;
-          else if (daysOverdue <= 90) agingBreakdown.sixtyOneToNinety += groupNetDebt;
-          else if (daysOverdue <= 120) agingBreakdown.ninetyOneToOneTwenty += groupNetDebt;
-          else agingBreakdown.older += groupNetDebt;
-          totalOverdue += groupNetDebt;
-        }
-      });
-
-      let hasOBFlag = false;
-      let openOBAmount = 0;
-      matchingGroups.forEach((group, matchingKey) => {
-        if (matchingKey === 'UNMATCHED') {
-          group.forEach(inv => {
-            const invNetDebt = inv.debit - inv.credit;
-            if (Math.abs(invNetDebt) > 0.01 && (inv.number?.toString().toUpperCase() || '').startsWith('OB')) {
-              hasOBFlag = true; openOBAmount += invNetDebt;
-            }
-          });
-        } else {
-          const residualHolder = matchingResiduals.get(matchingKey);
-          if (residualHolder) {
-            const groupNetDebt = group.reduce((sum, inv) => sum + (inv.debit - inv.credit), 0);
-            if (Math.abs(groupNetDebt) > 0.01 && (residualHolder.number?.toString().toUpperCase() || '').startsWith('OB')) {
-              hasOBFlag = true; openOBAmount += groupNetDebt;
-            }
-          }
-        }
-      });
-
-      return {
-        customerId: c.customerId, customerName: c.customerName, totalDebit: c.totalDebit, totalCredit: c.totalCredit, netDebt: c.netDebt,
-        creditLimit: c.creditLimit,
-        netSales: c.netSales || 0, transactionCount: c.transactionCount, hasOpenMatchings: hasOpen, salesReps: c.salesReps, customerTags: c.customerTags, invoiceNumbers: c.invoiceNumbers,
-        lastPaymentDate: c.lastPaymentDate, lastPaymentMatching: c.lastPaymentMatching, lastPaymentAmount: c.lastPaymentAmount,
-        lastSalesDate: c.lastSalesDate, lastSalesAmount: c.lastSalesAmount, overdueAmount: totalOverdue, hasOB: hasOBFlag, openOBAmount, agingBreakdown,
-        payments3m: c.payments3m, paymentsCount3m: c.paymentsCount3m, sales3m: c.sales3m, salesCount3m: c.salesCount3m, lastTransactionDate: c.lastTransactionDate, creditPayments: c.creditPayments,
-        creditReturns: c.creditReturns, creditDiscounts: c.creditDiscounts, totalSalesDebit: c.totalSalesDebit, avgPaymentInterval: avgInterval
-      };
-    }).sort((a, b) => b.netDebt - a.netDebt);
+    return generateCustomerAnalysis(data);
   }, [data]);
 
-  const filteredData = useMemo(() => {
+  const baseFilteredData = useMemo(() => {
     let result = customerAnalysis;
     const {
       search, filterYear, filterMonth, dateRangeFrom, dateRangeTo, invoiceTypeFilter,
-      matchingFilter, selectedSalesRep, closedFilter,
+      matchingFilter, closedFilter,
       debtOperator, debtAmount, collectionRateOperator, collectionRateValue,
       collectionRateTypes, lastPaymentValue, lastPaymentUnit, lastPaymentStatus,
       lastPaymentAmountOperator, lastPaymentAmountValue, hasOB, overdueAmount,
       overdueAging, netSalesOperator, minTotalDebit, noSalesValue, noSalesUnit,
       lastSalesStatus, lastSalesAmountOperator, lastSalesAmountValue,
-      dateRangeType, debtType,
-      customerRating, emailFilter, overdueMonth, overdueYear, selectedCustomerTags
+      dateRangeType, debtType
     } = filters;
-
-    if (mode === 'OB_POS') result = result.filter(c => (c.openOBAmount || 0) > 0.01);
-    else if (mode === 'OB_NEG') result = result.filter(c => (c.openOBAmount || 0) < -0.01);
-    else if (mode === 'CREDIT') result = result.filter(c => c.netDebt < -0.01);
-    else result = result.filter(c => c.netDebt > 0.01);
 
     if (search.trim()) {
       const q = search.toLowerCase();
       result = result.filter(c =>
         c.customerName.toLowerCase().includes(q) ||
         (c.invoiceNumbers && Array.from(c.invoiceNumbers).some(num => num.toLowerCase().includes(q)))
-      );
-    }
-
-    if (selectedSalesRep !== 'ALL') result = result.filter(c => c.salesReps && c.salesReps.has(selectedSalesRep));
-
-    if (Array.isArray(selectedCustomerTags) && selectedCustomerTags.length > 0) {
-      const tagSet = new Set(selectedCustomerTags);
-      result = result.filter(
-        (c) => c.customerTags && Array.from(c.customerTags).some((tag) => tagSet.has(tag))
       );
     }
 
@@ -341,6 +76,7 @@ export const useCustomerData = (data: InvoiceRow[] = [], filters: any, mode: any
     if (overdueAging !== 'ALL') {
       result = result.filter(c => {
         const a = c.agingBreakdown;
+        if (!a) return false;
         switch (overdueAging) {
           case 'AT_DATE': return Math.abs(a.atDate) > 0.01;
           case '1-30': return Math.abs(a.oneToThirty) > 0.01;
@@ -377,130 +113,17 @@ export const useCustomerData = (data: InvoiceRow[] = [], filters: any, mode: any
       }
     }
 
-    if (customerRating && customerRating !== 'ALL') {
-      result = result.filter(c => calculateDebtRating(c).toUpperCase() === customerRating.toUpperCase());
-    }
-
-    if (emailFilter && emailFilter !== 'ALL') {
-      const normalize = (s: any) => String(s || '').toLowerCase().trim().replace(/\s+/g, ' ');
-      const luluNames = new Set(luluEmails.map(l => normalize(l.customerId)).filter(Boolean));
-      const luluNamesByName = new Set(luluEmails.map(l => normalize(l.customerCode)).filter(Boolean));
-      
-      if (emailFilter === 'EMAIL_NORMAL') {
-        result = result.filter(c => 
-          (customersWithEmails.has(normalize(c.customerId)) || customersWithEmails.has(normalize(c.customerName))) && 
-          !(luluNames.has(normalize(c.customerId)) || luluNamesByName.has(normalize(c.customerName)))
-        );
-      } else if (emailFilter === 'EMAIL_LULU') {
-        result = result.filter(c => luluNames.has(normalize(c.customerId)) || luluNamesByName.has(normalize(c.customerName)));
-      }
-    }
-
-    if (overdueMonth && Array.isArray(overdueMonth) && overdueMonth.length > 0) {
-      const formatMonthYearLocal = (date: Date) => {
-        const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-        return `${months[date.getMonth()]} ${date.getFullYear()}`;
-      };
-
-      result = result.filter(c => {
-        const customerInvoices = invoicesByCustomer.get(c.customerName) || [];
-        const matchingGroups = new Map<string, InvoiceRow[]>();
-        customerInvoices.forEach(inv => {
-          const key = inv.matching || 'UNMATCHED';
-          const group = matchingGroups.get(key) || [];
-          group.push(inv);
-          matchingGroups.set(key, group);
-        });
-
-        let hasOverdueInMonth = false;
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
-        matchingGroups.forEach((group, matchingKey) => {
-          if (hasOverdueInMonth) return;
-          const groupNetDebt = group.reduce((sum, inv) => sum + (inv.debit - inv.credit), 0);
-          if (groupNetDebt <= 0.01) return;
-
-          if (matchingKey === 'UNMATCHED') {
-            group.forEach(inv => {
-              if (hasOverdueInMonth) return;
-              const invNetDebt = inv.debit - inv.credit;
-              if (invNetDebt <= 0.01) return;
-              const targetDate = inv.dueDate ? parseDate(inv.dueDate) : (inv.date ? parseDate(inv.date) : null);
-              if (targetDate && targetDate < today) {
-                if (overdueMonth.includes(formatMonthYearLocal(targetDate))) {
-                  hasOverdueInMonth = true;
-                }
-              }
-            });
-          } else {
-            let firstInv = group[0];
-            let maxDebit = -1;
-            group.forEach(inv => { if (inv.debit > maxDebit) { maxDebit = inv.debit; firstInv = inv; } });
-            const targetDate = firstInv.dueDate ? parseDate(firstInv.dueDate) : (firstInv.date ? parseDate(firstInv.date) : null);
-            if (targetDate && targetDate < today) {
-              if (overdueMonth.includes(formatMonthYearLocal(targetDate))) {
-                hasOverdueInMonth = true;
-              }
-            }
-          }
-        });
-
-        return hasOverdueInMonth;
-      });
-    }
-
-    if (overdueYear && Array.isArray(overdueYear) && overdueYear.length > 0) {
-      result = result.filter(c => {
-        const customerInvoices = invoicesByCustomer.get(c.customerName) || [];
-        const matchingGroups = new Map<string, InvoiceRow[]>();
-        customerInvoices.forEach(inv => {
-          const key = inv.matching || 'UNMATCHED';
-          const group = matchingGroups.get(key) || [];
-          group.push(inv);
-          matchingGroups.set(key, group);
-        });
-
-        let hasOverdueInYear = false;
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
-        matchingGroups.forEach((group, matchingKey) => {
-          if (hasOverdueInYear) return;
-          const groupNetDebt = group.reduce((sum, inv) => sum + (inv.debit - inv.credit), 0);
-          if (groupNetDebt <= 0.01) return;
-
-          if (matchingKey === 'UNMATCHED') {
-            group.forEach(inv => {
-              if (hasOverdueInYear) return;
-              const invNetDebt = inv.debit - inv.credit;
-              if (invNetDebt <= 0.01) return;
-              const targetDate = inv.dueDate ? parseDate(inv.dueDate) : (inv.date ? parseDate(inv.date) : null);
-              if (targetDate && targetDate < today) {
-                if (overdueYear.includes(targetDate.getFullYear().toString())) {
-                  hasOverdueInYear = true;
-                }
-              }
-            });
-          } else {
-            let firstInv = group[0];
-            let maxDebit = -1;
-            group.forEach(inv => { if (inv.debit > maxDebit) { maxDebit = inv.debit; firstInv = inv; } });
-            const targetDate = firstInv.dueDate ? parseDate(firstInv.dueDate) : (firstInv.date ? parseDate(firstInv.date) : null);
-            if (targetDate && targetDate < today) {
-              if (overdueYear.includes(targetDate.getFullYear().toString())) {
-                hasOverdueInYear = true;
-              }
-            }
-          }
-        });
-
-        return hasOverdueInYear;
-      });
-    }
-
     return result;
-  }, [customerAnalysis, filters, mode, customersWithEmails, luluEmails, invoicesByCustomer]);
+  }, [customerAnalysis, filters, customersWithEmails, luluEmails, invoicesByCustomer]);
+
+  const filteredData = useMemo(() => {
+    let result = baseFilteredData;
+    if (mode === 'OB_POS') result = result.filter(c => (c.openOBAmount || 0) > 0.01);
+    else if (mode === 'OB_NEG') result = result.filter(c => (c.openOBAmount || 0) < -0.01);
+    else if (mode === 'CREDIT') result = result.filter(c => c.netDebt < -0.01);
+    else result = result.filter(c => c.netDebt > 0.01);
+    return result;
+  }, [baseFilteredData, mode]);
 
   const yearlyPivotData = useMemo(() => {
     const customerPivotMap = new Map<string, { customerName: string; region: string; totalNetDebt: number; yearlyAmounts: Record<string, number>; }>();
@@ -586,6 +209,7 @@ export const useCustomerData = (data: InvoiceRow[] = [], filters: any, mode: any
   return {
     customerAnalysis,
     filteredData,
+    baseFilteredData,
         customersWithEmails,
     luluEmails,
     yearlyPivotData,

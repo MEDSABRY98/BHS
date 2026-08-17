@@ -43,7 +43,7 @@ export default function AddDiscount({
 }: AddDiscountProps) {
   return (
     <div className="flex-1 overflow-y-auto p-8 animate-in fade-in duration-300 bg-gray-50">
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-[1450px] mx-auto">
         
         <div className="mb-8">
           <h2 className="text-3xl font-bold text-gray-900">Add New Discount</h2>

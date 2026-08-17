@@ -25,6 +25,8 @@ export default function HandoverReports() {
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [currentAdmin, setCurrentAdmin] = useState<any>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 50;
   const isDriversLoading = loading;
   const isOrdersLoading = loading;
 
@@ -38,6 +40,10 @@ export default function HandoverReports() {
       });
     }
   }, []);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [fromDate, toDate, selectedDriverId]);
 
   const allConfirmedOrders = useMemo(
     () =>
@@ -116,6 +122,15 @@ export default function HandoverReports() {
   const grandTotalInvoices = useMemo(() => {
     return filteredHandovers.reduce((sum, g) => sum + g.invoices.length, 0);
   }, [filteredHandovers]);
+
+  const totalPages = useMemo(() => {
+    return Math.ceil(filteredHandovers.length / ITEMS_PER_PAGE);
+  }, [filteredHandovers]);
+
+  const paginatedHandovers = useMemo(() => {
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredHandovers.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  }, [filteredHandovers, currentPage]);
 
   const handlePdfAction = async (group: HandoverGroup, action: 'download' | 'print') => {
     setIsGeneratingPdf(true);
@@ -282,6 +297,7 @@ export default function HandoverReports() {
         ) : filteredHandovers.length === 0 ? (
           <NoData title="NO HANDOVER RECORDS FOUND" />
         ) : (
+          <>
           <div className="overflow-x-auto rounded-[2.5rem] border border-gray-50">
             <table className="w-full text-center border-collapse">
               <thead className="bg-gray-50">
@@ -294,7 +310,7 @@ export default function HandoverReports() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {filteredHandovers.map((group) => {
+                {paginatedHandovers.map((group) => {
                   const formattedDate = group.handoverDate
                     ? new Date(group.handoverDate).toLocaleDateString('en-GB')
                     : '-';
@@ -341,6 +357,64 @@ export default function HandoverReports() {
               </tbody>
             </table>
           </div>
+          
+          {totalPages > 1 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-6 mt-4 border-t border-gray-100">
+              <div className="text-xs font-bold text-gray-500">
+                Showing <span className="text-black font-black">{(currentPage - 1) * ITEMS_PER_PAGE + 1}</span> to{' '}
+                <span className="text-black font-black">
+                  {Math.min(currentPage * ITEMS_PER_PAGE, filteredHandovers.length)}
+                </span>{' '}
+                of <span className="text-black font-black">{filteredHandovers.length}</span> records
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                  disabled={currentPage === 1}
+                  className="px-4 py-2 bg-white border border-gray-100 hover:bg-gray-50 text-xs font-black uppercase tracking-wider rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed text-black shadow-sm"
+                >
+                  Previous
+                </button>
+                <div className="flex items-center gap-1 overflow-x-auto no-scrollbar max-w-[200px] sm:max-w-full">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1)
+                    .filter(page => {
+                      return (
+                        page === 1 ||
+                        page === totalPages ||
+                        (page >= currentPage - 1 && page <= currentPage + 1)
+                      );
+                    })
+                    .map((page, index, array) => {
+                      const showDots = index > 0 && page - array[index - 1] > 1;
+                      return (
+                        <div key={page} className="flex items-center gap-1">
+                          {showDots && <span className="px-1 text-gray-400 text-xs font-bold">...</span>}
+                          <button
+                            onClick={() => setCurrentPage(page)}
+                            className={`min-w-[36px] h-9 px-2 rounded-xl text-xs font-black transition-all ${
+                              currentPage === page
+                                ? 'bg-black text-[#D4AF37] shadow-lg shadow-black/10'
+                                : 'bg-white hover:bg-gray-50 text-gray-500 border border-gray-100 shadow-sm'
+                            }`}
+                          >
+                            {page}
+                          </button>
+                        </div>
+                      );
+                    })}
+                </div>
+                <button
+                  onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                  disabled={currentPage === totalPages}
+                  className="px-4 py-2 bg-white border border-gray-100 hover:bg-gray-50 text-xs font-black uppercase tracking-wider rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed text-black shadow-sm"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
+          
+          </>
         )}
       </div>
     </div>

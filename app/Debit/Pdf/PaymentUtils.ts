@@ -1781,6 +1781,8 @@ export const generatePaymentAnalysisPDF = (
                 })
                 .filter((row) => row.balanceDue > 0.01)
                 .sort((a, b) => {
+                    const cityCompare = a.cityName.localeCompare(b.cityName);
+                    if (cityCompare !== 0) return cityCompare;
                     if (b.balanceDue !== a.balanceDue) return b.balanceDue - a.balanceDue;
                     return b.sortDays - a.sortDays;
                 });

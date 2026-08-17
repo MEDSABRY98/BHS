@@ -25,6 +25,7 @@ import TabPanel from '@/app/Components/Layout/TabPanel';
 import DebitSidebar, { isDebitTabAllowed } from './Utils/Sidebar';
 import { useDebitTabAudit } from '@/app/Audit/Model/DebitTabAudit';
 import { DebitDataProvider, useDebitData } from './Context/DebitDataContext';
+import { useGlobalDebitFilter } from './Hooks/useGlobalDebitFilter';
 import type { PaymentReconciliationSessionSummary } from './Service/debit_service';
 
 const TABS_NEEDING_FULL_DATA = new Set([
@@ -67,7 +68,16 @@ function DebitPageShell({
   savedSessionsRefreshKey: number;
   setSavedSessionsRefreshKey: Dispatch<SetStateAction<number>>;
 }) {
-  const { data, loading, isRefreshing, error, lastUpdated, refresh, dataVersion, dataReady, dataLoading, ensureFullData } = useDebitData();
+  const { 
+    data, loading, isRefreshing, error, lastUpdated, refresh, 
+    dataVersion, dataReady, dataLoading, ensureFullData,
+    globalFilters, invoicesByCustomer, customersWithEmails, luluEmails
+  } = useDebitData();
+
+  const globallyFilteredData = useGlobalDebitFilter(
+    data, globalFilters, invoicesByCustomer, customersWithEmails, luluEmails
+  );
+
   const [visitedTabs, setVisitedTabs] = useState<Set<string>>(new Set(['customers']));
   const mainContentRef = useRef<HTMLDivElement>(null);
 
@@ -135,24 +145,24 @@ function DebitPageShell({
     return (
       <>
         <TabPanel tabId="customers" activeTab={activeTab} isVisited={visitedTabs.has('customers') && dataReady}>
-          <CustomersLandingTab data={data} initialCustomer={initialCustomer} />
+          <CustomersLandingTab data={globallyFilteredData} initialCustomer={initialCustomer} />
         </TabPanel>
         <TabPanel tabId="credit-limit" activeTab={activeTab} isVisited={visitedTabs.has('credit-limit') && dataReady}>
-          <CreditLimitTab data={data} />
+          <CreditLimitTab data={globallyFilteredData} />
         </TabPanel>
         <TabPanel tabId="customers-group" activeTab={activeTab} isVisited={visitedTabs.has('customers-group') && dataReady}>
-          <CustomersGroupTab data={data} />
+          <CustomersGroupTab data={globallyFilteredData} />
         </TabPanel>
         <TabPanel tabId="payment-reconciliation" activeTab={activeTab} isVisited={visitedTabs.has('payment-reconciliation') && dataReady}>
           <PaymentReconciliationTab
-            data={data}
+            data={globallyFilteredData}
             sessionToLoad={sessionToOpenInReconcile}
             onSessionLoaded={() => setSessionToOpenInReconcile(null)}
           />
         </TabPanel>
         <TabPanel tabId="payment-reconciliation-saved" activeTab={activeTab} isVisited={visitedTabs.has('payment-reconciliation-saved')}>
           <SavedPaymentReconciliationsPageTab
-            data={data}
+            data={globallyFilteredData}
             refreshKey={savedSessionsRefreshKey}
             onOpenSession={(session) => {
               setSessionToOpenInReconcile(session);
@@ -162,22 +172,22 @@ function DebitPageShell({
           />
         </TabPanel>
         <TabPanel tabId="all-transactions" activeTab={activeTab} isVisited={visitedTabs.has('all-transactions') && dataReady}>
-          <AllTransactionsTab data={data} />
+          <AllTransactionsTab data={globallyFilteredData} />
         </TabPanel>
         <TabPanel tabId="customers-open-matches" activeTab={activeTab} isVisited={visitedTabs.has('customers-open-matches') && dataReady}>
-          <OpenTransactionsTab data={data} />
+          <OpenTransactionsTab data={globallyFilteredData} />
         </TabPanel>
         <TabPanel tabId="payment-tracker" activeTab={activeTab} isVisited={visitedTabs.has('payment-tracker') && dataReady}>
-          <PaymentTrackerTab data={data} dataVersion={dataVersion} />
+          <PaymentTrackerTab data={globallyFilteredData} dataVersion={dataVersion} />
         </TabPanel>
         <TabPanel tabId="salesreps" activeTab={activeTab} isVisited={visitedTabs.has('salesreps') && dataReady}>
-          <SalesRepsTab data={data} />
+          <SalesRepsTab data={globallyFilteredData} />
         </TabPanel>
         <TabPanel tabId="history" activeTab={activeTab} isVisited={visitedTabs.has('history') && dataReady}>
-          <HistoryTab data={data} />
+          <HistoryTab data={globallyFilteredData} />
         </TabPanel>
         <TabPanel tabId="ages" activeTab={activeTab} isVisited={visitedTabs.has('ages') && dataReady}>
-          <AgesTab data={data} />
+          <AgesTab data={globallyFilteredData} />
         </TabPanel>
       </>
     );

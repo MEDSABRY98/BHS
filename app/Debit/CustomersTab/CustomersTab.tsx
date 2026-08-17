@@ -21,7 +21,6 @@ import { saveTrackedAs } from '@/app/Audit/Utils/TrackedDownload';
 import DefaultView from './Views/DefaultView';
 import SummaryView from './Views/SummaryView';
 import YearlyView from './Views/YearlyView';
-import FilterModal from './Modals/FilterModal';
 import RatingBreakdownModal from './Modals/RatingBreakdownModal';
 import CollectionStatsModal from './Modals/CollectionStatsModal';
 import MonthlyBreakdownModal from './Modals/MonthlyBreakdownModal';
@@ -76,7 +75,6 @@ export default function CustomersTab({
   const [statementModalAction, setStatementModalAction] = useState<'EMAIL' | 'ZIP' | 'EMAIL_LULU' | null>(null);
   const [emailStatementDate, setEmailStatementDate] = useState(new Date().toISOString().split('T')[0]);
   const [yearlySorting, setYearlySorting] = useState<{ id: string; desc: boolean }>({ id: 'totalNetDebt', desc: true });
-  const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   const [filters, setFilters] = useState({
     search: '',
     filterYear: '',
@@ -85,7 +83,6 @@ export default function CustomersTab({
     dateRangeTo: '',
     invoiceTypeFilter: 'ALL' as 'ALL' | 'OB' | 'SAL',
     matchingFilter: 'ALL',
-    selectedSalesRep: 'ALL',
     closedFilter: 'ALL' as 'ALL' | 'HIDE' | 'ONLY',
     debtOperator: 'GT',
     debtAmount: '',
@@ -109,12 +106,6 @@ export default function CustomersTab({
     lastSalesAmountValue: '',
     dateRangeType: 'LAST_TRANSACTION' as 'LAST_TRANSACTION' | 'LAST_SALE' | 'LAST_PAYMENT',
     debtType: 'ALL' as 'ALL' | 'DEBTOR' | 'CREDITOR',
-    selectedReps: [] as string[],
-    customerRating: 'ALL',
-    emailFilter: 'ALL',
-    overdueMonth: [] as string[],
-    overdueYear: [] as string[],
-    selectedCustomerTags: [] as string[],
   });
 
   const debouncedSearch = useDebouncedValue(filters.search);
@@ -126,6 +117,7 @@ export default function CustomersTab({
   const {
     customerAnalysis,
     filteredData,
+    baseFilteredData,
     customersWithEmails,
     luluEmails,
     yearlyPivotData,
@@ -891,19 +883,9 @@ export default function CustomersTab({
             ))}
           </div>
 
-          <button
-            onClick={() => setIsFiltersOpen(true)}
-            className="p-2.5 bg-white border border-gray-200 rounded-xl hover:border-blue-400 text-gray-700 hover:text-blue-600 transition-all shadow-sm shrink-0"
-            title="Advanced Filters"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-            </svg>
-          </button>
-
           <div className="h-6 w-px bg-gray-200 mx-1 shrink-0"></div>
 
-          <CustomersExcelButton filteredData={filteredData} data={data} yearlyPivotData={yearlyPivotData} />
+          <CustomersExcelButton filteredData={baseFilteredData} data={data} yearlyPivotData={yearlyPivotData} />
           <button onClick={() => exportToPDF(filteredData, 'Customers_PDF_Report')} className="p-2.5 bg-white border border-gray-200 rounded-xl hover:border-red-400 text-red-600 transition-all shadow-sm shrink-0" title="Export PDF">
             <FileText size={20} />
           </button>
@@ -976,7 +958,10 @@ export default function CustomersTab({
 
             {viewMode === 'YEARLY' && yearlyPivotData && (
               <YearlyView
-                yearlyPivotData={yearlyPivotData}
+                yearlyPivotData={{
+                  ...yearlyPivotData,
+                  rows: yearlyPivotData.rows.filter((r: any) => filteredData.some(c => c.customerName === r.customerName))
+                }}
                 selectedCustomersForDownload={selectedCustomersForDownload}
                 setSelectedCustomersForDownload={setSelectedCustomersForDownload}
                 toggleCustomerSelection={toggleCustomerSelection}
@@ -990,16 +975,6 @@ export default function CustomersTab({
       </div>
 
       {/* Modals */}
-      <FilterModal
-        isOpen={isFiltersOpen}
-        onClose={() => setIsFiltersOpen(false)}
-        filters={filters}
-        setFilters={setFilters}
-        allSalesReps={allSalesReps}
-        filteredDataCount={filteredData.length}
-        data={data}
-      />
-
       <RatingBreakdownModal
         customer={selectedRatingCustomer}
         breakdown={ratingBreakdown}
