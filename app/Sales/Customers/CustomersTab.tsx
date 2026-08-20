@@ -40,10 +40,9 @@ const CustomerRow = memo(({ item, rowNumber, onCustomerClick }: { item: { custom
       <td className="py-3 px-4 text-sm text-gray-800 font-semibold">
         {item.averageAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
       </td>
-      <td className="py-3 px-4 text-sm text-gray-800 font-semibold">
-        {item.totalQty.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-      </td>
+      <td className="py-3 px-4 text-sm text-gray-800 font-semibold">{item.totalQty.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</td>
       <td className="py-3 px-4 text-sm text-gray-800 font-semibold">{item.productsCount}</td>
+      <td className="py-3 px-4 text-sm text-gray-800 font-semibold">{item.transactions}</td>
     </tr>
   );
 });
@@ -62,7 +61,7 @@ export default function SalesCustomersTab({ userId, onUploadMapping, showCosts =
   useEffect(() => {
     trackSalesCustomersTab(activeTab);
   }, [activeTab]);
-  const [sortField, setSortField] = useState<'customer' | 'totalAmount' | 'averageAmount' | 'totalQty' | 'productsCount'>('totalAmount');
+  const [sortField, setSortField] = useState<'customer' | 'totalAmount' | 'averageAmount' | 'totalQty' | 'productsCount' | 'transactions'>('totalAmount');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
   const { data: customersData, isInitialLoading, error, reload, loading } = useSalesTabFetch<any[]>({
@@ -163,12 +162,12 @@ export default function SalesCustomersTab({ userId, onUploadMapping, showCosts =
         numericColumns: [...monthHeaders, 'Total'],
       });
     } else {
-      const headers = ['#', 'Customer Name', 'Amount', 'Amount Average', 'QTY', 'SKUs'];
+      const headers = ['#', 'Customer Name', 'Amount', 'Amount Average', 'QTY', 'SKUs', 'Invoices'];
       const rows = filteredCustomers.map((item, i) => [
         i + 1, item.customer, item.totalAmount, item.averageAmount,
-        item.totalQty, item.productsCount
+        item.totalQty, item.productsCount, item.transactions
       ]);
-      rows.push(['', 'TOTALS', totals.totalAmount, totals.totalAverageAmount, totals.totalQty, totals.totalProductsCount]);
+      rows.push(['', 'TOTALS', totals.totalAmount, totals.totalAverageAmount, totals.totalQty, totals.totalProductsCount, totals.totalTransactions]);
       await exportSalesExcelTable(headers, rows, `customers_analysis_${new Date().toISOString().split('T')[0]}.xlsx`, {
         sheetName: 'Customers Analysis',
         numericColumns: ['Amount', 'Amount Average', 'QTY'],
@@ -279,6 +278,9 @@ export default function SalesCustomersTab({ userId, onUploadMapping, showCosts =
                   <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center cursor-pointer hover:text-green-600 w-24" onClick={() => handleSort('productsCount')}>
                     SKUs {getSortIcon('productsCount')}
                   </th>
+                  <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center cursor-pointer hover:text-green-600 w-24" onClick={() => handleSort('transactions')}>
+                    Invoices {getSortIcon('transactions')}
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
@@ -293,6 +295,7 @@ export default function SalesCustomersTab({ userId, onUploadMapping, showCosts =
                   <td className="py-4 px-4 text-sm text-gray-800">{totals.totalAverageAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
                   <td className="py-4 px-4 text-sm text-gray-800">{totals.totalQty.toLocaleString()}</td>
                   <td className="py-4 px-4 text-sm text-gray-800">{totals.totalProductsCount.toLocaleString()}</td>
+                  <td className="py-4 px-4 text-sm text-gray-800">{totals.totalTransactions.toLocaleString()}</td>
                 </tr>
               </tfoot>
             </table>

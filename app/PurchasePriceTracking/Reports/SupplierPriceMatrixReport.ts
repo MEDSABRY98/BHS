@@ -66,6 +66,7 @@ export async function generateSupplierPriceMatrixReport(
 
   const reportData: Record<string, unknown>[] = sortedProducts.map(product => {
     const row: Record<string, unknown> = {
+      'Product ID': product.id,
       Barcode: product.barcode || '-',
       'Product Name': product.name,
     };
@@ -80,7 +81,12 @@ export async function generateSupplierPriceMatrixReport(
 
   const fileName = `Supplier_Price_Matrix${filterSuffix(filters)}_${new Date().toISOString().split('T')[0]}`;
 
-  await exportPurchasePriceTrackingExcel(reportData, fileName, {
+  const finalReportData = reportData.map((row, index) => ({
+    '#': index + 1,
+    ...row
+  }));
+
+  await exportPurchasePriceTrackingExcel(finalReportData, fileName, {
     sheetName: 'Supplier Price Matrix',
     columnWidth: 18,
     numericColumns: supplierColumnNames,

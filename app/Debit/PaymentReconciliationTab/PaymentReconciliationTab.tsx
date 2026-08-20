@@ -137,6 +137,8 @@ export default function PaymentReconciliationTab({
   const [selectedCustomerTags, setSelectedCustomerTags] = useState<string[]>([]);
   const [customerSearchQuery, setCustomerSearchQuery] = useState('');
   const [paymentAmountInput, setPaymentAmountInput] = useState('');
+  const [discountAmountInput, setDiscountAmountInput] = useState('');
+  const [returnAmountInput, setReturnAmountInput] = useState('');
   const [paymentDate, setPaymentDate] = useState('');
   const [paymentReference, setPaymentReference] = useState('');
   const [tableSearchQuery, setTableSearchQuery] = useState('');
@@ -268,6 +270,9 @@ export default function PaymentReconciliationTab({
   }, [openRows, debouncedTableSearch, dateFromFilter, dateToFilter, selectedOverdueMonthFilter]);
 
   const paymentAmount = parseAmount(paymentAmountInput);
+  const discountAmount = parseAmount(discountAmountInput);
+  const returnAmount = parseAmount(returnAmountInput);
+  const totalAvailable = paymentAmount + discountAmount + returnAmount;
 
   const totalApplied = useMemo(() => {
     let sum = 0;
@@ -286,10 +291,18 @@ export default function PaymentReconciliationTab({
     return sum;
   }, [openRows, appliedByRow]);
 
-  // Remainder = payment − sum of open amounts on selected (checked) rows
-  const remainder = paymentAmount - selectedOpenTotal;
+  const filteredOpenTotal = useMemo(() => {
+    let sum = 0;
+    filteredRows.forEach((row) => {
+      sum += row.openAmount;
+    });
+    return sum;
+  }, [filteredRows]);
+
+  // Remainder = totalAvailable - sum of open amounts on selected (checked) rows
+  const remainder = totalAvailable - selectedOpenTotal;
   const isOverAllocated = remainder < -0.009;
-  const hasValidPayment = paymentAmount > 0.009;
+  const hasValidPayment = totalAvailable > 0.009;
   const appliedLines = useMemo(() => {
     return openRows
       .filter((row) => appliedByRow.has(row.rowKey))
@@ -326,13 +339,15 @@ export default function PaymentReconciliationTab({
 
   const saveHeader = useMemo(
     () => ({
-      paymentDate: paymentDate || null,
+      paymentDate: paymentDate || new Date().toISOString().split('T')[0],
       paymentAmount,
+      discountAmount,
+      returnAmount,
       paymentReference: paymentReference || null,
       customersId: resolveCustomerIdsForNames(safeData, groupCustomers),
       remainderNote: remainderNote || null,
     }),
-    [paymentDate, paymentAmount, paymentReference, groupCustomers, remainderNote, safeData],
+    [paymentDate, paymentAmount, discountAmount, returnAmount, paymentReference, groupCustomers, remainderNote, safeData],
   );
 
   const canExport = hasValidPayment && exportLines.length > 0;
@@ -414,7 +429,7 @@ export default function PaymentReconciliationTab({
         if (existing !== undefined) {
           next.set(row.rowKey, existing);
         } else {
-          next.set(row.rowKey, Math.abs(row.openAmount));
+          next.set(row.rowKey, row.openAmount);
         }
       } else {
         next.delete(row.rowKey);
@@ -444,17 +459,20 @@ export default function PaymentReconciliationTab({
 
   const handleAutoFifo = () => {
     if (!hasValidPayment) return;
-    const sorted = [...openRows].sort((a, b) => {
+    const sorted = [...filteredRows].sort((a, b) => {
       const da = a.date ? new Date(a.date).getTime() : 0;
       const db = b.date ? new Date(b.date).getTime() : 0;
       return da - db;
     });
-    let left = paymentAmount;
+    let left = totalAvailable;
     const next = new Map<string, number>();
     for (const row of sorted) {
-      if (left <= 0.009) break;
-      const apply = Math.min(Math.abs(row.openAmount), left);
-      if (apply > 0.009) {
+      if (row.openAmount < -0.009) {
+        next.set(row.rowKey, row.openAmount);
+        left -= row.openAmount;
+      } else if (row.openAmount > 0.009) {
+        if (left <= 0.009) continue;
+        const apply = Math.min(row.openAmount, left);
         next.set(row.rowKey, apply);
         left -= apply;
       }
@@ -464,7 +482,9 @@ export default function PaymentReconciliationTab({
 
   const buildPdfInput = () => ({
     paymentAmount,
-    paymentDate: paymentDate || undefined,
+    discountAmount,
+    returnAmount,
+    paymentDate: paymentDate || new Date().toISOString().split('T')[0],
     paymentReference: paymentReference || undefined,
     customers: groupCustomers,
     lines: exportLines,
@@ -475,8 +495,12 @@ export default function PaymentReconciliationTab({
   });
 
   const handleOpenSaveModal = () => {
-    if (!canExport) {
-      toast.warning('Enter a valid payment amount and allocate at least one invoice before saving.');
+    if (!hasValidPayment) {
+      toast.error('Payment (or discount/return) amount must be greater than zero.');
+      return;
+    }
+    if (exportLines.length === 0) {
+      toast.warning('Allocate at least one invoice before saving.');
       return;
     }
     if (saveLines.length === 0) {
@@ -511,7 +535,9 @@ export default function PaymentReconciliationTab({
         throw new Error(res.error || 'Failed to load saved session');
       }
 
-      setPaymentAmountInput(String(res.paymentAmount));
+      setPaymentAmountInput(String(res.paymentAmount || ''));
+      setDiscountAmountInput(String(res.discountAmount || ''));
+      setReturnAmountInput(String(res.returnAmount || ''));
       setPaymentDate(res.paymentDate || '');
       setPaymentReference(res.paymentReference || '');
       setRemainderNote(res.remainderNote || '');
@@ -545,6 +571,8 @@ export default function PaymentReconciliationTab({
     setSelectedCustomerTags([]);
     setIsTagsPickerOpen(false);
     setPaymentAmountInput('');
+    setDiscountAmountInput('');
+    setReturnAmountInput('');
     setPaymentDate('');
     setPaymentReference('');
     setAppliedByRow(new Map());
@@ -592,7 +620,11 @@ export default function PaymentReconciliationTab({
       line.openAmount,
       line.matching || '',
     ]);
-    rows.push(['', '', 'TOTAL', '', totalApplied, '', '']);
+
+    rows.push(['', '', 'PAYMENT', '', paymentAmount, '', '']);
+    if (discountAmount !== 0) rows.push(['', '', 'DISCOUNT', '', discountAmount, '', '']);
+    if (returnAmount !== 0) rows.push(['', '', 'RETURN', '', returnAmount, '', '']);
+    rows.push(['', '', 'TOTAL APPLIED', '', totalApplied, '', '']);
     rows.push(['', '', 'REMAINDER', '', remainder, '', remainderNote || '']);
 
     await exportDebitExcelTable(
@@ -737,7 +769,7 @@ export default function PaymentReconciliationTab({
 
         <div className="space-y-4">
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 items-end">
-            <div ref={dropdownRef} className="relative xl:col-span-4">
+            <div ref={dropdownRef} className="relative xl:col-span-3">
               <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">
                 Select Customers
               </label>
@@ -827,9 +859,9 @@ export default function PaymentReconciliationTab({
               </div>
             </div>
 
-            <div className="xl:col-span-3">
+            <div className="xl:col-span-2">
               <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">
-                Payment Amount (AED)
+                Payment (AED)
               </label>
               <input
                 type="text"
@@ -840,18 +872,33 @@ export default function PaymentReconciliationTab({
                 className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl text-sm font-semibold shadow-sm"
               />
             </div>
-            <div className="xl:col-span-3">
+            <div className="xl:col-span-2">
               <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">
-                Reconcile Date
+                Discount (AED)
               </label>
               <input
-                type="date"
-                value={paymentDate}
-                onChange={(e) => setPaymentDate(e.target.value)}
-                className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl text-sm shadow-sm"
+                type="text"
+                inputMode="decimal"
+                placeholder="0.00"
+                value={discountAmountInput}
+                onChange={(e) => setDiscountAmountInput(e.target.value)}
+                className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl text-sm font-semibold shadow-sm"
               />
             </div>
             <div className="xl:col-span-2">
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">
+                Return (AED)
+              </label>
+              <input
+                type="text"
+                inputMode="decimal"
+                placeholder="0.00"
+                value={returnAmountInput}
+                onChange={(e) => setReturnAmountInput(e.target.value)}
+                className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl text-sm font-semibold shadow-sm"
+              />
+            </div>
+            <div className="xl:col-span-3">
               <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">
                 Reference
               </label>
@@ -886,10 +933,25 @@ export default function PaymentReconciliationTab({
       {groupCustomers.length > 0 && (
         <>
           <div className="flex flex-wrap items-center justify-between gap-4 bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-            <div className="flex flex-wrap gap-4 text-sm">
+            <div className="flex flex-wrap gap-4 text-sm items-center">
+              <span className="text-blue-700 font-semibold bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200">
+                <strong>Debit:</strong> {formatAmount(filteredOpenTotal)} AED
+              </span>
+              <span className="w-px h-5 bg-slate-300 hidden sm:block" />
               <span>
                 <strong>Payment:</strong> {formatAmount(paymentAmount)} AED
               </span>
+              {discountAmount !== 0 && (
+                <span>
+                  <strong>Discount:</strong> {formatAmount(discountAmount)} AED
+                </span>
+              )}
+              {returnAmount !== 0 && (
+                <span>
+                  <strong>Return:</strong> {formatAmount(returnAmount)} AED
+                </span>
+              )}
+              <span className="w-px h-5 bg-slate-300 hidden sm:block" />
               <span>
                 <strong>Applied:</strong> {formatAmount(totalApplied)} AED
               </span>

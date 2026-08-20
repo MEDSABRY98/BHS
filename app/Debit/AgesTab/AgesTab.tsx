@@ -457,11 +457,7 @@ export default function AgesTab({ data }: AgesTabProps) {
       columnHelper.display({
         id: 'index',
         header: '#',
-        cell: (info) => (
-          <span className="text-gray-500 font-medium">
-            {info.row.index + 1}
-          </span>
-        ),
+        cell: () => null, // Rendered manually in tbody
       }),
       columnHelper.accessor('customerName', {
         header: 'Customer Name',
@@ -791,7 +787,11 @@ export default function AgesTab({ data }: AgesTabProps) {
                           className="px-6 py-4 text-center text-sm whitespace-nowrap"
                           style={{ width: getWidth() }}
                         >
-                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                          {cell.column.id === 'index' ? (
+                            <span className="text-gray-500 font-medium">{idx + 1}</span>
+                          ) : (
+                            flexRender(cell.column.columnDef.cell, cell.getContext())
+                          )}
                         </td>
                       );
                     })}

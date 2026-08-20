@@ -62,6 +62,7 @@ export async function generateProductSupplierComparisonReport(
 
     reportData.push({
       'Supplier Name': getSupplierName(supplierId),
+      'Product ID': latestPurchase.productId,
       'Latest Purchase Date': latestPurchase.date,
       'Latest Price (AED)': latestPurchase.unitPrice,
       'Avg Previous Price (AED)': previousPurchases.length > 0 ? RoundPurchasePrice(avgPreviousPrice) : 'N/A',
@@ -77,7 +78,12 @@ export async function generateProductSupplierComparisonReport(
 
   const fileName = `Supplier_Comparison_${productName.replace(/[^a-z0-9\u0600-\u06FF]/gi, '_')}`;
   
-  await exportPurchasePriceTrackingExcel(reportData, fileName, {
+  const finalReportData = reportData.map((row, index) => ({
+    '#': index + 1,
+    ...row
+  }));
+
+  await exportPurchasePriceTrackingExcel(finalReportData, fileName, {
     sheetName: 'Supplier Comparison',
     columnWidth: 22,
     numericColumns: ['Latest Price (AED)', 'Avg Previous Price (AED)', 'Lowest Price (AED)', 'Highest Price (AED)']

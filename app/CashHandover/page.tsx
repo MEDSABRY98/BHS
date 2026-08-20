@@ -6,7 +6,7 @@ import Login from '@/app/Components/Auth/Login';
 import Loading from '@/app/Components/Loading';
 import HandoverForm from './Components/HandoverForm';
 import HandoverSidebar, { CASH_HANDOVER_TAB_IDS } from './Utils/Sidebar';
-import { getAllowedModuleTabIds } from '@/app/AdminControl/AdminControlTab';
+import { getAllowedModuleTabIds } from '@/app/AdminControl/AdminControlTab/AdminControlTab';
 import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
 import { useCashHandoverTabAudit } from '@/app/Audit/Model/CashHandoverTabAudit';
 import SavedHandoversTab from './Components/SavedHandoversTab';

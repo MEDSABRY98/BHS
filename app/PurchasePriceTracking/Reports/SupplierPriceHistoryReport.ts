@@ -1,27 +1,29 @@
-import { PurchaseRecord, Product } from '../page';
+import { PurchaseRecord, Product, Supplier } from '../page';
 import { exportPurchasePriceTrackingExcel } from '../Export/ExcelExport';
 import { SamePurchasePrice } from '../Utils/PriceFormat';
 import { filterPurchases, filterSuffix, ReportFilters } from './ReportFilters';
 
 export async function generateSupplierPriceHistoryReport(
-  supplierName: string,
+  supplierName: string | null,
   purchases: PurchaseRecord[],
   products: Product[],
+  suppliers: Supplier[],
   filters: ReportFilters
 ) {
   const supplierPurchases = filterPurchases(purchases, filters, products);
   
-  const purchasesByProduct = new Map<string, PurchaseRecord[]>();
+  const purchasesByKey = new Map<string, PurchaseRecord[]>();
   supplierPurchases.forEach(p => {
-    const list = purchasesByProduct.get(p.productId) || [];
+    const key = `${p.supplierId}::${p.productId}`;
+    const list = purchasesByKey.get(key) || [];
     list.push(p);
-    purchasesByProduct.set(p.productId, list);
+    purchasesByKey.set(key, list);
   });
 
   const productPeriods = new Map<string, { periodStr: string, price: number }[]>();
   let maxPeriods = 0;
 
-  purchasesByProduct.forEach((productPurchasesList, productId) => {
+  purchasesByKey.forEach((productPurchasesList, key) => {
     const sorted = [...productPurchasesList].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     
     const periods: { startDate: string, endDate: string, price: number, periodStr: string }[] = [];
@@ -52,27 +54,38 @@ export async function generateSupplierPriceHistoryReport(
       maxPeriods = formattedPeriods.length;
     }
 
-    productPeriods.set(productId, formattedPeriods);
+    productPeriods.set(key, formattedPeriods);
   });
 
   if (maxPeriods === 0) {
-    alert("No purchases found for this supplier.");
+    alert("No purchases found.");
     return;
   }
 
   const reportData: Record<string, unknown>[] = [];
-  const numericColumns: string[] = [];
+  const numericColumns: string[] = ['Latest Price (AED)'];
 
   for (let i = 1; i <= maxPeriods; i++) {
     numericColumns.push(`Price ${i} (AED)`);
   }
 
-  productPeriods.forEach((periods, productId) => {
+  productPeriods.forEach((periods, key) => {
+    const [supplierId, productId] = key.split('::');
     const product = products.find(p => p.id === productId);
     const productName = product ? product.name : productId;
     const barcode = product?.barcode || '-';
+    const supplier = suppliers.find(s => s.id === supplierId);
+    const sName = supplier ? supplier.name : supplierId;
 
-    const rowData: Record<string, unknown> = { 'Barcode': barcode, 'Product Name': productName };
+    const latestPrice = periods.length > 0 ? periods[periods.length - 1].price : '-';
+
+    const rowData: Record<string, unknown> = {
+      'Supplier': sName,
+      'Product ID': productId,
+      'Barcode': barcode,
+      'Product Name': productName,
+      'Latest Price (AED)': latestPrice
+    };
     
     periods.forEach((period, idx) => {
       rowData[`Period ${idx + 1}`] = period.periodStr;
@@ -88,9 +101,20 @@ export async function generateSupplierPriceHistoryReport(
     reportData.push(rowData);
   });
 
-  const fileName = `Price_History_${supplierName.replace(/[^a-z0-9\u0600-\u06FF]/gi, '_')}`;
+  reportData.sort((a, b) => {
+     const sCmp = String(a['Supplier']).localeCompare(String(b['Supplier']));
+     if (sCmp !== 0) return sCmp;
+     return String(a['Product Name']).localeCompare(String(b['Product Name']));
+  });
+
+  const fileName = `Price_History_${supplierName ? supplierName.replace(/[^a-z0-9\u0600-\u06FF]/gi, '_') : 'All_Suppliers'}${filterSuffix(filters)}`;
   
-  await exportPurchasePriceTrackingExcel(reportData, fileName, {
+  const finalReportData = reportData.map((row, index) => ({
+    '#': index + 1,
+    ...row
+  }));
+
+  await exportPurchasePriceTrackingExcel(finalReportData, fileName, {
     sheetName: 'Supplier Price History',
     columnWidth: 22,
     numericColumns

@@ -339,7 +339,7 @@ export async function getCustomersList() {
 // -------------------------------------------------------------
 // 4. Customers Comparison
 // -------------------------------------------------------------
-export async function getCustomersComparisonData(userId: string, filters: any, currentYear: number, prevYear: number, selectedMonth: string) {
+export async function getCustomersComparisonData(userId: string, filters: any, currentYear: number, prevYear: number, selectedMonths: string[]) {
   const augmentedData = await getFilteredSalesData(userId);
 
   let globallyFilteredData = augmentedData;
@@ -365,7 +365,9 @@ export async function getCustomersComparisonData(userId: string, filters: any, c
     if (salesRep) globallyFilteredData = globallyFilteredData.filter(i => i.salesRep === salesRep);
   }
 
-  const targetMonth = selectedMonth ? parseInt(selectedMonth, 10) : null;
+  const targetMonths = Array.isArray(selectedMonths) 
+    ? selectedMonths.filter(m => m !== '').map(m => parseInt(m, 10)) 
+    : (selectedMonths && typeof selectedMonths === 'string' ? [parseInt(selectedMonths as string, 10)] : []);
   const today = new Date();
   today.setHours(23, 59, 59, 999);
 
@@ -386,7 +388,7 @@ export async function getCustomersComparisonData(userId: string, filters: any, c
   const resolvedPrevYear = resolvedCurrentYear - 1;
 
   let ytdEndMonth: number | null = null;
-  if (!targetMonth && latestMonthKey) {
+  if (targetMonths.length === 0 && latestMonthKey) {
     ytdEndMonth = parseInt(latestMonthKey.split('-')[1], 10);
     const todayMonth = today.getMonth() + 1;
     if (resolvedCurrentYear === today.getFullYear()) {
@@ -408,8 +410,8 @@ export async function getCustomersComparisonData(userId: string, filters: any, c
       const year = d.getFullYear();
       const month = d.getMonth() + 1;
 
-      if (targetMonth) {
-        if (month !== targetMonth) continue;
+      if (targetMonths.length > 0) {
+        if (!targetMonths.includes(month)) continue;
       } else if (ytdEndMonth !== null && month > ytdEndMonth) {
         continue;
       }

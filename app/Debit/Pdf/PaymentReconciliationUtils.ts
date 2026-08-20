@@ -16,6 +16,8 @@ export interface PaymentReconciliationLine {
 
 export interface PaymentReconciliationPdfInput {
   paymentAmount: number;
+  discountAmount?: number;
+  returnAmount?: number;
   paymentDate?: string;
   paymentReference?: string;
   customers: string[];
@@ -269,6 +271,28 @@ export async function generatePaymentReconciliationPDF(
     RECON_COLORS.emeraldDark,
   );
   yPosition += 6;
+
+  if (input.discountAmount && input.discountAmount !== 0) {
+    drawLabelValueRow(
+      doc,
+      'Discount Amount:',
+      `${formatMoney(input.discountAmount)} AED`,
+      margin,
+      yPosition,
+    );
+    yPosition += 6;
+  }
+
+  if (input.returnAmount && input.returnAmount !== 0) {
+    drawLabelValueRow(
+      doc,
+      'Return Amount:',
+      `${formatMoney(input.returnAmount)} AED`,
+      margin,
+      yPosition,
+    );
+    yPosition += 6;
+  }
 
   if (input.paymentDate) {
     drawLabelValueRow(

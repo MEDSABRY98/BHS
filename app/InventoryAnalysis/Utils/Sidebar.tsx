@@ -14,7 +14,7 @@ import {
   RefreshCw,
   X,
 } from 'lucide-react';
-import { getAllowedModuleTabIds } from '@/app/AdminControl/AdminControlTab';
+import { getAllowedModuleTabIds } from '@/app/AdminControl/AdminControlTab/AdminControlTab';
 
 export type InventoryTabId =
   | 'products_balance'

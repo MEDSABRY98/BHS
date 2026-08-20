@@ -2,12 +2,12 @@
 
 import React, { useState, useEffect } from 'react';
 import Sidebar, { PURCHASE_PRICE_TAB_IDS } from './Utils/Sidebar';
-import { getAllowedModuleTabIds, getCurrentUserFromStorage } from '@/app/AdminControl/AdminControlTab';
+import { getAllowedModuleTabIds, getCurrentUserFromStorage } from '@/app/AdminControl/AdminControlTab/AdminControlTab';
 import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
 import { bhs_supabase, fetchAllData } from '@/lib/supabase';
-import ProductPriceHistory from './ProductPriceHistory';
-import SupplierComparison from './SupplierComparison';
-import SupplierHistory from './SupplierHistory';
+import ProductPriceHistory from './ProductPriceHistory/ProductPriceHistory';
+import SupplierComparison from './SupplierComparison/SupplierComparison';
+import SupplierHistory from './SupplierHistory/SupplierHistory';
 import ReportsTab from './Reports/ReportsTab';
 import {
   PurchaseFiltersProvider,

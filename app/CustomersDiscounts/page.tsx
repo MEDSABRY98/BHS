@@ -4,7 +4,7 @@ import { CheckCircle } from "lucide-react";
 import { bhs_supabase, fetchAllData, getAllCustomerEmails, getLuluEmails } from "@/lib/supabase";
 import { buildCustomerEmailMap, getCustomerEmail } from "@/lib/customerEmailLookup";
 import Sidebar, { CUSTOMERS_DISCOUNTS_TAB_IDS } from "./Utils/Sidebar";
-import { getAllowedModuleTabIds, getCurrentUserFromStorage } from '@/app/AdminControl/AdminControlTab';
+import { getAllowedModuleTabIds, getCurrentUserFromStorage } from '@/app/AdminControl/AdminControlTab/AdminControlTab';
 import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
 import ConfirmModal from "./ConfirmModal";
 import { toast, NotificationContainer } from "@/app/Components/Notification";

@@ -3,8 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Menu } from 'lucide-react';
-import ByUserTab from './ByUserTab';
-import UserActivityTab from './UserActivityTab';
+import ByUserTab from './ByUserTab/ByUserTab';
+import UserActivityTab from './UserActivityTab/UserActivityTab';
 import AdminSidebar from './Utils/Sidebar';
 import TabPanel from '@/app/Components/Layout/TabPanel';
 import { verifyUserCredentials } from '@/app/DataBase/Service/database_service';

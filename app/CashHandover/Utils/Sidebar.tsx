@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { ArrowLeft, ChevronLeft, ChevronRight, ClipboardList, PlusCircle, Save } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { getAllowedModuleTabIds } from '@/app/AdminControl/AdminControlTab';
+import { getAllowedModuleTabIds } from '@/app/AdminControl/AdminControlTab/AdminControlTab';
 
 interface HandoverSidebarProps {
   activeTab: 'new' | 'saved';

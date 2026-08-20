@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, memo } from 'react';
 import { SalesInvoice } from '@/lib/supabase';;
-import { Search, ArrowUpDown, ArrowUp, ArrowDown, TrendingUp, TrendingDown, Minus, ChevronLeft, ChevronRight, FileSpreadsheet } from 'lucide-react';
+import { Search, ArrowUpDown, ArrowUp, ArrowDown, TrendingUp, TrendingDown, Minus, ChevronLeft, ChevronRight, FileSpreadsheet, ChevronDown, Info } from 'lucide-react';
 import { useSalesModuleFilters } from '@/app/Sales/Model/SalesFilters';
 import { exportSalesExcelWorkbook, recordsFromTable } from '@/app/Sales/Utils/ExcelExport';
 import NoData from '@/app/Components/DataState/NoDataTab';
@@ -66,12 +66,16 @@ const EMPTY_BUNDLE: ComparisonBundle = {
 
 function formatComparisonYearLabel(
   year: number,
-  selectedMonth: string,
+  selectedMonths: string[],
   ytdEndMonth: number | null
 ) {
-  if (selectedMonth) {
-    const monthName = MONTH_NAMES.find((m) => m.value === selectedMonth)?.label;
-    return monthName ? `${monthName} ${year}` : `${year}`;
+  if (selectedMonths && selectedMonths.length > 0) {
+    if (selectedMonths.length === 1) {
+      const monthName = MONTH_NAMES.find(m => m.value === selectedMonths[0])?.label;
+      return `${monthName} ${year}`;
+    }
+    if (selectedMonths.length === MONTH_NAMES.length - 1) return `All Months ${year}`;
+    return `${selectedMonths.length} Months ${year}`;
   }
   if (ytdEndMonth && ytdEndMonth < 12) {
     return `${year} (${MONTH_SHORT[0]}–${MONTH_SHORT[ytdEndMonth - 1]})`;
@@ -120,7 +124,8 @@ export default function SalesCustomersComparisonTab({ userId }: Props) {
   const currentYear = today.getFullYear();
   const prevYear = currentYear - 1;
 
-  const [selectedMonth, setSelectedMonth] = useState('');
+  const [selectedMonths, setSelectedMonths] = useState<string[]>([]);
+  const [isMonthDropdownOpen, setIsMonthDropdownOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [sortField, setSortField] = useState<SortField>('curr');
@@ -133,8 +138,8 @@ export default function SalesCustomersComparisonTab({ userId }: Props) {
     userId,
     filters,
     dataVersion,
-    extraKey: `${selectedMonth}-${currentYear}-${prevYear}`,
-    fetcher: () => getCustomersComparisonData(userId, filters, currentYear, prevYear, selectedMonth),
+    extraKey: `${selectedMonths.join(',')}-${currentYear}-${prevYear}`,
+    fetcher: () => getCustomersComparisonData(userId, filters, currentYear, prevYear, selectedMonths),
     initialData: EMPTY_BUNDLE,
   });
 
@@ -151,18 +156,25 @@ export default function SalesCustomersComparisonTab({ userId }: Props) {
   }, [searchQuery]);
 
   // Reset page on filter changes
-  useEffect(() => { setCurrentPage(1); }, [selectedMonth, customerType, sortField, sortDir]);
+  useEffect(() => { setCurrentPage(1); }, [selectedMonths, customerType, sortField, sortDir]);
 
   // Column labels
   const prevLabel = useMemo(
-    () => formatComparisonYearLabel(resolvedPrevYear, selectedMonth, ytdEndMonth),
-    [selectedMonth, resolvedPrevYear, ytdEndMonth]
+    () => formatComparisonYearLabel(resolvedPrevYear, selectedMonths, ytdEndMonth),
+    [selectedMonths, resolvedPrevYear, ytdEndMonth]
   );
 
   const currLabel = useMemo(
-    () => formatComparisonYearLabel(resolvedCurrentYear, selectedMonth, ytdEndMonth),
-    [selectedMonth, resolvedCurrentYear, ytdEndMonth]
+    () => formatComparisonYearLabel(resolvedCurrentYear, selectedMonths, ytdEndMonth),
+    [selectedMonths, resolvedCurrentYear, ytdEndMonth]
   );
+
+  const selectedMonthNames = useMemo(() => {
+    return selectedMonths
+      .map(v => MONTH_NAMES.find(m => m.value === v)?.label)
+      .filter(Boolean)
+      .join(', ');
+  }, [selectedMonths]);
 
   // Build comparison data for the current view
   const comparisonData: ComparisonRow[] = useMemo(() => {
@@ -288,9 +300,10 @@ export default function SalesCustomersComparisonTab({ userId }: Props) {
       return 0;
     });
 
-    const subHeaders = ['#', 'Sub Customer', prevLabel, currLabel, 'Difference', '% Change'];
+    const subHeaders = ['#', 'Customer ID', 'Sub Customer', prevLabel, currLabel, 'Difference', '% Change'];
     const subRows = subFiltered.map((r, i) => [
       i + 1,
+      r.customerId,
       r.subName,
       r.prev,
       r.curr,
@@ -303,6 +316,7 @@ export default function SalesCustomersComparisonTab({ userId }: Props) {
     const subPctTotal = subPrevTotal > 0 ? (subDiffTotal / subPrevTotal) * 100 : (subCurrTotal > 0 ? 100 : 0);
     subRows.push([
       'Totals',
+      '',
       `${subFiltered.length} customers`,
       subPrevTotal,
       subCurrTotal,
@@ -378,15 +392,52 @@ export default function SalesCustomersComparisonTab({ userId }: Props) {
         {/* Controls */}
         <div className="flex items-center gap-2 flex-1 max-w-2xl">
           {/* Month picker */}
-          <select
-            value={selectedMonth}
-            onChange={e => setSelectedMonth(e.target.value)}
-            className="h-10 px-3 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 outline-none focus:border-green-400 transition-all shadow-sm"
-          >
-            {MONTH_NAMES.map(m => (
-              <option key={m.value} value={m.value}>{m.label}</option>
-            ))}
-          </select>
+          <div className="relative w-48">
+            <button
+              onClick={() => setIsMonthDropdownOpen(!isMonthDropdownOpen)}
+              className="h-10 w-full px-3 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:border-green-400 transition-all shadow-sm flex items-center gap-2 justify-between"
+            >
+              <span className="truncate text-left flex-1">
+                {selectedMonths.length === 0 
+                  ? 'YTD (Same Period)' 
+                  : selectedMonths.length === 1 
+                    ? MONTH_NAMES.find(m => m.value === selectedMonths[0])?.label
+                    : `${selectedMonths.length} Months`}
+              </span>
+              <ChevronDown className="w-4 h-4 text-gray-400" />
+            </button>
+            {isMonthDropdownOpen && (
+              <div className="absolute z-10 top-full mt-1 w-full bg-white border border-gray-100 rounded-xl shadow-lg max-h-64 overflow-y-auto py-1 right-0 md:left-0 md:right-auto">
+                <div 
+                  className="px-3 py-2 hover:bg-gray-50 cursor-pointer flex items-center gap-2"
+                  onClick={() => {
+                    setSelectedMonths([]);
+                    setIsMonthDropdownOpen(false);
+                  }}
+                >
+                  <input type="checkbox" checked={selectedMonths.length === 0} readOnly className="rounded text-green-600 focus:ring-green-500" />
+                  <span className="text-sm font-medium text-gray-700">YTD (Same Period)</span>
+                </div>
+                <div className="h-px bg-gray-100 my-1" />
+                {MONTH_NAMES.filter(m => m.value !== '').map(m => (
+                  <div 
+                    key={m.value}
+                    className="px-3 py-2 hover:bg-gray-50 cursor-pointer flex items-center gap-2"
+                    onClick={() => {
+                      setSelectedMonths(prev => 
+                        prev.includes(m.value)
+                          ? prev.filter(v => v !== m.value)
+                          : [...prev, m.value]
+                      );
+                    }}
+                  >
+                    <input type="checkbox" checked={selectedMonths.includes(m.value)} readOnly className="rounded text-green-600 focus:ring-green-500" />
+                    <span className="text-sm font-medium text-gray-700">{m.label}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
 
           {/* Search */}
           <div className="relative flex-1 group">

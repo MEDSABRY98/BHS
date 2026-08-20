@@ -18,7 +18,7 @@ import {
   History
 } from 'lucide-react';
 import type { InventoryScrapTabId } from '@/app/Audit/Model/InventoryScrapTabAudit';
-import { getAllowedModuleTabIds } from '@/app/AdminControl/AdminControlTab';
+import { getAllowedModuleTabIds } from '@/app/AdminControl/AdminControlTab/AdminControlTab';
 import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
 
 const SCRAP_TABS: { id: InventoryScrapTabId; label: string; icon: typeof Plus }[] = [

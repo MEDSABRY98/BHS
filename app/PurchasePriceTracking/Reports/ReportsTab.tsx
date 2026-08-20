@@ -14,9 +14,6 @@ import {
 import { PurchaseRecord, Product, Supplier } from '../page';
 import { generateSupplierPriceHistoryReport } from './SupplierPriceHistoryReport';
 import { generateProductSupplierComparisonReport } from './ProductSupplierComparisonReport';
-import { generatePriceInflationReport } from './PriceInflationReport';
-import { generateSupplierDependencyReport } from './SupplierDependencyReport';
-import { generateProductPriceSequenceReport } from './ProductPriceSequenceReport';
 import { generateSupplierPriceMatrixReport } from './SupplierPriceMatrixReport';
 import { usePurchaseModuleFilters, PurchaseFilterButton } from '../Model/PurchaseFilters';
 import { formatProductCategory } from '@/app/InventoryAnalysis/Utils/locationTypes';
@@ -76,12 +73,15 @@ export default function ReportsTab({ purchases, products, suppliers }: Props) {
   }, [supplierId, productSupplierCount, categories, productId, suppliers, products]);
 
   const handleDownloadSupplierReport = async () => {
-    if (!supplierId) return;
     setIsGenerating1(true);
-    const supplier = suppliers.find((s) => s.id === supplierId);
-    if (supplier) {
-      await generateSupplierPriceHistoryReport(supplier.name, purchases, products, appliedFilters);
-    }
+    const supplier = supplierId ? suppliers.find((s) => s.id === supplierId) : null;
+    await generateSupplierPriceHistoryReport(
+      supplier ? supplier.name : null,
+      purchases,
+      products,
+      suppliers,
+      appliedFilters
+    );
     setIsGenerating1(false);
   };
 
@@ -101,23 +101,7 @@ export default function ReportsTab({ purchases, products, suppliers }: Props) {
     setIsGenerating2(false);
   };
 
-  const handleDownloadInflationReport = async () => {
-    setIsGenerating3(true);
-    await generatePriceInflationReport(purchases, products, appliedFilters);
-    setIsGenerating3(false);
-  };
 
-  const handleDownloadDependencyReport = async () => {
-    setIsGenerating4(true);
-    await generateSupplierDependencyReport(purchases, products, suppliers, appliedFilters);
-    setIsGenerating4(false);
-  };
-
-  const handleDownloadPriceSequenceReport = async () => {
-    setIsGenerating5(true);
-    await generateProductPriceSequenceReport(purchases, products, appliedFilters);
-    setIsGenerating5(false);
-  };
 
   const handleDownloadMatrixReport = async () => {
     setIsGenerating6(true);
@@ -145,24 +129,7 @@ export default function ReportsTab({ purchases, products, suppliers }: Props) {
       loading: false,
       openOnTitleClick: true,
     },
-    {
-      title: 'Price Inflation',
-      icon: TrendingUp,
-      accent: 'border-t-rose-500',
-      iconClass: 'text-rose-500 bg-rose-50',
-      onClick: handleDownloadInflationReport,
-      disabled: isGenerating3,
-      loading: isGenerating3,
-    },
-    {
-      title: 'Price Sequence',
-      icon: ListOrdered,
-      accent: 'border-t-amber-500',
-      iconClass: 'text-amber-600 bg-amber-50',
-      onClick: handleDownloadPriceSequenceReport,
-      disabled: isGenerating5,
-      loading: isGenerating5,
-    },
+
     {
       title: 'Product Comparison',
       icon: Package,
@@ -173,21 +140,12 @@ export default function ReportsTab({ purchases, products, suppliers }: Props) {
       loading: isGenerating2,
     },
     {
-      title: 'Supplier Dependency',
-      icon: AlertTriangle,
-      accent: 'border-t-purple-500',
-      iconClass: 'text-purple-500 bg-purple-50',
-      onClick: handleDownloadDependencyReport,
-      disabled: isGenerating4,
-      loading: isGenerating4,
-    },
-    {
       title: 'Supplier History',
       icon: Building2,
       accent: 'border-t-blue-500',
       iconClass: 'text-blue-500 bg-blue-50',
       onClick: handleDownloadSupplierReport,
-      disabled: !supplierId || isGenerating1,
+      disabled: isGenerating1,
       loading: isGenerating1,
     },
     {

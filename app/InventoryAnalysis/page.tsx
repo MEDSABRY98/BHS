@@ -9,7 +9,7 @@ import InventoryCategoryBalanceTab from './CategoryBalance/InventoryCategoryBala
 import InventoryProductOrdersTab from './CategoriesAnalysis/InventoryCategoriesTab';
 import ReportsTab from './Reports/ReportsTab';
 import InventorySidebar, { INVENTORY_ANALYSIS_TAB_IDS, type InventoryTabId } from './Utils/Sidebar';
-import { getAllowedModuleTabIds } from '@/app/AdminControl/AdminControlTab';
+import { getAllowedModuleTabIds } from '@/app/AdminControl/AdminControlTab/AdminControlTab';
 import IADataBootstrap from './Utils/IADataBootstrap';
 import { useInventoryTabAudit } from '@/app/Audit/Model/InventoryTabAudit';
 import Login from '@/app/Components/Auth/Login';

@@ -220,6 +220,8 @@ export interface PaymentReconciliationSaveLine {
 export interface PaymentReconciliationSaveHeader {
   paymentDate: string | null;
   paymentAmount: number;
+  discountAmount: number;
+  returnAmount: number;
   paymentReference: string | null;
   customersId: string[];
   remainderNote: string | null;
@@ -230,6 +232,8 @@ export interface PaymentReconciliationSessionSummary {
   savedAt: string;
   paymentDate: string | null;
   paymentAmount: number;
+  discountAmount: number;
+  returnAmount: number;
   paymentReference: string | null;
   totalApplied: number;
   paymentRemainder: number;
@@ -322,6 +326,8 @@ export async function savePaymentReconciliationSession(input: {
       SESSION_ID: sessionId,
       PAYMENT_DATE: paymentDate,
       PAYMENT_AMOUNT: input.header.paymentAmount,
+      DISCOUNT_AMOUNT: input.header.discountAmount,
+      RETURN_AMOUNT: input.header.returnAmount,
       PAYMENT_REFERENCE: input.header.paymentReference?.trim() || null,
       CUSTOMERS_ID: customersId,
       REMAINDER_NOTE: input.header.remainderNote?.trim() || null,
@@ -377,7 +383,7 @@ export async function fetchPaymentReconciliationSessions() {
   try {
     const { data: headers, error: headerError } = await bhs_supabase
       .from(PR_HEADER_TABLE)
-      .select('SESSION_ID, PAYMENT_DATE, PAYMENT_AMOUNT, PAYMENT_REFERENCE, CUSTOMERS_ID, SAVED_AT')
+      .select('SESSION_ID, PAYMENT_DATE, PAYMENT_AMOUNT, DISCOUNT_AMOUNT, RETURN_AMOUNT, PAYMENT_REFERENCE, CUSTOMERS_ID, SAVED_AT')
       .order('SAVED_AT', { ascending: false });
 
     if (headerError) throw headerError;
@@ -385,6 +391,8 @@ export async function fetchPaymentReconciliationSessions() {
     const data: PaymentReconciliationSessionSummary[] = (headers || []).map((row) => {
       const sessionId = String(row.SESSION_ID || '').trim();
       const paymentAmount = parseNum(row.PAYMENT_AMOUNT);
+      const discountAmount = parseNum(row.DISCOUNT_AMOUNT);
+      const returnAmount = parseNum(row.RETURN_AMOUNT);
       const customersId = parseCustomersId(row.CUSTOMERS_ID);
       const paymentDateRaw = row.PAYMENT_DATE;
 
@@ -393,9 +401,11 @@ export async function fetchPaymentReconciliationSessions() {
         savedAt: String(row.SAVED_AT || ''),
         paymentDate: paymentDateRaw ? String(paymentDateRaw).split('T')[0] : null,
         paymentAmount,
+        discountAmount,
+        returnAmount,
         paymentReference: row.PAYMENT_REFERENCE ? String(row.PAYMENT_REFERENCE) : null,
         totalApplied: 0,
-        paymentRemainder: paymentAmount,
+        paymentRemainder: paymentAmount + discountAmount + returnAmount,
         lineCount: 0,
         customerCount: customersId.length,
         customersId,
@@ -419,7 +429,7 @@ export async function fetchPaymentReconciliationSession(sessionId: string) {
 
     const { data: headerRows, error: headerError } = await bhs_supabase
       .from(PR_HEADER_TABLE)
-      .select('SESSION_ID, PAYMENT_DATE, PAYMENT_AMOUNT, PAYMENT_REFERENCE, CUSTOMERS_ID, REMAINDER_NOTE, SAVED_AT')
+      .select('SESSION_ID, PAYMENT_DATE, PAYMENT_AMOUNT, DISCOUNT_AMOUNT, RETURN_AMOUNT, PAYMENT_REFERENCE, CUSTOMERS_ID, REMAINDER_NOTE, SAVED_AT')
       .eq('SESSION_ID', id)
       .limit(1);
 
@@ -454,6 +464,8 @@ export async function fetchPaymentReconciliationSession(sessionId: string) {
       savedAt: String(header.SAVED_AT || ''),
       paymentDate: paymentDateRaw ? String(paymentDateRaw).split('T')[0] : null,
       paymentAmount: parseNum(header.PAYMENT_AMOUNT),
+      discountAmount: parseNum(header.DISCOUNT_AMOUNT),
+      returnAmount: parseNum(header.RETURN_AMOUNT),
       paymentReference: header.PAYMENT_REFERENCE ? String(header.PAYMENT_REFERENCE) : null,
       customersId: parseCustomersId(header.CUSTOMERS_ID),
       remainderNote: header.REMAINDER_NOTE ? String(header.REMAINDER_NOTE) : null,

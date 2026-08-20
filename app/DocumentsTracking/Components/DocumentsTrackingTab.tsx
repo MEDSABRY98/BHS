@@ -38,7 +38,7 @@ import BulkDeliverModal from './Modals/BulkDeliverModal';
 import ReceiverExcelModal from './Modals/ReceiverExcelModal';
 import { exportDebitExcelTable } from '../../Debit/Utils/ExcelExport';
 import { getDocumentsTracking, updateDocumentTrackingRecord, deleteDocumentTrackingRecord, bulkUpdateDocumentsTrackingRecords } from '../Service/documents_tracking_service';
-import { getAllowedModuleTabIds } from '@/app/AdminControl/AdminControlTab';
+import { getAllowedModuleTabIds } from '@/app/AdminControl/AdminControlTab/AdminControlTab';
 
 const DOCUMENTS_TRACKING_TAB_IDS = ['register', 'list', 'receivers'] as const;
 

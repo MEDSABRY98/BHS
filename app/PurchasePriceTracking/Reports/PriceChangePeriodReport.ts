@@ -138,7 +138,9 @@ export async function generatePriceChangePeriodReport(
     return;
   }
 
-  const reportData = rows.map((row) => ({
+  const reportData = rows.map((row, index) => ({
+    '#': index + 1,
+    'Product ID': row.productId,
     Barcode: row.barcode,
     'Product Name': row.productName,
     Category: row.category,

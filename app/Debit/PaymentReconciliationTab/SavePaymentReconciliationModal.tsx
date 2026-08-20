@@ -69,7 +69,9 @@ export default function SavePaymentReconciliationModal({
               </h3>
               <p className="text-xs text-slate-500 font-medium">
                 {isUpdate ? `${sessionId} · ` : ''}
-                {lines.length} invoice line(s) · {header.paymentAmount.toLocaleString()} AED
+                {lines.length} invoice line(s) · Payment: {header.paymentAmount.toLocaleString()} AED
+                {header.discountAmount !== 0 ? ` · Discount: ${header.discountAmount.toLocaleString()} AED` : ''}
+                {header.returnAmount !== 0 ? ` · Return: ${header.returnAmount.toLocaleString()} AED` : ''}
               </p>
             </div>
           </div>
