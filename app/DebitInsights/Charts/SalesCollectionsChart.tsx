@@ -133,6 +133,25 @@ function SalesCollectionsTooltip({
   );
 }
 
+function renderMonthYearTick(props: { x?: number; y?: number; payload?: { value?: string } }) {
+  const { x = 0, y = 0, payload } = props;
+  const label = String(payload?.value ?? '');
+  const parts = label.trim().split(' ');
+  const year = parts.pop() ?? '';
+  const month = parts.join(' ');
+
+  return (
+    <g transform={`translate(${x},${y})`}>
+      <text x={0} y={16} dy={0} textAnchor="middle" fill="#374151" fontSize={13} fontWeight={600}>
+        {month}
+      </text>
+      <text x={0} y={32} dy={0} textAnchor="middle" fill="#9CA3AF" fontSize={11}>
+        {year}
+      </text>
+    </g>
+  );
+}
+
 export default function SalesCollectionsChart({ data, forPdf = false }: SalesCollectionsChartProps) {
   const netSalesLabel = useMemo(() => createNetSalesLabel(data), [data]);
 
@@ -142,12 +161,11 @@ export default function SalesCollectionsChart({ data, forPdf = false }: SalesCol
         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
         <XAxis
           dataKey="monthLabel"
-          tick={{ fill: '#374151', fontSize: 13, fontWeight: 600 }}
+          tick={renderMonthYearTick}
           axisLine={false}
           tickLine={false}
           interval={0}
           height={64}
-          dy={10}
         />
         <YAxis
           tick={{ fill: '#9CA3AF', fontSize: 11 }}

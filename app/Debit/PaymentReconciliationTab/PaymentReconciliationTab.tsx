@@ -33,7 +33,7 @@ import { toast } from '@/app/Components/Notification';
 import { useDebouncedValue } from '../Hooks/useDebouncedValue';
 import { buildOpenInvoiceRows, getUniqueCustomerNames, OpenInvoiceRow } from '../Utils/openInvoiceRows';
 import { exportDebitExcelTable } from '../Utils/ExcelExport';
-import { generatePaymentReconciliationPDF } from '../Pdf/PaymentReconciliationUtils';
+import { generatePaymentReconciliationPDF } from './Pdf/PaymentReconciliationUtils';
 import {
   fetchPaymentReconciliationSession,
   type PaymentReconciliationLoadedLine,

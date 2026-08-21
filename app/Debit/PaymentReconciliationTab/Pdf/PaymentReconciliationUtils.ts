@@ -262,37 +262,6 @@ export async function generatePaymentReconciliationPDF(
   yPosition += 10;
 
   doc.setFontSize(11);
-  drawLabelValueRow(
-    doc,
-    'Payment Amount:',
-    `${formatMoney(input.paymentAmount)} AED`,
-    margin,
-    yPosition,
-    RECON_COLORS.emeraldDark,
-  );
-  yPosition += 6;
-
-  if (input.discountAmount && input.discountAmount !== 0) {
-    drawLabelValueRow(
-      doc,
-      'Discount Amount:',
-      `${formatMoney(input.discountAmount)} AED`,
-      margin,
-      yPosition,
-    );
-    yPosition += 6;
-  }
-
-  if (input.returnAmount && input.returnAmount !== 0) {
-    drawLabelValueRow(
-      doc,
-      'Return Amount:',
-      `${formatMoney(input.returnAmount)} AED`,
-      margin,
-      yPosition,
-    );
-    yPosition += 6;
-  }
 
   if (input.paymentDate) {
     drawLabelValueRow(
@@ -542,7 +511,22 @@ export async function generatePaymentReconciliationPDF(
   let finalY = (doc as any).lastAutoTable?.finalY || yPosition + 40;
   finalY += 6;
 
-  const summaryBoxHeight = isPortrait ? 32 : 20;
+  const summaryItems: { label: string, value: string, color: [number, number, number], bold?: boolean }[] = [];
+  summaryItems.push({ label: 'Payment:', value: `${formatMoney(input.paymentAmount)} AED`, color: RECON_COLORS.slateDark });
+  if (input.discountAmount && input.discountAmount !== 0) {
+    summaryItems.push({ label: 'Discount:', value: `${formatMoney(input.discountAmount)} AED`, color: RECON_COLORS.slateDark });
+  }
+  if (input.returnAmount && input.returnAmount !== 0) {
+    summaryItems.push({ label: 'Return:', value: `${formatMoney(input.returnAmount)} AED`, color: RECON_COLORS.slateDark });
+  }
+  summaryItems.push({ label: 'Applied:', value: `${formatMoney(input.totalApplied)} AED`, color: RECON_COLORS.indigo, bold: true });
+  
+  const remainderStyle = getRemainderStyle(input.remainder);
+  summaryItems.push({ label: `Remainder:`, value: `${formatMoney(input.remainder)} AED${remainderStyle.suffix || ''}`, color: remainderStyle.textColor, bold: true });
+
+  const maxItemsPerCol = isPortrait ? summaryItems.length : Math.ceil(summaryItems.length / 2);
+  const summaryBoxHeight = 10 + maxItemsPerCol * 7 + 2;
+
   finalY = ensurePdfSpace(doc, finalY, summaryBoxHeight + 6, sectionTopOnNewPage);
 
   doc.setFillColor(...RECON_COLORS.emeraldBg);
@@ -555,29 +539,25 @@ export async function generatePaymentReconciliationPDF(
   doc.setTextColor(...RECON_COLORS.emeraldHeader);
   doc.text('Summary', tableMargin + 4, finalY + 6);
 
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
-  doc.setTextColor(...RECON_COLORS.slateDark);
-  doc.text(`Payment: ${formatMoney(input.paymentAmount)} AED`, tableMargin + 4, finalY + 13);
+  summaryItems.forEach((item, index) => {
+    const isRightCol = !isPortrait && index >= Math.ceil(summaryItems.length / 2);
+    const colIndex = isPortrait ? index : (isRightCol ? index - Math.ceil(summaryItems.length / 2) : index);
+    
+    const itemX = tableMargin + (isRightCol ? 140 : 4);
+    const itemY = finalY + 13 + (colIndex * 7);
 
-  doc.setTextColor(...RECON_COLORS.indigo);
-  doc.setFont('helvetica', 'bold');
-  doc.text(
-    `Applied: ${formatMoney(input.totalApplied)} AED`,
-    tableMargin + 4,
-    finalY + (isPortrait ? 20 : 13),
-  );
-
-  const remainderStyle = getRemainderStyle(input.remainder);
-  doc.setTextColor(...remainderStyle.textColor);
-  const remainderLabel = `Remainder: ${formatMoney(input.remainder)} AED${remainderStyle.suffix || ''}`;
-  if (isPortrait) {
-    const remainderLines = doc.splitTextToSize(remainderLabel, tableWidth - 8) as string[];
-    doc.text(remainderLines, tableMargin + 4, finalY + 27);
-  } else {
-    const remainderLines = doc.splitTextToSize(remainderLabel, tableWidth / 2 - 8) as string[];
-    doc.text(remainderLines, tableMargin + 140, finalY + 13);
-  }
+    doc.setTextColor(...item.color);
+    if (item.bold) {
+       doc.setFont('helvetica', 'bold');
+    } else {
+       doc.setFont('helvetica', 'normal');
+    }
+    
+    doc.setFontSize(9);
+    const textStr = `${item.label} ${item.value}`;
+    const textLines = doc.splitTextToSize(textStr, (isPortrait ? tableWidth : tableWidth / 2) - 8) as string[];
+    doc.text(textLines, itemX, itemY);
+  });
 
   finalY += summaryBoxHeight + 6;
 

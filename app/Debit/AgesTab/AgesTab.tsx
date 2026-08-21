@@ -367,7 +367,7 @@ export default function AgesTab({ data }: AgesTabProps) {
     setIsExportingPdf(true);
     try {
       const JSZip = (await import('jszip')).default;
-      const { generateAgesPDF, generateSingleRegionAgesPDF } = await import('@/app/Debit/Pdf/AgesUtils');
+      const { generateAgesPDF, generateSingleRegionAgesPDF } = await import('@/app/Debit/AgesTab/Pdf/AgesUtils');
 
       const dateStr = new Date().toISOString().split('T')[0];
       const zip = new JSZip();

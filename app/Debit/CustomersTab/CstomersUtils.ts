@@ -1,6 +1,6 @@
 import { InvoiceRow, CustomerAnalysis } from '@/types';
 import * as ExcelJS from 'exceljs';
-import { exportToPDF as exportToPDFUtil } from '@/app/Debit/Pdf/AnalysisAllCustomersUtils';
+import { exportToPDF as exportToPDFUtil } from '@/app/Debit/CustomersTab/Pdf/AnalysisAllCustomersUtils';
 import {
   exportDebitExcelWorkbook,
   recordsFromTable,

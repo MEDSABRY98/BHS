@@ -12,8 +12,8 @@ import {
 } from 'lucide-react';
 import { InvoiceRow } from '@/types';
 import { PdfExportSections } from './PaymentTTypesTab';
-import { generatePaymentAnalysisPDFZip, type PaymentPdfFilterContext } from '@/app/Debit/Pdf/PaymentUtils';
-import { generatePaymentAnalysisExcel } from '@/app/Debit/Pdf/PaymentExcelUtils';
+import { generatePaymentAnalysisPDFZip, type PaymentPdfFilterContext } from '@/app/Debit/PaymentTrackerTab/Pdf/PaymentUtils';
+import { generatePaymentAnalysisExcel } from '@/app/Debit/PaymentTrackerTab/Pdf/PaymentExcelUtils';
 
 type ExportFormat = 'pdf' | 'excel';
 

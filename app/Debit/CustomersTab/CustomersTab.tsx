@@ -12,8 +12,8 @@ import {
 import { InvoiceRow, CustomerAnalysis } from '@/types';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import CustomerDetailsTab from '../CustomerDetailsTab/CustomerDetailsTab';
-import { generateAccountStatementPDF, generateBulkCustomerStatementsPDF } from '@/app/Debit/Pdf/StatementUtils';
-import { generateBulkDebitSummaryPDF } from '@/app/Debit/Pdf/SummaryUtils';;
+import { generateAccountStatementPDF, generateBulkCustomerStatementsPDF } from '@/app/Debit/CustomerDetailsTab/Pdf/StatementUtils';
+import { generateBulkDebitSummaryPDF } from '@/app/Debit/CustomersTab/Pdf/SummaryUtils';
 import { FileSpreadsheet, FileText } from 'lucide-react';
 import { saveTrackedAs } from '@/app/Audit/Utils/TrackedDownload';
 
@@ -734,37 +734,7 @@ export default function CustomersTab({
         </button>
       )
     }),
-    columnHelper.display({
-      id: 'collRate',
-      header: mode === 'OB_POS' || mode === 'OB_NEG' ? 'Open OB Amount' : 'Collection Rate',
-      cell: (info) => {
-        const c = info.row.original;
-        const rate = c.totalDebit > 0 ? (c.totalCredit / c.totalDebit * 100) : 0;
-        return (
-          <button
-            onClick={() => {
-              // Calculate ranks on the fly or pass pre-calculated
-              const stats = customerAnalysis.map(ca => ({
-                name: ca.customerName,
-                collRate: ca.totalDebit > 0 ? (ca.totalCredit / ca.totalDebit * 100) : 0,
-                payRate: ca.totalCredit > 0 ? ((ca.creditPayments || 0) / ca.totalCredit * 100) : 0,
-                returnRate: ca.totalCredit > 0 ? ((ca.creditReturns || 0) / ca.totalCredit * 100) : 0,
-                discountRate: ca.totalCredit > 0 ? ((ca.creditDiscounts || 0) / ca.totalCredit * 100) : 0,
-              }));
-              const getRank = (metric: string) => [...stats].sort((a, b) => (b as any)[metric] - (a as any)[metric]).findIndex(s => s.name === c.customerName) + 1;
-              setSelectedCollectionStats({
-                customer: c,
-                ranks: { collRank: getRank('collRate'), payRank: getRank('payRate'), returnRank: getRank('returnRate'), discountRank: getRank('discountRate'), totalCount: customerAnalysis.length },
-                rates: { payRate: c.totalCredit > 0 ? ((c.creditPayments || 0) / c.totalCredit * 100) : 0, returnRate: c.totalCredit > 0 ? ((c.creditReturns || 0) / c.totalCredit * 100) : 0, discountRate: c.totalCredit > 0 ? ((c.creditDiscounts || 0) / c.totalCredit * 100) : 0 }
-              });
-            }}
-            className={`font-bold ${rate >= 80 ? 'text-green-600' : rate >= 50 ? 'text-yellow-600' : 'text-red-600'}`}
-          >
-            {rate.toFixed(1)}%
-          </button>
-        );
-      }
-    }),
+
     columnHelper.accessor('avgPaymentInterval', {
       id: 'payFreq',
       header: 'Pay Frequency',

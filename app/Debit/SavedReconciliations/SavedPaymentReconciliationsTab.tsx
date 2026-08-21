@@ -26,7 +26,7 @@ import {
   type PaymentReconciliationLoadedLine,
   type PaymentReconciliationSessionSummary,
 } from '../Service/debit_service';
-import { generatePaymentReconciliationPDF } from '../Pdf/PaymentReconciliationUtils';
+import { generatePaymentReconciliationPDF } from '../PaymentReconciliationTab/Pdf/PaymentReconciliationUtils';
 import DeletePaymentReconciliationSessionModal from './DeletePaymentReconciliationSessionModal';
 
 interface SavedPaymentReconciliationsTabProps {

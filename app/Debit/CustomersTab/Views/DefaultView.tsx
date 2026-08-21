@@ -38,17 +38,18 @@ const DefaultView: React.FC<DefaultViewProps> = ({
   return (
     <>
       <div className="mb-4 bg-black p-4 rounded-xl border border-gray-800">
-        <div className="grid grid-cols-1 md:grid-cols-8 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
           {table.getHeaderGroups().map((headerGroup) => (
             <div key={headerGroup.id} className="contents">
               {headerGroup.headers.filter(h => h.column.id !== 'select').map((header) => {
                 const columnId = header.column.id;
                 const isName = columnId === 'customerName';
+                const isCity = columnId === 'city';
                 return (
                   <div
                     key={header.id}
                     className={`flex items-center justify-center gap-2 px-4 py-2 rounded-lg transition-all duration-200 font-semibold text-sm uppercase tracking-wider text-white ${isName ? 'md:col-span-3' : 'md:col-span-1'
-                      } hover:bg-gray-800 cursor-pointer`}
+                      } ${isCity ? 'hidden md:flex' : ''} hover:bg-gray-800 cursor-pointer`}
                   >
                     <div className="flex items-center justify-center gap-2 w-full">
                       {isName && (
@@ -107,7 +108,7 @@ const DefaultView: React.FC<DefaultViewProps> = ({
               className="bg-white rounded-xl border-2 border-gray-200 shadow-[0_4px_12px_rgba(0,0,0,0.08)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.12)] transition-all duration-300 hover:border-blue-300 overflow-hidden group"
             >
               <div className="p-5">
-                <div className="grid grid-cols-1 md:grid-cols-8 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
                   <div className="md:col-span-3">
                     <div className="flex items-center gap-2">
                       <span className="text-xs font-black text-slate-400 min-w-[24px]">#{index + 1}</span>
@@ -165,64 +166,7 @@ const DefaultView: React.FC<DefaultViewProps> = ({
                     </button>
                   </div>
 
-                  <div className="md:col-span-1">
-                    {mode === 'OB_POS' || mode === 'OB_NEG' ? (
-                      <div className="text-xl font-bold transition-colors w-full text-center">
-                        <span className={`${(customer.openOBAmount || 0) > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                          {(customer.openOBAmount || 0).toLocaleString('en-US')}
-                        </span>
-                      </div>
-                    ) : mode === 'DEBIT' ? (
-                      customer.netDebt < 0 ? (
-                        <div className="text-center"><span className="text-gray-500 text-xl font-bold">-</span></div>
-                      ) : (
-                        <button
-                          onClick={() => {
-                            if (isDateFilterActive) return;
-                            const stats = filteredData.map(c => {
-                              const denom = c.totalCredit || 0;
-                              return {
-                                name: c.customerName,
-                                collRate: c.totalDebit > 0 ? (c.totalCredit / c.totalDebit * 100) : 0,
-                                payRate: denom > 0 ? ((c.creditPayments || 0) / denom * 100) : 0,
-                                returnRate: denom > 0 ? ((c.creditReturns || 0) / denom * 100) : 0,
-                                discountRate: denom > 0 ? ((c.creditDiscounts || 0) / denom * 100) : 0,
-                              };
-                            });
-                            const getRank = (metric: keyof typeof stats[0], val: number) => {
-                              const sorted = [...stats].sort((a, b) => Number(b[metric]) - Number(a[metric]));
-                              return sorted.findIndex(s => s.name === customer.customerName) + 1;
-                            };
-                            setSelectedCollectionStats({
-                              customer,
-                              ranks: {
-                                collRank: getRank('collRate', collectionRate),
-                                payRank: getRank('payRate', payRate),
-                                returnRank: getRank('returnRate', returnRate),
-                                discountRank: getRank('discountRate', discountRate),
-                                totalCount: filteredData.length
-                              },
-                              rates: { payRate, returnRate, discountRate }
-                            });
-                          }}
-                          className={`flex flex-col items-center gap-2 w-full rounded-lg p-1 transition-colors ${isDateFilterActive ? 'cursor-default' : 'hover:bg-gray-50 group cursor-pointer'}`}
-                        >
-                          <div className="flex items-center gap-2">
-                            <span className={`text-xl font-bold ${collectionRate >= 80 ? 'text-green-600' : collectionRate >= 50 ? 'text-yellow-600' : 'text-red-600'}`}>
-                              {collectionRate.toFixed(1)}%
-                            </span>
-                            {!isDateFilterActive && (
-                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                              </svg>
-                            )}
-                          </div>
-                        </button>
-                      )
-                    ) : (
-                      <div className="text-center text-gray-400 text-sm italic">N/A</div>
-                    )}
-                  </div>
+
 
                   <div className="md:col-span-1 flex items-center justify-center">
                     <div className="text-center">
@@ -255,49 +199,32 @@ const DefaultView: React.FC<DefaultViewProps> = ({
         })}
       </div>
 
-      <div className="bg-white rounded-xl border-2 border-gray-200 shadow-[0_4px_12px_rgba(0,0,0,0.08)] mt-6 overflow-hidden">
-        <div className="p-5">
-          <div className="grid grid-cols-1 md:grid-cols-8 gap-4 items-center">
-            <div className="md:col-span-3"></div>
-            <div className="md:col-span-1 hidden md:block"></div>
-            <div className="md:col-span-1">
-              <p className={`text-xl font-bold text-center ${filteredData.reduce((sum, c) => sum + c.netDebt, 0) > 0 ? 'text-red-600' : filteredData.reduce((sum, c) => sum + c.netDebt, 0) < 0 ? 'text-green-600' : 'text-gray-600'}`}>
-                {filteredData.reduce((sum, c) => sum + c.netDebt, 0).toLocaleString('en-US')}
-              </p>
-            </div>
-            <div className="md:col-span-1">
-              {mode === 'DEBIT' ? (
-                (() => {
-                  const totalNetDebt = filteredData.reduce((sum, c) => sum + c.netDebt, 0);
-                  if (totalNetDebt < 0) return <p className="text-gray-500 text-xl font-bold text-center">-</p>;
-                  const totalDebit = filteredData.reduce((sum, c) => sum + c.totalDebit, 0);
-                  const totalCredit = filteredData.reduce((sum, c) => sum + c.totalCredit, 0);
-                  const avgCollectionRate = totalDebit > 0 ? ((totalCredit / totalDebit) * 100) : 0;
-                  const rateColor = avgCollectionRate >= 80 ? 'text-green-600' : avgCollectionRate >= 50 ? 'text-yellow-600' : 'text-red-600';
-                  return <p className={`text-xl font-bold text-center ${rateColor}`}>{avgCollectionRate.toFixed(1)}%</p>;
-                })()
-              ) : (mode === 'OB_POS' || mode === 'OB_NEG') ? (
-                <p className={`text-xl font-bold text-center ${filteredData.reduce((sum, c) => sum + (c.openOBAmount || 0), 0) > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                  {filteredData.reduce((sum, c) => sum + (c.openOBAmount || 0), 0).toLocaleString('en-US')}
+        <div className="bg-white rounded-xl border-2 border-gray-200 shadow-[0_4px_12px_rgba(0,0,0,0.08)] mt-6 overflow-hidden">
+          <div className="p-5">
+            <div className="grid grid-cols-1 md:grid-cols-7 gap-4 items-center">
+              <div className="md:col-span-3"></div>
+              <div className="md:col-span-1 hidden md:block"></div>
+              <div className="md:col-span-1">
+                <p className={`text-xl font-bold text-center ${filteredData.reduce((sum, c) => sum + c.netDebt, 0) > 0 ? 'text-red-600' : filteredData.reduce((sum, c) => sum + c.netDebt, 0) < 0 ? 'text-green-600' : 'text-gray-600'}`}>
+                  {filteredData.reduce((sum, c) => sum + c.netDebt, 0).toLocaleString('en-US')}
                 </p>
-              ) : <div className="hidden md:block"></div>}
-            </div>
-            <div className="md:col-span-1 flex items-center justify-center">
-              <div className="text-center">
-                <span className="text-lg font-bold text-gray-700">
-                  {(() => {
-                    const customersWithInterval = filteredData.filter(c => (c.avgPaymentInterval || 0) > 0);
-                    if (customersWithInterval.length === 0) return '-';
-                    const avg = customersWithInterval.reduce((sum, c) => sum + (c.avgPaymentInterval || 0), 0) / customersWithInterval.length;
-                    return `${avg.toFixed(1)}d`;
-                  })()}
-                </span>
               </div>
+              <div className="md:col-span-1 flex items-center justify-center">
+                <div className="text-center">
+                  <span className="text-lg font-bold text-gray-700">
+                    {(() => {
+                      const c = filteredData.filter(d => d.avgPaymentInterval);
+                      if (!c.length) return '-';
+                      const avg = c.reduce((sum, d) => sum + (d.avgPaymentInterval || 0), 0) / c.length;
+                      return `${avg.toFixed(1)} days`;
+                    })()}
+                  </span>
+                </div>
+              </div>
+              <div className="md:col-span-1"><p className="text-xl font-bold text-blue-600 text-center" title="Total Customers Count">{filteredData.length}</p></div>
             </div>
-            <div className="md:col-span-1"><p className="text-xl font-bold text-blue-600 text-center" title="Total Customers Count">{filteredData.length}</p></div>
           </div>
         </div>
-      </div>
         </>
       )}
     </>

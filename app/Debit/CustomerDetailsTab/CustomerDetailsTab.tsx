@@ -327,7 +327,7 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
 
       const netDebt = netOnlyInvoices.reduce((sum, inv) => sum + (inv.netDebt || 0), 0);
       const dateLabel = effectiveDate ? `Up To ${formatDmy(new Date(effectiveDate))}` : 'All Months (Net Only)';
-      const { generateAccountStatementPDF } = await import('@/app/Debit/Pdf/StatementUtils');
+      const { generateAccountStatementPDF } = await import('@/app/Debit/CustomerDetailsTab/Pdf/StatementUtils');
       const pdfBlob = await generateAccountStatementPDF(customerName, netOnlyInvoices, true, dateLabel, isShort ?? true);
       if (!pdfBlob) throw new Error('Failed to generate PDF');
 
@@ -1681,7 +1681,7 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
         ? `Up To ${latestDate.getDate()}/${latestDate.getMonth() + 1}/${latestDate.getFullYear()} (Net Only)`
         : 'All Months (Net Only)';
 
-      const { generateAccountStatementPDF } = await import('@/app/Debit/Pdf/StatementUtils');
+      const { generateAccountStatementPDF } = await import('@/app/Debit/CustomerDetailsTab/Pdf/StatementUtils');
       await generateAccountStatementPDF(customerName, finalInvoices, false, monthsLabel, shortenInvoiceNumbers);
 
     } catch (error) {
@@ -1797,7 +1797,7 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
         await exportToExcel(finalInvoices, monthsLabel);
       } else {
         // Export to PDF
-        const { generateAccountStatementPDF } = await import('@/app/Debit/Pdf/StatementUtils');
+        const { generateAccountStatementPDF } = await import('@/app/Debit/CustomerDetailsTab/Pdf/StatementUtils');
         await generateAccountStatementPDF(customerName, finalInvoices, false, monthsLabel, shortenInvoiceNumbers);
       }
 

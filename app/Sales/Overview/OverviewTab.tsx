@@ -450,72 +450,72 @@ export default function SalesOverviewTab({ userId, showCosts = true }: SalesOver
         {yearlyTableData.length === 0 ? (
           <NoData />
         ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full table-fixed">
-            <thead>
-              <tr className="border-b-2 border-gray-200">
-                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-24">Year</th>
-                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-32">Net Amount</th>
-                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-32">Net Change</th>
-                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-28">Net QTY</th>
-                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-28">Cust. Count</th>
-                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-32">Sales Amount</th>
-                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-28">Sales Count</th>
-                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-32">GRV Amount</th>
-                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-28">GRV Count</th>
-              </tr>
-            </thead>
-            <tbody>
-              {yearlyTableData.map((item, index) => (
-                <tr key={item.year} className="border-b border-gray-100 hover:bg-gray-50">
-                  <td className="py-3 px-4 text-base font-semibold text-gray-800 text-center">{item.year}</td>
-                  <td className="py-3 px-4 text-base text-gray-800 text-center font-semibold">
-                    {item.amount.toLocaleString('en-US', {
-                      minimumFractionDigits: 0,
-                      maximumFractionDigits: 0
-                    })}
-                  </td>
-                  <td className={`py-3 px-4 text-base text-center font-semibold ${item.amountDiff > 0
-                    ? 'text-green-600'
-                    : item.amountDiff < 0
-                      ? 'text-red-600'
-                      : 'text-gray-600'
-                    }`}>
-                    {item.amountDiff !== 0 ? (
-                      <>
-                        {item.amountDiff > 0 ? '+' : ''}
-                        {item.amountDiff.toLocaleString('en-US', {
-                          minimumFractionDigits: 0,
-                          maximumFractionDigits: 0
-                        })}
-                      </>
-                    ) : (
-                      '-'
-                    )}
-                  </td>
-                  <td className="py-3 px-4 text-base text-gray-800 text-center font-semibold">
-                    {item.qty.toLocaleString()}
-                  </td>
-                  <td className="py-3 px-4 text-base text-gray-800 text-center font-semibold text-blue-600">
-                    {item.customerCount}
-                  </td>
-                  <td className="py-3 px-4 text-base text-green-600 text-center font-bold">
-                    {item.grossSales.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                  </td>
-                  <td className="py-3 px-4 text-base text-gray-800 text-center font-semibold">
-                    {item.salesCount}
-                  </td>
-                  <td className="py-3 px-4 text-base text-red-600 text-center font-bold">
-                    {item.grvAmount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                  </td>
-                  <td className="py-3 px-4 text-base text-gray-800 text-center font-semibold">
-                    {item.grvCount}
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full table-fixed">
+              <thead>
+                <tr className="border-b-2 border-gray-200">
+                  <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-24">Year</th>
+                  <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-32">Net Amount</th>
+                  <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-32">Net Change</th>
+                  <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-28">Net QTY</th>
+                  <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-28">Cust. Count</th>
+                  <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-32">Sales Amount</th>
+                  <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-28">Sales Count</th>
+                  <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-32">GRV Amount</th>
+                  <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-28">GRV Count</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {yearlyTableData.map((item, index) => (
+                  <tr key={item.year} className="border-b border-gray-100 hover:bg-gray-50">
+                    <td className="py-3 px-4 text-base font-semibold text-gray-800 text-center">{item.year}</td>
+                    <td className="py-3 px-4 text-base text-gray-800 text-center font-semibold">
+                      {item.amount.toLocaleString('en-US', {
+                        minimumFractionDigits: 0,
+                        maximumFractionDigits: 0
+                      })}
+                    </td>
+                    <td className={`py-3 px-4 text-base text-center font-semibold ${item.amountDiff > 0
+                      ? 'text-green-600'
+                      : item.amountDiff < 0
+                        ? 'text-red-600'
+                        : 'text-gray-600'
+                      }`}>
+                      {item.amountDiff !== 0 ? (
+                        <>
+                          {item.amountDiff > 0 ? '+' : ''}
+                          {item.amountDiff.toLocaleString('en-US', {
+                            minimumFractionDigits: 0,
+                            maximumFractionDigits: 0
+                          })}
+                        </>
+                      ) : (
+                        '-'
+                      )}
+                    </td>
+                    <td className="py-3 px-4 text-base text-gray-800 text-center font-semibold">
+                      {item.qty.toLocaleString()}
+                    </td>
+                    <td className="py-3 px-4 text-base text-gray-800 text-center font-semibold text-blue-600">
+                      {item.customerCount}
+                    </td>
+                    <td className="py-3 px-4 text-base text-green-600 text-center font-bold">
+                      {item.grossSales.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                    </td>
+                    <td className="py-3 px-4 text-base text-gray-800 text-center font-semibold">
+                      {item.salesCount}
+                    </td>
+                    <td className="py-3 px-4 text-base text-red-600 text-center font-bold">
+                      {item.grvAmount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                    </td>
+                    <td className="py-3 px-4 text-base text-gray-800 text-center font-semibold">
+                      {item.grvCount}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 
@@ -556,11 +556,10 @@ export default function SalesOverviewTab({ userId, showCosts = true }: SalesOver
                     setMonthlyYearFilter('all');
                     setIsMonthlyYearOpen(false);
                   }}
-                  className={`w-full px-4 py-2.5 text-left text-sm font-bold transition-colors ${
-                    monthlyYearFilter === 'all'
+                  className={`w-full px-4 py-2.5 text-left text-sm font-bold transition-colors ${monthlyYearFilter === 'all'
                       ? 'bg-emerald-50 text-emerald-700'
                       : 'text-slate-600 hover:bg-slate-50'
-                  }`}
+                    }`}
                 >
                   All Years
                 </button>
@@ -572,11 +571,10 @@ export default function SalesOverviewTab({ userId, showCosts = true }: SalesOver
                       setMonthlyYearFilter(year);
                       setIsMonthlyYearOpen(false);
                     }}
-                    className={`w-full px-4 py-2.5 text-left text-sm font-bold transition-colors ${
-                      monthlyYearFilter === year
+                    className={`w-full px-4 py-2.5 text-left text-sm font-bold transition-colors ${monthlyYearFilter === year
                         ? 'bg-emerald-50 text-emerald-700'
                         : 'text-slate-600 hover:bg-slate-50'
-                    }`}
+                      }`}
                   >
                     {year}
                   </button>
@@ -588,72 +586,72 @@ export default function SalesOverviewTab({ userId, showCosts = true }: SalesOver
         {filteredMonthlyTableData.length === 0 ? (
           <NoData />
         ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full table-fixed">
-            <thead>
-              <tr className="border-b-2 border-gray-200">
-                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-32">Month</th>
-                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-32">Net Amount</th>
-                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-32">Net Change</th>
-                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-28">Net QTY</th>
-                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-28">Cust. Count</th>
-                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-32">Sales Amount</th>
-                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-28">Sales Count</th>
-                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-32">GRV Amount</th>
-                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-28">GRV Count</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredMonthlyTableData.map((item, index) => (
-                <tr key={item.monthKey} className="border-b border-gray-100 hover:bg-gray-50">
-                  <td className="py-3 px-4 text-base font-semibold text-gray-800 text-center">{item.month}</td>
-                  <td className="py-3 px-4 text-base text-gray-800 text-center font-semibold">
-                    {item.amount.toLocaleString('en-US', {
-                      minimumFractionDigits: 0,
-                      maximumFractionDigits: 0
-                    })}
-                  </td>
-                  <td className={`py-3 px-4 text-base text-center font-semibold ${item.amountDiff > 0
-                    ? 'text-green-600'
-                    : item.amountDiff < 0
-                      ? 'text-red-600'
-                      : 'text-gray-600'
-                    }`}>
-                    {item.amountDiff !== 0 ? (
-                      <>
-                        {item.amountDiff > 0 ? '+' : ''}
-                        {item.amountDiff.toLocaleString('en-US', {
-                          minimumFractionDigits: 0,
-                          maximumFractionDigits: 0
-                        })}
-                      </>
-                    ) : (
-                      '-'
-                    )}
-                  </td>
-                  <td className="py-3 px-4 text-base text-gray-800 text-center font-semibold">
-                    {item.qty.toLocaleString()}
-                  </td>
-                  <td className="py-3 px-4 text-base text-gray-800 text-center font-semibold text-blue-600">
-                    {item.customerCount}
-                  </td>
-                  <td className="py-3 px-4 text-base text-green-600 text-center font-bold">
-                    {item.grossSales.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                  </td>
-                  <td className="py-3 px-4 text-base text-gray-800 text-center font-semibold">
-                    {item.salesCount}
-                  </td>
-                  <td className="py-3 px-4 text-base text-red-600 text-center font-bold">
-                    {item.grvAmount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                  </td>
-                  <td className="py-3 px-4 text-base text-gray-800 text-center font-semibold">
-                    {item.grvCount}
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full table-fixed">
+              <thead>
+                <tr className="border-b-2 border-gray-200">
+                  <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-32">Month</th>
+                  <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-32">Net Amount</th>
+                  <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-32">Net Change</th>
+                  <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-28">Net QTY</th>
+                  <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-28">Cust. Count</th>
+                  <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-32">Sales Amount</th>
+                  <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-28">Sales Count</th>
+                  <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-32">GRV Amount</th>
+                  <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-28">GRV Count</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {filteredMonthlyTableData.map((item, index) => (
+                  <tr key={item.monthKey} className="border-b border-gray-100 hover:bg-gray-50">
+                    <td className="py-3 px-4 text-base font-semibold text-gray-800 text-center">{item.month}</td>
+                    <td className="py-3 px-4 text-base text-gray-800 text-center font-semibold">
+                      {item.amount.toLocaleString('en-US', {
+                        minimumFractionDigits: 0,
+                        maximumFractionDigits: 0
+                      })}
+                    </td>
+                    <td className={`py-3 px-4 text-base text-center font-semibold ${item.amountDiff > 0
+                      ? 'text-green-600'
+                      : item.amountDiff < 0
+                        ? 'text-red-600'
+                        : 'text-gray-600'
+                      }`}>
+                      {item.amountDiff !== 0 ? (
+                        <>
+                          {item.amountDiff > 0 ? '+' : ''}
+                          {item.amountDiff.toLocaleString('en-US', {
+                            minimumFractionDigits: 0,
+                            maximumFractionDigits: 0
+                          })}
+                        </>
+                      ) : (
+                        '-'
+                      )}
+                    </td>
+                    <td className="py-3 px-4 text-base text-gray-800 text-center font-semibold">
+                      {item.qty.toLocaleString()}
+                    </td>
+                    <td className="py-3 px-4 text-base text-gray-800 text-center font-semibold text-blue-600">
+                      {item.customerCount}
+                    </td>
+                    <td className="py-3 px-4 text-base text-green-600 text-center font-bold">
+                      {item.grossSales.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                    </td>
+                    <td className="py-3 px-4 text-base text-gray-800 text-center font-semibold">
+                      {item.salesCount}
+                    </td>
+                    <td className="py-3 px-4 text-base text-red-600 text-center font-bold">
+                      {item.grvAmount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                    </td>
+                    <td className="py-3 px-4 text-base text-gray-800 text-center font-semibold">
+                      {item.grvCount}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 
