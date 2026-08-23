@@ -61,7 +61,7 @@ export async function computeDebitInsightsMetrics(
     return metrics;
   }
 
-  const overlay = await fetchSalesOverlayForFilters(filters, userId);
+  const overlay = await fetchSalesOverlayForFilters(rows, filters, userId);
   return applySalesNetOverlay(metrics, overlay);
 }
 
@@ -69,17 +69,28 @@ export async function computeDebitInsightsMetrics(
  * Fetches Sales DB net-sales overlay for the resolved Insights period.
  */
 async function fetchSalesOverlayForFilters(
+  rows: InvoiceRow[],
   filters: InsightsFilters,
   userId?: string
 ): Promise<InsightsSalesOverlay> {
-  const { from, to } = resolvePeriodRange(filters);
-  const effectiveCustomers = resolveEffectiveCustomers(filters.customerGroups, filters.customers);
+  const { from, to } = resolvePeriodRange(
+    filters.asOfDate,
+    filters.periodPreset,
+    filters.periodFrom,
+    filters.periodTo
+  );
+  const effectiveCustomers = resolveEffectiveCustomers(
+    rows,
+    [], // cities not present in InsightsFilters
+    filters.customers || [],
+    filters.customerTags || []
+  );
 
   return getInsightsSalesOverlay({
     userId: userId || '',
     periodFrom: toInputDate(from),
     periodTo: toInputDate(to),
-    cities: filters.cities || [],
+    cities: [], // cities not present in InsightsFilters
     customers: effectiveCustomers,
   });
 }
