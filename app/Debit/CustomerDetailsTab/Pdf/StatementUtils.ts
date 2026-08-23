@@ -57,7 +57,7 @@ function drawStatementHeader(doc: any, customerName: string, invoices: any[], ma
   doc.setFontSize(8);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(COLORS.gray[0], COLORS.gray[1], COLORS.gray[2]);
-  doc.text('BILL TO', margin + 5, yPosition + 6);
+  doc.text('CUSTOMER NAME', margin + 5, yPosition + 6);
   
   doc.setFontSize(14);
   doc.setFont('Amiri', 'bold');
@@ -70,11 +70,6 @@ function drawStatementHeader(doc: any, customerName: string, invoices: any[], ma
   
   doc.setTextColor(COLORS.black[0], COLORS.black[1], COLORS.black[2]);
   doc.text(customerName, margin + 5, yPosition + 14);
-  
-  doc.setFontSize(9);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(COLORS.gray[0], COLORS.gray[1], COLORS.gray[2]);
-  doc.text('Customer Account', margin + 5, yPosition + 21);
 
   // Meta (Right)
   const metaX = margin + billToWidth + 5;
@@ -192,6 +187,12 @@ function generateTableData(invoices: any[], shortenInvoiceNumbers: boolean) {
     const num = (inv.number || '').trim().toUpperCase();
     const isSpecialType = num.startsWith('BIL') || num.startsWith('JV');
     let type = isSpecialType ? '-' : getInvoiceType(inv);
+    if (!isSpecialType && inv.date) {
+      const year = new Date(inv.date).getFullYear();
+      if (!isNaN(year)) {
+        type = `${type} ${year}`;
+      }
+    }
     
     let invoiceNumber = inv.number || '';
     if (shortenInvoiceNumbers && invoiceNumber) {
