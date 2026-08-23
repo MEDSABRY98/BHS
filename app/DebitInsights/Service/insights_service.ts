@@ -68,3 +68,18 @@ export async function computeDebitInsightsMetrics(
 /**
  * Fetches Sales DB net-sales overlay for the resolved Insights period.
  */
+async function fetchSalesOverlayForFilters(
+  filters: InsightsFilters,
+  userId?: string
+): Promise<InsightsSalesOverlay> {
+  const { periodFrom, periodTo } = resolvePeriodRange(filters);
+  const effectiveCustomers = resolveEffectiveCustomers(filters.customerGroups, filters.customers);
+
+  return getInsightsSalesOverlay({
+    userId: userId || '',
+    periodFrom: toInputDate(periodFrom),
+    periodTo: toInputDate(periodTo),
+    cities: filters.cities || [],
+    customers: effectiveCustomers,
+  });
+}
