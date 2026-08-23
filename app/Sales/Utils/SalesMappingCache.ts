@@ -1,41 +1,15 @@
 import { bhs_supabas, hasSalesDataAccessFromDb, parseBoolFlag } from '@/lib/supabase';
 import { getSalesDataServer } from '@/app/Sales/Utils/SalesCache';
 
-// ─────────────────────────────────────────────────────────────
-//  Mapping Cache — Global, memory-level
-//  Eliminates the per-request DB hit for customer mapping
-//  across ALL Sales API routes (Overview, Products, Customers…)
-// ─────────────────────────────────────────────────────────────
-
 let globalMappingCache: Map<string, any> | null = null;
 let cachedUsersList: { id: string; name: string }[] | null = null;
 let globalCustomerTagCache: Map<string, string> | null = null;
 let globalCustomerClassCache: Map<string, string> | null = null;
 
-/**
- * Fetches and builds the global customer mappings.
- * Joins mapping rows with user names from bhs_USERS and customer names from bhs_CUSTOMERS in-memory.
- */
 export async function getGlobalMappings(): Promise<Map<string, any>> {
-  if (globalMappingCache) {
-    return globalMappingCache;
-  }
+  if (globalMappingCache) return globalMappingCache;
 
-  // 1. Fetch mappings
-  const { data: mappings, error: mapErr } = await bhs_supabas
-    .from('web_Sales_DB_CUSTOMERSMAPPING')
-    .select('*');
-
-  if (mapErr) {
-    console.error('Error fetching mappings:', mapErr);
-    return new Map();
-  }
-
-  // 2. Fetch users
-  const { data: users, error: userErr } = await bhs_supabas
-    .from('bhs_USERS')
-    .select('ID, NAME');
-
+  const { data: users, error: userErr } = await bhs_supabas.from('bhs_USERS').select('ID, NAME');
   const userMap = new Map<string, string>();
   const userMapByName = new Map<string, string>();
   if (!userErr && users) {
@@ -50,65 +24,46 @@ export async function getGlobalMappings(): Promise<Map<string, any>> {
     cachedUsersList = [];
   }
 
-  // 3. Fetch customers
   const { data: customers, error: custErr } = await bhs_supabas
     .from('bhs_CUSTOMERS')
-    .select('"CUSTOMER ID", "CUSTOMER MAIN NAME", "CUSTOMER SUB NAME", "CUSTOMER CITY", "CUSTOMER TAG", "CUSTOMER CLASS"');
+    .select('"CUSTOMER ID", "CUSTOMER MAIN NAME", "CUSTOMER SUB NAME", "CUSTOMER CITY", "CUSTOMER TAG", "CUSTOMER CLASS", "SALES_REP", "MARKET", "MERCHANDISER"');
 
-  const custMap = new Map<string, { mainName: string; subName: string; city: string; tag: string; customerClass: string }>();
+  const mappingMap = new Map<string, any>();
   const tagMap = new Map<string, string>();
   const classMap = new Map<string, string>();
+
   if (!custErr && customers) {
     customers.forEach(c => {
       const cId = String(c['CUSTOMER ID']).trim().toUpperCase();
       const tag = String(c['CUSTOMER TAG'] || '').trim();
       const customerClass = String(c['CUSTOMER CLASS'] || '').trim();
-      custMap.set(cId, {
-        mainName: c['CUSTOMER MAIN NAME'] || '',
-        subName: c['CUSTOMER SUB NAME'] || '',
-        city: String(c['CUSTOMER CITY'] || '').trim(),
-        tag,
-        customerClass,
-      });
       if (tag) tagMap.set(cId, tag);
       if (customerClass) classMap.set(cId, customerClass);
-    });
-  }
-  globalCustomerTagCache = tagMap;
-  globalCustomerClassCache = classMap;
 
-  // 4. Merge mapping records
-  const mappingMap = new Map<string, any>();
-  if (mappings) {
-    mappings.forEach((m: any) => {
-      const cId = String(m['CUSTOMER ID']).trim().toUpperCase();
-      const rawRep = String(m['SALES_REP'] || '').trim();
-      const repId = userMap.has(rawRep)
-        ? rawRep
-        : (userMapByName.get(rawRep.toUpperCase()) || rawRep);
-
-      const rawMerch = String(m['MERCHANDISER'] || '').trim();
-      const merchId = userMap.has(rawMerch)
-        ? rawMerch
-        : (userMapByName.get(rawMerch.toUpperCase()) || rawMerch);
+      const rawRep = String(c['SALES_REP'] || '').trim();
+      const repId = userMap.has(rawRep) ? rawRep : (userMapByName.get(rawRep.toUpperCase()) || rawRep);
+      const rawMerch = String(c['MERCHANDISER'] || '').trim();
+      const merchId = userMap.has(rawMerch) ? rawMerch : (userMapByName.get(rawMerch.toUpperCase()) || rawMerch);
 
       mappingMap.set(cId, {
-        id: m['CUSTOMER ID'],
-        customerId: m['CUSTOMER ID'],
+        id: c['CUSTOMER ID'],
+        customerId: c['CUSTOMER ID'],
         userId: repId,
         salesRep: userMap.get(repId) || (userMapByName.has(rawRep.toUpperCase()) ? rawRep : ''),
-        area: custMap.get(cId)?.city || m['AREA'] || '',
-        market: m['MARKET'] || '',
+        area: String(c['CUSTOMER CITY'] || '').trim(),
+        market: String(c['MARKET'] || '').trim(),
         merchandiserId: merchId,
         merchandiser: userMap.get(merchId) || (userMapByName.has(rawMerch.toUpperCase()) ? rawMerch : ''),
-        customerMainName: custMap.get(cId)?.mainName || '',
-        customerSubName: custMap.get(cId)?.subName || '',
-        customerTag: custMap.get(cId)?.tag || '',
-        customerClass: custMap.get(cId)?.customerClass || '',
+        customerMainName: c['CUSTOMER MAIN NAME'] || '',
+        customerSubName: c['CUSTOMER SUB NAME'] || '',
+        customerTag: tag,
+        customerClass: customerClass,
       });
     });
   }
 
+  globalCustomerTagCache = tagMap;
+  globalCustomerClassCache = classMap;
   globalMappingCache = mappingMap;
   console.log(`🗺️ Global mappings cached: ${mappingMap.size} entries`);
   return mappingMap;
@@ -120,20 +75,17 @@ type SalesUserContext = {
   hasSalesDataAccess: boolean;
 };
 
-/** Match mapping to user by ID or legacy name stored in SALES_REP. */
 function isMappingAssignedToUser(
   mapping: { userId?: string; salesRep?: string } | undefined,
   cleanUserId: string,
   cleanUserName: string
 ): boolean {
   if (!mapping) return false;
-
   const repValue = String(mapping.userId || '').trim().toUpperCase();
   if (!repValue) return false;
   if (repValue === cleanUserId) return true;
   if (cleanUserName && repValue === cleanUserName) return true;
   if (cleanUserName && String(mapping.salesRep || '').trim().toUpperCase() === cleanUserName) return true;
-
   return false;
 }
 
@@ -156,21 +108,12 @@ async function resolveSalesUserContext(userId: string): Promise<SalesUserContext
   };
 }
 
-/**
- * Returns mappings filtered by user permissions.
- * Manager sees all, representatives see only their assignments.
- */
 export async function getMappingServer(userId: string): Promise<Map<string, any>> {
   const allMappings = await getGlobalMappings();
   const userContext = await resolveSalesUserContext(userId);
 
-  if (!userContext) {
-    return new Map();
-  }
-
-  if (userContext.hasSalesDataAccess) {
-    return allMappings;
-  }
+  if (!userContext) return new Map();
+  if (userContext.hasSalesDataAccess) return allMappings;
 
   const filtered = new Map<string, any>();
   allMappings.forEach((val, key) => {
@@ -182,9 +125,6 @@ export async function getMappingServer(userId: string): Promise<Map<string, any>
   return filtered;
 }
 
-/**
- * Invalidates the global mapping cache.
- */
 export function invalidateMappingCache(userId?: string) {
   globalMappingCache = null;
   cachedUsersList = null;
@@ -193,15 +133,11 @@ export function invalidateMappingCache(userId?: string) {
   console.log('🗑️ Global mapping cache invalidated');
 }
 
-/** Users list built alongside global mappings — avoids duplicate bhs_USERS queries. */
 export async function getCachedUsersList(): Promise<{ id: string; name: string }[]> {
   await getGlobalMappings();
   return cachedUsersList || [];
 }
 
-/**
- * Helper: Apply mapping Map to a single sales item
- */
 export function applyMapping(item: any, mappingMap: Map<string, any>): any {
   if (mappingMap.size === 0) return item;
   const cId = String(item.customerId || '').trim().toUpperCase();
@@ -222,15 +158,9 @@ export function applyMapping(item: any, mappingMap: Map<string, any>): any {
   };
 }
 
-/**
- * Loads sales rows from web_Sales_DB (via cache), applies customer mapping,
- * and filters by user permissions (manager vs assigned sales rep).
- */
 export async function getFilteredSalesData(userId: string): Promise<any[]> {
   const userContext = await resolveSalesUserContext(userId);
-  if (!userContext) {
-    return [];
-  }
+  if (!userContext) return [];
 
   const rawSales = await getSalesDataServer();
   const allMappings = await getGlobalMappings();
@@ -263,7 +193,6 @@ export async function getFilteredSalesData(userId: string): Promise<any[]> {
   return processed;
 }
 
-/** Internal helper to check full sales data access rights. */
 async function checkHasSalesDataAccess(userId: string): Promise<boolean> {
   const userContext = await resolveSalesUserContext(userId);
   return userContext?.hasSalesDataAccess ?? false;
@@ -271,12 +200,10 @@ async function checkHasSalesDataAccess(userId: string): Promise<boolean> {
 
 export { checkHasSalesDataAccess, isMappingAssignedToUser, resolveSalesUserContext };
 
-/** Legacy surrogate keys like R-0001 generated for mapping table rows. */
 export function isLegacyMappingRowId(value: string): boolean {
   return /^R-\d+$/i.test(String(value || '').trim());
 }
 
-/** Ensures the value is a real CUSTOMER ID from bhs_CUSTOMERS. */
 export async function normalizeMappingCustomerId(customerId: string): Promise<string> {
   const id = String(customerId || '').trim();
   if (!id) throw new Error('Customer ID is required');
@@ -288,19 +215,11 @@ export async function normalizeMappingCustomerId(customerId: string): Promise<st
     .maybeSingle();
 
   if (error) throw error;
-  if (!data) {
-    if (isLegacyMappingRowId(id)) {
-      throw new Error(
-        'Invalid customer ID: use the actual CUSTOMER ID, not a mapping row ID (R-XXXX).'
-      );
-    }
-    throw new Error(`Customer ID "${id}" was not found.`);
-  }
+  if (!data) throw new Error(`Customer ID "${id}" was not found.`);
 
   return String(data['CUSTOMER ID']).trim();
 }
 
-/** Resolves a sales rep to their bhs_USERS.ID (supports ID or name). */
 export function resolveSalesRepUserId(
   salesRepIdOrName: string,
   userMapById: Map<string, string>,
@@ -312,34 +231,7 @@ export function resolveSalesRepUserId(
   return userMapByName.get(raw.toUpperCase()) || raw;
 }
 
-/** Alias — merchandisers use the same bhs_USERS lookup as sales reps. */
 export const resolveMerchandiserUserId = resolveSalesRepUserId;
-
-/** Fuzzy match for legacy free-text merchandiser names (e.g. "Anwar" → "Anwar Mohsen"). */
-export function resolveMerchandiserUserIdFuzzy(
-  merchandiserIdOrName: string,
-  userMapById: Map<string, string>,
-  userMapByName: Map<string, string>
-): string {
-  const resolved = resolveMerchandiserUserId(merchandiserIdOrName, userMapById, userMapByName);
-  if (userMapById.has(resolved)) return resolved;
-
-  const upper = String(merchandiserIdOrName || '').trim().toUpperCase();
-  if (!upper) return '';
-
-  for (const [name, id] of userMapByName) {
-    if (name === upper) return id;
-    const firstWord = name.split(/\s+/)[0];
-    if (firstWord === upper) return id;
-    if (name.startsWith(`${upper} `)) return id;
-  }
-
-  for (const [name, id] of userMapByName) {
-    if (name.includes(upper)) return id;
-  }
-
-  return resolved;
-}
 
 export async function loadUserMaps() {
   const { data: users, error } = await bhs_supabas.from('bhs_USERS').select('ID, NAME');
@@ -388,50 +280,7 @@ export function resolveCustomerId(
   const raw = String(rawIdOrName || '').trim();
   if (!raw) return '';
   const upperRaw = raw.toUpperCase();
-  
-  if (custMapById.has(upperRaw)) {
-    return custMapById.get(upperRaw)!;
-  }
-  if (custMapByName.has(upperRaw)) {
-    return custMapByName.get(upperRaw)!;
-  }
+  if (custMapById.has(upperRaw)) return custMapById.get(upperRaw)!;
+  if (custMapByName.has(upperRaw)) return custMapByName.get(upperRaw)!;
   return '';
-}
-
-/** Converts legacy free-text MERCHANDISER values to bhs_USERS.ID. */
-export async function migrateLegacyMerchandiserNames(): Promise<number> {
-  const { userMapById, userMapByName } = await loadUserMaps();
-  const { data: rows, error } = await bhs_supabas
-    .from('web_Sales_DB_CUSTOMERSMAPPING')
-    .select('"CUSTOMER ID", MERCHANDISER')
-    .not('MERCHANDISER', 'is', null);
-
-  if (error) throw error;
-  if (!rows?.length) return 0;
-
-  let updated = 0;
-  for (const row of rows) {
-    const customerId = String(row['CUSTOMER ID'] || '').trim();
-    if (!customerId) continue;
-
-    const raw = String(row.MERCHANDISER || '').trim();
-    if (!raw || userMapById.has(raw)) continue;
-
-    const userId = resolveMerchandiserUserIdFuzzy(raw, userMapById, userMapByName);
-    if (!userMapById.has(userId) || userId === raw) continue;
-
-    const { error: updateError } = await bhs_supabas
-      .from('web_Sales_DB_CUSTOMERSMAPPING')
-      .update({ MERCHANDISER: userId })
-      .eq('CUSTOMER ID', customerId);
-
-    if (updateError) throw updateError;
-    updated += 1;
-  }
-
-  if (updated > 0) {
-    invalidateMappingCache();
-  }
-
-  return updated;
 }

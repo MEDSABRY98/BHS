@@ -62,6 +62,9 @@ export default function CustomersPage() {
   const [CUSTOMER_TAG, setCUSTOMER_TAG] = useState('');
   const [CUSTOMER_CLASS, setCUSTOMER_CLASS] = useState('');
   const [CREDIT_LIMIT, setCREDIT_LIMIT] = useState('0');
+  const [SALES_REP, setSALES_REP] = useState('');
+  const [MARKET, setMARKET] = useState('');
+  const [MERCHANDISER, setMERCHANDISER] = useState('');
 
   // Fetch customers when page or search term changes (debounced)
   useEffect(() => {
@@ -108,6 +111,9 @@ export default function CustomersPage() {
     setCUSTOMER_TAG(customer ? customer["CUSTOMER TAG"] || '' : '');
     setCUSTOMER_CLASS(customer ? customer["CUSTOMER CLASS"] || '' : '');
     setCREDIT_LIMIT(customer ? String(customer["CREDIT LIMIT"] || 0) : '0');
+    setSALES_REP(customer ? customer["SALES_REP"] || '' : '');
+    setMARKET(customer ? customer["MARKET"] || '' : '');
+    setMERCHANDISER(customer ? customer["MERCHANDISER"] || '' : '');
     setIsModalOpen(true);
   };
 
@@ -151,7 +157,10 @@ export default function CustomersPage() {
             "CUSTOMER ID": CUSTOMER_ID,
             "CUSTOMER TAG": tagValue,
             "CUSTOMER CLASS": classValue,
-            "CREDIT LIMIT": Number(CREDIT_LIMIT) || 0
+            "CREDIT LIMIT": Number(CREDIT_LIMIT) || 0,
+            "SALES_REP": SALES_REP.trim() || null,
+            "MARKET": MARKET.trim() || null,
+            "MERCHANDISER": MERCHANDISER.trim() || null
           })
           .eq('ID', editingCustomer.ID);
         if (error) throw error;
@@ -193,7 +202,10 @@ export default function CustomersPage() {
             "CUSTOMER ID": CUSTOMER_ID,
             "CUSTOMER TAG": tagValue,
             "CUSTOMER CLASS": classValue,
-            "CREDIT LIMIT": Number(CREDIT_LIMIT) || 0
+            "CREDIT LIMIT": Number(CREDIT_LIMIT) || 0,
+            "SALES_REP": SALES_REP.trim() || null,
+            "MARKET": MARKET.trim() || null,
+            "MERCHANDISER": MERCHANDISER.trim() || null
           });
         if (error) throw error;
       }
@@ -284,7 +296,10 @@ export default function CustomersPage() {
         "Customer City": c["CUSTOMER CITY"] || '',
         "Customer Tag": c["CUSTOMER TAG"] || '',
         "Customer Class": c["CUSTOMER CLASS"] || '',
-        "Credit Limit": Number(c["CREDIT LIMIT"]) || 0
+        "Credit Limit": Number(c["CREDIT LIMIT"]) || 0,
+        "Sales Rep": c["SALES_REP"] || '',
+        "Market": c["MARKET"] || '',
+        "Merchandiser": c["MERCHANDISER"] || ''
       }));
 
       if (exportData.length === 0) {
@@ -431,7 +446,10 @@ export default function CustomersPage() {
             'CUSTOMER CITY': String(row['Customer City'] ?? '').trim(),
             'CUSTOMER TAG': String(row['Customer Tag'] ?? row['CUSTOMER TAG'] ?? '').trim() || null,
             'CUSTOMER CLASS': String(row['Customer Class'] ?? row['CUSTOMER CLASS'] ?? '').trim() || null,
-            'CREDIT LIMIT': isNaN(creditLimitVal) ? 0 : creditLimitVal
+            'CREDIT LIMIT': isNaN(creditLimitVal) ? 0 : creditLimitVal,
+            'SALES_REP': String(row['Sales Rep'] ?? row['SALES_REP'] ?? '').trim() || null,
+            'MARKET': String(row['Market'] ?? row['MARKET'] ?? '').trim() || null,
+            'MERCHANDISER': String(row['Merchandiser'] ?? row['MERCHANDISER'] ?? '').trim() || null
           };
 
           recordsToUpsert.push(record);
@@ -632,6 +650,21 @@ export default function CustomersPage() {
                           Limit: {Number(customer["CREDIT LIMIT"]).toLocaleString()} AED
                         </span>
                       )}
+                      {customer["SALES_REP"] && (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-red-50 text-red-700 rounded-xl text-[9px] font-black uppercase tracking-widest">
+                          <UserCircle className="w-2.5 h-2.5" /> Rep: {customer["SALES_REP"]}
+                        </span>
+                      )}
+                      {customer["MERCHANDISER"] && (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-pink-50 text-pink-700 rounded-xl text-[9px] font-black uppercase tracking-widest">
+                          <UserCircle className="w-2.5 h-2.5" /> Merch: {customer["MERCHANDISER"]}
+                        </span>
+                      )}
+                      {customer["MARKET"] && (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-orange-50 text-orange-700 rounded-xl text-[9px] font-black uppercase tracking-widest">
+                          <MapPin className="w-2.5 h-2.5" /> {customer["MARKET"]}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -730,17 +763,17 @@ export default function CustomersPage() {
       {/* Customer Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/20 animate-in fade-in duration-300">
-          <div className="bg-white w-full max-w-xl rounded-[2.5rem] shadow-2xl animate-in slide-in-from-bottom-8 duration-500">
-            <div className="p-8 flex items-center justify-between">
+          <div className="bg-white w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-[2.5rem] shadow-2xl animate-in slide-in-from-bottom-8 duration-500 flex flex-col">
+            <div className="p-6 md:p-8 flex items-center justify-between sticky top-0 bg-white z-10 border-b border-gray-50">
               <h2 className="text-2xl font-bold">{editingCustomer ? 'Edit Customer' : 'New Customer'}</h2>
-              <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-gray-100 rounded-xl transition-all">
+              <button type="button" onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-gray-100 rounded-xl transition-all">
                 <X className="w-6 h-6" />
               </button>
             </div>
 
-            <form onSubmit={handleSave} className="p-8 space-y-8">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div className="md:col-span-2 space-y-2">
+            <form onSubmit={handleSave} className="p-6 md:p-8 space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
                   <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">CUSTOMER ID</label>
                   <input
                     type="text"
@@ -752,7 +785,7 @@ export default function CustomersPage() {
                   />
                 </div>
 
-                <div className="md:col-span-2 space-y-2">
+                <div className="space-y-2">
                   <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">CUSTOMER MAIN NAME</label>
                   <input
                     type="text"
@@ -763,7 +796,7 @@ export default function CustomersPage() {
                   />
                 </div>
 
-                <div className="md:col-span-2 space-y-2">
+                <div className="space-y-2">
                   <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">CUSTOMER SUB NAME</label>
                   <input
                     type="text"
@@ -813,6 +846,50 @@ export default function CustomersPage() {
                       value={CUSTOMER_CLASS}
                       onChange={(e) => setCUSTOMER_CLASS(e.target.value)}
                       placeholder="e.g. B-CLASS"
+                      className="w-full pl-14 pr-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold"
+                    />
+                  </div>
+                </div>
+
+
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">SALES REP ID</label>
+                  <div className="relative">
+                    <UserCircle className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <input
+                      type="text"
+                      value={SALES_REP}
+                      onChange={(e) => setSALES_REP(e.target.value)}
+                      placeholder="Sales Rep User ID"
+                      className="w-full pl-14 pr-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">MERCHANDISER ID</label>
+                  <div className="relative">
+                    <UserCircle className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <input
+                      type="text"
+                      value={MERCHANDISER}
+                      onChange={(e) => setMERCHANDISER(e.target.value)}
+                      placeholder="Merchandiser User ID"
+                      className="w-full pl-14 pr-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">MARKET</label>
+                  <div className="relative">
+                    <MapPin className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <input
+                      type="text"
+                      value={MARKET}
+                      onChange={(e) => setMARKET(e.target.value)}
+                      placeholder="e.g. Carrefour"
                       className="w-full pl-14 pr-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold"
                     />
                   </div>

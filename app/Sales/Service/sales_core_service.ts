@@ -207,58 +207,47 @@ export async function uploadSalesMappingsBulk(userId: string, mapping: any) {
     return { success: true, message: 'No mapping data provided' };
   }
 
-  const { error: deleteError } = await bhs_supabas
-    .from('web_Sales_DB_CUSTOMERSMAPPING')
-    .delete()
-    .neq('CUSTOMER ID', '__never__');
-
-  if (deleteError) {
-    throw deleteError;
-  }
-
   const { userMapById, userMapByName } = await loadUserMaps();
-  const { custMapById, custMapByName, custCityById } = await loadCustomerMaps();
+  const { custMapById, custMapByName } = await loadCustomerMaps();
 
-  const rowsByCustomer = new Map<string, Record<string, string>>();
+  const updates: { customerId: string; data: any }[] = [];
+  
   for (const rawCustomerId of Object.keys(mapping)) {
-    if (isLegacyMappingRowId(rawCustomerId)) continue;
-
     const customerId = resolveCustomerId(rawCustomerId, custMapById, custMapByName);
-    if (!customerId) {
-      throw new Error(`Customer "${rawCustomerId}" was not found in the database.`);
-    }
+    if (!customerId) continue;
+
     const data = mapping[rawCustomerId];
     const repRaw = String(data.salesRep || data.salesRepId || '').trim();
     const repId = resolveSalesRepUserId(repRaw, userMapById, userMapByName);
     const merchRaw = String(data.merchandiserId || data.merchandiser || '').trim();
     const merchId = resolveMerchandiserUserId(merchRaw, userMapById, userMapByName);
-    const city = custCityById.get(customerId.toUpperCase()) || '';
 
-    rowsByCustomer.set(customerId, {
-      SALES_REP: repId,
-      'CUSTOMER ID': customerId,
-      AREA: city || data.area || '',
-      MARKET: data.market || '',
-      MERCHANDISER: merchId,
+    updates.push({
+      customerId,
+      data: {
+        SALES_REP: repId,
+        MARKET: data.market || '',
+        MERCHANDISER: merchId,
+      }
     });
   }
-  const rows = Array.from(rowsByCustomer.values());
 
-  const chunkSize = 1000;
-  for (let i = 0; i < rows.length; i += chunkSize) {
-    const chunk = rows.slice(i, i + chunkSize);
-    const { error: insertError } = await bhs_supabas
-      .from('web_Sales_DB_CUSTOMERSMAPPING')
-      .insert(chunk);
-
-    if (insertError) {
-      throw insertError;
-    }
+  const chunkSize = 50;
+  for (let i = 0; i < updates.length; i += chunkSize) {
+    const chunk = updates.slice(i, i + chunkSize);
+    await Promise.all(
+      chunk.map(u => 
+        bhs_supabas
+          .from('bhs_CUSTOMERS')
+          .update(u.data)
+          .eq('CUSTOMER ID', u.customerId)
+      )
+    );
   }
 
   invalidateMappingCache();
 
-  return { success: true, message: `Uploaded ${rows.length} mappings successfully` };
+  return { success: true, message: `Uploaded ${updates.length} mappings successfully` };
 }
 
 // -------------------------------------------------------------

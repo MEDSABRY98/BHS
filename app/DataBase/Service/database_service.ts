@@ -117,7 +117,6 @@ export async function deletePersonnel(id: string) {
 const CUSTOMER_ID_TABLES = [
   { table: 'web_Sales_DB', column: 'CUSTOMER ID' },
   { table: 'web_Sales_DB_INACTIVECUSTOMERS', column: 'CUSTOMER ID' },
-  { table: 'web_Sales_DB_CUSTOMERSMAPPING', column: 'CUSTOMER ID' },
   { table: 'mix_DEBIT', column: 'CUSTOMER ID' },
   { table: 'debit_EMILS', column: 'CUSTOMER ID' },
   { table: 'debit_EMILS_LULU', column: 'CUSTOMER ID' },

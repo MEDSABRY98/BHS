@@ -16,7 +16,6 @@ import SalesStockReportTab from './StockReport/StockReportTab';
 import SalesSidebar from './Utils/Sidebar';
 import SalesTabPanel from './Shared/TabPanel';
 import SalesTabLoader from './Shared/TabLoader';
-import SalesSetCustomersTab from './SetCustomers/SetCustomersTab';
 import SalesTargetsTab from './Targets/TargetsTab';
 import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
 import SalesNewListingsTab from './NewListings/NewListingsTab';
@@ -438,9 +437,6 @@ export default function SalesPage() {
         </SalesTabPanel>
         <SalesTabPanel tabId="sales-download-form" activeTab={activeTab} isVisited={visitedTabs.has('sales-download-form')}>
           <SalesStockReportTab userId={salesUserId} showCosts={showCosts} />
-        </SalesTabPanel>
-        <SalesTabPanel tabId="sales-my-customers" activeTab={activeTab} isVisited={visitedTabs.has('sales-my-customers')}>
-          <SalesSetCustomersTab userId={salesUserId} />
         </SalesTabPanel>
       </div>
     );

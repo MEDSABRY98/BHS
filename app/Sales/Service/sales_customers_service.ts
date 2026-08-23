@@ -510,133 +510,6 @@ export async function getMyCustomersData(userId: string) {
     .sort((a, b) => a['CUSTOMER MAIN NAME'].localeCompare(b['CUSTOMER MAIN NAME']));
 }
 
-export type SetCustomersTabData = {
-  globalCustomers: { id: string; mainName: string; subName: string; city: string }[];
-  myCustomers: ReturnType<typeof mapMappingToCustomerRow>[];
-  usersList: { id: string; name: string }[];
-};
-
-async function resolveCustomerArea(customerId: string, fallbackArea = ''): Promise<string> {
-  const { data, error } = await bhs_supabas
-    .from('bhs_CUSTOMERS')
-    .select('"CUSTOMER CITY"')
-    .eq('CUSTOMER ID', customerId)
-    .maybeSingle();
-
-  if (error) throw error;
-  const city = String(data?.['CUSTOMER CITY'] || '').trim();
-  return city || fallbackArea;
-}
-
-/** Backfill mapping AREA from bhs_CUSTOMERS.CUSTOMER CITY for rows that are empty or outdated. */
-export async function syncCustomerMappingAreasFromCity(): Promise<number> {
-  const { custCityById } = await loadCustomerMaps();
-
-  const { data: mappings, error } = await bhs_supabas
-    .from('web_Sales_DB_CUSTOMERSMAPPING')
-    .select('"CUSTOMER ID", AREA');
-
-  if (error) throw error;
-
-  const toUpdate = (mappings || []).filter((m) => {
-    const cId = String(m['CUSTOMER ID'] || '').trim().toUpperCase();
-    const city = custCityById.get(cId);
-    return city && String(m.AREA || '').trim() !== city;
-  });
-
-  if (toUpdate.length === 0) return 0;
-
-  const chunkSize = 50;
-  for (let i = 0; i < toUpdate.length; i += chunkSize) {
-    const chunk = toUpdate.slice(i, i + chunkSize);
-    const results = await Promise.all(
-      chunk.map((m) => {
-        const cId = String(m['CUSTOMER ID'] || '').trim();
-        const city = custCityById.get(cId.toUpperCase())!;
-        return bhs_supabas
-          .from('web_Sales_DB_CUSTOMERSMAPPING')
-          .update({ AREA: city })
-          .eq('CUSTOMER ID', cId);
-      })
-    );
-
-    const failed = results.find((r) => r.error);
-    if (failed?.error) throw failed.error;
-  }
-
-  invalidateMappingCache();
-  return toUpdate.length;
-}
-
-export async function getSetCustomersTabData(userId: string): Promise<SetCustomersTabData> {
-  const isManager = await checkHasSalesDataAccess(userId);
-  if (isManager) {
-    await syncCustomerMappingAreasFromCity();
-  }
-
-  const [globalCustomers, filteredMappings, usersList] = await Promise.all([
-    getCustomersList(),
-    getMappingServer(userId),
-    getCachedUsersList(),
-  ]);
-
-  const myCustomers = Array.from(filteredMappings.values())
-    .map(mapMappingToCustomerRow)
-    .sort((a, b) => a['CUSTOMER MAIN NAME'].localeCompare(b['CUSTOMER MAIN NAME']));
-
-  return { globalCustomers, myCustomers, usersList };
-}
-
-export async function saveCustomerMapping(userId: string, mapping: any) {
-  const isManager = await checkHasSalesDataAccess(userId);
-  if (!isManager) {
-    throw new Error('Unauthorized. Only sales managers can modify assignments.');
-  }
-
-  const customerId = await normalizeMappingCustomerId(mapping.customerId);
-  const { userMapById, userMapByName } = await loadUserMaps();
-  const salesRepId = resolveSalesRepUserId(mapping.salesRepId || '', userMapById, userMapByName);
-  const merchandiserId = resolveMerchandiserUserId(
-    mapping.merchandiserId || mapping.merchandiser || '',
-    userMapById,
-    userMapByName
-  );
-  const area = await resolveCustomerArea(customerId, mapping.area || '');
-
-  const { data: existing } = await bhs_supabas
-    .from('web_Sales_DB_CUSTOMERSMAPPING')
-    .select('"CUSTOMER ID"')
-    .eq('CUSTOMER ID', customerId)
-    .maybeSingle();
-
-  if (existing) {
-    const { error } = await bhs_supabas
-      .from('web_Sales_DB_CUSTOMERSMAPPING')
-      .update({
-        SALES_REP: salesRepId,
-        AREA: area,
-        MARKET: mapping.market || '',
-        MERCHANDISER: merchandiserId,
-      })
-      .eq('CUSTOMER ID', customerId);
-    if (error) throw error;
-  } else {
-    const { error } = await bhs_supabas
-      .from('web_Sales_DB_CUSTOMERSMAPPING')
-      .insert({
-        SALES_REP: salesRepId,
-        'CUSTOMER ID': customerId,
-        AREA: area,
-        MARKET: mapping.market || '',
-        MERCHANDISER: merchandiserId,
-      });
-    if (error) throw error;
-  }
-
-  invalidateMappingCache();
-  return { success: true };
-}
-
 export async function batchSaveCustomerMapping(userId: string, mapping: Record<string, any>) {
   const isManager = await checkHasSalesDataAccess(userId);
   if (!isManager) {
@@ -647,77 +520,47 @@ export async function batchSaveCustomerMapping(userId: string, mapping: Record<s
     return { success: true, message: 'No mapping data provided' };
   }
 
-  const { error: deleteError } = await bhs_supabas
-    .from('web_Sales_DB_CUSTOMERSMAPPING')
-    .delete()
-    .neq('CUSTOMER ID', '__never__');
-
-  if (deleteError) {
-    console.error('Error deleting old mappings:', deleteError);
-    throw deleteError;
-  }
-
   const { userMapById, userMapByName } = await loadUserMaps();
-  const { custMapById, custMapByName, custCityById } = await loadCustomerMaps();
+  const { custMapById, custMapByName } = await loadCustomerMaps();
 
-  const rowsByCustomer = new Map<string, Record<string, string>>();
+  const updates: { customerId: string; data: any }[] = [];
+  
   for (const rawCustomerId of Object.keys(mapping)) {
-    if (isLegacyMappingRowId(rawCustomerId)) continue;
-
     const customerId = resolveCustomerId(rawCustomerId, custMapById, custMapByName);
-    if (!customerId) {
-      throw new Error(`Customer "${rawCustomerId}" was not found in the database.`);
-    }
+    if (!customerId) continue;
+
     const data = mapping[rawCustomerId];
     const repRaw = String(data.salesRep || data.salesRepId || '').trim();
     const repId = resolveSalesRepUserId(repRaw, userMapById, userMapByName);
     const merchRaw = String(data.merchandiserId || data.merchandiser || '').trim();
     const merchId = resolveMerchandiserUserId(merchRaw, userMapById, userMapByName);
-    const city = custCityById.get(customerId.toUpperCase()) || '';
 
-    rowsByCustomer.set(customerId, {
-      SALES_REP: repId,
-      'CUSTOMER ID': customerId,
-      AREA: city || data.area || '',
-      MARKET: data.market || '',
-      MERCHANDISER: merchId,
+    updates.push({
+      customerId,
+      data: {
+        SALES_REP: repId,
+        MARKET: data.market || '',
+        MERCHANDISER: merchId,
+      }
     });
   }
-  const rows = Array.from(rowsByCustomer.values());
 
-  const chunkSize = 1000;
-  for (let i = 0; i < rows.length; i += chunkSize) {
-    const chunk = rows.slice(i, i + chunkSize);
-    const { error: insertError } = await bhs_supabas
-      .from('web_Sales_DB_CUSTOMERSMAPPING')
-      .insert(chunk);
-
-    if (insertError) {
-      console.error('Error inserting mapping chunk:', insertError);
-      throw insertError;
-    }
+  const chunkSize = 50;
+  for (let i = 0; i < updates.length; i += chunkSize) {
+    const chunk = updates.slice(i, i + chunkSize);
+    await Promise.all(
+      chunk.map(u => 
+        bhs_supabas
+          .from('bhs_CUSTOMERS')
+          .update(u.data)
+          .eq('CUSTOMER ID', u.customerId)
+      )
+    );
   }
 
   invalidateMappingCache();
 
-  return { success: true, message: `Uploaded ${rows.length} mappings successfully` };
-}
-
-export async function deleteCustomerMapping(userId: string, customerId: string) {
-  const isManager = await checkHasSalesDataAccess(userId);
-  if (!isManager) {
-    throw new Error('Unauthorized. Only sales managers can remove assignments.');
-  }
-
-  const { error } = await bhs_supabas
-    .from('web_Sales_DB_CUSTOMERSMAPPING')
-    .delete()
-    .eq('CUSTOMER ID', customerId);
-
-  if (error) throw error;
-
-  invalidateMappingCache();
-  return { success: true };
+  return { success: true, message: `Uploaded ${updates.length} mappings successfully` };
 }
 
 // -------------------------------------------------------------

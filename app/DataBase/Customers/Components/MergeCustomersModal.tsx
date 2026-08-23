@@ -8,7 +8,6 @@ import type { CustomerRecord } from '../Hooks/UseMergeCustomers';
 const AFFECTED_TABLES = [
   'web_Sales_DB',
   'web_Sales_DB_INACTIVECUSTOMERS',
-  'web_Sales_DB_CUSTOMERSMAPPING',
   'mix_DEBIT',
   'debit_EMILS',
   'debit_EMILS_LULU',

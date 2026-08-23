@@ -15,7 +15,6 @@ export const ALL_SALES_TAB_IDS = [
   'sales-products',
   'sales-new-listings',
   'sales-download-form',
-  'sales-my-customers',
 ] as const;
 
 export type SalesTabId = (typeof ALL_SALES_TAB_IDS)[number];
@@ -44,7 +43,7 @@ export function getAllowedSalesTabIds(user: SalesUserLike): SalesTabId[] {
   let tabs: SalesTabId[] = [...ALL_SALES_TAB_IDS];
   if (!dataAccess) {
     tabs = tabs.filter(
-      (id) => id !== 'sales-my-customers' && id !== 'sales-targets',
+      (id) => id !== 'sales-targets',
     );
   }
 

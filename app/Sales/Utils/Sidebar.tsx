@@ -71,7 +71,7 @@ export default function SalesSidebar({
     { id: 'sales-products', label: 'Products', icon: Package },
     { id: 'sales-new-listings', label: 'New Listings', icon: Sparkles },
     { id: 'sales-download-form', label: 'Stock Report', icon: FileText },
-    { id: 'sales-my-customers', label: 'Set Customers', icon: User },
+
   ];
 
   const tabs = useMemo(() => {
