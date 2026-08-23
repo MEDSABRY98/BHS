@@ -95,6 +95,7 @@ function sumAmountInRange(
 const EMPTY_SALES_OVERLAY: InsightsSalesOverlay = {
   periodNetSales: 0,
   priorYearNetSales: 0,
+  monthly: [],
   monthlyCurrentYear: [],
   monthlyPreviousYear: [],
 };
