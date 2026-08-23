@@ -122,7 +122,7 @@ export default function Sidebar({
               onMouseEnter={(e) => {
                 if (isCollapsed) {
                   const rect = e.currentTarget.getBoundingClientRect();
-                  setHoveredTab({ label: tab.label, top: rect.top + (rect.height / 2) - 12 });
+                  setHoveredTab({ label: tab.name, top: rect.top + (rect.height / 2) - 12 });
                 }
               }}
               onMouseLeave={() => setHoveredTab(null)}
