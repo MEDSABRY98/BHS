@@ -91,7 +91,7 @@ export default function SalesInactiveCustomersTab({ userId }: SalesInactiveCusto
   const [selectedCustomer, setSelectedCustomer] = useState<string | null>(null);
   const [excludedCustomerIds, setExcludedCustomerIds] = useState<Set<string>>(new Set());
   const [excludedCustomersData, setExcludedCustomersData] = useState<Array<{ customerId: string, customerName: string }>>([]);
-  const [sortField, setSortField] = useState<'customer' | 'lastPurchaseDate' | 'daysSinceLastPurchase' | 'totalAmount' | 'averageOrderValue' | 'orderCount'>('daysSinceLastPurchase');
+  const [sortField, setSortField] = useState<'customer' | 'lastPurchaseDate' | 'daysSinceLastPurchase' | 'totalAmount' | 'averageOrderValue' | 'orderCount'>('totalAmount');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [excludingId, setExcludingId] = useState<string | null>(null);
   const [showExcludedModal, setShowExcludedModal] = useState(false);
