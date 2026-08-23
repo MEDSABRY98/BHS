@@ -167,9 +167,6 @@ export default function ReportsTab({ purchases, products, suppliers }: Props) {
             <FileSpreadsheet className="w-8 h-8 text-[#D4AF37]" />
             Excel Reports
           </h2>
-          <p className="text-slate-500 font-medium mt-1">
-            Use sidebar filters, then download any report below.
-          </p>
         </div>
         <PurchaseFilterButton />
       </div>

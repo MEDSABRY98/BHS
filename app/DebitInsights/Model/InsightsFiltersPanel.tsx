@@ -384,47 +384,11 @@ export default function InsightsFiltersPanel({
             </div>
 
             <FilterDropdown
-              label="Period"
-              value={filters.periodPreset}
-              options={PERIOD_OPTIONS}
-              onChange={(value) => update({ periodPreset: value })}
-            />
-
-            <FilterDropdown
               label="Sales Source"
               value={filters.salesSource}
               options={SALES_SOURCE_OPTIONS}
               onChange={(value) => update({ salesSource: value })}
             />
-
-            {filters.periodPreset === 'custom' && (
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1.5">
-                    From
-                  </label>
-                  <input
-                    type="date"
-                    value={filters.periodFrom}
-                    max={filters.asOfDate}
-                    onChange={(e) => update({ periodFrom: e.target.value })}
-                    className={fieldClassName}
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1.5">
-                    To
-                  </label>
-                  <input
-                    type="date"
-                    value={filters.periodTo}
-                    max={filters.asOfDate}
-                    onChange={(e) => update({ periodTo: e.target.value })}
-                    className={fieldClassName}
-                  />
-                </div>
-              </div>
-            )}
 
             <CitiesFilterDropdown
               label="Cities"

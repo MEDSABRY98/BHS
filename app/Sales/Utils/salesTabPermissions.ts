@@ -2,6 +2,7 @@ import { hasSalesDataAccess } from '@/lib/supabase';
 
 export const ALL_SALES_TAB_IDS = [
   'sales-overview',
+  'sales-periods',
   'sales-top10',
   'sales-customers',
   'sales-customers-comparison',

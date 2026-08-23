@@ -111,7 +111,7 @@ export default function CustomersSummariesTab({ data, onRefresh }: CustomersSumm
   const salesSourceDropdownRef = useRef<HTMLDivElement>(null);
   const debouncedSearch = useDebouncedValue(searchQuery);
   const [hideNegative, setHideNegative] = useState(false);
-  const [salesSource, setSalesSource] = useState<SummariesSalesSource>('debit');
+  const [salesSource, setSalesSource] = useState<SummariesSalesSource>('sales');
   const [salesSourceOpen, setSalesSourceOpen] = useState(false);
   const [salesOverlay, setSalesOverlay] = useState<SummariesSalesOverlay | null>(null);
   const [salesLoading, setSalesLoading] = useState(false);

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo } from 'react';
 import SalesOverviewTab from './Overview/OverviewTab';
+import SalesPeriodsTab from './Periods/PeriodsTab';
 import SalesTop10Tab from './Top10/Top10Tab';
 import SalesCustomersTab from './Customers/CustomersTab';
 import SalesCustomersComparisonTab from './Comparison/ComparisonTab';
@@ -217,6 +218,23 @@ export default function SalesPage() {
     }
   };
 
+  const handleRefresh = async () => {
+    if (!salesUserId) return;
+    try {
+      toast.loading('Refreshing sales data...', { id: 'sales_refresh' });
+      const result = await getSalesMetadata(salesUserId, true);
+      setUniqueValues(result.uniqueValues);
+      setLastUpdated(result.lastUpdated);
+      setRefreshTrigger(prev => prev + 1);
+      toast.success('Data refreshed successfully');
+    } catch (err) {
+      console.error('Error refreshing data:', err);
+      toast.error('Failed to refresh data');
+    } finally {
+      toast.dismiss('sales_refresh');
+    }
+  };
+
   const handleUploadMapping = async (mapping: Record<string, any>) => {
     if (!userHasSalesDataAccess) {
       toast.error('Only users with sales data access can upload customer mappings.');
@@ -378,6 +396,9 @@ export default function SalesPage() {
         <SalesTabPanel tabId="sales-overview" activeTab={activeTab} isVisited={visitedTabs.has('sales-overview')}>
           <SalesOverviewTab userId={salesUserId} showCosts={showCosts} />
         </SalesTabPanel>
+        <SalesTabPanel tabId="sales-periods" activeTab={activeTab} isVisited={visitedTabs.has('sales-periods')}>
+          <SalesPeriodsTab userId={salesUserId} />
+        </SalesTabPanel>
         <SalesTabPanel tabId="sales-top10" activeTab={activeTab} isVisited={visitedTabs.has('sales-top10')}>
           <SalesTop10Tab userId={salesUserId} />
         </SalesTabPanel>
@@ -449,6 +470,7 @@ export default function SalesPage() {
             isCollapsed={isSidebarCollapsed}
             onToggleCollapse={toggleSidebar}
             onUploadClick={() => setIsUploadModalOpen(true)}
+            onRefresh={handleRefresh}
             hasSalesDataAccess={userHasSalesDataAccess}
             FilterNode={<SalesFilterButton inSidebar={true} isCollapsed={isSidebarCollapsed} />}
           />
@@ -483,6 +505,7 @@ export default function SalesPage() {
             onToggleCollapse={() => { }}
             onCloseMobile={() => setIsMobileSidebarOpen(false)}
             onUploadClick={() => setIsUploadModalOpen(true)}
+            onRefresh={handleRefresh}
             hasSalesDataAccess={userHasSalesDataAccess}
             FilterNode={<SalesFilterButton inSidebar={true} isCollapsed={false} />}
           />

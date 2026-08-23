@@ -40,7 +40,7 @@ import {
   exportToPDF,
   parseDate
 } from './CstomersUtils';
-import { generateSingleCustomerExcelBlob } from './ExcelEmails';
+import { generateSingleCustomerExcelBlob } from './CustomersExcelEmails';
 import { useDebouncedValue } from '../Hooks/useDebouncedValue';
 import { useDebitData } from '../Context/DebitDataContext';
 
@@ -504,7 +504,7 @@ export default function CustomersTab({
         const normalize = (s: any) => String(s || '').toLowerCase().trim().replace(/\s+/g, ' ');
         const customerData = filteredData.find(c => c.customerName === customerName);
         const custId = customerData?.customerId;
-        
+
         const luluRec = luluEmails.find(l => normalize(l.customerId) === normalize(custId));
 
         if (!luluRec) {
@@ -906,7 +906,7 @@ export default function CustomersTab({
                 setSelectedCollectionStats={setSelectedCollectionStats}
                 setSelectedRatingCustomer={setSelectedRatingCustomer}
                 setRatingBreakdown={setRatingBreakdown}
-                
+
                 mode={mode}
                 customerAnalysis={customerAnalysis}
                 filteredData={filteredData}
@@ -922,7 +922,7 @@ export default function CustomersTab({
                 toggleCustomerSelection={toggleCustomerSelection}
                 toggleSelectAll={toggleSelectAll}
                 setSelectedCustomer={handleCustomerSelect}
-                
+
               />
             )}
 

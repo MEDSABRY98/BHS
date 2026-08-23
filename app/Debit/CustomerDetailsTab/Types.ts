@@ -67,8 +67,8 @@ export interface SharedTabProps {
   overdueTotalDifference: number;
   
   // States
-  activeTab: 'dashboard' | 'invoices' | 'ages' | 'notes' | 'overdue' | 'monthly';
-  setActiveTab: (tab: 'dashboard' | 'invoices' | 'ages' | 'notes' | 'overdue' | 'monthly') => void;
+  activeTab: 'dashboard' | 'invoices' | 'notes' | 'overdue' | 'monthly';
+  setActiveTab: (tab: 'dashboard' | 'invoices' | 'notes' | 'overdue' | 'monthly') => void;
   
   invoiceSorting: any;
   setInvoiceSorting: (s: any) => void;

@@ -51,7 +51,7 @@ const parseCustomerEmailList = (items: string[]) =>
       ),
     ),
   );
-import { generateSingleCustomerExcelBlob } from '../CustomersTab/ExcelEmails';
+import { generateSingleCustomerExcelBlob } from '../CustomersTab/CustomersExcelEmails';
 
 interface CustomerDetailsProps {
   customerName: string;
@@ -64,7 +64,6 @@ import DashboardTab from './Tabs/DashboardTab';
 import InvoicesTab from './Tabs/InvoicesTab';
 import OverdueTab from './Tabs/OverdueTab';
 import MonthlyTab from './Tabs/MonthlyTab';
-import AgesTab from './Tabs/AgesTab';
 import NotesTab from './Tabs/NotesTab';
 import { SharedTabProps, InvoiceWithNetDebt, MonthlyDebt, AgingSummary, OverdueInvoice } from './Types';
 import { useDebitCustomerDetailsTabAudit } from '@/app/Audit/Model/DebitTabAudit';
@@ -163,7 +162,7 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
   const MATCHING_FILTER_ALL_OPEN = 'All Open Matchings';
   const MATCHING_FILTER_ALL_UNMATCHED = 'All Unmatched';
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'invoices' | 'ages' | 'notes' | 'overdue' | 'monthly'>(initialTab);
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'invoices' | 'notes' | 'overdue' | 'monthly'>(initialTab as any || 'dashboard');
   useDebitCustomerDetailsTabAudit(activeTab);
   const [invoiceSorting, setInvoiceSorting] = useState<SortingState>([{ id: 'date', desc: false }]);
   const [overdueSorting, setOverdueSorting] = useState<SortingState>([{ id: 'date', desc: false }]);
@@ -2295,9 +2294,6 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
 
         {/* Tab Content: Monthly Debt */}
         {activeTab === 'monthly' && <MonthlyTab {...sharedProps} />}
-
-        {/* Tab Content: Ages */}
-        {activeTab === 'ages' && <AgesTab {...sharedProps} />}
 
         {/* Tab Content: Notes */}
         {activeTab === 'notes' && <NotesTab {...sharedProps} />}

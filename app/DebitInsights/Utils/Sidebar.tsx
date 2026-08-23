@@ -97,36 +97,6 @@ export default function DebitInsightsSidebar({
           {!isCollapsed && <ChevronRight className="w-4 h-4 ml-auto text-blue-300" />}
         </div>
 
-        <button
-          type="button"
-          onClick={() => {
-            onOpenFilters();
-            onCloseMobile?.();
-          }}
-          className={`w-full flex items-center ${isCollapsed ? 'justify-center px-2' : 'px-4'} py-3.5 rounded-xl transition-all duration-200 group relative text-slate-400 hover:text-white hover:bg-white/5`}
-          title={isCollapsed ? 'Filters' : undefined}
-        >
-          <span className="relative shrink-0">
-            <Filter className={`w-5 h-5 ${isCollapsed ? '' : 'mr-0'}`} />
-            {(filtersActive || filtersPending) && (
-              <span
-                className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full ${
-                  filtersPending ? 'bg-amber-400' : 'bg-blue-400'
-                }`}
-              />
-            )}
-          </span>
-          {!isCollapsed && (
-            <>
-              <span className="ml-3 text-sm tracking-wide text-left">Filters</span>
-              {filtersPending && (
-                <span className="ml-auto text-[10px] font-bold uppercase tracking-wide text-amber-300">
-                  Pending
-                </span>
-              )}
-            </>
-          )}
-        </button>
       </nav>
 
       {!isCollapsed && lastUpdated && (
@@ -135,40 +105,57 @@ export default function DebitInsightsSidebar({
         </div>
       )}
 
-      <div className="p-4 border-t border-white/5 mt-auto flex flex-col gap-2 shrink-0">
-        {onExportPdf && (
+      <div className="p-4 border-t border-white/5 mt-auto flex flex-col gap-3 shrink-0">
+        <div className={`flex ${isCollapsed ? 'flex-col' : 'flex-row'} items-center justify-center gap-3`}>
           <button
             type="button"
-            onClick={onExportPdf}
-            disabled={!canExportPdf || isExportingPdf}
-            className={`flex items-center justify-center ${isCollapsed ? 'w-10 h-10' : 'w-full py-2.5 px-4'} hover:bg-white/10 rounded-xl transition-all duration-200 text-red-300 disabled:opacity-50 group`}
-            title={isCollapsed ? 'Export ZIP' : undefined}
+            onClick={() => {
+              onOpenFilters();
+              onCloseMobile?.();
+            }}
+            className="flex items-center justify-center w-10 h-10 hover:bg-white/10 rounded-xl transition-all duration-200 text-slate-400 group relative"
+            title="Filters"
           >
-            {isExportingPdf ? (
-              <Loader2 className="w-5 h-5 shrink-0 animate-spin" />
-            ) : (
-              <FileText className="w-5 h-5 shrink-0" />
-            )}
-            {!isCollapsed && (
-              <span className="ml-3 text-sm font-bold tracking-wide">
-                {isExportingPdf ? 'Exporting...' : 'Export ZIP'}
-              </span>
+            <Filter className="w-5 h-5 shrink-0 group-hover:text-white transition-colors" />
+            {(filtersActive || filtersPending) && (
+              <span
+                className={`absolute top-2 right-2 w-2 h-2 rounded-full ${
+                  filtersPending ? 'bg-amber-400' : 'bg-blue-400'
+                }`}
+              />
             )}
           </button>
-        )}
 
-        {onRefresh && (
-          <button
-            type="button"
-            onClick={onRefresh}
-            disabled={isRefreshing}
-            className={`flex items-center justify-center ${isCollapsed ? 'w-10 h-10' : 'w-full py-2.5 px-4'} hover:bg-white/10 rounded-xl transition-all duration-200 text-blue-400 disabled:opacity-50 group`}
-            title={isCollapsed ? 'Refresh Data' : undefined}
-          >
-            <RefreshCcw className={`w-5 h-5 shrink-0 ${isRefreshing ? 'animate-spin' : ''}`} />
-            {!isCollapsed && <span className="ml-3 text-sm font-bold tracking-wide">Refresh Data</span>}
-          </button>
-        )}
+          {onExportPdf && (
+            <button
+              type="button"
+              onClick={onExportPdf}
+              disabled={!canExportPdf || isExportingPdf}
+              className="flex items-center justify-center w-10 h-10 hover:bg-white/10 rounded-xl transition-all duration-200 text-red-300 disabled:opacity-50 group"
+              title="Export ZIP"
+            >
+              {isExportingPdf ? (
+                <Loader2 className="w-5 h-5 shrink-0 animate-spin" />
+              ) : (
+                <FileText className="w-5 h-5 shrink-0 group-hover:text-red-200 transition-colors" />
+              )}
+            </button>
+          )}
+
+          {onRefresh && (
+            <button
+              type="button"
+              onClick={onRefresh}
+              disabled={isRefreshing}
+              className="flex items-center justify-center w-10 h-10 hover:bg-white/10 rounded-xl transition-all duration-200 text-blue-400 disabled:opacity-50 group"
+              title="Refresh Data"
+            >
+              <RefreshCcw className={`w-5 h-5 shrink-0 group-hover:text-blue-300 transition-colors ${isRefreshing ? 'animate-spin' : ''}`} />
+            </button>
+          )}
+        </div>
+
+        <div className="w-full h-[1px] bg-white/5 my-1" />
 
         <button
           type="button"

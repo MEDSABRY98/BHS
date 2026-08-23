@@ -13,10 +13,11 @@ import {
   YAxis,
 } from 'recharts';
 import type { Props as RechartsLabelProps } from 'recharts/types/component/Label';
-import { InsightsTrendPoint } from '../Utils/InsightsTypes';
+import { YoYTrendPoint } from '../Utils/InsightsTypes';
 
-interface SalesCollectionsChartProps {
-  data: InsightsTrendPoint[];
+interface SalesTrendChartProps {
+  data: YoYTrendPoint[];
+  title?: string;
   forPdf?: boolean;
 }
 
@@ -52,10 +53,10 @@ function formatNetSalesBoxAmount(value: number) {
 const NET_SALES_BOX_HEIGHT = 30;
 const NET_SALES_BOX_Y = 6;
 
-function createNetSalesLabel(chartData: InsightsTrendPoint[]) {
+function createNetSalesLabel(chartData: YoYTrendPoint[]) {
   const boxWidth = Math.max(
     72,
-    ...chartData.map((point) => formatNetSalesBoxAmount(point.netSales).length * 7.5 + 18)
+    ...chartData.map((point) => formatNetSalesBoxAmount(point.cyNetSales).length * 7.5 + 18)
   );
 
   return function NetSalesLabel({ x, width, index }: NetSalesLabelProps) {
@@ -63,8 +64,8 @@ function createNetSalesLabel(chartData: InsightsTrendPoint[]) {
 
     const posX = toNumber(x);
     const barWidth = toNumber(width);
-    const netSales = chartData[index].netSales;
-    const centerX = posX + barWidth * 1.56;
+    const netSales = chartData[index].cyNetSales;
+    const centerX = posX + barWidth / 2;
     const boxX = centerX - boxWidth / 2;
 
     return (
@@ -94,78 +95,64 @@ function createNetSalesLabel(chartData: InsightsTrendPoint[]) {
   };
 }
 
-function SalesCollectionsTooltip({
+function SalesTrendTooltip({
   active,
   payload,
   label,
 }: {
   active?: boolean;
-  payload?: Array<{ name?: string; value?: number; color?: string; payload?: InsightsTrendPoint }>;
+  payload?: Array<{ name?: string; value?: number; color?: string }>;
   label?: string;
 }) {
   if (!active || !payload?.length) return null;
-
-  const point = payload[0]?.payload;
-  const netSales = point?.netSales ?? 0;
-  const collections = point?.collections ?? 0;
-  const collectionRate =
-    netSales > 0.01 ? (collections / netSales) * 100 : null;
 
   return (
     <div className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 shadow-md text-sm">
       <p className="font-semibold text-slate-800 mb-2">{label}</p>
       {payload.map((item) => (
-        <p key={item.name} className="flex items-center justify-between gap-4 text-slate-600">
+        <p key={item.name} className="flex items-center justify-between gap-4">
           <span className="inline-flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
-            {item.name}
+            <span className={item.name === 'Current Year' ? 'text-slate-900 font-medium' : 'text-slate-500'}>
+              {item.name}
+            </span>
           </span>
-          <span className="font-medium text-slate-900">{formatAmount(item.value ?? 0)}</span>
+          <span className={`font-semibold ${item.name === 'Current Year' ? 'text-slate-900' : 'text-slate-500'}`}>
+            {formatAmount(item.value ?? 0)}
+          </span>
         </p>
       ))}
-      <p className="mt-2 pt-2 border-t border-slate-100 text-slate-700">
-        <span className="font-medium">Collection Rate: </span>
-        <span className="font-semibold text-indigo-700">
-          {collectionRate === null ? 'N/A' : `${collectionRate.toFixed(1)}%`}
-        </span>
-      </p>
     </div>
   );
 }
 
-function renderMonthYearTick(props: { x?: number; y?: number; payload?: { value?: string } }) {
+function renderMonthTick(props: { x?: number; y?: number; payload?: { value?: string } }) {
   const { x = 0, y = 0, payload } = props;
-  const label = String(payload?.value ?? '');
-  const parts = label.trim().split(' ');
-  const year = parts.pop() ?? '';
-  const month = parts.join(' ');
+  const month = String(payload?.value ?? '');
 
   return (
     <g transform={`translate(${x},${y})`}>
       <text x={0} y={16} dy={0} textAnchor="middle" fill="#374151" fontSize={13} fontWeight={600}>
         {month}
       </text>
-      <text x={0} y={32} dy={0} textAnchor="middle" fill="#9CA3AF" fontSize={11}>
-        {year}
-      </text>
     </g>
   );
 }
 
-export default function SalesCollectionsChart({ data, forPdf = false }: SalesCollectionsChartProps) {
+export default function SalesTrendChart({ data, title = 'Net Sales Trend', forPdf = false }: SalesTrendChartProps) {
   const netSalesLabel = useMemo(() => createNetSalesLabel(data), [data]);
 
   const chart = (
-    <ResponsiveContainer width="100%" height={forPdf ? 620 : 440}>
+    <ResponsiveContainer width="100%" height={forPdf ? '100%' : 440}>
       <BarChart data={data} barGap="12%" barCategoryGap="18%" margin={{ top: 56, right: 20, left: 10, bottom: 20 }}>
         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
         <XAxis
-          dataKey="monthLabel"
-          tick={renderMonthYearTick}
+          dataKey="monthName"
+          tick={renderMonthTick}
           axisLine={false}
           tickLine={false}
           interval={0}
-          height={64}
+          height={40}
         />
         <YAxis
           tick={{ fill: '#9CA3AF', fontSize: 11 }}
@@ -175,24 +162,24 @@ export default function SalesCollectionsChart({ data, forPdf = false }: SalesCol
             new Intl.NumberFormat('en-US', { notation: 'compact', compactDisplay: 'short' }).format(value)
           }
         />
-        {!forPdf && <Tooltip content={<SalesCollectionsTooltip />} />}
+        {!forPdf && <Tooltip content={<SalesTrendTooltip />} />}
         <Legend />
         <Bar
-          dataKey="netSales"
-          name="Net Sales"
+          dataKey="cyNetSales"
+          name="Current Year"
           fill="#6EE7B7"
           stroke="#34D399"
           strokeWidth={1}
           radius={[6, 6, 0, 0]}
           isAnimationActive={false}
         >
-          <LabelList dataKey="netSales" content={netSalesLabel} />
+          <LabelList dataKey="cyNetSales" content={netSalesLabel} />
         </Bar>
         <Bar
-          dataKey="collections"
-          name="Collections"
-          fill="#C4B5FD"
-          stroke="#A78BFA"
+          dataKey="pyNetSales"
+          name="Previous Year"
+          fill="#E2E8F0"
+          stroke="#CBD5E1"
           strokeWidth={1}
           radius={[6, 6, 0, 0]}
           isAnimationActive={false}
@@ -202,12 +189,19 @@ export default function SalesCollectionsChart({ data, forPdf = false }: SalesCol
   );
 
   if (forPdf) {
-    return <div style={{ width: '100%', height: 620, backgroundColor: '#ffffff' }}>{chart}</div>;
+    return (
+      <div style={{ width: '100%', height: '100%', backgroundColor: '#ffffff', display: 'flex', flexDirection: 'column' }}>
+        <h3 style={{ fontSize: '14px', fontWeight: 600, color: '#111827', marginBottom: '16px' }}>{title}</h3>
+        <div style={{ flex: 1, minHeight: 0 }}>
+          {chart}
+        </div>
+      </div>
+    );
   }
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-4 h-[500px]">
-      <h3 className="text-sm font-semibold text-gray-900 mb-4">Net Sales vs Collections</h3>
+      <h3 className="text-sm font-semibold text-gray-900 mb-4">{title}</h3>
       {chart}
     </div>
   );

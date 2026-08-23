@@ -167,7 +167,6 @@ export default function SupplierComparison({ purchases, products, suppliers }: P
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h2 className="text-3xl font-black text-slate-900 tracking-tight">Supplier Comparison</h2>
-            <p className="text-slate-500 font-medium mt-1">Select a product to compare prices across different suppliers.</p>
           </div>
           <div className="relative w-full md:w-96">
             <Search className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -267,7 +266,6 @@ export default function SupplierComparison({ purchases, products, suppliers }: P
               </span>
               <h2 className="text-2xl font-black text-slate-900 tracking-tight leading-none">{selectedProduct?.name}</h2>
             </div>
-            <p className="text-slate-500 font-medium">Compare supplier performance and pricing</p>
           </div>
         </div>
       </div>

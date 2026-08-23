@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { PurchaseRecord, Product, Supplier } from '../page';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Search, TrendingUp, TrendingDown, Minus, Calendar, Package, ArrowLeft, ChevronLeft, ChevronRight, FileText, X, Pencil, Loader2 } from 'lucide-react';
+import { Search, TrendingUp, TrendingDown, Minus, Calendar, Package, ArrowLeft, ChevronLeft, ChevronRight, FileText, X, Pencil, Loader2, FileSpreadsheet } from 'lucide-react';
 import { updatePurchaseUnitPrice } from '@/app/DataBase/PurchasePriceTracking/PurchaseDetailsService';
 import { toast } from '@/app/Components/Notification';
 import {
@@ -326,6 +326,43 @@ export default function ProductPriceHistory({ purchases, products, suppliers, on
     }
   };
 
+  const exportSummaryToExcel = async () => {
+    try {
+      const { exportSalesExcelTable } = await import('@/app/Sales/Utils/ExcelExport');
+      const headers = ['Barcode', 'Product Name', 'Suppliers Count', 'Top Supplier', 'Share %', 'Last Price (AED)'];
+      const rows = productSummaryRows.map(r => [
+        r.barcode,
+        r.name,
+        r.supplierCount,
+        r.topSupplierName,
+        r.topSupplierPercent.toFixed(1) + '%',
+        r.lastPurchasePrice
+      ]);
+      await exportSalesExcelTable(headers, rows, `Product_Price_Summary_${new Date().toISOString().split('T')[0]}.xlsx`, { sheetName: 'Price Summary', numericColumns: ['Suppliers Count', 'Last Price (AED)'] });
+    } catch (e) {
+      console.error(e);
+      toast.error('Failed to export to Excel');
+    }
+  };
+
+  const exportDetailToExcel = async () => {
+    try {
+      const { exportSalesExcelTable } = await import('@/app/Sales/Utils/ExcelExport');
+      const headers = ['Date', 'Invoice', 'Supplier', 'Qty', 'Unit Price (AED)'];
+      const rows = filteredTablePurchases.map(p => [
+        p.date,
+        p.invoiceNumber || '-',
+        getSupplierName(p.supplierId),
+        p.qty,
+        p.unitPrice
+      ]);
+      await exportSalesExcelTable(headers, rows, `Purchase_History_${selectedProduct?.name.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().split('T')[0]}.xlsx`, { sheetName: 'Purchase History', numericColumns: ['Qty', 'Unit Price (AED)'] });
+    } catch (e) {
+      console.error(e);
+      toast.error('Failed to export to Excel');
+    }
+  };
+
   // If no product is selected, show the Grid View
   if (!selectedProductId) {
     return (
@@ -333,17 +370,25 @@ export default function ProductPriceHistory({ purchases, products, suppliers, on
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h2 className="text-3xl font-black text-slate-900 tracking-tight">Product Price History</h2>
-            <p className="text-slate-500 font-medium mt-1">Browse products and click a row to view full price history.</p>
           </div>
-          <div className="relative w-full md:w-96">
-            <Search className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Search barcode, product name or ID..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full bg-white border border-slate-200 pl-12 pr-4 py-3 rounded-2xl outline-none focus:ring-2 focus:ring-[#D4AF37]/50 focus:border-[#D4AF37] font-medium transition-all shadow-sm"
-            />
+          <div className="flex items-center gap-3 w-full md:w-auto">
+            <div className="relative w-full md:w-96">
+              <Search className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search barcode, product name or ID..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full bg-white border border-slate-200 pl-12 pr-4 py-3 rounded-2xl outline-none focus:ring-2 focus:ring-[#D4AF37]/50 focus:border-[#D4AF37] font-medium transition-all shadow-sm"
+              />
+            </div>
+            <button
+              onClick={exportSummaryToExcel}
+              title="Export to Excel"
+              className="flex items-center justify-center bg-emerald-50 border border-emerald-100 text-emerald-600 hover:bg-emerald-600 hover:text-white p-3 rounded-xl transition-all shadow-sm group shrink-0"
+            >
+              <FileSpreadsheet className="w-6 h-6 group-hover:scale-110 transition-transform" />
+            </button>
           </div>
         </div>
 
@@ -448,8 +493,16 @@ export default function ProductPriceHistory({ purchases, products, suppliers, on
               </span>
               <h2 className="text-2xl font-black text-slate-900 tracking-tight leading-none">{selectedProduct?.name}</h2>
             </div>
-            <p className="text-slate-500 font-medium">Historical price trends and purchases</p>
           </div>
+        </div>
+        <div className="flex items-center">
+          <button
+            onClick={exportDetailToExcel}
+            title="Export to Excel"
+            className="flex items-center justify-center bg-emerald-50 border border-emerald-100 text-emerald-600 hover:bg-emerald-600 hover:text-white p-3 rounded-xl transition-all shadow-sm group"
+          >
+            <FileSpreadsheet className="w-6 h-6 group-hover:scale-110 transition-transform" />
+          </button>
         </div>
       </div>
 

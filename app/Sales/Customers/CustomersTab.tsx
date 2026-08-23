@@ -23,7 +23,8 @@ interface SalesCustomersTabProps {
 const ITEMS_PER_PAGE = 50;
 
 // Memoized row component for better performance
-const CustomerRow = memo(({ item, rowNumber, onCustomerClick }: { item: { customerId: string; customer: string; totalAmount: number; totalQty: number; averageAmount: number; averageQty: number; productsCount: number; transactions: number }; rowNumber: number; onCustomerClick: (id: string, name: string) => void }) => {
+const CustomerRow = memo(({ item, rowNumber, onCustomerClick, totalAmountSum }: { item: { customerId: string; customer: string; totalAmount: number; totalQty: number; averageAmount: number; averageQty: number; productsCount: number; transactions: number }; rowNumber: number; onCustomerClick: (id: string, name: string) => void; totalAmountSum: number }) => {
+  const percentage = totalAmountSum > 0 ? (item.totalAmount / totalAmountSum) * 100 : 0;
   return (
     <tr className="border-b border-gray-100 hover:bg-gray-50 group text-center">
       <td className="py-3 px-4 text-sm text-gray-600 font-medium">{rowNumber}</td>
@@ -36,6 +37,9 @@ const CustomerRow = memo(({ item, rowNumber, onCustomerClick }: { item: { custom
       </td>
       <td className="py-3 px-4 text-sm text-gray-800 font-bold">
         {item.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+      </td>
+      <td className="py-3 px-4 text-sm text-emerald-600 font-bold bg-emerald-50/30">
+        {percentage.toFixed(2)}%
       </td>
       <td className="py-3 px-4 text-sm text-gray-800 font-semibold">
         {item.averageAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -162,12 +166,15 @@ export default function SalesCustomersTab({ userId, onUploadMapping, showCosts =
         numericColumns: [...monthHeaders, 'Total'],
       });
     } else {
-      const headers = ['#', 'Customer Name', 'Amount', 'Amount Average', 'QTY', 'SKUs', 'Invoices'];
-      const rows = filteredCustomers.map((item, i) => [
-        i + 1, item.customer, item.totalAmount, item.averageAmount,
-        item.totalQty, item.productsCount, item.transactions
-      ]);
-      rows.push(['', 'TOTALS', totals.totalAmount, totals.totalAverageAmount, totals.totalQty, totals.totalProductsCount, totals.totalTransactions]);
+      const headers = ['#', 'Customer Name', 'Amount', '% of Total', 'Amount Average', 'QTY', 'SKUs', 'Invoices'];
+      const rows = filteredCustomers.map((item, i) => {
+        const percentage = totals.totalAmount > 0 ? ((item.totalAmount / totals.totalAmount) * 100).toFixed(2) + '%' : '0%';
+        return [
+          i + 1, item.customer, item.totalAmount, percentage, item.averageAmount,
+          item.totalQty, item.productsCount, item.transactions
+        ];
+      });
+      rows.push(['', 'TOTALS', totals.totalAmount, '100%', totals.totalAverageAmount, totals.totalQty, totals.totalProductsCount, totals.totalTransactions]);
       await exportSalesExcelTable(headers, rows, `customers_analysis_${new Date().toISOString().split('T')[0]}.xlsx`, {
         sheetName: 'Customers Analysis',
         numericColumns: ['Amount', 'Amount Average', 'QTY'],
@@ -269,6 +276,9 @@ export default function SalesCustomersTab({ userId, onUploadMapping, showCosts =
                   <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center cursor-pointer hover:text-green-600 w-32" onClick={() => handleSort('totalAmount')}>
                     Amount {getSortIcon('totalAmount')}
                   </th>
+                  <th className="py-4 px-4 text-xs font-bold text-emerald-600 bg-emerald-50/50 uppercase tracking-wider text-center w-24">
+                    %
+                  </th>
                   <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center cursor-pointer hover:text-green-600 w-40" onClick={() => handleSort('averageAmount')}>
                     Amount Average {getSortIcon('averageAmount')}
                   </th>
@@ -285,13 +295,14 @@ export default function SalesCustomersTab({ userId, onUploadMapping, showCosts =
               </thead>
               <tbody className="divide-y divide-slate-50">
                 {paginatedCustomers.map((item, idx) => (
-                  <CustomerRow key={item.customerId} item={item} rowNumber={startIndex + idx + 1} onCustomerClick={(id, name) => setSelectedCustomer({ id, name })} />
+                  <CustomerRow key={item.customerId} item={item} rowNumber={startIndex + idx + 1} onCustomerClick={(id, name) => setSelectedCustomer({ id, name })} totalAmountSum={totals.totalAmount} />
                 ))}
               </tbody>
               <tfoot className="bg-gray-50/50 font-bold border-t border-gray-100">
                 <tr className="text-center">
                   <td colSpan={2} className="py-4 px-4 text-xs text-gray-500 uppercase tracking-widest">Totals</td>
                   <td className="py-4 px-4 text-sm text-gray-800">{totals.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                  <td className="py-4 px-4 text-sm text-emerald-600 bg-emerald-50/50 font-bold">100%</td>
                   <td className="py-4 px-4 text-sm text-gray-800">{totals.totalAverageAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
                   <td className="py-4 px-4 text-sm text-gray-800">{totals.totalQty.toLocaleString()}</td>
                   <td className="py-4 px-4 text-sm text-gray-800">{totals.totalProductsCount.toLocaleString()}</td>

@@ -6,7 +6,7 @@ import TabLoader from '@/app/Components/Loading/TabLoader';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import { toast } from '@/app/Components/Notification';
 import { useDebitInsightsMetrics } from './Hooks/UseDebitInsightsMetrics';
-import { collectCustomers, collectCustomerTags, resolveEffectiveCustomers } from './Utils/AsOfLedgerEngine';
+import { collectCustomers, collectCustomerTags, resolveEffectiveCustomers, resolvePeriodRange } from './Utils/AsOfLedgerEngine';
 import { InsightsFilters, InsightsSalesOverlay } from './Utils/InsightsTypes';
 import { toInputDate } from './Utils/DateUtils';
 import { applySalesNetOverlay } from './Utils/SalesSourceOverlay';
@@ -16,11 +16,12 @@ import InsightsExportScopeModal, {
 } from './Model/InsightsExportScopeModal';
 import InsightsKpiCards from './Cards/InsightsKpiCards';
 import DebtTrendChart from './Charts/DebtTrendChart';
-import SalesCollectionsChart from './Charts/SalesCollectionsChart';
+import SalesTrendChart from './Charts/SalesTrendChart';
+import CollectionsTrendChart from './Charts/CollectionsTrendChart';
 import CollectionRateChart from './Charts/CollectionRateChart';
 import AgingBreakdownChart from './Charts/AgingBreakdownChart';
 import { exportDebitInsightsPdfZip } from './Export/PdfExport';
-import { fetchSalesOverlayForFilters } from './Service/insights_service';
+import { getInsightsSalesOverlay } from './Service/insights_sales_service';
 
 export type DebitInsightsChromeState = {
   filtersActive: boolean;
@@ -49,7 +50,7 @@ function defaultFilters(): InsightsFilters {
     salesRep: [],
     customers: [],
     customerTags: [],
-    salesSource: 'debit',
+    salesSource: 'sales',
   };
 }
 
@@ -138,7 +139,31 @@ export default function DebitInsightsDashboard({
     }
 
     setSalesLoading(true);
-    void fetchSalesOverlayForFilters(appliedFilters, userId, data)
+
+    const { from, to } = resolvePeriodRange(
+      appliedFilters.asOfDate,
+      appliedFilters.periodPreset,
+      appliedFilters.periodFrom,
+      appliedFilters.periodTo
+    );
+
+    const customers =
+      appliedFilters.customers.length > 0 || (appliedFilters.customerTags?.length || 0) > 0
+        ? resolveEffectiveCustomers(
+            data,
+            appliedFilters.salesRep,
+            appliedFilters.customers,
+            appliedFilters.customerTags || []
+          )
+        : [];
+
+    void getInsightsSalesOverlay({
+      userId,
+      periodFrom: toInputDate(from),
+      periodTo: toInputDate(to),
+      cities: appliedFilters.salesRep,
+      customers,
+    })
       .then((overlay) => {
         if (!cancelled) setSalesOverlay(overlay);
       })
@@ -233,6 +258,26 @@ export default function DebitInsightsDashboard({
     onChromeChange,
   ]);
 
+  const yoyChartData = useMemo(() => {
+    return metrics.currentYearTrend.map((cyPoint, index) => {
+      const pyPoint = metrics.previousYearTrend[index];
+      const cyCollectionRate = cyPoint.netSales > 0.01 ? (cyPoint.collections / cyPoint.netSales) * 100 : null;
+      const pyCollectionRate = pyPoint && pyPoint.netSales > 0.01 ? (pyPoint.collections / pyPoint.netSales) * 100 : null;
+      return {
+        monthName: cyPoint.monthLabel.split(' ')[0] || cyPoint.monthLabel,
+        monthIndex: index,
+        cyOpenDebt: cyPoint.openDebt,
+        pyOpenDebt: pyPoint?.openDebt || 0,
+        cyNetSales: cyPoint.netSales,
+        pyNetSales: pyPoint?.netSales || 0,
+        cyCollections: cyPoint.collections,
+        pyCollections: pyPoint?.collections || 0,
+        cyCollectionRate,
+        pyCollectionRate,
+      };
+    });
+  }, [metrics.currentYearTrend, metrics.previousYearTrend]);
+
   if (loading && data.length === 0) {
     return <TabLoader />;
   }
@@ -242,6 +287,7 @@ export default function DebitInsightsDashboard({
   }
 
   const busy = isApplying || salesLoading;
+
 
   return (
     <div className="space-y-4">
@@ -273,18 +319,21 @@ export default function DebitInsightsDashboard({
         onConfirm={(selection) => void handleExportPdf(selection)}
       />
 
-      {salesLoading && (
-        <div className="rounded-xl border border-indigo-100 bg-indigo-50 px-4 py-2 text-sm font-medium text-indigo-700">
-          Loading Sales DB metrics...
+      {salesLoading ? (
+        <div className="py-20">
+          <TabLoader />
         </div>
+      ) : (
+        <>
+          <InsightsKpiCards metrics={metrics} />
+
+          <DebtTrendChart data={yoyChartData} />
+          <AgingBreakdownChart breakdown={metrics.agingBreakdown} />
+          <SalesTrendChart data={yoyChartData} />
+          <CollectionsTrendChart data={yoyChartData} />
+          <CollectionRateChart data={yoyChartData} />
+        </>
       )}
-
-      <InsightsKpiCards metrics={metrics} />
-
-      <DebtTrendChart data={metrics.trendSeries} />
-      <AgingBreakdownChart breakdown={metrics.agingBreakdown} />
-      <SalesCollectionsChart data={metrics.trendSeries} />
-      <CollectionRateChart data={metrics.trendSeries} />
     </div>
   );
 }

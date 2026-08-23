@@ -95,7 +95,8 @@ function sumAmountInRange(
 const EMPTY_SALES_OVERLAY: InsightsSalesOverlay = {
   periodNetSales: 0,
   priorYearNetSales: 0,
-  monthly: [],
+  monthlyCurrentYear: [],
+  monthlyPreviousYear: [],
 };
 
 function buildOverlay(
@@ -107,16 +108,37 @@ function buildOverlay(
 ): InsightsSalesOverlay {
   const priorFrom = shiftYears(from, -1);
   const priorTo = shiftYears(to, -1);
-  const monthlyMap = new Map<string, number>();
+  
+  const currentYearStr = String(to.getFullYear());
+  const prevYearStr = String(to.getFullYear() - 1);
+  const cyStart = new Date(`${currentYearStr}-01-01T00:00:00`);
+  const cyEnd = new Date(`${currentYearStr}-12-31T23:59:59.999`);
+  const pyStart = new Date(`${prevYearStr}-01-01T00:00:00`);
+  const pyEnd = new Date(`${prevYearStr}-12-31T23:59:59.999`);
 
+  const monthlyMap = new Map<string, number>();
   const periodNetSales = sumAmountInRange(rows, from, to, cities, customers, monthlyMap);
-  const priorYearNetSales = sumAmountInRange(rows, priorFrom, priorTo, cities, customers);
+
+  const priorYearMonthlyMap = new Map<string, number>();
+  const priorYearNetSales = sumAmountInRange(rows, priorFrom, priorTo, cities, customers, priorYearMonthlyMap);
+  
+  const cyMonthlyMap = new Map<string, number>();
+  sumAmountInRange(rows, cyStart, cyEnd, cities, customers, cyMonthlyMap);
+  const monthlyCurrentYear = Array.from(cyMonthlyMap.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([month, netSales]) => ({ month, netSales }));
+
+  const pyMonthlyMap = new Map<string, number>();
+  sumAmountInRange(rows, pyStart, pyEnd, cities, customers, pyMonthlyMap);
+  const monthlyPreviousYear = Array.from(pyMonthlyMap.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([month, netSales]) => ({ month, netSales }));
 
   const monthly = Array.from(monthlyMap.entries())
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([month, netSales]) => ({ month, netSales }));
 
-  return { periodNetSales, priorYearNetSales, monthly };
+  return { periodNetSales, priorYearNetSales, monthly, monthlyCurrentYear, monthlyPreviousYear };
 }
 
 export async function getInsightsSalesOverlay(

@@ -138,27 +138,23 @@ function DebitInsightsContent({ currentUser }: { currentUser: any }) {
         </div>
 
         <div className="max-w-[95%] 2xl:max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-12 flex-1 w-full">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm">
-            <div className="p-4 sm:p-6 lg:p-8">
-              {error ? (
-                <TabFetchError
-                  message={error}
-                  onRetry={async () => {
-                    toast.info('Retrying data load...');
-                    await refresh();
-                  }}
-                />
-              ) : (
-                <DebitInsightsDashboard
-                  data={data}
-                  loading={loading}
-                  filtersOpen={filtersOpen}
-                  onFiltersOpenChange={setFiltersOpen}
-                  onChromeChange={handleChromeChange}
-                />
-              )}
-            </div>
-          </div>
+          {error ? (
+            <TabFetchError
+              message={error}
+              onRetry={async () => {
+                toast.info('Retrying data load...');
+                await refresh();
+              }}
+            />
+          ) : (
+            <DebitInsightsDashboard
+              data={data}
+              loading={loading}
+              filtersOpen={filtersOpen}
+              onFiltersOpenChange={setFiltersOpen}
+              onChromeChange={handleChromeChange}
+            />
+          )}
         </div>
       </div>
     </div>

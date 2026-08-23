@@ -17,6 +17,8 @@ export interface InsightsSalesOverlay {
   periodNetSales: number;
   priorYearNetSales: number;
   monthly: { month: string; netSales: number }[];
+  monthlyCurrentYear: { month: string; netSales: number }[];
+  monthlyPreviousYear: { month: string; netSales: number }[];
 }
 
 export interface AgingBreakdown {
@@ -44,11 +46,26 @@ export interface InsightsTrendPoint {
   collections: number;
 }
 
+export interface YoYTrendPoint {
+  monthName: string;
+  monthIndex: number;
+  cyOpenDebt: number;
+  pyOpenDebt: number;
+  cyNetSales: number;
+  pyNetSales: number;
+  cyCollections: number;
+  pyCollections: number;
+  cyCollectionRate: number | null;
+  pyCollectionRate: number | null;
+}
+
 export interface DebitInsightsMetrics {
   totalOpenDebt: number;
   agingBreakdown: AgingBreakdown;
   period: InsightsPeriodMetrics;
   trendSeries: InsightsTrendPoint[];
+  currentYearTrend: InsightsTrendPoint[];
+  previousYearTrend: InsightsTrendPoint[];
   salesReps: string[];
 }
 

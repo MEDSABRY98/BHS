@@ -38,7 +38,7 @@ export default function DashboardTab(props: SharedTabProps) {
           {/* Section 0: Last Invoices */}
           <div>
             <h3 className="text-lg font-bold text-gray-700 mb-3 border-b pb-2">Last Invoices</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {/* Last Sale Invoice */}
               {(() => {
                 const sales = filteredInvoices.filter(inv => (inv.number || '').toString().toUpperCase().startsWith('SAL'));
@@ -151,45 +151,6 @@ export default function DashboardTab(props: SharedTabProps) {
                       </>
                     ) : (
                       <p className="text-sm text-green-600 italic">No payments</p>
-                    )}
-                  </div>
-                );
-              })()}
-
-              {/* Last Discount (BIL) */}
-              {(() => {
-                const discounts = filteredInvoices.filter(inv => (inv.number || '').toString().toUpperCase().startsWith('BIL'));
-                const latestDiscount = discounts.length > 0 ? [...discounts].sort((a, b) => {
-                  const dateA = a.parsedDate || (a.date ? new Date(a.date) : new Date(0));
-                  const dateB = b.parsedDate || (b.date ? new Date(b.date) : new Date(0));
-                  return dateB.getTime() - dateA.getTime();
-                })[0] : null;
-
-                const latestDate = latestDiscount?.parsedDate;
-                const sameDayDiscounts = latestDate ? discounts.filter(inv => {
-                  const d = inv.parsedDate || (inv.date ? new Date(inv.date) : null);
-                  return d?.getTime() === latestDate.getTime();
-                }) : [];
-                const totalAmount = sameDayDiscounts.reduce((sum, inv) => sum + (inv.credit - inv.debit), 0);
-
-                return (
-                  <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-5 rounded-xl shadow-sm border border-purple-200 relative overflow-hidden">
-                    <div className="absolute top-0 right-0 p-3 opacity-20">
-                      <span className="text-5xl">🎁</span>
-                    </div>
-                    <h4 className="text-purple-700 text-xs font-bold uppercase tracking-wider mb-2">Last Discount</h4>
-                    {latestDiscount ? (
-                      <>
-                        <p className="text-sm font-semibold text-purple-900 mb-1">
-                          {sameDayDiscounts.length > 1 ? `${sameDayDiscounts.length} Discounts` : latestDiscount.number}
-                        </p>
-                        <p className="text-2xl font-bold text-purple-700 mb-1">{totalAmount.toLocaleString('en-US')}</p>
-                        <p className="text-xs text-purple-600">
-                          {latestDate?.toLocaleDateString('en-GB') || latestDiscount.date}
-                        </p>
-                      </>
-                    ) : (
-                      <p className="text-sm text-purple-600 italic">No discounts</p>
                     )}
                   </div>
                 );

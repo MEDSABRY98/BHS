@@ -60,6 +60,24 @@ function buildPages(
   filters: InsightsFilters,
   generatedAt: string
 ): ReactElement[] {
+  const yoyChartData = metrics.currentYearTrend.map((cyPoint, index) => {
+    const pyPoint = metrics.previousYearTrend[index];
+    const cyCollectionRate = cyPoint.netSales > 0.01 ? (cyPoint.collections / cyPoint.netSales) * 100 : null;
+    const pyCollectionRate = pyPoint && pyPoint.netSales > 0.01 ? (pyPoint.collections / pyPoint.netSales) * 100 : null;
+    return {
+      monthName: cyPoint.monthLabel.split(' ')[0] || cyPoint.monthLabel,
+      monthIndex: index,
+      cyOpenDebt: cyPoint.openDebt,
+      pyOpenDebt: pyPoint?.openDebt || 0,
+      cyNetSales: cyPoint.netSales,
+      pyNetSales: pyPoint?.netSales || 0,
+      cyCollections: cyPoint.collections,
+      pyCollections: pyPoint?.collections || 0,
+      cyCollectionRate,
+      pyCollectionRate,
+    };
+  });
+
   return [
     createElement(CoverPage, { key: 'cover', filters, generatedAt }),
     createElement(KpiPage, {
@@ -72,7 +90,7 @@ function buildPages(
     }),
     createElement(DebtTrendPage, {
       key: 'debt-trend',
-      data: metrics.trendSeries,
+      data: yoyChartData,
       filters,
       pageNumber: 3,
       totalPages: TOTAL_PAGES,
@@ -88,7 +106,7 @@ function buildPages(
     }),
     createElement(SalesCollectionsPage, {
       key: 'sales-collections',
-      data: metrics.trendSeries,
+      data: yoyChartData,
       filters,
       pageNumber: 5,
       totalPages: TOTAL_PAGES,
@@ -96,7 +114,7 @@ function buildPages(
     }),
     createElement(CollectionRatePage, {
       key: 'collection-rate',
-      data: metrics.trendSeries,
+      data: yoyChartData,
       filters,
       pageNumber: 6,
       totalPages: TOTAL_PAGES,

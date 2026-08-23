@@ -17,6 +17,9 @@ export function applySalesNetOverlay(
   overlay: InsightsSalesOverlay
 ): DebitInsightsMetrics {
   const monthlyLookup = new Map(overlay.monthly.map((point) => [point.month, point.netSales]));
+  const currentYearLookup = new Map(overlay.monthlyCurrentYear.map((point) => [point.month, point.netSales]));
+  const previousYearLookup = new Map(overlay.monthlyPreviousYear.map((point) => [point.month, point.netSales]));
+
   const netSales = overlay.periodNetSales;
   const netSalesPriorYear = overlay.priorYearNetSales;
   const netSalesYoYChange = computeYoYChange(netSales, netSalesPriorYear);
@@ -35,6 +38,14 @@ export function applySalesNetOverlay(
     trendSeries: metrics.trendSeries.map((point) => ({
       ...point,
       netSales: monthlyLookup.get(point.month) ?? 0,
+    })),
+    currentYearTrend: metrics.currentYearTrend.map((point) => ({
+      ...point,
+      netSales: currentYearLookup.get(point.month) ?? 0,
+    })),
+    previousYearTrend: metrics.previousYearTrend.map((point) => ({
+      ...point,
+      netSales: previousYearLookup.get(point.month) ?? 0,
     })),
   };
 }

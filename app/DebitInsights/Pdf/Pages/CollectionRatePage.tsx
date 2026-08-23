@@ -1,12 +1,12 @@
 'use client';
 
 import CollectionRateChart from '../../Charts/CollectionRateChart';
-import type { InsightsFilters, InsightsTrendPoint } from '../../Utils/InsightsTypes';
+import type { InsightsFilters, YoYTrendPoint } from '../../Utils/InsightsTypes';
 import { formatGeneratedDate, formatPeriodLabel } from '../PdfCaptureUtils';
 import PdfPageShell from '../PdfPageShell';
 
 interface CollectionRatePageProps {
-  data: InsightsTrendPoint[];
+  data: YoYTrendPoint[];
   filters: InsightsFilters;
   pageNumber?: number;
   totalPages?: number;

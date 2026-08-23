@@ -1,12 +1,12 @@
 'use client';
 
 import DebtTrendChart from '../../Charts/DebtTrendChart';
-import type { InsightsFilters, InsightsTrendPoint } from '../../Utils/InsightsTypes';
+import type { InsightsFilters, YoYTrendPoint } from '../../Utils/InsightsTypes';
 import { formatGeneratedDate, formatPeriodLabel } from '../PdfCaptureUtils';
 import PdfPageShell from '../PdfPageShell';
 
 interface DebtTrendPageProps {
-  data: InsightsTrendPoint[];
+  data: YoYTrendPoint[];
   filters: InsightsFilters;
   pageNumber?: number;
   totalPages?: number;

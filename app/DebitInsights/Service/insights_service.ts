@@ -68,38 +68,3 @@ export async function computeDebitInsightsMetrics(
 /**
  * Fetches Sales DB net-sales overlay for the resolved Insights period.
  */
-export async function fetchSalesOverlayForFilters(
-  filters: InsightsFilters,
-  userId?: string,
-  rows: InvoiceRow[] = []
-): Promise<InsightsSalesOverlay> {
-  const uid = String(userId || '').trim();
-  if (!uid) {
-    return { periodNetSales: 0, priorYearNetSales: 0, monthly: [] };
-  }
-
-  const { from, to } = resolvePeriodRange(
-    filters.asOfDate,
-    filters.periodPreset,
-    filters.periodFrom,
-    filters.periodTo
-  );
-
-  const customers =
-    filters.customers.length > 0 || (filters.customerTags?.length || 0) > 0
-      ? resolveEffectiveCustomers(
-          rows,
-          filters.salesRep,
-          filters.customers,
-          filters.customerTags || []
-        )
-      : [];
-
-  return getInsightsSalesOverlay({
-    userId: uid,
-    periodFrom: toInputDate(from),
-    periodTo: toInputDate(to),
-    cities: filters.salesRep,
-    customers,
-  });
-}

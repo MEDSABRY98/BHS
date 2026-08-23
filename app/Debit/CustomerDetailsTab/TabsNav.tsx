@@ -1,6 +1,7 @@
 import React from 'react';
+import { BarChart3, FileText, LayoutDashboard, Clock, FileSpreadsheet, CalendarDays } from 'lucide-react';
 
-type TabType = 'dashboard' | 'invoices' | 'ages' | 'notes' | 'overdue' | 'monthly';
+type TabType = 'dashboard' | 'invoices' | 'notes' | 'overdue' | 'monthly';
 
 interface TabsNavProps {
   activeTab: TabType;
@@ -13,9 +14,8 @@ export default function TabsNav({ activeTab, setActiveTab, notesCount }: TabsNav
     { key: 'dashboard', label: '📊 Dashboard', activeColor: 'text-purple-700 border-purple-600 bg-purple-50' },
     { key: 'invoices', label: 'Invoices', activeColor: 'text-blue-700 border-blue-600 bg-blue-50' },
     { key: 'overdue', label: 'Overdue', activeColor: 'text-blue-700 border-blue-600 bg-blue-50' },
-    { key: 'ages', label: 'Ages', activeColor: 'text-blue-700 border-blue-600 bg-blue-50' },
     { key: 'monthly', label: 'Monthly', activeColor: 'text-blue-700 border-blue-600 bg-blue-50' },
-    { key: 'notes', label: <>Notes <span className="text-red-600">({notesCount})</span></>, activeColor: 'text-blue-700 border-blue-600 bg-blue-50' },
+    { key: 'notes', label: <>Notes <span className="text-red-600">({notesCount})</span></>, activeColor: 'text-blue-700 border-blue-600 bg-blue-50' }
   ];
 
   return (

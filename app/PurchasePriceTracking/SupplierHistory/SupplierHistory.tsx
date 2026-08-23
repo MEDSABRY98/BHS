@@ -169,7 +169,6 @@ export default function SupplierHistory({ purchases, products, suppliers }: Prop
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h2 className="text-3xl font-black text-slate-900 tracking-tight">Supplier History</h2>
-            <p className="text-slate-500 font-medium mt-1">Select a supplier to view their purchase history.</p>
           </div>
           <div className="relative w-full md:w-96">
             <Search className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -235,7 +234,6 @@ export default function SupplierHistory({ purchases, products, suppliers }: Prop
               </span>
               <h2 className="text-2xl font-black text-slate-900 tracking-tight leading-none">{selectedSupplier?.name}</h2>
             </div>
-            <p className="text-slate-500 font-medium">Complete purchase history for this supplier</p>
           </div>
         </div>
         <div className="flex items-center">

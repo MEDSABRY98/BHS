@@ -1,12 +1,13 @@
 'use client';
 
-import SalesCollectionsChart from '../../Charts/SalesCollectionsChart';
-import type { InsightsFilters, InsightsTrendPoint } from '../../Utils/InsightsTypes';
+import SalesTrendChart from '../../Charts/SalesTrendChart';
+import CollectionsTrendChart from '../../Charts/CollectionsTrendChart';
+import type { InsightsFilters, YoYTrendPoint } from '../../Utils/InsightsTypes';
 import { formatGeneratedDate, formatPeriodLabel } from '../PdfCaptureUtils';
 import PdfPageShell from '../PdfPageShell';
 
 interface SalesCollectionsPageProps {
-  data: InsightsTrendPoint[];
+  data: YoYTrendPoint[];
   filters: InsightsFilters;
   pageNumber?: number;
   totalPages?: number;
@@ -28,8 +29,21 @@ export default function SalesCollectionsPage({
       totalPages={totalPages}
       generatedAt={generatedAt ?? formatGeneratedDate()}
     >
-      <div style={{ flex: 1, minHeight: 0 }}>
-        <SalesCollectionsChart data={data} forPdf />
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        <div style={{ flex: 1 }}>
+          <SalesTrendChart 
+            data={data} 
+            title={`Net Sales Trend`} 
+            forPdf 
+          />
+        </div>
+        <div style={{ flex: 1 }}>
+          <CollectionsTrendChart 
+            data={data} 
+            title={`Collections Trend`} 
+            forPdf 
+          />
+        </div>
       </div>
     </PdfPageShell>
   );

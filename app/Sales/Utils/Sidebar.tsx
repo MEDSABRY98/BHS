@@ -21,6 +21,7 @@ import {
   X,
   Sparkles,
   FileSpreadsheet,
+  RefreshCw,
 } from 'lucide-react';
 import { getAllowedSalesTabIds, type SalesTabId } from './salesTabPermissions';
 
@@ -34,6 +35,7 @@ interface SalesSidebarProps {
   onToggleCollapse: () => void;
   onCloseMobile?: () => void;
   onUploadClick?: () => void;
+  onRefresh?: () => void;
   hasSalesDataAccess?: boolean;
   FilterNode?: React.ReactNode;
 }
@@ -47,12 +49,14 @@ export default function SalesSidebar({
   onToggleCollapse,
   onCloseMobile,
   onUploadClick,
+  onRefresh,
   hasSalesDataAccess: hasSalesDataAccessProp,
   FilterNode
 }: SalesSidebarProps) {
   
   const allTabs: { id: SalesTabId; label: string; icon: typeof BarChart3 }[] = [
     { id: 'sales-overview', label: 'Overview', icon: BarChart3 },
+    { id: 'sales-periods', label: 'Periods', icon: Calendar },
     { id: 'sales-top10', label: 'Top 10', icon: Award },
     { id: 'sales-customers', label: 'Customers', icon: Users },
     { id: 'sales-customers-comparison', label: 'Comparison', icon: Scale },
@@ -167,6 +171,17 @@ export default function SalesSidebar({
             >
               <FileSpreadsheet className="w-5 h-5 group-hover:scale-110 transition-transform" />
               {isCollapsed && <span className="absolute left-14 opacity-0 group-hover:opacity-100 whitespace-nowrap bg-black/80 px-2 py-1 rounded text-xs pointer-events-none transition-opacity z-50">Upload Data</span>}
+            </button>
+          )}
+
+          {onRefresh && (
+            <button
+              onClick={onRefresh}
+              className="flex items-center justify-center w-10 h-10 hover:bg-white/10 rounded-xl transition-all duration-200 text-emerald-400 group relative"
+              title="Refresh Data"
+            >
+              <RefreshCw className="w-5 h-5 group-hover:rotate-180 transition-transform duration-500" />
+              {isCollapsed && <span className="absolute left-14 opacity-0 group-hover:opacity-100 whitespace-nowrap bg-black/80 px-2 py-1 rounded text-xs pointer-events-none transition-opacity z-50">Refresh</span>}
             </button>
           )}
 

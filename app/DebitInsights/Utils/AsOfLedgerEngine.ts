@@ -221,24 +221,35 @@ function buildTrendSeries(
       monthStart.setHours(0, 0, 0, 0);
     }
 
-    const monthEndInput = toInputDate(monthEnd);
-    const rowsAsOfMonth = filterRowsAsOf(allRows, monthEndInput, cities, customers, customerTags);
-    const { totalOpenDebt } = computePortfolioAging(
-      rowsAsOfMonth,
-      monthEnd,
-      cities,
-      customers,
-      customerTags
-    );
+    if (monthStart > monthEnd) {
+      const monthKey = getMonthlyKey(new Date(cursor.getFullYear(), cursor.getMonth(), 1));
+      points.push({
+        month: monthKey,
+        monthLabel: formatMonthLabel(monthKey),
+        openDebt: 0,
+        netSales: 0,
+        collections: 0,
+      });
+    } else {
+      const monthEndInput = toInputDate(monthEnd);
+      const rowsAsOfMonth = filterRowsAsOf(allRows, monthEndInput, cities, customers, customerTags);
+      const { totalOpenDebt } = computePortfolioAging(
+        rowsAsOfMonth,
+        monthEnd,
+        cities,
+        customers,
+        customerTags
+      );
 
-    const monthKey = getMonthlyKey(monthEnd);
-    points.push({
-      month: monthKey,
-      monthLabel: formatMonthLabel(monthKey),
-      openDebt: totalOpenDebt,
-      netSales: computeNetSales(rowsAsOfMonth, monthStart, monthEnd),
-      collections: computeCollections(rowsAsOfMonth, monthStart, monthEnd),
-    });
+      const monthKey = getMonthlyKey(monthEnd);
+      points.push({
+        month: monthKey,
+        monthLabel: formatMonthLabel(monthKey),
+        openDebt: totalOpenDebt,
+        netSales: computeNetSales(rowsAsOfMonth, monthStart, monthEnd),
+        collections: computeCollections(rowsAsOfMonth, monthStart, monthEnd),
+      });
+    }
 
     cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
   }
@@ -289,11 +300,23 @@ export function computeDebitInsights(
   const collections = computeCollections(rowsAsOf, from, to);
   const collectionRate = netSales > 0.01 ? (collections / netSales) * 100 : null;
 
+  const currentYearStr = filters.asOfDate.substring(0, 4);
+  const prevYearStr = String(Number(currentYearStr) - 1);
+  const cyStart = new Date(`${currentYearStr}-01-01T00:00:00`);
+  const cyEnd = new Date(`${currentYearStr}-12-31T23:59:59.999`);
+  const pyStart = new Date(`${prevYearStr}-01-01T00:00:00`);
+  const pyEnd = new Date(`${prevYearStr}-12-31T23:59:59.999`);
+
+  const currentYearTrend = buildTrendSeries(rows, filters.asOfDate, cyStart, cyEnd, cities, customers, customerTags);
+  const previousYearTrend = buildTrendSeries(rows, filters.asOfDate, pyStart, pyEnd, cities, customers, customerTags);
+
   return {
     totalOpenDebt,
     agingBreakdown,
     period: { netSales, netSalesPriorYear, netSalesYoYChange, collections, collectionRate },
     trendSeries: buildTrendSeries(rows, filters.asOfDate, from, to, cities, customers, customerTags),
+    currentYearTrend,
+    previousYearTrend,
     salesReps: collectSalesReps(rows),
   };
 }

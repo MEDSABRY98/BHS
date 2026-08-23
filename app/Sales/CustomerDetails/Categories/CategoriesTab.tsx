@@ -147,19 +147,21 @@ export default function CategoriesTab({
                 );
               })}
 
-              <tr className="bg-gray-50/50 border-t-2 border-gray-100">
-                <td className="py-5 px-4"></td>
-                <td className="py-5 px-4 text-center text-gray-900 font-black text-lg">GRAND TOTAL</td>
-                <td className="py-5 px-4 text-center text-green-700 font-black text-lg">
+            </tbody>
+            <tfoot>
+              <tr className="bg-emerald-50 border-t-2 border-emerald-200">
+                <td className="py-4 px-4"></td>
+                <td className="py-4 px-4 text-center text-gray-900 font-bold text-lg"></td>
+                <td className="py-4 px-4 text-center text-gray-900 font-bold text-lg">
                   {totals.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </td>
-                <td className="py-5 px-4 text-center text-indigo-600 font-black text-lg">100.00%</td>
-                <td className="py-5 px-4 text-center text-gray-900 font-black text-lg">
+                <td className="py-4 px-4 text-center text-indigo-700 font-bold text-lg">100.00%</td>
+                <td className="py-4 px-4 text-center text-gray-900 font-bold text-lg">
                   {totals.qty.toLocaleString('en-US')}
                 </td>
-                <td className="py-5 px-4"></td>
+                <td className="py-4 px-4"></td>
               </tr>
-            </tbody>
+            </tfoot>
           </table>
         )}
       </div>
