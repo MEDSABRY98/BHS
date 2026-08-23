@@ -19,6 +19,8 @@ const ALL_TABS = [
 ];
 
 export default function HandoverSidebar({ activeTab, setActiveTab, currentUser }: HandoverSidebarProps) {
+  const [hoveredTab, setHoveredTab] = useState<{ label: string; top: number } | null>(null);
+
   const [isCollapsed, setIsCollapsed] = useState(true);
   const router = useRouter();
   const tabs = useMemo(() => {
@@ -37,7 +39,7 @@ export default function HandoverSidebar({ activeTab, setActiveTab, currentUser }
           type="button"
           onClick={() => router.push('/')}
           className={`flex items-center justify-center ${isCollapsed ? 'gap-0' : 'gap-3'} py-2.5 text-[#D4AF37] hover:text-amber-300 transition-all duration-200 group w-full cursor-pointer bg-white/5 rounded-xl border border-white/10`}
-          title={isCollapsed ? 'Back to Home' : undefined}
+          
         >
           <ArrowLeft className="w-5 h-5 shrink-0 group-hover:-translate-x-1 transition-transform" />
           {!isCollapsed && (
@@ -70,6 +72,13 @@ export default function HandoverSidebar({ activeTab, setActiveTab, currentUser }
           return (
             <button
               key={tab.id}
+              onMouseEnter={(e) => {
+                if (isCollapsed) {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  setHoveredTab({ label: tab.label, top: rect.top + (rect.height / 2) - 12 });
+                }
+              }}
+              onMouseLeave={() => setHoveredTab(null)}
               type="button"
               onClick={() => setActiveTab(tab.id)}
               className={`w-full flex items-center ${isCollapsed ? 'justify-center px-2' : 'px-4'} py-3.5 rounded-xl transition-all duration-200 group relative ${
@@ -77,7 +86,7 @@ export default function HandoverSidebar({ activeTab, setActiveTab, currentUser }
                   ? 'bg-gradient-to-r from-amber-600 to-[#D4AF37] text-white shadow-lg shadow-amber-950/40 border-l-4 border-[#D4AF37] font-bold'
                   : 'text-slate-400 hover:text-white hover:bg-white/5'
               }`}
-              title={isCollapsed ? tab.label : undefined}
+              
             >
               <Icon
                 className={`w-5 h-5 transition-colors shrink-0 ${isCollapsed ? '' : 'mr-3'} ${

@@ -1,5 +1,5 @@
 'use client';
-
+import { useState } from 'react';
 import {
   ArrowLeft,
   BarChart3,
@@ -41,6 +41,8 @@ export default function DebitInsightsSidebar({
   canExportPdf = true,
   lastUpdated,
 }: DebitInsightsSidebarProps) {
+  const [hoveredTab, setHoveredTab] = useState<{ label: string; top: number } | null>(null);
+
   return (
     <div className="flex flex-col h-full bg-[#0a0f1d] text-white border-r border-indigo-950/20">
       {onCloseMobile && (
@@ -61,7 +63,7 @@ export default function DebitInsightsSidebar({
             window.location.href = '/';
           }}
           className={`flex items-center justify-center ${isCollapsed ? 'gap-0' : 'gap-3'} py-2.5 text-blue-400 hover:text-blue-300 transition-all duration-200 group w-full cursor-pointer bg-white/5 rounded-xl border border-white/10`}
-          title={isCollapsed ? 'Back to Home' : undefined}
+          
         >
           <ArrowLeft className="w-5 h-5 shrink-0 group-hover:-translate-x-1 transition-transform" />
           {!isCollapsed && (
@@ -90,7 +92,7 @@ export default function DebitInsightsSidebar({
       <nav className="flex-1 mt-4 overflow-y-auto no-scrollbar px-3 space-y-1">
         <div
           className={`w-full flex items-center ${isCollapsed ? 'justify-center px-2' : 'px-4'} py-3.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-950/40 border-l-4 border-blue-400 font-bold`}
-          title={isCollapsed ? 'Overview' : undefined}
+          
         >
           <BarChart3 className={`w-5 h-5 shrink-0 ${isCollapsed ? '' : 'mr-3'}`} />
           {!isCollapsed && <span className="text-sm tracking-wide">Overview</span>}
@@ -170,6 +172,19 @@ export default function DebitInsightsSidebar({
           )}
         </button>
       </div>
+
+      {/* Portal-like Tooltip for Collapsed Sidebar */}
+      {hoveredTab && isCollapsed && (
+        <div 
+          className="fixed z-[100] flex items-center pointer-events-none animate-in fade-in slide-in-from-left-2 duration-200"
+          style={{ top: hoveredTab.top - 2, left: 70 }}
+        >
+          <div className="w-2 h-2 bg-white border-l border-b border-[#B8860B] rotate-45 -mr-1 z-10 relative"></div>
+          <div className="bg-white border border-[#B8860B] text-slate-900 px-3 py-1.5 rounded-lg shadow-xl text-[13px] font-bold tracking-wide relative z-0 whitespace-nowrap">
+            {hoveredTab.label}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

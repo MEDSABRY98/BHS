@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useState,  useMemo  } from 'react';
 import {
   BarChart3, 
   Award, 
@@ -53,6 +53,8 @@ export default function SalesSidebar({
   hasSalesDataAccess: hasSalesDataAccessProp,
   FilterNode
 }: SalesSidebarProps) {
+  const [hoveredTab, setHoveredTab] = useState<{ label: string; top: number } | null>(null);
+
   
   const allTabs: { id: SalesTabId; label: string; icon: typeof BarChart3 }[] = [
     { id: 'sales-overview', label: 'Overview', icon: BarChart3 },
@@ -128,6 +130,13 @@ export default function SalesSidebar({
           return (
             <button
               key={tab.id}
+              onMouseEnter={(e) => {
+                if (isCollapsed) {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  setHoveredTab({ label: tab.label, top: rect.top + (rect.height / 2) - 12 });
+                }
+              }}
+              onMouseLeave={() => setHoveredTab(null)}
               onClick={() => {
                 onTabChange(tab.id);
                 if (onCloseMobile) onCloseMobile();
@@ -137,7 +146,7 @@ export default function SalesSidebar({
                   ? 'bg-gradient-to-r from-green-600 to-emerald-600 text-white shadow-lg shadow-green-950/40 border-l-4 border-emerald-400 font-bold'
                   : 'text-slate-400 hover:text-white hover:bg-white/5'
               }`}
-              title={isCollapsed ? tab.label : undefined}
+              
             >
               <Icon className={`w-5 h-5 transition-colors shrink-0 ${isCollapsed ? '' : 'mr-3'} ${isActive ? 'text-white' : 'group-hover:text-white'}`} />
               {!isCollapsed && (
@@ -194,6 +203,19 @@ export default function SalesSidebar({
           </button>
         </div>
       </div>
+
+      {/* Portal-like Tooltip for Collapsed Sidebar */}
+      {hoveredTab && isCollapsed && (
+        <div 
+          className="fixed z-[100] flex items-center pointer-events-none animate-in fade-in slide-in-from-left-2 duration-200"
+          style={{ top: hoveredTab.top - 2, left: 70 }}
+        >
+          <div className="w-2 h-2 bg-white border-l border-b border-[#B8860B] rotate-45 -mr-1 z-10 relative"></div>
+          <div className="bg-white border border-[#B8860B] text-slate-900 px-3 py-1.5 rounded-lg shadow-xl text-[13px] font-bold tracking-wide relative z-0 whitespace-nowrap">
+            {hoveredTab.label}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

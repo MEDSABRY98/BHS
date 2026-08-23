@@ -67,6 +67,8 @@ export default function DebitSidebar({
   onRefresh,
   isRefreshing,
 }: DebitSidebarProps) {
+  const [hoveredTab, setHoveredTab] = useState<{ label: string; top: number } | null>(null);
+
   const getFilteredTabs = () => {
     if (!currentUser) return [];
     if (currentUser.name === 'MED Sabry') return allTabs;
@@ -115,7 +117,7 @@ export default function DebitSidebar({
             window.location.href = '/';
           }}
           className={`flex items-center justify-center ${isCollapsed ? 'gap-0' : 'gap-3'} py-2.5 text-blue-400 hover:text-blue-300 transition-all duration-200 group w-full cursor-pointer bg-white/5 rounded-xl border border-white/10`}
-          title={isCollapsed ? 'Back to Home' : undefined}
+          
         >
           <ArrowLeft className="w-5 h-5 shrink-0 group-hover:-translate-x-1 transition-transform" />
           {!isCollapsed && (
@@ -149,6 +151,13 @@ export default function DebitSidebar({
           return (
             <button
               key={tab.id}
+              onMouseEnter={(e) => {
+                if (isCollapsed) {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  setHoveredTab({ label: tab.label, top: rect.top + (rect.height / 2) - 12 });
+                }
+              }}
+              onMouseLeave={() => setHoveredTab(null)}
               onClick={() => {
                 onTabChange(tab.id);
                 if (onCloseMobile) onCloseMobile();
@@ -158,7 +167,7 @@ export default function DebitSidebar({
                   ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-950/40 border-l-4 border-blue-400 font-bold'
                   : 'text-slate-400 hover:text-white hover:bg-white/5'
               }`}
-              title={isCollapsed ? tab.label : undefined}
+              
             >
               <Icon
                 className={`w-5 h-5 transition-colors shrink-0 ${isCollapsed ? '' : 'mr-3'} ${
@@ -186,7 +195,7 @@ export default function DebitSidebar({
         <button
           onClick={() => setIsFilterModalOpen(true)}
           className={`flex items-center justify-center ${isCollapsed ? 'w-10 h-10' : 'w-full py-2.5 px-4'} hover:bg-white/10 rounded-xl transition-all duration-200 text-purple-400 group relative border border-purple-500/30 bg-purple-500/5`}
-          title={isCollapsed ? 'Advanced Filters' : undefined}
+          
         >
           <Filter className="w-5 h-5 shrink-0 group-hover:scale-110 transition-transform" />
           {!isCollapsed && <span className="ml-3 text-sm font-bold tracking-wide">Advanced Filters</span>}
@@ -201,7 +210,7 @@ export default function DebitSidebar({
             onClick={onRefresh}
             disabled={isRefreshing}
             className={`flex items-center justify-center ${isCollapsed ? 'w-10 h-10' : 'w-full py-2.5 px-4'} hover:bg-white/10 rounded-xl transition-all duration-200 text-blue-400 disabled:opacity-50 group`}
-            title={isCollapsed ? 'Refresh Data' : undefined}
+            
           >
             <RefreshCcw className={`w-5 h-5 shrink-0 ${isRefreshing ? 'animate-spin' : ''}`} />
             {!isCollapsed && <span className="ml-3 text-sm font-bold tracking-wide">Refresh Data</span>}
@@ -224,6 +233,19 @@ export default function DebitSidebar({
         filteredDataCount={filteredDataCount}
         data={data}
       />
+
+      {/* Portal-like Tooltip for Collapsed Sidebar */}
+      {hoveredTab && isCollapsed && (
+        <div 
+          className="fixed z-[100] flex items-center pointer-events-none animate-in fade-in slide-in-from-left-2 duration-200"
+          style={{ top: hoveredTab.top - 2, left: 70 }}
+        >
+          <div className="w-2 h-2 bg-white border-l border-b border-[#B8860B] rotate-45 -mr-1 z-10 relative"></div>
+          <div className="bg-white border border-[#B8860B] text-slate-900 px-3 py-1.5 rounded-lg shadow-xl text-[13px] font-bold tracking-wide relative z-0 whitespace-nowrap">
+            {hoveredTab.label}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
