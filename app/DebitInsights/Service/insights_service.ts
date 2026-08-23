@@ -72,13 +72,13 @@ async function fetchSalesOverlayForFilters(
   filters: InsightsFilters,
   userId?: string
 ): Promise<InsightsSalesOverlay> {
-  const { periodFrom, periodTo } = resolvePeriodRange(filters);
+  const { from, to } = resolvePeriodRange(filters);
   const effectiveCustomers = resolveEffectiveCustomers(filters.customerGroups, filters.customers);
 
   return getInsightsSalesOverlay({
     userId: userId || '',
-    periodFrom: toInputDate(periodFrom),
-    periodTo: toInputDate(periodTo),
+    periodFrom: toInputDate(from),
+    periodTo: toInputDate(to),
     cities: filters.cities || [],
     customers: effectiveCustomers,
   });
