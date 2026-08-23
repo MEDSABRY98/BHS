@@ -57,7 +57,7 @@ interface CustomerDetailsProps {
   customerName: string;
   invoices: InvoiceRow[];
   onBack: () => void;
-  initialTab?: 'dashboard' | 'invoices' | 'ages' | 'notes' | 'overdue' | 'monthly';
+  initialTab?: 'dashboard' | 'invoices' | 'notes' | 'overdue' | 'monthly';
 }
 
 import DashboardTab from './Tabs/DashboardTab';
