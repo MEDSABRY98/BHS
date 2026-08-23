@@ -296,10 +296,10 @@ export default function CustomersPage() {
         "Customer City": c["CUSTOMER CITY"] || '',
         "Customer Tag": c["CUSTOMER TAG"] || '',
         "Customer Class": c["CUSTOMER CLASS"] || '',
-        "Credit Limit": Number(c["CREDIT LIMIT"]) || 0,
         "Sales Rep": c["SALES_REP"] || '',
         "Market": c["MARKET"] || '',
-        "Merchandiser": c["MERCHANDISER"] || ''
+        "Merchandiser": c["MERCHANDISER"] || '',
+        "Credit Limit": Number(c["CREDIT LIMIT"]) || 0
       }));
 
       if (exportData.length === 0) {
