@@ -1,4 +1,29 @@
-export function buildOverviewFromFilteredData(augmentedData: any[], filters: any) {
+function sumTargetsForMonth(
+  targetMap: Map<string, number>,
+  year: number,
+  month: number,
+  userIds?: string[] | null,
+  targetType: string = 'sales_rep'
+): number {
+  let sum = 0;
+  if (!userIds || userIds.length === 0) {
+    for (const [key, val] of targetMap.entries()) {
+      const parts = key.split('|');
+      if (parts.length === 4) {
+        if (Number(parts[1]) === year && Number(parts[2]) === month && parts[3] === targetType) {
+          sum += val;
+        }
+      }
+    }
+    return sum;
+  }
+  for (const uid of userIds) {
+    const key = `${uid}|${year}|${month}|${targetType}`;
+    sum += targetMap.get(key) || 0;
+  }
+  return sum;
+}
+export function buildOverviewFromFilteredData(augmentedData: any[], filters: any, targetMap: Map<string, number> = new Map(), targetUserIds: string[] | null = null) {
   const augmentedWithDates = augmentedData.map((item) => {
     let parsedDate = null;
     let time = NaN;
@@ -119,33 +144,76 @@ export function buildOverviewFromFilteredData(augmentedData: any[], filters: any
   const now = new Date();
   const nowYear = now.getFullYear();
   const nowMonth = now.getMonth() + 1;
-  const chartData = [];
+  
+  const chartDataVsLastYear = [];
+  const chartDataVsLastMonth = [];
+  const chartDataVsTarget = [];
 
   for (let m = 1; m <= 12; m++) {
     const currKey = `${targetYear}-${String(m).padStart(2, '0')}`;
-    const prevKey = `${prevYear}-${String(m).padStart(2, '0')}`;
     const currData = monthMapChart.get(currKey) || { amount: 0, qty: 0 };
-    const prevData = monthMapChart.get(prevKey) || { amount: 0, qty: 0 };
-    const diff = currData.amount - prevData.amount;
-    const percent = prevData.amount !== 0 ? (diff / Math.abs(prevData.amount)) * 100 : (currData.amount !== 0 ? 100 : 0);
+    
+    // Last Year
+    const prevYearKey = `${prevYear}-${String(m).padStart(2, '0')}`;
+    const prevYearData = monthMapChart.get(prevYearKey) || { amount: 0, qty: 0 };
+    const diffYear = currData.amount - prevYearData.amount;
+    const percentYear = prevYearData.amount !== 0 ? (diffYear / Math.abs(prevYearData.amount)) * 100 : (currData.amount !== 0 ? 100 : 0);
+    
+    // Last Month
+    let prevMonthM = m - 1;
+    let prevMonthY = targetYear;
+    if (prevMonthM === 0) {
+      prevMonthM = 12;
+      prevMonthY = targetYear - 1;
+    }
+    const prevMonthKey = `${prevMonthY}-${String(prevMonthM).padStart(2, '0')}`;
+    const prevMonthData = monthMapChart.get(prevMonthKey) || { amount: 0, qty: 0 };
+    const diffMonth = currData.amount - prevMonthData.amount;
+    const percentMonth = prevMonthData.amount !== 0 ? (diffMonth / Math.abs(prevMonthData.amount)) * 100 : (currData.amount !== 0 ? 100 : 0);
+
+    // Target
+    const targetAmount = sumTargetsForMonth(targetMap, targetYear, m, targetUserIds);
+    const diffTarget = currData.amount - targetAmount;
+    const percentTarget = targetAmount !== 0 ? (diffTarget / Math.abs(targetAmount)) * 100 : (currData.amount !== 0 ? 100 : 0);
+
     const isFuture = (targetYear > nowYear) || (targetYear === nowYear && m > nowMonth);
 
-    chartData.push({
+    const baseObj = {
       month: monthNames[m - 1],
       year: String(targetYear).slice(-2),
-      prevYear: String(prevYear).slice(-2),
       currentAmount: currData.amount,
-      prevAmount: prevData.amount,
-      diff,
-      percent,
-      isPositive: diff >= 0,
       isFuture,
       legendCurr: String(targetYear),
+    };
+
+    chartDataVsLastYear.push({
+      ...baseObj,
+      prevAmount: prevYearData.amount,
+      diff: diffYear,
+      percent: percentYear,
+      isPositive: diffYear >= 0,
       legendPrev: String(prevYear),
     });
-  }
 
-  const yearMap = new Map<string, any>();
+    chartDataVsLastMonth.push({
+      ...baseObj,
+      prevAmount: prevMonthData.amount,
+      diff: diffMonth,
+      percent: percentMonth,
+      isPositive: diffMonth >= 0,
+      legendPrev: monthNames[prevMonthM - 1],
+    });
+
+    chartDataVsTarget.push({
+      ...baseObj,
+      prevAmount: targetAmount,
+      diff: diffTarget,
+      percent: percentTarget,
+      isPositive: diffTarget >= 0,
+      legendPrev: 'Target',
+    });
+  }
+const yearMap = new Map<string, any>();
   globallyFilteredData.forEach((item) => {
     if (isNaN(item.time)) return;
     const yr = item.yr.toString();
@@ -241,5 +309,5 @@ export function buildOverviewFromFilteredData(augmentedData: any[], filters: any
     };
   });
 
-  return { metrics, chartData, yearlyTableData, monthlyTableData };
+  return { metrics, chartDataVsLastYear, chartDataVsLastMonth, chartDataVsTarget, yearlyTableData, monthlyTableData };
 }

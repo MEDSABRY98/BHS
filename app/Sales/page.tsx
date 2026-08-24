@@ -8,7 +8,6 @@ import SalesCustomersTab from './Customers/CustomersTab';
 import SalesCustomersComparisonTab from './Comparison/ComparisonTab';
 import SalesInactiveCustomersTab from './InactiveCustomers/InactiveCustomersTab';
 import SalesStatisticsTab from './Statistics/StatisticsTab';
-import SalesReportsTab from './Reports/ReportsTab';
 import SalesDailySalesTab from './DailySales/DailySalesTab';
 import SalesProductsTab from './Products/ProductsTab';
 import SalesCategoriesTab from './Categories/CategoriesTab';
@@ -32,7 +31,6 @@ import { ArrowLeft, BarChart3, LogOut, User, FileUp, FileSpreadsheet, ChevronDow
 import * as XLSX from 'xlsx';
 import { toast } from '@/app/Components/Notification';
 import { exportSalesExcelTable } from '@/app/Sales/Utils/ExcelExport';
-import { getAllowedReportTableTabIds } from '@/app/Sales/Reports/ReportsTableTabs';
 import { getAllowedSalesTabIds, isSalesTabAllowed } from '@/app/Sales/Utils/salesTabPermissions';
 import { getCustomersList, getMyCustomersData, batchSaveCustomerMapping } from '@/app/Sales/Service/sales_customers_service';
 import { getSalesMetadata } from '@/app/Sales/Service/sales_core_service';
@@ -151,10 +149,6 @@ export default function SalesPage() {
     [currentUser]
   );
 
-  const allowedReportTableTabIds = useMemo(
-    () => getAllowedReportTableTabIds(currentUser?.role, currentUser),
-    [currentUser?.role, currentUser?.name, currentUser?.userAdmin]
-  );
 
   const showCosts = useMemo(() => {
     if (userHasSalesDataAccess) return true;
@@ -412,13 +406,6 @@ export default function SalesPage() {
         </SalesTabPanel>
         <SalesTabPanel tabId="sales-statistics" activeTab={activeTab} isVisited={visitedTabs.has('sales-statistics')}>
           <SalesStatisticsTab userId={salesUserId} showCosts={showCosts} />
-        </SalesTabPanel>
-        <SalesTabPanel tabId="sales-reports" activeTab={activeTab} isVisited={visitedTabs.has('sales-reports')}>
-          <SalesReportsTab
-            userId={salesUserId}
-            allowedReportTableTabIds={allowedReportTableTabIds}
-            showCosts={showCosts}
-          />
         </SalesTabPanel>
         <SalesTabPanel tabId="sales-targets" activeTab={activeTab} isVisited={visitedTabs.has('sales-targets')}>
           <SalesTargetsTab userId={salesUserId} />

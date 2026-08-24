@@ -305,13 +305,9 @@ export default function SalesTargetsTab({ userId }: SalesTargetsTabProps) {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="w-10 h-10 bg-green-600 rounded-xl flex items-center justify-center shadow-lg shadow-green-100 shrink-0">
-            <Target className="w-5 h-5 text-white" />
-          </div>
-          <h1 className="text-2xl font-bold text-slate-800 shrink-0">Sales Rep Targets</h1>
-        </div>
+      <div className="mb-8 flex items-center gap-3">
+        <h1 className="text-2xl font-medium text-slate-800">Sales Rep Targets</h1>
+      </div>
         
         <div className="flex flex-col sm:flex-row items-center gap-3">
           <div className="flex items-center gap-2 w-full sm:w-auto">
@@ -346,7 +342,6 @@ export default function SalesTargetsTab({ userId }: SalesTargetsTabProps) {
             Save All
           </button>
         </div>
-      </div>
 
       <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden flex flex-col">
         <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">

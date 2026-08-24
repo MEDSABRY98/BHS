@@ -7,7 +7,7 @@ import NoData from '@/app/Components/DataState/NoDataTab';
 import SalesNewListingsProducts from './NewListingsProducts';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
 import SalesNewListingsCustomers from './NewListingsCustomers';
-import { getNewListingsData } from '../Service/sales_reports_service';
+import { getNewListingsData } from '../Service/sales_core_service';
 import { useSalesDataContext } from '@/app/Sales/Context/SalesDataContext';
 import { useSalesTabFetch } from '@/app/Sales/Hooks/useSalesTabFetch';
 import TabFetchError from '@/app/Components/DataState/TabFetchError';

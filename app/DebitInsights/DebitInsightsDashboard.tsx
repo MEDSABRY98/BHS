@@ -11,24 +11,17 @@ import { InsightsFilters, InsightsSalesOverlay } from './Utils/InsightsTypes';
 import { toInputDate } from './Utils/DateUtils';
 import { applySalesNetOverlay } from './Utils/SalesSourceOverlay';
 import InsightsFiltersPanel from './Model/InsightsFiltersPanel';
-import InsightsExportScopeModal, {
-  type InsightsExportSelection,
-} from './Model/InsightsExportScopeModal';
 import InsightsKpiCards from './Cards/InsightsKpiCards';
 import DebtTrendChart from './Charts/DebtTrendChart';
 import SalesTrendChart from './Charts/SalesTrendChart';
 import CollectionsTrendChart from './Charts/CollectionsTrendChart';
 import CollectionRateChart from './Charts/CollectionRateChart';
 import AgingBreakdownChart from './Charts/AgingBreakdownChart';
-import { exportDebitInsightsPdfZip } from './Export/PdfExport';
 import { getInsightsSalesOverlay } from './Service/insights_sales_service';
 
 export type DebitInsightsChromeState = {
   filtersActive: boolean;
   filtersPending: boolean;
-  exportingPdf: boolean;
-  canExportPdf: boolean;
-  onExportPdf: () => void;
 };
 
 interface DebitInsightsDashboardProps {
@@ -95,8 +88,6 @@ export default function DebitInsightsDashboard({
   const [draftFilters, setDraftFilters] = useState<InsightsFilters>(defaultFilters);
   const [appliedFilters, setAppliedFilters] = useState<InsightsFilters>(defaultFilters);
   const [isApplying, startTransition] = useTransition();
-  const [exportingPdf, setExportingPdf] = useState(false);
-  const [exportScopeOpen, setExportScopeOpen] = useState(false);
   const [salesOverlay, setSalesOverlay] = useState<InsightsSalesOverlay | null>(null);
   const [salesLoading, setSalesLoading] = useState(false);
   const debitMetrics = useDebitInsightsMetrics(data, appliedFilters);
@@ -196,65 +187,15 @@ export default function DebitInsightsDashboard({
     setDraftFilters(next);
   };
 
-  const availableExportCities = useMemo(() => {
-    const list =
-      appliedFilters.salesRep.length > 0 ? appliedFilters.salesRep : salesReps;
-    return [...list].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
-  }, [appliedFilters.salesRep, salesReps]);
-
-  const handleExportPdf = async (selection: InsightsExportSelection) => {
-    if (exportingPdf || data.length === 0 || salesLoading) return;
-    if (!selection.includeAll && selection.cities.length === 0) {
-      toast.error('Select at least one PDF to export.');
-      return;
-    }
-
-    setExportingPdf(true);
-    const loadingId = toast.loading('Generating ZIP...');
-    try {
-      await exportDebitInsightsPdfZip({
-        rows: data,
-        filters: appliedFilters,
-        cities: salesReps,
-        selection,
-        userId: readUserId(),
-        onProgress: (current, total, label) => {
-          toast.loading(`Generating PDF ${current}/${total}${label ? ` — ${label}` : ''}...`, {
-            id: loadingId,
-          });
-        },
-      });
-      toast.dismiss(loadingId);
-      toast.success('ZIP exported successfully.');
-      setExportScopeOpen(false);
-    } catch (error) {
-      console.error('Debit Insights PDF export failed:', error);
-      toast.dismiss(loadingId);
-      const message =
-        error instanceof Error && error.message
-          ? error.message
-          : 'Failed to export ZIP.';
-      toast.error(message);
-    } finally {
-      setExportingPdf(false);
-    }
-  };
 
   useEffect(() => {
     onChromeChange?.({
       filtersActive,
       filtersPending: hasPendingChanges,
-      exportingPdf,
-      canExportPdf: !loading && !salesLoading && data.length > 0,
-      onExportPdf: () => setExportScopeOpen(true),
     });
   }, [
     filtersActive,
     hasPendingChanges,
-    exportingPdf,
-    loading,
-    salesLoading,
-    data.length,
     onChromeChange,
   ]);
 
@@ -307,16 +248,6 @@ export default function DebitInsightsDashboard({
         }}
         hasPendingChanges={hasPendingChanges}
         isApplying={busy}
-      />
-
-      <InsightsExportScopeModal
-        open={exportScopeOpen}
-        onClose={() => {
-          if (!exportingPdf) setExportScopeOpen(false);
-        }}
-        cities={availableExportCities}
-        isExporting={exportingPdf}
-        onConfirm={(selection) => void handleExportPdf(selection)}
       />
 
       {salesLoading ? (

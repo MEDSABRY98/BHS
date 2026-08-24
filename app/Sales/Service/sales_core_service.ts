@@ -253,9 +253,66 @@ export async function uploadSalesMappingsBulk(userId: string, mapping: any) {
 // -------------------------------------------------------------
 // 1. Overview Data
 // -------------------------------------------------------------
+
+async function fetchTargets(): Promise<Map<string, number>> {
+  const map = new Map<string, number>();
+
+  const { data: users } = await bhs_supabas.from('bhs_USERS').select('ID, NAME');
+  const { data: personnel } = await bhs_supabas.from('web_Sales_DB_PERSONNEL').select('ID, NAME');
+  
+  const nameToUserId = new Map<string, string>();
+  if (users) {
+    users.forEach(u => {
+      const name = String(u.NAME || '').trim().toUpperCase();
+      if (name) nameToUserId.set(name, String(u.ID));
+    });
+  }
+
+  const personnelToUserId = new Map<string, string>();
+  if (personnel) {
+    personnel.forEach(p => {
+      const name = String(p.NAME || '').trim().toUpperCase();
+      if (name && nameToUserId.has(name)) {
+        personnelToUserId.set(String(p.ID), nameToUserId.get(name)!);
+      }
+    });
+  }
+
+  const { data, error } = await bhs_supabas
+    .from('web_Sales_DB_TARGET')
+    .select('"USER_ID", "YEAR", "MONTH", "TARGET_AMOUNT", "TARGET_TYPE"');
+  if (error || !data) return map;
+  
+  data.forEach((row: Record<string, unknown>) => {
+    const type = String(row.TARGET_TYPE || 'sales_rep');
+    const rawUserId = String(row.USER_ID || '');
+    const resolvedUserId = personnelToUserId.get(rawUserId) || rawUserId;
+    
+    const key = `${resolvedUserId}|${row.YEAR}|${row.MONTH}|${type}`;
+    map.set(key, (map.get(key) || 0) + (Number(row.TARGET_AMOUNT) || 0));
+  });
+  return map;
+}
+
+
 export async function getOverviewData(userId: string, filters: any) {
   const augmentedData = await getFilteredSalesData(userId);
-  return buildOverviewFromFilteredData(augmentedData, filters);
+  const targetMap = await fetchTargets();
+  
+  // Extract relevant user IDs for targets based on filters
+  let targetUserIds: string[] | null = null;
+  if (filters?.salesRep) {
+    targetUserIds = [filters.salesRep];
+  } else {
+    // If no specific sales rep, sum across all reps that appear in augmentedData
+    const reps = new Set<string>();
+    augmentedData.forEach(r => {
+      if (r.salesRep) reps.add(r.salesRep);
+    });
+    targetUserIds = Array.from(reps);
+  }
+
+  return buildOverviewFromFilteredData(augmentedData, filters, targetMap, targetUserIds);
 }
 
 // -------------------------------------------------------------
@@ -278,3 +335,275 @@ export async function getStatisticsData(userId: string, filters: any) {
   const raw = await fetchSalesStockRawData(userId, filters);
   return buildStatisticsFromRaw(raw);
 }
+
+// -------------------------------------------------------------
+// 4. Top 10 Data
+// -------------------------------------------------------------
+export async function getTop10Data(userId: string, filters: any) {
+  const augmentedData = await getFilteredSalesData(userId);
+
+  let globallyFilteredData = augmentedData;
+  if (filters) {
+    const { invoiceType, year, month, dateFrom, dateTo, area, market, merchandiser, salesRep, productTag, product, customerName, customerTag, customerClass } = filters;
+
+    if (invoiceType && invoiceType !== 'all') {
+      globallyFilteredData = globallyFilteredData.filter(item => {
+        const num = item.invoiceNumber?.trim().toUpperCase() || '';
+        if (invoiceType === 'sales') return num.startsWith('SAL');
+        if (invoiceType === 'returns') return num.startsWith('RSAL');
+        return true;
+      });
+    }
+    if (productTag) globallyFilteredData = globallyFilteredData.filter(i => i.productTag === productTag);
+    if (product) globallyFilteredData = globallyFilteredData.filter(i => i.product === product);
+    if (customerTag) globallyFilteredData = globallyFilteredData.filter(i => i.customerTag === customerTag);
+    if (customerName) globallyFilteredData = globallyFilteredData.filter(i => i.customerName === customerName || i.customerMainName === customerName);
+    if (customerClass) globallyFilteredData = globallyFilteredData.filter(i => i.customerClass === customerClass);
+    if (area) globallyFilteredData = globallyFilteredData.filter(i => i.area === area);
+    if (market) globallyFilteredData = globallyFilteredData.filter(i => i.market === market);
+    if (merchandiser) globallyFilteredData = globallyFilteredData.filter(i => i.merchandiser === merchandiser);
+    if (salesRep) globallyFilteredData = globallyFilteredData.filter(i => i.salesRep === salesRep);
+    if (year) {
+      const yearNum = parseInt(year, 10);
+      globallyFilteredData = globallyFilteredData.filter(item => {
+        if (!item.invoiceDate) return false;
+        const d = new Date(item.invoiceDate);
+        return !isNaN(d.getTime()) && d.getFullYear() === yearNum;
+      });
+    }
+    if (month) {
+      const monthNum = parseInt(month, 10);
+      globallyFilteredData = globallyFilteredData.filter(item => {
+        if (!item.invoiceDate) return false;
+        const d = new Date(item.invoiceDate);
+        return !isNaN(d.getTime()) && d.getMonth() + 1 === monthNum;
+      });
+    }
+    if (dateFrom || dateTo) {
+      globallyFilteredData = globallyFilteredData.filter(item => {
+        if (!item.invoiceDate) return false;
+        const itemDate = new Date(item.invoiceDate);
+        if (isNaN(itemDate.getTime())) return false;
+        if (dateFrom && itemDate < new Date(dateFrom)) return false;
+        if (dateTo) {
+          const toDate = new Date(dateTo);
+          toDate.setHours(23, 59, 59, 999);
+          if (itemDate > toDate) return false;
+        }
+        return true;
+      });
+    }
+  }
+
+  const productMap = new Map<string, any>();
+  const mainCustomerMap = new Map<string, any>();
+  const subCustomerMap = new Map<string, any>();
+
+  globallyFilteredData.forEach(item => {
+    const pKey = item.productId || item.product;
+    const exP = productMap.get(pKey) || { productId: item.productId || '', barcodes: new Set(), products: new Set(), totalAmount: 0, totalQty: 0, invoiceNumbers: new Set() };
+    if (item.barcode) exP.barcodes.add(item.barcode);
+    if (item.product) exP.products.add(item.product);
+    exP.totalAmount += Number(item.amount) || 0;
+    exP.totalQty += Number(item.qty) || 0;
+    if (item.invoiceNumber) exP.invoiceNumbers.add(item.invoiceNumber);
+    productMap.set(pKey, exP);
+
+    const mainKey = item.customerMainName || item.customerName || 'Unknown';
+    const mainDisplay = item.customerMainName || item.customerName || 'Unknown';
+    const exMain = mainCustomerMap.get(mainKey) || { customer: mainDisplay, totalAmount: 0, totalQty: 0, invoiceNumbers: new Set() };
+    exMain.totalAmount += Number(item.amount) || 0;
+    exMain.totalQty += Number(item.qty) || 0;
+    if (item.invoiceNumber) exMain.invoiceNumbers.add(item.invoiceNumber);
+    mainCustomerMap.set(mainKey, exMain);
+
+    const subKey = item.customerId || item.customerName || 'Unknown';
+    const subDisplay = item.customerName || 'Unknown';
+    const exSub = subCustomerMap.get(subKey) || { customer: subDisplay, totalAmount: 0, totalQty: 0, invoiceNumbers: new Set() };
+    exSub.totalAmount += Number(item.amount) || 0;
+    exSub.totalQty += Number(item.qty) || 0;
+    if (item.invoiceNumber) exSub.invoiceNumbers.add(item.invoiceNumber);
+    subCustomerMap.set(subKey, exSub);
+  });
+
+  const productsData = Array.from(productMap.values()).map(p => ({
+    productId: p.productId,
+    barcode: Array.from(p.barcodes).join(', ') || '-',
+    products: Array.from(p.products) as string[],
+    totalAmount: p.totalAmount,
+    totalQty: p.totalQty,
+    transactions: p.invoiceNumbers.size
+  }));
+
+  const mapCustomers = (map: Map<string, any>) =>
+    Array.from(map.values()).map(c => ({
+      customer: c.customer,
+      totalAmount: c.totalAmount,
+      totalQty: c.totalQty,
+      transactions: c.invoiceNumbers.size
+    }));
+
+  const mainCustomersData = mapCustomers(mainCustomerMap);
+  const subCustomersData = mapCustomers(subCustomerMap);
+
+  return { productsData, mainCustomersData, subCustomersData };
+}
+
+// -------------------------------------------------------------
+// 5. New Listings Data
+// First purchase in a customer's lifetime, keyed by canonical Product ID.
+// -------------------------------------------------------------
+function _normListingId(value: any): string {
+  if (value == null || value === '') return '';
+  const text = String(value).trim().toUpperCase();
+  if (!text || text === '-' || text === 'NULL' || text === 'UNDEFINED') return '';
+  return /^\d+\.0+$/.test(text) ? text.replace(/\.0+$/, '') : text;
+}
+
+function _isSalesInvoiceNumber(invoiceNumber: any): boolean {
+  const inv = String(invoiceNumber || '').trim().toUpperCase();
+  return inv.startsWith('SAL') && !inv.startsWith('RSAL');
+}
+
+function _parseInvoiceTime(invoiceDate: any): number {
+  if (!invoiceDate) return NaN;
+  if (invoiceDate instanceof Date) {
+    const time = invoiceDate.getTime();
+    return isNaN(time) ? NaN : time;
+  }
+  return Date.parse(String(invoiceDate).trim());
+}
+
+function _buildCanonicalProductIds(rows: any[]): Map<string, string> {
+  const canonical = new Map<string, string>();
+  for (const item of rows) {
+    const rawId = _normListingId(item.productId);
+    const barcode = _normListingId(item.barcode);
+    if (!rawId || !barcode || rawId === barcode) continue;
+    canonical.set(rawId, rawId);
+    canonical.set(barcode, rawId);
+  }
+  return canonical;
+}
+
+function _resolveListingProductId(item: any, canonical: Map<string, string>): string {
+  const rawId = _normListingId(item.productId);
+  const barcode = _normListingId(item.barcode);
+  return canonical.get(rawId) || canonical.get(barcode) || rawId || barcode;
+}
+
+function _matchesListingFilters(item: any, filters: any): boolean {
+  if (!filters) return true;
+  const { area, market, merchandiser, salesRep, productTag, product, customerName, customerTag, customerClass } = filters;
+  if (productTag && item.productTag !== productTag) return false;
+  if (product && item.product !== product) return false;
+  if (customerTag && item.customerTag !== customerTag) return false;
+  if (customerName && item.customerName !== customerName && item.customerMainName !== customerName) return false;
+  if (customerClass && item.customerClass !== customerClass) return false;
+  if (area && item.area !== area) return false;
+  if (market && item.market !== market) return false;
+  if (merchandiser && item.merchandiser !== merchandiser) return false;
+  if (salesRep && item.salesRep !== salesRep) return false;
+  return true;
+}
+
+export async function getNewListingsData(userId: string, filters: any) {
+  const augmentedData = await getFilteredSalesData(userId);
+  const canonicalProductIds = _buildCanonicalProductIds(augmentedData);
+
+  const firstPurchaseMap = new Map<string, { time: number, invoiceItem: any }>();
+
+  for (const item of augmentedData) {
+    if (!_isSalesInvoiceNumber(item.invoiceNumber)) continue;
+    const customerId = _normListingId(item.customerId);
+    const productId = _resolveListingProductId(item, canonicalProductIds);
+    if (!customerId || !productId) continue;
+    const itemTime = _parseInvoiceTime(item.invoiceDate);
+    if (isNaN(itemTime)) continue;
+    const key = `${customerId}|||${productId}`;
+    const existing = firstPurchaseMap.get(key);
+    if (!existing || itemTime < existing.time) {
+      firstPurchaseMap.set(key, { time: itemTime, invoiceItem: item });
+    }
+  }
+
+  const monthlyListings: Record<string, any> = {};
+
+  for (const [key, data] of firstPurchaseMap.entries()) {
+    const { time, invoiceItem } = data;
+    if (!_matchesListingFilters(invoiceItem, filters)) continue;
+
+    const date = new Date(time);
+    if (filters) {
+      const { year, month, dateFrom, dateTo } = filters;
+      if (year && date.getFullYear() !== parseInt(year, 10)) continue;
+      if (month && date.getMonth() + 1 !== parseInt(month, 10)) continue;
+      if (dateFrom && time < Date.parse(dateFrom)) continue;
+      if (dateTo) {
+        const tDate = new Date(dateTo);
+        tDate.setHours(23, 59, 59, 999);
+        if (time > tDate.getTime()) continue;
+      }
+    }
+
+    const yearStr = date.getFullYear();
+    const monthStr = date.getMonth() + 1;
+    const monthKey = `${yearStr}-${monthStr < 10 ? '0' : ''}${monthStr}`;
+
+    if (!monthlyListings[monthKey]) monthlyListings[monthKey] = { products: {} };
+
+    const [, productId] = key.split('|||');
+    const barcode = invoiceItem.barcode || '-';
+    const productName = invoiceItem.product;
+    const customerId = _normListingId(invoiceItem.customerId);
+    const customerName = invoiceItem.customerName || invoiceItem.customerMainName || 'Unknown';
+
+    if (!monthlyListings[monthKey].products[productId]) {
+      monthlyListings[monthKey].products[productId] = { barcode, productName, customersMap: new Map() };
+    }
+    monthlyListings[monthKey].products[productId].customersMap.set(customerId, customerName);
+  }
+
+  const result: any[] = [];
+  const sortedMonths = Object.keys(monthlyListings).sort().reverse();
+
+  for (const monthKey of sortedMonths) {
+    const productsData = monthlyListings[monthKey].products;
+    const productsArr: any[] = [];
+    const uniqueCustomersInMonth = new Set<string>();
+
+    for (const [productId, pData] of Object.entries(productsData)) {
+      const customersArr = Array.from((pData as any).customersMap.entries()).map(([id, name]: any) => {
+        uniqueCustomersInMonth.add(id as string);
+        return { id, name };
+      }).sort((a: any, b: any) => a.name.localeCompare(b.name));
+
+      productsArr.push({
+        productId,
+        barcode: (pData as any).barcode,
+        productName: (pData as any).productName,
+        customers: customersArr,
+        customersCount: customersArr.length
+      });
+    }
+
+    productsArr.sort((a, b) => {
+      if (b.customersCount !== a.customersCount) return b.customersCount - a.customersCount;
+      return (a.productName || '').localeCompare(b.productName || '');
+    });
+
+    const [y, m] = monthKey.split('-');
+    const monthName = new Date(parseInt(y), parseInt(m) - 1).toLocaleString('default', { month: 'long' });
+
+    result.push({
+      monthKey,
+      monthName: `${monthName} ${y}`,
+      uniqueProductsCount: productsArr.length,
+      uniqueCustomersCount: uniqueCustomersInMonth.size,
+      products: productsArr
+    });
+  }
+
+  return result;
+}
+

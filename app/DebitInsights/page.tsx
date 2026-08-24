@@ -40,9 +40,6 @@ function DebitInsightsContent({ currentUser }: { currentUser: any }) {
   const [chrome, setChrome] = useState<DebitInsightsChromeState>({
     filtersActive: false,
     filtersPending: false,
-    exportingPdf: false,
-    canExportPdf: false,
-    onExportPdf: () => {},
   });
 
   useEffect(() => {
@@ -91,9 +88,6 @@ function DebitInsightsContent({ currentUser }: { currentUser: any }) {
     onOpenFilters: () => setFiltersOpen(true),
     filtersActive: chrome.filtersActive,
     filtersPending: chrome.filtersPending,
-    onExportPdf: chrome.onExportPdf,
-    isExportingPdf: chrome.exportingPdf,
-    canExportPdf: chrome.canExportPdf,
     lastUpdated: lastUpdated || null,
   };
 
@@ -137,7 +131,7 @@ function DebitInsightsContent({ currentUser }: { currentUser: any }) {
           <span className="ml-3 font-bold text-slate-800">Debit Insights</span>
         </div>
 
-        <div className="max-w-[95%] 2xl:max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-12 flex-1 w-full">
+        <div className="max-w-[85%] 2xl:max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-12 flex-1 w-full">
           {error ? (
             <TabFetchError
               message={error}

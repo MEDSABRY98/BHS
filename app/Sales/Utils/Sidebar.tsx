@@ -58,20 +58,18 @@ export default function SalesSidebar({
   
   const allTabs: { id: SalesTabId; label: string; icon: typeof BarChart3 }[] = [
     { id: 'sales-overview', label: 'Overview', icon: BarChart3 },
+    { id: 'sales-targets', label: 'Targets', icon: Target },
     { id: 'sales-periods', label: 'Periods', icon: Calendar },
     { id: 'sales-top10', label: 'Top 10', icon: Award },
     { id: 'sales-customers', label: 'Customers', icon: Users },
     { id: 'sales-customers-comparison', label: 'Comparison', icon: Scale },
     { id: 'sales-inactive-customers', label: 'Inactive Customers', icon: AlertTriangle },
     { id: 'sales-statistics', label: 'Statistics', icon: LineChart },
-    { id: 'sales-reports', label: 'Reports', icon: FileBarChart },
-    { id: 'sales-targets', label: 'Targets', icon: Target },
     { id: 'sales-daily-sales', label: 'Daily Sales', icon: Calendar },
     { id: 'sales-categories', label: 'Product Category', icon: Tag },
     { id: 'sales-products', label: 'Products', icon: Package },
     { id: 'sales-new-listings', label: 'New Listings', icon: Sparkles },
     { id: 'sales-download-form', label: 'Stock Report', icon: FileText },
-
   ];
 
   const tabs = useMemo(() => {

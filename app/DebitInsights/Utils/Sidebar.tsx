@@ -21,9 +21,6 @@ interface DebitInsightsSidebarProps {
   onOpenFilters: () => void;
   filtersActive?: boolean;
   filtersPending?: boolean;
-  onExportPdf?: () => void;
-  isExportingPdf?: boolean;
-  canExportPdf?: boolean;
   lastUpdated?: string | null;
 }
 
@@ -36,9 +33,6 @@ export default function DebitInsightsSidebar({
   onOpenFilters,
   filtersActive = false,
   filtersPending = false,
-  onExportPdf,
-  isExportingPdf = false,
-  canExportPdf = true,
   lastUpdated,
 }: DebitInsightsSidebarProps) {
   const [hoveredTab, setHoveredTab] = useState<{ label: string; top: number } | null>(null);
@@ -127,22 +121,6 @@ export default function DebitInsightsSidebar({
               />
             )}
           </button>
-
-          {onExportPdf && (
-            <button
-              type="button"
-              onClick={onExportPdf}
-              disabled={!canExportPdf || isExportingPdf}
-              className="flex items-center justify-center w-10 h-10 hover:bg-white/10 rounded-xl transition-all duration-200 text-red-300 disabled:opacity-50 group"
-              title="Export ZIP"
-            >
-              {isExportingPdf ? (
-                <Loader2 className="w-5 h-5 shrink-0 animate-spin" />
-              ) : (
-                <FileText className="w-5 h-5 shrink-0 group-hover:text-red-200 transition-colors" />
-              )}
-            </button>
-          )}
 
           {onRefresh && (
             <button

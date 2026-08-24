@@ -33,7 +33,11 @@ export default function SalesOverviewTab({ userId, showCosts = true }: SalesOver
   const { dataVersion } = useSalesDataContext();
   const { data, isInitialLoading, isRefreshing, error, reload, loading } = useSalesTabFetch<{
     metrics: any;
-    chartData: any[];
+      chartDataVsLastYear: any[];
+      chartDataVsLastMonth: any[];
+      chartDataVsTarget: any[];
+      yearlyTableData: any[];
+      monthlyTableData: any[];
   } | null>({
     tabKey: 'overview',
     userId,
@@ -61,20 +65,184 @@ export default function SalesOverviewTab({ userId, showCosts = true }: SalesOver
     return <SalesTabLoader />;
   }
 
-  const { metrics, chartData } = data;
+  const { metrics, chartDataVsLastYear, chartDataVsLastMonth, chartDataVsTarget, yearlyTableData, monthlyTableData } = data;
+
+  const renderChart = (title: string, dataArray: any[]) => {
+    if (!dataArray || dataArray.length === 0) return <NoData />;
+    return (
+      <div className="bg-white rounded-xl shadow-lg p-6 mb-8 overflow-hidden">
+        <h2 className="text-xl font-bold text-gray-800 mb-6">{title}</h2>
+        <div className="bg-gradient-to-br from-gray-50 to-white rounded-lg p-4 shadow-md overflow-hidden">
+          <div className="relative w-full" style={{ height: '550px' }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart
+                data={dataArray}
+                margin={{ top: 80, right: 30, left: 40, bottom: 20 }}
+                barGap={8}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
+                <XAxis
+                  dataKey="month"
+                  stroke="#475569"
+                  style={{ fontSize: '15px', fontWeight: 900 }}
+                  tickLine={false}
+                  axisLine={false}
+                  dy={10}
+                />
+                <YAxis hide={true} domain={[0, 'auto']} />
+                <Tooltip
+                  content={(props: any) => {
+                    const { active, payload, label } = props;
+                    if (active && payload && payload.length > 0) {
+                      const d = payload[0].payload;
+                      const isPositive = d.isPositive;
+                      return (
+                        <div className="bg-white p-4 rounded-xl shadow-xl border border-gray-100 min-w-[180px]">
+                          <p className="text-sm font-bold text-gray-500 mb-3 uppercase tracking-wider">{label}</p>
+                          <div className="space-y-2 text-sm">
+                            <div>
+                              <span className="text-gray-500 font-medium w-20 inline-block">{d.legendPrev}:</span>
+                              <span className="font-bold text-slate-700">
+                                {d.prevAmount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-gray-500 font-medium w-20 inline-block">{d.legendCurr}:</span>
+                              <span className="font-bold text-blue-600">
+                                {d.currentAmount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-gray-500 font-medium w-20 inline-block">Diff:</span>
+                              <span className={`font-black ${isPositive ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                {isPositive ? '+' : '-'}{Math.abs(d.diff).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-gray-500 font-medium w-20 inline-block">Growth:</span>
+                              <span className={`font-black ${isPositive ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                {isPositive ? '+' : '-'}{d.percent.toFixed(1)}%
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+                    return null;
+                  }}
+                />
+                <Legend verticalAlign="top" height={36} />
+
+                {/* Previous Bar */}
+                <Bar
+                  dataKey="prevAmount"
+                  name={dataArray[0]?.legendPrev || 'Compare'}
+                  fill="#cbd5e1"
+                  radius={[4, 4, 0, 0]}
+                  barSize={45}
+                >
+                  <LabelList
+                    dataKey="prevAmount"
+                    position="top"
+                    formatter={(val: any) => (val === 0 || !val) ? '' : Number(val).toLocaleString('en-US', { notation: 'compact', maximumFractionDigits: 1 })}
+                    style={{ fontSize: '13px', fontWeight: '900', fill: '#64748b' }}
+                    offset={10}
+                  />
+                </Bar>
+
+                {/* Current Bar — colored green/red per month */}
+                <Bar
+                  dataKey="currentAmount"
+                  name={dataArray[0]?.legendCurr || 'Current'}
+                  fill="#10b981"
+                  radius={[4, 4, 0, 0]}
+                  barSize={45}
+                >
+                  <LabelList
+                    dataKey="currentAmount"
+                    position="top"
+                    formatter={(val: any) => (val === 0 || !val) ? '' : Number(val).toLocaleString('en-US', { notation: 'compact', maximumFractionDigits: 1 })}
+                    style={{ fontSize: '13px', fontWeight: '900', fill: '#059669' }}
+                    offset={10}
+                  />
+                  {dataArray.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.isPositive ? '#10b981' : '#f43f5e'} />
+                  ))}
+                </Bar>
+
+                {/* Hidden line used only to render the top card labels */}
+                <Line
+                  type="monotone"
+                  dataKey="topBaseline"
+                  stroke="none"
+                  dot={false}
+                  activeDot={false}
+                  legendType="none"
+                >
+                  <LabelList
+                    dataKey="diff"
+                    content={(props: any) => {
+                      const { x, index } = props;
+                      const entry = dataArray[index];
+                      if (!entry) return null;
+
+                      const isPositive = entry.isPositive;
+                      const isFuture = entry.isFuture && entry.currentAmount === 0;
+                      const color = isFuture ? '#94a3b8' : (isPositive ? '#059669' : '#e11d48');
+                      const diffStr = isFuture ? '-' : ((isPositive ? '▲ +' : '▼ ') + Math.abs(entry.diff).toLocaleString('en-US', { notation: 'compact', maximumFractionDigits: 1 }));
+                      const percentStr = isFuture ? '' : (entry.percent.toFixed(1) + '%');
+
+                      return (
+                        <g style={{ pointerEvents: 'none' }}>
+                          <rect
+                            x={x - 45}
+                            y={10}
+                            width={90}
+                            height={55}
+                            rx={12}
+                            fill={isFuture ? '#f8fafc' : (isPositive ? '#f0fdf4' : '#fef2f2')}
+                            stroke={isFuture ? '#e2e8f0' : (isPositive ? '#bcf0da' : '#fecaca')}
+                            strokeWidth={1.5}
+                          />
+                          <text
+                            x={x}
+                            y={isFuture ? 42 : 35}
+                            fill={color}
+                            textAnchor="middle"
+                            style={{ fontSize: isFuture ? '20px' : '14px', fontWeight: '900' }}
+                          >
+                            {diffStr}
+                          </text>
+                          {!isFuture && (
+                            <text
+                              x={x}
+                              y={55}
+                              fill={color}
+                              textAnchor="middle"
+                              style={{ fontSize: '12px', fontWeight: '800', opacity: 0.8 }}
+                            >
+                              {percentStr}
+                            </text>
+                          )}
+                        </g>
+                      );
+                    }}
+                  />
+                </Line>
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
 
   return (
     <div className="w-full">
       {/* Header */}
-      <div className="mb-8 p-6 bg-white rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <div className="p-3 bg-blue-50 rounded-2xl">
-            <BarChart3 className="w-6 h-6 text-blue-600" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-medium text-slate-800 tracking-tight">Sales Overview</h1>
-          </div>
-        </div>
+      <div className="mb-8 flex items-center gap-3">
+        <h1 className="text-2xl font-medium text-slate-800">Sales Overview</h1>
       </div>
 
 
@@ -173,183 +341,12 @@ export default function SalesOverviewTab({ userId, showCosts = true }: SalesOver
         </div>
       </div>
 
-      {/* Monthly Sales Comparison Chart */}
-      <div className="bg-white rounded-xl shadow-lg p-6 mb-8 overflow-hidden">
-        <h2 className="text-xl font-bold text-gray-800 mb-6">Monthly Sales Performance Comparison</h2>
-        {chartData.length > 0 ? (
-          <div className="bg-gradient-to-br from-gray-50 to-white rounded-lg p-4 shadow-md overflow-hidden">
-            <div className="relative w-full" style={{ height: '550px' }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart
-                  data={chartData}
-                  margin={{ top: 80, right: 30, left: 40, bottom: 20 }}
-                  barGap={8}
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
-                  <XAxis
-                    dataKey="month"
-                    stroke="#475569"
-                    style={{ fontSize: '15px', fontWeight: 900 }}
-                    tickLine={false}
-                    axisLine={false}
-                    dy={10}
-                  />
-                  <YAxis hide={true} domain={[0, 'auto']} />
-                  <Tooltip
-                    content={(props: any) => {
-                      const { active, payload, label } = props;
-                      if (active && payload && payload.length > 0) {
-                        const data = payload[0].payload;
-                        const isPositive = data.isPositive;
-                        return (
-                          <div className="bg-white p-4 rounded-xl shadow-xl border border-gray-100 min-w-[180px]">
-                            <p className="text-sm font-bold text-gray-500 mb-3 uppercase tracking-wider">{label}</p>
-                            <div className="space-y-2 text-sm">
-                              <div>
-                                <span className="text-gray-500 font-medium w-20 inline-block">{data.legendPrev}:</span>
-                                <span className="font-bold text-slate-700">
-                                  {data.prevAmount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                                </span>
-                              </div>
-                              <div>
-                                <span className="text-gray-500 font-medium w-20 inline-block">{data.legendCurr}:</span>
-                                <span className="font-bold text-blue-600">
-                                  {data.currentAmount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                                </span>
-                              </div>
-                              <div>
-                                <span className="text-gray-500 font-medium w-20 inline-block">Diff:</span>
-                                <span className={`font-black ${isPositive ? 'text-emerald-600' : 'text-rose-600'}`}>
-                                  {isPositive ? '+' : '-'}{Math.abs(data.diff).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                                </span>
-                              </div>
-                              <div>
-                                <span className="text-gray-500 font-medium w-20 inline-block">Growth:</span>
-                                <span className={`font-black ${isPositive ? 'text-emerald-600' : 'text-rose-600'}`}>
-                                  {isPositive ? '+' : '-'}{data.percent.toFixed(1)}%
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      }
-                      return null;
-                    }}
-                  />
-                  <Legend verticalAlign="top" height={36} />
-
-                  {/* Previous Year Bar */}
-                  <Bar
-                    dataKey="prevAmount"
-                    name={chartData[0]?.legendPrev || "Last Year"}
-                    fill="#cbd5e1"
-                    radius={[4, 4, 0, 0]}
-                    barSize={45}
-                  >
-                    <LabelList
-                      dataKey="prevAmount"
-                      position="top"
-                      formatter={(val: any) => (val === 0 || !val) ? '' : Number(val).toLocaleString('en-US', { notation: 'compact', maximumFractionDigits: 1 })}
-                      style={{ fontSize: '13px', fontWeight: '900', fill: '#64748b' }}
-                      offset={10}
-                    />
-                  </Bar>
-
-                  {/* Current Year Bar */}
-                  <Bar
-                    dataKey="currentAmount"
-                    name={chartData[0]?.legendCurr || "Current Year"}
-                    fill="#10b981"
-                    radius={[4, 4, 0, 0]}
-                    barSize={45}
-                  >
-                    <LabelList
-                      dataKey="currentAmount"
-                      position="top"
-                      formatter={(val: any) => (val === 0 || !val) ? '' : Number(val).toLocaleString('en-US', { notation: 'compact', maximumFractionDigits: 1 })}
-                      style={{ fontSize: '13px', fontWeight: '900', fill: '#059669' }}
-                      offset={10}
-                    />
-
-                    {chartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.isPositive ? '#10b981' : '#f43f5e'} />
-                    ))}
-                  </Bar>
-
-                  {/* Top Row Performance Labels (Centered using a hidden line) */}
-                  <Line
-                    type="monotone"
-                    dataKey="topBaseline"
-                    stroke="none"
-                    dot={false}
-                    activeDot={false}
-                    legendType="none"
-                  >
-                    <LabelList
-                      dataKey="diff"
-                      content={(props: any) => {
-                        const { x, index } = props;
-                        const entry = chartData[index];
-                        if (!entry) return null;
-
-                        const isPositive = entry.isPositive;
-                        const isFuture = entry.isFuture && entry.currentAmount === 0;
-                        const color = isFuture ? '#94a3b8' : (isPositive ? '#059669' : '#e11d48');
-
-                        const diffStr = isFuture ? '-' : ((isPositive ? '▲ +' : '▼ ') + Math.abs(entry.diff).toLocaleString('en-US', { notation: 'compact', maximumFractionDigits: 1 }));
-                        const percentStr = isFuture ? '' : (entry.percent.toFixed(1) + '%');
-
-                        return (
-                          <g style={{ pointerEvents: 'none' }}>
-                            {/* Card Background */}
-                            <rect
-                              x={x - 45}
-                              y={10}
-                              width={90}
-                              height={55}
-                              rx={12}
-                              fill={isFuture ? '#f8fafc' : (isPositive ? '#f0fdf4' : '#fef2f2')}
-                              stroke={isFuture ? '#e2e8f0' : (isPositive ? '#bcf0da' : '#fecaca')}
-                              strokeWidth={1.5}
-                              className="shadow-sm"
-                            />
-                            {/* Difference Text */}
-                            <text
-                              x={x}
-                              y={isFuture ? 42 : 35}
-                              fill={color}
-                              textAnchor="middle"
-                              style={{ fontSize: isFuture ? '20px' : '14px', fontWeight: '900' }}
-                            >
-                              {diffStr}
-                            </text>
-                            {/* Percentage Text */}
-                            {!isFuture && (
-                              <text
-                                x={x}
-                                y={55}
-                                fill={color}
-                                textAnchor="middle"
-                                style={{ fontSize: '12px', fontWeight: '800', opacity: 0.8 }}
-                              >
-                                {percentStr}
-                              </text>
-                            )}
-                          </g>
-                        );
-                      }}
-                    />
-                  </Line>
-                </ComposedChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-        ) : (
-          <NoData />
-        )}
+      {/* Monthly Sales Comparison Charts */}
+      <div className="flex flex-col gap-8 w-full">
+        {renderChart("Monthly Sales vs Last Year", chartDataVsLastYear)}
+        {renderChart("Monthly Sales vs Last Month", chartDataVsLastMonth)}
+        {renderChart("Monthly Sales vs Target", chartDataVsTarget)}
       </div>
-
     </div>
   );
 }
-

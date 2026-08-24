@@ -8,7 +8,6 @@ export const ALL_SALES_TAB_IDS = [
   'sales-customers-comparison',
   'sales-inactive-customers',
   'sales-statistics',
-  'sales-reports',
   'sales-targets',
   'sales-daily-sales',
   'sales-categories',

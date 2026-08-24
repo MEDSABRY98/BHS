@@ -195,9 +195,6 @@ export function DebitDataProvider({
             setDataLoading(false);
           }
         }
-      } else {
-        setData([]);
-        setDataVersion((v) => v + 1);
       }
     } catch (err) {
       if (requestId !== metaRequestId.current) return;
@@ -211,8 +208,10 @@ export function DebitDataProvider({
     }
   }, [dataReady, loadEmailsOnce]);
 
+  const initializedRef = useRef(false);
   useEffect(() => {
-    if (enabled) {
+    if (enabled && !initializedRef.current) {
+      initializedRef.current = true;
       void refresh(false);
     }
   }, [enabled, refresh]);

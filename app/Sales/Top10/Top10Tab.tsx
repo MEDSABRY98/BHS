@@ -9,7 +9,7 @@ import NoData from '@/app/Components/DataState/NoDataTab';
 import { useSalesDataContext } from '@/app/Sales/Context/SalesDataContext';
 import { useSalesTabFetch } from '@/app/Sales/Hooks/useSalesTabFetch';
 import TabFetchError from '@/app/Components/DataState/TabFetchError';
-import { getTop10Data } from '../Service/sales_reports_service';
+import { getTop10Data } from '../Service/sales_core_service';
 
 interface SalesTop10TabProps {
   userId: string;

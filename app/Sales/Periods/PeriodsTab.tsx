@@ -133,15 +133,8 @@ export default function SalesPeriodsTab({ userId }: SalesPeriodsTabProps) {
   return (
     <div className="w-full">
       {/* Header */}
-      <div className="mb-8 p-6 bg-white rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <div className="p-3 bg-indigo-50 rounded-2xl">
-            <Calendar className="w-6 h-6 text-indigo-600" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-medium text-slate-800 tracking-tight">Periods Analysis</h1>
-          </div>
-        </div>
+      <div className="mb-8 flex items-center gap-3">
+        <h1 className="text-2xl font-medium text-slate-800">Periods Analysis</h1>
       </div>
 
       {/* Yearly Sales Table */}
