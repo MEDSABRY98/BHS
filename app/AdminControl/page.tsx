@@ -3,8 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Menu } from 'lucide-react';
-import ByUserTab from './ByUserTab/ByUserTab';
 import UserActivityTab from './UserActivityTab/UserActivityTab';
+import AdminControlTab from './AdminControlTab/AdminControlTab';
 import AdminSidebar from './Utils/Sidebar';
 import TabPanel from '@/app/Components/Layout/TabPanel';
 import { verifyUserCredentials } from '@/app/DataBase/Service/database_service';
@@ -15,8 +15,8 @@ export default function AdminControlPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('by-user');
-  const [visitedTabs, setVisitedTabs] = useState<Set<string>>(new Set(['by-user']));
+  const [activeTab, setActiveTab] = useState('admin-control');
+  const [visitedTabs, setVisitedTabs] = useState<Set<string>>(new Set(['admin-control']));
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const router = useRouter();
@@ -144,8 +144,8 @@ export default function AdminControlPage() {
         </div>
 
         <div className="max-w-[95%] 2xl:max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-12 flex-1 w-full">
-          <TabPanel tabId="by-user" activeTab={activeTab} isVisited={visitedTabs.has('by-user')}>
-            <ByUserTab />
+          <TabPanel tabId="admin-control" activeTab={activeTab} isVisited={visitedTabs.has('admin-control')}>
+            <AdminControlTab />
           </TabPanel>
           <TabPanel tabId="user-activity" activeTab={activeTab} isVisited={visitedTabs.has('user-activity')}>
             <UserActivityTab adminName={adminName} />
