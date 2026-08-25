@@ -3,7 +3,7 @@ import type {
   PaymentReconciliationLoadedLine,
   PaymentReconciliationSaveLine,
 } from '../Service/debit_service';
-import { OpenInvoiceRow } from '../Utils/openInvoiceRows';
+import { OpenInvoiceRow } from '../Utils/OpenInvoiceRows';
 
 function normalize(value: string): string {
   return value.toLowerCase().trim();

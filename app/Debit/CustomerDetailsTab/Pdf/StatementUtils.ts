@@ -43,8 +43,8 @@ function drawStatementHeader(doc: any, customerName: string, invoices: any[], ma
   const subtitleWidth = doc.getTextWidth('Al Marai Al Arabia Trading');
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(COLORS.gray[0], COLORS.gray[1], COLORS.gray[2]);
-  doc.text(' | Sole Proprietorship L.L.C', margin + subtitleWidth, yPosition);
-  yPosition += 12;
+  doc.text('| Sole Proprietorship L.L.C', margin + subtitleWidth + 1.5, yPosition);
+  yPosition += 6;
 
   // 3. Info Panel
   const panelHeight = 25;

@@ -31,7 +31,7 @@ import { InvoiceRow } from '@/types';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import { toast } from '@/app/Components/Notification';
 import { useDebouncedValue } from '../Hooks/useDebouncedValue';
-import { buildOpenInvoiceRows, getUniqueCustomerNames, OpenInvoiceRow } from '../Utils/openInvoiceRows';
+import { buildOpenInvoiceRows, getUniqueCustomerNames, OpenInvoiceRow } from '../Utils/OpenInvoiceRows';
 import { exportDebitExcelTable } from '../Utils/ExcelExport';
 import { generatePaymentReconciliationPDF } from './Pdf/PaymentReconciliationUtils';
 import {
@@ -655,14 +655,14 @@ export default function PaymentReconciliationTab({
         cell: ({ row }) => {
           const isChecked = appliedByRow.has(row.original.rowKey);
           return (
-          <div className="flex justify-center">
-            <input
-              type="checkbox"
-              checked={isChecked}
-              onChange={(e) => toggleRowApplied(row.original, e.target.checked)}
-              className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-            />
-          </div>
+            <div className="flex justify-center">
+              <input
+                type="checkbox"
+                checked={isChecked}
+                onChange={(e) => toggleRowApplied(row.original, e.target.checked)}
+                className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+            </div>
           );
         },
       }),
@@ -708,15 +708,14 @@ export default function PaymentReconciliationTab({
 
           return (
             <span
-              className={`font-mono tabular-nums font-semibold block text-center ${
-                applied !== undefined && remaining < -0.009
+              className={`font-mono tabular-nums font-semibold block text-center ${applied !== undefined && remaining < -0.009
                   ? 'text-red-600'
                   : applied !== undefined && remaining > 0.009
                     ? 'text-amber-600'
                     : applied !== undefined
                       ? 'text-emerald-600'
                       : 'text-red-700'
-              }`}
+                }`}
             >
               {formatAmount(remaining)}
             </span>
@@ -841,11 +840,10 @@ export default function PaymentReconciliationTab({
                     setIsCustomerDropdownOpen(false);
                     setIsTagsPickerOpen(true);
                   }}
-                  className={`relative shrink-0 w-[46px] h-[46px] flex items-center justify-center rounded-xl border shadow-sm transition-all ${
-                    selectedCustomerTags.length > 0
+                  className={`relative shrink-0 w-[46px] h-[46px] flex items-center justify-center rounded-xl border shadow-sm transition-all ${selectedCustomerTags.length > 0
                       ? 'bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100'
                       : 'bg-white border-slate-300 text-slate-600 hover:border-slate-400 hover:bg-slate-50'
-                  }`}
+                    }`}
                   title="Select by customer tags"
                   aria-label="Select by customer tags"
                 >
@@ -1027,11 +1025,10 @@ export default function PaymentReconciliationTab({
               <button
                 type="button"
                 onClick={() => setIsOverdueMonthDropdownOpen(!isOverdueMonthDropdownOpen)}
-                className={`w-full flex items-center justify-between px-4 py-2 rounded-lg border font-medium text-sm transition-all ${
-                  isOverdueMonthDropdownOpen || selectedOverdueMonthFilter.length > 0
+                className={`w-full flex items-center justify-between px-4 py-2 rounded-lg border font-medium text-sm transition-all ${isOverdueMonthDropdownOpen || selectedOverdueMonthFilter.length > 0
                     ? 'bg-red-50 border-red-200 text-red-700 ring-2 ring-red-100'
                     : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
-                }`}
+                  }`}
               >
                 <div className="flex items-center gap-2 truncate">
                   <Calendar className="w-4 h-4 shrink-0" />
@@ -1150,9 +1147,9 @@ export default function PaymentReconciliationTab({
                   openRows.length === 0
                     ? 'NO OPEN INVOICES FOUND'
                     : debouncedTableSearch.trim() ||
-                        dateFromFilter ||
-                        dateToFilter ||
-                        selectedOverdueMonthFilter.length > 0
+                      dateFromFilter ||
+                      dateToFilter ||
+                      selectedOverdueMonthFilter.length > 0
                       ? 'NO INVOICES MATCH YOUR FILTERS'
                       : undefined
                 }
@@ -1232,11 +1229,10 @@ export default function PaymentReconciliationTab({
                   type="button"
                   onClick={() => setRemainderNoteAlign('left')}
                   title="Left to right"
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold transition-colors ${
-                    remainderNoteAlign === 'left'
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold transition-colors ${remainderNoteAlign === 'left'
                       ? 'bg-white text-slate-800 shadow-sm'
                       : 'text-slate-500 hover:text-slate-700 hover:bg-white/70'
-                  }`}
+                    }`}
                 >
                   <AlignLeft className="w-3.5 h-3.5" />
                   LTR
@@ -1245,11 +1241,10 @@ export default function PaymentReconciliationTab({
                   type="button"
                   onClick={() => setRemainderNoteAlign('right')}
                   title="Right to left"
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold transition-colors border-l border-slate-200 ${
-                    remainderNoteAlign === 'right'
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold transition-colors border-l border-slate-200 ${remainderNoteAlign === 'right'
                       ? 'bg-white text-slate-800 shadow-sm'
                       : 'text-slate-500 hover:text-slate-700 hover:bg-white/70'
-                  }`}
+                    }`}
                 >
                   RTL
                   <AlignRight className="w-3.5 h-3.5" />
@@ -1261,9 +1256,8 @@ export default function PaymentReconciliationTab({
               value={remainderNote}
               onChange={(e) => setRemainderNote(e.target.value)}
               placeholder="e.g. Partial allocation on INV-123 / over-applied 500 AED on SAL-456 — advance balance / remainder held on account"
-              className={`w-full px-4 py-3 border border-slate-300 rounded-xl text-sm resize-y ${
-                remainderNoteAlign === 'right' ? 'text-right' : 'text-left'
-              }`}
+              className={`w-full px-4 py-3 border border-slate-300 rounded-xl text-sm resize-y ${remainderNoteAlign === 'right' ? 'text-right' : 'text-left'
+                }`}
             />
           </div>
         </>
