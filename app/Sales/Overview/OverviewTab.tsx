@@ -37,6 +37,8 @@ export default function SalesOverviewTab({ userId, showCosts = true }: SalesOver
       chartDataVsLastYear: any[];
       chartDataVsLastMonth: any[];
       chartDataVsTarget: any[];
+      chartDataInvoices: any[];
+      chartDataReturns: any[];
       yearlyTableData: any[];
       monthlyTableData: any[];
   } | null>({
