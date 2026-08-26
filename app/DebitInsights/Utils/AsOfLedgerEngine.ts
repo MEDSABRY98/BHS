@@ -33,16 +33,24 @@ function matchesCustomerTag(row: InvoiceRow, customerTags: string[]): boolean {
   return tag ? customerTags.includes(tag) : false;
 }
 
+function matchesCustomerClass(row: InvoiceRow, customerClasses: string[]): boolean {
+  if (customerClasses.length === 0) return true;
+  const cClass = row.customerClass?.trim();
+  return cClass ? customerClasses.includes(cClass) : false;
+}
+
 function matchesRowFilters(
   row: InvoiceRow,
   cities: string[],
   customers: string[],
-  customerTags: string[] = []
+  customerTags: string[] = [],
+  customerClasses: string[] = []
 ): boolean {
   return (
     matchesCity(row, cities) &&
     matchesCustomer(row, customers) &&
-    matchesCustomerTag(row, customerTags)
+    matchesCustomerTag(row, customerTags) &&
+    matchesCustomerClass(row, customerClasses)
   );
 }
 
@@ -50,10 +58,11 @@ function filterRowsByScope(
   rows: InvoiceRow[],
   cities: string[],
   customers: string[],
-  customerTags: string[] = []
+  customerTags: string[] = [],
+  customerClasses: string[] = []
 ): InvoiceRow[] {
-  if (cities.length === 0 && customers.length === 0 && customerTags.length === 0) return rows;
-  return rows.filter((row) => matchesRowFilters(row, cities, customers, customerTags));
+  if (cities.length === 0 && customers.length === 0 && customerTags.length === 0 && customerClasses.length === 0) return rows;
+  return rows.filter((row) => matchesRowFilters(row, cities, customers, customerTags, customerClasses));
 }
 
 function filterRowsAsOf(
@@ -61,11 +70,12 @@ function filterRowsAsOf(
   asOfDate: string,
   cities: string[],
   customers: string[],
-  customerTags: string[] = []
+  customerTags: string[] = [],
+  customerClasses: string[] = []
 ): InvoiceRow[] {
   const cutoff = endOfDay(asOfDate);
   return rows.filter((row) => {
-    if (!matchesRowFilters(row, cities, customers, customerTags)) return false;
+    if (!matchesRowFilters(row, cities, customers, customerTags, customerClasses)) return false;
     const d = parseDate(row.date);
     return d !== null && d <= cutoff;
   });
@@ -156,40 +166,44 @@ export function collectCustomers(rows: InvoiceRow[], cities: string[]): string[]
 }
 
 export function collectCustomerTags(rows: InvoiceRow[], cities: string[]): string[] {
+  const scope = filterRowsByScope(rows, cities, []);
   const tags = new Set<string>();
-  rows.forEach((row) => {
-    if (!matchesCity(row, cities)) return;
-    const tag = row.customerTag?.trim();
-    if (tag) tags.add(tag);
-  });
-  return Array.from(tags).sort((a, b) => a.localeCompare(b));
+  for (const row of scope) {
+    if (row.customerTag?.trim()) {
+      tags.add(row.customerTag.trim());
+    }
+  }
+  return Array.from(tags).sort();
+}
+
+export function collectCustomerClassifications(rows: InvoiceRow[], cities: string[]): string[] {
+  const scope = filterRowsByScope(rows, cities, []);
+  const classes = new Set<string>();
+  for (const row of scope) {
+    if (row.customerClass?.trim()) {
+      classes.add(row.customerClass.trim());
+    }
+  }
+  return Array.from(classes).sort();
 }
 
 /** Customer names in scope for Sales overlay when tags and/or customers are selected. */
 export function resolveEffectiveCustomers(
   rows: InvoiceRow[],
   cities: string[],
-  customers: string[],
-  customerTags: string[]
+  selectedCustomers: string[],
+  selectedTags: string[] = [],
+  selectedClasses: string[] = []
 ): string[] {
-  if (customers.length === 0 && customerTags.length === 0) return [];
-
-  const nameSet = customers.length > 0 ? new Set(customers) : null;
-  const tagSet = customerTags.length > 0 ? new Set(customerTags) : null;
+  if (selectedCustomers.length > 0) {
+    return selectedCustomers;
+  }
+  const scope = filterRowsByScope(rows, cities, [], selectedTags, selectedClasses);
   const names = new Set<string>();
-
-  rows.forEach((row) => {
-    if (!matchesCity(row, cities)) return;
+  scope.forEach((row) => {
     const name = row.customerName?.trim();
-    if (!name) return;
-    if (nameSet && !nameSet.has(name)) return;
-    if (tagSet) {
-      const tag = row.customerTag?.trim();
-      if (!tag || !tagSet.has(tag)) return;
-    }
-    names.add(name);
+    if (name) names.add(name);
   });
-
   return Array.from(names).sort((a, b) => a.localeCompare(b));
 }
 
@@ -200,7 +214,8 @@ function buildTrendSeries(
   periodTo: Date,
   cities: string[],
   customers: string[],
-  customerTags: string[]
+  customerTags: string[],
+  customerClasses: string[]
 ): DebitInsightsMetrics['trendSeries'] {
   const asOf = endOfDay(asOfDate);
   const points: DebitInsightsMetrics['trendSeries'] = [];
@@ -232,13 +247,14 @@ function buildTrendSeries(
       });
     } else {
       const monthEndInput = toInputDate(monthEnd);
-      const rowsAsOfMonth = filterRowsAsOf(allRows, monthEndInput, cities, customers, customerTags);
+      const rowsAsOfMonth = filterRowsAsOf(allRows, monthEndInput, cities, customers, customerTags, customerClasses);
       const { totalOpenDebt } = computePortfolioAging(
         rowsAsOfMonth,
         monthEnd,
         cities,
         customers,
-        customerTags
+        customerTags,
+        customerClasses
       );
 
       const monthKey = getMonthlyKey(monthEnd);
@@ -257,17 +273,20 @@ function buildTrendSeries(
   return points;
 }
 
-export function computeDebitInsights(
+export function computeDebitInsightsMetrics(
   rows: InvoiceRow[],
   filters: InsightsFilters
 ): DebitInsightsMetrics {
-  const cities = filters.salesRep;
-  const customers = filters.customers;
-  const customerTags = filters.customerTags || [];
-  const rowsAsOf = filterRowsAsOf(rows, filters.asOfDate, cities, customers, customerTags);
-  const referenceDate = endOfDay(filters.asOfDate);
+  const { periodPreset, periodFrom, periodTo, asOfDate, salesRep, customers, customerTags, customerClassifications } =
+    filters;
+
+  const cities = salesRep;
+  const tags = customerTags || [];
+  const classes = customerClassifications || [];
+  const validRows = filterRowsAsOf(rows, asOfDate, cities, customers, tags, classes);
+  const referenceDate = endOfDay(asOfDate);
   const { totalOpenDebt } = computePortfolioAging(
-    rowsAsOf,
+    validRows,
     referenceDate,
     cities,
     customers,
@@ -292,12 +311,12 @@ export function computeDebitInsights(
     filters.periodTo
   );
 
-  const netSales = computeNetSales(rowsAsOf, from, to);
+  const netSales = computeNetSales(validRows, from, to);
   const priorFrom = shiftYears(from, -1);
   const priorTo = shiftYears(to, -1);
-  const netSalesPriorYear = computeNetSales(rowsAsOf, priorFrom, priorTo);
+  const netSalesPriorYear = computeNetSales(validRows, priorFrom, priorTo);
   const netSalesYoYChange = computeYoYChange(netSales, netSalesPriorYear);
-  const collections = computeCollections(rowsAsOf, from, to);
+  const collections = computeCollections(validRows, from, to);
   const collectionRate = netSales > 0.01 ? (collections / netSales) * 100 : null;
 
   const currentYearStr = filters.asOfDate.substring(0, 4);
@@ -307,14 +326,14 @@ export function computeDebitInsights(
   const pyStart = new Date(`${prevYearStr}-01-01T00:00:00`);
   const pyEnd = new Date(`${prevYearStr}-12-31T23:59:59.999`);
 
-  const currentYearTrend = buildTrendSeries(rows, filters.asOfDate, cyStart, cyEnd, cities, customers, customerTags);
-  const previousYearTrend = buildTrendSeries(rows, filters.asOfDate, pyStart, pyEnd, cities, customers, customerTags);
+  const currentYearTrend = buildTrendSeries(rows, filters.asOfDate, cyStart, cyEnd, cities, customers, tags, classes);
+  const previousYearTrend = buildTrendSeries(rows, filters.asOfDate, pyStart, pyEnd, cities, customers, tags, classes);
 
   return {
     totalOpenDebt,
     agingBreakdown,
     period: { netSales, netSalesPriorYear, netSalesYoYChange, collections, collectionRate },
-    trendSeries: buildTrendSeries(rows, filters.asOfDate, from, to, cities, customers, customerTags),
+    trendSeries: buildTrendSeries(rows, filters.asOfDate, from, to, cities, customers, tags, classes),
     currentYearTrend,
     previousYearTrend,
     salesReps: collectSalesReps(rows),

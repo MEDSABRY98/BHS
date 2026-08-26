@@ -115,6 +115,21 @@ export function buildOverviewFromFilteredData(augmentedData: any[], filters: any
   const totalMonthlyAmount = Array.from(monthlyDataMap.values()).reduce((sum, m) => sum + m.amount, 0);
   const totalMonthlyQty = Array.from(monthlyDataMap.values()).reduce((sum, m) => sum + m.qty, 0);
 
+  let totalGrossSales = 0;
+  let totalReturnsAmount = 0;
+  const uniqueSalesInvoices = new Set();
+  const uniqueReturnsInvoices = new Set();
+  globallyFilteredData.forEach((item) => {
+    const amt = Number(item.amount) || 0;
+    const invId = item.invoiceNumber || ('missing-' + Math.random());
+    if (amt > 0) { totalGrossSales += amt; uniqueSalesInvoices.add(invId); }
+    else if (amt < 0) { totalReturnsAmount += Math.abs(amt); uniqueReturnsInvoices.add(invId); }
+  });
+  const salesCount = uniqueSalesInvoices.size;
+  const returnsCount = uniqueReturnsInvoices.size;
+  const avgInvoiceValue = salesCount > 0 ? totalGrossSales / salesCount : 0;
+  const avgReturnValue = returnsCount > 0 ? totalReturnsAmount / returnsCount : 0;
+
   const metrics = {
     totalAmount,
     totalQty,
@@ -122,6 +137,10 @@ export function buildOverviewFromFilteredData(augmentedData: any[], filters: any
     totalProducts,
     avgMonthlyAmount: totalMonthlyAmount / totalMonthsCount,
     avgMonthlyQty: totalMonthlyQty / totalMonthsCount,
+    salesCount,
+    avgInvoiceValue,
+    returnsCount,
+    avgReturnValue,
   };
 
   const monthMapChart = new Map<string, { amount: number; qty: number }>();
@@ -132,6 +151,19 @@ export function buildOverviewFromFilteredData(augmentedData: any[], filters: any
     ex.amount += Number(item.amount) || 0;
     ex.qty += Number(item.qty) || 0;
     monthMapChart.set(key, ex);
+  });
+
+  // Monthly invoice/return count map for invoice count chart
+  const monthInvoiceMap = new Map();
+  geographyFilteredData.forEach((item) => {
+    if (isNaN(item.time)) return;
+    const key = `${item.yr}-${String(item.mn).padStart(2, '0')}`;
+    const ex = monthInvoiceMap.get(key) || { salesInvoices: new Set(), grossSales: 0, returnInvoices: new Set(), returnsAmt: 0 };
+    const amt = Number(item.amount) || 0;
+    const invId = item.invoiceNumber || ('missing-' + Math.random());
+    if (amt > 0) { ex.salesInvoices.add(invId); ex.grossSales += amt; }
+    else if (amt < 0) { ex.returnInvoices.add(invId); ex.returnsAmt += Math.abs(amt); }
+    monthInvoiceMap.set(key, ex);
   });
 
   let targetYear = filters?.year ? parseInt(filters.year, 10) : null;
@@ -213,6 +245,28 @@ export function buildOverviewFromFilteredData(augmentedData: any[], filters: any
       legendPrev: 'Target',
     });
   }
+
+  // Invoice count charts
+  const chartDataInvoices = [];
+  const chartDataReturns = [];
+  for (let m = 1; m <= 12; m++) {
+    const key = `${targetYear}-${String(m).padStart(2, '0')}`;
+    const prevKey = `${prevYear}-${String(m).padStart(2, '0')}`;
+    const inv = monthInvoiceMap.get(key) || { salesInvoices: new Set(), grossSales: 0, returnInvoices: new Set(), returnsAmt: 0 };
+    const invPrev = monthInvoiceMap.get(prevKey) || { salesInvoices: new Set(), grossSales: 0, returnInvoices: new Set(), returnsAmt: 0 };
+    const sc = inv.salesInvoices.size;
+    const rc = inv.returnInvoices.size;
+    const scPrev = invPrev.salesInvoices.size;
+    const rcPrev = invPrev.returnInvoices.size;
+    const avgInv = sc > 0 ? inv.grossSales / sc : 0;
+    const avgRet = rc > 0 ? inv.returnsAmt / rc : 0;
+    const avgInvPrev = scPrev > 0 ? invPrev.grossSales / scPrev : 0;
+    const avgRetPrev = rcPrev > 0 ? invPrev.returnsAmt / rcPrev : 0;
+    const isFut = (targetYear > nowYear) || (targetYear === nowYear && m > nowMonth);
+    chartDataInvoices.push({ month: monthNames[m - 1], count: sc, avgValue: avgInv, prevCount: scPrev, prevAvgValue: avgInvPrev, isFuture: isFut, legendCurr: String(targetYear), legendPrev: String(prevYear) });
+    chartDataReturns.push({ month: monthNames[m - 1], count: rc, avgValue: avgRet, prevCount: rcPrev, prevAvgValue: avgRetPrev, isFuture: isFut, legendCurr: String(targetYear), legendPrev: String(prevYear) });
+  }
+
 const yearMap = new Map<string, any>();
   globallyFilteredData.forEach((item) => {
     if (isNaN(item.time)) return;
@@ -309,5 +363,5 @@ const yearMap = new Map<string, any>();
     };
   });
 
-  return { metrics, chartDataVsLastYear, chartDataVsLastMonth, chartDataVsTarget, yearlyTableData, monthlyTableData };
+  return { metrics, chartDataVsLastYear, chartDataVsLastMonth, chartDataVsTarget, chartDataInvoices, chartDataReturns, yearlyTableData, monthlyTableData };
 }

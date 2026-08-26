@@ -13,6 +13,7 @@ export interface InvoiceRow {
   residualAmount?: number;
   creditLimit?: number;
   customerTag?: string;
+  customerClass?: string;
 }
 
 export interface CustomerAnalysis {

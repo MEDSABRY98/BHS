@@ -68,8 +68,8 @@ function DebitPageShell({
   savedSessionsRefreshKey: number;
   setSavedSessionsRefreshKey: Dispatch<SetStateAction<number>>;
 }) {
-  const { 
-    data, loading, isRefreshing, error, lastUpdated, refresh, 
+  const {
+    data, loading, isRefreshing, error, lastUpdated, refresh,
     dataVersion, dataReady, dataLoading, ensureFullData,
     globalFilters, invoicesByCustomer, customersWithEmails, luluEmails
   } = useDebitData();
@@ -226,7 +226,7 @@ function DebitPageShell({
           currentUser={currentUser}
           lastUpdated={lastUpdated}
           isCollapsed={false}
-          onToggleCollapse={() => {}}
+          onToggleCollapse={() => { }}
           onCloseMobile={() => setIsMobileSidebarOpen(false)}
           onRefresh={handleRefreshAll}
           isRefreshing={loading || isRefreshing}

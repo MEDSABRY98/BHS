@@ -44,7 +44,7 @@ function drawStatementHeader(doc: any, customerName: string, invoices: any[], ma
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(COLORS.gray[0], COLORS.gray[1], COLORS.gray[2]);
   doc.text('| Sole Proprietorship L.L.C', margin + subtitleWidth + 1.5, yPosition);
-  yPosition += 6;
+  yPosition += 3; // Reduced from 6 to bring customer card closer
 
   // 3. Info Panel
   const panelHeight = 25;
@@ -102,7 +102,7 @@ function drawStatementHeader(doc: any, customerName: string, invoices: any[], ma
   doc.text(balanceDateStr, metaX + 35, yPosition + 15);
   doc.text('AED', metaX + 35, yPosition + 22);
 
-  yPosition += panelHeight + 10;
+  yPosition += panelHeight + 6; // Increased slightly from 4 to 6
 
   // 4. Section Title
   doc.setFontSize(10);

@@ -45,6 +45,7 @@ function mapDebitRpcRow(row: Record<string, unknown>): InvoiceRow {
     matching: (row.matching as string) || '',
     creditLimit: Number(row.creditLimit) || 0,
     customerTag: String(row.customerTag || '').trim(),
+    customerClass: String(row.customerClass || '').trim(),
   };
 }
 

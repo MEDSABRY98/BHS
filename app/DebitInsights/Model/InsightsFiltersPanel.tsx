@@ -13,6 +13,7 @@ interface InsightsFiltersPanelProps {
   salesReps: string[];
   customers: string[];
   customerTags: string[];
+  customerClassifications: string[];
   onChange: (next: InsightsFilters) => void;
   onApply: () => void;
   hasPendingChanges: boolean;
@@ -153,16 +154,20 @@ function FilterDropdown<T extends string>({
   );
 }
 
-function CitiesFilterDropdown({
+function MultiSelectFilterDropdown({
   label,
-  cities,
+  options,
   selected,
   onChange,
+  emptyLabel = 'All Options',
+  icon = <MapPin className="w-4 h-4 text-indigo-500 shrink-0" />,
 }: {
   label: string;
-  cities: string[];
+  options: string[];
   selected: string[];
   onChange: (next: string[]) => void;
+  emptyLabel?: string;
+  icon?: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -209,20 +214,20 @@ function CitiesFilterDropdown({
     };
   }, [open]);
 
-  const toggleCity = (city: string) => {
+  const toggleOption = (opt: string) => {
     onChange(
-      selected.includes(city)
-        ? selected.filter((value) => value !== city)
-        : [...selected, city]
+      selected.includes(opt)
+        ? selected.filter((value) => value !== opt)
+        : [...selected, opt]
     );
   };
 
   const buttonLabel =
     selected.length === 0
-      ? 'All Cities'
+      ? emptyLabel
       : selected.length === 1
         ? selected[0]
-        : `${selected.length} cities selected`;
+        : `${selected.length} selected`;
 
   return (
     <div className="relative w-full" ref={rootRef}>
@@ -236,7 +241,7 @@ function CitiesFilterDropdown({
         className="flex w-full items-center justify-between gap-2 px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 hover:bg-white hover:border-slate-300 transition-all shadow-sm"
       >
         <span className="inline-flex items-center gap-2 min-w-0 truncate">
-          <MapPin className="w-4 h-4 text-indigo-500 shrink-0" />
+          {icon}
           <span className="truncate">{buttonLabel}</span>
         </span>
         <ChevronDown className={`w-4 h-4 text-slate-400 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
@@ -254,7 +259,7 @@ function CitiesFilterDropdown({
             <div className="flex items-center gap-2 px-3 py-2 border-b border-slate-100 bg-slate-50/80">
               <button
                 type="button"
-                onClick={() => onChange([...cities])}
+                onClick={() => onChange([...options])}
                 className="flex-1 px-2.5 py-1.5 text-xs font-semibold text-indigo-700 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors"
               >
                 Select All
@@ -268,29 +273,32 @@ function CitiesFilterDropdown({
               </button>
             </div>
 
-            <div className="max-h-64 overflow-y-auto py-1">
-              {cities.length === 0 ? (
-                <div className="px-3.5 py-6 text-center text-sm text-slate-400">No cities found</div>
+            <div className="py-1 max-h-56 overflow-y-auto">
+              {options.length === 0 ? (
+                <div className="px-3.5 py-3 text-sm text-slate-500 italic text-center">No options available</div>
               ) : (
-                cities.map((city) => {
-                  const isSelected = selected.includes(city);
+                options.map((opt) => {
+                  const isSelected = selected.includes(opt);
                   return (
-                    <label
-                      key={city}
-                      className={`w-full px-3.5 py-2.5 flex items-center gap-3 cursor-pointer transition-colors ${
-                        isSelected ? 'bg-indigo-50 text-indigo-900' : 'text-slate-700 hover:bg-slate-50'
-                      }`}
+                    <button
+                      key={opt}
+                      type="button"
+                      onClick={() => toggleOption(opt)}
+                      className="w-full px-3.5 py-2 text-left flex items-center gap-3 hover:bg-slate-50 transition-colors group"
                     >
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => toggleCity(city)}
-                        className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 shrink-0"
-                      />
-                      <span className={`text-sm truncate ${isSelected ? 'font-semibold' : 'font-medium'}`}>
-                        {city}
+                      <div
+                        className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${
+                          isSelected
+                            ? 'bg-indigo-500 border-indigo-500 text-white'
+                            : 'border-slate-300 group-hover:border-indigo-400 bg-white'
+                        }`}
+                      >
+                        {isSelected && <Check className="w-3 h-3" />}
+                      </div>
+                      <span className={`text-sm truncate ${isSelected ? 'font-medium text-slate-900' : 'text-slate-700'}`}>
+                        {opt}
                       </span>
-                    </label>
+                    </button>
                   );
                 })
               )}
@@ -309,6 +317,7 @@ export default function InsightsFiltersPanel({
   salesReps,
   customers,
   customerTags,
+  customerClassifications,
   onChange,
   onApply,
   hasPendingChanges,
@@ -390,13 +399,6 @@ export default function InsightsFiltersPanel({
               onChange={(value) => update({ salesSource: value })}
             />
 
-            <CitiesFilterDropdown
-              label="Cities"
-              cities={salesReps}
-              selected={filters.salesRep}
-              onChange={(value) => update({ salesRep: value })}
-            />
-
             <div>
               <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1.5">
                 Customers
@@ -421,6 +423,33 @@ export default function InsightsFiltersPanel({
                 )}
               </button>
             </div>
+
+            <MultiSelectFilterDropdown
+              label="City"
+              options={salesReps}
+              selected={filters.salesRep}
+              onChange={(salesRep) => onChange({ ...filters, salesRep })}
+              emptyLabel="All Cities"
+              icon={<MapPin className="w-4 h-4 text-indigo-500 shrink-0" />}
+            />
+            <MultiSelectFilterDropdown
+              label="Customer Tags"
+              options={customerTags}
+              selected={filters.customerTags || []}
+              onChange={(tags) => onChange({ ...filters, customerTags: tags })}
+              emptyLabel="All Tags"
+              icon={<Filter className="w-4 h-4 text-indigo-500 shrink-0" />}
+            />
+            <MultiSelectFilterDropdown
+              label="Customer Classes"
+              options={customerClassifications}
+              selected={filters.customerClassifications || []}
+              onChange={(classes) => onChange({ ...filters, customerClassifications: classes })}
+              emptyLabel="All Classes"
+              icon={<Filter className="w-4 h-4 text-indigo-500 shrink-0" />}
+            />
+
+
 
             <CustomersFilterModal
               open={customersOpen}

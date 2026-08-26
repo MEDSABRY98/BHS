@@ -3,7 +3,7 @@
 import { InvoiceRow } from '@/types';
 import { getDebitData } from '@/app/Debit/Service/debit_service';
 import {
-  computeDebitInsights,
+  computeDebitInsightsMetrics as computeBaseMetrics,
   resolvePeriodRange,
   resolveEffectiveCustomers,
 } from '@/app/DebitInsights/Utils/AsOfLedgerEngine';
@@ -55,7 +55,7 @@ export async function computeDebitInsightsMetrics(
   input: DebitInsightsComputeInput
 ): Promise<DebitInsightsMetrics> {
   const { rows, filters, userId } = input;
-  const metrics = computeDebitInsights(rows, filters);
+  const metrics = computeBaseMetrics(rows, filters);
 
   if (filters.salesSource !== 'sales') {
     return metrics;

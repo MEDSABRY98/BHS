@@ -6,7 +6,7 @@ import TabLoader from '@/app/Components/Loading/TabLoader';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import { toast } from '@/app/Components/Notification';
 import { useDebitInsightsMetrics } from './Hooks/UseDebitInsightsMetrics';
-import { collectCustomers, collectCustomerTags, resolveEffectiveCustomers, resolvePeriodRange } from './Utils/AsOfLedgerEngine';
+import { collectCustomers, collectCustomerTags, collectCustomerClassifications, resolveEffectiveCustomers, resolvePeriodRange } from './Utils/AsOfLedgerEngine';
 import { InsightsFilters, InsightsSalesOverlay } from './Utils/InsightsTypes';
 import { toInputDate } from './Utils/DateUtils';
 import { applySalesNetOverlay } from './Utils/SalesSourceOverlay';
@@ -43,6 +43,7 @@ function defaultFilters(): InsightsFilters {
     salesRep: [],
     customers: [],
     customerTags: [],
+    customerClassifications: [],
     salesSource: 'sales',
   };
 }
@@ -63,6 +64,7 @@ function filtersEqual(a: InsightsFilters, b: InsightsFilters): boolean {
     arraysEqual(a.salesRep, b.salesRep) &&
     arraysEqual(a.customers, b.customers) &&
     arraysEqual(a.customerTags || [], b.customerTags || []) &&
+    arraysEqual(a.customerClassifications || [], b.customerClassifications || []) &&
     a.salesSource === b.salesSource
   );
 }
@@ -106,11 +108,16 @@ export default function DebitInsightsDashboard({
     () => collectCustomerTags(data, draftFilters.salesRep),
     [data, draftFilters.salesRep]
   );
+  const availableCustomerClassifications = useMemo(
+    () => collectCustomerClassifications(data, draftFilters.salesRep),
+    [data, draftFilters.salesRep]
+  );
   const hasPendingChanges = !filtersEqual(draftFilters, appliedFilters);
   const filtersActive =
     appliedFilters.salesRep.length > 0 ||
     appliedFilters.customers.length > 0 ||
     (appliedFilters.customerTags?.length || 0) > 0 ||
+    (appliedFilters.customerClassifications?.length || 0) > 0 ||
     appliedFilters.salesSource !== 'debit' ||
     appliedFilters.periodPreset !== 'trailing12m';
 
@@ -139,12 +146,13 @@ export default function DebitInsightsDashboard({
     );
 
     const customers =
-      appliedFilters.customers.length > 0 || (appliedFilters.customerTags?.length || 0) > 0
+      appliedFilters.customers.length > 0 || (appliedFilters.customerTags?.length || 0) > 0 || (appliedFilters.customerClassifications?.length || 0) > 0
         ? resolveEffectiveCustomers(
             data,
             appliedFilters.salesRep,
             appliedFilters.customers,
-            appliedFilters.customerTags || []
+            appliedFilters.customerTags || [],
+            appliedFilters.customerClassifications || []
           )
         : [];
 
@@ -178,10 +186,12 @@ export default function DebitInsightsDashboard({
     if (!arraysEqual(next.salesRep, draftFilters.salesRep)) {
       const allowedCustomers = new Set(collectCustomers(data, next.salesRep));
       const allowedTags = new Set(collectCustomerTags(data, next.salesRep));
+      const allowedClasses = new Set(collectCustomerClassifications(data, next.salesRep));
       next = {
         ...next,
         customers: next.customers.filter((customer) => allowedCustomers.has(customer)),
         customerTags: (next.customerTags || []).filter((tag) => allowedTags.has(tag)),
+        customerClassifications: (next.customerClassifications || []).filter((c) => allowedClasses.has(c)),
       };
     }
     setDraftFilters(next);
@@ -239,6 +249,7 @@ export default function DebitInsightsDashboard({
         salesReps={salesReps}
         customers={availableCustomers}
         customerTags={availableCustomerTags}
+        customerClassifications={availableCustomerClassifications}
         onChange={handleFilterChange}
         onApply={() => {
           startTransition(() => {

@@ -3,7 +3,7 @@
 import { createElement, type ReactElement } from 'react';
 import { InvoiceRow } from '@/types';
 import { saveTrackedAs } from '@/app/Audit/Utils/TrackedDownload';
-import { computeDebitInsights, resolvePeriodRange, resolveEffectiveCustomers } from '../Utils/AsOfLedgerEngine';
+import { computeDebitInsightsMetrics, resolvePeriodRange, resolveEffectiveCustomers } from '../Utils/AsOfLedgerEngine';
 import { applySalesNetOverlay } from '../Utils/SalesSourceOverlay';
 import { toInputDate } from '../Utils/DateUtils';
 import type {
@@ -48,7 +48,7 @@ function buildMetricsLocal(
   filters: InsightsFilters,
   salesOverlay?: InsightsSalesOverlay | null
 ): DebitInsightsMetrics {
-  const metrics = computeDebitInsights(rows, filters);
+  const metrics = computeDebitInsightsMetrics(rows, filters);
   if (filters.salesSource === 'sales' && salesOverlay) {
     return applySalesNetOverlay(metrics, salesOverlay);
   }

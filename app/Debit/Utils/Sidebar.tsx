@@ -191,14 +191,13 @@ export default function DebitSidebar({
         </div>
       )}
 
-      <div className="p-4 border-t border-white/5 mt-auto flex flex-col gap-2 shrink-0">
+      <div className={`p-4 border-t border-white/5 mt-auto flex ${isCollapsed ? 'flex-col items-center mx-auto' : 'flex-row justify-center'} gap-2 shrink-0`}>
         <button
           onClick={() => setIsFilterModalOpen(true)}
-          className={`flex items-center justify-center ${isCollapsed ? 'w-10 h-10' : 'w-full py-2.5 px-4'} hover:bg-white/10 rounded-xl transition-all duration-200 text-purple-400 group relative border border-purple-500/30 bg-purple-500/5`}
-          
+          title="Advanced Filters"
+          className="flex items-center justify-center w-10 h-10 hover:bg-white/10 rounded-xl transition-all duration-200 text-purple-400 group relative border border-purple-500/30 bg-purple-500/5 shrink-0"
         >
           <Filter className="w-5 h-5 shrink-0 group-hover:scale-110 transition-transform" />
-          {!isCollapsed && <span className="ml-3 text-sm font-bold tracking-wide">Advanced Filters</span>}
           {/* Active filter indicator */}
           {(globalFilters.customerRating !== 'ALL' || globalFilters.selectedSalesRep !== 'ALL' || globalFilters.emailFilter !== 'ALL' || globalFilters.overdueMonth.length > 0 || globalFilters.overdueYear.length > 0 || globalFilters.selectedCustomerTags.length > 0) && (
             <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse border-2 border-[#0a0f1d]"></span>
@@ -208,17 +207,16 @@ export default function DebitSidebar({
         {onRefresh && (
           <button
             onClick={onRefresh}
+            title="Refresh Data"
             disabled={isRefreshing}
-            className={`flex items-center justify-center ${isCollapsed ? 'w-10 h-10' : 'w-full py-2.5 px-4'} hover:bg-white/10 rounded-xl transition-all duration-200 text-blue-400 disabled:opacity-50 group`}
-            
+            className="flex items-center justify-center w-10 h-10 hover:bg-white/10 rounded-xl transition-all duration-200 text-blue-400 disabled:opacity-50 group border border-white/5 shrink-0"
           >
             <RefreshCcw className={`w-5 h-5 shrink-0 ${isRefreshing ? 'animate-spin' : ''}`} />
-            {!isCollapsed && <span className="ml-3 text-sm font-bold tracking-wide">Refresh Data</span>}
           </button>
         )}
         <button
           onClick={onToggleCollapse}
-          className="flex items-center justify-center w-10 h-10 mx-auto hover:bg-white/10 rounded-xl transition-all duration-200 text-slate-400 group"
+          className="flex items-center justify-center w-10 h-10 hover:bg-white/10 rounded-xl transition-all duration-200 text-slate-400 group border border-white/5 shrink-0"
           title={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
         >
           {isCollapsed ? <ChevronRight className="w-5 h-5 shrink-0" /> : <ChevronLeft className="w-5 h-5 shrink-0" />}

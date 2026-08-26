@@ -1,5 +1,6 @@
 import React from 'react';
 import { flexRender } from '@tanstack/react-table';
+import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import { SharedTabProps } from '../Types';
 
@@ -126,19 +127,21 @@ export default function InvoicesTab(props: SharedTabProps) {
                 Page <span className="font-medium">{invoiceTable.getState().pagination.pageIndex + 1}</span> of{' '}
                 <span className="font-medium">{invoiceTable.getPageCount()}</span>
               </span>
-              <select
-                value={invoiceTable.getState().pagination.pageSize}
-                onChange={e => {
-                  invoiceTable.setPageSize(Number(e.target.value))
-                }}
-                className="block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-              >
-                {[50, 100, 250, 500].map(pageSize => (
-                  <option key={pageSize} value={pageSize}>
-                    Show {pageSize}
-                  </option>
-                ))}
-              </select>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-700 whitespace-nowrap">Show:</span>
+                <input
+                  type="number"
+                  min="1"
+                  value={invoiceTable.getState().pagination.pageSize}
+                  onChange={e => {
+                    const val = Number(e.target.value);
+                    if (val > 0) {
+                      invoiceTable.setPageSize(val);
+                    }
+                  }}
+                  className="block w-20 py-1.5 px-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                />
+              </div>
             </div>
             <div>
               <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
@@ -148,7 +151,7 @@ export default function InvoicesTab(props: SharedTabProps) {
                   className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
                 >
                   <span className="sr-only">First</span>
-                  ⟪
+                  <ChevronsLeft className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => invoiceTable.previousPage()}
@@ -156,15 +159,41 @@ export default function InvoicesTab(props: SharedTabProps) {
                   className="relative inline-flex items-center px-2 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
                 >
                   <span className="sr-only">Previous</span>
-                  ⟨
+                  <ChevronLeft className="w-4 h-4" />
                 </button>
+                {/* Page Numbers */}
+                {Array.from({ length: Math.min(5, Math.max(1, invoiceTable.getPageCount())) }, (_, i) => {
+                  let pageNum = i;
+                  const currentPage = invoiceTable.getState().pagination.pageIndex;
+                  const totalPages = Math.max(1, invoiceTable.getPageCount());
+                  if (totalPages > 5) {
+                    if (currentPage > 2 && currentPage < totalPages - 2) {
+                      pageNum = currentPage - 2 + i;
+                    } else if (currentPage >= totalPages - 2) {
+                      pageNum = totalPages - 5 + i;
+                    }
+                  }
+                  return (
+                    <button
+                      key={pageNum}
+                      onClick={() => invoiceTable.setPageIndex(pageNum)}
+                      className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
+                        currentPage === pageNum
+                          ? 'z-10 bg-blue-50 border-blue-500 text-blue-600'
+                          : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
+                      }`}
+                    >
+                      {pageNum + 1}
+                    </button>
+                  );
+                })}
                 <button
                   onClick={() => invoiceTable.nextPage()}
                   disabled={!invoiceTable.getCanNextPage()}
                   className="relative inline-flex items-center px-2 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
                 >
                   <span className="sr-only">Next</span>
-                  ⟩
+                  <ChevronRight className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => invoiceTable.setPageIndex(invoiceTable.getPageCount() - 1)}
@@ -172,7 +201,7 @@ export default function InvoicesTab(props: SharedTabProps) {
                   className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
                 >
                   <span className="sr-only">Last</span>
-                  ⟫
+                  <ChevronsRight className="w-4 h-4" />
                 </button>
               </nav>
             </div>

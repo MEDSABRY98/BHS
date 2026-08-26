@@ -10,6 +10,7 @@ export interface InsightsFilters {
   salesRep: string[];
   customers: string[];
   customerTags: string[];
+  customerClassifications?: string[];
   salesSource: InsightsSalesSource;
 }
 

@@ -10,7 +10,7 @@ import {
   createColumnHelper,
   SortingState,
 } from '@tanstack/react-table';
-import { FileSpreadsheet, MapPin, ChevronDown, Search, Check, Loader2 } from 'lucide-react';
+import { FileSpreadsheet, MapPin, ChevronDown, Search, Check, Loader2, MinusCircle } from 'lucide-react';
 import { InvoiceRow } from '@/types';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import { toast } from '@/app/Components/Notification';
@@ -553,11 +553,10 @@ export default function CustomersSummariesTab({ data, onRefresh }: CustomersSumm
                           setSalesSource(opt.value);
                           setSalesSourceOpen(false);
                         }}
-                        className={`w-full px-3.5 py-2.5 text-left flex items-center justify-between gap-3 text-sm transition-colors ${
-                          isSelected
+                        className={`w-full px-3.5 py-2.5 text-left flex items-center justify-between gap-3 text-sm transition-colors ${isSelected
                             ? 'bg-blue-50 text-blue-900 font-semibold'
                             : 'text-slate-700 hover:bg-slate-50'
-                        }`}
+                          }`}
                       >
                         <span>{opt.label}</span>
                         {isSelected && <Check className="w-4 h-4 text-blue-500 shrink-0" />}
@@ -609,11 +608,10 @@ export default function CustomersSummariesTab({ data, onRefresh }: CustomersSumm
                       setCityDropdownOpen(false);
                       setCitySearch('');
                     }}
-                    className={`w-full px-3.5 py-2.5 text-left flex items-center justify-between gap-2 transition-colors text-sm ${
-                      selectedCity === 'ALL'
+                    className={`w-full px-3.5 py-2.5 text-left flex items-center justify-between gap-2 transition-colors text-sm ${selectedCity === 'ALL'
                         ? 'bg-blue-50 text-blue-900 font-bold'
                         : 'hover:bg-slate-50 text-slate-700'
-                    }`}
+                      }`}
                   >
                     <span className="inline-flex items-center gap-2">
                       <MapPin className={`w-3.5 h-3.5 ${selectedCity === 'ALL' ? 'text-blue-500' : 'text-slate-400'}`} />
@@ -638,11 +636,10 @@ export default function CustomersSummariesTab({ data, onRefresh }: CustomersSumm
                             setCityDropdownOpen(false);
                             setCitySearch('');
                           }}
-                          className={`w-full px-3.5 py-2.5 text-left flex items-center justify-between gap-3 transition-colors text-sm whitespace-nowrap ${
-                            isSelected
+                          className={`w-full px-3.5 py-2.5 text-left flex items-center justify-between gap-3 transition-colors text-sm whitespace-nowrap ${isSelected
                               ? 'bg-blue-50 text-blue-900 font-bold'
                               : 'hover:bg-slate-50 text-slate-700'
-                          }`}
+                            }`}
                         >
                           <span className="inline-flex items-center gap-2">
                             <MapPin className={`w-3.5 h-3.5 shrink-0 ${isSelected ? 'text-blue-500' : 'text-slate-400'}`} />
@@ -657,21 +654,18 @@ export default function CustomersSummariesTab({ data, onRefresh }: CustomersSumm
               </div>
             )}
           </div>
-          <div className="flex items-center gap-3 bg-slate-100/50 p-1.5 rounded-xl border border-slate-200 shadow-inner">
-            <span className="text-[10px] font-bold text-slate-500 ml-2 uppercase tracking-wider">Negatives</span>
+          <div className="flex items-center justify-center">
             <button
+              title={hideNegative ? "Show Negatives" : "Hide Negatives"}
               onClick={() => setHideNegative(!hideNegative)}
-              className={`relative inline-flex h-7 w-12 items-center rounded-full transition-all duration-300 focus:outline-none shadow-sm ${hideNegative ? 'bg-slate-300' : 'bg-emerald-500'
-                }`}
+              className={`flex items-center justify-center h-10 w-10 rounded-xl transition-all duration-300 shadow-sm border ${
+                hideNegative 
+                  ? 'bg-slate-100 border-slate-200 text-slate-400 hover:bg-slate-200' 
+                  : 'bg-emerald-50 border-emerald-200 text-emerald-600 hover:bg-emerald-100'
+              }`}
             >
-              <span
-                className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform duration-300 shadow-md ${hideNegative ? 'translate-x-1' : 'translate-x-6'
-                  }`}
-              />
+              <MinusCircle className="w-5 h-5" />
             </button>
-            <span className={`text-[10px] font-bold mr-2 uppercase tracking-wider transition-colors ${hideNegative ? 'text-slate-400' : 'text-emerald-600'}`}>
-              {hideNegative ? "Hidden" : "Shown"}
-            </span>
           </div>
         </div>
         <div className="shrink-0 flex items-center gap-2">
@@ -685,13 +679,13 @@ export default function CustomersSummariesTab({ data, onRefresh }: CustomersSumm
         </div>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="overflow-x-auto">
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200">
+        <div>
           {table.getRowModel().rows.length === 0 ? (
             <NoData />
           ) : (
             <table className="w-full text-sm" style={{ tableLayout: 'fixed', minWidth: '1100px' }}>
-              <thead className="bg-gradient-to-r from-slate-800 to-slate-900 text-white">
+              <thead className="bg-gradient-to-r from-slate-800 to-slate-900 text-white sticky top-[80px] z-30 shadow-md">
                 {table.getHeaderGroups().map((headerGroup) => (
                   <tr key={headerGroup.id}>
                     {headerGroup.headers.map((header) => {
@@ -729,11 +723,10 @@ export default function CustomersSummariesTab({ data, onRefresh }: CustomersSumm
                       return (
                         <td
                           key={cell.id}
-                          className={`px-4 py-3 align-top ${
-                            id === 'customerName'
+                          className={`px-4 py-3 align-top ${id === 'customerName'
                               ? 'text-center whitespace-normal'
                               : 'text-center whitespace-nowrap'
-                          }`}
+                            }`}
                           style={{ width }}
                         >
                           {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -750,38 +743,38 @@ export default function CustomersSummariesTab({ data, onRefresh }: CustomersSumm
                     totalNetPrev > 0 ? ((totalNetCurrent - totalNetPrev) / totalNetPrev) * 100 : null;
 
                   return (
-                <tr className="bg-slate-800 text-white font-bold border-t-2 border-slate-900">
-                  <td className="px-4 py-4 text-center whitespace-normal align-top" style={{ width: '26%' }}>
-                    TOTAL
-                  </td>
-                  <td className="px-4 py-4 text-center whitespace-nowrap text-emerald-400">
-                    {totalNetPrev.toLocaleString('en-US')}
-                  </td>
-                  <td className="px-4 py-4 text-center whitespace-nowrap text-emerald-400">
-                    {totalNetCurrent.toLocaleString('en-US')}
-                  </td>
-                  <td className="px-4 py-4 text-center whitespace-nowrap text-blue-200">
-                    {formatGrowth(totalGrowth, totalNetCurrent, totalNetPrev)}
-                  </td>
-                  <td className="px-4 py-4 text-center whitespace-nowrap">
-                    {filteredData.reduce((sum, i) => sum + i.oneToThirty, 0).toLocaleString('en-US')}
-                  </td>
-                  <td className="px-4 py-4 text-center whitespace-nowrap">
-                    {filteredData.reduce((sum, i) => sum + i.thirtyOneToSixty, 0).toLocaleString('en-US')}
-                  </td>
-                  <td className="px-4 py-4 text-center whitespace-nowrap">
-                    {filteredData.reduce((sum, i) => sum + i.sixtyOneToNinety, 0).toLocaleString('en-US')}
-                  </td>
-                  <td className="px-4 py-4 text-center whitespace-nowrap">
-                    {filteredData.reduce((sum, i) => sum + i.ninetyOneToOneTwenty, 0).toLocaleString('en-US')}
-                  </td>
-                  <td className="px-4 py-4 text-center whitespace-nowrap text-red-400">
-                    {filteredData.reduce((sum, i) => sum + i.older, 0).toLocaleString('en-US')}
-                  </td>
-                  <td className="px-4 py-4 text-center whitespace-nowrap text-blue-200">
-                    {filteredData.reduce((sum, i) => sum + i.totalAging, 0).toLocaleString('en-US')}
-                  </td>
-                </tr>
+                    <tr className="bg-slate-800 text-white font-bold border-t-2 border-slate-900">
+                      <td className="px-4 py-4 text-center whitespace-normal align-top" style={{ width: '26%' }}>
+                        TOTAL
+                      </td>
+                      <td className="px-4 py-4 text-center whitespace-nowrap text-emerald-400">
+                        {totalNetPrev.toLocaleString('en-US')}
+                      </td>
+                      <td className="px-4 py-4 text-center whitespace-nowrap text-emerald-400">
+                        {totalNetCurrent.toLocaleString('en-US')}
+                      </td>
+                      <td className="px-4 py-4 text-center whitespace-nowrap text-blue-200">
+                        {formatGrowth(totalGrowth, totalNetCurrent, totalNetPrev)}
+                      </td>
+                      <td className="px-4 py-4 text-center whitespace-nowrap">
+                        {filteredData.reduce((sum, i) => sum + i.oneToThirty, 0).toLocaleString('en-US')}
+                      </td>
+                      <td className="px-4 py-4 text-center whitespace-nowrap">
+                        {filteredData.reduce((sum, i) => sum + i.thirtyOneToSixty, 0).toLocaleString('en-US')}
+                      </td>
+                      <td className="px-4 py-4 text-center whitespace-nowrap">
+                        {filteredData.reduce((sum, i) => sum + i.sixtyOneToNinety, 0).toLocaleString('en-US')}
+                      </td>
+                      <td className="px-4 py-4 text-center whitespace-nowrap">
+                        {filteredData.reduce((sum, i) => sum + i.ninetyOneToOneTwenty, 0).toLocaleString('en-US')}
+                      </td>
+                      <td className="px-4 py-4 text-center whitespace-nowrap text-red-400">
+                        {filteredData.reduce((sum, i) => sum + i.older, 0).toLocaleString('en-US')}
+                      </td>
+                      <td className="px-4 py-4 text-center whitespace-nowrap text-blue-200">
+                        {filteredData.reduce((sum, i) => sum + i.totalAging, 0).toLocaleString('en-US')}
+                      </td>
+                    </tr>
                   );
                 })()}
               </tbody>
