@@ -1,18 +1,18 @@
 'use server';
 
 import { getFilteredSalesData } from '@/app/Sales/Utils/SalesMappingCache';
-import { parseDate } from '@/app/DebitInsights/Utils/DateUtils';
+import { parseDate } from '@/app/Debit/DebitInsightsTab/Utils/DateUtils';
 import type {
   CustomerSalesYearBreakdown,
   SummariesSalesOverlay,
   SummariesSalesOverlayInput,
-} from '@/app/CustomersSummaries/Utils/SummariesTypes';
+} from '../Utils/SummariesTypes';
 
 export type {
   CustomerSalesYearBreakdown,
   SummariesSalesOverlay,
   SummariesSalesOverlayInput,
-} from '@/app/CustomersSummaries/Utils/SummariesTypes';
+} from '../Utils/SummariesTypes';
 
 function isSalesOrReturn(invoiceNumber?: string | null): boolean {
   const num = (invoiceNumber || '').toString().toUpperCase().trim();

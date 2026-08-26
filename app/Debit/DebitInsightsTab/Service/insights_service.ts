@@ -6,15 +6,15 @@ import {
   computeDebitInsightsMetrics as computeBaseMetrics,
   resolvePeriodRange,
   resolveEffectiveCustomers,
-} from '@/app/DebitInsights/Utils/AsOfLedgerEngine';
-import { applySalesNetOverlay } from '@/app/DebitInsights/Utils/SalesSourceOverlay';
-import { toInputDate } from '@/app/DebitInsights/Utils/DateUtils';
+} from '../Utils/AsOfLedgerEngine';
+import { applySalesNetOverlay } from '../Utils/SalesSourceOverlay';
+import { toInputDate } from '../Utils/DateUtils';
 import type {
   DebitInsightsMetrics,
   InsightsFilters,
   InsightsSalesOverlay,
-} from '@/app/DebitInsights/Utils/InsightsTypes';
-import { getInsightsSalesOverlay } from '@/app/DebitInsights/Service/insights_sales_service';
+} from '../Utils/InsightsTypes';
+import { getInsightsSalesOverlay } from './insights_sales_service';
 
 interface DebitInsightsDataResult {
   success: boolean;

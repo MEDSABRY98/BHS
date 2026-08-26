@@ -3,16 +3,17 @@
 import { useMemo } from 'react';
 import {
   Bar,
-  BarChart,
+  ComposedChart,
   CartesianGrid,
   LabelList,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
+  Legend,
+  Line,
 } from 'recharts';
 import type { Props as RechartsLabelProps } from 'recharts/types/component/Label';
-import { Legend } from 'recharts';
 import { YoYTrendPoint } from '../Utils/InsightsTypes';
 
 interface DebtTrendChartProps {
@@ -60,19 +61,39 @@ function DebtTrendTooltip({
   return (
     <div className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 shadow-md text-sm">
       <p className="font-semibold text-slate-800 mb-2">{label}</p>
-      {payload.map((item) => (
-        <p key={item.name} className="flex items-center justify-between gap-4">
-          <span className="inline-flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
-            <span className={item.name === 'Current Year' ? 'text-slate-900 font-medium' : 'text-slate-500'}>
-              {item.name}
+      {payload.map((item) => {
+        let displayValue = formatBarAmount(item.value ?? 0);
+        let nameColor = 'text-slate-500';
+        let valColor = 'text-slate-500';
+        let isChange = false;
+
+        if (item.name === 'Current Year') {
+          nameColor = 'text-slate-900 font-medium';
+          valColor = 'text-slate-900 font-semibold';
+        } else if (item.name === 'MoM Change') {
+          isChange = true;
+          nameColor = 'text-amber-600 font-medium';
+          const val = item.value ?? 0;
+          if (val > 0.01) {
+            valColor = 'text-rose-600 font-semibold';
+            displayValue = `+${displayValue}`;
+          } else if (val < -0.01) {
+            valColor = 'text-emerald-600 font-semibold';
+          } else {
+            valColor = 'text-slate-500 font-semibold';
+          }
+        }
+
+        return (
+          <p key={item.name} className="flex items-center justify-between gap-6 mt-1.5">
+            <span className="inline-flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+              <span className={nameColor}>{item.name}</span>
             </span>
-          </span>
-          <span className={`font-semibold ${item.name === 'Current Year' ? 'text-slate-900' : 'text-slate-500'}`}>
-            {formatBarAmount(item.value ?? 0)}
-          </span>
-        </p>
-      ))}
+            <span className={valColor}>{displayValue}</span>
+          </p>
+        );
+      })}
     </div>
   );
 }
@@ -106,11 +127,22 @@ function createOpenDebtLabel(chartData: YoYTrendPoint[]) {
 }
 
 export default function DebtTrendChart({ data, forPdf = false }: DebtTrendChartProps) {
-  const openDebtLabel = useMemo(() => createOpenDebtLabel(data), [data]);
+  const enrichedData = useMemo(() => {
+    return data.map((point, i) => {
+      const prevDebt = i > 0 ? data[i - 1].cyOpenDebt : point.cyOpenDebt;
+      const momChange = i > 0 ? point.cyOpenDebt - prevDebt : 0;
+      return {
+        ...point,
+        momChange,
+      };
+    });
+  }, [data]);
+
+  const openDebtLabel = useMemo(() => createOpenDebtLabel(enrichedData), [enrichedData]);
 
   const chart = (
     <ResponsiveContainer width="100%" height={forPdf ? 620 : 420}>
-      <BarChart data={data} barGap="12%" barCategoryGap="18%" margin={{ top: 36, right: 20, left: 10, bottom: 8 }}>
+      <ComposedChart data={enrichedData} barGap="12%" barCategoryGap="18%" margin={{ top: 36, right: 30, left: 10, bottom: 8 }}>
         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
         <XAxis
           dataKey="monthName"
@@ -121,6 +153,7 @@ export default function DebtTrendChart({ data, forPdf = false }: DebtTrendChartP
           height={40}
         />
         <YAxis
+          yAxisId="left"
           tick={{ fill: '#9CA3AF', fontSize: 11 }}
           axisLine={false}
           tickLine={false}
@@ -128,9 +161,20 @@ export default function DebtTrendChart({ data, forPdf = false }: DebtTrendChartP
             new Intl.NumberFormat('en-US', { notation: 'compact', compactDisplay: 'short' }).format(value)
           }
         />
+        <YAxis
+          yAxisId="right"
+          orientation="right"
+          tick={{ fill: '#F59E0B', fontSize: 11 }}
+          axisLine={false}
+          tickLine={false}
+          tickFormatter={(value) =>
+            new Intl.NumberFormat('en-US', { notation: 'compact', compactDisplay: 'short', signDisplay: 'always' }).format(value)
+          }
+        />
         {!forPdf && <Tooltip content={<DebtTrendTooltip />} />}
         <Legend />
         <Bar
+          yAxisId="left"
           dataKey="cyOpenDebt"
           name="Current Year"
           fill="#93C5FD"
@@ -142,6 +186,7 @@ export default function DebtTrendChart({ data, forPdf = false }: DebtTrendChartP
           <LabelList dataKey="cyOpenDebt" content={openDebtLabel} />
         </Bar>
         <Bar
+          yAxisId="left"
           dataKey="pyOpenDebt"
           name="Previous Year"
           fill="#E2E8F0"
@@ -150,7 +195,18 @@ export default function DebtTrendChart({ data, forPdf = false }: DebtTrendChartP
           radius={[6, 6, 0, 0]}
           isAnimationActive={false}
         />
-      </BarChart>
+        <Line
+          yAxisId="right"
+          type="monotone"
+          dataKey="momChange"
+          name="MoM Change"
+          stroke="#F59E0B"
+          strokeWidth={2}
+          dot={{ r: 4, fill: '#F59E0B', stroke: '#fff', strokeWidth: 1 }}
+          activeDot={{ r: 6 }}
+          isAnimationActive={false}
+        />
+      </ComposedChart>
     </ResponsiveContainer>
   );
 

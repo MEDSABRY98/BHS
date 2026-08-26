@@ -6,8 +6,8 @@ import {
   getMonthlyKey,
   parseDate,
   startOfDay,
-} from '@/app/DebitInsights/Utils/DateUtils';
-import type { InsightsSalesOverlay } from '@/app/DebitInsights/Utils/InsightsTypes';
+} from '../Utils/DateUtils';
+import type { InsightsSalesOverlay } from '../Utils/InsightsTypes';
 
 export type InsightsSalesOverlayInput = {
   userId: string;

@@ -4,18 +4,18 @@ import { InvoiceRow } from '@/types';
 import { getDebitData } from '@/app/Debit/Service/debit_service';
 import {
   getSummariesSalesOverlay,
-} from '@/app/CustomersSummaries/Service/summaries_sales_service';
+} from './summaries_sales_service';
 import type {
   SummariesSalesOverlay,
   SummariesSalesOverlayInput,
   SummariesSalesSource,
-} from '@/app/CustomersSummaries/Utils/SummariesTypes';
+} from '../Utils/SummariesTypes';
 
 export type {
   SummariesSalesOverlay,
   SummariesSalesOverlayInput,
   SummariesSalesSource,
-} from '@/app/CustomersSummaries/Utils/SummariesTypes';
+} from '../Utils/SummariesTypes';
 
 export { getSummariesSalesOverlay };
 

@@ -6,6 +6,8 @@ import { useSearchParams } from 'next/navigation';
 import { Menu } from 'lucide-react';
 
 import CustomersLandingTab from './CustomersTab/CustomersSwitchsTab';
+import CustomersSummariesTab from './CustomersSummariesTab/CustomersSummariesTab';
+import DebitInsightsDashboard from './DebitInsightsTab/DebitInsightsDashboard';
 import CreditLimitTab from './CreditLimitTab/CreditLimitTab';
 import CustomersGroupTab from './CustomersGroupTab/CustomersGroupTab';
 import OpenTransactionsTab from './OpenTransactionsTab/OpenTransactionsTab';
@@ -30,6 +32,8 @@ import type { PaymentReconciliationSessionSummary } from './Service/debit_servic
 
 const TABS_NEEDING_FULL_DATA = new Set([
   'customers',
+  'customers-summaries',
+  'debit-insights',
   'credit-limit',
   'customers-group',
   'payment-reconciliation',
@@ -123,29 +127,44 @@ function DebitPageShell({
     if (needsFullData && !dataReady) {
       if (error && !dataLoading) {
         return (
-          <TabFetchError
-            message={error}
-            onRetry={() => void refresh()}
-            isRetrying={dataLoading}
-            className="min-h-[40vh]"
-          />
+          <div className="max-w-[95%] 2xl:max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-12 flex-1 w-full">
+            <TabFetchError
+              message={error}
+              onRetry={() => void refresh()}
+              isRetrying={dataLoading}
+              className="min-h-[40vh]"
+            />
+          </div>
         );
       }
-      return <TabLoader />;
+      return <TabLoader className="!min-h-full flex-1" />;
     }
 
     if (!tabAllowed()) {
       return (
-        <div className="p-20 text-center text-slate-400 font-bold">
-          You don&apos;t have permission to view this section.
+        <div className="max-w-[95%] 2xl:max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-12 flex-1 w-full">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-20 text-center text-slate-400 font-bold">
+            You don&apos;t have permission to view this section.
+          </div>
         </div>
       );
     }
 
     return (
-      <>
+      <div
+        ref={mainContentRef}
+        className="max-w-[95%] 2xl:max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-12 flex-1 w-full relative"
+      >
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm">
+          <div className="p-4 sm:p-6 lg:p-8">
         <TabPanel tabId="customers" activeTab={activeTab} isVisited={visitedTabs.has('customers') && dataReady}>
           <CustomersLandingTab data={globallyFilteredData} initialCustomer={initialCustomer} />
+        </TabPanel>
+        <TabPanel tabId="customers-summaries" activeTab={activeTab} isVisited={visitedTabs.has('customers-summaries') && dataReady}>
+          <CustomersSummariesTab data={globallyFilteredData} />
+        </TabPanel>
+        <TabPanel tabId="debit-insights" activeTab={activeTab} isVisited={visitedTabs.has('debit-insights') && dataReady}>
+          <DebitInsightsDashboard data={globallyFilteredData} loading={loading} />
         </TabPanel>
         <TabPanel tabId="credit-limit" activeTab={activeTab} isVisited={visitedTabs.has('credit-limit') && dataReady}>
           <CreditLimitTab data={globallyFilteredData} />
@@ -189,7 +208,9 @@ function DebitPageShell({
         <TabPanel tabId="ages" activeTab={activeTab} isVisited={visitedTabs.has('ages') && dataReady}>
           <AgesTab data={globallyFilteredData} />
         </TabPanel>
-      </>
+          </div>
+        </div>
+      </div>
     );
   };
 
@@ -247,16 +268,7 @@ function DebitPageShell({
           <span className="ml-3 font-bold text-slate-800">Debit Analysis</span>
         </div>
 
-        <div
-          ref={mainContentRef}
-          className="max-w-[95%] 2xl:max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-12 flex-1 w-full"
-        >
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm">
-            <div className="p-4 sm:p-6 lg:p-8">
-              {renderBody()}
-            </div>
-          </div>
-        </div>
+        {renderBody()}
       </div>
     </div>
   );

@@ -19,6 +19,7 @@ import CollectionRateChart from './Charts/CollectionRateChart';
 import AgingBreakdownChart from './Charts/AgingBreakdownChart';
 import { getInsightsSalesOverlay } from './Service/insights_sales_service';
 
+
 export type DebitInsightsChromeState = {
   filtersActive: boolean;
   filtersPending: boolean;
@@ -26,10 +27,7 @@ export type DebitInsightsChromeState = {
 
 interface DebitInsightsDashboardProps {
   data: InvoiceRow[];
-  loading: boolean;
-  filtersOpen: boolean;
-  onFiltersOpenChange: (open: boolean) => void;
-  onChromeChange?: (state: DebitInsightsChromeState) => void;
+  loading?: boolean;
 }
 
 function defaultFilters(): InsightsFilters {
@@ -83,10 +81,8 @@ function readUserId(): string {
 export default function DebitInsightsDashboard({
   data,
   loading,
-  filtersOpen,
-  onFiltersOpenChange,
-  onChromeChange,
 }: DebitInsightsDashboardProps) {
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [draftFilters, setDraftFilters] = useState<InsightsFilters>(defaultFilters);
   const [appliedFilters, setAppliedFilters] = useState<InsightsFilters>(defaultFilters);
   const [isApplying, startTransition] = useTransition();
@@ -197,17 +193,14 @@ export default function DebitInsightsDashboard({
     setDraftFilters(next);
   };
 
-
-  useEffect(() => {
-    onChromeChange?.({
-      filtersActive,
-      filtersPending: hasPendingChanges,
+  const handleClearFilters = () => {
+    startTransition(() => {
+      const defaults = defaultFilters();
+      setDraftFilters(defaults);
+      setAppliedFilters(defaults);
+      toast.success('Filters cleared.');
     });
-  }, [
-    filtersActive,
-    hasPendingChanges,
-    onChromeChange,
-  ]);
+  };
 
   const yoyChartData = useMemo(() => {
     return metrics.currentYearTrend.map((cyPoint, index) => {
@@ -241,10 +234,10 @@ export default function DebitInsightsDashboard({
 
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 max-w-[1700px] mx-auto w-full">
       <InsightsFiltersPanel
         open={filtersOpen}
-        onClose={() => onFiltersOpenChange(false)}
+        onClose={() => setFiltersOpen(false)}
         filters={draftFilters}
         salesReps={salesReps}
         customers={availableCustomers}
@@ -261,13 +254,19 @@ export default function DebitInsightsDashboard({
         isApplying={busy}
       />
 
-      {salesLoading ? (
-        <div className="py-20">
-          <TabLoader />
+      {salesLoading && salesOverlay === null ? (
+        <div className="absolute inset-0 z-[60] bg-[#F8F9FA] flex flex-col justify-center items-center rounded-2xl">
+          <TabLoader className="!min-h-full flex-1" />
         </div>
       ) : (
         <>
-          <InsightsKpiCards metrics={metrics} />
+          <InsightsKpiCards 
+            metrics={metrics}
+            onOpenFilters={() => setFiltersOpen(true)}
+            onClearFilters={handleClearFilters}
+            hasPendingChanges={hasPendingChanges}
+            filtersActive={filtersActive}
+          />
 
           <DebtTrendChart data={yoyChartData} />
           <AgingBreakdownChart breakdown={metrics.agingBreakdown} />

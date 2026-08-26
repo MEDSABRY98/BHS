@@ -187,9 +187,7 @@ const SYSTEMS = [
     { id: 'cash-handover', label: 'Cash Handover' },
     { id: 'petty-cash', label: 'Petty Cash' },
     { id: 'documents-tracking', label: 'Documents Tracking' },
-    { id: 'customers-summaries', label: 'Customers Summaries' },
     { id: 'debit', label: 'Debit Analysis' },
-    { id: 'debit_insights', label: 'Debit Insights' },
     { id: 'customers-documents', label: 'Customers Documents' },
     { id: 'inventory', label: 'Inventory Analysis' },
     { id: 'inventory-item-code', label: 'Inventory Item Code' },
@@ -206,6 +204,8 @@ const SYSTEMS = [
 const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
     'debit': [
         { id: 'customers', label: 'Customers' },
+        { id: 'customers-summaries', label: 'Customers Summaries' },
+        { id: 'debit-insights', label: 'Debit Insights' },
         { id: 'credit-limit', label: 'Credit Limit' },
         { id: 'customers-group', label: 'Customers Group' },
         { id: 'payment-reconciliation', label: 'Payment Reconciliation' },
@@ -345,14 +345,12 @@ const getSystemIcon = (id: string) => {
         case 'cash-receipt': return <CreditCard className="w-5 h-5 text-indigo-500" />;
         case 'petty-cash': return <Wallet className="w-5 h-5 text-emerald-500" />;
         case 'debit': return <BarChart3 className="w-5 h-5 text-rose-500" />;
-        case 'debit_insights': return <Sparkles className="w-5 h-5 text-violet-500" />;
         case 'sales': return <TrendingUp className="w-5 h-5 text-blue-500" />;
         case 'sales-reports-tables': return <FileSpreadsheet className="w-5 h-5 text-emerald-600" />;
         case 'inventory': return <Package className="w-5 h-5 text-amber-500" />;
         case 'inventory-item-code': return <Hash className="w-5 h-5 text-blue-500" />;
         case 'inventory-counting': return <ListChecks className="w-5 h-5 text-blue-500" />;
         case 'inventory-scrap': return <Trash2 className="w-5 h-5 text-orange-500" />;
-        case 'customers-summaries': return <FileSpreadsheet className="w-5 h-5 text-teal-500" />;
         case 'customers-documents': return <FileCheck className="w-5 h-5 text-pink-500" />;
         case 'documents-tracking': return <ClipboardList className="w-5 h-5 text-violet-500" />;
         case 'lpo-management': return <ShoppingCart className="w-5 h-5 text-fuchsia-500" />;

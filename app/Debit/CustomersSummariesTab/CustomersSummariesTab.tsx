@@ -18,9 +18,9 @@ import { useDebouncedValue } from '../Hooks/useDebouncedValue';
 import type {
   SummariesSalesOverlay,
   SummariesSalesSource,
-} from '@/app/CustomersSummaries/Utils/SummariesTypes';
-import { fetchSummariesSalesOverlayForYears } from '@/app/CustomersSummaries/Service/summaries_service';
-import { applyCustomerSalesOverlay } from '@/app/CustomersSummaries/Utils/SalesSourceOverlay';
+} from './Utils/SummariesTypes';
+import { fetchSummariesSalesOverlayForYears } from './Service/summaries_service';
+import { applyCustomerSalesOverlay } from './Utils/SalesSourceOverlay';
 
 interface CustomersSummariesTabProps {
   data: InvoiceRow[];
@@ -685,7 +685,7 @@ export default function CustomersSummariesTab({ data, onRefresh }: CustomersSumm
             <NoData />
           ) : (
             <table className="w-full text-sm" style={{ tableLayout: 'fixed', minWidth: '1100px' }}>
-              <thead className="bg-gradient-to-r from-slate-800 to-slate-900 text-white sticky top-[80px] z-30 shadow-md">
+              <thead className="bg-gradient-to-r from-slate-800 to-slate-900 text-white sticky top-0 z-30 shadow-md">
                 {table.getHeaderGroups().map((headerGroup) => (
                   <tr key={headerGroup.id}>
                     {headerGroup.headers.map((header) => {

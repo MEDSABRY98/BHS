@@ -1,5 +1,5 @@
 import type { InvoiceRow } from '@/types';
-import { parseDate } from '@/app/DebitInsights/Utils/DateUtils';
+import { parseDate } from '@/app/Debit/DebitInsightsTab/Utils/DateUtils';
 
 function startOfDay(d: Date): Date {
   const next = new Date(d);
