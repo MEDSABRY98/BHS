@@ -77,7 +77,8 @@ function filterRowsAsOf(
   return rows.filter((row) => {
     if (!matchesRowFilters(row, cities, customers, customerTags, customerClasses)) return false;
     const d = parseDate(row.date);
-    return d !== null && d <= cutoff;
+    if (d === null) return true;
+    return d <= cutoff;
   });
 }
 
@@ -246,16 +247,30 @@ function buildTrendSeries(
         collections: 0,
       });
     } else {
+      const today = new Date();
+      const isCurrentMonth =
+        cursor.getFullYear() === today.getFullYear() &&
+        cursor.getMonth() === today.getMonth();
+
       const monthEndInput = toInputDate(monthEnd);
-      const rowsAsOfMonth = filterRowsAsOf(allRows, monthEndInput, cities, customers, customerTags, customerClasses);
+
+      // Current month: use ALL rows (no date filter) so it matches the KPI card
+      // Past months: use filterRowsAsOf for accurate historical trend
+      const rowsForDebt = isCurrentMonth
+        ? filterRowsByScope(allRows, cities, customers, customerTags, customerClasses)
+        : filterRowsAsOf(allRows, monthEndInput, cities, customers, customerTags, customerClasses);
+
       const { totalOpenDebt } = computePortfolioAging(
-        rowsAsOfMonth,
+        rowsForDebt,
         monthEnd,
         cities,
         customers,
         customerTags,
         customerClasses
       );
+
+      // netSales/collections always use date-scoped rows
+      const rowsAsOfMonth = filterRowsAsOf(allRows, monthEndInput, cities, customers, customerTags, customerClasses);
 
       const monthKey = getMonthlyKey(monthEnd);
       points.push({
@@ -285,23 +300,22 @@ export function computeDebitInsightsMetrics(
   const classes = customerClassifications || [];
   const validRows = filterRowsAsOf(rows, asOfDate, cities, customers, tags, classes);
   const referenceDate = endOfDay(asOfDate);
-  const { totalOpenDebt } = computePortfolioAging(
-    validRows,
-    referenceDate,
-    cities,
-    customers,
-    customerTags
-  );
 
-  // Aging Breakdown: cities + customers/tags only — ignore as-of and period date filters
+  // Open Debt KPI: if asOfDate = today → include all rows (matches AgesTab)
+  // If asOfDate is a past date → use rows up to that date (historical view)
+  const todayStr = toInputDate(new Date());
+  const rowsForOpenDebt = asOfDate >= todayStr
+    ? filterRowsByScope(rows, cities, customers, tags, classes)
+    : validRows;
+
   const agingReferenceDate = endOfDay(toInputDate(new Date()));
-  const rowsForAging = filterRowsByScope(rows, cities, customers, customerTags);
-  const { agingBreakdown } = computePortfolioAging(
-    rowsForAging,
+  const { totalOpenDebt, agingBreakdown } = computePortfolioAging(
+    rowsForOpenDebt,
     agingReferenceDate,
     cities,
     customers,
-    customerTags
+    tags,
+    classes
   );
 
   const { from, to } = resolvePeriodRange(

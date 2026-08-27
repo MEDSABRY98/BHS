@@ -63,31 +63,50 @@ export function computeCustomerAging(
   const agingBreakdown: AgingBreakdown = { ...EMPTY_AGING };
   let totalOverdue = 0;
 
-  const matchingGroups = new Map<string, InvoiceRow[]>();
-  customerInvoices.forEach((inv) => {
-    const key = inv.matching || 'UNMATCHED';
-    const group = matchingGroups.get(key) || [];
-    group.push(inv);
-    matchingGroups.set(key, group);
+  const matchingTotals = new Map<string, number>();
+  const maxDebits = new Map<string, number>();
+  const mainInvoiceIndices = new Map<string, number>();
+
+  customerInvoices.forEach((inv, idx) => {
+    if (inv.matching) {
+      const net = inv.debit - inv.credit;
+      matchingTotals.set(inv.matching, (matchingTotals.get(inv.matching) || 0) + net);
+
+      const currentMax = maxDebits.get(inv.matching) ?? -1;
+      if (inv.debit > currentMax) {
+        maxDebits.set(inv.matching, inv.debit);
+        mainInvoiceIndices.set(inv.matching, idx);
+      } else if (!mainInvoiceIndices.has(inv.matching)) {
+        maxDebits.set(inv.matching, inv.debit);
+        mainInvoiceIndices.set(inv.matching, idx);
+      }
+    }
   });
 
-  matchingGroups.forEach((group, matchingKey) => {
-    const groupNetDebt = group.reduce((sum, inv) => sum + (inv.debit - inv.credit), 0);
-    if (Math.abs(groupNetDebt) <= 0.01) return;
+  customerInvoices.forEach((inv, idx) => {
+    let amountToAge = 0;
+    let shouldAge = false;
 
-    if (matchingKey === 'UNMATCHED') {
-      group.forEach((inv) => {
-        const invNetDebt = inv.debit - inv.credit;
-        if (Math.abs(invNetDebt) <= 0.01) return;
-        const daysOverdue = computeDaysOverdue(inv.dueDate, inv.date, ref);
-        addToBucket(agingBreakdown, daysOverdue, invNetDebt);
-        totalOverdue += invNetDebt;
-      });
+    if (!inv.matching) {
+      const net = inv.debit - inv.credit;
+      if (Math.abs(net) > 0.01) {
+        amountToAge = net;
+        shouldAge = true;
+      }
     } else {
-      const firstInv = group[0];
-      const daysOverdue = computeDaysOverdue(firstInv.dueDate, firstInv.date, ref);
-      addToBucket(agingBreakdown, daysOverdue, groupNetDebt);
-      totalOverdue += groupNetDebt;
+      if (mainInvoiceIndices.get(inv.matching) === idx) {
+        const residual = matchingTotals.get(inv.matching) || 0;
+        if (Math.abs(residual) > 0.01) {
+          amountToAge = residual;
+          shouldAge = true;
+        }
+      }
+    }
+
+    if (shouldAge) {
+      const daysOverdue = computeDaysOverdue(inv.dueDate, inv.date, ref);
+      addToBucket(agingBreakdown, daysOverdue, amountToAge);
+      totalOverdue += amountToAge;
     }
   });
 
@@ -141,10 +160,14 @@ export function computePortfolioAging(
 
   customerMap.forEach((customerInvoices) => {
     const result = computeCustomerAging(customerInvoices, referenceDate);
+    
+    // Include all customer balances (positive and negative) in the grand total
+    totalOpenDebt += result.netDebt;
+    
     if (result.netDebt <= 0.01) return;
+    
     openByCustomer.push(result);
     mergeBreakdowns(agingBreakdown, result.agingBreakdown);
-    totalOpenDebt += result.overdueAmount;
   });
 
   openByCustomer.sort((a, b) => b.netDebt - a.netDebt);

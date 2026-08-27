@@ -2,11 +2,9 @@
 
 import { useMemo } from 'react';
 import {
-  Bar,
-  BarChart,
+  ComposedChart,
   CartesianGrid,
-  Cell,
-  LabelList,
+  Line,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -16,19 +14,20 @@ import { AgingBreakdown } from '../Utils/InsightsTypes';
 
 interface AgingBreakdownChartProps {
   breakdown: AgingBreakdown;
+  totalDebt?: number;
   forPdf?: boolean;
 }
 
 interface AgingChartPoint {
   bucket: string;
   amount: number;
+  pct: number;
   fill: string;
   stroke: string;
   hint: string;
 }
 
 const BUCKET_META = [
-  { key: 'atDate' as const, label: 'Current', fill: '#86EFAC', stroke: '#4ADE80', hint: 'Not overdue' },
   { key: 'oneToThirty' as const, label: '1-30', fill: '#BEF264', stroke: '#A3E635', hint: 'Early overdue' },
   { key: 'thirtyOneToSixty' as const, label: '31-60', fill: '#FDE68A', stroke: '#FCD34D', hint: 'Moderate risk' },
   { key: 'sixtyOneToNinety' as const, label: '61-90', fill: '#FDBA74', stroke: '#FB923C', hint: 'High risk' },
@@ -40,7 +39,6 @@ function formatBarAmount(value: number) {
   return value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-import type { Props as RechartsLabelProps } from 'recharts/types/component/Label';
 
 function toNumber(value: string | number | undefined, fallback = 0): number {
   if (typeof value === 'number') return value;
@@ -51,52 +49,85 @@ function toNumber(value: string | number | undefined, fallback = 0): number {
   return fallback;
 }
 
-function AmountBarLabel({
-  x,
-  y,
-  width,
+function PctDotLabel({
+  cx,
+  cy,
   index,
   chartData,
-}: RechartsLabelProps & { chartData?: AgingChartPoint[] }) {
-  const posX = toNumber(x);
-  const posY = toNumber(y);
-  const barWidth = toNumber(width);
+}: { cx?: number; cy?: number; index?: number; chartData?: AgingChartPoint[] }) {
   if (index === undefined || !chartData?.[index]) return null;
-
-  const amount = chartData[index].amount;
+  const { amount, pct } = chartData[index];
   if (amount <= 0.01) return null;
-
+  const x = cx ?? 0;
+  const y = cy ?? 0;
   return (
-    <text x={posX + barWidth / 2} y={posY - 10} textAnchor="middle" fill="#111827" fontSize={15} fontWeight={800}>
-      {formatBarAmount(amount)}
-    </text>
+    <g>
+      <text x={x} y={y - 22} textAnchor="middle" fill="#111827" fontSize={13} fontWeight={800}>
+        {formatBarAmount(amount)}
+      </text>
+      <text x={x} y={y - 7} textAnchor="middle" fill="#6366F1" fontSize={12} fontWeight={700}>
+        {pct.toFixed(1)}%
+      </text>
+    </g>
   );
 }
 
-export default function AgingBreakdownChart({ breakdown, forPdf = false }: AgingBreakdownChartProps) {
-  const chartData = useMemo<AgingChartPoint[]>(
-    () =>
-      BUCKET_META.map((bucket) => ({
+export default function AgingBreakdownChart({ breakdown, totalDebt, forPdf = false }: AgingBreakdownChartProps) {
+  const chartData = useMemo<AgingChartPoint[]>(() => {
+    const total = BUCKET_META.reduce((sum, b) => sum + (breakdown[b.key] || 0), 0);
+    return BUCKET_META.map((bucket) => {
+      const amount = breakdown[bucket.key] || 0;
+      return {
         bucket: bucket.label,
-        amount: breakdown[bucket.key],
+        amount,
+        pct: total > 0.01 ? (amount / total) * 100 : 0,
         fill: bucket.fill,
         stroke: bucket.stroke,
         hint: bucket.hint,
-      })),
-    [breakdown]
+      };
+    });
+  }, [breakdown]);
+
+  const bucketsTotal = useMemo(
+    () => chartData.reduce((sum, d) => sum + d.amount, 0),
+    [chartData]
+  );
+  const total = totalDebt ?? bucketsTotal;
+
+  const dotLabel = useMemo(
+    () =>
+      function DotLabel(props: { cx?: number; cy?: number; index?: number }) {
+        return <PctDotLabel {...props} chartData={chartData} />;
+      },
+    [chartData]
   );
 
-  const amountLabel = useMemo(
+  const renderDot = useMemo(
     () =>
-      function AmountLabel(props: RechartsLabelProps) {
-        return <AmountBarLabel {...props} chartData={chartData} />;
+      (props: { cx?: number; cy?: number; index?: number }) => {
+        const { cx = 0, cy = 0, index = 0 } = props;
+        const point = chartData[index];
+        if (!point || point.amount <= 0.01) return <g key={`dot-${index}`} />;
+        return (
+          <g key={`dot-${index}`}>
+            {/* Labels above dot */}
+            <text x={cx} y={cy - 50} textAnchor="middle" fill="#111827" fontSize={13} fontWeight={800}>
+              {formatBarAmount(point.amount)}
+            </text>
+            <text x={cx} y={cy - 20} textAnchor="middle" fill="#6366F1" fontSize={14} fontWeight={700}>
+              {point.pct.toFixed(1)}%
+            </text>
+            {/* Dot circle */}
+            <circle cx={cx} cy={cy} r={6} fill={point.fill} stroke={point.stroke} strokeWidth={2} />
+          </g>
+        );
       },
     [chartData]
   );
 
   const chart = (
     <ResponsiveContainer width="100%" height={forPdf ? 620 : 400}>
-      <BarChart data={chartData} margin={{ top: 36, right: 20, left: 10, bottom: 12 }}>
+      <ComposedChart data={chartData} margin={{ top: 80, right: 80, left: 60, bottom: 12 }}>
         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
         <XAxis
           dataKey="bucket"
@@ -107,30 +138,39 @@ export default function AgingBreakdownChart({ breakdown, forPdf = false }: Aging
           height={56}
           dy={10}
         />
-        <YAxis
-          tick={{ fill: '#9CA3AF', fontSize: 11 }}
-          axisLine={false}
-          tickLine={false}
-          tickFormatter={(value) =>
-            new Intl.NumberFormat('en-US', { notation: 'compact', compactDisplay: 'short' }).format(value)
-          }
-        />
+        <YAxis hide />
         {!forPdf && (
           <Tooltip
-            formatter={(value: number, _name: string, props: { payload?: { hint?: string; color?: string } }) => [
-              value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-              props?.payload?.hint ?? 'Open Amount',
-            ]}
-            contentStyle={{ borderRadius: '8px', border: '1px solid #E5E7EB' }}
+            content={({ active, payload, label }) => {
+              if (!active || !payload?.length) return null;
+              const point = chartData.find((d) => d.bucket === label);
+              return (
+                <div className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 shadow-md text-sm">
+                  <p className="font-semibold text-slate-800 mb-2">{label} — {point?.hint}</p>
+                  <p className="flex items-center justify-between gap-6 mt-1">
+                    <span className="text-slate-600">Amount</span>
+                    <span className="font-semibold text-slate-900">{formatBarAmount(point?.amount ?? 0)}</span>
+                  </p>
+                  <p className="flex items-center justify-between gap-6 mt-1">
+                    <span className="text-slate-600">% of Total</span>
+                    <span className="font-semibold text-indigo-600">{(point?.pct ?? 0).toFixed(1)}%</span>
+                  </p>
+                </div>
+              );
+            }}
           />
         )}
-        <Bar dataKey="amount" name="Open Amount" radius={[6, 6, 0, 0]} strokeWidth={1} isAnimationActive={false}>
-          {chartData.map((entry) => (
-            <Cell key={entry.bucket} fill={entry.fill} stroke={entry.stroke} />
-          ))}
-          <LabelList dataKey="amount" content={amountLabel} />
-        </Bar>
-      </BarChart>
+        <Line
+          type="monotone"
+          dataKey="pct"
+          name="% of Total"
+          stroke="#6366F1"
+          strokeWidth={2.5}
+          dot={renderDot}
+          activeDot={{ r: 8, stroke: '#6366F1', strokeWidth: 2, fill: '#fff' }}
+          isAnimationActive={false}
+        />
+      </ComposedChart>
     </ResponsiveContainer>
   );
 
@@ -140,7 +180,10 @@ export default function AgingBreakdownChart({ breakdown, forPdf = false }: Aging
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-4 h-[500px]">
-      <h3 className="text-sm font-semibold text-gray-900 mb-4">Aging Breakdown</h3>
+      <h3 className="text-sm font-semibold text-gray-900 mb-4">
+        Aging Breakdown
+        <span className="ml-2 text-gray-400 font-normal">({formatBarAmount(total)})</span>
+      </h3>
       {chart}
     </div>
   );

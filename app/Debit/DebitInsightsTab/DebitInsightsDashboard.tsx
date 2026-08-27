@@ -269,7 +269,7 @@ export default function DebitInsightsDashboard({
           />
 
           <DebtTrendChart data={yoyChartData} />
-          <AgingBreakdownChart breakdown={metrics.agingBreakdown} />
+          <AgingBreakdownChart breakdown={metrics.agingBreakdown} totalDebt={metrics.totalOpenDebt} />
           <SalesTrendChart data={yoyChartData} />
           <CollectionsTrendChart data={yoyChartData} />
           <CollectionRateChart data={yoyChartData} />

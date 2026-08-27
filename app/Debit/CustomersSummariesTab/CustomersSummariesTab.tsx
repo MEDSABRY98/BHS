@@ -515,7 +515,7 @@ export default function CustomersSummariesTab({ data, onRefresh }: CustomersSumm
 
   return (
     <div className="space-y-6 max-w-[1700px] mx-auto w-full">
-      <div className="flex items-center bg-white p-4 rounded-xl shadow-sm border border-slate-200 relative gap-4">
+      <div className="flex items-center bg-white p-4 rounded-xl shadow-sm border border-slate-200 relative gap-4 z-40">
         <div className="flex-1 flex justify-center items-center gap-3 flex-wrap">
           <input
             type="text"
@@ -541,7 +541,7 @@ export default function CustomersSummariesTab({ data, onRefresh }: CustomersSumm
               )}
             </button>
             {salesSourceOpen && (
-              <div className="absolute z-30 mt-2 left-0 w-full min-w-[200px] bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="absolute z-50 mt-2 left-0 w-full min-w-[200px] bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
                 <div className="py-1">
                   {SALES_SOURCE_OPTIONS.map((opt) => {
                     const isSelected = opt.value === salesSource;
@@ -586,7 +586,7 @@ export default function CustomersSummariesTab({ data, onRefresh }: CustomersSumm
             </button>
 
             {cityDropdownOpen && (
-              <div className="absolute z-30 mt-2 left-0 w-full min-w-[220px] bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="absolute z-50 mt-2 left-0 w-full min-w-[220px] bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
                 <div className="p-2.5 border-b border-slate-100 bg-slate-50">
                   <div className="relative">
                     <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
