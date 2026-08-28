@@ -62,9 +62,21 @@ export default function CustomersPage() {
   const [CUSTOMER_TAG, setCUSTOMER_TAG] = useState('');
   const [CUSTOMER_CLASS, setCUSTOMER_CLASS] = useState('');
   const [CREDIT_LIMIT, setCREDIT_LIMIT] = useState('0');
+  const [PAYMENT_TERM, setPAYMENT_TERM] = useState('90');
   const [SALES_REP, setSALES_REP] = useState('');
   const [MARKET, setMARKET] = useState('');
   const [MERCHANDISER, setMERCHANDISER] = useState('');
+
+  const [usersList, setUsersList] = useState<any[]>([]);
+
+  // Fetch users for Sales Rep and Merchandiser dropdowns
+  useEffect(() => {
+    const fetchUsers = async () => {
+      const { data } = await bhs_supabas.from('bhs_USERS').select('ID, NAME');
+      if (data) setUsersList(data);
+    };
+    fetchUsers();
+  }, []);
 
   // Fetch customers when page or search term changes (debounced)
   useEffect(() => {
@@ -111,9 +123,19 @@ export default function CustomersPage() {
     setCUSTOMER_TAG(customer ? customer["CUSTOMER TAG"] || '' : '');
     setCUSTOMER_CLASS(customer ? customer["CUSTOMER CLASS"] || '' : '');
     setCREDIT_LIMIT(customer ? String(customer["CREDIT LIMIT"] || 0) : '0');
-    setSALES_REP(customer ? customer["SALES_REP"] || '' : '');
+    setPAYMENT_TERM(customer ? String(customer["PAYMENT TERM"] ?? 90) : '90');
+    
+    // Convert IDs to Names for the UI
+    const repName = customer && customer["SALES_REP"] 
+      ? (usersList.find(u => u.ID?.trim().toLowerCase() === customer["SALES_REP"]?.trim().toLowerCase())?.NAME || customer["SALES_REP"]) 
+      : '';
+    const merchName = customer && customer["MERCHANDISER"] 
+      ? (usersList.find(u => u.ID?.trim().toLowerCase() === customer["MERCHANDISER"]?.trim().toLowerCase())?.NAME || customer["MERCHANDISER"]) 
+      : '';
+    
+    setSALES_REP(repName);
     setMARKET(customer ? customer["MARKET"] || '' : '');
-    setMERCHANDISER(customer ? customer["MERCHANDISER"] || '' : '');
+    setMERCHANDISER(merchName);
     setIsModalOpen(true);
   };
 
@@ -147,6 +169,15 @@ export default function CustomersPage() {
       const tagValue = CUSTOMER_TAG.trim() || null;
       const classValue = CUSTOMER_CLASS.trim() || null;
 
+      const getUserIdFromName = (nameStr: string) => {
+        if (!nameStr.trim()) return null;
+        const matched = usersList.find(u => u.NAME.toLowerCase() === nameStr.trim().toLowerCase());
+        return matched ? matched.ID : null;
+      };
+
+      const finalSalesRepId = getUserIdFromName(SALES_REP);
+      const finalMerchandiserId = getUserIdFromName(MERCHANDISER);
+
       if (editingCustomer) {
         const { error } = await bhs_supabas
           .from('bhs_CUSTOMERS')
@@ -158,20 +189,34 @@ export default function CustomersPage() {
             "CUSTOMER TAG": tagValue,
             "CUSTOMER CLASS": classValue,
             "CREDIT LIMIT": Number(CREDIT_LIMIT) || 0,
-            "SALES_REP": SALES_REP.trim() || null,
+            "PAYMENT TERM": Number(PAYMENT_TERM) || 90,
+            "SALES_REP": finalSalesRepId,
             "MARKET": MARKET.trim() || null,
-            "MERCHANDISER": MERCHANDISER.trim() || null
+            "MERCHANDISER": finalMerchandiserId
           })
           .eq('ID', editingCustomer.ID);
         if (error) throw error;
 
         const mainName = CUSTOMER_MAIN_NAME.trim();
         if (mainName) {
-          const { error: classError } = await bhs_supabas
+          const { error: cascadeNameError } = await bhs_supabas
             .from('bhs_CUSTOMERS')
-            .update({ "CUSTOMER CLASS": classValue })
+            .update({ 
+              "CUSTOMER CLASS": classValue,
+              "PAYMENT TERM": Number(PAYMENT_TERM) || 90
+            })
             .eq('CUSTOMER MAIN NAME', mainName);
-          if (classError) throw classError;
+          if (cascadeNameError) throw cascadeNameError;
+        }
+
+        if (tagValue) {
+          const { error: cascadeTagError } = await bhs_supabas
+            .from('bhs_CUSTOMERS')
+            .update({
+              "PAYMENT TERM": Number(PAYMENT_TERM) || 90
+            })
+            .eq('CUSTOMER TAG', tagValue);
+          if (cascadeTagError) throw cascadeTagError;
         }
       } else {
         const { data: maxIdData, error: maxIdError } = await bhs_supabas
@@ -203,9 +248,10 @@ export default function CustomersPage() {
             "CUSTOMER TAG": tagValue,
             "CUSTOMER CLASS": classValue,
             "CREDIT LIMIT": Number(CREDIT_LIMIT) || 0,
-            "SALES_REP": SALES_REP.trim() || null,
+            "PAYMENT TERM": Number(PAYMENT_TERM) || 90,
+            "SALES_REP": finalSalesRepId,
             "MARKET": MARKET.trim() || null,
-            "MERCHANDISER": MERCHANDISER.trim() || null
+            "MERCHANDISER": finalMerchandiserId
           });
         if (error) throw error;
       }
@@ -288,6 +334,19 @@ export default function CustomersPage() {
         }
       }
 
+      const { data: personnelData, error: personnelErr } = await bhs_supabas
+        .from('bhs_USERS')
+        .select('ID, NAME');
+        
+      const personnelMap = new Map<string, string>();
+      if (!personnelErr && personnelData) {
+        personnelData.forEach((p: any) => {
+          if (p.ID && p.NAME) {
+            personnelMap.set(p.ID, p.NAME);
+          }
+        });
+      }
+
       const exportData = (allCustomers || []).map(c => ({
         "ID": c.ID,
         "Customer ID": c["CUSTOMER ID"] || '',
@@ -296,10 +355,12 @@ export default function CustomersPage() {
         "Customer City": c["CUSTOMER CITY"] || '',
         "Customer Tag": c["CUSTOMER TAG"] || '',
         "Customer Class": c["CUSTOMER CLASS"] || '',
-        "Sales Rep": c["SALES_REP"] || '',
+        "Sales Rep": c["SALES_REP"] ? (personnelMap.get(c["SALES_REP"]) || c["SALES_REP"]) : '',
         "Market": c["MARKET"] || '',
-        "Merchandiser": c["MERCHANDISER"] || '',
-        "Credit Limit": Number(c["CREDIT LIMIT"]) || 0
+        "Merchandiser": c["MERCHANDISER"] ? (personnelMap.get(c["MERCHANDISER"]) || c["MERCHANDISER"]) : '',
+        "Payment Term": c["PAYMENT TERM"] != null ? Number(c["PAYMENT TERM"]) : 90,
+        "Credit Limit": Number(c["CREDIT LIMIT"]) || 0,
+        "Account Status": c["ACCOUNT STATUS"] || 'ACTIVE'
       }));
 
       if (exportData.length === 0) {
@@ -438,6 +499,9 @@ export default function CustomersPage() {
           const limitSource = row['Credit Limit'] !== undefined ? row['Credit Limit'] : row['CREDIT LIMIT'];
           const creditLimitVal = limitSource !== undefined && limitSource !== '' ? Number(limitSource) : 0;
 
+          const termSource = row['Payment Term'] !== undefined ? row['Payment Term'] : row['PAYMENT TERM'];
+          const paymentTermVal = termSource !== undefined && termSource !== '' ? Number(termSource) : 90;
+
           const record: any = {
             ID: idToUse,
             'CUSTOMER ID': customerId,
@@ -447,6 +511,7 @@ export default function CustomersPage() {
             'CUSTOMER TAG': String(row['Customer Tag'] ?? row['CUSTOMER TAG'] ?? '').trim() || null,
             'CUSTOMER CLASS': String(row['Customer Class'] ?? row['CUSTOMER CLASS'] ?? '').trim() || null,
             'CREDIT LIMIT': isNaN(creditLimitVal) ? 0 : creditLimitVal,
+            'PAYMENT TERM': isNaN(paymentTermVal) ? 90 : paymentTermVal,
             'SALES_REP': String(row['Sales Rep'] ?? row['SALES_REP'] ?? '').trim() || null,
             'MARKET': String(row['Market'] ?? row['MARKET'] ?? '').trim() || null,
             'MERCHANDISER': String(row['Merchandiser'] ?? row['MERCHANDISER'] ?? '').trim() || null
@@ -650,14 +715,19 @@ export default function CustomersPage() {
                           Limit: {Number(customer["CREDIT LIMIT"]).toLocaleString()} AED
                         </span>
                       )}
+                      {customer["PAYMENT TERM"] !== undefined && customer["PAYMENT TERM"] !== null && (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-50 text-indigo-600 rounded-xl text-[9px] font-black uppercase tracking-widest font-mono">
+                          Term: {Number(customer["PAYMENT TERM"])} days
+                        </span>
+                      )}
                       {customer["SALES_REP"] && (
                         <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-red-50 text-red-700 rounded-xl text-[9px] font-black uppercase tracking-widest">
-                          <UserCircle className="w-2.5 h-2.5" /> Rep: {customer["SALES_REP"]}
+                          <UserCircle className="w-2.5 h-2.5" /> Rep: {usersList.find(u => u.ID?.trim().toLowerCase() === customer["SALES_REP"]?.trim().toLowerCase())?.NAME || customer["SALES_REP"]}
                         </span>
                       )}
                       {customer["MERCHANDISER"] && (
                         <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-pink-50 text-pink-700 rounded-xl text-[9px] font-black uppercase tracking-widest">
-                          <UserCircle className="w-2.5 h-2.5" /> Merch: {customer["MERCHANDISER"]}
+                          <UserCircle className="w-2.5 h-2.5" /> Merch: {usersList.find(u => u.ID?.trim().toLowerCase() === customer["MERCHANDISER"]?.trim().toLowerCase())?.NAME || customer["MERCHANDISER"]}
                         </span>
                       )}
                       {customer["MARKET"] && (
@@ -763,7 +833,7 @@ export default function CustomersPage() {
       {/* Customer Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/20 animate-in fade-in duration-300">
-          <div className="bg-white w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-[2.5rem] shadow-2xl animate-in slide-in-from-bottom-8 duration-500 flex flex-col">
+          <div className="bg-white w-full max-w-3xl max-h-[90vh] overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] rounded-[2.5rem] shadow-2xl animate-in slide-in-from-bottom-8 duration-500 flex flex-col">
             <div className="p-6 md:p-8 flex items-center justify-between sticky top-0 bg-white z-10 border-b border-gray-50">
               <h2 className="text-2xl font-bold">{editingCustomer ? 'Edit Customer' : 'New Customer'}</h2>
               <button type="button" onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-gray-100 rounded-xl transition-all">
@@ -854,28 +924,28 @@ export default function CustomersPage() {
 
 
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">SALES REP ID</label>
+                  <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">SALES REP</label>
                   <div className="relative">
                     <UserCircle className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                     <input
                       type="text"
                       value={SALES_REP}
                       onChange={(e) => setSALES_REP(e.target.value)}
-                      placeholder="Sales Rep User ID"
+                      placeholder="e.g. Ahmed Gamal"
                       className="w-full pl-14 pr-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold"
                     />
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">MERCHANDISER ID</label>
+                  <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">MERCHANDISER</label>
                   <div className="relative">
                     <UserCircle className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                     <input
                       type="text"
                       value={MERCHANDISER}
                       onChange={(e) => setMERCHANDISER(e.target.value)}
-                      placeholder="Merchandiser User ID"
+                      placeholder="e.g. Jhon"
                       className="w-full pl-14 pr-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold"
                     />
                   </div>
@@ -893,6 +963,19 @@ export default function CustomersPage() {
                       className="w-full pl-14 pr-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold"
                     />
                   </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">PAYMENT TERM (Days)</label>
+                  <input
+                    type="number"
+                    value={PAYMENT_TERM}
+                    onChange={(e) => setPAYMENT_TERM(e.target.value)}
+                    placeholder="e.g. 90"
+                    min="0"
+                    step="1"
+                    className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold"
+                  />
                 </div>
 
                 <div className="space-y-2">

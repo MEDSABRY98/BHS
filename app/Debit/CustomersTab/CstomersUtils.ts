@@ -344,12 +344,28 @@ export const getInvoiceType = (inv: { number?: string | null; credit?: number | 
 };
 
 export function generateCustomerAnalysis(data: InvoiceRow[]): CustomerAnalysis[] {
-  type CustomerData = CustomerAnalysis & {
+  interface CustomerData {
     customerId: string;
+    customerName: string;
+    creditLimit: number;
+    paymentTerm: number;
+    accountStatus: 'ACTIVE' | 'ON_HOLD';
+    totalDebit: number;
+    totalCredit: number;
+    netDebt: number;
+    netSales: number;
+    transactionCount: number;
     matchingsMap: Map<string, number>;
+    salesReps: Set<string>;
+    customerTags: Set<string>;
+    invoiceNumbers: Set<string>;
+    totalSalesDebit?: number;
+    lastPaymentDate: Date | null;
     lastPaymentMatching: string | null;
     lastPaymentAmount: number | null;
+    lastSalesDate: Date | null;
     lastSalesAmount: number | null;
+    lastTransactionDate: Date | null;
     creditPayments: number;
     creditReturns: number;
     creditDiscounts: number;
@@ -371,6 +387,8 @@ export function generateCustomerAnalysis(data: InvoiceRow[]): CustomerAnalysis[]
         customerId: row.customerId || '',
         customerName: row.customerName,
         creditLimit: row.creditLimit || 0,
+        paymentTerm: row.paymentTerm ?? 90,
+        accountStatus: row.accountStatus ?? 'ACTIVE',
         totalDebit: 0,
         totalCredit: 0,
         netDebt: 0,
@@ -507,6 +525,7 @@ export function generateCustomerAnalysis(data: InvoiceRow[]): CustomerAnalysis[]
     const customerInvoices = customerInvoicesMap.get(c.customerName) || [];
     const agingBreakdown = { atDate: 0, oneToThirty: 0, thirtyOneToSixty: 0, sixtyOneToNinety: 0, ninetyOneToOneTwenty: 0, older: 0 };
     let totalOverdue = 0;
+    let maxOverdueDays = 0;
     const matchingGroups = new Map<string, InvoiceRow[]>();
     customerInvoices.forEach(inv => {
       const key = inv.matching || 'UNMATCHED';
@@ -539,6 +558,9 @@ export function generateCustomerAnalysis(data: InvoiceRow[]): CustomerAnalysis[]
             const today = new Date(); today.setHours(0, 0, 0, 0); targetDate.setHours(0, 0, 0, 0);
             daysOverdue = Math.ceil((today.getTime() - targetDate.getTime()) / (1000 * 60 * 60 * 24));
           }
+          if (daysOverdue > 0) {
+            maxOverdueDays = Math.max(maxOverdueDays, daysOverdue);
+          }
           if (daysOverdue <= 0) agingBreakdown.atDate += invNetDebt;
           else if (daysOverdue <= 30) agingBreakdown.oneToThirty += invNetDebt;
           else if (daysOverdue <= 60) agingBreakdown.thirtyOneToSixty += invNetDebt;
@@ -554,6 +576,9 @@ export function generateCustomerAnalysis(data: InvoiceRow[]): CustomerAnalysis[]
         if (targetDate) {
           const today = new Date(); today.setHours(0, 0, 0, 0); targetDate.setHours(0, 0, 0, 0);
           daysOverdue = Math.ceil((today.getTime() - targetDate.getTime()) / (1000 * 60 * 60 * 24));
+        }
+        if (daysOverdue > 0) {
+          maxOverdueDays = Math.max(maxOverdueDays, daysOverdue);
         }
         if (daysOverdue <= 0) agingBreakdown.atDate += groupNetDebt;
         else if (daysOverdue <= 30) agingBreakdown.oneToThirty += groupNetDebt;
@@ -588,10 +613,10 @@ export function generateCustomerAnalysis(data: InvoiceRow[]): CustomerAnalysis[]
 
     return {
       customerId: c.customerId, customerName: c.customerName, totalDebit: c.totalDebit, totalCredit: c.totalCredit, netDebt: c.netDebt,
-      creditLimit: c.creditLimit,
+      creditLimit: c.creditLimit, paymentTerm: c.paymentTerm, accountStatus: c.accountStatus,
       netSales: c.netSales || 0, transactionCount: c.transactionCount, hasOpenMatchings: hasOpen, salesReps: c.salesReps, customerTags: c.customerTags, invoiceNumbers: c.invoiceNumbers,
       lastPaymentDate: c.lastPaymentDate, lastPaymentMatching: c.lastPaymentMatching, lastPaymentAmount: c.lastPaymentAmount,
-      lastSalesDate: c.lastSalesDate, lastSalesAmount: c.lastSalesAmount, overdueAmount: totalOverdue, hasOB: hasOBFlag, openOBAmount, agingBreakdown,
+      lastSalesDate: c.lastSalesDate, lastSalesAmount: c.lastSalesAmount, overdueAmount: totalOverdue, maxOverdueDays, hasOB: hasOBFlag, openOBAmount, agingBreakdown,
       payments3m: c.payments3m, paymentsCount3m: c.paymentsCount3m, sales3m: c.sales3m, salesCount3m: c.salesCount3m, lastTransactionDate: c.lastTransactionDate, creditPayments: c.creditPayments,
       creditReturns: c.creditReturns, creditDiscounts: c.creditDiscounts, totalSalesDebit: c.totalSalesDebit, avgPaymentInterval: avgInterval
     };

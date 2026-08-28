@@ -12,8 +12,10 @@ export interface InvoiceRow {
   matching?: string;
   residualAmount?: number;
   creditLimit?: number;
+  paymentTerm?: number;
   customerTag?: string;
   customerClass?: string;
+  accountStatus?: 'ACTIVE' | 'ON_HOLD';
 }
 
 export interface CustomerAnalysis {
@@ -23,6 +25,8 @@ export interface CustomerAnalysis {
   totalCredit: number;
   netDebt: number;
   creditLimit?: number;
+  paymentTerm?: number;
+  accountStatus?: 'ACTIVE' | 'ON_HOLD';
   netSales?: number; // Net Sales = SAL debit - RSAL credit (matching Dashboard)
   transactionCount: number;
   hasOpenMatchings?: boolean;
@@ -37,6 +41,7 @@ export interface CustomerAnalysis {
   lastSalesAmount?: number | null; // Amount of last sale
   lastTransactionDate?: Date | null; // NEW: Date of valid transaction of any type
   overdueAmount?: number; // Total overdue amount
+  maxOverdueDays?: number; // Maximum days overdue across all open invoices
   hasOB?: boolean; // Has unpaid OB invoices (OB invoices with netDebt > 0)
   openOBAmount?: number; // Total netDebt of unpaid OB invoices
   agingBreakdown?: {

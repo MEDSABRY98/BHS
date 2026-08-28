@@ -43,7 +43,7 @@ const allTabs = [
   { id: 'customers', label: 'Customers', icon: Users },
   { id: 'customers-summaries', label: 'Customers Summaries', icon: FileSpreadsheet },
   { id: 'debit-insights', label: 'Debit Insights', icon: PieChart },
-  { id: 'credit-limit', label: 'Credit Limit', icon: ShieldAlert },
+  { id: 'credit-limit', label: 'Customer Terms', icon: ShieldAlert },
   { id: 'customers-group', label: 'Customers Group', icon: Layers },
   { id: 'payment-reconciliation', label: 'Payment Reconciliation', icon: ClipboardCheck },
   { id: 'payment-reconciliation-saved', label: 'Saved Reconciliations', icon: FolderOpen },

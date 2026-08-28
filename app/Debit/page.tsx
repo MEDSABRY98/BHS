@@ -8,7 +8,7 @@ import { Menu } from 'lucide-react';
 import CustomersLandingTab from './CustomersTab/CustomersSwitchsTab';
 import CustomersSummariesTab from './CustomersSummariesTab/CustomersSummariesTab';
 import DebitInsightsDashboard from './DebitInsightsTab/DebitInsightsDashboard';
-import CreditLimitTab from './CreditLimitTab/CreditLimitTab';
+import CustomerTermsTab from './CustomerTermsTab/CustomerTermsTab';
 import CustomersGroupTab from './CustomersGroupTab/CustomersGroupTab';
 import OpenTransactionsTab from './OpenTransactionsTab/OpenTransactionsTab';
 import AllTransactionsTab from './AllTransactionsTab/AllTransactionsTab';
@@ -167,7 +167,7 @@ function DebitPageShell({
           <DebitInsightsDashboard data={globallyFilteredData} loading={loading} />
         </TabPanel>
         <TabPanel tabId="credit-limit" activeTab={activeTab} isVisited={visitedTabs.has('credit-limit') && dataReady}>
-          <CreditLimitTab data={globallyFilteredData} />
+          <CustomerTermsTab data={globallyFilteredData} />
         </TabPanel>
         <TabPanel tabId="customers-group" activeTab={activeTab} isVisited={visitedTabs.has('customers-group') && dataReady}>
           <CustomersGroupTab data={globallyFilteredData} />
