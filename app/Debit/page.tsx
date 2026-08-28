@@ -19,6 +19,7 @@ import SalesRepsTab from './SalesRepsTab/SalesRepsTab';
 import HistoryTab from './HistoryTab/HistoryTab';
 import AgesTab from './AgesTab/AgesTab';
 import CustomersTab from './CustomersTab/CustomersTab';
+import MakeStatementTab from './MakeStatementTab/MakeStatementTab';
 import Loading from '@/app/Components/Loading';
 import TabLoader from '@/app/Components/Loading/TabLoader';
 import TabFetchError from '@/app/Components/DataState/TabFetchError';
@@ -207,6 +208,9 @@ function DebitPageShell({
         </TabPanel>
         <TabPanel tabId="ages" activeTab={activeTab} isVisited={visitedTabs.has('ages') && dataReady}>
           <AgesTab data={globallyFilteredData} />
+        </TabPanel>
+        <TabPanel tabId="make-statement" activeTab={activeTab} isVisited={visitedTabs.has('make-statement')}>
+          <MakeStatementTab />
         </TabPanel>
           </div>
         </div>

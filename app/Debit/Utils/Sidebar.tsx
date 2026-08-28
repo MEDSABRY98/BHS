@@ -53,6 +53,7 @@ const allTabs = [
   { id: 'salesreps', label: 'Sales Reps', icon: UserCheck },
   { id: 'history', label: 'History', icon: History },
   { id: 'ages', label: 'Ages', icon: Hourglass },
+  { id: 'make-statement', label: 'Make Statement', icon: FileText },
 ];
 
 export function isDebitTabAllowed(tabId: string, allowedTabs?: string[]): boolean {

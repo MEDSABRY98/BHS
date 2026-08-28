@@ -196,7 +196,6 @@ const SYSTEMS = [
     { id: 'purchase-price-tracking', label: 'Purchase Price Tracking' },
     { id: 'sales', label: 'Sales Analysis' },
     { id: 'lpo-management', label: "LPO's" },
-    { id: 'sales-reports-tables', label: 'Sales Reports Tables' },
     { id: 'customers-discounts', label: 'Customers Discounts' },
     { id: 'database', label: 'Database' },
 ];
@@ -206,7 +205,7 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
         { id: 'customers', label: 'Customers' },
         { id: 'customers-summaries', label: 'Customers Summaries' },
         { id: 'debit-insights', label: 'Debit Insights' },
-        { id: 'credit-limit', label: 'Credit Limit' },
+        { id: 'credit-limit', label: 'Customer Terms' },
         { id: 'customers-group', label: 'Customers Group' },
         { id: 'payment-reconciliation', label: 'Payment Reconciliation' },
         { id: 'payment-reconciliation-saved', label: 'Saved Reconciliations' },
@@ -215,7 +214,8 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
         { id: 'payment-tracker', label: 'Payment Tracker' },
         { id: 'salesreps', label: 'Sales Reps' },
         { id: 'history', label: 'History' },
-        { id: 'ages', label: 'Ages' }
+        { id: 'ages', label: 'Ages' },
+        { id: 'make-statement', label: 'Make Statement' }
     ],
     'sales': [
         { id: 'sales-overview', label: 'Overview' },
@@ -232,17 +232,7 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
         { id: 'sales-new-listings', label: 'New Listings' },
         { id: 'sales-download-form', label: 'Stock Report' },
     ],
-    'sales-reports-tables': [
-        { id: 'sales-invoices', label: 'Sales Invoices' },
-        { id: 'return-invoices', label: 'Returns' },
-        { id: 'top-customers', label: 'Top Customers' },
-        { id: 'top-return-customers', label: 'Return Customers' },
-        { id: 'growing', label: 'Growing' },
-        { id: 'declining', label: 'Declining' },
-        { id: 'at-risk', label: 'At-Risk' },
-        { id: 'products', label: 'Products' },
-        { id: 'categories', label: 'Categories' },
-    ],
+
     'inventory': [
         { id: 'products_balance', label: 'Products Balance' },
         { id: 'location_movements', label: 'Location Movements In/Out' },
