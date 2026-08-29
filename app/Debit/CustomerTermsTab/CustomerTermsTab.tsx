@@ -314,14 +314,15 @@ export default function CustomerTermsTab({ data }: CustomerTermsTabProps) {
       </div>
 
       {/* Table Section */}
-      <div className="overflow-x-auto">
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200">
         {filteredCustomers.length === 0 ? (
           <NoData title="NO CUSTOMERS FOUND" />
         ) : (
-          <table className="w-full text-center border-collapse" style={{ tableLayout: 'fixed', direction: 'ltr' }}>
-            <thead>
-              <tr className="bg-slate-900 text-white text-center">
-                <th className="py-4.5 px-4 text-xs font-black uppercase tracking-wider" style={{ width: '24%' }}>Customer Name</th>
+          <table className="w-full text-center border-collapse" style={{ tableLayout: 'fixed', minWidth: '1100px', direction: 'ltr' }}>
+            <thead className="bg-slate-900 text-white sticky top-0 z-30 shadow-md">
+              <tr className="text-center">
+                <th className="py-4.5 px-4 text-xs font-black uppercase tracking-wider" style={{ width: '4%' }}>#</th>
+                <th className="py-4.5 px-4 text-xs font-black uppercase tracking-wider" style={{ width: '20%' }}>Customer Name</th>
                 <th className="py-4.5 px-4 text-xs font-black uppercase tracking-wider" style={{ width: '9%' }}>City</th>
                 <th className="py-4.5 px-4 text-xs font-black uppercase tracking-wider" style={{ width: '9%' }}>Payment Term</th>
                 <th className="py-4.5 px-4 text-xs font-black uppercase tracking-wider" style={{ width: '9%' }}>Exc Days</th>
@@ -337,6 +338,7 @@ export default function CustomerTermsTab({ data }: CustomerTermsTabProps) {
             <tbody className="divide-y divide-gray-150">
               {filteredCustomers.map((c, index) => (
                 <tr key={index} className="group hover:bg-gray-50/50 transition-all text-center">
+                  <td className="py-5 px-4 text-center text-xs font-black text-gray-400">{index + 1}</td>
                   <td className="py-5 px-4 text-center">
                     <div className="flex flex-col items-center gap-1">
                       <span className={`font-black text-sm block truncate max-w-xs mx-auto ${c.accountStatus === 'ON_HOLD' ? 'text-gray-400 line-through' : 'text-black'}`}>
@@ -414,6 +416,7 @@ export default function CustomerTermsTab({ data }: CustomerTermsTabProps) {
               
               {/* Total Footer Row */}
               <tr className="bg-gray-100 font-bold border-t-2 border-gray-300 text-center">
+                <td className="py-5 px-4">-</td>
                 <td className="py-5 px-4 text-sm font-black text-black">Total</td>
                 <td className="py-5 px-4">-</td>
                 <td className="py-5 px-4 text-sm font-black text-indigo-600">

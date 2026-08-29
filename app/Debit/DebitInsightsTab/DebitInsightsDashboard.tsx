@@ -27,6 +27,7 @@ export type DebitInsightsChromeState = {
 interface DebitInsightsDashboardProps {
   data: InvoiceRow[];
   loading?: boolean;
+  onLoadingChange?: (isLoading: boolean) => void;
 }
 
 function defaultFilters(): InsightsFilters {
@@ -80,6 +81,7 @@ function readUserId(): string {
 export default function DebitInsightsDashboard({
   data,
   loading,
+  onLoadingChange,
 }: DebitInsightsDashboardProps) {
   const [isMounted, setIsMounted] = useState(false);
   useEffect(() => {
@@ -139,6 +141,7 @@ export default function DebitInsightsDashboard({
     }
 
     setSalesLoading(true);
+    onLoadingChange?.(true);
 
     const { from, to } = resolvePeriodRange(
       appliedFilters.asOfDate,
@@ -176,7 +179,10 @@ export default function DebitInsightsDashboard({
         }
       })
       .finally(() => {
-        if (!cancelled) setSalesLoading(false);
+        if (!cancelled) {
+          setSalesLoading(false);
+          onLoadingChange?.(false);
+        }
       });
 
     return () => {
@@ -229,11 +235,7 @@ export default function DebitInsightsDashboard({
   }, [metrics.currentYearTrend, metrics.previousYearTrend]);
 
   if (!isMounted) {
-    return (
-      <div className="h-96 flex items-center justify-center">
-        <TabLoader />
-      </div>
-    );
+    return <TabLoader />;
   }
 
   if (loading && data.length === 0) {
@@ -268,27 +270,19 @@ export default function DebitInsightsDashboard({
         isApplying={busy}
       />
 
-      {salesLoading && salesOverlay === null ? (
-        <div className="absolute inset-0 z-[60] bg-[#F8F9FA] flex flex-col justify-center items-center rounded-2xl">
-          <TabLoader className="!min-h-full flex-1" />
-        </div>
-      ) : (
-        <>
-          <InsightsKpiCards 
-            metrics={metrics}
-            onOpenFilters={() => setFiltersOpen(true)}
-            onClearFilters={handleClearFilters}
-            hasPendingChanges={hasPendingChanges}
-            filtersActive={filtersActive}
-          />
+      <InsightsKpiCards 
+        metrics={metrics}
+        onOpenFilters={() => setFiltersOpen(true)}
+        onClearFilters={handleClearFilters}
+        hasPendingChanges={hasPendingChanges}
+        filtersActive={filtersActive}
+      />
 
-          <DebtTrendChart data={yoyChartData} />
-          <AgingBreakdownChart breakdown={metrics.agingBreakdown} totalDebt={metrics.totalOpenDebt} />
-          <SalesTrendChart data={yoyChartData} />
-          <CollectionsTrendChart data={yoyChartData} />
-          <CollectionRateChart data={yoyChartData} />
-        </>
-      )}
+      <DebtTrendChart data={yoyChartData} />
+      <AgingBreakdownChart breakdown={metrics.agingBreakdown} totalDebt={metrics.totalOpenDebt} />
+      <SalesTrendChart data={yoyChartData} />
+      <CollectionsTrendChart data={yoyChartData} />
+      <CollectionRateChart data={yoyChartData} />
     </div>
   );
 }

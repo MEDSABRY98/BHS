@@ -84,6 +84,7 @@ function DebitPageShell({
   );
 
   const [visitedTabs, setVisitedTabs] = useState<Set<string>>(new Set(['customers']));
+  const [insightsLoading, setInsightsLoading] = useState(false);
   const mainContentRef = useRef<HTMLDivElement>(null);
 
   useDebitTabAudit(activeTab);
@@ -141,6 +142,10 @@ function DebitPageShell({
       return <TabLoader className="!min-h-full flex-1" />;
     }
 
+    if (insightsLoading && activeTab === 'debit-insights') {
+      return <TabLoader className="!min-h-full flex-1" />;
+    }
+
     if (!tabAllowed()) {
       return (
         <div className="max-w-[95%] 2xl:max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-12 flex-1 w-full">
@@ -165,7 +170,7 @@ function DebitPageShell({
           <CustomersSummariesTab data={globallyFilteredData} />
         </TabPanel>
         <TabPanel tabId="debit-insights" activeTab={activeTab} isVisited={visitedTabs.has('debit-insights') && dataReady}>
-          <DebitInsightsDashboard data={globallyFilteredData} loading={loading} />
+          <DebitInsightsDashboard data={globallyFilteredData} loading={loading} onLoadingChange={setInsightsLoading} />
         </TabPanel>
         <TabPanel tabId="credit-limit" activeTab={activeTab} isVisited={visitedTabs.has('credit-limit') && dataReady}>
           <CustomerTermsTab data={globallyFilteredData} />

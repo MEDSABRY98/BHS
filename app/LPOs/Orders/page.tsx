@@ -307,11 +307,11 @@ export default function OrdersPage() {
         driver_status: drv?.STATUS || ''
       };
     }).sort((a, b) => {
-      const getNum = (id: string) => parseInt(id.split('-')[1] || '0');
-      const numA = getNum(a.ORDER_ID || '');
-      const numB = getNum(b.ORDER_ID || '');
-      if (numB !== numA) return numB - numA;
-      return (a.ORDER_ID || '').localeCompare(b.ORDER_ID || '');
+      const dateA = new Date(a.ORDER_DATE || a.CREATED_AT || 0).getTime();
+      const dateB = new Date(b.ORDER_DATE || b.CREATED_AT || 0).getTime();
+      if (dateB !== dateA) return dateB - dateA;
+
+      return (b.INVOICE_ID || '').localeCompare(a.INVOICE_ID || '', undefined, { numeric: true });
     });
   }, [orders, staffList]);
 

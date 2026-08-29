@@ -38,6 +38,7 @@ export default function SalesDBPage() {
   // Excel Modal States
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [isUpdateUploadModalOpen, setIsUpdateUploadModalOpen] = useState(false);
 
   useEffect(() => {
     fetchSalesMonths();
@@ -179,6 +180,165 @@ export default function SalesDBPage() {
   };
 
 
+  const downloadSalesExcel = async () => {
+    setIsUploading(true);
+    try {
+      let allSales: any[] = [];
+      let fetchMore = true;
+      let pageIndex = 0;
+      const limit = 1000;
+
+      while (fetchMore) {
+        const { data, error } = await bhs_supabas
+          .from('web_Sales_DB')
+          .select('ID, "INVOICE DATE", "INVOICE NUMBER", "CUSTOMER ID", "PRODUCT ID", "PRODUCT PRICE", "PRODUCT COST", "AMOUNT", "QTY"')
+          .order('ID')
+          .range(pageIndex * limit, (pageIndex + 1) * limit - 1);
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          allSales = [...allSales, ...data];
+          if (data.length < limit) fetchMore = false;
+          else pageIndex++;
+        } else {
+          fetchMore = false;
+        }
+      }
+
+      if (allSales.length === 0) {
+        toast.error('No sales found in database to export');
+        setIsUploading(false);
+        return;
+      }
+
+      // Fetch Customers
+      let allCustomers: any[] = [];
+      let fetchMoreCust = true;
+      let pageCust = 0;
+      while (fetchMoreCust) {
+        const { data, error } = await bhs_supabas
+          .from('bhs_CUSTOMERS')
+          .select('"CUSTOMER ID", "CUSTOMER SUB NAME"')
+          .range(pageCust * limit, (pageCust + 1) * limit - 1);
+        if (error) throw error;
+        if (data && data.length > 0) {
+          allCustomers = [...allCustomers, ...data];
+          if (data.length < limit) fetchMoreCust = false;
+          else pageCust++;
+        } else fetchMoreCust = false;
+      }
+      const custMap = new Map<string, string>();
+      allCustomers.forEach(c => custMap.set(normalizeExcelId(c['CUSTOMER ID']) || '', c['CUSTOMER SUB NAME'] || ''));
+
+      // Fetch Products
+      let allProducts: any[] = [];
+      let fetchMoreProd = true;
+      let pageProd = 0;
+      while (fetchMoreProd) {
+        const { data, error } = await bhs_supabas
+          .from('bhs_PRODUCTS')
+          .select('"PRODUCT ID", "PRODUCT NAME"')
+          .range(pageProd * limit, (pageProd + 1) * limit - 1);
+        if (error) throw error;
+        if (data && data.length > 0) {
+          allProducts = [...allProducts, ...data];
+          if (data.length < limit) fetchMoreProd = false;
+          else pageProd++;
+        } else fetchMoreProd = false;
+      }
+      const prodMap = new Map<string, string>();
+      allProducts.forEach(p => prodMap.set(normalizeExcelId(p['PRODUCT ID']) || '', p['PRODUCT NAME'] || ''));
+
+      const headers = ['ID', 'INVOICE DATE', 'INVOICE NUMBER', 'CUSTOMER ID', 'CUSTOMER NAME', 'PRODUCT ID', 'PRODUCT NAME', 'PRODUCT COST', 'PRODUCT PRICE', 'QTY', 'AMOUNT'];
+      const rows = allSales.map(s => [
+        s['ID'] || '',
+        s['INVOICE DATE'] || '',
+        s['INVOICE NUMBER'] || '',
+        s['CUSTOMER ID'] || '',
+        custMap.get(normalizeExcelId(s['CUSTOMER ID']) || '') || '',
+        s['PRODUCT ID'] || '',
+        prodMap.get(normalizeExcelId(s['PRODUCT ID']) || '') || '',
+        s['PRODUCT COST'] || 0,
+        s['PRODUCT PRICE'] || 0,
+        s['QTY'] || 0,
+        s['AMOUNT'] || 0
+      ]);
+
+      await exportDatabaseExcelTable(headers, rows, "Sales_Data_Full.xlsx");
+      toast.success('Excel file exported successfully!');
+    } catch (err: any) {
+      console.error(err);
+      toast.error('Failed to export Excel file');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+
+  const handleSalesUpdateUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    try {
+      const dataBuffer = await file.arrayBuffer();
+      const workbook = XLSX.read(dataBuffer, { type: 'array' });
+      const firstSheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[firstSheetName];
+      const jsonData: Record<string, unknown>[] = XLSX.utils.sheet_to_json(worksheet, { defval: '', raw: false });
+
+      if (jsonData.length === 0) {
+        toast.error('The uploaded Excel file is empty.');
+        return;
+      }
+
+      if (!('ID' in jsonData[0])) {
+        toast.error('The Excel file must contain an "ID" column for updating.');
+        return;
+      }
+
+      const rowsToUpdate = jsonData.map(row => {
+        const out: any = { ...row };
+        if (out['AMOUNT'] !== undefined) out['AMOUNT'] = Number(out['AMOUNT']) || 0;
+        if (out['QTY'] !== undefined) out['QTY'] = Number(out['QTY']) || 0;
+        if (out['PRODUCT PRICE'] !== undefined) out['PRODUCT PRICE'] = Number(out['PRODUCT PRICE']) || 0;
+        if (out['PRODUCT COST'] !== undefined && out['PRODUCT COST'] !== '') out['PRODUCT COST'] = Number(out['PRODUCT COST']) || 0;
+        return out;
+      }).filter(r => r.ID); 
+
+      if (rowsToUpdate.length === 0) {
+        toast.error('No valid rows with IDs found.');
+        return;
+      }
+
+      const chunkSize = 500;
+      for (let i = 0; i < rowsToUpdate.length; i += chunkSize) {
+        const chunk = rowsToUpdate.slice(i, i + chunkSize);
+        const { error: upsertErr } = await bhs_supabas
+          .from('web_Sales_DB')
+          .upsert(chunk, { onConflict: 'ID' });
+
+        if (upsertErr) throw upsertErr;
+      }
+
+      await bhs_supabas
+        .from('web_Sales_DB_Cache')
+        .update({ DATA: null })
+        .in('KEY', ['sales_data', 'months_data']);
+
+      toast.success(`Successfully updated ${rowsToUpdate.length} sales rows!`);
+      
+      buildSalesCache().catch(err => console.warn('Background build warning:', err));
+      await fetchSalesMonths(true);
+    } catch (err: any) {
+      console.error(err);
+      toast.error('Update failed: ' + (err.message || err.details || 'Unknown error'));
+    } finally {
+      setIsUploading(false);
+      e.target.value = '';
+    }
+  };
 
   const handleSalesUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -360,13 +520,30 @@ export default function SalesDBPage() {
       <div className="flex items-center gap-3">
         <h1 className="text-4xl font-normal text-black tracking-tighter flex items-center gap-3">Sales DB <span className="text-lg font-black text-gray-600 bg-gray-100 px-4 py-1.5 rounded-full border border-gray-200">{totalCount.toLocaleString()}</span></h1>
         {canEdit && (
-          <button
-            onClick={() => setIsUploadModalOpen(true)}
-            className="p-3 bg-white border border-gray-200 text-green-600 rounded-2xl shadow-sm hover:scale-[1.05] active:scale-[0.95] transition-all flex items-center justify-center shrink-0 cursor-pointer"
-            title="Import Sales Excel"
-          >
-            <FileSpreadsheet className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={downloadSalesExcel}
+              disabled={isUploading}
+              className="p-3 bg-white border border-gray-200 text-blue-600 rounded-2xl shadow-sm hover:scale-[1.05] active:scale-[0.95] transition-all flex items-center justify-center shrink-0 cursor-pointer disabled:opacity-50"
+              title="Download Full Sales DB"
+            >
+              {isUploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
+            </button>
+            <button
+              onClick={() => setIsUpdateUploadModalOpen(true)}
+              className="p-3 bg-white border border-gray-200 text-purple-600 rounded-2xl shadow-sm hover:scale-[1.05] active:scale-[0.95] transition-all flex items-center justify-center shrink-0 cursor-pointer"
+              title="Update Existing Sales DB by ID"
+            >
+              <Upload className="w-5 h-5" />
+            </button>
+            <button
+              onClick={() => setIsUploadModalOpen(true)}
+              className="p-3 bg-white border border-gray-200 text-green-600 rounded-2xl shadow-sm hover:scale-[1.05] active:scale-[0.95] transition-all flex items-center justify-center shrink-0 cursor-pointer"
+              title="Import New Sales Excel"
+            >
+              <FileSpreadsheet className="w-5 h-5" />
+            </button>
+          </div>
         )}
         {canDelete && (
           <button
@@ -474,10 +651,6 @@ export default function SalesDBPage() {
             </div>
 
             <div className="p-8 space-y-6">
-              <p className="text-xs text-gray-500 leading-relaxed">
-                CUSTOMER ID and PRODUCT ID must already exist in Customers DB and Products DB before upload.
-                If any IDs are missing, a text file with the full list will be downloaded automatically.
-              </p>
 
               <div className="space-y-4">
                 {/* Download Button */}
@@ -525,6 +698,48 @@ export default function SalesDBPage() {
         </div>
       )}
 
+      {/* Upload Modal (Update Existing) */}
+      {isUpdateUploadModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl relative">
+            <button
+              onClick={() => setIsUpdateUploadModalOpen(false)}
+              className="absolute top-4 right-4 p-2 text-gray-400 hover:text-black bg-gray-50 hover:bg-gray-100 rounded-xl transition-all"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="p-6">
+              <h2 className="text-xl font-bold mb-4">Update Sales Records</h2>
+              <p className="text-gray-600 mb-6 text-sm">
+                Upload a modified Excel file to update existing records. The file must contain the <span className="font-bold">ID</span> column.
+              </p>
+
+              <div className="border-2 border-dashed border-gray-200 rounded-2xl p-8 flex flex-col items-center justify-center text-center bg-gray-50 hover:bg-gray-100 transition-colors relative cursor-pointer group">
+                <input
+                  type="file"
+                  accept=".xlsx, .xls"
+                  onChange={(e) => {
+                    handleSalesUpdateUpload(e);
+                    setIsUpdateUploadModalOpen(false);
+                  }}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                />
+                <Upload className="w-10 h-10 text-purple-400 mb-3 group-hover:scale-110 transition-transform duration-300" />
+                <p className="font-bold text-gray-700">Click or drag file to update</p>
+                <p className="text-xs text-gray-400 mt-2">Only .xlsx or .xls files</p>
+              </div>
+
+              {isUploading && (
+                <div className="mt-4 flex items-center justify-center gap-3 text-purple-600 font-semibold bg-purple-50 p-4 rounded-xl">
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  Updating Database...
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
