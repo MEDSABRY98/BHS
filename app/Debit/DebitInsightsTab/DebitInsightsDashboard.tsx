@@ -108,12 +108,12 @@ export default function DebitInsightsDashboard({
     [data, draftFilters.salesRep]
   );
   const availableCustomerTags = useMemo(
-    () => collectCustomerTags(data, draftFilters.salesRep, draftFilters.customers),
-    [data, draftFilters.salesRep, draftFilters.customers]
+    () => collectCustomerTags(data, draftFilters.salesRep),
+    [data, draftFilters.salesRep]
   );
   const availableCustomerClassifications = useMemo(
-    () => collectCustomerClassifications(data, draftFilters.salesRep, draftFilters.customers),
-    [data, draftFilters.salesRep, draftFilters.customers]
+    () => collectCustomerClassifications(data, draftFilters.salesRep),
+    [data, draftFilters.salesRep]
   );
 
   const hasPendingChanges = !filtersEqual(draftFilters, appliedFilters);
