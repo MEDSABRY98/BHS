@@ -1,6 +1,14 @@
+const parseCache = new Map<string, Date | null>();
+
 export function parseDate(dateStr?: string | null): Date | null {
   if (!dateStr) return null;
-  const parts = dateStr.trim().split(/[\/\-]/);
+  
+  // Return cached result if we've already parsed this string
+  if (typeof dateStr === 'string' && parseCache.has(dateStr)) {
+    return parseCache.get(dateStr)!;
+  }
+
+  const parts = typeof dateStr === 'string' ? dateStr.trim().split(/[\/\-]/) : [];
   if (parts.length === 3) {
     const p1 = parseInt(parts[0], 10);
     const p2 = parseInt(parts[1], 10);
@@ -8,16 +16,23 @@ export function parseDate(dateStr?: string | null): Date | null {
     if (!isNaN(p1) && !isNaN(p2) && !isNaN(p3)) {
       if (p3 > 1000) {
         const parsed = new Date(p3, p2 - 1, p1);
-        if (!isNaN(parsed.getTime())) return parsed;
+        if (!isNaN(parsed.getTime())) {
+          if (typeof dateStr === 'string') parseCache.set(dateStr, parsed);
+          return parsed;
+        }
       } else if (p1 > 1000) {
         const parsed = new Date(p1, p2 - 1, p3);
-        if (!isNaN(parsed.getTime())) return parsed;
+        if (!isNaN(parsed.getTime())) {
+          if (typeof dateStr === 'string') parseCache.set(dateStr, parsed);
+          return parsed;
+        }
       }
     }
   }
   const direct = new Date(dateStr);
-  if (!isNaN(direct.getTime())) return direct;
-  return null;
+  const result = !isNaN(direct.getTime()) ? direct : null;
+  if (typeof dateStr === 'string') parseCache.set(dateStr, result);
+  return result;
 }
 
 export function endOfDay(dateInput: string | Date): Date {

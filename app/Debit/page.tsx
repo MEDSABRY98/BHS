@@ -142,9 +142,6 @@ function DebitPageShell({
       return <TabLoader className="!min-h-full flex-1" />;
     }
 
-    if (insightsLoading && activeTab === 'debit-insights') {
-      return <TabLoader className="!min-h-full flex-1" />;
-    }
 
     if (!tabAllowed()) {
       return (

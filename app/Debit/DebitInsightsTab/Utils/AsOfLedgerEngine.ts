@@ -221,6 +221,9 @@ function buildTrendSeries(
   const asOf = endOfDay(asOfDate);
   const points: DebitInsightsMetrics['trendSeries'] = [];
 
+  // Filter rows by scope once to avoid doing it every month
+  const scopedRows = filterRowsByScope(allRows, cities, customers, customerTags, customerClasses);
+
   let cursor = new Date(periodFrom.getFullYear(), periodFrom.getMonth(), 1);
   cursor.setHours(0, 0, 0, 0);
   const lastMonth = new Date(periodTo.getFullYear(), periodTo.getMonth(), 1);
@@ -254,23 +257,19 @@ function buildTrendSeries(
 
       const monthEndInput = toInputDate(monthEnd);
 
-      // Current month: use ALL rows (no date filter) so it matches the KPI card
-      // Past months: use filterRowsAsOf for accurate historical trend
+      // Current month: use all scoped rows. Past months: use rows up to monthEnd
       const rowsForDebt = isCurrentMonth
-        ? filterRowsByScope(allRows, cities, customers, customerTags, customerClasses)
-        : filterRowsAsOf(allRows, monthEndInput, cities, customers, customerTags, customerClasses);
+        ? scopedRows
+        : filterRowsAsOf(scopedRows, monthEndInput, [], [], [], []);
 
-      const { totalOpenDebt } = computePortfolioAging(
-        rowsForDebt,
-        monthEnd,
-        cities,
-        customers,
-        customerTags,
-        customerClasses
-      );
+      // totalOpenDebt is simply the sum of (debit - credit) for all applicable rows
+      let totalOpenDebt = 0;
+      for (let i = 0; i < rowsForDebt.length; i++) {
+        totalOpenDebt += (rowsForDebt[i].debit || 0) - (rowsForDebt[i].credit || 0);
+      }
 
       // netSales/collections always use date-scoped rows
-      const rowsAsOfMonth = filterRowsAsOf(allRows, monthEndInput, cities, customers, customerTags, customerClasses);
+      const rowsAsOfMonth = filterRowsAsOf(scopedRows, monthEndInput, [], [], [], []);
 
       const monthKey = getMonthlyKey(monthEnd);
       points.push({

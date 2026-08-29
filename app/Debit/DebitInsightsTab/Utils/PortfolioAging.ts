@@ -44,8 +44,11 @@ function computeDaysOverdue(
   invoiceDate: string | null | undefined,
   referenceDate: Date
 ): number {
-  const targetDate = dueDate ? parseDate(dueDate) : invoiceDate ? parseDate(invoiceDate) : null;
-  if (!targetDate) return 0;
+  const parsedTarget = dueDate ? parseDate(dueDate) : invoiceDate ? parseDate(invoiceDate) : null;
+  if (!parsedTarget) return 0;
+  
+  // Clone to avoid mutating the potentially cached Date object from parseDate
+  const targetDate = new Date(parsedTarget);
   targetDate.setHours(0, 0, 0, 0);
   return Math.ceil((referenceDate.getTime() - targetDate.getTime()) / (1000 * 60 * 60 * 24));
 }
