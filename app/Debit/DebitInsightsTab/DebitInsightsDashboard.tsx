@@ -19,7 +19,6 @@ import CollectionRateChart from './Charts/CollectionRateChart';
 import AgingBreakdownChart from './Charts/AgingBreakdownChart';
 import { getInsightsSalesOverlay } from './Service/insights_sales_service';
 
-
 export type DebitInsightsChromeState = {
   filtersActive: boolean;
   filtersPending: boolean;
@@ -82,6 +81,12 @@ export default function DebitInsightsDashboard({
   data,
   loading,
 }: DebitInsightsDashboardProps) {
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setIsMounted(true), 50);
+    return () => clearTimeout(timer);
+  }, []);
+
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [draftFilters, setDraftFilters] = useState<InsightsFilters>(defaultFilters);
   const [appliedFilters, setAppliedFilters] = useState<InsightsFilters>(defaultFilters);
@@ -97,17 +102,18 @@ export default function DebitInsightsDashboard({
 
   const salesReps = useMemo(() => debitMetrics.salesReps, [debitMetrics.salesReps]);
   const availableCustomers = useMemo(
-    () => collectCustomers(data, draftFilters.salesRep),
+    () => collectCustomers(data, (draftFilters.salesRep || [])),
     [data, draftFilters.salesRep]
   );
   const availableCustomerTags = useMemo(
-    () => collectCustomerTags(data, draftFilters.salesRep),
-    [data, draftFilters.salesRep]
+    () => collectCustomerTags(data, draftFilters.salesRep, draftFilters.customers),
+    [data, draftFilters.salesRep, draftFilters.customers]
   );
   const availableCustomerClassifications = useMemo(
-    () => collectCustomerClassifications(data, draftFilters.salesRep),
-    [data, draftFilters.salesRep]
+    () => collectCustomerClassifications(data, draftFilters.salesRep, draftFilters.customers),
+    [data, draftFilters.salesRep, draftFilters.customers]
   );
+
   const hasPendingChanges = !filtersEqual(draftFilters, appliedFilters);
   const filtersActive =
     appliedFilters.salesRep.length > 0 ||
@@ -221,6 +227,14 @@ export default function DebitInsightsDashboard({
       };
     });
   }, [metrics.currentYearTrend, metrics.previousYearTrend]);
+
+  if (!isMounted) {
+    return (
+      <div className="h-96 flex items-center justify-center">
+        <TabLoader />
+      </div>
+    );
+  }
 
   if (loading && data.length === 0) {
     return <TabLoader />;

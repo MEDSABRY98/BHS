@@ -12,17 +12,20 @@ import {
   Edit2,
   X,
   Loader2,
-  AlertCircle
+  AlertCircle,
+  Filter
 } from 'lucide-react';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import { bhs_supabase } from '@/lib/supabase';
 import { toast } from '@/app/Components/Notification';
+import { useDebitData } from '../Context/DebitDataContext';
 
 interface CustomerTermsTabProps {
   data: InvoiceRow[];
 }
 
 export default function CustomerTermsTab({ data }: CustomerTermsTabProps) {
+  const { refresh } = useDebitData();
   const [searchTerm, setSearchTerm] = useState('');
   const debouncedSearchTerm = useDebouncedValue(searchTerm);
 
@@ -32,6 +35,38 @@ export default function CustomerTermsTab({ data }: CustomerTermsTabProps) {
   const [editCreditLimit, setEditCreditLimit] = useState<string>('');
   const [editAccountStatus, setEditAccountStatus] = useState<'ACTIVE' | 'ON_HOLD'>('ACTIVE');
   const [isSaving, setIsSaving] = useState(false);
+
+  // Applied Filter State
+  const [appliedStatusFilter, setAppliedStatusFilter] = useState<'ALL' | 'ACTIVE' | 'ON_HOLD'>('ALL');
+  const [appliedMinExceededDays, setAppliedMinExceededDays] = useState<string>('');
+  const [appliedMinExceededAmount, setAppliedMinExceededAmount] = useState<string>('');
+
+  // Draft Filter State
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [draftStatusFilter, setDraftStatusFilter] = useState<'ALL' | 'ACTIVE' | 'ON_HOLD'>('ALL');
+  const [draftMinExceededDays, setDraftMinExceededDays] = useState<string>('');
+  const [draftMinExceededAmount, setDraftMinExceededAmount] = useState<string>('');
+
+  const openFilterModal = () => {
+    setDraftStatusFilter(appliedStatusFilter);
+    setDraftMinExceededDays(appliedMinExceededDays);
+    setDraftMinExceededAmount(appliedMinExceededAmount);
+    setIsFilterOpen(true);
+  };
+
+  const applyFilters = () => {
+    setAppliedStatusFilter(draftStatusFilter);
+    setAppliedMinExceededDays(draftMinExceededDays);
+    setAppliedMinExceededAmount(draftMinExceededAmount);
+    setIsFilterOpen(false);
+  };
+
+  const clearFilters = () => {
+    setAppliedStatusFilter('ALL');
+    setAppliedMinExceededDays('');
+    setAppliedMinExceededAmount('');
+    setIsFilterOpen(false);
+  };
 
   const filters = useMemo(() => ({
     search: '',
@@ -100,19 +135,40 @@ export default function CustomerTermsTab({ data }: CustomerTermsTabProps) {
           accountStatus: c.accountStatus || 'ACTIVE'
         };
       })
-      .filter(c => c.netDebt > 0.01)
+      .filter(c => Math.abs(c.netDebt) > 0.01)
       .sort((a, b) => b.netDebt - a.netDebt);
   }, [customerAnalysis]);
 
   const filteredCustomers = useMemo(() => {
-    if (!debouncedSearchTerm.trim()) return customerTerms;
-    const term = debouncedSearchTerm.toLowerCase().trim();
-    return customerTerms.filter(c => 
-      c.customerName.toLowerCase().includes(term) ||
-      c.city.toLowerCase().includes(term) ||
-      c.customerId.toLowerCase().includes(term)
-    );
-  }, [customerTerms, debouncedSearchTerm]);
+    let result = customerTerms;
+
+    // Search filter
+    if (debouncedSearchTerm.trim()) {
+      const term = debouncedSearchTerm.toLowerCase().trim();
+      result = result.filter(c => 
+        c.customerName.toLowerCase().includes(term) ||
+        c.city.toLowerCase().includes(term) ||
+        c.customerId.toLowerCase().includes(term)
+      );
+    }
+
+    // Status filter
+    if (appliedStatusFilter !== 'ALL') {
+      result = result.filter(c => c.accountStatus === appliedStatusFilter);
+    }
+
+    // Exceeded Days filter
+    if (appliedMinExceededDays && !isNaN(Number(appliedMinExceededDays))) {
+      result = result.filter(c => c.exceededDays >= Number(appliedMinExceededDays));
+    }
+
+    // Exceeded Amount filter
+    if (appliedMinExceededAmount && !isNaN(Number(appliedMinExceededAmount))) {
+      result = result.filter(c => c.exceededAmount >= Number(appliedMinExceededAmount));
+    }
+
+    return result;
+  }, [customerTerms, debouncedSearchTerm, appliedStatusFilter, appliedMinExceededDays, appliedMinExceededAmount]);
 
   const handleExportExcel = async () => {
     try {
@@ -185,8 +241,8 @@ export default function CustomerTermsTab({ data }: CustomerTermsTabProps) {
       }
 
       setSelectedCustomer(null);
-      // We rely on the user to click the refresh data button in the dashboard
-      toast.success('Updated successfully! Please refresh the dashboard to see changes.');
+      toast.success('Updated successfully! Refreshing data in background...');
+      refresh(true).catch(console.error);
     } catch (err: any) {
       console.error(err);
       toast.error(err.message || 'Failed to update customer terms.');
@@ -230,6 +286,21 @@ export default function CustomerTermsTab({ data }: CustomerTermsTabProps) {
               className="w-full bg-gray-50 border border-gray-200 rounded-xl py-2.5 pl-11 pr-4 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm font-bold transition-all"
             />
           </div>
+
+          <button
+            onClick={openFilterModal}
+            className={`flex items-center justify-center h-11 w-11 rounded-xl transition-colors shadow-sm shrink-0 cursor-pointer ${
+              appliedStatusFilter !== 'ALL' || appliedMinExceededDays || appliedMinExceededAmount
+                ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                : 'bg-white hover:bg-gray-50 border border-gray-200 text-gray-700'
+            }`}
+            title="Filter Customers"
+          >
+            <Filter className="h-5 w-5" />
+            {(appliedStatusFilter !== 'ALL' || appliedMinExceededDays || appliedMinExceededAmount) && (
+              <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white"></span>
+            )}
+          </button>
 
           <button
             onClick={handleExportExcel}
@@ -464,6 +535,91 @@ export default function CustomerTermsTab({ data }: CustomerTermsTabProps) {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Filter Modal */}
+      {isFilterOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/20 animate-in fade-in duration-300">
+          <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="p-6 border-b border-gray-50 flex items-center justify-between">
+              <div>
+                <h3 className="text-xl font-bold">Filter Options</h3>
+                <p className="text-sm text-gray-500 font-bold mt-1">Narrow down customers list</p>
+              </div>
+              <button 
+                onClick={() => setIsFilterOpen(false)}
+                className="p-2 text-gray-400 hover:text-black hover:bg-gray-50 rounded-xl transition-all"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-5">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">Account Status</label>
+                <div className="relative">
+                  <select
+                    value={draftStatusFilter}
+                    onChange={(e) => setDraftStatusFilter(e.target.value as any)}
+                    className="appearance-none cursor-pointer w-full px-5 py-3.5 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold pr-10 hover:bg-gray-100"
+                  >
+                    <option value="ALL">All Customers</option>
+                    <option value="ACTIVE">Active</option>
+                    <option value="ON_HOLD">On Hold</option>
+                  </select>
+                  <div className="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none text-gray-400">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">Min Exceeded Days</label>
+                <input
+                  type="number"
+                  value={draftMinExceededDays}
+                  onChange={(e) => setDraftMinExceededDays(e.target.value)}
+                  placeholder="e.g. 30"
+                  min="0"
+                  step="1"
+                  className="w-full px-5 py-3.5 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">Min Exceeded Amount (AED)</label>
+                <input
+                  type="number"
+                  value={draftMinExceededAmount}
+                  onChange={(e) => setDraftMinExceededAmount(e.target.value)}
+                  placeholder="e.g. 5000"
+                  min="0"
+                  step="any"
+                  className="w-full px-5 py-3.5 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold"
+                />
+              </div>
+
+              <div className="pt-4 flex gap-3">
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  className="flex-1 py-4 bg-gray-50 text-gray-400 hover:text-red-600 font-black text-xs uppercase tracking-wider rounded-xl transition-all"
+                >
+                  Clear Filters
+                </button>
+                <button
+                  type="button"
+                  onClick={applyFilters}
+                  className="flex-1 py-4 bg-black text-[#D4AF37] hover:bg-gray-900 font-black text-xs uppercase tracking-wider rounded-xl transition-all shadow-xl shadow-black/10 flex items-center justify-center gap-2"
+                >
+                  Apply Filters
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
