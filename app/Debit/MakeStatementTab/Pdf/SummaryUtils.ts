@@ -3,6 +3,7 @@
 import { getInvoiceType } from '@/app/Debit/Utils/InvoiceType';
 import { addArabicFont } from '@/app/Components/Pdf/shared';
 import { sortInvoicesByDateThenNumber } from '@/app/Debit/CustomerDetailsTab/Utils';
+import { saveTrackedPdf } from '@/app/Audit/Utils/TrackedDownload';
 
 // --- Colors ---
 const COLORS = {
