@@ -270,27 +270,20 @@ export default function DebitInsightsDashboard({
         isApplying={busy}
       />
 
-      {busy && salesOverlay === null ? (
-        <div className="absolute inset-0 z-[60] bg-[#F8F9FA] flex flex-col justify-center items-center rounded-2xl">
-          <TabLoader className="!min-h-full flex-1" />
-        </div>
-      ) : (
-        <>
-          <InsightsKpiCards 
-            metrics={metrics}
-            onOpenFilters={() => setFiltersOpen(true)}
-            onClearFilters={handleClearFilters}
-            hasPendingChanges={hasPendingChanges}
-            filtersActive={filtersActive}
-          />
+      <InsightsKpiCards 
+        metrics={metrics}
+        onOpenFilters={() => setFiltersOpen(true)}
+        onClearFilters={handleClearFilters}
+        hasPendingChanges={hasPendingChanges}
+        filtersActive={filtersActive}
+        salesLoading={busy && salesOverlay === null}
+      />
 
-          <DebtTrendChart data={yoyChartData} />
-          <AgingBreakdownChart breakdown={metrics.agingBreakdown} totalDebt={metrics.totalOpenDebt} />
-          <SalesTrendChart data={yoyChartData} />
-          <CollectionsTrendChart data={yoyChartData} />
-          <CollectionRateChart data={yoyChartData} />
-        </>
-      )}
+      <DebtTrendChart data={yoyChartData} />
+      <AgingBreakdownChart breakdown={metrics.agingBreakdown} totalDebt={metrics.totalOpenDebt} />
+      <SalesTrendChart data={yoyChartData} />
+      <CollectionsTrendChart data={yoyChartData} />
+      <CollectionRateChart data={yoyChartData} />
     </div>
   );
 }

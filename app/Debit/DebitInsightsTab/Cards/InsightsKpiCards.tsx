@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowDown, ArrowUp, Filter, FilterX } from 'lucide-react';
+import { ArrowDown, ArrowUp, Filter, FilterX, Loader2 } from 'lucide-react';
 import { DebitInsightsMetrics } from '../Utils/InsightsTypes';
 
 interface InsightsKpiCardsProps {
@@ -9,6 +9,7 @@ interface InsightsKpiCardsProps {
   onClearFilters: () => void;
   hasPendingChanges: boolean;
   filtersActive: boolean;
+  salesLoading?: boolean;
 }
 
 function formatCurrency(value: number) {
@@ -38,7 +39,8 @@ export default function InsightsKpiCards({
   onOpenFilters,
   onClearFilters,
   hasPendingChanges,
-  filtersActive
+  filtersActive,
+  salesLoading
 }: InsightsKpiCardsProps) {
   const monthCount = metrics.trendSeries.length;
   const avgMonthlyNetSales = monthCount > 0 ? metrics.period.netSales / monthCount : 0;
@@ -55,14 +57,28 @@ export default function InsightsKpiCards({
 
       <div className="bg-white rounded-xl border border-gray-200 p-3 xl:p-4 min-w-0">
         <p className="text-[10px] xl:text-xs font-medium text-gray-500 uppercase tracking-wide mb-1 truncate">Net Sales (period)</p>
-        <p className="text-lg xl:text-2xl font-bold text-gray-900 truncate">{formatCurrency(metrics.period.netSales)}</p>
-        <YoYBadge change={metrics.period.netSalesYoYChange} />
+        {salesLoading ? (
+          <div className="h-7 xl:h-8 flex items-center mt-0.5">
+            <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />
+          </div>
+        ) : (
+          <>
+            <p className="text-lg xl:text-2xl font-bold text-gray-900 truncate">{formatCurrency(metrics.period.netSales)}</p>
+            <YoYBadge change={metrics.period.netSalesYoYChange} />
+          </>
+        )}
         <p className="text-[10px] xl:text-xs text-gray-400 mt-1 truncate">SAL − RSAL only</p>
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 p-3 xl:p-4 min-w-0">
         <p className="text-[10px] xl:text-xs font-medium text-gray-500 uppercase tracking-wide mb-1 truncate">Avg Monthly Net Sales</p>
-        <p className="text-lg xl:text-2xl font-bold text-gray-900 truncate">{formatCurrency(avgMonthlyNetSales)}</p>
+        {salesLoading ? (
+          <div className="h-7 xl:h-8 flex items-center mt-0.5">
+            <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />
+          </div>
+        ) : (
+          <p className="text-lg xl:text-2xl font-bold text-gray-900 truncate">{formatCurrency(avgMonthlyNetSales)}</p>
+        )}
         <p className="text-[10px] xl:text-xs text-gray-400 mt-1 truncate">{periodMonthsLabel}</p>
       </div>
 
@@ -80,11 +96,17 @@ export default function InsightsKpiCards({
 
       <div className="bg-white rounded-xl border border-gray-200 p-3 xl:p-4 min-w-0">
         <p className="text-[10px] xl:text-xs font-medium text-gray-500 uppercase tracking-wide mb-1 truncate">Collection Rate</p>
-        <p className="text-lg xl:text-2xl font-bold text-gray-900 truncate">
-          {metrics.period.collectionRate === null
-            ? 'N/A'
-            : `${metrics.period.collectionRate.toFixed(1)}%`}
-        </p>
+        {salesLoading ? (
+          <div className="h-7 xl:h-8 flex items-center mt-0.5">
+            <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />
+          </div>
+        ) : (
+          <p className="text-lg xl:text-2xl font-bold text-gray-900 truncate">
+            {metrics.period.collectionRate === null
+              ? 'N/A'
+              : `${metrics.period.collectionRate.toFixed(1)}%`}
+          </p>
+        )}
         <p className="text-[10px] xl:text-xs text-gray-400 mt-1 truncate">Collections / Net Sales</p>
       </div>
 
