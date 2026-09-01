@@ -119,9 +119,9 @@ export default function CustomerTermsTab({ data }: CustomerTermsTabProps) {
         const exceededDays = Math.max(0, (c.maxOverdueDays || 0) - paymentTerm);
         const exceededAmount = limit > 0 ? Math.max(0, debt - limit) : 0;
         const exceededPercentage = limit > 0 ? (exceededAmount / limit) * 100 : 0;
-        const cityStr = c.salesReps && c.salesReps instanceof Set && c.salesReps.size > 0 
-          ? Array.from(c.salesReps).join(', ') 
-          : (Array.isArray(c.salesReps) ? (c.salesReps as string[]).join(', ') : '-');
+        const cityStr = c.cities && c.cities instanceof Set && c.cities.size > 0 
+          ? Array.from(c.cities).join(', ') 
+          : (Array.isArray(c.cities) ? (c.cities as string[]).join(', ') : '-');
 
         return {
           customerId: c.customerId || '',
