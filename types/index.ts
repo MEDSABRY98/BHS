@@ -30,7 +30,7 @@ export interface CustomerAnalysis {
   netSales?: number; // Net Sales = SAL debit - RSAL credit (matching Dashboard)
   transactionCount: number;
   hasOpenMatchings?: boolean;
-  salesReps?: Set<string>;
+  cities?: Set<string>;
   customerTags?: Set<string>;
   invoiceNumbers?: Set<string>;
   lastPaymentDate?: Date | null;
@@ -63,8 +63,8 @@ export interface CustomerAnalysis {
   avgPaymentInterval?: number;
 }
 
-export interface SalesRepAnalysis {
-  salesRep: string;
+export interface CityAnalysis {
+  city: string;
   totalDebit: number;
   totalCredit: number;
   netDebt: number;

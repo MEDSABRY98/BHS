@@ -9,7 +9,6 @@ import {
   FileSpreadsheet,
   CreditCard,
   UserCheck,
-  History,
   Hourglass,
   ArrowLeft,
   ChevronLeft,
@@ -50,8 +49,8 @@ const allTabs = [
   { id: 'all-transactions', label: 'All Transactions', icon: FileText },
   { id: 'customers-open-matches', label: 'Open Transactions', icon: Activity },
   { id: 'payment-tracker', label: 'Payment Tracker', icon: CreditCard },
-  { id: 'salesreps', label: 'Sales Reps', icon: UserCheck },
-  { id: 'history', label: 'History', icon: History },
+  { id: 'cities', label: 'Cities', icon: UserCheck },
+
   { id: 'ages', label: 'Ages', icon: Hourglass },
   { id: 'make-statement', label: 'Make Statement', icon: FileText },
 ];

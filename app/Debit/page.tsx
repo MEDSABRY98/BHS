@@ -15,8 +15,8 @@ import AllTransactionsTab from './AllTransactionsTab/AllTransactionsTab';
 import PaymentReconciliationTab from './PaymentReconciliationTab/PaymentReconciliationTab';
 import SavedPaymentReconciliationsPageTab from './SavedReconciliations/SavedPaymentReconciliationsPageTab';
 import PaymentTrackerTab from './PaymentTrackerTab/PaymentTrackerTab';
-import SalesRepsTab from './SalesRepsTab/SalesRepsTab';
-import HistoryTab from './HistoryTab/HistoryTab';
+import CityTab from './CityTab/CityTab';
+
 import AgesTab from './AgesTab/AgesTab';
 import CustomersTab from './CustomersTab/CustomersTab';
 import MakeStatementTab from './MakeStatementTab/MakeStatementTab';
@@ -42,7 +42,7 @@ const TABS_NEEDING_FULL_DATA = new Set([
   'customers-open-matches',
   'payment-tracker',
   'salesreps',
-  'history',
+
   'ages',
 ]);
 
@@ -202,12 +202,10 @@ function DebitPageShell({
         <TabPanel tabId="payment-tracker" activeTab={activeTab} isVisited={visitedTabs.has('payment-tracker') && dataReady}>
           <PaymentTrackerTab data={globallyFilteredData} dataVersion={dataVersion} />
         </TabPanel>
-        <TabPanel tabId="salesreps" activeTab={activeTab} isVisited={visitedTabs.has('salesreps') && dataReady}>
-          <SalesRepsTab data={globallyFilteredData} />
+        <TabPanel tabId="cities" activeTab={activeTab} isVisited={visitedTabs.has('cities') && dataReady}>
+          <CityTab data={globallyFilteredData} />
         </TabPanel>
-        <TabPanel tabId="history" activeTab={activeTab} isVisited={visitedTabs.has('history') && dataReady}>
-          <HistoryTab data={globallyFilteredData} />
-        </TabPanel>
+
         <TabPanel tabId="ages" activeTab={activeTab} isVisited={visitedTabs.has('ages') && dataReady}>
           <AgesTab data={globallyFilteredData} />
         </TabPanel>

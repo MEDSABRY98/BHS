@@ -9,31 +9,17 @@ import {
   createColumnHelper,
   SortingState,
 } from '@tanstack/react-table';
-import { InvoiceRow, MonthAnalysis, CustomerAnalysis } from '@/types';
+import { InvoiceRow, CityAnalysis, CustomerAnalysis } from '@/types';
 import NoData from '@/app/Components/DataState/NoDataTab';
+import { Users } from 'lucide-react';
 
-interface MonthsTabProps {
+interface CityTabProps {
   data: InvoiceRow[];
 }
 
-const columnHelper = createColumnHelper<MonthAnalysis>();
+const columnHelper = createColumnHelper<CityAnalysis>();
 
-const monthNames: { [key: string]: string } = {
-  '1': 'January',
-  '2': 'February',
-  '3': 'March',
-  '4': 'April',
-  '5': 'May',
-  '6': 'June',
-  '7': 'July',
-  '8': 'August',
-  '9': 'September',
-  '10': 'October',
-  '11': 'November',
-  '12': 'December',
-};
-
-// Helper functions (same as SalesRepsTab and YearsTab)
+// Helper functions
 const parseDate = (dateStr: string): Date | null => {
   if (!dateStr) return null;
   const d = new Date(dateStr);
@@ -152,7 +138,37 @@ const calculateDebtRating = (customer: CustomerAnalysis): 'Good' | 'Medium' | 'B
     score5 = 0;
   }
 
-  const totalScore = score1 + score2 + score3 + score4 + score5;
+  // score6 — Payment Value last 90d
+  let score6 = 0;
+  if ((customer.payments3m || 0) >= 10000) {
+    score6 = 2;
+  } else if ((customer.payments3m || 0) >= 2000) {
+    score6 = 1;
+  } else {
+    score6 = 0;
+  }
+
+  // score7 — Sales Value last 90d
+  let score7 = 0;
+  if ((customer.sales3m || 0) >= 10000) {
+    score7 = 2;
+  } else if ((customer.sales3m || 0) >= 2000) {
+    score7 = 1;
+  } else {
+    score7 = 0;
+  }
+
+  // score8 — Sales Count last 90d
+  let score8 = 0;
+  if ((customer.salesCount3m || 0) >= 2) {
+    score8 = 2;
+  } else if ((customer.salesCount3m || 0) === 1) {
+    score8 = 1;
+  } else {
+    score8 = 0;
+  }
+
+  const totalScore = score1 + score2 + score3 + score4 + score5 + score6 + score7 + score8;
 
   let finalRating: 'Good' | 'Medium' | 'Bad';
 
@@ -161,9 +177,9 @@ const calculateDebtRating = (customer: CustomerAnalysis): 'Good' | 'Medium' | 'B
   } else if (riskFlag1 === 1 || riskFlag2 === 1) {
     finalRating = 'Bad';
   } else {
-    if (totalScore >= 7) {
+    if (totalScore >= 11) {
       finalRating = 'Good';
-    } else if (totalScore >= 4) {
+    } else if (totalScore >= 6) {
       finalRating = 'Medium';
     } else {
       finalRating = 'Bad';
@@ -173,14 +189,14 @@ const calculateDebtRating = (customer: CustomerAnalysis): 'Good' | 'Medium' | 'B
   return finalRating;
 };
 
-export default function MonthsTab({ data }: MonthsTabProps) {
+export default function CityTab({ data }: CityTabProps) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [searchQuery, setSearchQuery] = useState('');
   
 
   
 
-  // Calculate customer analysis for all customers (same as SalesRepsTab and YearsTab)
+  // Calculate customer analysis for all customers
   const customerAnalysis = useMemo(() => {
     type CustomerData = CustomerAnalysis & {
       matchingsMap: Map<string, number>;
@@ -202,7 +218,7 @@ export default function MonthsTab({ data }: MonthsTabProps) {
           netSales: 0,
           transactionCount: 0,
           matchingsMap: new Map(),
-          salesReps: new Set(),
+          cities: new Set(),
           invoiceNumbers: new Set(),
           lastPaymentDate: null,
           lastPaymentMatching: null,
@@ -224,9 +240,8 @@ export default function MonthsTab({ data }: MonthsTabProps) {
         existing.netSales = (existing.netSales || 0) - row.credit;
       }
 
-      if (row.salesRep && row.salesRep.trim()) {
-        existing.salesReps?.add(row.salesRep.trim());
-      }
+      const rowCity = row.city?.trim() || 'Unknown';
+      existing.cities?.add(rowCity);
 
       if (row.number) {
         existing.invoiceNumbers?.add(row.number.toString());
@@ -316,7 +331,7 @@ export default function MonthsTab({ data }: MonthsTabProps) {
         netSales: c.netSales || 0,
         transactionCount: c.transactionCount,
         hasOpenMatchings: false,
-        salesReps: c.salesReps,
+        cities: c.cities,
         invoiceNumbers: c.invoiceNumbers,
         lastPaymentDate: c.lastPaymentDate,
         lastPaymentMatching: c.lastPaymentMatching,
@@ -327,56 +342,45 @@ export default function MonthsTab({ data }: MonthsTabProps) {
         paymentsCount3m,
         sales3m,
         salesCount3m
-      } as CustomerAnalysis & { payments3m: number; paymentsCount3m: number; sales3m: number; salesCount3m: number };
+      };
     });
   }, [data]);
 
-  const monthAnalysis = useMemo(() => {
-    const monthMap = new Map<string, MonthAnalysis>();
+  const cityAnalysis = useMemo(() => {
+    const cityMap = new Map<string, CityAnalysis>();
+    const customerCountMap = new Map<string, Set<string>>();
+    const customersByCity = new Map<string, CustomerAnalysis[]>();
 
     // Filter to include only customers with positive Net Debt (Debtors)
     const debitCustomersSet = new Set(
       customerAnalysis.filter(c => c.netDebt > 0.01).map(c => c.customerName)
     );
 
+    // Group customers by sales city
+    customerAnalysis.forEach((customer) => {
+      // Skip if customer is not a debtor
+      if (!debitCustomersSet.has(customer.customerName)) return;
+
+      if (customer.cities) {
+        customer.cities.forEach((city) => {
+          if (!customersByCity.has(city)) {
+            customersByCity.set(city, []);
+          }
+          customersByCity.get(city)!.push(customer);
+        });
+      }
+    });
+
     data.forEach((row) => {
       // Skip if customer is not a debtor
       if (!debitCustomersSet.has(row.customerName)) return;
-      let year = '';
-      let month = '';
-
-      // Try to parse date
-      const dateObj = new Date(row.date);
-      if (!isNaN(dateObj.getTime())) {
-        year = dateObj.getFullYear().toString();
-        month = (dateObj.getMonth() + 1).toString();
-      } else {
-        // Try to extract year from date string
-        const yearMatch = row.date.match(/\d{4}/);
-        if (yearMatch) {
-          year = yearMatch[0];
-        }
-        // Try to extract month from date string (MM/DD/YYYY or DD/MM/YYYY format)
-        const dateParts = row.date.match(/\d{1,2}/g);
-        if (dateParts && dateParts.length >= 2) {
-          // Assuming format like MM/DD/YYYY or DD/MM/YYYY
-          // You may need to adjust based on your date format
-          const monthMatch = dateParts[0];
-          if (monthMatch) {
-            month = monthMatch;
-          }
-        }
-      }
-
-      if (!year || !month) return;
-
-      const key = `${year}-${month.padStart(2, '0')}`;
-      const existing = monthMap.get(key) || {
-        month,
-        year,
+      const rowCity = row.city?.trim() || 'Unknown';
+      const existing = cityMap.get(rowCity) || {
+        city: rowCity,
         totalDebit: 0,
         totalCredit: 0,
         netDebt: 0,
+        customerCount: 0,
         transactionCount: 0,
         collectionRate: 0,
         goodCustomersCount: 0,
@@ -389,54 +393,28 @@ export default function MonthsTab({ data }: MonthsTabProps) {
       existing.netDebt = existing.totalDebit - existing.totalCredit;
       existing.transactionCount += 1;
 
-      monthMap.set(key, existing);
+      if (!customerCountMap.has(rowCity)) {
+        customerCountMap.set(rowCity, new Set());
+      }
+      customerCountMap.get(rowCity)!.add(row.customerName);
+
+      cityMap.set(rowCity, existing);
     });
 
-    // Calculate collection rate and customer ratings for each month
-    const customersByMonth = new Map<string, CustomerAnalysis[]>();
+    // Calculate collection rate and customer ratings for each city
+    cityMap.forEach((city, cityName) => {
+      city.customerCount = customerCountMap.get(cityName)?.size || 0;
 
-    // Group customers by month based on their transactions
-    customerAnalysis.forEach((customer) => {
-      const customerInvoices = data.filter(row => row.customerName === customer.customerName);
-      const monthSet = new Set<string>();
+      // Calculate collection rate
+      city.collectionRate = city.totalDebit > 0 ? (city.totalCredit / city.totalDebit) * 100 : 0;
 
-      customerInvoices.forEach(inv => {
-        const dateObj = new Date(inv.date);
-        if (!isNaN(dateObj.getTime())) {
-          const year = dateObj.getFullYear().toString();
-          const month = (dateObj.getMonth() + 1).toString();
-          monthSet.add(`${year}-${month.padStart(2, '0')}`);
-        } else {
-          const yearMatch = inv.date.match(/\d{4}/);
-          const dateParts = inv.date.match(/\d{1,2}/g);
-          if (yearMatch && dateParts && dateParts.length >= 2) {
-            const year = yearMatch[0];
-            const month = dateParts[0];
-            monthSet.add(`${year}-${month.padStart(2, '0')}`);
-          }
-        }
-      });
-
-      monthSet.forEach(monthKey => {
-        if (!customersByMonth.has(monthKey)) {
-          customersByMonth.set(monthKey, []);
-        }
-        customersByMonth.get(monthKey)!.push(customer);
-      });
-    });
-
-    monthMap.forEach((month, monthKey) => {
-      month.collectionRate = month.totalDebit > 0 ? (month.totalCredit / month.totalDebit) * 100 : 0;
-
-      // Get customers for this month and calculate ratings
-      const monthCustomers = customersByMonth.get(monthKey) || [];
-      const uniqueCustomers = Array.from(new Map(monthCustomers.map(c => [c.customerName, c])).values());
-
+      // Get customers for this city and calculate ratings
+      const cityCustomers = customersByCity.get(cityName) || [];
       let goodCount = 0;
       let mediumCount = 0;
       let badCount = 0;
 
-      uniqueCustomers.forEach((customer) => {
+      cityCustomers.forEach((customer) => {
         const rating = calculateDebtRating(customer);
         if (rating === 'Good') {
           goodCount++;
@@ -447,37 +425,31 @@ export default function MonthsTab({ data }: MonthsTabProps) {
         }
       });
 
-      month.goodCustomersCount = goodCount;
-      month.mediumCustomersCount = mediumCount;
-      month.badCustomersCount = badCount;
+      city.goodCustomersCount = goodCount;
+      city.mediumCustomersCount = mediumCount;
+      city.badCustomersCount = badCount;
     });
 
-    return Array.from(monthMap.values()).sort((a, b) => {
-      const aKey = `${a.year}-${a.month.padStart(2, '0')}`;
-      const bKey = `${b.year}-${b.month.padStart(2, '0')}`;
-      return aKey.localeCompare(bKey);
-    });
+    return Array.from(cityMap.values()).sort((a, b) => b.netDebt - a.netDebt);
   }, [data, customerAnalysis]);
 
   const filteredData = useMemo(() => {
-    if (!searchQuery.trim()) return monthAnalysis;
+    if (!searchQuery.trim()) return cityAnalysis;
     const query = searchQuery.toLowerCase();
-    return monthAnalysis.filter((month) =>
-      month.year.toLowerCase().includes(query) ||
-      monthNames[month.month]?.toLowerCase().includes(query) ||
-      month.month.includes(query)
+    return cityAnalysis.filter((city) =>
+      city.city.toLowerCase().includes(query)
     );
-  }, [monthAnalysis, searchQuery]);
+  }, [cityAnalysis, searchQuery]);
 
   const columns = useMemo(
     () => [
-      columnHelper.accessor('year', {
-        header: 'Year',
+      columnHelper.accessor('city', {
+        header: 'City',
         cell: (info) => info.getValue(),
       }),
-      columnHelper.accessor('month', {
-        header: 'Month',
-        cell: (info) => monthNames[info.getValue()] || info.getValue(),
+      columnHelper.accessor('customerCount', {
+        header: 'Customers',
+        cell: (info) => info.getValue(),
       }),
       columnHelper.accessor('netDebt', {
         header: 'Net Debt',
@@ -486,25 +458,6 @@ export default function MonthsTab({ data }: MonthsTabProps) {
           return (
             <span className={value > 0 ? 'text-red-600' : value < 0 ? 'text-green-600' : ''}>
               {value.toLocaleString('en-US')}
-            </span>
-          );
-        },
-      }),
-      columnHelper.accessor('collectionRate', {
-        header: 'Collection Rate',
-        cell: (info) => {
-          const value = info.getValue();
-          let colorClass = 'text-gray-600 bg-gray-50';
-          if (value >= 80) {
-            colorClass = 'text-green-700 bg-green-50';
-          } else if (value >= 50) {
-            colorClass = 'text-amber-700 bg-amber-50';
-          } else if (value > 0) {
-            colorClass = 'text-red-700 bg-red-50';
-          }
-          return (
-            <span className={`inline-flex items-center justify-center px-3 py-1 rounded-lg font-semibold ${colorClass}`}>
-              {value.toFixed(1)}%
             </span>
           );
         },
@@ -557,62 +510,60 @@ export default function MonthsTab({ data }: MonthsTabProps) {
     onSortingChange: setSorting,
   });
 
-  const totalDebt = monthAnalysis.reduce((sum, m) => sum + m.netDebt, 0);
+  const totalDebt = cityAnalysis.reduce((sum, r) => sum + r.netDebt, 0);
 
   return (
-    <div className="p-6">
-      <div className="mb-6">
-        <div className="bg-blue-50 p-4 rounded-lg relative">
-          <div className="flex items-center">
-            <div>
-              <p className="text-lg">
-                <span className="font-semibold">Total Debt:</span>{' '}
-                <span className={totalDebt > 0 ? 'text-red-600' : 'text-green-600'}>
-                  {totalDebt.toLocaleString('en-US')}
-                </span>
-              </p>
-              <p className="text-sm text-gray-600 mt-1">
-                Number of Months: {filteredData.length} {searchQuery && `(filtered from ${monthAnalysis.length})`}
-              </p>
-            </div>
-            <div className="absolute left-1/2 transform -translate-x-1/2">
-              <input
-                type="text"
-                placeholder="Search by year or month..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-lg w-64"
-              />
-            </div>
+    <div className="p-6 font-sans">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+        <div className="flex flex-wrap items-center gap-3">
+          <h1 className="text-3xl font-normal text-black tracking-tighter flex items-center gap-3">
+            <Users className="w-8 h-8 text-blue-500 shrink-0" />
+            Cities Analysis
+          </h1>
+          <div className="flex flex-wrap gap-2">
+            <span className="bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-xs font-black border border-blue-100 shadow-sm">
+              {filteredData.length} {searchQuery && `of ${cityAnalysis.length}`} Cities
+            </span>
+            <span className={`px-3 py-1 rounded-full text-xs font-black border shadow-sm ${totalDebt > 0 ? 'bg-red-50 text-red-700 border-red-100' : totalDebt < 0 ? 'bg-green-50 text-green-700 border-green-100' : 'bg-gray-50 text-gray-700 border-gray-100'}`}>
+              Total Debt: {totalDebt.toLocaleString('en-US')}
+            </span>
           </div>
+        </div>
+        <div className="flex-1 max-w-md w-full md:w-auto">
+          <input
+            type="text"
+            placeholder="Search by city..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
+          />
         </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
         <div className="overflow-x-auto">
           {table.getRowModel().rows.length === 0 ? (
             <NoData />
           ) : (
-          <table className="w-full" style={{ tableLayout: 'fixed' }}>
-            <thead className="bg-gray-100">
+          <table className="w-full text-center border-collapse" style={{ tableLayout: 'fixed', minWidth: '1000px', direction: 'ltr' }}>
+            <thead className="bg-slate-900 text-white sticky top-0 z-30 shadow-md">
               {table.getHeaderGroups().map((headerGroup) => (
-                <tr key={headerGroup.id}>
+                <tr key={headerGroup.id} className="text-center">
                   {headerGroup.headers.map((header) => {
-                    const getWidth = () => {
-                      const columnId = header.column.id;
-                      if (columnId === 'year') return '12%';
-                      if (columnId === 'month') return '12%';
-                      if (columnId === 'netDebt') return '12%';
-                      if (columnId === 'collectionRate') return '12%';
-                      if (columnId === 'goodCustomersCount') return '15%';
-                      if (columnId === 'mediumCustomersCount') return '15%';
-                      if (columnId === 'badCustomersCount') return '22%';
-                      return 'auto';
-                    };
+                      const getWidth = () => {
+                        const columnId = header.column.id;
+                        if (columnId === 'city') return '25%';
+                        if (columnId === 'customerCount') return '15%';
+                        if (columnId === 'netDebt') return '20%';
+                        if (columnId === 'goodCustomersCount') return '13%';
+                        if (columnId === 'mediumCustomersCount') return '13%';
+                        if (columnId === 'badCustomersCount') return '14%';
+                        return 'auto';
+                      };
                     return (
-                      <th
+                        <th
                         key={header.id}
-                        className="px-4 py-3 text-center font-semibold cursor-pointer hover:bg-gray-200"
+                        className="py-3 px-4 text-sm font-black uppercase tracking-wider text-center cursor-pointer hover:bg-slate-800 transition-colors"
                         style={{ width: getWidth() }}
                         onClick={header.column.getToggleSortingHandler()}
                       >
@@ -627,65 +578,52 @@ export default function MonthsTab({ data }: MonthsTabProps) {
                 </tr>
               ))}
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-gray-150">
               {table.getRowModel().rows.map((row) => (
-                  <tr key={row.id} className="border-b hover:bg-gray-50">
+                  <tr key={row.id} className="group hover:bg-gray-50/50 transition-all text-center">
                     {row.getVisibleCells().map((cell) => {
                       const getWidth = () => {
                         const columnId = cell.column.id;
-                        if (columnId === 'year') return '12%';
-                        if (columnId === 'month') return '12%';
-                        if (columnId === 'netDebt') return '12%';
-                        if (columnId === 'collectionRate') return '12%';
-                        if (columnId === 'goodCustomersCount') return '15%';
-                        if (columnId === 'mediumCustomersCount') return '15%';
-                        if (columnId === 'badCustomersCount') return '22%';
+                        if (columnId === 'city') return '25%';
+                        if (columnId === 'customerCount') return '15%';
+                        if (columnId === 'netDebt') return '20%';
+                        if (columnId === 'goodCustomersCount') return '13%';
+                        if (columnId === 'mediumCustomersCount') return '13%';
+                        if (columnId === 'badCustomersCount') return '14%';
                         return 'auto';
                       };
                       return (
-                        <td key={cell.id} className="px-4 py-3 text-center text-lg" style={{ width: getWidth() }}>
+                        <td key={cell.id} className="py-3 px-4 text-center text-lg font-semibold" style={{ width: getWidth() }}>
                           {flexRender(cell.column.columnDef.cell, cell.getContext())}
                         </td>
                       );
                     })}
                   </tr>
                 ))}
-              <tr className="bg-gray-100 font-bold border-t-2 border-gray-300">
-                <td className="px-4 py-3 text-center text-lg" style={{ width: '12%' }}>Total</td>
-                <td className="px-4 py-3 text-center text-lg" style={{ width: '12%' }}></td>
-                <td className="px-4 py-3 text-center text-lg" style={{ width: '12%' }}>
-                  <span className={filteredData.reduce((sum, m) => sum + m.netDebt, 0) > 0 ? 'text-red-600' : filteredData.reduce((sum, m) => sum + m.netDebt, 0) < 0 ? 'text-green-600' : ''}>
-                    {filteredData.reduce((sum, m) => sum + m.netDebt, 0).toLocaleString('en-US')}
+              <tr className="bg-gray-100 font-bold border-t-2 border-gray-300 text-center">
+                <td className="py-3 px-4 text-lg font-black text-black" style={{ width: '25%' }}>Total</td>
+                <td className="py-3 px-4 text-lg font-black text-black" style={{ width: '15%' }}>
+                  {filteredData.reduce((sum, r) => sum + r.customerCount, 0)}
+                </td>
+                <td className="py-3 px-4 text-lg font-black" style={{ width: '20%' }}>
+                  <span className={filteredData.reduce((sum, r) => sum + r.netDebt, 0) > 0 ? 'text-red-600' : filteredData.reduce((sum, r) => sum + r.netDebt, 0) < 0 ? 'text-green-600' : ''}>
+                    {filteredData.reduce((sum, r) => sum + r.netDebt, 0).toLocaleString('en-US')}
                   </span>
                 </td>
-                <td className="px-4 py-3 text-center text-lg" style={{ width: '12%' }}>
-                  {(() => {
-                    const totalDebit = filteredData.reduce((sum, m) => sum + m.totalDebit, 0);
-                    const totalCredit = filteredData.reduce((sum, m) => sum + m.totalCredit, 0);
-                    const avgRate = totalDebit > 0 ? (totalCredit / totalDebit) * 100 : 0;
-                    let colorClass = 'text-gray-600 bg-gray-50';
-                    if (avgRate >= 80) {
-                      colorClass = 'text-green-700 bg-green-50';
-                    } else if (avgRate >= 50) {
-                      colorClass = 'text-amber-700 bg-amber-50';
-                    } else if (avgRate > 0) {
-                      colorClass = 'text-red-700 bg-red-50';
-                    }
-                    return (
-                      <span className={`inline-flex items-center justify-center px-3 py-1 rounded-lg font-semibold ${colorClass}`}>
-                        {avgRate.toFixed(1)}%
-                      </span>
-                    );
-                  })()}
+                <td className="py-3 px-4 text-lg font-black" style={{ width: '13%' }}>
+                  <span className="inline-flex items-center justify-center px-3 py-1.5 rounded-full bg-gradient-to-r from-emerald-500 to-green-600 text-white font-bold shadow-sm">
+                    {filteredData.reduce((sum, r) => sum + r.goodCustomersCount, 0)}
+                  </span>
                 </td>
-                <td className="px-4 py-3 text-center text-lg" style={{ width: '15%' }}>
-                  -
+                <td className="py-3 px-4 text-lg font-black" style={{ width: '13%' }}>
+                  <span className="inline-flex items-center justify-center px-3 py-1.5 rounded-full bg-gradient-to-r from-amber-400 to-orange-500 text-white font-bold shadow-sm">
+                    {filteredData.reduce((sum, r) => sum + r.mediumCustomersCount, 0)}
+                  </span>
                 </td>
-                <td className="px-4 py-3 text-center text-lg" style={{ width: '15%' }}>
-                  -
-                </td>
-                <td className="px-4 py-3 text-center text-lg" style={{ width: '22%' }}>
-                  -
+                <td className="py-3 px-4 text-lg font-black" style={{ width: '14%' }}>
+                  <span className="inline-flex items-center justify-center px-3 py-1.5 rounded-full bg-gradient-to-r from-red-500 to-rose-600 text-white font-bold shadow-sm">
+                    {filteredData.reduce((sum, r) => sum + r.badCustomersCount, 0)}
+                  </span>
                 </td>
               </tr>
             </tbody>

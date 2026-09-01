@@ -234,12 +234,30 @@ export default function DebitInsightsDashboard({
     });
   }, [metrics.currentYearTrend, metrics.previousYearTrend]);
 
-  if (!isMounted) {
-    return <TabLoader />;
-  }
-
-  if (loading && data.length === 0) {
-    return <TabLoader />;
+  if (!isMounted || (loading && data.length === 0)) {
+    return (
+      <div className="space-y-4 max-w-[1700px] mx-auto w-full animate-pulse">
+        <div className="grid grid-cols-[repeat(6,minmax(0,1fr))_auto] gap-2 xl:gap-3 min-w-0">
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className="bg-white rounded-xl border border-gray-200 p-3 xl:p-4 min-h-[100px] xl:min-h-[110px] flex flex-col gap-2">
+              <div className="h-3 w-2/3 bg-gray-200 rounded"></div>
+              <div className="h-6 xl:h-8 w-1/2 bg-gray-200 rounded mt-1"></div>
+              <div className="h-3 w-1/3 bg-gray-200 rounded mt-auto"></div>
+            </div>
+          ))}
+          <div className="flex flex-col gap-2 min-w-[60px] xl:min-w-[70px]">
+            <div className="flex-1 bg-gray-200 rounded-xl"></div>
+            <div className="flex-1 bg-gray-200 rounded-xl"></div>
+          </div>
+        </div>
+        {[...Array(3)].map((_, i) => (
+          <div key={`chart-${i}`} className="bg-white border border-gray-200 rounded-2xl p-6 h-[400px] flex flex-col gap-4">
+            <div className="h-6 w-48 bg-gray-200 rounded"></div>
+            <div className="flex-1 bg-gray-100/50 rounded-xl"></div>
+          </div>
+        ))}
+      </div>
+    );
   }
 
   if (!loading && data.length === 0) {

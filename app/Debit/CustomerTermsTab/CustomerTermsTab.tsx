@@ -16,6 +16,7 @@ import {
   Filter
 } from 'lucide-react';
 import NoData from '@/app/Components/DataState/NoDataTab';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
 import { bhs_supabase } from '@/lib/supabase';
 import { toast } from '@/app/Components/Notification';
 import { useDebitData } from '../Context/DebitDataContext';
@@ -35,7 +36,7 @@ export default function CustomerTermsTab({ data }: CustomerTermsTabProps) {
   const [editCreditLimit, setEditCreditLimit] = useState<string>('');
   const [editAccountStatus, setEditAccountStatus] = useState<'ACTIVE' | 'ON_HOLD'>('ACTIVE');
   const [isSaving, setIsSaving] = useState(false);
-
+  const [selectedCustomerForAging, setSelectedCustomerForAging] = useState<any | null>(null);
   // Applied Filter State
   const [appliedStatusFilter, setAppliedStatusFilter] = useState<'ALL' | 'ACTIVE' | 'ON_HOLD'>('ALL');
   const [appliedMinExceededDays, setAppliedMinExceededDays] = useState<string>('');
@@ -132,7 +133,8 @@ export default function CustomerTermsTab({ data }: CustomerTermsTabProps) {
           creditLimit: limit,
           exceededAmount,
           exceededPercentage,
-          accountStatus: c.accountStatus || 'ACTIVE'
+          accountStatus: c.accountStatus || 'ACTIVE',
+          agingBreakdown: c.agingBreakdown
         };
       })
       .filter(c => Math.abs(c.netDebt) > 0.01)
@@ -341,9 +343,12 @@ export default function CustomerTermsTab({ data }: CustomerTermsTabProps) {
                   <td className="py-5 px-4 text-center text-xs font-black text-gray-400">{index + 1}</td>
                   <td className="py-5 px-4 text-center">
                     <div className="flex flex-col items-center gap-1">
-                      <span className={`font-black text-sm block truncate max-w-xs mx-auto ${c.accountStatus === 'ON_HOLD' ? 'text-gray-400 line-through' : 'text-black'}`}>
+                      <button 
+                        onClick={() => setSelectedCustomerForAging(c)}
+                        className={`font-black text-sm block truncate max-w-xs mx-auto cursor-pointer transition-colors hover:underline ${c.accountStatus === 'ON_HOLD' ? 'text-gray-400 line-through' : 'text-black'}`}
+                      >
                         {c.customerName}
-                      </span>
+                      </button>
                       {c.accountStatus === 'ON_HOLD' && (
                         <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded text-[9px] font-black uppercase tracking-wider">
                           On Hold
@@ -621,6 +626,56 @@ export default function CustomerTermsTab({ data }: CustomerTermsTabProps) {
                 >
                   Apply Filters
                 </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Aging Chart Modal */}
+      {selectedCustomerForAging && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="bg-slate-900 px-6 py-4 flex justify-between items-center text-white">
+              <h2 className="text-xl font-black tracking-tight">{selectedCustomerForAging.customerName} - Aging Debt</h2>
+              <button 
+                onClick={() => setSelectedCustomerForAging(null)}
+                className="text-white/70 hover:text-white transition-colors p-1 rounded-full hover:bg-white/10"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            <div className="p-8">
+              <div className="h-[400px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={[
+                      { name: '0-30 Days', value: selectedCustomerForAging.agingBreakdown?.oneToThirty || 0, color: '#f59e0b' },
+                      { name: '31-60 Days', value: selectedCustomerForAging.agingBreakdown?.thirtyOneToSixty || 0, color: '#f97316' },
+                      { name: '61-90 Days', value: selectedCustomerForAging.agingBreakdown?.sixtyOneToNinety || 0, color: '#ef4444' },
+                      { name: '91-120 Days', value: selectedCustomerForAging.agingBreakdown?.ninetyOneToOneTwenty || 0, color: '#b91c1c' },
+                      { name: '> 120 Days', value: selectedCustomerForAging.agingBreakdown?.older || 0, color: '#7f1d1d' },
+                    ]}
+                    margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
+                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fontWeight: 700, fill: '#6b7280' }} dy={10} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fontWeight: 700, fill: '#6b7280' }} dx={-10} tickFormatter={(val) => val.toLocaleString('en-US')} />
+                    <Tooltip 
+                      cursor={{ fill: '#f3f4f6' }}
+                      contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)', fontWeight: 800 }}
+                      formatter={(value: number) => [value.toLocaleString('en-US') + ' AED', 'Amount']}
+                    />
+                    <Bar dataKey="value" radius={[6, 6, 0, 0]} maxBarSize={60}>
+                      {
+                        [...Array(5)].map((_, index) => (
+                          <Cell key={`cell-${index}`} fill={['#f59e0b', '#f97316', '#ef4444', '#b91c1c', '#7f1d1d'][index]} />
+                        ))
+                      }
+                      <LabelList dataKey="value" position="top" formatter={(val: number) => val > 0 ? val.toLocaleString('en-US') : ''} style={{ fontSize: '14px', fontWeight: 900, fill: '#1f2937' }} />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
               </div>
             </div>
           </div>

@@ -10,7 +10,7 @@ import {
   createColumnHelper,
   PaginationState,
 } from '@tanstack/react-table';
-import { FileSpreadsheet } from 'lucide-react';
+import { FileSpreadsheet, ListMinus } from 'lucide-react';
 import { InvoiceRow } from '@/types';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import { useDebouncedValue } from '../Hooks/useDebouncedValue';
@@ -255,12 +255,12 @@ export default function AllTransactionsTab({ data = [] }: AllTransactionsTabProp
       columnHelper.accessor('debit', {
         header: 'Debit',
         cell: (info) =>
-          info.getValue().toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+          <span className="font-black text-black">{info.getValue().toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>,
       }),
       columnHelper.accessor('credit', {
         header: 'Credit',
         cell: (info) =>
-          info.getValue().toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+          <span className="font-black text-gray-500">{info.getValue().toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>,
       }),
       columnHelper.accessor('netAmount', {
         header: 'Net Amount',
@@ -268,7 +268,7 @@ export default function AllTransactionsTab({ data = [] }: AllTransactionsTabProp
           const value = info.getValue();
           const isNegative = value < 0;
           return (
-            <span className={`font-semibold ${isNegative ? 'text-green-600' : 'text-orange-600'}`}>
+            <span className={`font-black ${isNegative ? 'text-green-600' : 'text-orange-600'}`}>
               {value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
           );
@@ -330,42 +330,51 @@ export default function AllTransactionsTab({ data = [] }: AllTransactionsTabProp
   };
 
   return (
-    <div className="p-6">
-      <div className="bg-blue-50 p-4 rounded-lg mb-6 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <p className="text-lg">
-            <span className="font-semibold">Total Transactions:</span>{' '}
-            <span className="text-blue-600">{filteredItems.length.toLocaleString()}</span>
-            {debouncedSearch && ` of ${allTransactions.length.toLocaleString()}`}
-          </p>
+    <div className="p-6 font-sans">
+      {/* Header Section */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+        <div className="flex flex-wrap items-center gap-3">
+          <h1 className="text-3xl font-normal text-black tracking-tighter flex items-center gap-3">
+            <ListMinus className="w-8 h-8 text-blue-500 shrink-0" />
+            All Transactions
+          </h1>
+          <div className="flex flex-wrap gap-2">
+            <span className="bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-xs font-black border border-blue-100 shadow-sm">
+              {filteredItems.length.toLocaleString()} {debouncedSearch && `of ${allTransactions.length.toLocaleString()}`} Trans
+            </span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 w-full md:w-auto">
+          <div className="inline-flex items-center bg-white rounded-xl shadow-sm border border-slate-200 p-1">
+            <button
+              type="button"
+              onClick={() => setViewMode('details')}
+              className={`px-4 py-2 font-black text-xs uppercase tracking-wider rounded-lg transition-all ${viewMode === 'details'
+                ? 'bg-slate-900 text-white shadow'
+                : 'text-gray-500 hover:text-black'
+                }`}
+            >
+              Detail View
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('byCustomer')}
+              className={`px-4 py-2 font-black text-xs uppercase tracking-wider rounded-lg transition-all ${viewMode === 'byCustomer'
+                ? 'bg-slate-900 text-white shadow'
+                : 'text-gray-500 hover:text-black'
+                }`}
+            >
+              Group by Customer
+            </button>
+          </div>
+          
           <button
             onClick={exportToExcel}
-            className="flex items-center justify-center h-10 w-10 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-colors shadow-sm"
+            className="flex items-center justify-center h-11 w-11 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition-colors shadow-sm shrink-0 cursor-pointer"
             title="Export to Excel"
           >
             <FileSpreadsheet className="h-5 w-5" />
-          </button>
-        </div>
-        <div className="inline-flex items-center bg-white rounded-full shadow-sm border border-blue-100 overflow-hidden text-sm">
-          <button
-            type="button"
-            onClick={() => setViewMode('details')}
-            className={`px-4 py-1.5 font-medium transition-colors ${viewMode === 'details'
-              ? 'bg-blue-600 text-white'
-              : 'text-blue-700 hover:bg-blue-50'
-              }`}
-          >
-            Detail View
-          </button>
-          <button
-            type="button"
-            onClick={() => setViewMode('byCustomer')}
-            className={`px-4 py-1.5 font-medium border-l border-blue-100 transition-colors ${viewMode === 'byCustomer'
-              ? 'bg-blue-600 text-white'
-              : 'text-blue-700 hover:bg-blue-50'
-              }`}
-          >
-            Group by Customer
           </button>
         </div>
       </div>
@@ -437,36 +446,34 @@ export default function AllTransactionsTab({ data = [] }: AllTransactionsTabProp
         )}
       </div>
 
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
         {viewMode === 'details' ? (
           <>
             <div className="overflow-x-auto">
               {table.getRowModel().rows.length === 0 ? (
                 <NoData />
               ) : (
-                <table className="w-full" style={{ tableLayout: 'fixed', direction: 'ltr' }}>
-                  <thead className="bg-gray-100">
+                <table className="w-full text-center border-collapse" style={{ tableLayout: 'fixed', minWidth: '1100px', direction: 'ltr' }}>
+                  <thead className="bg-slate-900 text-white sticky top-0 z-30 shadow-md">
                     {table.getHeaderGroups().map((headerGroup) => (
-                      <tr key={headerGroup.id}>
+                      <tr key={headerGroup.id} className="text-center">
                         {headerGroup.headers.map((header) => {
                           const getWidth = () => {
                             const columnId = header.column.id;
-                            if (columnId === 'customerName') return '32%';
-                            if (columnId === 'date') return '8%';
-                            if (columnId === 'number') return '11%';
-                            if (columnId === 'type') return '7%';
-                            if (columnId === 'debit') return '9%';
-                            if (columnId === 'credit') return '9%';
-                            if (columnId === 'netAmount') return '14%';
+                            if (columnId === 'customerName') return '25%';
+                            if (columnId === 'date') return '10%';
+                            if (columnId === 'number') return '12%';
+                            if (columnId === 'type') return '10%';
+                            if (columnId === 'debit') return '10%';
+                            if (columnId === 'credit') return '10%';
+                            if (columnId === 'netAmount') return '13%';
                             if (columnId === 'matching') return '10%';
                             return 'auto';
                           };
-                          const alignClass =
-                            header.column.id === 'customerName' ? 'text-left' : 'text-center';
                           return (
                             <th
                               key={header.id}
-                              className={`px-4 py-3 font-semibold ${alignClass}`}
+                              className="py-4.5 px-4 text-xs font-black uppercase tracking-wider text-center"
                               style={{ width: getWidth() }}
                             >
                               {flexRender(header.column.columnDef.header, header.getContext())}
@@ -476,28 +483,26 @@ export default function AllTransactionsTab({ data = [] }: AllTransactionsTabProp
                       </tr>
                     ))}
                   </thead>
-                  <tbody>
+                  <tbody className="divide-y divide-gray-150">
                     {table.getRowModel().rows.map((row) => (
-                      <tr key={row.id} className="border-b hover:bg-gray-50">
+                      <tr key={row.id} className="group hover:bg-gray-50/50 transition-all text-center">
                         {row.getVisibleCells().map((cell) => {
                           const getWidth = () => {
                             const columnId = cell.column.id;
-                            if (columnId === 'customerName') return '32%';
-                            if (columnId === 'date') return '8%';
-                            if (columnId === 'number') return '11%';
-                            if (columnId === 'type') return '7%';
-                            if (columnId === 'debit') return '9%';
-                            if (columnId === 'credit') return '9%';
-                            if (columnId === 'netAmount') return '14%';
+                            if (columnId === 'customerName') return '25%';
+                            if (columnId === 'date') return '10%';
+                            if (columnId === 'number') return '12%';
+                            if (columnId === 'type') return '10%';
+                            if (columnId === 'debit') return '10%';
+                            if (columnId === 'credit') return '10%';
+                            if (columnId === 'netAmount') return '13%';
                             if (columnId === 'matching') return '10%';
                             return 'auto';
                           };
-                          const alignClass =
-                            cell.column.id === 'customerName' ? 'text-left' : 'text-center';
                           return (
                             <td
                               key={cell.id}
-                              className={`px-4 py-3 text-lg ${alignClass}`}
+                              className="py-5 px-4 text-center text-sm"
                               style={{ width: getWidth() }}
                             >
                               {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -507,30 +512,30 @@ export default function AllTransactionsTab({ data = [] }: AllTransactionsTabProp
                       </tr>
                     ))}
                     {filteredItems.length > 0 && (
-                      <tr className="bg-gray-100 font-bold border-t-2 border-gray-300">
-                        <td className="px-4 py-3 text-center text-lg">Total</td>
-                        <td className="px-4 py-3 text-center text-lg">-</td>
-                        <td className="px-4 py-3 text-center text-lg">-</td>
-                        <td className="px-4 py-3 text-center text-lg">-</td>
-                        <td className="px-4 py-3 text-center text-lg">
+                      <tr className="bg-gray-100 font-bold border-t-2 border-gray-300 text-center">
+                        <td className="py-5 px-4 text-sm font-black text-black">Total</td>
+                        <td className="py-5 px-4">-</td>
+                        <td className="py-5 px-4">-</td>
+                        <td className="py-5 px-4">-</td>
+                        <td className="py-5 px-4 text-sm font-black text-black">
                           {filteredItems.reduce((sum, item) => sum + item.debit, 0).toLocaleString('en-US', {
                             minimumFractionDigits: 2,
                             maximumFractionDigits: 2,
                           })}
                         </td>
-                        <td className="px-4 py-3 text-center text-lg">
+                        <td className="py-5 px-4 text-sm font-black text-gray-500">
                           {filteredItems.reduce((sum, item) => sum + item.credit, 0).toLocaleString('en-US', {
                             minimumFractionDigits: 2,
                             maximumFractionDigits: 2,
                           })}
                         </td>
-                        <td className="px-4 py-3 text-center text-lg">
+                        <td className="py-5 px-4 text-sm font-black">
                           {(() => {
                             const total = filteredItems.reduce((sum, item) => sum + item.netAmount, 0);
                             const isNegative = total < 0;
                             return (
                               <span
-                                className={`font-semibold ${isNegative ? 'text-green-600' : 'text-orange-600'
+                                className={`font-black ${isNegative ? 'text-green-600' : 'text-orange-600'
                                   }`}
                               >
                                 {total.toLocaleString('en-US', {
@@ -541,7 +546,7 @@ export default function AllTransactionsTab({ data = [] }: AllTransactionsTabProp
                             );
                           })()}
                         </td>
-                        <td className="px-4 py-3 text-center text-lg">-</td>
+                        <td className="py-5 px-4">-</td>
                       </tr>
                     )}
                   </tbody>
@@ -614,22 +619,22 @@ export default function AllTransactionsTab({ data = [] }: AllTransactionsTabProp
             {groupedByCustomer.length === 0 ? (
               <NoData />
             ) : (
-              <table className="w-full" style={{ tableLayout: 'fixed', direction: 'ltr' }}>
-                <thead className="bg-gray-100">
-                  <tr>
-                    <th className="px-4 py-3 text-left font-semibold" style={{ width: '35%' }}>
+              <table className="w-full text-center border-collapse" style={{ tableLayout: 'fixed', minWidth: '1100px', direction: 'ltr' }}>
+                <thead className="bg-slate-900 text-white sticky top-0 z-30 shadow-md">
+                  <tr className="text-center">
+                    <th className="py-4.5 px-4 text-xs font-black uppercase tracking-wider text-left" style={{ width: '35%' }}>
                       Customer Name
                     </th>
-                    <th className="px-4 py-3 text-center font-semibold" style={{ width: '15%' }}>
+                    <th className="py-4.5 px-4 text-xs font-black uppercase tracking-wider text-center" style={{ width: '15%' }}>
                       Transactions
                     </th>
-                    <th className="px-4 py-3 text-center font-semibold" style={{ width: '15%' }}>
+                    <th className="py-4.5 px-4 text-xs font-black uppercase tracking-wider text-center" style={{ width: '15%' }}>
                       Total Debit
                     </th>
-                    <th className="px-4 py-3 text-center font-semibold" style={{ width: '15%' }}>
+                    <th className="py-4.5 px-4 text-xs font-black uppercase tracking-wider text-center" style={{ width: '15%' }}>
                       Total Credit
                     </th>
-                    <th className="px-4 py-3 text-center font-semibold" style={{ width: '20%' }}>
+                    <th className="py-4.5 px-4 text-xs font-black uppercase tracking-wider text-center" style={{ width: '20%' }}>
                       Total Net
                     </th>
                   </tr>
@@ -697,20 +702,20 @@ export default function AllTransactionsTab({ data = [] }: AllTransactionsTabProp
                                 Transactions for {row.customerName}
                               </div>
                               <div className="overflow-x-auto">
-                                <table className="w-full text-sm" style={{ direction: 'ltr' }}>
-                                  <thead>
-                                    <tr className="bg-gray-100">
-                                      <th className="px-3 py-2 text-center font-semibold">Date</th>
-                                      <th className="px-3 py-2 text-center font-semibold">
+                                <table className="w-full text-sm text-center border-collapse" style={{ direction: 'ltr' }}>
+                                  <thead className="bg-slate-800 text-white">
+                                    <tr className="text-center">
+                                      <th className="py-3 px-3 text-[10px] font-black uppercase tracking-wider text-center">Date</th>
+                                      <th className="py-3 px-3 text-[10px] font-black uppercase tracking-wider text-center">
                                         Invoice #
                                       </th>
-                                      <th className="px-3 py-2 text-center font-semibold">Type</th>
-                                      <th className="px-3 py-2 text-center font-semibold">Debit</th>
-                                      <th className="px-3 py-2 text-center font-semibold">Credit</th>
-                                      <th className="px-3 py-2 text-center font-semibold">
+                                      <th className="py-3 px-3 text-[10px] font-black uppercase tracking-wider text-center">Type</th>
+                                      <th className="py-3 px-3 text-[10px] font-black uppercase tracking-wider text-center">Debit</th>
+                                      <th className="py-3 px-3 text-[10px] font-black uppercase tracking-wider text-center">Credit</th>
+                                      <th className="py-3 px-3 text-[10px] font-black uppercase tracking-wider text-center">
                                         Net
                                       </th>
-                                      <th className="px-3 py-2 text-center font-semibold">
+                                      <th className="py-3 px-3 text-[10px] font-black uppercase tracking-wider text-center">
                                         Matching
                                       </th>
                                     </tr>
