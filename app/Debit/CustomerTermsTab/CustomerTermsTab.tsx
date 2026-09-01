@@ -672,7 +672,7 @@ export default function CustomerTermsTab({ data }: CustomerTermsTabProps) {
                           <Cell key={`cell-${index}`} fill={['#f59e0b', '#f97316', '#ef4444', '#b91c1c', '#7f1d1d'][index]} />
                         ))
                       }
-                      <LabelList dataKey="value" position="top" formatter={(val: number) => val > 0 ? val.toLocaleString('en-US') : ''} style={{ fontSize: '14px', fontWeight: 900, fill: '#1f2937' }} />
+                      <LabelList dataKey="value" position="top" formatter={(val: any) => val > 0 ? val.toLocaleString('en-US') : ''} style={{ fontSize: '14px', fontWeight: 900, fill: '#1f2937' }} />
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
