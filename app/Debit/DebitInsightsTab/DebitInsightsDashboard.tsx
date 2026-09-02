@@ -237,8 +237,8 @@ export default function DebitInsightsDashboard({
   if (!isMounted || (loading && data.length === 0)) {
     return (
       <div className="space-y-4 max-w-[1700px] mx-auto w-full animate-pulse">
-        <div className="grid grid-cols-[repeat(6,minmax(0,1fr))_auto] gap-2 xl:gap-3 min-w-0">
-          {[...Array(6)].map((_, i) => (
+        <div className="grid grid-cols-[repeat(5,minmax(0,1fr))_auto] gap-2 xl:gap-3 min-w-0">
+          {[...Array(5)].map((_, i) => (
             <div key={i} className="bg-white rounded-xl border border-gray-200 p-3 xl:p-4 min-h-[100px] xl:min-h-[110px] flex flex-col gap-2">
               <div className="h-3 w-2/3 bg-gray-200 rounded"></div>
               <div className="h-6 xl:h-8 w-1/2 bg-gray-200 rounded mt-1"></div>

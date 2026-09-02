@@ -67,9 +67,18 @@ export async function getProductsData(userId: string, filters: any) {
     return dateB - dateA;
   });
 
+  const uniqueMonths = new Set<string>();
+
   const productMap = new Map<string, any>();
 
   globallyFilteredData.forEach(item => {
+    if (item.invoiceDate) {
+      const d = new Date(item.invoiceDate);
+      if (!isNaN(d.getTime())) {
+        uniqueMonths.add(`${d.getFullYear()}-${d.getMonth() + 1}`);
+      }
+    }
+
     const key = item.productId || item.barcode || item.product;
     let existing = productMap.get(key);
 
@@ -98,11 +107,14 @@ export async function getProductsData(userId: string, filters: any) {
     }
   });
 
+  const monthsCount = uniqueMonths.size || 1;
+
   const productsData = Array.from(productMap.values()).map(item => ({
     productId: item.productId,
     barcode: item.barcode,
     product: item.product,
     amount: item.totalAmount,
+    avgMonthly: item.totalAmount / monthsCount,
     qty: item.totalQty,
     transactions: item.invoiceNumbers.size,
     allNames: Array.from(item.allNames),
@@ -243,14 +255,24 @@ export async function getCategoriesData(userId: string, filters: any) {
     }
   }
 
+  const uniqueMonths = new Set<string>();
+
   const categoryMap = new Map<string, {
     category: string;
     totalAmount: number;
     totalQty: number;
     customerIds: Set<string>;
+    mainCustomerIds: Set<string>;
+    productIds: Set<string>;
   }>();
 
   globallyFilteredData.forEach(item => {
+    if (item.invoiceDate) {
+      const d = new Date(item.invoiceDate);
+      if (!isNaN(d.getTime())) {
+        uniqueMonths.add(`${d.getFullYear()}-${d.getMonth() + 1}`);
+      }
+    }
     const category = item.productTag || 'Uncategorized';
     let existing = categoryMap.get(category);
 
@@ -260,6 +282,8 @@ export async function getCategoriesData(userId: string, filters: any) {
         totalAmount: 0,
         totalQty: 0,
         customerIds: new Set<string>(),
+        mainCustomerIds: new Set<string>(),
+        productIds: new Set<string>(),
       };
       categoryMap.set(category, existing);
     }
@@ -271,14 +295,30 @@ export async function getCategoriesData(userId: string, filters: any) {
     if (customerKey) {
       existing.customerIds.add(customerKey);
     }
+
+    const mainCustomerKey = item.customerMainName || item.customerName;
+    if (mainCustomerKey) {
+      existing.mainCustomerIds.add(mainCustomerKey);
+    }
+
+    const productKey = item.productId || item.barcode || item.product;
+    if (productKey) {
+      existing.productIds.add(productKey);
+    }
   });
+
+  const monthsCount = uniqueMonths.size || 1;
 
   return Array.from(categoryMap.values()).map(item => ({
     category: item.category,
     amount: item.totalAmount,
+    avgMonthly: item.totalAmount / monthsCount,
     qty: item.totalQty,
     customers: item.customerIds.size,
-    customerIds: Array.from(item.customerIds) 
+    mainCustomers: item.mainCustomerIds.size,
+    productsCount: item.productIds.size,
+    customerIds: Array.from(item.customerIds),
+    mainCustomerIds: Array.from(item.mainCustomerIds)
   }));
 }
 

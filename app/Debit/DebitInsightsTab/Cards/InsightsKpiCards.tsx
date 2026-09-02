@@ -48,7 +48,7 @@ export default function InsightsKpiCards({
   const periodMonthsLabel = monthCount === 1 ? '1 month in period' : `${monthCount} months in period`;
 
   return (
-    <div className="grid grid-cols-[repeat(6,minmax(0,1fr))_auto] gap-2 xl:gap-3 min-w-0">
+    <div className="grid grid-cols-[repeat(5,minmax(0,1fr))_auto] gap-2 xl:gap-3 min-w-0">
       <div className="bg-white rounded-xl border border-gray-200 p-3 xl:p-4 min-w-0">
         <p className="text-[10px] xl:text-xs font-medium text-gray-500 uppercase tracking-wide mb-1 truncate">Open Debt (as-of)</p>
         <p className="text-lg xl:text-2xl font-bold text-gray-900 truncate">{formatCurrency(metrics.totalOpenDebt)}</p>
@@ -94,22 +94,6 @@ export default function InsightsKpiCards({
         <p className="text-[10px] xl:text-xs text-gray-400 mt-1 truncate">{periodMonthsLabel}</p>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 p-3 xl:p-4 min-w-0">
-        <p className="text-[10px] xl:text-xs font-medium text-gray-500 uppercase tracking-wide mb-1 truncate">Collection Rate</p>
-        {salesLoading ? (
-          <div className="h-7 xl:h-8 flex items-center mt-0.5">
-            <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />
-          </div>
-        ) : (
-          <p className="text-lg xl:text-2xl font-bold text-gray-900 truncate">
-            {metrics.period.collectionRate === null
-              ? 'N/A'
-              : `${metrics.period.collectionRate.toFixed(1)}%`}
-          </p>
-        )}
-        <p className="text-[10px] xl:text-xs text-gray-400 mt-1 truncate">Collections / Net Sales</p>
-      </div>
-
       <div className="flex flex-col gap-2 min-w-[60px] xl:min-w-[70px]">
         <button
           onClick={onOpenFilters}
@@ -117,9 +101,6 @@ export default function InsightsKpiCards({
           className="flex-1 flex items-center justify-center bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-100 transition-colors relative border border-blue-100"
         >
           <Filter className="w-5 h-5 xl:w-6 xl:h-6" />
-          {(hasPendingChanges || filtersActive) && (
-            <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full animate-pulse border border-white"></span>
-          )}
         </button>
         <button
           onClick={onClearFilters}

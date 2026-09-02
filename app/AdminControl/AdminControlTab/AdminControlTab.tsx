@@ -212,8 +212,7 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
         { id: 'all-transactions', label: 'All Transactions' },
         { id: 'customers-open-matches', label: 'Open Transactions' },
         { id: 'payment-tracker', label: 'Payment Tracker' },
-        { id: 'salesreps', label: 'Sales Reps' },
-        { id: 'history', label: 'History' },
+        { id: 'cities', label: 'Cities' },
         { id: 'ages', label: 'Ages' },
         { id: 'make-statement', label: 'Make Statement' }
     ],

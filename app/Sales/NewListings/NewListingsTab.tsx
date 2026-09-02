@@ -29,10 +29,34 @@ export default function SalesNewListingsTab({ userId }: SalesNewListingsTabProps
     initialData: [] as any[],
   });
 
-  const listingRows = data ?? [];
+  const [includeLegacyProducts, setIncludeLegacyProducts] = useState(false);
+
+  const listingRows = (data ?? []).map((month: any) => {
+    if (includeLegacyProducts) return month;
+
+    const filteredProducts = month.products.filter((p: any) => {
+      const name = (p.productName || '').toUpperCase();
+      return !name.includes('HASI') && !name.includes('CAMEL') && !name.includes('حاشي') && !name.includes('كاميل');
+    });
+
+    if (filteredProducts.length === month.products.length) return month;
+
+    const uniqueCusts = new Set();
+    filteredProducts.forEach((p: any) => {
+      p.customers.forEach((c: any) => uniqueCusts.add(c.id));
+    });
+
+    return {
+      ...month,
+      products: filteredProducts,
+      uniqueProductsCount: filteredProducts.length,
+      uniqueCustomersCount: uniqueCusts.size
+    };
+  }).filter((month: any) => month.uniqueProductsCount > 0);
 
   // Navigation State
-  const [selectedMonth, setSelectedMonth] = useState<any>(null);
+  const [selectedMonthKey, setSelectedMonthKey] = useState<string | null>(null);
+  const selectedMonth = selectedMonthKey ? listingRows.find(m => m.monthKey === selectedMonthKey) : null;
   const [subTab, setSubTab] = useState<'products' | 'customers'>('products');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -57,20 +81,44 @@ export default function SalesNewListingsTab({ userId }: SalesNewListingsTabProps
       {/* Header */}
       {!selectedMonth ? (
         <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-          <div>
+          <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold text-slate-800">New Listings</h1>
+            <button
+              onClick={() => setIncludeLegacyProducts(!includeLegacyProducts)}
+              title={includeLegacyProducts ? "Hide HASI / CAMEL" : "Show HASI / CAMEL"}
+              className={`p-2 rounded-xl transition-all border shadow-sm flex items-center justify-center ${
+                includeLegacyProducts
+                  ? 'bg-emerald-50 border-emerald-200 shadow-[0_0_8px_rgba(16,185,129,0.5)]'
+                  : 'bg-slate-50 border-slate-200 hover:bg-slate-100'
+              }`}
+            >
+              <div className={`w-3.5 h-3.5 rounded-full transition-colors ${includeLegacyProducts ? 'bg-emerald-500' : 'bg-slate-400'}`} />
+            </button>
           </div>
         </div>
       ) : (
         <div className="flex flex-col md:flex-row justify-between items-center gap-4">
           <div className="flex flex-wrap items-center gap-4">
             <button
-              onClick={() => { setSelectedMonth(null); setSubTab('products'); setSearchQuery(''); }}
+              onClick={() => { setSelectedMonthKey(null); setSubTab('products'); setSearchQuery(''); }}
               className="p-2 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors shadow-sm"
             >
               <ChevronLeft className="w-5 h-5 text-slate-600" />
             </button>
-            <h1 className="text-2xl font-bold text-slate-800">{selectedMonth.monthName}</h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-bold text-slate-800">{selectedMonth.monthName}</h1>
+              <button
+                onClick={() => setIncludeLegacyProducts(!includeLegacyProducts)}
+                title={includeLegacyProducts ? "Hide HASI / CAMEL" : "Show HASI / CAMEL"}
+                className={`p-2 rounded-xl transition-all border shadow-sm flex items-center justify-center ${
+                  includeLegacyProducts
+                    ? 'bg-emerald-50 border-emerald-200 shadow-[0_0_8px_rgba(16,185,129,0.5)]'
+                    : 'bg-slate-50 border-slate-200 hover:bg-slate-100'
+                }`}
+              >
+                <div className={`w-3.5 h-3.5 rounded-full transition-colors ${includeLegacyProducts ? 'bg-emerald-500' : 'bg-slate-400'}`} />
+              </button>
+            </div>
 
             <div className="flex bg-slate-100 p-1 rounded-xl ml-2">
               <button
@@ -92,15 +140,17 @@ export default function SalesNewListingsTab({ userId }: SalesNewListingsTabProps
             </div>
           </div>
 
-          <div className="relative w-full md:max-w-xs shrink-0">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <input
-              type="text"
-              placeholder={subTab === 'products' ? "Search products..." : "Search customers..."}
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none transition-all shadow-sm text-sm"
-            />
+          <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+            <div className="relative w-full md:max-w-xs shrink-0">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <input
+                type="text"
+                placeholder={subTab === 'products' ? "Search products..." : "Search customers..."}
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none transition-all shadow-sm text-sm"
+              />
+            </div>
           </div>
         </div>
       )}
@@ -112,10 +162,10 @@ export default function SalesNewListingsTab({ userId }: SalesNewListingsTabProps
             <NoData />
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {listingRows.map((month) => (
+              {listingRows.map((month: any) => (
                 <div
                   key={month.monthKey}
-                  onClick={() => setSelectedMonth(month)}
+                  onClick={() => setSelectedMonthKey(month.monthKey)}
                   className="bg-white border border-slate-200 rounded-2xl p-4 hover:shadow-lg hover:border-emerald-200 transition-all cursor-pointer group"
                 >
                   <div className="flex items-center gap-2 mb-4">

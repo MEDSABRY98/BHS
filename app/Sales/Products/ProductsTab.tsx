@@ -6,7 +6,7 @@ import { Search, ChevronLeft, ChevronRight, Download, FileSpreadsheet } from 'lu
 import { useSalesModuleFilters } from '@/app/Sales/Model/SalesFilters';
 import { exportSalesExcelTable } from '@/app/Sales/Utils/ExcelExport';
 import NoData from '@/app/Components/DataState/NoDataTab';
-import SalesProductDetails from './ProductDetails';
+import SalesProductDetails from '../ProductDetails/ProductDetails';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
 import { getProductsData } from '../Service/sales_products_service';
 import { useSalesDataContext } from '@/app/Sales/Context/SalesDataContext';
@@ -21,7 +21,7 @@ interface SalesProductsTabProps {
 const ITEMS_PER_PAGE = 50;
 
 // Memoized row component for better performance
-const ProductRow = memo(({ item, rowNumber, onProductClick }: { item: { productId: string; barcode: string; product: string; amount: number; qty: number; transactions: number }; rowNumber: number; onProductClick: (id: string) => void }) => {
+const ProductRow = memo(({ item, rowNumber, onProductClick }: { item: { productId: string; barcode: string; product: string; amount: number; avgMonthly: number; qty: number; transactions: number }; rowNumber: number; onProductClick: (id: string) => void }) => {
   return (
     <tr className="border-b border-gray-100 hover:bg-gray-50 text-center">
       <td className="py-3 px-4 text-sm text-gray-600 font-medium">{rowNumber}</td>
@@ -34,6 +34,9 @@ const ProductRow = memo(({ item, rowNumber, onProductClick }: { item: { productI
       <td className="py-3 px-4 text-sm text-gray-800 font-medium w-64 truncate" title={item.product}>{item.product}</td>
       <td className="py-3 px-4 text-sm text-gray-800 font-semibold">
         {item.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+      </td>
+      <td className="py-3 px-4 text-sm text-gray-800 font-semibold">
+        {(item.avgMonthly || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
       </td>
       <td className="py-3 px-4 text-sm text-gray-800 font-semibold">
         {item.qty.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
@@ -104,30 +107,33 @@ export default function SalesProductsTab({ userId, showCosts = true }: SalesProd
   const totals = useMemo(() => {
     return filteredProducts.reduce((acc, item) => {
       acc.totalAmount += item.amount;
+      acc.totalAvgMonthly += (item.avgMonthly || 0);
       acc.totalQty += item.qty;
       acc.totalTransactions += item.transactions;
       return acc;
     }, {
       totalAmount: 0,
+      totalAvgMonthly: 0,
       totalQty: 0,
       totalTransactions: 0
     });
   }, [filteredProducts]);
 
   const exportToExcel = async () => {
-    const headers = ['#', 'Barcode', 'Product Name', 'Amount', 'Qty', 'Transactions'];
+    const headers = ['#', 'Barcode', 'Product Name', 'Amount', 'Monthly Avg', 'Qty', 'Transactions'];
 
     const rows = filteredProducts.map((item, index) => [
       index + 1,
       item.barcode || '-',
       item.product,
       item.amount,
+      item.avgMonthly || 0,
       item.qty,
       item.transactions,
     ]);
 
     if (filteredProducts.length > 0) {
-      rows.push(['', '', 'Total', totals.totalAmount, totals.totalQty, totals.totalTransactions]);
+      rows.push(['', '', 'Total', totals.totalAmount, totals.totalAvgMonthly, totals.totalQty, totals.totalTransactions]);
     }
 
     const filename = `sales_products_${new Date().toISOString().split('T')[0]}.xlsx`;
@@ -202,9 +208,10 @@ export default function SalesProductsTab({ userId, showCosts = true }: SalesProd
               <thead>
                 <tr className="bg-gray-50/50 border-b border-gray-100 text-center">
                   <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-16">#</th>
-                  <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-40">Barcode</th>
+                  <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-32">Barcode</th>
                   <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-64">Product Name</th>
                   <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-32">Amount</th>
+                  <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-32">Monthly Avg</th>
                   <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-24">Qty</th>
                   <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-32">Transactions</th>
                 </tr>
@@ -226,6 +233,9 @@ export default function SalesProductsTab({ userId, showCosts = true }: SalesProd
                     {totals.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </td>
                   <td className="py-4 px-4 text-sm text-gray-800">
+                    {totals.totalAvgMonthly.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </td>
+                  <td className="py-4 px-4 text-sm text-gray-800">
                     {totals.totalQty.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                   </td>
                   <td className="py-4 px-4 text-sm text-gray-800">
@@ -238,51 +248,51 @@ export default function SalesProductsTab({ userId, showCosts = true }: SalesProd
 
           {/* Pagination Controls */}
           {filteredProducts.length > ITEMS_PER_PAGE && (
-          <div className="px-6 py-4 bg-gray-50/30 border-t border-gray-100 flex items-center justify-between">
-            <div className="text-sm text-gray-500 font-medium">
-              Showing <span className="text-gray-900">{startIndex + 1}</span> to <span className="text-gray-900">{Math.min(endIndex, filteredProducts.length)}</span> of <span className="text-gray-900">{filteredProducts.length}</span> products
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                disabled={currentPage === 1}
-                className="p-2 bg-white border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              >
-                <ChevronLeft className="w-5 h-5" />
-              </button>
-
-              <div className="hidden sm:flex items-center gap-1.5">
-                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                  let pageNum;
-                  if (totalPages <= 5) pageNum = i + 1;
-                  else if (currentPage <= 3) pageNum = i + 1;
-                  else if (currentPage >= totalPages - 2) pageNum = totalPages - 4 + i;
-                  else pageNum = currentPage - 2 + i;
-
-                  return (
-                    <button
-                      key={pageNum}
-                      onClick={() => setCurrentPage(pageNum)}
-                      className={`min-w-[40px] h-10 px-3 rounded-lg text-sm font-bold transition-all ${currentPage === pageNum
-                        ? 'bg-green-600 text-white shadow-md shadow-green-100'
-                        : 'bg-white border border-gray-200 text-gray-600 hover:border-green-500 hover:text-green-600'
-                        }`}
-                    >
-                      {pageNum}
-                    </button>
-                  );
-                })}
+            <div className="px-6 py-4 bg-gray-50/30 border-t border-gray-100 flex items-center justify-between">
+              <div className="text-sm text-gray-500 font-medium">
+                Showing <span className="text-gray-900">{startIndex + 1}</span> to <span className="text-gray-900">{Math.min(endIndex, filteredProducts.length)}</span> of <span className="text-gray-900">{filteredProducts.length}</span> products
               </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  disabled={currentPage === 1}
+                  className="p-2 bg-white border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
 
-              <button
-                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                disabled={currentPage === totalPages}
-                className="p-2 bg-white border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              >
-                <ChevronRight className="w-5 h-5" />
-              </button>
+                <div className="hidden sm:flex items-center gap-1.5">
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    let pageNum;
+                    if (totalPages <= 5) pageNum = i + 1;
+                    else if (currentPage <= 3) pageNum = i + 1;
+                    else if (currentPage >= totalPages - 2) pageNum = totalPages - 4 + i;
+                    else pageNum = currentPage - 2 + i;
+
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => setCurrentPage(pageNum)}
+                        className={`min-w-[40px] h-10 px-3 rounded-lg text-sm font-bold transition-all ${currentPage === pageNum
+                          ? 'bg-green-600 text-white shadow-md shadow-green-100'
+                          : 'bg-white border border-gray-200 text-gray-600 hover:border-green-500 hover:text-green-600'
+                          }`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <button
+                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                  disabled={currentPage === totalPages}
+                  className="p-2 bg-white border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+              </div>
             </div>
-          </div>
           )}
         </div>
       )}
