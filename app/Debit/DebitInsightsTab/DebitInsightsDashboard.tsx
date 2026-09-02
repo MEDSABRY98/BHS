@@ -102,7 +102,7 @@ export default function DebitInsightsDashboard({
     return applySalesNetOverlay(debitMetrics, salesOverlay);
   }, [appliedFilters.salesSource, debitMetrics, salesOverlay]);
 
-  const salesReps = useMemo(() => debitMetrics.salesReps, [debitMetrics.salesReps]);
+  const cities = useMemo(() => debitMetrics.cities, [debitMetrics.cities]);
   const availableCustomers = useMemo(
     () => collectCustomers(data, (draftFilters.salesRep || [])),
     [data, draftFilters.salesRep]
@@ -273,7 +273,7 @@ export default function DebitInsightsDashboard({
         open={filtersOpen}
         onClose={() => setFiltersOpen(false)}
         filters={draftFilters}
-        salesReps={salesReps}
+        cities={cities}
         customers={availableCustomers}
         customerTags={availableCustomerTags}
         customerClassifications={availableCustomerClassifications}

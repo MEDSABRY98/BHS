@@ -5,7 +5,7 @@ import { addArabicFont } from '@/app/Components/Pdf/shared';
 export async function generateAgesPDF(
   filteredData: Array<{
     customerName: string;
-    salesReps: string[];
+    cities: string[];
     oneToThirty: number;
     thirtyOneToSixty: number;
     sixtyOneToNinety: number;
@@ -26,15 +26,15 @@ export async function generateAgesPDF(
   const margin = 5;
 
   const sortedData = [...filteredData].sort((a, b) => {
-    const cityA = (a.salesReps.join(', ') || 'No City').toLowerCase();
-    const cityB = (b.salesReps.join(', ') || 'No City').toLowerCase();
+    const cityA = (a.cities.join(', ') || 'No City').toLowerCase();
+    const cityB = (b.cities.join(', ') || 'No City').toLowerCase();
     if (cityA !== cityB) return cityA.localeCompare(cityB);
     return b.total - a.total;
   });
 
   const cityGroups = new Map<string, typeof filteredData>();
   sortedData.forEach(item => {
-    const cityKey = item.salesReps.join(', ') || 'No City';
+    const cityKey = item.cities.join(', ') || 'No City';
     const group = cityGroups.get(cityKey) || []; group.push(item); cityGroups.set(cityKey, group);
   });
 
@@ -59,7 +59,7 @@ export async function generateAgesPDF(
     doc.text(headerDetails, margin, yPosition); yPosition += 8;
 
     const tableData = cityData.map((item, index) => [
-      (index + 1).toString(), item.customerName, item.salesReps.join(', ') || '', item.total.toLocaleString('en-US'),
+      (index + 1).toString(), item.customerName, item.cities.join(', ') || '', item.total.toLocaleString('en-US'),
       item.oneToThirty.toLocaleString('en-US'), item.thirtyOneToSixty.toLocaleString('en-US'),
       item.sixtyOneToNinety.toLocaleString('en-US'), item.ninetyOneToOneTwenty.toLocaleString('en-US'), item.older.toLocaleString('en-US')
     ]);
@@ -98,7 +98,7 @@ export async function generateSingleRegionAgesPDF(
   regionName: string,
   regionData: Array<{
     customerName: string;
-    salesReps: string[];
+    cities: string[];
     oneToThirty: number;
     thirtyOneToSixty: number;
     sixtyOneToNinety: number;
@@ -133,7 +133,7 @@ export async function generateSingleRegionAgesPDF(
   const sortedData = [...regionData].sort((a, b) => b.total - a.total);
 
   const tableData = sortedData.map((item, index) => [
-    (index + 1).toString(), item.customerName, item.salesReps.join(', ') || '', item.total.toLocaleString('en-US'),
+    (index + 1).toString(), item.customerName, item.cities.join(', ') || '', item.total.toLocaleString('en-US'),
     item.oneToThirty.toLocaleString('en-US'), item.thirtyOneToSixty.toLocaleString('en-US'),
     item.sixtyOneToNinety.toLocaleString('en-US'), item.ninetyOneToOneTwenty.toLocaleString('en-US'), item.older.toLocaleString('en-US')
   ]);

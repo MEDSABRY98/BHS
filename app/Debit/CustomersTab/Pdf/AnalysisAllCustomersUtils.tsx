@@ -120,8 +120,8 @@ export const exportToPDF = async (data: CustomerAnalysis[], filename: string = '
       const groupedData: Record<string, CustomerAnalysis[]> = {};
       pdfData.forEach(customer => {
         let rep = 'Unassigned';
-        if (customer.salesReps && customer.salesReps.size > 0) {
-          const reps = Array.from(customer.salesReps).sort();
+        if (customer.cities && customer.cities.size > 0) {
+          const reps = Array.from(customer.cities).sort();
           rep = reps[0];
         }
         if (!groupedData[rep]) {
@@ -194,11 +194,11 @@ export const exportToPDF = async (data: CustomerAnalysis[], filename: string = '
             const ratingInfo = calculateDebtRating(customer, true);
             const rating = typeof ratingInfo === 'string' ? ratingInfo : ratingInfo.rating;
 
-            const salesReps = customer.salesReps ? Array.from(customer.salesReps).join(', ') : '';
+            const cities = customer.cities ? Array.from(customer.cities).join(', ') : '';
 
             return [
               customer.customerName,
-              salesReps,
+              cities,
               customer.netDebt.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
               customer.lastPaymentDate ? formatDmy(customer.lastPaymentDate) : '-',
               customer.lastPaymentAmount ? customer.lastPaymentAmount.toLocaleString('en-US') : '-',
@@ -248,8 +248,8 @@ export const exportToPDF = async (data: CustomerAnalysis[], filename: string = '
     const groupedData: Record<string, CustomerAnalysis[]> = {};
     data.forEach(customer => {
       let rep = 'Unassigned';
-      if (customer.salesReps && customer.salesReps.size > 0) {
-        const reps = Array.from(customer.salesReps).sort();
+      if (customer.cities && customer.cities.size > 0) {
+        const reps = Array.from(customer.cities).sort();
         rep = reps[0];
       }
       if (!groupedData[rep]) {

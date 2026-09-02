@@ -25,7 +25,7 @@ type AgesPdfExportMode = 'normal' | 'without_tags' | 'tags_only';
 
 interface CustomerAgingSummary {
   customerName: string;
-  salesReps: string[];
+  cities: string[];
   customerTags: string[];
   oneToThirty: number;
   thirtyOneToSixty: number;
@@ -110,11 +110,11 @@ export default function AgesTab({ data }: AgesTabProps) {
       const netDebt = totalDebit - totalCredit;
 
       // Collect unique sales reps + customer tags
-      const salesRepsSet = new Set<string>();
+      const citiesSet = new Set<string>();
       const tagsSet = new Set<string>();
       customerInvoices.forEach((inv) => {
         if (inv.salesRep && inv.salesRep.trim()) {
-          salesRepsSet.add(inv.salesRep.trim());
+          citiesSet.add(inv.salesRep.trim());
         }
         const tag = inv.customerTag?.trim();
         if (tag) tagsSet.add(tag);
@@ -122,7 +122,7 @@ export default function AgesTab({ data }: AgesTabProps) {
 
       const summary: CustomerAgingSummary = {
         customerName,
-        salesReps: Array.from(salesRepsSet).sort(),
+        cities: Array.from(citiesSet).sort(),
         customerTags: Array.from(tagsSet).sort(),
         oneToThirty: 0,
         thirtyOneToSixty: 0,
@@ -222,10 +222,10 @@ export default function AgesTab({ data }: AgesTabProps) {
   }, [data]);
 
   // Get unique sales reps
-  const salesReps = useMemo(() => {
+  const cities = useMemo(() => {
     const repsSet = new Set<string>();
     agingData.forEach((customer) => {
-      customer.salesReps.forEach((rep) => {
+      customer.cities.forEach((rep) => {
         if (rep && rep.trim()) {
           repsSet.add(rep.trim());
         }
@@ -240,7 +240,7 @@ export default function AgesTab({ data }: AgesTabProps) {
     // Filter by sales rep
     if (selectedSalesRep !== 'all') {
       filtered = filtered.filter((customer) =>
-        customer.salesReps.includes(selectedSalesRep)
+        customer.cities.includes(selectedSalesRep)
       );
     }
 
@@ -263,8 +263,8 @@ export default function AgesTab({ data }: AgesTabProps) {
   const exportToExcel = async () => {
     // Sort for main sheet: City first, then Net Debit
     const sortedForExport = [...filteredData].sort((a, b) => {
-      const cityA = a.salesReps.join(', ') || 'No City';
-      const cityB = b.salesReps.join(', ') || 'No City';
+      const cityA = a.cities.join(', ') || 'No City';
+      const cityB = b.cities.join(', ') || 'No City';
       if (cityA < cityB) return -1;
       if (cityA > cityB) return 1;
       return b.total - a.total; // then by Net Debit descending
@@ -276,7 +276,7 @@ export default function AgesTab({ data }: AgesTabProps) {
     const getRowData = (item: CustomerAgingSummary, index: number) => ({
       '#': index + 1,
       'Customer Name': item.customerName,
-      'City': item.salesReps.join(', ') || '',
+      'City': item.cities.join(', ') || '',
       'NET DEBIT': item.total,
       '0 - 30': item.oneToThirty,
       '31 - 60': item.thirtyOneToSixty,
@@ -310,7 +310,7 @@ export default function AgesTab({ data }: AgesTabProps) {
     // Group by City
     const cityMap = new Map<string, typeof sortedForExport>();
     sortedForExport.forEach(item => {
-      const city = item.salesReps.join(', ') || 'No City';
+      const city = item.cities.join(', ') || 'No City';
       const group = cityMap.get(city) || [];
       group.push(item);
       cityMap.set(city, group);
@@ -423,7 +423,7 @@ export default function AgesTab({ data }: AgesTabProps) {
 
       const regionMap = new Map<string, typeof exportData>();
       exportData.forEach((item) => {
-        const regionKey = item.salesReps.join(', ') || 'No Region';
+        const regionKey = item.cities.join(', ') || 'No Region';
         const group = regionMap.get(regionKey) || [];
         group.push(item);
         regionMap.set(regionKey, group);
@@ -578,7 +578,7 @@ export default function AgesTab({ data }: AgesTabProps) {
                 <span>All Cities</span>
                 {selectedSalesRep === 'all' && <Check className="w-3.5 h-3.5 text-blue-600" />}
               </button>
-              {salesReps.map((rep) => {
+              {cities.map((rep) => {
                 const isSelected = selectedSalesRep === rep;
                 return (
                   <button

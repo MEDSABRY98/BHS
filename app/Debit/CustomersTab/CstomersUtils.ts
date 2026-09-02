@@ -356,7 +356,7 @@ export function generateCustomerAnalysis(data: InvoiceRow[]): CustomerAnalysis[]
     netSales: number;
     transactionCount: number;
     matchingsMap: Map<string, number>;
-    salesReps: Set<string>;
+    cities: Set<string>;
     customerTags: Set<string>;
     invoiceNumbers: Set<string>;
     totalSalesDebit?: number;
@@ -395,7 +395,7 @@ export function generateCustomerAnalysis(data: InvoiceRow[]): CustomerAnalysis[]
         netSales: 0,
         transactionCount: 0,
         matchingsMap: new Map(),
-        salesReps: new Set(),
+        cities: new Set(),
         customerTags: new Set(),
         invoiceNumbers: new Set(),
         lastPaymentDate: null,
@@ -461,7 +461,7 @@ export function generateCustomerAnalysis(data: InvoiceRow[]): CustomerAnalysis[]
       existing.netSales = (existing.netSales || 0) - row.credit;
     }
 
-    if (row.salesRep && row.salesRep.trim()) existing.salesReps?.add(row.salesRep.trim());
+    if (row.city && row.city.trim()) existing.cities?.add(row.city.trim());
     if (row.customerTag && row.customerTag.trim()) existing.customerTags?.add(row.customerTag.trim());
     if (row.number) existing.invoiceNumbers?.add(row.number.toString());
     if (row.matching) {
@@ -614,7 +614,7 @@ export function generateCustomerAnalysis(data: InvoiceRow[]): CustomerAnalysis[]
     return {
       customerId: c.customerId, customerName: c.customerName, totalDebit: c.totalDebit, totalCredit: c.totalCredit, netDebt: c.netDebt,
       creditLimit: c.creditLimit, paymentTerm: c.paymentTerm, accountStatus: c.accountStatus,
-      netSales: c.netSales || 0, transactionCount: c.transactionCount, hasOpenMatchings: hasOpen, salesReps: c.salesReps, customerTags: c.customerTags, invoiceNumbers: c.invoiceNumbers,
+      netSales: c.netSales || 0, transactionCount: c.transactionCount, hasOpenMatchings: hasOpen, cities: c.cities, customerTags: c.customerTags, invoiceNumbers: c.invoiceNumbers,
       lastPaymentDate: c.lastPaymentDate, lastPaymentMatching: c.lastPaymentMatching, lastPaymentAmount: c.lastPaymentAmount,
       lastSalesDate: c.lastSalesDate, lastSalesAmount: c.lastSalesAmount, overdueAmount: totalOverdue, maxOverdueDays, hasOB: hasOBFlag, openOBAmount, agingBreakdown,
       payments3m: c.payments3m, paymentsCount3m: c.paymentsCount3m, sales3m: c.sales3m, salesCount3m: c.salesCount3m, lastTransactionDate: c.lastTransactionDate, creditPayments: c.creditPayments,
@@ -709,8 +709,8 @@ export const exportToExcel = async (
   const sheets: any[] = [];
 
   const getRepsString = (customer: CustomerAnalysis) => {
-    if (customer.salesReps && customer.salesReps instanceof Set && customer.salesReps.size > 0) return Array.from(customer.salesReps).join(', ');
-    else if (Array.isArray(customer.salesReps) && customer.salesReps.length > 0) return (customer.salesReps as string[]).join(', ');
+    if (customer.cities && customer.cities instanceof Set && customer.cities.size > 0) return Array.from(customer.cities).join(', ');
+    else if (Array.isArray(customer.cities) && customer.cities.length > 0) return (customer.cities as string[]).join(', ');
     return '-';
   };
 

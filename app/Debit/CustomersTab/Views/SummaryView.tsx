@@ -84,7 +84,7 @@ const SummaryView: React.FC<SummaryViewProps> = ({
                   </td>
                   <td className="px-1 py-2 text-center text-xs font-medium text-gray-900 border-r border-gray-100 truncate">
                     {(() => {
-                      const val = customer.salesReps;
+                      const val = customer.cities;
                       if (val && val instanceof Set && val.size > 0) return Array.from(val).join(', ');
                       if (Array.isArray(val) && val.length > 0) return val.join(', ');
                       return '-';

@@ -67,7 +67,7 @@ export interface DebitInsightsMetrics {
   trendSeries: InsightsTrendPoint[];
   currentYearTrend: InsightsTrendPoint[];
   previousYearTrend: InsightsTrendPoint[];
-  salesReps: string[];
+  cities: string[];
 }
 
 export interface AgingBreakdown {
@@ -100,5 +100,5 @@ export interface DebitInsightsMetrics {
   agingBreakdown: AgingBreakdown;
   period: InsightsPeriodMetrics;
   trendSeries: InsightsTrendPoint[];
-  salesReps: string[];
+  cities: string[];
 }

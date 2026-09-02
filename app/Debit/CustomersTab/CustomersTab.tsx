@@ -713,7 +713,7 @@ export default function CustomersTab({
         );
       }
     }),
-    columnHelper.accessor('salesReps', {
+    columnHelper.accessor('cities', {
       id: 'city',
       header: 'City',
       cell: (info) => {

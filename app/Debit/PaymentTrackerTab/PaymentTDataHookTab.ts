@@ -66,7 +66,7 @@ export function usePaymentTDataTab(data: InvoiceRow[]) {
 
   // --- Memos ---
 
-  const salesReps = useMemo(() => {
+  const cities = useMemo(() => {
     const reps = new Set<string>();
     data.forEach((row) => {
       if (row.salesRep && row.salesRep.trim()) {
@@ -628,7 +628,7 @@ export function usePaymentTDataTab(data: InvoiceRow[]) {
     lastCustomerSelection, setLastCustomerSelection,
 
     // Memos
-    salesReps,
+    cities,
     allCustomers,
     allCustomerTags,
     effectiveData,

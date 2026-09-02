@@ -349,6 +349,6 @@ export function computeDebitInsightsMetrics(
     trendSeries: buildTrendSeries(rows, filters.asOfDate, from, to, cities, customers, tags, classes),
     currentYearTrend,
     previousYearTrend,
-    salesReps: collectSalesReps(rows),
+    cities: collectSalesReps(rows),
   };
 }

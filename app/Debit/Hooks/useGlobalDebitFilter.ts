@@ -32,7 +32,7 @@ export function useGlobalDebitFilter(
       selectedCustomerTags
     } = globalFilters;
 
-    if (selectedSalesRep !== 'ALL') result = result.filter(c => c.salesReps && c.salesReps.has(selectedSalesRep));
+    if (selectedSalesRep !== 'ALL') result = result.filter(c => c.cities && c.cities.has(selectedSalesRep));
 
     if (Array.isArray(selectedCustomerTags) && selectedCustomerTags.length > 0) {
       const tagSet = new Set(selectedCustomerTags);

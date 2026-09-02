@@ -148,7 +148,7 @@ const DefaultView: React.FC<DefaultViewProps> = ({
                   <div className="md:col-span-1 hidden md:flex items-center justify-center">
                     <span className="text-sm font-semibold text-gray-700 text-center">
                       {(() => {
-                        const val = customer.salesReps;
+                        const val = customer.cities;
                         if (val && val instanceof Set && val.size > 0) return Array.from(val).join(', ');
                         if (Array.isArray(val) && val.length > 0) return val.join(', ');
                         return '-';

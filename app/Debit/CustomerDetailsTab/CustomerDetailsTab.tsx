@@ -2229,10 +2229,10 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
             </div>
             <div className="flex flex-wrap items-center gap-2 text-gray-600">
               {(() => {
-                const salesReps = new Set<string>();
-                invoices.forEach(inv => { if (inv.salesRep && inv.salesRep.trim()) { salesReps.add(inv.salesRep.trim()); } });
-                const salesRepsArray = Array.from(salesReps).sort();
-                return <span>{salesRepsArray.length > 0 ? salesRepsArray.join(', ') : 'No Sales Rep'}</span>;
+                const cities = new Set<string>();
+                invoices.forEach(inv => { if (inv.salesRep && inv.salesRep.trim()) { cities.add(inv.salesRep.trim()); } });
+                const citiesArray = Array.from(cities).sort();
+                return <span>{citiesArray.length > 0 ? citiesArray.join(', ') : 'No Sales Rep'}</span>;
               })()}
             </div>
           </div>

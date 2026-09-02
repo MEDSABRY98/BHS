@@ -5,7 +5,7 @@ import { addArabicFont } from '@/app/Components/Pdf/shared';
 export async function generateBulkDebitSummaryPDF(
   customers: Array<{
     customerName: string;
-    salesReps?: Set<string>;
+    cities?: Set<string>;
     netDebt: number;
     lastPaymentDate?: Date | null;
     lastPaymentAmount?: number | null;
@@ -49,8 +49,8 @@ export async function generateBulkDebitSummaryPDF(
   yPosition += 8;
 
   const sortedCustomers = [...customers].sort((a, b) => {
-    const cityA = a.salesReps ? Array.from(a.salesReps).join(', ') : '';
-    const cityB = b.salesReps ? Array.from(b.salesReps).join(', ') : '';
+    const cityA = a.cities ? Array.from(a.cities).join(', ') : '';
+    const cityB = b.cities ? Array.from(b.cities).join(', ') : '';
     if (cityA < cityB) return -1;
     if (cityA > cityB) return 1;
     return b.netDebt - a.netDebt;
@@ -64,7 +64,7 @@ export async function generateBulkDebitSummaryPDF(
   };
 
   const tableData = sortedCustomers.map((c, index) => {
-    const reps = c.salesReps ? Array.from(c.salesReps).join(', ') : '';
+    const reps = c.cities ? Array.from(c.cities).join(', ') : '';
     let paymentDate = '-', paymentAmount = '-', paymentDays = '-';
     if (c.lastPaymentDate) {
       paymentDate = formatDmy(c.lastPaymentDate);
@@ -124,7 +124,7 @@ export async function generateBulkDebitSummaryPDF(
 
   const cityStatsMap = new Map<string, { totalDebt: number; customerCount: number }>();
   customers.forEach(c => {
-    const city = c.salesReps && c.salesReps.size > 0 ? Array.from(c.salesReps).join(', ') : 'Unknown City';
+    const city = c.cities && c.cities.size > 0 ? Array.from(c.cities).join(', ') : 'Unknown City';
     const stats = cityStatsMap.get(city) || { totalDebt: 0, customerCount: 0 };
     stats.totalDebt += c.netDebt; stats.customerCount += 1; cityStatsMap.set(city, stats);
   });

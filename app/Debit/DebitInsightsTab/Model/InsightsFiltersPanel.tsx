@@ -10,7 +10,7 @@ interface InsightsFiltersPanelProps {
   open: boolean;
   onClose: () => void;
   filters: InsightsFilters;
-  salesReps: string[];
+  cities: string[];
   customers: string[];
   customerTags: string[];
   customerClassifications: string[];
@@ -314,7 +314,7 @@ export default function InsightsFiltersPanel({
   open,
   onClose,
   filters,
-  salesReps,
+  cities,
   customers,
   customerTags,
   customerClassifications,
@@ -426,7 +426,7 @@ export default function InsightsFiltersPanel({
 
             <MultiSelectFilterDropdown
               label="City"
-              options={salesReps}
+              options={cities}
               selected={filters.salesRep}
               onChange={(salesRep) => onChange({ ...filters, salesRep })}
               emptyLabel="All Cities"

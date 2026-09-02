@@ -84,7 +84,7 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
             <label className={labelClass}>City</label>
             <select value={p.selectedSalesRep} onChange={(e) => p.setSelectedSalesRep(e.target.value)} className={inputClass}>
               <option value="">All Cities</option>
-              {p.salesReps.map((rep) => (
+              {p.cities.map((rep) => (
                 <option key={rep} value={rep}>{rep}</option>
               ))}
             </select>
