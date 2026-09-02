@@ -87,7 +87,7 @@ const DefaultView: React.FC<DefaultViewProps> = ({
         <NoData />
       ) : (
         <>
-      <div className="space-y-3 mb-6">
+      <div className="space-y-2 mb-6">
         {table.getRowModel().rows.map((row, index) => {
           const customer = row.original;
           const netDebt = customer.netDebt;
@@ -107,7 +107,7 @@ const DefaultView: React.FC<DefaultViewProps> = ({
               key={row.id}
               className="bg-white rounded-xl border-2 border-gray-200 shadow-[0_4px_12px_rgba(0,0,0,0.08)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.12)] transition-all duration-300 hover:border-blue-300 overflow-hidden group"
             >
-              <div className="p-5">
+              <div className="py-3 px-4">
                 <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
                   <div className="md:col-span-3">
                     <div className="flex items-center gap-2">
@@ -200,7 +200,7 @@ const DefaultView: React.FC<DefaultViewProps> = ({
       </div>
 
         <div className="bg-white rounded-xl border-2 border-gray-200 shadow-[0_4px_12px_rgba(0,0,0,0.08)] mt-6 overflow-hidden">
-          <div className="p-5">
+          <div className="py-3 px-4">
             <div className="grid grid-cols-1 md:grid-cols-7 gap-4 items-center">
               <div className="md:col-span-3"></div>
               <div className="md:col-span-1 hidden md:block"></div>
