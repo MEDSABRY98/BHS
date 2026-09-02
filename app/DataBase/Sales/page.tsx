@@ -102,7 +102,8 @@ export default function SalesDBPage() {
       'INVOICE NUMBER',
       'CUSTOMER ID',
       'PRODUCT ID',
-      'PRODUCT PRICE',
+      'PRICE COST',
+      'PRICE SALES',
       'AMOUNT',
       'QTY'
     ];
@@ -112,6 +113,7 @@ export default function SalesDBPage() {
       'INV-001',
       '85527',
       'PROD-789',
+      10.00,
       15.00,
       15.00,
       1
@@ -250,7 +252,7 @@ export default function SalesDBPage() {
       const prodMap = new Map<string, string>();
       allProducts.forEach(p => prodMap.set(normalizeExcelId(p['PRODUCT ID']) || '', p['PRODUCT NAME'] || ''));
 
-      const headers = ['ID', 'INVOICE DATE', 'INVOICE NUMBER', 'CUSTOMER ID', 'CUSTOMER NAME', 'PRODUCT ID', 'PRODUCT NAME', 'PRODUCT COST', 'PRODUCT PRICE', 'QTY', 'AMOUNT'];
+      const headers = ['ID', 'INVOICE DATE', 'INVOICE NUMBER', 'CUSTOMER ID', 'CUSTOMER NAME', 'PRODUCT ID', 'PRODUCT NAME', 'PRICE COST', 'PRICE SALES', 'QTY', 'AMOUNT'];
       const rows = allSales.map(s => [
         s['ID'] || '',
         s['INVOICE DATE'] || '',
@@ -302,8 +304,21 @@ export default function SalesDBPage() {
         const out: any = { ...row };
         if (out['AMOUNT'] !== undefined) out['AMOUNT'] = Number(out['AMOUNT']) || 0;
         if (out['QTY'] !== undefined) out['QTY'] = Number(out['QTY']) || 0;
-        if (out['PRODUCT PRICE'] !== undefined) out['PRODUCT PRICE'] = Number(out['PRODUCT PRICE']) || 0;
-        if (out['PRODUCT COST'] !== undefined && out['PRODUCT COST'] !== '') out['PRODUCT COST'] = Number(out['PRODUCT COST']) || 0;
+        
+        if (out['PRICE SALES'] !== undefined) {
+          out['PRODUCT PRICE'] = Number(out['PRICE SALES']) || 0;
+          delete out['PRICE SALES'];
+        } else if (out['PRODUCT PRICE'] !== undefined) {
+          out['PRODUCT PRICE'] = Number(out['PRODUCT PRICE']) || 0;
+        }
+
+        if (out['PRICE COST'] !== undefined) {
+          out['PRODUCT COST'] = Number(out['PRICE COST']) || 0;
+          delete out['PRICE COST'];
+        } else if (out['PRODUCT COST'] !== undefined && out['PRODUCT COST'] !== '') {
+          out['PRODUCT COST'] = Number(out['PRODUCT COST']) || 0;
+        }
+
         return out;
       }).filter(r => r.ID); 
 
@@ -357,9 +372,14 @@ export default function SalesDBPage() {
         return;
       }
 
-      const requiredColumns = ['INVOICE DATE', 'INVOICE NUMBER', 'CUSTOMER ID', 'PRODUCT ID', 'PRODUCT PRICE', 'QTY'];
+      const requiredColumns = ['INVOICE DATE', 'INVOICE NUMBER', 'CUSTOMER ID', 'PRODUCT ID', 'QTY'];
       const firstRow = jsonData[0];
       const missingColumns = requiredColumns.filter(col => !(col in firstRow));
+      
+      if (!('PRICE SALES' in firstRow) && !('PRODUCT PRICE' in firstRow)) {
+        missingColumns.push('PRICE SALES');
+      }
+
       if (missingColumns.length > 0) {
         toast.error(`Missing required columns: ${missingColumns.join(', ')}`);
         return;
@@ -416,7 +436,8 @@ export default function SalesDBPage() {
       };
 
       const formattedRows = jsonData.map((row) => {
-        const price = Number(row['PRODUCT PRICE']) || 0;
+        const price = Number(row['PRICE SALES'] !== undefined ? row['PRICE SALES'] : row['PRODUCT PRICE']) || 0;
+        const cost = Number(row['PRICE COST'] !== undefined ? row['PRICE COST'] : row['PRODUCT COST']) || 0;
         const qty = Number(row['QTY']) || 0;
         const amount = row['AMOUNT'] !== undefined ? (Number(row['AMOUNT']) || 0) : (qty * price);
 
@@ -430,6 +451,7 @@ export default function SalesDBPage() {
           'CUSTOMER ID': normalizeExcelId(row['CUSTOMER ID']),
           'PRODUCT ID': normalizeExcelId(row['PRODUCT ID']),
           'PRODUCT PRICE': price,
+          'PRODUCT COST': cost,
           'AMOUNT': amount,
           'QTY': qty
         };
