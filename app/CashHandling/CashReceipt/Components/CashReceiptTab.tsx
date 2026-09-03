@@ -390,6 +390,7 @@ export default function CashReceiptTab({
               onEdit={handleEdit}
               onDelete={handleDelete}
               searchQuery={searchQuery}
+              setSearchQuery={setSearchQuery}
             />
           )}
 

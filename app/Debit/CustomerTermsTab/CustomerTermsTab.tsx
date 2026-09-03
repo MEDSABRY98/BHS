@@ -123,6 +123,8 @@ export default function CustomerTermsTab({ data }: CustomerTermsTabProps) {
           ? Array.from(c.cities).join(', ') 
           : (Array.isArray(c.cities) ? (c.cities as string[]).join(', ') : '-');
 
+        const severeDebt = (c.agingBreakdown?.ninetyOneToOneTwenty || 0) + (c.agingBreakdown?.older || 0);
+
         return {
           customerId: c.customerId || '',
           customerName: c.customerName,
@@ -130,6 +132,7 @@ export default function CustomerTermsTab({ data }: CustomerTermsTabProps) {
           paymentTerm,
           exceededDays,
           netDebt: debt,
+          severeDebt,
           creditLimit: limit,
           exceededAmount,
           exceededPercentage,
@@ -174,7 +177,7 @@ export default function CustomerTermsTab({ data }: CustomerTermsTabProps) {
 
   const handleExportExcel = async () => {
     try {
-      const headers = ['Customer ID', 'Customer Name', 'City', 'Payment Term (Days)', 'Exceeded Days', 'Net Debt (AED)', 'Credit Limit (AED)', 'Exceeded Amount (AED)', 'Exceeded %'];
+      const headers = ['Customer ID', 'Customer Name', 'City', 'Payment Term (Days)', 'Exceeded Days', 'Net Debt (AED)', '>90 Days Debt', 'Credit Limit (AED)', 'Exceeded Amount (AED)', 'Exceeded %'];
       const rows = filteredCustomers.map(c => [
         c.customerId,
         c.customerName,
@@ -182,6 +185,7 @@ export default function CustomerTermsTab({ data }: CustomerTermsTabProps) {
         c.paymentTerm,
         c.exceededDays,
         c.netDebt,
+        c.severeDebt,
         c.creditLimit,
         c.exceededAmount,
         `${c.exceededPercentage.toFixed(1)}%`
@@ -189,7 +193,7 @@ export default function CustomerTermsTab({ data }: CustomerTermsTabProps) {
 
       await exportDebitExcelTable(headers, rows, `Customer_Terms_${new Date().toISOString().split('T')[0]}`, {
         sheetName: 'Customer Terms',
-        numericColumns: ['Net Debt (AED)', 'Credit Limit (AED)', 'Exceeded Amount (AED)']
+        numericColumns: ['Net Debt (AED)', '>90 Days Debt', 'Credit Limit (AED)', 'Exceeded Amount (AED)']
       });
     } catch (err) {
       console.error('Failed to export Excel:', err);
@@ -320,19 +324,21 @@ export default function CustomerTermsTab({ data }: CustomerTermsTabProps) {
         {filteredCustomers.length === 0 ? (
           <NoData title="NO CUSTOMERS FOUND" />
         ) : (
-          <table className="w-full text-center border-collapse" style={{ tableLayout: 'fixed', minWidth: '1100px', direction: 'ltr' }}>
+          <div className="overflow-x-auto">
+            <table className="w-full text-center border-collapse" style={{ minWidth: '1200px', direction: 'ltr' }}>
             <thead className="bg-slate-900 text-white sticky top-0 z-30 shadow-md">
               <tr className="text-center">
-                <th className="py-4.5 px-4 text-xs font-black uppercase tracking-wider" style={{ width: '4%' }}>#</th>
-                <th className="py-4.5 px-4 text-xs font-black uppercase tracking-wider" style={{ width: '20%' }}>Customer Name</th>
-                <th className="py-4.5 px-4 text-xs font-black uppercase tracking-wider" style={{ width: '9%' }}>City</th>
-                <th className="py-4.5 px-4 text-xs font-black uppercase tracking-wider" style={{ width: '9%' }}>Payment Term</th>
-                <th className="py-4.5 px-4 text-xs font-black uppercase tracking-wider" style={{ width: '9%' }}>Exc Days</th>
-                <th className="py-4.5 px-4 text-xs font-black uppercase tracking-wider" style={{ width: '12%' }}>Net Debt</th>
-                <th className="py-4.5 px-4 text-xs font-black uppercase tracking-wider" style={{ width: '12%' }}>Credit Limit</th>
-                <th className="py-4.5 px-4 text-xs font-black uppercase tracking-wider" style={{ width: '12%' }}>Exceeded Amt</th>
-                <th className="py-4.5 px-4 text-xs font-black uppercase tracking-wider" style={{ width: '8%' }}>% Exc</th>
-                <th className="py-4.5 px-4 text-xs font-black uppercase tracking-wider" style={{ width: '5%' }}>
+                <th className="py-4.5 px-4 text-xs font-black uppercase tracking-wider">#</th>
+                <th className="py-4.5 px-4 text-xs font-black uppercase tracking-wider">Customer Name</th>
+                <th className="py-4.5 px-4 text-xs font-black uppercase tracking-wider">City</th>
+                <th className="py-4.5 px-4 text-xs font-black uppercase tracking-wider">Payment Term</th>
+                <th className="py-4.5 px-4 text-xs font-black uppercase tracking-wider">Exc Days</th>
+                <th className="py-4.5 px-4 text-xs font-black uppercase tracking-wider">Net Debt</th>
+                <th className="py-4.5 px-4 text-xs font-black uppercase tracking-wider">&gt;90 Days Debt</th>
+                <th className="py-4.5 px-4 text-xs font-black uppercase tracking-wider">Credit Limit</th>
+                <th className="py-4.5 px-4 text-xs font-black uppercase tracking-wider">Exceeded Amt</th>
+                <th className="py-4.5 px-4 text-xs font-black uppercase tracking-wider">% Exc</th>
+                <th className="py-4.5 px-4 text-xs font-black uppercase tracking-wider">
                   <AlertCircle className="w-4 h-4 mx-auto" />
                 </th>
               </tr>
@@ -340,12 +346,13 @@ export default function CustomerTermsTab({ data }: CustomerTermsTabProps) {
             <tbody className="divide-y divide-gray-150">
               {filteredCustomers.map((c, index) => (
                 <tr key={index} className="group hover:bg-gray-50/50 transition-all text-center">
-                  <td className="py-5 px-4 text-center text-xs font-black text-gray-400">{index + 1}</td>
-                  <td className="py-5 px-4 text-center">
-                    <div className="flex flex-col items-center gap-1">
+                  <td className="py-3 px-4 text-center text-xs font-black text-gray-400">{index + 1}</td>
+                  <td className="py-3 px-4 text-left">
+                    <div className="flex flex-col items-start gap-1">
                       <button 
                         onClick={() => setSelectedCustomerForAging(c)}
-                        className={`font-black text-sm block truncate max-w-xs mx-auto cursor-pointer transition-colors hover:underline ${c.accountStatus === 'ON_HOLD' ? 'text-gray-400 line-through' : 'text-black'}`}
+                        className={`font-black text-sm block truncate max-w-xs cursor-pointer transition-colors hover:underline ${c.accountStatus === 'ON_HOLD' ? 'text-gray-400 line-through' : 'text-black'}`}
+                        title={c.customerName}
                       >
                         {c.customerName}
                       </button>
@@ -356,17 +363,17 @@ export default function CustomerTermsTab({ data }: CustomerTermsTabProps) {
                       )}
                     </div>
                   </td>
-                  <td className="py-5 px-4 text-center">
+                  <td className="py-3 px-4 text-center">
                     <span className="inline-flex items-center px-2.5 py-1 bg-blue-50 text-blue-600 rounded-lg text-xs font-black uppercase tracking-wider">
                       {c.city}
                     </span>
                   </td>
-                  <td className="py-5 px-4 text-center">
+                  <td className="py-3 px-4 text-center">
                     <span className="inline-block px-3 py-1 bg-indigo-50 text-indigo-700 rounded-lg text-sm font-black">
                       {c.paymentTerm} days
                     </span>
                   </td>
-                  <td className="py-5 px-4 text-center">
+                  <td className="py-3 px-4 text-center">
                     {c.exceededDays > 0 ? (
                       <span className="px-3 py-1 bg-red-50 text-red-600 rounded-lg font-black text-sm">
                         +{c.exceededDays} d
@@ -375,30 +382,35 @@ export default function CustomerTermsTab({ data }: CustomerTermsTabProps) {
                       <span className="text-xs text-emerald-600 font-bold">OK</span>
                     )}
                   </td>
-                  <td className="py-5 px-4 text-center">
-                    <span className="text-sm font-black text-black">
+                  <td className="py-3 px-4 text-center">
+                    <span className="text-sm font-black text-black whitespace-nowrap">
                       {c.netDebt.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} AED
                     </span>
                   </td>
-                  <td className="py-5 px-4 text-center">
+                  <td className="py-3 px-4 text-center">
+                    <span className={`text-sm font-black whitespace-nowrap ${c.severeDebt > 0 ? 'text-red-600' : 'text-gray-400'}`}>
+                      {c.severeDebt.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} AED
+                    </span>
+                  </td>
+                  <td className="py-3 px-4 text-center">
                     {c.creditLimit > 0 ? (
-                      <span className="text-sm font-black text-gray-500">
+                      <span className="text-sm font-black text-gray-500 whitespace-nowrap">
                         {c.creditLimit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} AED
                       </span>
                     ) : (
                       <span className="text-xs text-gray-300 font-bold">—</span>
                     )}
                   </td>
-                  <td className="py-5 px-4 text-center">
+                  <td className="py-3 px-4 text-center">
                     {c.exceededAmount > 0.01 ? (
-                      <span className="px-3 py-1 bg-red-50 text-red-600 rounded-lg font-black text-sm">
+                      <span className="px-2 py-1 bg-red-50 text-red-600 rounded-lg font-black text-xs whitespace-nowrap">
                         +{c.exceededAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} AED
                       </span>
                     ) : (
-                      <span className="text-xs text-emerald-600 font-bold">OK</span>
+                      <span className="text-xs text-emerald-600 font-bold whitespace-nowrap">OK</span>
                     )}
                   </td>
-                  <td className="py-5 px-4 text-center">
+                  <td className="py-3 px-4 text-center">
                     {c.exceededAmount > 0.01 ? (
                       <span className="inline-block px-2.5 py-1 bg-red-100 text-red-700 text-xs font-black rounded-lg">
                         {c.exceededPercentage.toFixed(1)}%
@@ -407,7 +419,7 @@ export default function CustomerTermsTab({ data }: CustomerTermsTabProps) {
                       <span className="text-xs text-gray-300 font-bold">—</span>
                     )}
                   </td>
-                  <td className="py-5 px-4 text-center">
+                  <td className="py-3 px-4 text-center">
                     <button 
                       onClick={() => openEditModal(c)}
                       className="p-2 bg-gray-50 text-gray-400 hover:text-black hover:bg-gray-100 rounded-lg transition-all"
@@ -421,22 +433,25 @@ export default function CustomerTermsTab({ data }: CustomerTermsTabProps) {
               
               {/* Total Footer Row */}
               <tr className="bg-gray-100 font-bold border-t-2 border-gray-300 text-center">
-                <td className="py-5 px-4">-</td>
-                <td className="py-5 px-4 text-sm font-black text-black">Total</td>
-                <td className="py-5 px-4">-</td>
-                <td className="py-5 px-4 text-sm font-black text-indigo-600">
+                <td className="py-3 px-4">-</td>
+                <td className="py-3 px-4 text-sm font-black text-black">Total</td>
+                <td className="py-3 px-4">-</td>
+                <td className="py-3 px-4 text-sm font-black text-indigo-600">
                   {Math.round(filteredCustomers.reduce((sum, c) => sum + c.paymentTerm, 0) / (filteredCustomers.length || 1))} days avg
                 </td>
-                <td className="py-5 px-4 text-sm font-black text-red-600">
+                <td className="py-3 px-4 text-sm font-black text-red-600">
                   {Math.round(filteredCustomers.reduce((sum, c) => sum + c.exceededDays, 0) / (filteredCustomers.length || 1))} days avg
                 </td>
-                <td className="py-5 px-4 text-sm font-black text-black">
+                <td className="py-3 px-4 text-sm font-black text-black">
                   {totalDebt.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} AED
                 </td>
-                <td className="py-5 px-4 text-sm font-black text-gray-500">
+                <td className="py-3 px-4 text-sm font-black text-red-600">
+                  {filteredCustomers.reduce((sum, c) => sum + c.severeDebt, 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} AED
+                </td>
+                <td className="py-3 px-4 text-sm font-black text-gray-500">
                   {filteredCustomers.reduce((sum, c) => sum + c.creditLimit, 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} AED
                 </td>
-                <td className="py-5 px-4 text-sm font-black text-red-600">
+                <td className="py-3 px-4 text-sm font-black text-red-600">
                   {totalExceeded > 0.01 ? `+${totalExceeded.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} AED` : '—'}
                 </td>
                 <td className="py-5 px-4">
@@ -454,6 +469,7 @@ export default function CustomerTermsTab({ data }: CustomerTermsTabProps) {
               </tr>
             </tbody>
           </table>
+          </div>
         )}
       </div>
 

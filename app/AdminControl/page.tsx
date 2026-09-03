@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Menu } from 'lucide-react';
 import UserActivityTab from './UserActivityTab/UserActivityTab';
-import AdminControlTab from './AdminControlTab/AdminControlTab';
+import AdminControlTab from './AdminControlTab';
 import AdminSidebar from './Utils/Sidebar';
 import TabPanel from '@/app/Components/Layout/TabPanel';
 import { verifyUserCredentials } from '@/app/DataBase/Service/database_service';
@@ -124,7 +124,7 @@ export default function AdminControlPage() {
           activeTab={activeTab}
           onTabChange={setActiveTab}
           isCollapsed={false}
-          onToggleCollapse={() => {}}
+          onToggleCollapse={() => { }}
           onCloseMobile={() => setIsMobileSidebarOpen(false)}
         />
       </aside>

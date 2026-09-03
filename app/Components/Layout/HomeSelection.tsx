@@ -113,7 +113,14 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
       if (!roleStr) return true;
 
       const perms = JSON.parse(roleStr);
-      if (perms.systems) return perms.systems.includes(systemId);
+      if (perms.systems) {
+        if (systemId === 'cash-handling') {
+          return perms.systems.includes('cash-receipt') || 
+                 perms.systems.includes('cash-handover') || 
+                 perms.systems.includes('cash-handling');
+        }
+        return perms.systems.includes(systemId);
+      }
     } catch {
       // full access by default
     }
@@ -121,8 +128,7 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
   };
 
   const ALL_SYSTEMS: SystemItem[] = [
-    { id: 'cash-receipt', title: 'Cash Receipt', path: '/CashReceipt', color: 'teal' },
-    { id: 'cash-handover', title: 'Cash Handover', path: '/CashHandover', color: 'purple' },
+    { id: 'cash-handling', title: 'Cash Handling', path: '/CashHandling', color: 'teal' },
     { id: 'petty-cash', title: 'Petty Cash', path: '/PettyCash', color: 'cyan' },
     { id: 'documents-tracking', title: 'Documents Tracking', path: '/DocumentsTracking', color: 'orange' },
     { id: 'debit', title: 'Debit Analysis', path: '/Debit', color: 'red' },

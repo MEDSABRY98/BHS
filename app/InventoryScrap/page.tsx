@@ -18,7 +18,7 @@ import {
   History
 } from 'lucide-react';
 import type { InventoryScrapTabId } from '@/app/Audit/Model/InventoryScrapTabAudit';
-import { getAllowedModuleTabIds } from '@/app/AdminControl/AdminControlTab/AdminControlTab';
+import { getAllowedModuleTabIds } from '@/app/AdminControl/AdminControlTab';
 import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
 
 const SCRAP_TABS: { id: InventoryScrapTabId; label: string; icon: typeof Plus }[] = [
@@ -71,7 +71,7 @@ export default function InventoryScrapPage() {
 
         // Check permission for inventory-scrap
         const userName = parsed.name?.toLowerCase() || '';
-                if (userName === 'med sabry') {
+        if (userName === 'med sabry') {
           setIsAllowed(true);
         } else {
           try {
@@ -224,11 +224,10 @@ export default function InventoryScrapPage() {
               <button
                 key={tab.id}
                 onClick={() => setActiveSubTab(tab.id)}
-                className={`w-full flex items-center ${isCollapsed ? 'justify-center px-2' : 'px-4'} py-3.5 rounded-xl transition-all duration-200 group relative cursor-pointer ${
-                  isActive
+                className={`w-full flex items-center ${isCollapsed ? 'justify-center px-2' : 'px-4'} py-3.5 rounded-xl transition-all duration-200 group relative cursor-pointer ${isActive
                     ? 'bg-gradient-to-r from-amber-600 to-[#D4AF37] text-white shadow-lg shadow-amber-950/40 border-l-4 border-[#D4AF37] font-bold'
                     : 'text-slate-400 hover:text-white hover:bg-white/5'
-                }`}
+                  }`}
                 title={isCollapsed ? tab.label : undefined}
               >
                 <Icon className={`w-5 h-5 transition-colors shrink-0 ${isCollapsed ? '' : 'mr-3'} ${isActive ? 'text-white' : 'group-hover:text-white'}`} />
@@ -321,11 +320,10 @@ export default function InventoryScrapPage() {
                     setActiveSubTab(tab.id);
                     setIsSidebarOpen(false);
                   }}
-                  className={`w-full flex items-center px-4 py-3.5 rounded-xl transition-all duration-200 group relative cursor-pointer ${
-                    isActive
+                  className={`w-full flex items-center px-4 py-3.5 rounded-xl transition-all duration-200 group relative cursor-pointer ${isActive
                       ? 'bg-gradient-to-r from-amber-600 to-[#D4AF37] text-white shadow-lg shadow-amber-950/40 border-l-4 border-[#D4AF37] font-bold'
                       : 'text-slate-400 hover:text-white hover:bg-white/5'
-                  }`}
+                    }`}
                 >
                   <Icon className={`w-5 h-5 mr-3 shrink-0 ${isActive ? 'text-white' : 'group-hover:text-white'}`} />
                   <span className="text-sm tracking-wide text-left">{tab.label}</span>

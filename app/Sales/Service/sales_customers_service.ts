@@ -49,7 +49,7 @@ export async function getCustomersData(userId: string, filters: any, activeTab: 
 
   let globallyFilteredData = augmentedData;
   if (filters) {
-    const { invoiceType, year, month, dateFrom, dateTo, area, market, merchandiser, salesRep, productTag, product, customerName, customerTag, customerClass } = filters;
+    const { invoiceType, year, month, dateFrom, dateTo, area, market, merchandiser, salesRep, productTag, product, customerMainName, customerSubName, customerTag, customerClass } = filters;
 
     if (invoiceType && invoiceType !== 'all') {
       globallyFilteredData = globallyFilteredData.filter(item => {
@@ -61,8 +61,8 @@ export async function getCustomersData(userId: string, filters: any, activeTab: 
     }
     if (productTag) globallyFilteredData = globallyFilteredData.filter(i => i.productTag === productTag);
     if (product) globallyFilteredData = globallyFilteredData.filter(i => i.product === product);
-    if (customerTag) globallyFilteredData = globallyFilteredData.filter(i => i.customerTag === customerTag);
-    if (customerName) globallyFilteredData = globallyFilteredData.filter(i => i.customerName === customerName || i.customerMainName === customerName);
+    if (customerMainName) globallyFilteredData = globallyFilteredData.filter(i => i.customerMainName === customerMainName);
+    if (customerSubName) globallyFilteredData = globallyFilteredData.filter(i => i.customerName === customerSubName);
     if (customerClass) globallyFilteredData = globallyFilteredData.filter(i => i.customerClass === customerClass);
     if (area) globallyFilteredData = globallyFilteredData.filter(i => i.area === area);
     if (market) globallyFilteredData = globallyFilteredData.filter(i => i.market === market);
@@ -216,7 +216,7 @@ export async function getCustomerDetailsData(userId: string, filters: any, custo
 
   let allData = customerRawData;
   if (filters) {
-    const { invoiceType, area, market, merchandiser, salesRep, productTag, product, customerName, customerTag, customerClass } = filters;
+    const { invoiceType, area, market, merchandiser, salesRep, productTag, product, customerMainName, customerSubName, customerTag, customerClass } = filters;
     if (invoiceType && invoiceType !== 'all') {
       allData = allData.filter(item => {
         const num = item.invoiceNumber?.trim().toUpperCase() || '';
@@ -227,8 +227,8 @@ export async function getCustomerDetailsData(userId: string, filters: any, custo
     }
     if (productTag) allData = allData.filter(i => i.productTag === productTag);
     if (product) allData = allData.filter(i => i.product === product);
-    if (customerTag) allData = allData.filter(i => i.customerTag === customerTag);
-    if (customerName) allData = allData.filter(i => i.customerName === customerName || i.customerMainName === customerName);
+    if (customerMainName) allData = allData.filter(i => i.customerMainName === customerMainName);
+    if (customerSubName) allData = allData.filter(i => i.customerName === customerSubName);
     if (customerClass) allData = allData.filter(i => i.customerClass === customerClass);
     if (area) allData = allData.filter(i => i.area === area);
     if (market) allData = allData.filter(i => i.market === market);

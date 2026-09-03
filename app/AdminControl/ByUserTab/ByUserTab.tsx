@@ -1,6 +1,6 @@
 'use client';
 
-import AdminControlTab from '../AdminControlTab/AdminControlTab';
+import AdminControlTab from '../AdminControlTab';
 
 export default function ByUserTab() {
   return <AdminControlTab />;

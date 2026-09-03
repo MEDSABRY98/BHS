@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { useDataBaseRouteAudit } from '@/app/Audit/Model/DataBaseTabAudit';
 import { findDatabaseNavItemByPath, getDatabaseNavItemsByCategory, DATABASE_DASHBOARD_HREF, DATABASE_DASHBOARD_NAV, DATABASE_NAV_ITEMS } from './Utils/DatabaseHubConfig';
-import { getAllowedModuleTabIds } from '@/app/AdminControl/AdminControlTab/AdminControlTab';
+import { getAllowedModuleTabIds } from '@/app/AdminControl/AdminControlTab';
 import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
 
 interface NavItemProps {
@@ -33,11 +33,10 @@ function NavItem({ href, icon: Icon, label, isActive, onClick, isCollapsed }: Na
       href={href}
       replace
       onClick={onClick}
-      className={`w-full flex items-center ${isCollapsed ? 'justify-center px-2' : 'px-4'} py-3.5 rounded-xl transition-all duration-200 group relative ${
-        isActive
+      className={`w-full flex items-center ${isCollapsed ? 'justify-center px-2' : 'px-4'} py-3.5 rounded-xl transition-all duration-200 group relative ${isActive
           ? 'bg-gradient-to-r from-amber-600 to-[#D4AF37] text-white shadow-lg shadow-amber-950/40 border-l-4 border-[#D4AF37] font-bold'
           : 'text-slate-400 hover:text-white hover:bg-white/5'
-      }`}
+        }`}
       title={isCollapsed ? label : undefined}
     >
       <Icon className={`w-5 h-5 transition-colors shrink-0 ${isCollapsed ? '' : 'mr-3'} ${isActive ? 'text-white' : 'group-hover:text-white'}`} />
@@ -173,11 +172,10 @@ export default function DatabaseLayout({ children }: { children: React.ReactNode
             )}
             <Link
               href={DATABASE_DASHBOARD_HREF}
-              className={`w-full flex items-center ${isCollapsed ? 'justify-center px-2' : 'px-4'} py-3.5 rounded-xl transition-all group relative ${
-                isDashboard
+              className={`w-full flex items-center ${isCollapsed ? 'justify-center px-2' : 'px-4'} py-3.5 rounded-xl transition-all group relative ${isDashboard
                   ? 'bg-gradient-to-r from-amber-600 to-[#D4AF37] text-white shadow-lg shadow-amber-950/40 border-l-4 border-[#D4AF37] font-bold'
                   : 'text-slate-400 hover:text-white hover:bg-white/5'
-              }`}
+                }`}
               title={DATABASE_DASHBOARD_NAV.label}
             >
               <DashboardIcon className={`w-5 h-5 shrink-0 ${isCollapsed ? '' : 'mr-3'} ${isDashboard ? 'text-white' : 'group-hover:text-white'}`} />
@@ -275,11 +273,10 @@ export default function DatabaseLayout({ children }: { children: React.ReactNode
                   <Link
                     href={DATABASE_DASHBOARD_HREF}
                     onClick={() => setIsSidebarOpen(false)}
-                    className={`w-full flex items-center px-4 py-3.5 rounded-xl transition-all group relative ${
-                      isDashboard
+                    className={`w-full flex items-center px-4 py-3.5 rounded-xl transition-all group relative ${isDashboard
                         ? 'bg-gradient-to-r from-amber-600 to-[#D4AF37] text-white shadow-lg shadow-amber-950/40 border-l-4 border-[#D4AF37] font-bold'
                         : 'text-slate-400 hover:text-white hover:bg-white/5'
-                    }`}
+                      }`}
                   >
                     <DashboardIcon className={`w-5 h-5 mr-3 ${isDashboard ? 'text-white' : 'group-hover:text-white'}`} />
                     <span className="text-sm tracking-wide">{DATABASE_DASHBOARD_NAV.label}</span>

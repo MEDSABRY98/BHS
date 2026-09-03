@@ -23,7 +23,8 @@ export function buildSalesFetchKey(
     filters.salesRep,
     filters.productTag,
     filters.product,
-    filters.customerName,
+    filters.customerMainName,
+    filters.customerSubName,
     filters.customerTag,
     filters.customerClass,
   ].join('|');

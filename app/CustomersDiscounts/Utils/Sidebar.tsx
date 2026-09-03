@@ -12,7 +12,7 @@ import {
   ShieldCheck,
   Users,
 } from 'lucide-react';
-import { getAllowedModuleTabIds } from '@/app/AdminControl/AdminControlTab/AdminControlTab';
+import { getAllowedModuleTabIds } from '@/app/AdminControl/AdminControlTab';
 
 interface SidebarProps {
   isSidebarOpen: boolean;
@@ -51,15 +51,14 @@ export default function Sidebar({
 
   return (
     <div
-      className={`flex flex-col h-full shrink-0 bg-[#0a0f1d] text-white border-r border-amber-950/20 transition-all duration-300 ${
-        isCollapsed ? 'w-20' : 'w-72'
-      }`}
+      className={`flex flex-col h-full shrink-0 bg-[#0a0f1d] text-white border-r border-amber-950/20 transition-all duration-300 ${isCollapsed ? 'w-20' : 'w-72'
+        }`}
     >
       <div className={`px-4 ${isCollapsed ? 'px-2' : 'px-6'} pt-6 pb-2 shrink-0 transition-all duration-300`}>
         <a
           href="/"
           className={`flex items-center justify-center ${isCollapsed ? 'gap-0' : 'gap-3'} py-2.5 text-[#D4AF37] hover:text-amber-300 transition-all duration-200 group w-full cursor-pointer bg-white/5 rounded-xl border border-white/10`}
-          
+
         >
           <ArrowLeft className="w-5 h-5 shrink-0 group-hover:-translate-x-1 transition-transform" />
           {!isCollapsed && (
@@ -104,17 +103,15 @@ export default function Sidebar({
                 setCurrentView(tab.id);
                 setSelectedCustomer(null);
               }}
-              className={`w-full flex items-center ${isCollapsed ? 'justify-center px-2' : 'px-4'} py-3.5 rounded-xl transition-all duration-200 group relative ${
-                isActive
+              className={`w-full flex items-center ${isCollapsed ? 'justify-center px-2' : 'px-4'} py-3.5 rounded-xl transition-all duration-200 group relative ${isActive
                   ? 'bg-gradient-to-r from-amber-600 to-[#D4AF37] text-white shadow-lg shadow-amber-950/40 border-l-4 border-[#D4AF37] font-bold'
                   : 'text-slate-400 hover:text-white hover:bg-white/5'
-              }`}
-              
+                }`}
+
             >
               <Icon
-                className={`w-5 h-5 transition-colors shrink-0 ${isCollapsed ? '' : 'mr-3'} ${
-                  isActive ? 'text-white' : 'group-hover:text-white'
-                }`}
+                className={`w-5 h-5 transition-colors shrink-0 ${isCollapsed ? '' : 'mr-3'} ${isActive ? 'text-white' : 'group-hover:text-white'
+                  }`}
               />
               {!isCollapsed && (
                 <span className="text-sm tracking-wide whitespace-nowrap overflow-hidden text-left">{tab.label}</span>
@@ -140,7 +137,7 @@ export default function Sidebar({
 
       {/* Portal-like Tooltip for Collapsed Sidebar */}
       {hoveredTab && isCollapsed && (
-        <div 
+        <div
           className="fixed z-[100] flex items-center pointer-events-none animate-in fade-in slide-in-from-left-2 duration-200"
           style={{ top: hoveredTab.top - 2, left: 70 }}
         >

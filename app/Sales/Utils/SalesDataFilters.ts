@@ -13,7 +13,8 @@ export function applySalesCommonFilters(data: any[], filters: any): any[] {
     salesRep,
     productTag,
     product,
-    customerName,
+    customerMainName,
+    customerSubName,
     customerTag,
     customerClass,
   } = filters;
@@ -31,8 +32,11 @@ export function applySalesCommonFilters(data: any[], filters: any): any[] {
 
   if (productTag) result = result.filter((i) => i.productTag === productTag);
   if (product) result = result.filter((i) => i.product === product);
-  if (customerName) {
-    result = result.filter((i) => i.customerName === customerName || i.customerMainName === customerName);
+  if (customerMainName) {
+    result = result.filter((i) => i.customerMainName === customerMainName);
+  }
+  if (customerSubName) {
+    result = result.filter((i) => i.customerName === customerSubName);
   }
   if (customerTag) result = result.filter((i) => i.customerTag === customerTag);
   if (customerClass) result = result.filter((i) => i.customerClass === customerClass);

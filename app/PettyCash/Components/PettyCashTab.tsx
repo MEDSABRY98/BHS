@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
-import { getAllowedModuleTabIds } from '@/app/AdminControl/AdminControlTab/AdminControlTab';
+import { getAllowedModuleTabIds } from '@/app/AdminControl/AdminControlTab';
 import { Menu, X, ArrowLeft, FileSpreadsheet, RefreshCcw, Archive } from 'lucide-react';
 
 import Sidebar, { tabs } from '../Utils/Sidebar';

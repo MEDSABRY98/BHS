@@ -4,7 +4,7 @@ import { useMemo } from 'react';
 import Link from 'next/link';
 import { ArrowRight, Database, LayoutDashboard } from 'lucide-react';
 import { DATABASE_CATEGORIES, DATABASE_DASHBOARD_HREF, DATABASE_NAV_ITEMS } from './Utils/DatabaseHubConfig';
-import { getAllowedModuleTabIds } from '@/app/AdminControl/AdminControlTab/AdminControlTab';
+import { getAllowedModuleTabIds } from '@/app/AdminControl/AdminControlTab';
 import { useLiveCurrentUser } from '@/app/Components/Auth/AppSessionProvider';
 
 export default function DatabaseHub() {

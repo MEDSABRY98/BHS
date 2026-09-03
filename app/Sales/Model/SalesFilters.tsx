@@ -46,7 +46,8 @@ export type SalesCommonFilters = {
   salesRep: string;
   productTag: string;
   product: string;
-  customerName: string;
+  customerMainName: string;
+  customerSubName: string;
   customerTag: string;
   customerClass: string;
 };
@@ -59,7 +60,8 @@ export type SalesFilterOptions = {
   productTags: string[];
   products: string[];
   productCategoryByName?: Record<string, string>;
-  customerNames: string[];
+  customerMainNames: string[];
+  customerSubNames: string[];
   customerTags: string[];
   customerClasses: string[];
   years: string[];
@@ -106,7 +108,8 @@ export const DEFAULT_SALES_COMMON_FILTERS: SalesCommonFilters = {
   salesRep: '',
   productTag: '',
   product: '',
-  customerName: '',
+  customerMainName: '',
+  customerSubName: '',
   customerTag: '',
   customerClass: '',
 };
@@ -124,7 +127,8 @@ function filtersEqual(a: SalesCommonFilters, b: SalesCommonFilters): boolean {
     a.salesRep === b.salesRep &&
     a.productTag === b.productTag &&
     a.product === b.product &&
-    a.customerName === b.customerName &&
+    a.customerMainName === b.customerMainName &&
+    a.customerSubName === b.customerSubName &&
     a.customerTag === b.customerTag &&
     a.customerClass === b.customerClass
   );
@@ -311,7 +315,8 @@ export function useSalesFilters() {
       !!f.salesRep ||
       !!f.productTag ||
       !!f.product ||
-      !!f.customerName ||
+      !!f.customerMainName ||
+      !!f.customerSubName ||
       !!f.customerTag ||
       !!f.customerClass
     );
@@ -417,8 +422,10 @@ export function useSalesFilters() {
     setFilterProductTag: (value: string) => updateDraftFilter('productTag', value),
     filterProduct: draftFilters.product,
     setFilterProduct: (value: string) => updateDraftFilter('product', value),
-    filterCustomerName: draftFilters.customerName,
-    setFilterCustomerName: (value: string) => updateDraftFilter('customerName', value),
+    filterCustomerMainName: draftFilters.customerMainName,
+    setFilterCustomerMainName: (value: string) => updateDraftFilter('customerMainName', value),
+    filterCustomerSubName: draftFilters.customerSubName,
+    setFilterCustomerSubName: (value: string) => updateDraftFilter('customerSubName', value),
     filterCustomerTag: draftFilters.customerTag,
     setFilterCustomerTag: (value: string) => updateDraftFilter('customerTag', value),
     filterCustomerClass: draftFilters.customerClass,
@@ -471,8 +478,10 @@ export type SalesFilterModalProps = {
   setFilterProductTag: (value: string) => void;
   filterProduct: string;
   setFilterProduct: (value: string) => void;
-  filterCustomerName: string;
-  setFilterCustomerName: (value: string) => void;
+  filterCustomerMainName: string;
+  setFilterCustomerMainName: (value: string) => void;
+  filterCustomerSubName: string;
+  setFilterCustomerSubName: (value: string) => void;
   filterCustomerTag: string;
   setFilterCustomerTag: (value: string) => void;
   filterCustomerClass: string;
@@ -523,8 +532,10 @@ export function SalesFilterModal({
   setFilterProductTag,
   filterProduct,
   setFilterProduct,
-  filterCustomerName,
-  setFilterCustomerName,
+  filterCustomerMainName,
+  setFilterCustomerMainName,
+  filterCustomerSubName,
+  setFilterCustomerSubName,
   filterCustomerTag,
   setFilterCustomerTag,
   filterCustomerClass,
@@ -899,18 +910,32 @@ export function SalesFilterModal({
               {activeFilterTab === 'customer' && (
                 <div className="space-y-10">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8 bg-slate-50 p-10 rounded-[40px] border border-slate-100">
-                    <div className="space-y-2 md:col-span-2">
+                    <div className="space-y-2">
                       <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">
-                        Customer Name
+                        Main Customer
                       </label>
                       <ModernSelect
-                        value={filterCustomerName}
-                        onChange={setFilterCustomerName}
+                        value={filterCustomerMainName}
+                        onChange={setFilterCustomerMainName}
                         options={[
-                          { label: 'All Customers', value: '' },
-                          ...(uniqueValues.customerNames || []).map((v) => ({ label: v, value: v })),
+                          { label: 'All Main Customers', value: '' },
+                          ...(uniqueValues.customerMainNames || []).map((v) => ({ label: v, value: v })),
                         ]}
-                        placeholder="All Customers"
+                        placeholder="All Main Customers"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">
+                        Sub Customer
+                      </label>
+                      <ModernSelect
+                        value={filterCustomerSubName}
+                        onChange={setFilterCustomerSubName}
+                        options={[
+                          { label: 'All Sub Customers', value: '' },
+                          ...(uniqueValues.customerSubNames || []).map((v) => ({ label: v, value: v })),
+                        ]}
+                        placeholder="All Sub Customers"
                       />
                     </div>
                     <div className="space-y-2">
@@ -1298,8 +1323,10 @@ export function SalesFiltersProvider({
         setFilterProductTag={filterState.setFilterProductTag}
         filterProduct={filterState.filterProduct}
         setFilterProduct={filterState.setFilterProduct}
-        filterCustomerName={filterState.filterCustomerName}
-        setFilterCustomerName={filterState.setFilterCustomerName}
+        filterCustomerMainName={filterState.filterCustomerMainName}
+        setFilterCustomerMainName={filterState.setFilterCustomerMainName}
+        filterCustomerSubName={filterState.filterCustomerSubName}
+        setFilterCustomerSubName={filterState.setFilterCustomerSubName}
         filterCustomerTag={filterState.filterCustomerTag}
         setFilterCustomerTag={filterState.setFilterCustomerTag}
         filterCustomerClass={filterState.filterCustomerClass}

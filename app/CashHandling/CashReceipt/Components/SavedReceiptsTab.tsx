@@ -1,5 +1,5 @@
 import React from 'react';
-import { FileText, Printer, Hash, Calendar, Edit2, Trash2, X } from 'lucide-react';
+import { FileText, Printer, Hash, Calendar, Edit2, Trash2, X, Search } from 'lucide-react';
 
 interface Receipt {
   receiptNumber: string;
@@ -20,6 +20,7 @@ interface SavedReceiptsTabProps {
   onEdit: (receipt: Receipt) => void;
   onDelete: (receipt: Receipt) => void;
   searchQuery: string;
+  setSearchQuery: (query: string) => void;
 }
 
 export default function SavedReceiptsTab({
@@ -31,6 +32,7 @@ export default function SavedReceiptsTab({
   onEdit,
   onDelete,
   searchQuery,
+  setSearchQuery,
 }: SavedReceiptsTabProps) {
   const closeModal = () => setSelectedReceipt(null);
 
@@ -53,7 +55,19 @@ export default function SavedReceiptsTab({
   };
 
   return (
-    <>
+    <div className="animate-in fade-in duration-300">
+      {/* Search Box */}
+      <div className="mb-8 relative w-full max-w-lg mx-auto">
+        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+        <input
+          type="text"
+          placeholder="Search saved receipts by number or customer..."
+          className="w-full pl-11 pr-4 py-3 bg-white border border-gray-200 focus:border-amber-500 rounded-2xl text-sm focus:ring-0 transition-all outline-none shadow-sm"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
+      </div>
+
       {isFetchingSaved ? (
         <div className="flex flex-col items-center justify-center py-24">
           <div className="w-8 h-8 border-2 border-black border-t-transparent rounded-full animate-spin mb-3"></div>
@@ -183,6 +197,6 @@ export default function SavedReceiptsTab({
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 }

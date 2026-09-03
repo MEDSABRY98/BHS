@@ -23,7 +23,7 @@ interface SalesCustomersTabProps {
 const ITEMS_PER_PAGE = 50;
 
 // Memoized row component for better performance
-const CustomerRow = memo(({ item, rowNumber, onCustomerClick, totalAmountSum }: { item: { customerId: string; customer: string; totalAmount: number; totalQty: number; averageAmount: number; averageQty: number; productsCount: number; transactions: number }; rowNumber: number; onCustomerClick: (id: string, name: string) => void; totalAmountSum: number }) => {
+const CustomerRow = memo(({ item, rowNumber, onCustomerClick, totalAmountSum }: { item: { customerId: string; customer: string; area: string; totalAmount: number; totalQty: number; averageAmount: number; averageQty: number; productsCount: number; transactions: number }; rowNumber: number; onCustomerClick: (id: string, name: string) => void; totalAmountSum: number }) => {
   const percentage = totalAmountSum > 0 ? (item.totalAmount / totalAmountSum) * 100 : 0;
   return (
     <tr className="border-b border-gray-100 hover:bg-gray-50 group text-center">
@@ -34,6 +34,9 @@ const CustomerRow = memo(({ item, rowNumber, onCustomerClick, totalAmountSum }: 
         title={item.customer}
       >
         {item.customer}
+      </td>
+      <td className="py-3 px-4 text-sm text-gray-800 font-semibold truncate max-w-[150px]" title={item.area || ''}>
+        {item.area || '-'}
       </td>
       <td className="py-3 px-4 text-sm text-gray-800 font-bold">
         {item.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -65,7 +68,7 @@ export default function SalesCustomersTab({ userId, onUploadMapping, showCosts =
   useEffect(() => {
     trackSalesCustomersTab(activeTab);
   }, [activeTab]);
-  const [sortField, setSortField] = useState<'customer' | 'totalAmount' | 'averageAmount' | 'totalQty' | 'productsCount' | 'transactions'>('totalAmount');
+  const [sortField, setSortField] = useState<'customer' | 'area' | 'totalAmount' | 'averageAmount' | 'totalQty' | 'productsCount' | 'transactions'>('totalAmount');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
   const { data: customersData, isInitialLoading, error, reload, loading } = useSalesTabFetch<any[]>({
@@ -166,15 +169,15 @@ export default function SalesCustomersTab({ userId, onUploadMapping, showCosts =
         numericColumns: [...monthHeaders, 'Total'],
       });
     } else {
-      const headers = ['#', 'Customer Name', 'Amount', '% of Total', 'Amount Average', 'QTY', 'SKUs', 'Invoices'];
+      const headers = ['#', 'Customer Name', 'City', 'Amount', '% of Total', 'Amount Average', 'QTY', 'SKUs', 'Invoices'];
       const rows = filteredCustomers.map((item, i) => {
         const percentage = totals.totalAmount > 0 ? ((item.totalAmount / totals.totalAmount) * 100).toFixed(2) + '%' : '0%';
         return [
-          i + 1, item.customer, item.totalAmount, percentage, item.averageAmount,
+          i + 1, item.customer, item.area || '-', item.totalAmount, percentage, item.averageAmount,
           item.totalQty, item.productsCount, item.transactions
         ];
       });
-      rows.push(['', 'TOTALS', totals.totalAmount, '100%', totals.totalAverageAmount, totals.totalQty, totals.totalProductsCount, totals.totalTransactions]);
+      rows.push(['', 'TOTALS', '', totals.totalAmount, '100%', totals.totalAverageAmount, totals.totalQty, totals.totalProductsCount, totals.totalTransactions]);
       await exportSalesExcelTable(headers, rows, `customers_analysis_${new Date().toISOString().split('T')[0]}.xlsx`, {
         sheetName: 'Customers Analysis',
         numericColumns: ['Amount', 'Amount Average', 'QTY'],
@@ -273,6 +276,9 @@ export default function SalesCustomersTab({ userId, onUploadMapping, showCosts =
                   <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center cursor-pointer hover:text-green-600 w-56" onClick={() => handleSort('customer')}>
                     Customer {getSortIcon('customer')}
                   </th>
+                  <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center cursor-pointer hover:text-green-600 w-32" onClick={() => handleSort('area')}>
+                    City {getSortIcon('area')}
+                  </th>
                   <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center cursor-pointer hover:text-green-600 w-32" onClick={() => handleSort('totalAmount')}>
                     Amount {getSortIcon('totalAmount')}
                   </th>
@@ -300,7 +306,7 @@ export default function SalesCustomersTab({ userId, onUploadMapping, showCosts =
               </tbody>
               <tfoot className="bg-gray-50/50 font-bold border-t border-gray-100">
                 <tr className="text-center">
-                  <td colSpan={2} className="py-4 px-4 text-xs text-gray-500 uppercase tracking-widest">Totals</td>
+                  <td colSpan={3} className="py-4 px-4 text-xs text-gray-500 uppercase tracking-widest">Totals</td>
                   <td className="py-4 px-4 text-sm text-gray-800">{totals.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
                   <td className="py-4 px-4 text-sm text-emerald-600 bg-emerald-50/50 font-bold">100%</td>
                   <td className="py-4 px-4 text-sm text-gray-800">{totals.totalAverageAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>

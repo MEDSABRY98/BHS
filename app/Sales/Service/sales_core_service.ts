@@ -133,7 +133,8 @@ export async function getSalesMetadata(userId: string, forceRefresh: boolean = f
   const productTags = new Set<string>();
   const products = new Set<string>();
   const productCategoryByName: Record<string, string> = {};
-  const customerNames = new Set<string>();
+  const customerMainNames = new Set<string>();
+  const customerSubNames = new Set<string>();
   const customerTags = new Set<string>();
   const customerClasses = new Set<string>();
   const years = new Set<string>();
@@ -143,8 +144,8 @@ export async function getSalesMetadata(userId: string, forceRefresh: boolean = f
     if (m.market) markets.add(m.market);
     if (m.merchandiser) merchandisers.add(m.merchandiser);
     if (m.salesRep) salesReps.add(m.salesRep);
-    if (m.customerMainName) customerNames.add(m.customerMainName);
-    if (m.customerSubName) customerNames.add(m.customerSubName);
+    if (m.customerMainName) customerMainNames.add(m.customerMainName);
+    if (m.customerSubName) customerSubNames.add(m.customerSubName);
     if (m.customerTag) customerTags.add(m.customerTag);
     if (m.customerClass) customerClasses.add(m.customerClass);
   });
@@ -161,8 +162,8 @@ export async function getSalesMetadata(userId: string, forceRefresh: boolean = f
       products.add(item.product);
       if (item.productTag) productCategoryByName[item.product] = item.productTag;
     }
-    if (item.customerName) customerNames.add(item.customerName);
-    if (item.customerMainName) customerNames.add(item.customerMainName);
+    if (item.customerMainName) customerMainNames.add(item.customerMainName);
+    if (item.customerName) customerSubNames.add(item.customerName);
     if (item.customerTag) customerTags.add(item.customerTag);
     if (item.customerClass) customerClasses.add(item.customerClass);
 
@@ -188,7 +189,8 @@ export async function getSalesMetadata(userId: string, forceRefresh: boolean = f
       productTags: Array.from(productTags).sort(),
       products: Array.from(products).sort(),
       productCategoryByName,
-      customerNames: Array.from(customerNames).sort(),
+      customerMainNames: Array.from(customerMainNames).sort(),
+      customerSubNames: Array.from(customerSubNames).sort(),
       customerTags: Array.from(customerTags).sort(),
       customerClasses: Array.from(customerClasses).sort(),
       years: Array.from(years).sort((a, b) => b.localeCompare(a))

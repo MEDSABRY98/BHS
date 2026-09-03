@@ -4,7 +4,7 @@ import { CheckCircle } from "lucide-react";
 import { bhs_supabase, fetchAllData, getAllCustomerEmails, getLuluEmails } from "@/lib/supabase";
 import { buildCustomerEmailMap, getCustomerEmail } from "@/lib/customerEmailLookup";
 import Sidebar, { CUSTOMERS_DISCOUNTS_TAB_IDS } from "./Utils/Sidebar";
-import { getAllowedModuleTabIds, getCurrentUserFromStorage } from '@/app/AdminControl/AdminControlTab/AdminControlTab';
+import { getAllowedModuleTabIds, getCurrentUserFromStorage } from '@/app/AdminControl/AdminControlTab';
 import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
 import ConfirmModal from "./ConfirmModal";
 import { toast, NotificationContainer } from "@/app/Components/Notification";
@@ -141,9 +141,9 @@ ${monthsHtml}
   const fileLabel = tag
     ? `Tag_${tag.replace(/[^a-zA-Z0-9\u0600-\u06FF\-_]/g, "_")}`
     : (fallbackCustomerName || sections[0].customerName).replace(
-        /[^a-zA-Z0-9\u0600-\u06FF]/g,
-        "_"
-      );
+      /[^a-zA-Z0-9\u0600-\u06FF]/g,
+      "_"
+    );
 
   return { emlContent: emlLines.join("\r\n"), fileLabel };
 }
@@ -176,36 +176,36 @@ export default function CustomerDiscountsPage() {
   const [currentView, setCurrentView] = useState<"grid" | "add" | "details" | "months" | "stats" | "values">("grid");
   const [currentUser, setCurrentUser] = useState<any>(null);
   useSyncLiveUser(setCurrentUser);
-  
+
   // Data State
   const [customers, setCustomers] = useState<CustomerView[]>([]);
   const [filteredCustomers, setFilteredCustomers] = useState<CustomerView[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
-  
+
   // Details View State
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerView | null>(null);
   const [activeTab, setActiveTab] = useState<"details" | "pending" | "semi" | "settled">("details");
   useCustomersDiscountsTabAudit(currentView, currentView === 'details' ? activeTab : undefined);
   const [settlements, setSettlements] = useState<Settlement[]>([]);
   const [loadingSettlements, setLoadingSettlements] = useState(false);
-  
+
   // Add Form State
   const [allCustomers, setAllCustomers] = useState<AllCustomerItem[]>([]);
   const [filteredAllCustomers, setFilteredAllCustomers] = useState<AllCustomerItem[]>([]);
   const [loadingAllCustomers, setLoadingAllCustomers] = useState(false);
   const [addSearch, setAddSearch] = useState("");
-  
+
   // Sidebar UI State
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [autoSettling, setAutoSettling] = useState(false);
   const [monthsOverviewRefreshKey, setMonthsOverviewRefreshKey] = useState(0);
-  
+
   const [selectedAddCustomerId, setSelectedAddCustomerId] = useState<string>("");
   const [discountName, setDiscountName] = useState("");
   const [discountType, setDiscountType] = useState<"percentage" | "fixed_amount">("fixed_amount");
   const [discountValue, setDiscountValue] = useState<string>("");
-  
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [addError, setAddError] = useState("");
   const [customersWithEmails, setCustomersWithEmails] = useState<Map<string, string>>(new Map());
@@ -230,7 +230,7 @@ export default function CustomerDiscountsPage() {
     isOpen: false,
     title: "",
     message: "",
-    onConfirm: () => {},
+    onConfirm: () => { },
   });
 
   const openConfirm = (options: { title: string; message: string; onConfirm: () => void; confirmText?: string; cancelText?: string; isDestructive?: boolean }) => {
@@ -267,8 +267,8 @@ export default function CustomerDiscountsPage() {
     } else {
       const lowerQ = searchQuery.toLowerCase();
       setFilteredCustomers(
-        customers.filter(c => 
-          c.customerName.toLowerCase().includes(lowerQ) || 
+        customers.filter(c =>
+          c.customerName.toLowerCase().includes(lowerQ) ||
           c.customerId.toLowerCase().includes(lowerQ)
         )
       );
@@ -300,7 +300,7 @@ export default function CustomerDiscountsPage() {
       const data = await fetchAllData(() =>
         bhs_supabase.from("bhs_CUSTOMERS").select('"CUSTOMER ID", "CUSTOMER MAIN NAME"')
       );
-      
+
       const uniqueMap = new Map<string, AllCustomerItem>();
 
       data.forEach((d: any) => {
@@ -310,10 +310,10 @@ export default function CustomerDiscountsPage() {
           uniqueMap.set(name, { id, name });
         }
       });
-      
+
       const mapped: AllCustomerItem[] = Array.from(uniqueMap.values());
       mapped.sort((a, b) => a.name.localeCompare(b.name));
-        
+
       setAllCustomers(mapped);
       setFilteredAllCustomers(mapped.slice(0, 50));
     } catch (err) {
@@ -332,14 +332,14 @@ export default function CustomerDiscountsPage() {
       const group = (tag && !isLulu)
         ? customers.filter((c) => (c.customerTag || "").trim() === tag)
         : [
-            {
-              customerId,
-              customerName,
-              city: clicked?.city || "",
-              customerTag: tag,
-              discounts: clicked?.discounts || [],
-            },
-          ];
+          {
+            customerId,
+            customerName,
+            city: clicked?.city || "",
+            customerTag: tag,
+            discounts: clicked?.discounts || [],
+          },
+        ];
 
       const groupIds = group.map((c) => c.customerId);
       const { data: settlementsData, error } = await bhs_supabase
@@ -544,13 +544,13 @@ export default function CustomerDiscountsPage() {
       })).filter((row) => row.id);
 
       const allEmails = [...(emailsData || [])];
-      
+
       if (luluEmailsData) {
         luluEmailsData.forEach((lulu: any) => {
-           const combinedEmail = [lulu.to, lulu.cc].filter(Boolean).join(", ");
-           if (combinedEmail && lulu.customerId) {
-             allEmails.push({ customerId: lulu.customerId, email: combinedEmail });
-           }
+          const combinedEmail = [lulu.to, lulu.cc].filter(Boolean).join(", ");
+          if (combinedEmail && lulu.customerId) {
+            allEmails.push({ customerId: lulu.customerId, email: combinedEmail });
+          }
         });
       }
 
@@ -606,7 +606,7 @@ export default function CustomerDiscountsPage() {
       // Sort alphabetically
       finalCustomers.sort((a, b) => a.customerName.localeCompare(b.customerName));
       setCustomers(finalCustomers);
-      
+
       // If a customer was already selected, update it
       if (selectedCustomer) {
         const updatedCustomer = finalCustomers.find(c => c.customerId === selectedCustomer.customerId);
@@ -774,13 +774,13 @@ export default function CustomerDiscountsPage() {
         }
       }
       const discountId = `R-${String(nextNum).padStart(4, '0')}`;
-      
+
       // Determine the default settlement type based on existing discounts for this customer
       const customerObj = customers.find(c => c.customerId === selectedAddCustomerId);
       const defaultSettlementType = customerObj && customerObj.discounts.length > 0
         ? (customerObj.discounts[0].settlementType || "monthly")
         : "monthly";
-      
+
       // Insert discount
       const { error: discountError } = await bhs_supabase
         .from("web_CUSTOMERS_DISCOUNTS")
@@ -819,9 +819,9 @@ export default function CustomerDiscountsPage() {
       setDiscountName("");
       setDiscountValue("");
       // Keep selectedAddCustomerId and addSearch so they can add another discount for the same customer easily
-      
+
       await fetchCustomersAndDiscounts();
-      
+
       // Show a quick success alert or just let the empty fields indicate success
       toast.success("Config added successfully!");
 
@@ -915,7 +915,7 @@ export default function CustomerDiscountsPage() {
         .eq("ID", editingDiscountId);
 
       if (error) throw error;
-      
+
       setEditingDiscountId(null);
       await fetchCustomersAndDiscounts();
     } catch (err) {
@@ -951,7 +951,7 @@ export default function CustomerDiscountsPage() {
 
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden font-sans">
-      <Sidebar 
+      <Sidebar
         isSidebarOpen={isSidebarOpen}
         setIsSidebarOpen={setIsSidebarOpen}
         currentView={currentView}
@@ -962,11 +962,11 @@ export default function CustomerDiscountsPage() {
 
       {/* Main Workspace Area (Right) */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative bg-gray-50">
-        
+
 
 
         {currentView === "grid" && (
-          <CustomersList 
+          <CustomersList
             searchQuery={searchQuery}
             setSearchQuery={setSearchQuery}
             loading={loading}
@@ -983,7 +983,7 @@ export default function CustomerDiscountsPage() {
         )}
 
         {currentView === "add" && (
-          <AddDiscount 
+          <AddDiscount
             handleAddSubmit={handleAddSubmit}
             addError={addError}
             loadingAllCustomers={loadingAllCustomers}
@@ -1003,7 +1003,7 @@ export default function CustomerDiscountsPage() {
         )}
 
         {currentView === "details" && selectedCustomer && (
-          <CustomerDetails 
+          <CustomerDetails
             selectedCustomer={selectedCustomer}
             activeTab={activeTab}
             setActiveTab={setActiveTab}
@@ -1034,15 +1034,15 @@ export default function CustomerDiscountsPage() {
             downloadTaxRebateEml={downloadTaxRebateEml}
           />
         )}
-        
+
         {currentView === "months" && (
-          <MonthsOverview 
+          <MonthsOverview
             customers={customers}
             handleSelectCustomer={handleSelectCustomer}
             refreshKey={monthsOverviewRefreshKey}
           />
         )}
-        
+
         {currentView === "stats" && (
           <Statistics customers={customers} />
         )}
@@ -1053,11 +1053,11 @@ export default function CustomerDiscountsPage() {
 
       </div>
 
-      <ConfirmModal 
+      <ConfirmModal
         modal={confirmModal}
         closeConfirm={closeConfirm}
       />
-      
+
       {/* Toast Notification */}
       <NotificationContainer />
     </div>
