@@ -64,7 +64,8 @@ export default function SalesPage() {
     productTags: [] as string[],
     products: [] as string[],
     productCategoryByName: {} as Record<string, string>,
-    customerNames: [] as string[],
+    customerMainNames: [] as string[],
+    customerSubNames: [] as string[],
     customerTags: [] as string[],
     customerClasses: [] as string[],
     years: [] as string[]
