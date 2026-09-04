@@ -324,7 +324,7 @@ export default function CustomerTermsTab({ data }: CustomerTermsTabProps) {
         {filteredCustomers.length === 0 ? (
           <NoData title="NO CUSTOMERS FOUND" />
         ) : (
-          <div className="overflow-x-auto">
+          <div className="w-full">
             <table className="w-full text-center border-collapse" style={{ minWidth: '1200px', direction: 'ltr' }}>
             <thead className="bg-slate-900 text-white sticky top-0 z-30 shadow-md">
               <tr className="text-center">

@@ -220,7 +220,8 @@ export const calculateDebtRating = (customer: CustomerAnalysis, returnBreakdown:
   else if (salesCount === 1) score8 = 1;
   else score8 = 0;
 
-  const totalScore = score1 + score2 + score3 + score4 + score5 + score6 + score7 + score8;
+  // Excluded score1 (Net Debit) and score2 (Collection Rate) from the final calculation
+  const totalScore = score3 + score4 + score5 + score6 + score7 + score8;
   let finalRating: 'Good' | 'Medium' | 'Bad';
   let reason = '';
   if (netDebt < 0) {
@@ -230,8 +231,8 @@ export const calculateDebtRating = (customer: CustomerAnalysis, returnBreakdown:
     finalRating = 'Bad';
     reason = riskFlag1 === 1 ? 'Risk Indicator 1: Negative sales & zero payments (90d)' : 'Risk Indicator 2: No activity with outstanding debt (90d)';
   } else {
-    if (totalScore >= 11) finalRating = 'Good';
-    else if (totalScore >= 6) finalRating = 'Medium';
+    if (totalScore >= 8) finalRating = 'Good';
+    else if (totalScore >= 4) finalRating = 'Medium';
     else finalRating = 'Bad';
   }
 
@@ -252,7 +253,7 @@ export const calculateDebtRating = (customer: CustomerAnalysis, returnBreakdown:
         riskFlags: { riskFlag1, riskFlag2 },
         scores: { score1, score2, score3, score4, score5, score6, score7, score8 },
         totalScore,
-        maxPossibleScore: 16
+        maxPossibleScore: 12
       }
     };
   }

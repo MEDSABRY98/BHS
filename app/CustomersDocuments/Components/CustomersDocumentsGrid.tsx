@@ -21,24 +21,20 @@ interface CustomerDoc {
   rowIndex: string;
   customerName: string;
   creditApp: string;
+  creditAppDate: string;
   licence: string;
   licenceDate: string;
   trn: string;
   passport: string;
-  passportDate: string;
   id: string;
-  idDate: string;
-  contract: string;
-  contractDate: string;
 }
 
 const DOC_FIELDS = [
-  { field: 'creditApp' as const, label: 'Credit Application', short: 'Credit', icon: FileText, hasDate: false },
-  { field: 'contract' as const, label: 'Customer Contract', short: 'Contract', icon: FileSignature, hasDate: true, dateField: 'contractDate' as const, dateLabel: 'Contract End Date' },
+  { field: 'creditApp' as const, label: 'Credit Application', short: 'Credit', icon: FileText, hasDate: true, dateField: 'creditAppDate' as const, dateLabel: 'Date' },
   { field: 'licence' as const, label: 'Trade Licence', short: 'Licence', icon: Building, hasDate: true, dateField: 'licenceDate' as const, dateLabel: 'Expiry Date' },
   { field: 'trn' as const, label: 'TRN Certificate', short: 'TRN', icon: ShieldCheck, hasDate: false },
-  { field: 'passport' as const, label: 'Passport', short: 'Passport', icon: Plane, hasDate: true, dateField: 'passportDate' as const, dateLabel: 'Expiry Date' },
-  { field: 'id' as const, label: 'ID Card', short: 'ID', icon: IdCard, hasDate: true, dateField: 'idDate' as const, dateLabel: 'Expiry Date' },
+  { field: 'passport' as const, label: 'Passport', short: 'Passport', icon: Plane, hasDate: false },
+  { field: 'id' as const, label: 'ID Card', short: 'ID', icon: IdCard, hasDate: false },
 ];
 
 const TOTAL_DOCS = DOC_FIELDS.length;
@@ -51,17 +47,26 @@ function getDocStatus(value: string) {
 }
 
 function getDaysRemaining(dateStr: string) {
-  if (!dateStr) return null;
-  let d = dateStr;
-  if (dateStr.includes('/')) {
-    const [day, month, year] = dateStr.split('/');
-    d = `${year}-${month}-${day}`;
-  }
+  if (!dateStr || dateStr.trim() === '') return null;
+  const d = dateStr.includes('/') ? dateStr.split('/').reverse().join('-') : dateStr;
   const expiryDate = new Date(d);
   if (isNaN(expiryDate.getTime())) return null;
+
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const diffTime = expiryDate.getTime() - today.getTime();
+  return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+}
+
+function getDaysPassed(dateStr: string) {
+  if (!dateStr || dateStr.trim() === '') return null;
+  const d = dateStr.includes('/') ? dateStr.split('/').reverse().join('-') : dateStr;
+  const startDate = new Date(d);
+  if (isNaN(startDate.getTime())) return null;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const diffTime = today.getTime() - startDate.getTime();
   return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 }
 
@@ -77,12 +82,16 @@ function getCollectedCount(item: CustomerDoc) {
 
 function getHealthStatus(item: CustomerDoc) {
   const complete = getCollectedCount(item);
-  const dates = [item.licenceDate, item.passportDate, item.idDate, item.contractDate];
-  const expired = dates.some((d) => {
+  const dates = [item.licenceDate];
+  let expired = false;
+  
+  for (const d of dates) {
     const days = getDaysRemaining(d);
-    return days !== null && days < 0;
-  });
-
+    if (days !== null && days <= 30) {
+      expired = true;
+    }
+  }
+  
   if (expired) return { label: 'Expired', color: 'bg-rose-500', ring: 'ring-rose-100', text: 'text-rose-600', icon: AlertTriangle };
   if (complete === TOTAL_DOCS) return { label: 'Complete', color: 'bg-emerald-500', ring: 'ring-emerald-100', text: 'text-emerald-600', icon: ShieldCheck };
   return { label: 'In Progress', color: 'bg-amber-500', ring: 'ring-amber-100', text: 'text-amber-600', icon: Clock };
@@ -227,7 +236,8 @@ export default function CustomersDocumentsGrid({
                 const isComplete = getDocStatus(selectedCustomer[doc.field]) === 'complete';
                 const dateField = doc.hasDate ? doc.dateField : null;
                 const dateValue = dateField ? selectedCustomer[dateField] : '';
-                const days = dateField ? getDaysRemaining(dateValue) : null;
+                const isStart = dateField === 'creditAppDate';
+                const days = dateField ? (isStart ? getDaysPassed(dateValue) : getDaysRemaining(dateValue)) : null;
 
                 return (
                   <div
@@ -275,7 +285,7 @@ export default function CustomersDocumentsGrid({
                             value={toInputDate(dateValue)}
                             onChange={(e) => handleFieldUpdate(dateField, e.target.value)}
                             className={`flex-1 bg-white border rounded-xl px-4 py-2.5 text-sm font-bold outline-none transition-all ${
-                              days !== null && days < 0
+                              !isStart && days !== null && days < 0
                                 ? 'border-rose-200 text-rose-700 bg-rose-50'
                                 : 'border-slate-200 text-slate-700 hover:border-indigo-300 focus:border-indigo-500'
                             }`}
@@ -283,10 +293,14 @@ export default function CustomersDocumentsGrid({
                           {days !== null && (
                             <span
                               className={`text-[11px] font-black px-3 py-2 rounded-xl text-center whitespace-nowrap ${
-                                days < 0 ? 'bg-rose-500 text-white' : 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+                                isStart
+                                  ? 'bg-slate-50 text-slate-500 border border-slate-100'
+                                  : days < 0
+                                  ? 'bg-rose-500 text-white'
+                                  : 'bg-emerald-50 text-emerald-700 border border-emerald-100'
                               }`}
                             >
-                              {days < 0 ? `Expired ${Math.abs(days)}d ago` : `${days} days left`}
+                              {isStart ? `${days}d Active` : days < 0 ? `Expired ${Math.abs(days)}d ago` : `${days} days left`}
                             </span>
                           )}
                         </div>

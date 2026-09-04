@@ -35,11 +35,8 @@ async function syncCustomersFromBhs() {
         LICENCE_DATE: '',
         TRN: 'No',
         PASSPORT: 'No',
-        PASSPORT_DATE: '',
         ID_CARD: 'No',
-        ID_DATE: '',
-        CONTRACT: 'No',
-        CONTRACT_DATE: '',
+        CREDIT_APP_DATE: '',
       }));
 
     if (newCustomersToInsert.length > 0) {
@@ -84,15 +81,12 @@ export async function getCustomersDocuments() {
       rowIndex: r.ID, // Mapped to rowIndex for frontend compatibility
       customerName: r.CUSTOMER_NAME || '',
       creditApp: r.CREDIT_APP || 'No',
+      creditAppDate: r.CREDIT_APP_DATE || '',
       licence: r.LICENCE || 'No',
       licenceDate: r.LICENCE_DATE || '',
       trn: r.TRN || 'No',
       passport: r.PASSPORT || 'No',
-      passportDate: r.PASSPORT_DATE || '',
       id: r.ID_CARD || 'No',
-      idDate: r.ID_DATE || '',
-      contract: r.CONTRACT || 'No',
-      contractDate: r.CONTRACT_DATE || '',
     }));
 
     return { success: true, data: mapped };
@@ -110,15 +104,12 @@ export async function updateCustomerDocument(rowIndex: number | string, data: an
 
     const updateFields: any = {};
     if (data.creditApp !== undefined) updateFields.CREDIT_APP = data.creditApp;
+    if (data.creditAppDate !== undefined) updateFields.CREDIT_APP_DATE = data.creditAppDate;
     if (data.licence !== undefined) updateFields.LICENCE = data.licence;
     if (data.licenceDate !== undefined) updateFields.LICENCE_DATE = data.licenceDate;
     if (data.trn !== undefined) updateFields.TRN = data.trn;
     if (data.passport !== undefined) updateFields.PASSPORT = data.passport;
-    if (data.passportDate !== undefined) updateFields.PASSPORT_DATE = data.passportDate;
     if (data.id !== undefined) updateFields.ID_CARD = data.id;
-    if (data.idDate !== undefined) updateFields.ID_DATE = data.idDate;
-    if (data.contract !== undefined) updateFields.CONTRACT = data.contract;
-    if (data.contractDate !== undefined) updateFields.CONTRACT_DATE = data.contractDate;
 
     updateFields.UPDATED_AT = new Date().toISOString();
 

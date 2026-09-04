@@ -1,10 +1,11 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { ArrowLeft, Search, RefreshCw, FileCheck, FileSpreadsheet, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Search, RefreshCw, FileCheck, FileSpreadsheet, AlertCircle, Filter, X } from 'lucide-react';
 import { exportDebitExcelTable } from '@/app/Debit/Utils/ExcelExport';
 import Loading from '@/app/Components/Loading';
 import Login from '@/app/Components/Auth/Login';
+import FilterModal, { FilterState } from './Modals/FilterModal';
 import CustomersDocumentsGrid from './Components/CustomersDocumentsGrid';
 import { useCustomersDocumentsTabAudit } from '@/app/Audit/Model/CustomersDocumentsTabAudit';
 import { getCustomersDocuments, updateCustomerDocument } from './Service/customers_documents_service';
@@ -20,15 +21,15 @@ export default function CustomersDocumentsPage() {
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Filter state for missing documents
-  const [missingFilters, setMissingFilters] = useState<{ [key: string]: boolean }>({
-    creditApp: false,
-    licence: false,
-    trn: false,
-    passport: false,
-    id: false,
-    contract: false,
+  const [docFilters, setDocFilters] = useState<{ [key: string]: FilterState }>({
+    creditApp: 'all',
+    licence: 'all',
+    trn: 'all',
+    passport: 'all',
+    id: 'all',
   });
+
+  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
 
   useCustomersDocumentsTabAudit(isAuthenticated);
 
@@ -86,15 +87,17 @@ export default function CustomersDocumentsPage() {
       );
     }
 
-    // 2. Missing Documents Filters
-    Object.keys(missingFilters).forEach(key => {
-      if (missingFilters[key]) {
+    // 2. Multi-state Document Filters
+    Object.keys(docFilters).forEach(key => {
+      if (docFilters[key] === 'missing') {
         result = result.filter(item => getDocStatus(item[key]) === 'missing');
+      } else if (docFilters[key] === 'collected') {
+        result = result.filter(item => getDocStatus(item[key]) === 'complete');
       }
     });
 
     return result;
-  }, [data, searchQuery, missingFilters]);
+  }, [data, searchQuery, docFilters]);
 
   const handleUpdate = async (rowIndex: string, field: any, value: string) => {
     try {
@@ -130,29 +133,37 @@ export default function CustomersDocumentsPage() {
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   };
 
+  const getDaysPassed = (dateStr: string) => {
+    if (!dateStr) return null;
+    let d = dateStr;
+    if (dateStr.includes('/')) {
+      const [day, month, year] = dateStr.split('/');
+      d = `${year}-${month}-${day}`;
+    }
+    const startDate = new Date(d);
+    if (isNaN(startDate.getTime())) return null;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const diffTime = today.getTime() - startDate.getTime();
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  };
+
   const exportToExcel = async () => {
-    const headers = ['Customer Name', 'Credit App', 'Licence', 'Licence Date', 'L. Days', 'TRN', 'Passport', 'Passport Date', 'P. Days', 'ID', 'ID Date', 'I. Days', 'Contract', 'Contract Date', 'C. Days'];
+    const headers = ['Customer Name', 'Credit App', 'Date', 'C. Days', 'Licence', 'Licence Date', 'L. Days', 'TRN', 'Passport', 'ID'];
     const rows = filteredData.map((item) => {
       const lDays = getDaysRemaining(item.licenceDate);
-      const pDays = getDaysRemaining(item.passportDate);
-      const iDays = getDaysRemaining(item.idDate);
-      const cDays = getDaysRemaining(item.contractDate);
+      const cDays = getDaysPassed(item.creditAppDate);
       return [
         item.customerName,
         item.creditApp,
+        item.creditAppDate,
+        cDays !== null ? `${cDays}d Active` : '',
         item.licence,
         item.licenceDate,
         lDays !== null ? (lDays < 0 ? `${Math.abs(lDays)}d Expired` : `${lDays}d Left`) : '',
         item.trn,
         item.passport,
-        item.passportDate,
-        pDays !== null ? (pDays < 0 ? `${Math.abs(pDays)}d Expired` : `${pDays}d Left`) : '',
         item.id,
-        item.idDate,
-        iDays !== null ? (iDays < 0 ? `${Math.abs(iDays)}d Expired` : `${iDays}d Left`) : '',
-        item.contract,
-        item.contractDate,
-        cDays !== null ? (cDays < 0 ? `${Math.abs(cDays)}d Expired` : `${cDays}d Left`) : '',
       ];
     });
     
@@ -170,9 +181,7 @@ export default function CustomersDocumentsPage() {
   if (isChecking) return <Loading />;
   if (!isAuthenticated) return <Login onLogin={handleLogin} />;
 
-  const toggleFilter = (key: string) => {
-    setMissingFilters(prev => ({ ...prev, [key]: !prev[key] }));
-  };
+  // (Old toggleFilter removed)
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans selection:bg-indigo-100 selection:text-indigo-900 pb-12">
@@ -210,6 +219,14 @@ export default function CustomersDocumentsPage() {
 
             <div className="flex items-center gap-2.5">
               <button
+                onClick={() => setIsFilterModalOpen(true)}
+                className={`p-3 rounded-2xl transition-all shadow-sm flex items-center justify-center border ${Object.values(docFilters).some(v => v !== 'all') ? 'bg-indigo-50 border-indigo-200 text-indigo-600 shadow-indigo-100' : 'bg-white border-slate-200 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50'}`}
+                title="Filters"
+              >
+                <Filter className="w-5 h-5" />
+              </button>
+
+              <button
                 onClick={() => {
                   setRefreshTrigger(prev => prev + 1);
                   const btn = document.getElementById('refresh-btn-icon');
@@ -232,7 +249,6 @@ export default function CustomersDocumentsPage() {
 
           {/* Right: Meta Info - Flex 1 to balance center */}
           <div className="flex items-center justify-end gap-4 flex-1">
-            <div className="w-10 h-10 rounded-full bg-slate-200 border-2 border-white shadow-sm" />
           </div>
         </div>
       </div>
@@ -240,38 +256,19 @@ export default function CustomersDocumentsPage() {
       {/* Main Content */}
       <div className="w-full mx-auto px-6 lg:px-12 pt-10">
 
-        {/* Missing Documents Filter Bar */}
-        <div className="mb-10 animate-in fade-in slide-in-from-top-4 duration-500">
-          <div className="flex flex-wrap gap-4 justify-center">
-            {[
-              { id: 'creditApp', label: 'Missing Credit App' },
-              { id: 'licence', label: 'Missing Licence' },
-              { id: 'trn', label: 'Missing TRN' },
-              { id: 'passport', label: 'Missing Passport' },
-              { id: 'id', label: 'Missing ID Card' },
-              { id: 'contract', label: 'Missing Contract' },
-            ].map((filter) => (
-              <button
-                key={filter.id}
-                onClick={() => toggleFilter(filter.id)}
-                className={`px-6 py-4 rounded-[1.5rem] text-xs font-black transition-all border shadow-sm flex items-center gap-4 w-[200px] justify-center ${missingFilters[filter.id]
-                  ? 'bg-indigo-600 border-indigo-600 text-white shadow-indigo-200 scale-105 z-10'
-                  : 'bg-white border-slate-200 text-slate-500 hover:border-indigo-300 hover:text-indigo-600 hover:shadow-md'
-                  }`}
-              >
-                <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${missingFilters[filter.id] ? 'bg-white animate-pulse' : 'bg-slate-200'}`} />
-                <span className="truncate">{filter.label}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-
         <CustomersDocumentsGrid
           data={filteredData}
           loading={loading}
           onUpdate={handleUpdate}
         />
       </div>
+
+      <FilterModal 
+        isOpen={isFilterModalOpen}
+        onClose={() => setIsFilterModalOpen(false)}
+        docFilters={docFilters}
+        setDocFilters={setDocFilters}
+      />
     </div>
   );
 }

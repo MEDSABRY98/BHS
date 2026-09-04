@@ -15,15 +15,12 @@ interface CustomerDoc {
   rowIndex: string;
   customerName: string;
   creditApp: string;
+  creditAppDate: string;
   licence: string;
   licenceDate: string;
   trn: string;
   passport: string;
-  passportDate: string;
   id: string;
-  idDate: string;
-  contract: string;
-  contractDate: string;
 }
 
 export default function CustomersDocumentsTab({
@@ -87,6 +84,22 @@ export default function CustomersDocumentsTab({
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   };
 
+  const getDaysPassed = (dateStr: string) => {
+    if (!dateStr || dateStr.trim() === '') return null;
+    let parts = dateStr.split('/');
+    if (parts.length !== 3) {
+      parts = dateStr.split('-');
+    }
+    if (parts.length !== 3) return null;
+    const startDate = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
+    if (isNaN(startDate.getTime())) return null;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const diffTime = today.getTime() - startDate.getTime();
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  };
+
   const getExpiryStyles = (days: number | null) => {
     if (days === null) return 'text-slate-300';
     if (days < 0) return 'text-rose-600 font-bold';
@@ -109,27 +122,20 @@ export default function CustomersDocumentsTab({
                 <th className="py-5 px-6 font-semibold text-slate-900 text-sm uppercase tracking-wider text-center w-[300px]">Customer Name</th>
 
                 <th className="py-5 px-2 font-semibold text-slate-500 text-xs uppercase tracking-wider text-center w-[110px]">Credit App</th>
+                <th className="py-5 px-2 font-semibold text-slate-500 text-xs uppercase tracking-wider text-center w-[180px]">Date</th>
+                <th className="py-5 px-2 font-semibold text-indigo-500 text-xs uppercase tracking-wider text-center bg-indigo-50/30 w-[130px]">C. Days</th>
                 <th className="py-5 px-2 font-semibold text-slate-500 text-xs uppercase tracking-wider text-center w-[110px]">Licence</th>
                 <th className="py-5 px-2 font-semibold text-slate-500 text-xs uppercase tracking-wider text-center w-[180px]">Licence Date</th>
                 <th className="py-5 px-2 font-semibold text-indigo-500 text-xs uppercase tracking-wider text-center bg-indigo-50/30 w-[130px]">L. Days</th>
                 <th className="py-5 px-2 font-semibold text-slate-500 text-xs uppercase tracking-wider text-center w-[110px]">TRN</th>
                 <th className="py-5 px-2 font-semibold text-slate-500 text-xs uppercase tracking-wider text-center w-[110px]">Passport</th>
-                <th className="py-5 px-2 font-semibold text-slate-500 text-xs uppercase tracking-wider text-center w-[180px]">Passport Date</th>
-                <th className="py-5 px-2 font-semibold text-indigo-500 text-xs uppercase tracking-wider text-center bg-indigo-50/30 w-[130px]">P. Days</th>
                 <th className="py-5 px-2 font-semibold text-slate-500 text-xs uppercase tracking-wider text-center w-[110px]">ID Card</th>
-                <th className="py-5 px-2 font-semibold text-slate-500 text-xs uppercase tracking-wider text-center w-[180px]">ID Date</th>
-                <th className="py-5 px-2 font-semibold text-indigo-500 text-xs uppercase tracking-wider text-center bg-indigo-50/30 w-[130px]">I. Days</th>
-                <th className="py-5 px-2 font-semibold text-slate-500 text-xs uppercase tracking-wider text-center w-[110px]">Contract</th>
-                <th className="py-5 px-2 font-semibold text-slate-500 text-xs uppercase tracking-wider text-center w-[180px]">Contract Date</th>
-                <th className="py-5 px-2 font-semibold text-indigo-500 text-xs uppercase tracking-wider text-center bg-indigo-50/30 w-[130px]">C. Days</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {data.map((item, index) => {
                 const licenceDays = getDaysRemaining(item.licenceDate);
-                const passportDays = getDaysRemaining(item.passportDate);
-                const idDays = getDaysRemaining(item.idDate);
-                const contractDays = getDaysRemaining(item.contractDate);
+                const creditAppDays = getDaysPassed(item.creditAppDate);
 
                 const renderToggle = (field: keyof CustomerDoc, value: string) => {
                   const status = getDocStatus(value);
@@ -166,6 +172,15 @@ export default function CustomersDocumentsTab({
                   );
                 };
 
+                const renderActiveDays = (days: number | null) => {
+                  if (days === null) return <span className="text-slate-200">---</span>;
+                  return (
+                    <div className="px-2 py-2 rounded-lg text-xs font-bold text-slate-500 bg-slate-50 border border-slate-100 text-center">
+                      {days}d Active
+                    </div>
+                  );
+                };
+
                 return (
                   <tr key={item.rowIndex} className="hover:bg-slate-50/50 transition-colors duration-200 group/row">
                     <td className="py-4 px-4 text-xs font-medium text-slate-400 text-center">{index + 1}</td>
@@ -176,6 +191,8 @@ export default function CustomersDocumentsTab({
                     </td>
 
                     <td className="py-4 px-2 text-center">{renderToggle('creditApp', item.creditApp)}</td>
+                    <td className="py-4 px-2 text-center">{renderDateInput('creditAppDate', item.creditAppDate)}</td>
+                    <td className="py-4 px-2 text-center bg-indigo-50/10 border-x border-indigo-50/20">{renderActiveDays(creditAppDays)}</td>
                     <td className="py-4 px-2 text-center">{renderToggle('licence', item.licence)}</td>
                     <td className="py-4 px-2 text-center">{renderDateInput('licenceDate', item.licenceDate)}</td>
                     <td className="py-4 px-2 text-center bg-indigo-50/10 border-x border-indigo-50/20">{renderDays(licenceDays)}</td>
@@ -183,16 +200,8 @@ export default function CustomersDocumentsTab({
                     <td className="py-4 px-2 text-center">{renderToggle('trn', item.trn)}</td>
 
                     <td className="py-4 px-2 text-center">{renderToggle('passport', item.passport)}</td>
-                    <td className="py-4 px-2 text-center">{renderDateInput('passportDate', item.passportDate)}</td>
-                    <td className="py-4 px-2 text-center bg-indigo-50/10 border-x border-indigo-50/20">{renderDays(passportDays)}</td>
 
                     <td className="py-4 px-2 text-center">{renderToggle('id', item.id)}</td>
-                    <td className="py-4 px-2 text-center">{renderDateInput('idDate', item.idDate)}</td>
-                    <td className="py-4 px-2 text-center bg-indigo-50/10 border-x border-indigo-50/20">{renderDays(idDays)}</td>
-
-                    <td className="py-4 px-2 text-center">{renderToggle('contract', item.contract)}</td>
-                    <td className="py-4 px-2 text-center">{renderDateInput('contractDate', item.contractDate)}</td>
-                    <td className="py-4 px-2 text-center bg-indigo-50/10 border-x border-indigo-50/20">{renderDays(contractDays)}</td>
                   </tr>
                 );
               })}
