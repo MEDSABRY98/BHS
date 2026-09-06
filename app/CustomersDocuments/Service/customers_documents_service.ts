@@ -7,7 +7,7 @@ async function syncCustomersFromBhs() {
   try {
     const { data: bhsCustomers, error: bhsError } = await bhs_supabas
       .from('bhs_CUSTOMERS')
-      .select('"CUSTOMER MAIN NAME"');
+      .select('"CUSTOMER ID", "CUSTOMER MAIN NAME"');
 
     if (bhsError) {
       console.error('Error fetching bhs_CUSTOMERS for sync:', bhsError);
@@ -16,20 +16,28 @@ async function syncCustomersFromBhs() {
 
     const { data: existingDocs, error: docError } = await bhs_supabas
       .from('web_CUSTOMERSDOCUMENTS')
-      .select('CUSTOMER_NAME');
+      .select('CUSTOMER_ID');
 
     if (docError) {
-      console.error('Error fetching web_CUSTOMERSDOCUMENTS for sync:', docError);
+      // Ignore if table doesn't exist yet, it'll be caught in getCustomersDocuments
       return;
     }
 
-    const existingNames = new Set(existingDocs.map(d => d.CUSTOMER_NAME.trim().toLowerCase()));
-    const uniqueBhsNames = Array.from(new Set(bhsCustomers.map(c => c['CUSTOMER MAIN NAME']?.trim()).filter(Boolean)));
+    const existingIds = new Set(existingDocs.map(d => d.CUSTOMER_ID?.toString().trim().toLowerCase()));
+    
+    // Get unique valid customers from BHS based on ID
+    const uniqueBhsCustomers = new Map();
+    bhsCustomers.forEach(c => {
+      const id = c['CUSTOMER ID']?.toString().trim();
+      if (id) {
+        uniqueBhsCustomers.set(id.toLowerCase(), id);
+      }
+    });
 
-    const newCustomersToInsert = uniqueBhsNames
-      .filter(name => !existingNames.has(name.toLowerCase()))
-      .map(name => ({
-        CUSTOMER_NAME: name,
+    const newCustomersToInsert = Array.from(uniqueBhsCustomers.values())
+      .filter(id => !existingIds.has(id.toLowerCase()))
+      .map(id => ({
+        CUSTOMER_ID: id,
         CREDIT_APP: 'No',
         LICENCE: 'No',
         LICENCE_DATE: '',
@@ -60,11 +68,26 @@ export async function getCustomersDocuments() {
     // 1. Perform auto-sync from bhs_CUSTOMERS before listing
     await syncCustomersFromBhs();
 
-    // 2. Normal fetch from web_CUSTOMERSDOCUMENTS
+    // 2. Fetch all customers from bhs_CUSTOMERS to get names
+    const { data: bhsCustomers, error: custError } = await bhs_supabas
+      .from('bhs_CUSTOMERS')
+      .select('"CUSTOMER ID", "CUSTOMER MAIN NAME"');
+
+    if (custError) throw custError;
+
+    const customerMap = new Map();
+    bhsCustomers.forEach((c: any) => {
+      const id = c['CUSTOMER ID']?.toString().trim();
+      if (id) {
+        customerMap.set(id.toLowerCase(), c['CUSTOMER MAIN NAME'] || 'Unknown Customer');
+      }
+    });
+
+    // 3. Normal fetch from web_CUSTOMERSDOCUMENTS
     const { data, error } = await bhs_supabas
       .from('web_CUSTOMERSDOCUMENTS')
       .select('*')
-      .order('CUSTOMER_NAME', { ascending: true });
+      .order('CUSTOMER_ID', { ascending: true });
 
     if (error) {
       if (error.message?.includes('does not exist')) {
@@ -77,17 +100,24 @@ export async function getCustomersDocuments() {
       throw error;
     }
 
-    const mapped = data.map((r: any) => ({
-      rowIndex: r.ID, // Mapped to rowIndex for frontend compatibility
-      customerName: r.CUSTOMER_NAME || '',
-      creditApp: r.CREDIT_APP || 'No',
-      creditAppDate: r.CREDIT_APP_DATE || '',
-      licence: r.LICENCE || 'No',
-      licenceDate: r.LICENCE_DATE || '',
-      trn: r.TRN || 'No',
-      passport: r.PASSPORT || 'No',
-      id: r.ID_CARD || 'No',
-    }));
+    const mapped = data.map((r: any) => {
+      const idStr = r.CUSTOMER_ID?.toString().trim();
+      return {
+        rowIndex: r.ID,
+        customerId: idStr,
+        customerName: idStr ? (customerMap.get(idStr.toLowerCase()) || idStr) : 'Unknown',
+        creditApp: r.CREDIT_APP || 'No',
+        creditAppDate: r.CREDIT_APP_DATE || '',
+        licence: r.LICENCE || 'No',
+        licenceDate: r.LICENCE_DATE || '',
+        trn: r.TRN || 'No',
+        passport: r.PASSPORT || 'No',
+        id: r.ID_CARD || 'No',
+      };
+    });
+
+    // Sort by name for better UI display
+    mapped.sort((a: any, b: any) => a.customerName.localeCompare(b.customerName));
 
     return { success: true, data: mapped };
   } catch (error: any) {

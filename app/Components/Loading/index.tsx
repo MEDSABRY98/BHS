@@ -40,8 +40,8 @@ const Loading = ({ message = 'BHS Analysis', className = '', fullScreen = true }
 
         {/* Minimal Quiet Typography and Progress Indicator */}
         <div className="mt-4 flex flex-col items-center">
-          <h2 className="text-[11px] font-extrabold tracking-[0.70em] text-slate-500 uppercase pl-[0.70em] opacity-90">
-            BHS Analysis
+          <h2 className="text-[11px] font-extrabold tracking-[0.70em] text-slate-500 uppercase pl-[0.70em] opacity-90 text-center">
+            {message}
           </h2>
 
           {/* Subtle Center-Expanding 1px Progress Line */}

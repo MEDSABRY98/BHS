@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { ArrowLeft, Search, RefreshCw, FileCheck, FileSpreadsheet, AlertCircle, Filter, X } from 'lucide-react';
 import { exportDebitExcelTable } from '@/app/Debit/Utils/ExcelExport';
-import Loading from '@/app/Components/Loading';
+import TabLoader from '@/app/Components/Loading/TabLoader';
 import Login from '@/app/Components/Auth/Login';
 import FilterModal, { FilterState } from './Modals/FilterModal';
 import CustomersDocumentsGrid from './Components/CustomersDocumentsGrid';
@@ -178,7 +178,7 @@ export default function CustomersDocumentsPage() {
     );
   };
 
-  if (isChecking) return <Loading />;
+  if (isChecking) return <TabLoader />;
   if (!isAuthenticated) return <Login onLogin={handleLogin} />;
 
   // (Old toggleFilter removed)
@@ -256,11 +256,15 @@ export default function CustomersDocumentsPage() {
       {/* Main Content */}
       <div className="w-full mx-auto px-6 lg:px-12 pt-10">
 
-        <CustomersDocumentsGrid
-          data={filteredData}
-          loading={loading}
-          onUpdate={handleUpdate}
-        />
+        {loading && data.length === 0 ? (
+          <TabLoader />
+        ) : (
+          <CustomersDocumentsGrid
+            data={filteredData}
+            loading={loading}
+            onUpdate={handleUpdate}
+          />
+        )}
       </div>
 
       <FilterModal 
