@@ -325,7 +325,7 @@ export default function CashReceiptTab({
 
   const confirmDelete = async () => {
     if (!receiptToDelete) return;
-    
+
     try {
       const response = await deleteCashReceipt(receiptToDelete.receiptNumber);
       if (response.success) {

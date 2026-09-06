@@ -737,6 +737,8 @@ export async function uploadDebitData(payload: any[] | string) {
       });
     }
 
+    const uploadTimestamp = new Date().toISOString();
+
     // Upsert or Insert data
     const chunkSize = 1000;
     for (let i = 0; i < data.length; i += chunkSize) {
@@ -747,7 +749,8 @@ export async function uploadDebitData(payload: any[] | string) {
         const newId = `R-${currentMaxId.toString().padStart(4, '0')}`;
         return {
           ...rest,
-          ID: newId
+          ID: newId,
+          CREATED_AT: uploadTimestamp
         };
       });
       const { error } = await bhs_supabase.from('mix_DEBIT').insert(chunk);

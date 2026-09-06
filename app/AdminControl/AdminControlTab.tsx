@@ -796,11 +796,10 @@ export default function AdminControlTab() {
                 </div>
 
                 {message.text && view === 'modules' && (
-                    <div className={`mt-4 p-4 rounded-2xl flex items-center gap-3 animate-in slide-in-from-top duration-300 ${
-                        message.type === 'success'
+                    <div className={`mt-4 p-4 rounded-2xl flex items-center gap-3 animate-in slide-in-from-top duration-300 ${message.type === 'success'
                             ? 'bg-emerald-50 text-emerald-800 border border-emerald-100'
                             : 'bg-rose-50 text-rose-800 border border-rose-100'
-                    }`}>
+                        }`}>
                         {message.type === 'success' ? (
                             <div className="bg-emerald-500 text-white p-1 rounded-lg"><Check className="w-4 h-4 stroke-[3]" /></div>
                         ) : (
@@ -899,11 +898,10 @@ export default function AdminControlTab() {
                                         onClick={() => {
                                             if (isEnabled && hasSubTabs) setModalSystem(system.id);
                                         }}
-                                        className={`rounded-3xl border-2 p-4 transition-all duration-200 flex flex-col min-h-[170px] ${
-                                            isEnabled
+                                        className={`rounded-3xl border-2 p-4 transition-all duration-200 flex flex-col min-h-[170px] ${isEnabled
                                                 ? 'border-slate-200 bg-white hover:border-slate-900 hover:shadow-md'
                                                 : 'border-slate-100 bg-slate-50/70 opacity-75'
-                                        } ${isEnabled && hasSubTabs ? 'cursor-pointer' : ''}`}
+                                            } ${isEnabled && hasSubTabs ? 'cursor-pointer' : ''}`}
                                     >
                                         <div className="flex items-start justify-between gap-2 mb-3">
                                             <div className="w-11 h-11 rounded-xl bg-slate-50 flex items-center justify-center border border-slate-100 shrink-0">
@@ -915,11 +913,10 @@ export default function AdminControlTab() {
                                                     e.stopPropagation();
                                                     handleToggleSystem(system.id);
                                                 }}
-                                                className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all shrink-0 ${
-                                                    isEnabled
+                                                className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all shrink-0 ${isEnabled
                                                         ? 'bg-slate-900 text-white shadow-md'
                                                         : 'bg-white border-2 border-slate-200 text-transparent hover:border-slate-400'
-                                                }`}
+                                                    }`}
                                                 title={isEnabled ? 'Disable module' : 'Enable module'}
                                             >
                                                 <Check className="w-3.5 h-3.5 stroke-[3]" />

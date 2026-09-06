@@ -27,10 +27,10 @@ export default function CashHandlingPage() {
   const [activeTab, setActiveTab] = useState<CashHandlingTabId>('new');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
-  
+
   // Cash Receipt State
   const [searchQuery, setSearchQuery] = useState('');
-  
+
   // Cash Handover State
   const [editHandover, setEditHandover] = useState<CashHandover | null>(null);
 
@@ -95,7 +95,7 @@ export default function CashHandlingPage() {
 
     try {
       const perms = JSON.parse(currentUser.role || '{}');
-      
+
       const hasReceiptPerms = perms['cash-receipt'] && Array.isArray(perms['cash-receipt']) && perms['cash-receipt'].length > 0;
       const hasHandoverPerms = perms['cash-handover'] && Array.isArray(perms['cash-handover']) && perms['cash-handover'].length > 0;
 

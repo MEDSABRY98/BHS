@@ -48,7 +48,7 @@ export default function AdminSidebar({
         <button
           onClick={() => { window.location.href = '/'; }}
           className={`flex items-center justify-center ${isCollapsed ? 'gap-0' : 'gap-3'} py-2.5 text-blue-400 hover:text-blue-300 transition-all duration-200 group w-full cursor-pointer bg-white/5 rounded-xl border border-white/10`}
-          
+
         >
           <ArrowLeft className="w-5 h-5 shrink-0 group-hover:-translate-x-1 transition-transform" />
           {!isCollapsed && (
@@ -90,12 +90,11 @@ export default function AdminSidebar({
                 onTabChange(tab.id);
                 onCloseMobile?.();
               }}
-              className={`w-full flex items-center ${isCollapsed ? 'justify-center px-2' : 'px-4'} py-3.5 rounded-xl transition-all duration-200 group relative ${
-                isActive
+              className={`w-full flex items-center ${isCollapsed ? 'justify-center px-2' : 'px-4'} py-3.5 rounded-xl transition-all duration-200 group relative ${isActive
                   ? 'bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-lg shadow-violet-950/40 border-l-4 border-violet-400 font-bold'
                   : 'text-slate-400 hover:text-white hover:bg-white/5'
-              }`}
-              
+                }`}
+
             >
               <Icon className={`w-5 h-5 transition-colors shrink-0 ${isCollapsed ? '' : 'mr-3'} ${isActive ? 'text-white' : 'group-hover:text-white'}`} />
               {!isCollapsed && (
@@ -121,7 +120,7 @@ export default function AdminSidebar({
 
       {/* Portal-like Tooltip for Collapsed Sidebar */}
       {hoveredTab && isCollapsed && (
-        <div 
+        <div
           className="fixed z-[100] flex items-center pointer-events-none animate-in fade-in slide-in-from-left-2 duration-200"
           style={{ top: hoveredTab.top - 2, left: 70 }}
         >

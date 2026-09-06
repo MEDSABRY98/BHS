@@ -360,12 +360,11 @@ export default function UserActivityTab({ adminName }: UserActivityTabProps) {
               key={item.label}
               className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-sm flex items-start gap-3"
             >
-              <div className={`p-2.5 rounded-xl shrink-0 ${
-                item.tone === 'violet' ? 'bg-violet-50 text-violet-700'
+              <div className={`p-2.5 rounded-xl shrink-0 ${item.tone === 'violet' ? 'bg-violet-50 text-violet-700'
                   : item.tone === 'indigo' ? 'bg-indigo-50 text-indigo-700'
-                  : item.tone === 'emerald' ? 'bg-emerald-50 text-emerald-700'
-                  : 'bg-slate-100 text-slate-700'
-              }`}>
+                    : item.tone === 'emerald' ? 'bg-emerald-50 text-emerald-700'
+                      : 'bg-slate-100 text-slate-700'
+                }`}>
                 <Icon className="w-4 h-4" />
               </div>
               <div className="min-w-0">
@@ -608,11 +607,10 @@ export default function UserActivityTab({ adminName }: UserActivityTabProps) {
                             key={page}
                             type="button"
                             onClick={() => setCurrentPage(page)}
-                            className={`px-3 py-1.5 rounded-xl text-sm font-bold transition-all shadow-sm ${
-                              currentPage === page
+                            className={`px-3 py-1.5 rounded-xl text-sm font-bold transition-all shadow-sm ${currentPage === page
                                 ? 'bg-slate-900 text-white'
                                 : 'border border-slate-200 text-slate-600 hover:bg-white'
-                            }`}
+                              }`}
                           >
                             {page}
                           </button>

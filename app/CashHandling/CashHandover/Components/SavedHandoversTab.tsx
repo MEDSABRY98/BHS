@@ -120,11 +120,11 @@ export default function SavedHandoversTab({ onEdit }: { onEdit?: (handover: Cash
 
       {/* Action Menu Modal */}
       {selectedHandover && !handoverToDelete && (
-        <div 
+        <div
           className="fixed inset-0 z-[9998] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200"
           onClick={() => setSelectedHandover(null)}
         >
-          <div 
+          <div
             className="bg-white rounded-3xl p-6 md:p-8 max-w-sm w-full shadow-2xl border border-gray-100 animate-in zoom-in-95 duration-300"
             onClick={(e) => e.stopPropagation()}
           >
@@ -154,7 +154,7 @@ export default function SavedHandoversTab({ onEdit }: { onEdit?: (handover: Cash
                 <Printer className="w-5 h-5" />
                 Reprint PDF
               </button>
-              
+
               {onEdit && (
                 <button
                   onClick={() => {
@@ -181,18 +181,18 @@ export default function SavedHandoversTab({ onEdit }: { onEdit?: (handover: Cash
 
       {/* Beautiful Delete Confirmation Modal */}
       {handoverToDelete && (
-        <div 
+        <div
           className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/40 backdrop-blur-md animate-in fade-in duration-200"
           onClick={() => !isDeleting && setHandoverToDelete(null)}
         >
-          <div 
+          <div
             className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl border border-red-100 animate-in zoom-in-95 duration-300 text-center"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-6">
               <AlertTriangle className="w-10 h-10 text-red-500" />
             </div>
-            
+
             <h3 className="text-2xl font-black text-gray-900 mb-2">Delete Handover?</h3>
             <p className="text-gray-500 font-medium mb-8">
               Are you sure you want to delete handover <span className="font-bold text-gray-900">{handoverToDelete.ID}</span>? This action cannot be undone and all associated receipts will be removed.

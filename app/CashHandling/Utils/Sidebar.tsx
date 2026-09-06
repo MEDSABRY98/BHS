@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { 
+import {
   PlusCircle,
   List,
   ArrowLeft,
@@ -23,10 +23,10 @@ interface CashHandlingSidebarProps {
   onCloseMobile?: () => void;
 }
 
-export default function CashHandlingSidebar({ 
-  activeTab, 
-  onTabChange, 
-  currentUser, 
+export default function CashHandlingSidebar({
+  activeTab,
+  onTabChange,
+  currentUser,
   isCollapsed,
   onToggleCollapse,
   onCloseMobile
@@ -70,7 +70,7 @@ export default function CashHandlingSidebar({
     <div className="flex flex-col h-full bg-[#0a0f1d] text-white border-r border-amber-950/20">
       {/* Header Close button for Mobile */}
       {onCloseMobile && (
-        <button 
+        <button
           onClick={onCloseMobile}
           className="absolute right-4 top-4 p-2 text-slate-400 hover:text-white lg:hidden"
           title="Close Sidebar"
@@ -128,11 +128,10 @@ export default function CashHandlingSidebar({
                 onTabChange(tab.id);
                 if (onCloseMobile) onCloseMobile();
               }}
-              className={`w-full flex items-center ${isCollapsed ? 'justify-center px-2' : 'px-4'} py-3.5 rounded-xl transition-all duration-200 group relative ${
-                isActive
+              className={`w-full flex items-center ${isCollapsed ? 'justify-center px-2' : 'px-4'} py-3.5 rounded-xl transition-all duration-200 group relative ${isActive
                   ? 'bg-gradient-to-r from-amber-600 to-yellow-600 text-white shadow-lg shadow-amber-950/40 border-l-4 border-amber-400 font-bold'
                   : 'text-slate-400 hover:text-white hover:bg-white/5'
-              }`}
+                }`}
             >
               <Icon className={`w-5 h-5 transition-colors shrink-0 ${isCollapsed ? '' : 'mr-3'} ${isActive ? 'text-white' : 'group-hover:text-white'}`} />
               {!isCollapsed && (
@@ -148,8 +147,8 @@ export default function CashHandlingSidebar({
 
       {/* Toggle Collapse Button */}
       <div className="p-4 border-t border-white/5 mt-auto flex justify-center shrink-0">
-        <button 
-          onClick={onToggleCollapse} 
+        <button
+          onClick={onToggleCollapse}
           className="flex items-center justify-center w-10 h-10 hover:bg-white/10 rounded-xl transition-all duration-200 text-amber-400"
           title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
         >
@@ -159,7 +158,7 @@ export default function CashHandlingSidebar({
 
       {/* Portal-like Tooltip for Collapsed Sidebar */}
       {hoveredTab && isCollapsed && (
-        <div 
+        <div
           className="fixed z-[100] flex items-center pointer-events-none animate-in fade-in slide-in-from-left-2 duration-200"
           style={{ top: hoveredTab.top - 2, left: 70 }}
         >
