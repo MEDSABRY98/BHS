@@ -57,6 +57,13 @@ export default function PersonnelPage() {
           (p.ID && p.ID.toLowerCase().includes(term))
         );
       }
+
+      data.sort((a: any, b: any) => {
+        const nameA = a.NAME || '';
+        const nameB = b.NAME || '';
+        return nameA.localeCompare(nameB);
+      });
+
       setPersonnel(data);
     } catch (err: any) {
       toast.error(err.message);
