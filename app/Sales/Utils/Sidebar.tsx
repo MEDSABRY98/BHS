@@ -58,7 +58,6 @@ export default function SalesSidebar({
   
   const allTabs: { id: SalesTabId; label: string; icon: typeof BarChart3 }[] = [
     { id: 'sales-overview', label: 'Overview', icon: BarChart3 },
-    { id: 'sales-targets', label: 'Targets', icon: Target },
     { id: 'sales-periods', label: 'Periods', icon: Calendar },
     { id: 'sales-top10', label: 'Top 10', icon: Award },
     { id: 'sales-customers', label: 'Customers', icon: Users },

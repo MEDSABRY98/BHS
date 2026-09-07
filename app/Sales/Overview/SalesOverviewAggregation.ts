@@ -1,28 +1,3 @@
-function sumTargetsForMonth(
-  targetMap: Map<string, number>,
-  year: number,
-  month: number,
-  userIds?: string[] | null,
-  targetType: string = 'sales_rep'
-): number {
-  let sum = 0;
-  if (!userIds || userIds.length === 0) {
-    for (const [key, val] of targetMap.entries()) {
-      const parts = key.split('|');
-      if (parts.length === 4) {
-        if (Number(parts[1]) === year && Number(parts[2]) === month && parts[3] === targetType) {
-          sum += val;
-        }
-      }
-    }
-    return sum;
-  }
-  for (const uid of userIds) {
-    const key = `${uid}|${year}|${month}|${targetType}`;
-    sum += targetMap.get(key) || 0;
-  }
-  return sum;
-}
 export function buildOverviewFromFilteredData(augmentedData: any[], filters: any, targetMap: Map<string, number> = new Map(), targetUserIds: string[] | null = null) {
   const augmentedWithDates = augmentedData.map((item) => {
     let parsedDate = null;
@@ -204,11 +179,6 @@ export function buildOverviewFromFilteredData(augmentedData: any[], filters: any
     const diffMonth = currData.amount - prevMonthData.amount;
     const percentMonth = prevMonthData.amount !== 0 ? (diffMonth / Math.abs(prevMonthData.amount)) * 100 : (currData.amount !== 0 ? 100 : 0);
 
-    // Target
-    const targetAmount = sumTargetsForMonth(targetMap, targetYear, m, targetUserIds);
-    const diffTarget = currData.amount - targetAmount;
-    const percentTarget = targetAmount !== 0 ? (diffTarget / Math.abs(targetAmount)) * 100 : (currData.amount !== 0 ? 100 : 0);
-
     const isFuture = (targetYear > nowYear) || (targetYear === nowYear && m > nowMonth);
 
     const baseObj = {
@@ -235,15 +205,6 @@ export function buildOverviewFromFilteredData(augmentedData: any[], filters: any
       percent: percentMonth,
       isPositive: diffMonth >= 0,
       legendPrev: monthNames[prevMonthM - 1],
-    });
-
-    chartDataVsTarget.push({
-      ...baseObj,
-      prevAmount: targetAmount,
-      diff: diffTarget,
-      percent: percentTarget,
-      isPositive: diffTarget >= 0,
-      legendPrev: 'Target',
     });
   }
 
@@ -364,5 +325,5 @@ const yearMap = new Map<string, any>();
     };
   });
 
-  return { metrics, chartDataVsLastYear, chartDataVsLastMonth, chartDataVsTarget, chartDataInvoices, chartDataReturns, yearlyTableData, monthlyTableData };
+  return { metrics, chartDataVsLastYear, chartDataVsLastMonth, chartDataInvoices, chartDataReturns, yearlyTableData, monthlyTableData };
 }

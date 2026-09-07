@@ -7,9 +7,8 @@ export const ALL_SALES_TAB_IDS = [
   'sales-customers',
   'sales-customers-comparison',
   'sales-inactive-customers',
-  'sales-statistics',
-  'sales-targets',
-  'sales-daily-sales',
+    'sales-statistics',
+    'sales-daily-sales',
   'sales-categories',
   'sales-products',
   'sales-new-listings',
@@ -41,9 +40,7 @@ export function getAllowedSalesTabIds(user: SalesUserLike): SalesTabId[] {
 
   let tabs: SalesTabId[] = [...ALL_SALES_TAB_IDS];
   if (!dataAccess) {
-    tabs = tabs.filter(
-      (id) => id !== 'sales-targets',
-    );
+    // If no data access, we might restrict tabs here in the future
   }
 
   if (isUnrestrictedSalesUser(user)) {

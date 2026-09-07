@@ -5,7 +5,7 @@ import { Calendar, ChevronDown, FileSpreadsheet } from 'lucide-react';
 import { useSalesModuleFilters } from '@/app/Sales/Model/SalesFilters';
 import { useSalesDataContext } from '@/app/Sales/Context/SalesDataContext';
 import { useSalesTabFetch } from '@/app/Sales/Hooks/useSalesTabFetch';
-import { exportSalesExcelTable } from '@/app/Sales/Utils/ExcelExport';
+import { exportSalesExcelTable } from '@/app/Sales/Export/ExcelExport';
 import { getOverviewData } from '@/app/Sales/Service/sales_core_service';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import TabFetchError from '@/app/Components/DataState/TabFetchError';

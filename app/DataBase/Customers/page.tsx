@@ -355,9 +355,9 @@ export default function CustomersPage() {
         "Customer City": c["CUSTOMER CITY"] || '',
         "Customer Tag": c["CUSTOMER TAG"] || '',
         "Customer Class": c["CUSTOMER CLASS"] || '',
-        "Sales Rep": c["SALES_REP"] ? (personnelMap.get(c["SALES_REP"]) || c["SALES_REP"]) : '',
+        "Sales Rep": c["SALES_REP"] || '',
         "Market": c["MARKET"] || '',
-        "Merchandiser": c["MERCHANDISER"] ? (personnelMap.get(c["MERCHANDISER"]) || c["MERCHANDISER"]) : '',
+        "Merchandiser": c["MERCHANDISER"] || '',
         "Payment Term": c["PAYMENT TERM"] != null ? Number(c["PAYMENT TERM"]) : 90,
         "Credit Limit": Number(c["CREDIT LIMIT"]) || 0,
         "Account Status": c["ACCOUNT STATUS"] || 'ACTIVE'

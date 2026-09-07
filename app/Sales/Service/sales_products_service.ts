@@ -1,6 +1,6 @@
 'use server';
 
-import { getFilteredSalesData } from '@/app/Sales/Utils/SalesMappingCache';
+import { getFilteredSalesData } from '@/app/Sales/Cache/SalesMappingCache';
 
 // -------------------------------------------------------------
 // 1. Products Data

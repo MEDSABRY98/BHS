@@ -11,8 +11,8 @@ import {
   resolveCustomerId, 
   resolveMerchandiserUserId, 
   resolveSalesRepUserId 
-} from '@/app/Sales/Utils/SalesMappingCache';
-import { buildAndSaveCache, invalidateMemoryCache } from '@/app/Sales/Utils/SalesCache';
+} from '@/app/Sales/Cache/SalesMappingCache';
+import { buildAndSaveCache, invalidateMemoryCache, getSalesWatermark, getSalesDelta, getSalesDataServer } from '@/app/Sales/Cache/SalesCache';
 import { buildDailySalesFromRaw, buildStatisticsFromRaw } from '@/app/Sales/Utils/SalesRawAggregations';
 import { applySalesCommonFilters } from '@/app/Sales/Utils/SalesDataFilters';
 import { buildOverviewFromFilteredData } from '@/app/Sales/Overview/SalesOverviewAggregation';
@@ -256,65 +256,11 @@ export async function uploadSalesMappingsBulk(userId: string, mapping: any) {
 // 1. Overview Data
 // -------------------------------------------------------------
 
-async function fetchTargets(): Promise<Map<string, number>> {
-  const map = new Map<string, number>();
-
-  const { data: users } = await bhs_supabas.from('bhs_USERS').select('ID, NAME');
-  const { data: personnel } = await bhs_supabas.from('web_Sales_DB_PERSONNEL').select('ID, NAME');
-  
-  const nameToUserId = new Map<string, string>();
-  if (users) {
-    users.forEach(u => {
-      const name = String(u.NAME || '').trim().toUpperCase();
-      if (name) nameToUserId.set(name, String(u.ID));
-    });
-  }
-
-  const personnelToUserId = new Map<string, string>();
-  if (personnel) {
-    personnel.forEach(p => {
-      const name = String(p.NAME || '').trim().toUpperCase();
-      if (name && nameToUserId.has(name)) {
-        personnelToUserId.set(String(p.ID), nameToUserId.get(name)!);
-      }
-    });
-  }
-
-  const { data, error } = await bhs_supabas
-    .from('web_Sales_DB_TARGET')
-    .select('"USER_ID", "YEAR", "MONTH", "TARGET_AMOUNT", "TARGET_TYPE"');
-  if (error || !data) return map;
-  
-  data.forEach((row: Record<string, unknown>) => {
-    const type = String(row.TARGET_TYPE || 'sales_rep');
-    const rawUserId = String(row.USER_ID || '');
-    const resolvedUserId = personnelToUserId.get(rawUserId) || rawUserId;
-    
-    const key = `${resolvedUserId}|${row.YEAR}|${row.MONTH}|${type}`;
-    map.set(key, (map.get(key) || 0) + (Number(row.TARGET_AMOUNT) || 0));
-  });
-  return map;
-}
 
 
 export async function getOverviewData(userId: string, filters: any) {
   const augmentedData = await getFilteredSalesData(userId);
-  const targetMap = await fetchTargets();
-  
-  // Extract relevant user IDs for targets based on filters
-  let targetUserIds: string[] | null = null;
-  if (filters?.salesRep) {
-    targetUserIds = [filters.salesRep];
-  } else {
-    // If no specific sales rep, sum across all reps that appear in augmentedData
-    const reps = new Set<string>();
-    augmentedData.forEach(r => {
-      if (r.salesRep) reps.add(r.salesRep);
-    });
-    targetUserIds = Array.from(reps);
-  }
-
-  return buildOverviewFromFilteredData(augmentedData, filters, targetMap, targetUserIds);
+  return buildOverviewFromFilteredData(augmentedData, filters);
 }
 
 // -------------------------------------------------------------
@@ -609,3 +555,61 @@ export async function getNewListingsData(userId: string, filters: any) {
   return result;
 }
 
+
+
+export async function getSalesWatermarkServer(): Promise<string | null> {
+  return getSalesWatermark();
+}
+
+export async function getSalesDeltaServer(watermark: string): Promise<any[]> {
+  return getSalesDelta(watermark);
+}
+
+
+import { resolveSalesUserContext, isMappingAssignedToUser, getGlobalMappings } from '@/app/Sales/Cache/SalesMappingCache';
+
+// -------------------------------------------------------------
+// SECURE CLIENT DATA FETCH (Delta or Full)
+// -------------------------------------------------------------
+export async function getClientSalesData(userId: string, watermark?: string): Promise<any[]> {
+  const userContext = await resolveSalesUserContext(userId);
+  if (!userContext) return [];
+
+  let rawSales = [];
+  if (!watermark) {
+    // No watermark -> Fetch full cache JSON
+    rawSales = await getSalesDataServer();
+  } else {
+    // Has watermark -> Fetch only delta rows
+    rawSales = await getSalesDeltaServer(watermark);
+  }
+
+  const allMappings = await getGlobalMappings();
+  const { cleanUserId, cleanUserName, hasSalesDataAccess } = userContext;
+
+  const processed: any[] = [];
+  rawSales.forEach((item: any) => {
+    const cId = String(item.customerId || '').trim().toUpperCase();
+    const mapping = allMappings.get(cId);
+
+    const isAssigned = isMappingAssignedToUser(mapping, cleanUserId, cleanUserName);
+
+    if (hasSalesDataAccess || isAssigned) {
+      processed.push({
+        ...item,
+        customerMainName: mapping?.customerMainName || item.customerMainName,
+        customerName: mapping?.customerSubName || item.customerName,
+        area: mapping?.area || '',
+        market: mapping?.market || '',
+        merchandiser: mapping?.merchandiser || '',
+        merchandiserId: mapping?.merchandiserId || '',
+        salesRep: mapping?.salesRep || '',
+        salesRepId: mapping?.userId || '',
+        customerTag: mapping?.customerTag || item.customerTag || '',
+        customerClass: mapping?.customerClass || item.customerClass || '',
+      });
+    }
+  });
+
+  return processed;
+}

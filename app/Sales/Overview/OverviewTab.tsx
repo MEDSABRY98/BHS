@@ -36,7 +36,6 @@ export default function SalesOverviewTab({ userId, showCosts = true }: SalesOver
     metrics: any;
       chartDataVsLastYear: any[];
       chartDataVsLastMonth: any[];
-      chartDataVsTarget: any[];
       chartDataInvoices: any[];
       chartDataReturns: any[];
       yearlyTableData: any[];
@@ -68,7 +67,7 @@ export default function SalesOverviewTab({ userId, showCosts = true }: SalesOver
     return <SalesTabLoader />;
   }
 
-  const { metrics, chartDataVsLastYear, chartDataVsLastMonth, chartDataVsTarget, chartDataInvoices, chartDataReturns, yearlyTableData, monthlyTableData } = data;
+  const { metrics, chartDataVsLastYear, chartDataVsLastMonth, chartDataInvoices, chartDataReturns, yearlyTableData, monthlyTableData } = data;
 
   const renderChart = (title: string, dataArray: any[]) => {
     if (!dataArray || dataArray.length === 0) return <NoData />;
@@ -452,7 +451,6 @@ export default function SalesOverviewTab({ userId, showCosts = true }: SalesOver
       <div className="flex flex-col gap-8 w-full">
         {renderChart("Monthly Sales vs Last Year", chartDataVsLastYear)}
         {renderChart("Monthly Sales vs Last Month", chartDataVsLastMonth)}
-        {renderChart("Monthly Sales vs Target", chartDataVsTarget)}
         {renderInvoiceCountChart("Monthly Sales Invoice Count", chartDataInvoices, '#14b8a6', '#3b82f6')}
         {renderInvoiceCountChart("Monthly Returns Invoice Count", chartDataReturns, '#f43f5e', '#f59e0b')}
       </div>

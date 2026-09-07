@@ -4,7 +4,7 @@ import { useState, useMemo } from 'react';
 import { SalesInvoice } from '@/lib/supabase';
 import { Download } from 'lucide-react';
 import NoData from '@/app/Components/DataState/NoDataTab';
-import { exportSalesExcelTable } from '@/app/Sales/Utils/ExcelExport';
+import { exportSalesExcelTable } from '@/app/Sales/Export/ExcelExport';
 
 interface CustomersTabProps {
   productData: SalesInvoice[];

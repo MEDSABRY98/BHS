@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import type { ProductBalanceRow } from '../Service/inventory_types';
 import NoData from '@/app/Components/DataState/NoDataTab';
-import { exportSalesExcelTable } from '@/app/Sales/Utils/ExcelExport';
+import { exportSalesExcelTable } from '@/app/Sales/Export/ExcelExport';
 
 interface Props {
   categoryName: string;

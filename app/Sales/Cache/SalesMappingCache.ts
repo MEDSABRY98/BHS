@@ -1,5 +1,5 @@
 import { bhs_supabas, hasSalesDataAccessFromDb, parseBoolFlag } from '@/lib/supabase';
-import { getSalesDataServer } from '@/app/Sales/Utils/SalesCache';
+import { getSalesDataServer } from '@/app/Sales/Cache/SalesCache';
 
 let globalMappingCache: Map<string, any> | null = null;
 let cachedUsersList: { id: string; name: string }[] | null = null;

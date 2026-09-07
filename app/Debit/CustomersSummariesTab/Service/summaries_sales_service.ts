@@ -1,6 +1,6 @@
 'use server';
 
-import { getFilteredSalesData } from '@/app/Sales/Utils/SalesMappingCache';
+import { getFilteredSalesData } from '@/app/Sales/Cache/SalesMappingCache';
 import { parseDate } from '@/app/Debit/DebitInsightsTab/Utils/DateUtils';
 import type {
   CustomerSalesYearBreakdown,

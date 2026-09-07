@@ -1,5 +1,5 @@
 import { SalesInvoice } from '@/lib/supabase';
-import { exportSalesExcelTable } from '@/app/Sales/Utils/ExcelExport';
+import { exportSalesExcelTable } from '@/app/Sales/Export/ExcelExport';
 import type { GroupedInvoiceRow, ProductSalesRow, SelectedInvoice, SubCustomerRow } from './Types';
 
 export function formatDate(dateString: string) {

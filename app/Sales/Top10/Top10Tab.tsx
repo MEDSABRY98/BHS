@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Package, Users, ArrowUp, ArrowDown, FileSpreadsheet, LayoutGrid, Layers } from 'lucide-react';
 import { useSalesModuleFilters } from '@/app/Sales/Model/SalesFilters';
-import { exportSalesExcelWorkbook, recordsFromTable } from '@/app/Sales/Utils/ExcelExport';
+import { exportSalesExcelWorkbook, recordsFromTable } from '@/app/Sales/Export/ExcelExport';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import { useSalesDataContext } from '@/app/Sales/Context/SalesDataContext';

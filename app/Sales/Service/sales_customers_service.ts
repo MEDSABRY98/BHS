@@ -14,7 +14,7 @@ import {
   loadCustomerMaps,
   resolveCustomerId,
   isLegacyMappingRowId
-} from '@/app/Sales/Utils/SalesMappingCache';
+} from '@/app/Sales/Cache/SalesMappingCache';
 
 function normCustomerId(value: unknown): string {
   if (value === null || value === undefined || value === '') return '';

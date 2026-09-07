@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect, memo, useRef } from 'react';
 import { SalesInvoice } from '@/lib/supabase';;
 import { Search, ChevronLeft, ChevronRight, Download, X, FileSpreadsheet, Layers, LayoutGrid, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { useSalesModuleFilters } from '@/app/Sales/Model/SalesFilters';
-import { exportSalesExcelTable } from '@/app/Sales/Utils/ExcelExport';
+import { exportSalesExcelTable } from '@/app/Sales/Export/ExcelExport';
 import SalesCustomerDetails from '@/app/Sales/CustomerDetails/CustomerDetails';
 import { getCustomersData } from '@/app/Sales/Service/sales_customers_service';
 import { useSalesDataContext } from '@/app/Sales/Context/SalesDataContext';

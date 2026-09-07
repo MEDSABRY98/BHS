@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { FileSpreadsheet } from 'lucide-react';
 import { useSalesRawData } from '@/app/Sales/Context/SalesRawDataContext';
-import { exportSalesExcel } from '@/app/Sales/Utils/ExcelExport';
+import { exportSalesExcel } from '@/app/Sales/Export/ExcelExport';
 import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
 import ExportExcelModal from './ExportExcelModal';

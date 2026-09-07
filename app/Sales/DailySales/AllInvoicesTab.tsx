@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Search, X, ShoppingBag, FileSpreadsheet, ChevronLeft, ChevronRight } from 'lucide-react';
 import { SalesInvoice } from '@/lib/supabase';
-import { exportSalesExcelTable } from '@/app/Sales/Utils/ExcelExport';
+import { exportSalesExcelTable } from '@/app/Sales/Export/ExcelExport';
 import NoData from '@/app/Components/DataState/NoDataTab';
 
 interface AllInvoicesTabProps {

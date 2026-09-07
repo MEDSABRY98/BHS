@@ -328,7 +328,7 @@ export default function ProductPriceHistory({ purchases, products, suppliers, on
 
   const exportSummaryToExcel = async () => {
     try {
-      const { exportSalesExcelTable } = await import('@/app/Sales/Utils/ExcelExport');
+      const { exportSalesExcelTable } = await import('@/app/Sales/Export/ExcelExport');
       const headers = ['Barcode', 'Product Name', 'Suppliers Count', 'Top Supplier', 'Share %', 'Last Price (AED)'];
       const rows = productSummaryRows.map(r => [
         r.barcode,
@@ -347,7 +347,7 @@ export default function ProductPriceHistory({ purchases, products, suppliers, on
 
   const exportDetailToExcel = async () => {
     try {
-      const { exportSalesExcelTable } = await import('@/app/Sales/Utils/ExcelExport');
+      const { exportSalesExcelTable } = await import('@/app/Sales/Export/ExcelExport');
       const headers = ['Date', 'Invoice', 'Supplier', 'Qty', 'Unit Price (AED)'];
       const rows = filteredTablePurchases.map(p => [
         p.date,

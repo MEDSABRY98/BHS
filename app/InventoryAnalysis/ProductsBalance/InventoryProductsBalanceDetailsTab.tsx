@@ -6,7 +6,7 @@ import { getProductPeriodMovements } from '../Service/inventory_service';
 import type { PeriodMovement, ProductBalanceRow } from '../Service/inventory_types';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import TabFetchError from '@/app/Components/DataState/TabFetchError';
-import { exportSalesExcelTable } from '@/app/Sales/Utils/ExcelExport';
+import { exportSalesExcelTable } from '@/app/Sales/Export/ExcelExport';
 import { getScopedQtyEffect, isMoveInLocationScope } from '../Utils/locationTypes';
 
 interface Props {

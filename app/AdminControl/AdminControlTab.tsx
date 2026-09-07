@@ -218,7 +218,6 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
     ],
     'sales': [
         { id: 'sales-overview', label: 'Overview' },
-        { id: 'sales-targets', label: 'Targets' },
         { id: 'sales-periods', label: 'Periods' },
         { id: 'sales-top10', label: 'Top 10' },
         { id: 'sales-customers', label: 'Customers' },
@@ -292,7 +291,6 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
         { id: 'db-sales', label: 'Sales DB' },
         { id: 'db-suppliers', label: 'Suppliers DB' },
         { id: 'db-purchase-price-tracking', label: 'Purchase Price Tracking DB' },
-        { id: 'db-personnel', label: 'Personnel DB' },
         { id: 'db-users', label: 'Users DB' },
     ],
     'purchase-price-tracking': [

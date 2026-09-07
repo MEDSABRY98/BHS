@@ -15,7 +15,7 @@ import SalesStockReportTab from './StockReport/StockReportTab';
 import SalesSidebar from './Utils/Sidebar';
 import SalesTabPanel from './Shared/TabPanel';
 import SalesTabLoader from './Shared/TabLoader';
-import SalesTargetsTab from './Targets/TargetsTab';
+
 import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
 import SalesNewListingsTab from './NewListings/NewListingsTab';
 import { SalesFiltersProvider, SalesFilterButton } from './Model/SalesFilters';
@@ -30,9 +30,10 @@ import { SalesInvoice, hasSalesDataAccess } from '@/lib/supabase';
 import { ArrowLeft, BarChart3, LogOut, User, FileUp, FileSpreadsheet, ChevronDown, AlertCircle, X, Users, Menu } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { toast } from '@/app/Components/Notification';
-import { exportSalesExcelTable } from '@/app/Sales/Utils/ExcelExport';
+import { exportSalesExcelTable } from '@/app/Sales/Export/ExcelExport';
 import { getAllowedSalesTabIds, isSalesTabAllowed } from '@/app/Sales/Utils/salesTabPermissions';
 import { getCustomersList, getMyCustomersData, batchSaveCustomerMapping } from '@/app/Sales/Service/sales_customers_service';
+import { syncAndGetSalesData, getLocalSalesData } from '@/app/Sales/Cache/SalesSyncService';
 import { getSalesMetadata } from '@/app/Sales/Service/sales_core_service';
 import { trackSalesTab } from '@/app/Audit/Model/SalesTabAudit';
 
@@ -216,6 +217,7 @@ export default function SalesPage() {
     if (!salesUserId) return;
     try {
       toast.loading('Refreshing sales data...', { id: 'sales_refresh' });
+      await syncAndGetSalesData(salesUserId);
       const result = await getSalesMetadata(salesUserId, true);
       setUniqueValues(result.uniqueValues);
       setLastUpdated(result.lastUpdated);
@@ -408,9 +410,7 @@ export default function SalesPage() {
         <SalesTabPanel tabId="sales-statistics" activeTab={activeTab} isVisited={visitedTabs.has('sales-statistics')}>
           <SalesStatisticsTab userId={salesUserId} showCosts={showCosts} />
         </SalesTabPanel>
-        <SalesTabPanel tabId="sales-targets" activeTab={activeTab} isVisited={visitedTabs.has('sales-targets')}>
-          <SalesTargetsTab userId={salesUserId} />
-        </SalesTabPanel>
+        
         <SalesTabPanel tabId="sales-daily-sales" activeTab={activeTab} isVisited={visitedTabs.has('sales-daily-sales')}>
           <SalesDailySalesTab userId={salesUserId} showCosts={showCosts} />
         </SalesTabPanel>

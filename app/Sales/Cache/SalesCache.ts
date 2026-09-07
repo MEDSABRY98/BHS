@@ -166,3 +166,112 @@ async function buildFromDB(): Promise<any[]> {
     };
   });
 }
+
+
+// ─────────────────────────────────────────────────────────────
+//  DELTA SYNC: Watermark and Delta fetching
+// ─────────────────────────────────────────────────────────────
+export async function getSalesWatermark(): Promise<string | null> {
+  const { data, error } = await bhs_supabas
+    .from('web_Sales_DB')
+    .select('CREATED_AT')
+    .order('CREATED_AT', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  return data.CREATED_AT;
+}
+
+export async function getSalesDelta(watermark: string): Promise<any[]> {
+  const fetchDeltaFromSales = async () => {
+    const { count, error: countErr } = await bhs_supabas
+      .from('web_Sales_DB')
+      .select('*', { count: 'exact', head: true })
+      .gt('CREATED_AT', watermark);
+
+    if (countErr) throw countErr;
+    if (!count) return [];
+
+    const step = 1000;
+    const ranges: { from: number; to: number }[] = [];
+    for (let i = 0; i < count; i += step) {
+      ranges.push({ from: i, to: i + step - 1 });
+    }
+
+    const batchSize = 3;
+    const allResults: any[] = [];
+
+    for (let i = 0; i < ranges.length; i += batchSize) {
+      const batch = ranges.slice(i, i + batchSize);
+      const responses = await Promise.all(
+        batch.map(r =>
+          bhs_supabas
+            .from('web_Sales_DB')
+            .select('ID, "INVOICE DATE", "INVOICE NUMBER", "CUSTOMER ID", "PRODUCT ID", "PRODUCT PRICE", AMOUNT, QTY, "PRODUCT COST"')
+            .gt('CREATED_AT', watermark)
+            .range(r.from, r.to)
+        )
+      );
+      responses.forEach(res => {
+        if (res.error) throw res.error;
+        if (res.data) allResults.push(...res.data);
+      });
+    }
+
+    return allResults;
+  };
+
+  const fetchAllFromTable = async (table: string, selectFields: string) => {
+    const { data, error } = await bhs_supabas.from(table).select(selectFields);
+    if (error) throw error;
+    return data || [];
+  };
+
+  const [salesData, customersData, productsData] = await Promise.all([
+    fetchDeltaFromSales(),
+    fetchAllFromTable('bhs_CUSTOMERS', '"CUSTOMER ID", "CUSTOMER MAIN NAME", "CUSTOMER SUB NAME", "CUSTOMER TAG", "CUSTOMER CLASS"'),
+    fetchAllFromTable('bhs_PRODUCTS', '"PRODUCT ID", "PRODUCT NAME", "PRODUCT BARCODE", "PRODUCT CATEGORY", "PRODUCT COST"'),
+  ]);
+
+  if (salesData.length === 0) return [];
+
+  const norm = (v: any) => (v ? String(v).trim().toUpperCase() : '');
+
+  const custMap = new Map<string, any>();
+  (customersData || []).forEach((c: any) => {
+    const id = norm(c['CUSTOMER ID']);
+    if (id) custMap.set(id, c);
+  });
+
+  const prodMap = new Map<string, any>();
+  (productsData || []).forEach((p: any) => {
+    const pId = norm(p['PRODUCT ID']);
+    const pBarcode = norm(p['PRODUCT BARCODE']);
+    if (pId) prodMap.set(pId, p);
+    if (pBarcode && pBarcode !== pId) prodMap.set(pBarcode, p);
+  });
+
+  return (salesData || []).map((s: any) => {
+    const c = custMap.get(norm(s['CUSTOMER ID'])) || {};
+    const p = prodMap.get(norm(s['PRODUCT ID'])) || {};
+    return {
+      id: s['ID'],
+      invoiceDate: s['INVOICE DATE'],
+      invoiceNumber: s['INVOICE NUMBER'],
+      customerId: s['CUSTOMER ID'],
+      productId: p['PRODUCT ID'] || s['PRODUCT ID'],
+      productTag: p['PRODUCT CATEGORY'] || 'Uncategorized',
+      customerTag: c['CUSTOMER TAG'] || '',
+      customerClass: c['CUSTOMER CLASS'] || '',
+      productCost: (s['PRODUCT COST'] !== undefined && s['PRODUCT COST'] !== null) ? s['PRODUCT COST'] : (p['PRODUCT COST'] || 0),
+      productPrice: s['PRODUCT PRICE'],
+      amount: s['AMOUNT'],
+      qty: s['QTY'],
+      customerName: c['CUSTOMER SUB NAME'],
+      customerMainName: c['CUSTOMER MAIN NAME'],
+      product: p['PRODUCT NAME'],
+      barcode: p['PRODUCT BARCODE'],
+    };
+  });
+}

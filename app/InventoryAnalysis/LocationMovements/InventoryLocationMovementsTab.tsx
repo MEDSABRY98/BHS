@@ -24,7 +24,7 @@ import NoData from '@/app/Components/DataState/NoDataTab';
 import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import { getLocationPeriodMovements, getInternalWarehouseLocationOptions } from '../Service/inventory_service';
 import type { LocationMovementRow } from '../Service/inventory_types';
-import { exportSalesExcelWorkbook, recordsFromTable } from '@/app/Sales/Utils/ExcelExport';
+import { exportSalesExcelWorkbook, recordsFromTable } from '@/app/Sales/Export/ExcelExport';
 import { peekIAPrefetch } from '../Utils/IAPrefetchCache';
 
 type DirectionFilter = 'All' | 'in' | 'out';

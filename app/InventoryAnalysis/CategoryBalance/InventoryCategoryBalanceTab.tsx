@@ -22,7 +22,7 @@ import NoData from '@/app/Components/DataState/NoDataTab';
 import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import { getProductsBalanceReportData, getInternalWarehouseLocationOptions } from '../Service/inventory_service';
 import type { CategoryBalanceRow, ProductBalanceRow } from '../Service/inventory_types';
-import { exportSalesExcelTable } from '@/app/Sales/Utils/ExcelExport';
+import { exportSalesExcelTable } from '@/app/Sales/Export/ExcelExport';
 import InventoryCategoryBalanceDetailsTab from './InventoryCategoryBalanceDetailsTab';
 import { peekIAPrefetch } from '../Utils/IAPrefetchCache';
 

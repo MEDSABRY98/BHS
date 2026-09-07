@@ -109,7 +109,7 @@ export const DATABASE_CATEGORIES: DatabaseCategory[] = [
     href: '/DataBase/Personnel',
     icon: Users,
     color: 'from-gray-700 to-gray-900',
-    tables: ['Personnel DB', 'Users DB'],
+    tables: ['Users DB'],
   },
 ];
 
@@ -204,15 +204,6 @@ export const DATABASE_NAV_ITEMS: DatabaseNavItem[] = [
     label: 'Purchase Price Tracking DB',
     category: 'SUPPLIERS_PURCHASES',
     source: { table: 'web_Suppliers_Purchase', kind: 'transactional', dateColumn: 'DATE' },
-  },
-
-  {
-    id: 'db-personnel',
-    href: '/DataBase/Personnel',
-    icon: Users,
-    label: 'Personnel DB',
-    category: 'SYSTEM_ADMIN',
-    source: { table: 'web_Sales_DB_PERSONNEL', kind: 'reference' },
   },
   {
     id: 'db-users',
