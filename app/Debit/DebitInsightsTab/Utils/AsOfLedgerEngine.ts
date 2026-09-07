@@ -330,6 +330,8 @@ export function computeDebitInsightsMetrics(
   const netSalesPriorYear = computeNetSales(validRows, priorFrom, priorTo);
   const netSalesYoYChange = computeYoYChange(netSales, netSalesPriorYear);
   const collections = computeCollections(validRows, from, to);
+  const collectionsPriorYear = computeCollections(validRows, priorFrom, priorTo);
+  const collectionsYoYChange = computeYoYChange(collections, collectionsPriorYear);
   const collectionRate = netSales > 0.01 ? (collections / netSales) * 100 : null;
 
   const currentYearStr = filters.asOfDate.substring(0, 4);
@@ -345,7 +347,7 @@ export function computeDebitInsightsMetrics(
   return {
     totalOpenDebt,
     agingBreakdown,
-    period: { netSales, netSalesPriorYear, netSalesYoYChange, collections, collectionRate },
+    period: { netSales, netSalesPriorYear, netSalesYoYChange, collections, collectionsPriorYear, collectionsYoYChange, collectionRate },
     trendSeries: buildTrendSeries(rows, filters.asOfDate, from, to, cities, customers, tags, classes),
     currentYearTrend,
     previousYearTrend,

@@ -21,7 +21,7 @@ interface AgesTabProps {
   data: InvoiceRow[];
 }
 
-type AgesPdfExportMode = 'normal' | 'without_tags' | 'tags_only';
+type AgesPdfExportMode = 'normal' | 'without_tags' | 'tags_only' | 'tags_combined';
 
 interface CustomerAgingSummary {
   customerName: string;
@@ -372,6 +372,19 @@ export default function AgesTab({ data }: AgesTabProps) {
       const dateStr = new Date().toISOString().split('T')[0];
       const zip = new JSZip();
 
+      if (mode === 'tags_combined') {
+        const tagged = filteredData.filter((item) => item.customerTags.length > 0);
+        if (tagged.length === 0) {
+          alert('No customers with tags found in the current view.');
+          return;
+        }
+        const { generateCombinedTagsAgesPDF } = await import('@/app/Debit/AgesTab/Pdf/AgesUtils');
+        const pdfBlob = await generateCombinedTagsAgesPDF(tagged, 'All Tagged Customers');
+        saveTrackedAs(pdfBlob, `Combined_Tags_Aging_${dateStr}.pdf`);
+        setIsExportingPdf(false);
+        return;
+      }
+
       if (mode === 'tags_only') {
         const tagged = filteredData.filter((item) => item.customerTags.length > 0);
         if (tagged.length === 0) {
@@ -652,11 +665,11 @@ export default function AgesTab({ data }: AgesTabProps) {
             <button
               type="button"
               aria-label="Close PDF export options"
-              className="absolute inset-0 bg-slate-900/20 backdrop-blur-[2px]"
+              className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-all"
               onClick={() => !isExportingPdf && setIsPdfExportOpen(false)}
             />
-            <div className="relative w-full max-w-md bg-white rounded-2xl border border-slate-200 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-              <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-slate-100">
+            <div className="relative w-full max-w-sm bg-white rounded-3xl border border-slate-100 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.1)] overflow-hidden animate-in fade-in zoom-in-95 duration-300">
+              <div className="flex items-center justify-between gap-3 px-6 pt-6 pb-4">
                 <div>
                   <h3 className="text-base font-bold text-slate-900">Export Aging PDF</h3>
                   <p className="text-xs text-slate-500 mt-0.5">Choose how customer tags are included</p>
@@ -672,21 +685,18 @@ export default function AgesTab({ data }: AgesTabProps) {
                 </button>
               </div>
 
-              <div className="p-4 space-y-2">
+              <div className="p-6 pt-2 space-y-2.5">
                 <button
                   type="button"
                   disabled={isExportingPdf}
                   onClick={() => handleExportPDF('normal')}
-                  className="w-full flex items-start gap-3 px-4 py-3.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 text-left transition-all disabled:opacity-60"
+                  className="group w-full flex items-center gap-4 p-3 rounded-2xl border border-transparent bg-slate-50 hover:bg-white hover:border-slate-200 hover:shadow-sm text-left transition-all duration-200 active:scale-[0.98] disabled:opacity-60"
                 >
-                  <div className="w-9 h-9 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center shrink-0">
+                  <div className="w-10 h-10 rounded-xl bg-white shadow-sm border border-slate-100 text-slate-600 flex items-center justify-center shrink-0 group-hover:text-rose-600 group-hover:scale-110 transition-all duration-300">
                     <Users className="w-4 h-4" />
                   </div>
                   <div className="min-w-0">
-                    <div className="text-sm font-bold text-slate-800">Normal Download</div>
-                    <div className="text-xs text-slate-500 mt-0.5">
-                      Full aging report + one PDF per city (all customers)
-                    </div>
+                    <div className="text-[15px] font-semibold text-slate-700 group-hover:text-slate-900 transition-colors">Normal Download</div>
                   </div>
                 </button>
 
@@ -694,16 +704,27 @@ export default function AgesTab({ data }: AgesTabProps) {
                   type="button"
                   disabled={isExportingPdf}
                   onClick={() => handleExportPDF('without_tags')}
-                  className="w-full flex items-start gap-3 px-4 py-3.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 text-left transition-all disabled:opacity-60"
+                  className="group w-full flex items-center gap-4 p-3 rounded-2xl border border-transparent bg-slate-50 hover:bg-white hover:border-slate-200 hover:shadow-sm text-left transition-all duration-200 active:scale-[0.98] disabled:opacity-60"
                 >
-                  <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center shrink-0">
+                  <div className="w-10 h-10 rounded-xl bg-white shadow-sm border border-slate-100 text-slate-600 flex items-center justify-center shrink-0 group-hover:text-amber-500 group-hover:scale-110 transition-all duration-300">
                     <FileText className="w-4 h-4" />
                   </div>
                   <div className="min-w-0">
-                    <div className="text-sm font-bold text-slate-800">Without Customer Tags</div>
-                    <div className="text-xs text-slate-500 mt-0.5">
-                      Same report layout, only customers with no tag
-                    </div>
+                    <div className="text-[15px] font-semibold text-slate-700 group-hover:text-slate-900 transition-colors">Without Customer Tags</div>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={isExportingPdf}
+                  onClick={() => handleExportPDF('tags_combined')}
+                  className="group w-full flex items-center gap-4 p-3 rounded-2xl border border-transparent bg-slate-50 hover:bg-white hover:border-slate-200 hover:shadow-sm text-left transition-all duration-200 active:scale-[0.98] disabled:opacity-60"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-white shadow-sm border border-slate-100 text-slate-600 flex items-center justify-center shrink-0 group-hover:text-blue-600 group-hover:scale-110 transition-all duration-300">
+                    <Users className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-[15px] font-semibold text-slate-700 group-hover:text-slate-900 transition-colors">Combined Customer Tags</div>
                   </div>
                 </button>
 
@@ -711,16 +732,13 @@ export default function AgesTab({ data }: AgesTabProps) {
                   type="button"
                   disabled={isExportingPdf}
                   onClick={() => handleExportPDF('tags_only')}
-                  className="w-full flex items-start gap-3 px-4 py-3.5 rounded-xl border border-indigo-200 bg-indigo-50/50 hover:bg-indigo-50 text-left transition-all disabled:opacity-60"
+                  className="group w-full flex items-center gap-4 p-3 rounded-2xl border border-transparent bg-slate-50 hover:bg-white hover:border-slate-200 hover:shadow-sm text-left transition-all duration-200 active:scale-[0.98] disabled:opacity-60"
                 >
-                  <div className="w-9 h-9 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0">
+                  <div className="w-10 h-10 rounded-xl bg-white shadow-sm border border-slate-100 text-slate-600 flex items-center justify-center shrink-0 group-hover:text-indigo-600 group-hover:scale-110 transition-all duration-300">
                     <Tag className="w-4 h-4" />
                   </div>
                   <div className="min-w-0">
-                    <div className="text-sm font-bold text-indigo-900">Customer Tags Only</div>
-                    <div className="text-xs text-indigo-700/80 mt-0.5">
-                      One separate PDF file for each customer tag
-                    </div>
+                    <div className="text-[15px] font-semibold text-slate-700 group-hover:text-slate-900 transition-colors">Customer Tags Only</div>
                   </div>
                 </button>
               </div>

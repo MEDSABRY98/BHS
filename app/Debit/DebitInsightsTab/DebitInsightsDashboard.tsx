@@ -35,7 +35,7 @@ function defaultFilters(): InsightsFilters {
   const yearStart = toInputDate(new Date(new Date().getFullYear(), 0, 1));
   return {
     asOfDate: today,
-    periodPreset: 'trailing12m',
+    periodPreset: 'ytd',
     periodFrom: yearStart,
     periodTo: today,
     salesRep: [],

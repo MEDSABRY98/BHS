@@ -85,6 +85,7 @@ export default function InsightsKpiCards({
       <div className="bg-white rounded-xl border border-gray-200 p-3 xl:p-4 min-w-0">
         <p className="text-[10px] xl:text-xs font-medium text-gray-500 uppercase tracking-wide mb-1 truncate">Collections (period)</p>
         <p className="text-lg xl:text-2xl font-bold text-gray-900 truncate">{formatCurrency(metrics.period.collections)}</p>
+        <YoYBadge change={metrics.period.collectionsYoYChange} />
         <p className="text-[10px] xl:text-xs text-gray-400 mt-1 truncate">Payment / R-Payment net</p>
       </div>
 

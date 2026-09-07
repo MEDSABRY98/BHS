@@ -36,6 +36,8 @@ export interface InsightsPeriodMetrics {
   netSalesPriorYear: number;
   netSalesYoYChange: number | null;
   collections: number;
+  collectionsPriorYear: number;
+  collectionsYoYChange: number | null;
   collectionRate: number | null;
 }
 
