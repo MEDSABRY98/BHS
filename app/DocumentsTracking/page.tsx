@@ -49,7 +49,7 @@ export default function DocumentsTrackingPage() {
         validateAndSetUser();
     }, [router]);
 
-    if (isChecking) return <Loading message="جاري التحقق من الصلاحيات..." />;
+    if (isChecking) return <Loading />;
     if (!currentUser) return null;
 
     return (

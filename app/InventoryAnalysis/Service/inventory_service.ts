@@ -1,6 +1,7 @@
-'use server';
+// Client-side service
 
 import { bhs_supabase } from '@/lib/supabase';
+import { iaDb } from '../Cache/InventoryAnalysisIndexedDB';
 import {
   getNetQtyEffect,
   getScopedQtyEffect,
@@ -59,6 +60,15 @@ interface MoveMonthSummary {
 }
 
 const INVENTORY_MOVE_SELECT = 'DATE,"LOCATION FROM","LOCATION TO","PRODUCT ID",QTY';
+const INVENTORY_MOVE_SELECT_FULL = 'ID,DATE,REFERENCE,"LOCATION FROM","LOCATION TO","PRODUCT ID",QTY';
+
+// ── Cache Mode ────────────────────────────────────────────────────────────────
+// When true, heavy data reads go to IndexedDB instead of Supabase.
+// Set by IADataBootstrap once it confirms the local cache is complete.
+let _cacheMode = false;
+export function enableCacheMode() { _cacheMode = true; }
+export function disableCacheMode() { _cacheMode = false; }
+export function isCacheModeEnabled() { return _cacheMode; }
 
 let locationRegistryCache: LocationRegistry | null = null;
 
@@ -130,7 +140,12 @@ async function fetchAllInventoryRows<T>(
  * Offset pagination is NOT used here because DATE has many ties, causing rows
  * to be skipped or duplicated at page boundaries with large datasets.
  */
-async function fetchAllInventoryMovesStable(): Promise<InventoryMoveRow[]> {
+export async function fetchAllInventoryMovesStable(): Promise<InventoryMoveRow[]> {
+  // Cache-first: if IndexedDB is complete, read locally (instant)
+  if (_cacheMode) {
+    return (await iaDb.moves.toArray()) as InventoryMoveRow[];
+  }
+  // Supabase fallback: ID-cursor pagination
   const pageSize = 1000;
   const allRows: InventoryMoveRow[] = [];
   let lastId: string | null = null;
@@ -153,15 +168,15 @@ async function fetchAllInventoryMovesStable(): Promise<InventoryMoveRow[]> {
     if (!data || data.length === 0) break;
 
     allRows.push(...(data as InventoryMoveRow[]));
-    lastId = String((data[data.length - 1] as any).ID ?? '');
+    lastId = String(data[data.length - 1].ID ?? '');
     if (data.length < pageSize) break;
   }
 
   return allRows;
 }
 
-
 async function fetchInventoryProducts(): Promise<InventoryProductRow[]> {
+  if (_cacheMode) return (await iaDb.products.toArray()) as InventoryProductRow[];
   return fetchAllInventoryRows<InventoryProductRow>('bhs_PRODUCTS', '*');
 }
 
@@ -326,12 +341,13 @@ async function fetchVendorMovesInRangeFromDb(
       });
     }
 
-    lastId = String((data[data.length - 1] as InventoryMoveRow).ID ?? '');
+    lastId = String(data[data.length - 1].ID ?? '');
     if (data.length < pageSize) break;
   }
 
   return results;
 }
+
 
 export async function fetchInventoryVendorMovesInRange(dateFrom: string, dateTo: string) {
   try {
@@ -392,11 +408,12 @@ export async function getProductNamesByIds(productIds: string[]) {
   }
 }
 
+// fetchInventoryMoves delegates to fetchAllInventoryMovesStable
+// which uses ID-cursor pagination (not slow offset) and cache-first mode
 async function fetchInventoryMoves(): Promise<InventoryMoveRow[]> {
-  return fetchAllInventoryRows<InventoryMoveRow>('web_INVENTORY_MOVES', INVENTORY_MOVE_SELECT, {
-    order: { column: 'DATE', ascending: true },
-  });
+  return fetchAllInventoryMovesStable();
 }
+
 
 // ----------------------------------------------------------------------
 // API: /api/Inventory
@@ -453,27 +470,6 @@ function buildSalesMaps(moveRows: InventoryMoveRow[], registry: LocationRegistry
 
 export async function getProductOrdersData() {
   try {
-    // Try RPC first (fast — computed in PostgreSQL)
-    const { data: rpcData, error: rpcError } = await bhs_supabase.rpc('get_inventory_product_orders');
-
-    const rpcRows = rpcData?.success && Array.isArray(rpcData.data) ? rpcData.data : null;
-    if (!rpcError && rpcRows && rpcRows.length > 0) {
-      return {
-        ...rpcData,
-        data: rpcRows.map((row: { tags?: string }) => ({
-          ...row,
-          tags: formatProductCategory(row.tags || ''),
-        })),
-      };
-    }
-
-    if (rpcError) {
-      console.warn('RPC get_inventory_product_orders failed, falling back to JS:', rpcError.message);
-    } else {
-      console.warn('RPC get_inventory_product_orders returned no rows, falling back to JS');
-    }
-
-    // Fallback: fetch all data and compute in JS
     const [products, moveRows, registry] = await Promise.all([
       fetchInventoryProducts(),
       fetchInventoryMoves(),
@@ -589,18 +585,6 @@ function hasUsableMovementsRpcData(data: unknown): boolean {
 
 export async function getProductMovementsData() {
   try {
-    const { data, error } = await bhs_supabase.rpc('get_inventory_movements_summary');
-
-    if (!error && hasUsableMovementsRpcData(data)) {
-      return { success: true, data: mapMovementsRpcRows(data) };
-    }
-
-    if (error) {
-      console.warn('RPC get_inventory_movements_summary failed, falling back to JS:', error.message);
-    } else {
-      console.warn('RPC get_inventory_movements_summary returned no usable rows, falling back to JS');
-    }
-
     const moveRows = await fetchInventoryMoves();
     const registry = await loadLocationRegistry();
     const aggregated = aggregateMovements(moveRows, registry);
@@ -616,10 +600,32 @@ export async function getProductMovementsData() {
 // ----------------------------------------------------------------------
 
 async function fetchInventoryMovesForProduct(productId: string): Promise<InventoryMoveRow[]> {
-  return fetchAllInventoryRows<InventoryMoveRow>('web_INVENTORY_MOVES', INVENTORY_MOVE_SELECT, {
-    order: { column: 'DATE', ascending: true },
-    productId,
-  });
+  const pid = productId.trim();
+  // Cache-first
+  if (_cacheMode) {
+    const all = (await iaDb.moves.toArray()) as InventoryMoveRow[];
+    return all.filter(m => m['PRODUCT ID']?.toString().trim() === pid);
+  }
+  // Supabase: filter server-side with ID-cursor pagination
+  const SELECT = 'ID,DATE,REFERENCE,"LOCATION FROM","LOCATION TO","PRODUCT ID",QTY';
+  const results: InventoryMoveRow[] = [];
+  let lastId: string | null = null;
+  while (true) {
+    let query = bhs_supabase
+      .from('web_INVENTORY_MOVES')
+      .select(SELECT)
+      .eq('PRODUCT ID', pid)
+      .order('ID', { ascending: true })
+      .limit(1000);
+    if (lastId !== null) query = query.gt('ID', lastId);
+    const { data, error } = await query;
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    results.push(...(data as InventoryMoveRow[]));
+    lastId = String(data[data.length - 1].ID ?? '');
+    if (data.length < 1000) break;
+  }
+  return results;
 }
 
 function hasUsableProductAnalysisRpcData(rpcData: unknown): boolean {
@@ -664,26 +670,6 @@ export async function getSingleProductAnalysis(
   filters?: { year?: string; month?: string; from?: string; to?: string; preset?: string }
 ) {
   try {
-    // Try RPC first (fast — computed in PostgreSQL)
-    const { data: rpcData, error: rpcError } = await bhs_supabase.rpc('get_inventory_product_analysis', {
-      p_product_id: productId,
-      p_year: filters?.year ? parseInt(filters.year) : null,
-      p_month: filters?.month ? parseInt(filters.month) : null,
-      p_date_from: filters?.from || null,
-      p_date_to: filters?.to || null,
-      p_preset: filters?.preset || 'all',
-    });
-
-    if (!rpcError && hasUsableProductAnalysisRpcData(rpcData)) {
-      return rpcData;
-    }
-
-    if (rpcError) {
-      console.warn('RPC get_inventory_product_analysis failed, falling back to JS:', rpcError.message);
-    } else {
-      console.warn('RPC get_inventory_product_analysis returned no usable rows, falling back to JS');
-    }
-
     // Fallback: fetch all data and compute in JS
     const [moveRows, products, registry] = await Promise.all([
       fetchInventoryMovesForProduct(productId),
@@ -957,18 +943,6 @@ function aggregateDaysFromDates(rows: { DATE: string | null }[]): MoveDaySummary
 
 export async function fetchMoveMonthsSummary() {
   try {
-    const { data, error } = await bhs_supabase.rpc('get_inventory_moves_months_summary');
-    if (!error && Array.isArray(data)) {
-      const mapped = data.map((row: { year: number; month: number; count: number }) => ({
-        year: Number(row.year),
-        month: Number(row.month),
-        count: Number(row.count),
-      }));
-      return { success: true, data: mapped };
-    }
-
-    console.warn('RPC get_inventory_moves_months_summary failed, falling back to JS:', error?.message);
-
     const rows = await fetchAllMoveDates();
     return { success: true, data: aggregateMonthsFromDates(rows) };
   } catch (error: any) {
@@ -982,21 +956,6 @@ export async function fetchMoveDaysSummary(year: number, month: number) {
     if (!year || !month || month < 1 || month > 12) {
       return { success: false, error: 'Invalid year or month' };
     }
-    const { data, error } = await bhs_supabase.rpc('get_inventory_moves_days_summary', {
-      p_year: year,
-      p_month: month,
-    });
-
-    if (!error && Array.isArray(data)) {
-      const mapped = data.map((row: { date: string; day: number; count: number }) => ({
-        date: String(row.date),
-        day: Number(row.day),
-        count: Number(row.count),
-      }));
-      return { success: true, data: mapped };
-    }
-
-    console.warn('RPC get_inventory_moves_days_summary failed, falling back to JS:', error?.message);
 
     const { start, end } = monthDateRange(year, month);
     const rows = await fetchAllMoveDates({ dateStart: start, dateEnd: end });
@@ -1195,33 +1154,32 @@ function applyPeriodMovementBuckets(
 }
 
 async function fetchProductInventoryMoves(productId: string): Promise<InventoryMoveRow[]> {
-  const pageSize = 1000;
-  const allRows: InventoryMoveRow[] = [];
-  let lastId: string | null = null;
+  const pid = productId.trim();
+  // Cache-first
+  if (_cacheMode) {
+    const all = (await iaDb.moves.toArray()) as InventoryMoveRow[];
+    return all.filter(m => m['PRODUCT ID']?.toString().trim() === pid);
+  }
+  // Supabase: filter server-side with ID-cursor pagination
   const SELECT = 'ID,DATE,REFERENCE,"LOCATION FROM","LOCATION TO","PRODUCT ID",QTY';
-
+  const results: InventoryMoveRow[] = [];
+  let lastId: string | null = null;
   while (true) {
     let query = bhs_supabase
       .from('web_INVENTORY_MOVES')
       .select(SELECT)
-      .eq('PRODUCT ID', productId.trim())
+      .eq('PRODUCT ID', pid)
       .order('ID', { ascending: true })
-      .limit(pageSize);
-
-    if (lastId !== null) {
-      query = query.gt('ID', lastId);
-    }
-
+      .limit(1000);
+    if (lastId !== null) query = query.gt('ID', lastId);
     const { data, error } = await query;
     if (error) throw error;
     if (!data || data.length === 0) break;
-
-    allRows.push(...(data as InventoryMoveRow[]));
-    lastId = String((data[data.length - 1] as any).ID ?? '');
-    if (data.length < pageSize) break;
+    results.push(...(data as InventoryMoveRow[]));
+    lastId = String(data[data.length - 1].ID ?? '');
+    if (data.length < 1000) break;
   }
-
-  return allRows;
+  return results;
 }
 
 async function computeProductsBalanceReportDataJs(filters?: { dateFrom?: string; dateTo?: string; location?: string }) {
@@ -1362,32 +1320,7 @@ function mapRpcProductsBalanceRows(data: unknown): ProductBalanceRow[] {
 
 export async function getProductsBalanceReportData(filters?: { dateFrom?: string; dateTo?: string; location?: string }) {
   try {
-    const dateFrom = filters?.dateFrom?.trim() || null;
-    const dateTo = filters?.dateTo?.trim() || null;
-    const location = filters?.location?.trim() || null;
 
-    const { data: rpcData, error: rpcError } = await bhs_supabase.rpc('get_inventory_products_balance', {
-      p_date_from: dateFrom,
-      p_date_to: dateTo,
-      p_location: location,
-    });
-
-    const rpcRows =
-      rpcData?.success && Array.isArray(rpcData.data)
-        ? mapRpcProductsBalanceRows(rpcData.data)
-        : null;
-
-    if (!rpcError && rpcRows && rpcRows.length > 0) {
-      return { success: true as const, data: rpcRows };
-    }
-
-    if (rpcError) {
-      console.warn('RPC get_inventory_products_balance failed, falling back to JS:', rpcError.message);
-    } else if (rpcData && rpcData.success === false) {
-      console.warn('RPC get_inventory_products_balance returned error, falling back to JS:', rpcData.error);
-    } else {
-      console.warn('RPC get_inventory_products_balance returned no rows, falling back to JS');
-    }
 
     const data = await computeProductsBalanceReportDataJs(filters);
     return { success: true as const, data };
@@ -1409,31 +1342,6 @@ export async function getProductPeriodMovements(
 
     const dateFromStr = filters?.dateFrom ? filters.dateFrom.trim() : null;
     const dateToStr = filters?.dateTo ? filters.dateTo.trim() : null;
-
-    const { data: rpcData, error: rpcError } = await bhs_supabase.rpc('get_inventory_product_period_movements', {
-      p_product_id: trimmedId,
-      p_date_from: dateFromStr,
-      p_date_to: dateToStr,
-    });
-
-    if (!rpcError && rpcData?.success && Array.isArray(rpcData.data)) {
-      const registry = await loadLocationRegistry();
-      const movements: PeriodMovement[] = rpcData.data.map((row: any) => ({
-        moveId: String(row.moveId ?? row.move_id ?? ''),
-        date: String(row.date ?? ''),
-        reference: String(row.reference ?? '-'),
-        locationFrom: resolveLocationName(String(row.locationFrom ?? row.location_from ?? ''), registry),
-        locationTo: resolveLocationName(String(row.locationTo ?? row.location_to ?? ''), registry),
-        qty: Number(row.qty ?? 0),
-        type: String(row.type ?? 'other'),
-      }));
-      return { success: true, data: movements };
-    }
-
-    console.warn(
-      'RPC get_inventory_product_period_movements failed, falling back to JS:',
-      rpcError?.message ?? rpcData?.error,
-    );
 
     const fromDate = dateFromStr ? new Date(`${dateFromStr}T00:00:00.000Z`) : null;
     const toDate = dateToStr ? new Date(`${dateToStr}T23:59:59.999Z`) : null;
@@ -1491,41 +1399,62 @@ async function fetchLocationInventoryMoves(
   location: string,
   registry: LocationRegistry,
   dateFrom?: string | null,
-  dateTo?: string | null,
+  dateTo?: string | null
 ): Promise<InventoryMoveRow[]> {
-  const pageSize = 1000;
-  const allRows: InventoryMoveRow[] = [];
-  let lastId: string | null = null;
-  const SELECT = 'ID,DATE,REFERENCE,"LOCATION FROM","LOCATION TO","PRODUCT ID",QTY';
   const scopedLocationId = resolveLocationId(location, registry) ?? location.trim();
-  const locationFilter = `"LOCATION FROM".eq."${escapePostgrestValue(scopedLocationId)}","LOCATION TO".eq."${escapePostgrestValue(scopedLocationId)}"`;
 
-  while (true) {
-    let query = bhs_supabase
-      .from('web_INVENTORY_MOVES')
-      .select(SELECT)
-      .or(locationFilter)
-      .order('ID', { ascending: true })
-      .limit(pageSize);
-
-    if (dateFrom) query = query.gte('DATE', dateFrom);
-    if (dateTo) query = query.lte('DATE', dateTo);
-
-    if (lastId !== null) {
-      query = query.gt('ID', lastId);
-    }
-
-    const { data, error } = await query;
-    if (error) throw error;
-    if (!data || data.length === 0) break;
-
-    allRows.push(...(data as InventoryMoveRow[]));
-    lastId = String((data[data.length - 1] as any).ID ?? '');
-    if (data.length < pageSize) break;
+  // Cache-first: filter locally from IndexedDB
+  if (_cacheMode) {
+    let allRows = (await iaDb.moves.toArray()) as InventoryMoveRow[];
+    return allRows.filter(row => {
+      const from = row['LOCATION FROM']?.toString() || '';
+      const to = row['LOCATION TO']?.toString() || '';
+      if (from !== scopedLocationId && to !== scopedLocationId) return false;
+      if (dateFrom && row.DATE && row.DATE < dateFrom) return false;
+      if (dateTo && row.DATE && row.DATE > dateTo) return false;
+      return true;
+    });
   }
 
-  return allRows;
+  // Supabase: run two queries (IN and OUT) and merge for efficiency
+  const SELECT = 'ID,DATE,REFERENCE,"LOCATION FROM","LOCATION TO","PRODUCT ID",QTY';
+  const allRowsMap = new Map<string, InventoryMoveRow>();
+
+  const fetchSide = async (col: 'LOCATION FROM' | 'LOCATION TO') => {
+    let lastId: string | null = null;
+    while (true) {
+      let query = bhs_supabase
+        .from('web_INVENTORY_MOVES')
+        .select(SELECT)
+        .eq(col, scopedLocationId)
+        .order('ID', { ascending: true })
+        .limit(1000);
+
+      if (dateFrom) query = query.gte('DATE', dateFrom);
+      if (dateTo) query = query.lte('DATE', dateTo);
+      if (lastId !== null) query = query.gt('ID', lastId);
+
+      const { data, error } = await query;
+      if (error) throw error;
+      if (!data || data.length === 0) break;
+
+      for (const row of data as InventoryMoveRow[]) {
+        const id = String((row as any).ID ?? '');
+        if (!allRowsMap.has(id)) allRowsMap.set(id, row);
+      }
+      lastId = String(data[data.length - 1].ID ?? '');
+      if (data.length < 1000) break;
+    }
+  };
+
+  await Promise.all([fetchSide('LOCATION FROM'), fetchSide('LOCATION TO')]);
+
+  return Array.from(allRowsMap.values()).sort((a, b) =>
+    (String((a as any).ID ?? '')).localeCompare(String((b as any).ID ?? ''))
+  );
 }
+
+
 
 export async function getLocationPeriodMovements(filters: {
   location: string;
@@ -1613,10 +1542,7 @@ export async function getLiveAvailableQuantitiesFromMoves(): Promise<Map<string,
   const stockMap = new Map<string, number>();
   const registry = await loadLocationRegistry();
 
-  const moves = await fetchAllInventoryRows<InventoryMoveRow>(
-    'web_INVENTORY_MOVES',
-    'ID,DATE,REFERENCE,"LOCATION FROM","LOCATION TO","PRODUCT ID",QTY'
-  );
+  const moves = await fetchAllInventoryMovesStable();
 
   for (const move of moves) {
     const productId = (move['PRODUCT ID'] || '').trim();
@@ -1657,4 +1583,44 @@ export async function getInternalWarehouseLocationOptions() {
     console.error('Service Error getInternalWarehouseLocationOptions:', error);
     return { success: false as const, error: message, data: [...INTERNAL_WAREHOUSES_SORTED] };
   }
+}
+export async function fetchInventoryMovesDelta(lastCreatedAt: string | null) {
+  const pageSize = 5000;
+  const allRows: any[] = [];
+  let lastId: string | null = null;
+  const SELECT = 'ID,DATE,REFERENCE,"LOCATION FROM","LOCATION TO","PRODUCT ID",QTY,CREATED_AT';
+
+  while (true) {
+    let query = bhs_supabase
+      .from('web_INVENTORY_MOVES')
+      .select(SELECT)
+      .order('CREATED_AT', { ascending: true })
+      .order('ID', { ascending: true })
+      .limit(pageSize);
+
+    if (lastCreatedAt) {
+      query = query.gte('CREATED_AT', lastCreatedAt);
+    }
+
+    if (lastId !== null && lastCreatedAt) {
+      // In case of same CREATED_AT, paginate by ID
+      query = query.or(`CREATED_AT.gt.${lastCreatedAt},and(CREATED_AT.eq.${lastCreatedAt},ID.gt.${lastId})`);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+
+    allRows.push(...data);
+    lastId = String(data[data.length - 1].ID ?? '');
+    lastCreatedAt = String(data[data.length - 1].CREATED_AT ?? lastCreatedAt);
+    
+    if (data.length < pageSize) break;
+  }
+
+  return allRows;
+}
+
+export async function fetchRawInventoryProducts() {
+  return fetchAllInventoryRows('bhs_PRODUCTS', '*');
 }

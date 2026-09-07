@@ -1,53 +1,62 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import TabLoader from '@/app/Components/Loading/TabLoader';
-import { clearIAPrefetch, prefetchIABootstrap } from './IAPrefetchCache';
+import React, { useEffect } from 'react';
+import { iaDb } from '../Cache/InventoryAnalysisIndexedDB';
+import { syncInventoryAnalysisData } from '../Cache/InventoryAnalysisSyncService';
+import { enableCacheMode, disableCacheMode } from '../Service/inventory_service';
 
 type IADataBootstrapProps = {
   children: React.ReactNode;
 };
 
-/** Loads Products Balance + locations, then reveals tabs; other tabs warm in background. */
 export default function IADataBootstrap({ children }: IADataBootstrapProps) {
-  const [ready, setReady] = useState(false);
-  const [fadeOut, setFadeOut] = useState(false);
-
   useEffect(() => {
     let cancelled = false;
-    let fadeTimer: ReturnType<typeof setTimeout> | null = null;
+    let syncTimer: ReturnType<typeof setInterval> | null = null;
 
-    setReady(false);
-    setFadeOut(false);
-    clearIAPrefetch();
-
-    (async () => {
+    const initialize = async () => {
       try {
-        await prefetchIABootstrap();
-      } catch (e) {
-        console.error('Inventory Analysis bootstrap failed', e);
+        // 1. Check if we have a complete cache
+        const meta = await iaDb.sync_metadata.get('main');
+        const cacheComplete = meta?.fullSyncComplete === true;
+
+        if (cacheComplete) {
+          // Cache is ready → tell the service to read from IndexedDB
+          enableCacheMode();
+          console.log('[IA Cache] Cache-first mode ON — loading from local DB');
+
+          // Delta sync silently in the background (no blocking)
+          syncInventoryAnalysisData().catch(console.error);
+        } else {
+          // Cache not ready yet → service reads from Supabase (normal)
+          disableCacheMode();
+          console.log('[IA Cache] No complete cache — filling in background');
+
+          // Fill cache in background without blocking the UI
+          syncInventoryAnalysisData().catch(console.error);
+        }
+
+        // Periodic background sync every 2 minutes
+        syncTimer = setInterval(() => {
+          syncInventoryAnalysisData().catch(console.error);
+        }, 120_000);
+
+      } catch (err) {
+        console.error('[IA Cache] Init error:', err);
+        disableCacheMode(); // Fallback to Supabase
       }
-      if (cancelled) return;
-      setFadeOut(true);
-      fadeTimer = setTimeout(() => {
-        if (cancelled) return;
-        setReady(true);
-      }, 350);
-    })();
+    };
+
+    initialize();
 
     return () => {
       cancelled = true;
-      if (fadeTimer) clearTimeout(fadeTimer);
+      if (syncTimer) clearInterval(syncTimer);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  if (!ready) {
-    return (
-      <div className={`w-full transition-opacity duration-300 ${fadeOut ? 'opacity-0' : 'opacity-100'}`}>
-        <TabLoader />
-      </div>
-    );
-  }
-
+  // Always show content immediately — no loading screen
   return <>{children}</>;
 }
+
