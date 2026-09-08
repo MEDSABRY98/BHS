@@ -233,19 +233,19 @@ export default function InventoryProductOrdersTab({ orderItems, setOrderItems }:
             {categoryStats.length === 0 ? (
                 <NoData title="No Categories" />
             ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                 {categoryStats.map((cat) => (
                     <div
                         key={cat.tag}
                         onClick={() => setSelectedCategory(cat.tag)}
-                        className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm hover:shadow-lg hover:border-[#D4AF37]/40 transition-all cursor-pointer group flex flex-col h-full text-left relative overflow-hidden"
+                        className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm hover:shadow-lg hover:border-[#D4AF37]/40 transition-all cursor-pointer group flex flex-col h-full text-left relative overflow-hidden"
                     >
                         {/* Status Stripe */}
                         <div className={`absolute top-0 left-0 right-0 h-1.5 ${cat.outOfStockCount > 0 ? 'bg-red-500' : 'bg-emerald-500'}`} />
 
-                        <div className="flex justify-between items-start mb-5 mt-1">
-                            <div className="bg-[#D4AF37]/10 p-3 rounded-2xl group-hover:bg-[#D4AF37]/20 transition-colors">
-                                <Package className="w-7 h-7 text-[#D4AF37]" />
+                        <div className="flex justify-between items-start mb-4 mt-1">
+                            <div className="bg-[#D4AF37]/10 p-2.5 rounded-2xl group-hover:bg-[#D4AF37]/20 transition-colors">
+                                <Package className="w-6 h-6 text-[#D4AF37]" />
                             </div>
                             <div className="flex items-center gap-2">
                                 {cat.outOfStockCount > 0 && (
@@ -259,13 +259,13 @@ export default function InventoryProductOrdersTab({ orderItems, setOrderItems }:
                                 </span>
                             </div>
                         </div>
-                        <h3 className="text-xl font-bold text-gray-800 mb-1 group-hover:text-[#D4AF37] transition-colors leading-snug">
+                        <h3 className="text-lg font-bold text-gray-800 mb-1 group-hover:text-[#D4AF37] transition-colors leading-snug">
                             {cat.tag}
                         </h3>
 
-                        <div className="mt-auto pt-6 flex items-center justify-between text-sm font-bold text-gray-900 group-hover:text-[#D4AF37] transition-colors">
+                        <div className="mt-auto pt-4 flex items-center justify-between text-sm font-bold text-gray-900 group-hover:text-[#D4AF37] transition-colors">
                             View Details
-                            <ChevronRight className="w-5 h-5 transform group-hover:translate-x-1 transition-transform" />
+                            <ChevronRight className="w-4 h-4 transform group-hover:translate-x-1 transition-transform" />
                         </div>
                     </div>
                 ))}

@@ -165,7 +165,7 @@ export default function InventoryPage() {
           <span className="ml-3 font-bold text-slate-800">Inventory Analysis</span>
         </div>
 
-        <div className="max-w-[95%] 2xl:max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-12 flex-1 w-full">
+        <div className="max-w-[90%] 2xl:max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-12 flex-1 w-full">
           {renderTabContent()}
         </div>
       </div>
