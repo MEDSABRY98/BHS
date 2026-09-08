@@ -6,11 +6,7 @@ import { TrackModuleSubTab } from '@/app/Audit/Utils/ActivityQueue';
 import type { InventoryTabId } from '@/app/InventoryAnalysis/Utils/Sidebar';
 
 const INVENTORY_TAB_LABELS: Record<InventoryTabId, string> = {
-  products_balance: 'Products Balance',
-  location_movements: 'Location Movements In/Out',
-  category_balance: 'Categories Balance',
   categories: 'Categories Analysis',
-  reports: 'Reports',
 };
 
 export const INVENTORY_WAREHOUSE_TAB_LABELS: Record<string, string> = {

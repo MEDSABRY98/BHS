@@ -163,12 +163,12 @@ export default function InventorySidebar({
             handleTriggerRefresh();
             onCloseMobile?.();
           }}
-          disabled={isCurrentTabRefreshing || activeTab === 'reports'}
+          disabled={isCurrentTabRefreshing}
           className={`relative flex items-center justify-center w-12 h-12 rounded-2xl transition-all duration-200 ${isCurrentTabRefreshing
               ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-950/40'
               : 'bg-white/5 text-slate-300 hover:text-white hover:bg-white/10 border border-white/10'
-            } disabled:opacity-50 cursor-pointer ${activeTab === 'reports' ? 'opacity-30 cursor-not-allowed' : ''}`}
-          title={activeTab === 'reports' ? 'Refresh not supported for Reports' : 'Refresh Data'}
+            } disabled:opacity-50 cursor-pointer`}
+          title={'Refresh Data'}
         >
           <RefreshCw className={`w-5 h-5 ${isCurrentTabRefreshing ? 'animate-spin' : ''}`} />
         </button>
