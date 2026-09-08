@@ -1158,3 +1158,60 @@ export async function getProductsBalanceReportData(filters?: { dateFrom?: string
 export async function fetchRawInventoryProducts() {
   return fetchAllInventoryRows('bhs_PRODUCTS', '*');
 }
+
+export async function getProductNamesByIds(productIds: string[]) {
+  try {
+    const uniqueIds = [...new Set(productIds.map((id) => id.trim()).filter(Boolean))];
+    if (uniqueIds.length === 0) {
+      return { success: true as const, data: {} as Record<string, string> };
+    }
+
+    const nameMap: Record<string, string> = {};
+    const chunkSize = 200;
+
+    for (let i = 0; i < uniqueIds.length; i += chunkSize) {
+      const chunk = uniqueIds.slice(i, i + chunkSize);
+      const { data, error } = await bhs_supabase
+        .from('bhs_PRODUCTS')
+        .select('"PRODUCT ID","PRODUCT NAME"')
+        .in('PRODUCT ID', chunk);
+
+      if (error) throw error;
+
+      (data || []).forEach((row: { 'PRODUCT ID'?: string | null; 'PRODUCT NAME'?: string | null }) => {
+        const productId = row['PRODUCT ID']?.toString().trim();
+        if (!productId) return;
+        nameMap[productId] = row['PRODUCT NAME']?.toString().trim() || '';
+      });
+    }
+
+    return { success: true as const, data: nameMap };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Failed to fetch product names';
+    console.error('Service Error getProductNamesByIds:', error);
+    return { success: false as const, error: message };
+  }
+}
+
+export async function getLiveAvailableQuantitiesFromMoves(): Promise<Map<string, number>> {
+  const stockMap = new Map<string, number>();
+  const registry = await loadLocationRegistry();
+
+  const moves = await fetchAllInventoryMovesStable();
+
+  for (const move of moves) {
+    const productId = (move['PRODUCT ID'] || '').trim();
+    if (!productId) continue;
+
+    const qty = move.QTY || 0;
+    const fromLoc = resolveMoveFrom(move, registry);
+    const toLoc = resolveMoveTo(move, registry);
+
+    const effect = getNetQtyEffect(fromLoc, toLoc, qty);
+    if (effect !== 0) {
+      stockMap.set(productId, (stockMap.get(productId) || 0) + effect);
+    }
+  }
+
+  return stockMap;
+}
