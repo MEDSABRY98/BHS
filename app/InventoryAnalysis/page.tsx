@@ -3,14 +3,9 @@
 import { useState, useEffect, type ReactNode } from 'react';
 import { Menu } from 'lucide-react';
 
-import InventoryProductsBalanceTab from './ProductsBalance/InventoryProductsBalanceTab';
-import InventoryLocationMovementsTab from './LocationMovements/InventoryLocationMovementsTab';
-import InventoryCategoryBalanceTab from './CategoryBalance/InventoryCategoryBalanceTab';
 import InventoryProductOrdersTab from './CategoriesAnalysis/InventoryCategoriesTab';
-import ReportsTab from './Reports/ReportsTab';
 import InventorySidebar, { INVENTORY_ANALYSIS_TAB_IDS, type InventoryTabId } from './Utils/Sidebar';
 import { getAllowedModuleTabIds } from '@/app/AdminControl/AdminControlTab';
-import IADataBootstrap from './Utils/IADataBootstrap';
 import { useInventoryTabAudit } from '@/app/Audit/Model/InventoryTabAudit';
 import Login from '@/app/Components/Auth/Login';
 import Loading from '@/app/Components/Loading';
@@ -31,9 +26,9 @@ function TabPanel({
 }
 
 export default function InventoryPage() {
-  const [activeTab, setActiveTab] = useState<InventoryTabId>('products_balance');
+  const [activeTab, setActiveTab] = useState<InventoryTabId>('categories');
   const [mountedTabs, setMountedTabs] = useState<Set<InventoryTabId>>(
-    () => new Set(['products_balance']),
+    () => new Set(['categories']),
   );
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
@@ -63,7 +58,7 @@ export default function InventoryPage() {
         setCurrentUser(user);
         setIsAuthenticated(true);
         const allowed = getAllowedModuleTabIds(user, 'inventory', INVENTORY_ANALYSIS_TAB_IDS);
-        if (allowed.length > 0 && !allowed.includes('products_balance')) {
+        if (allowed.length > 0 && !allowed.includes('categories')) {
           setActiveTab(allowed[0] as InventoryTabId);
           setMountedTabs(new Set([allowed[0] as InventoryTabId]));
         }
@@ -104,7 +99,7 @@ export default function InventoryPage() {
     setCurrentUser(user);
     localStorage.setItem('currentUser', JSON.stringify(user));
     const allowed = getAllowedModuleTabIds(user, 'inventory', INVENTORY_ANALYSIS_TAB_IDS);
-    if (allowed.length > 0 && !allowed.includes('products_balance')) {
+    if (allowed.length > 0 && !allowed.includes('categories')) {
       setActiveTab(allowed[0] as InventoryTabId);
       setMountedTabs(new Set([allowed[0] as InventoryTabId]));
     }
@@ -112,29 +107,9 @@ export default function InventoryPage() {
 
   const renderTabContent = () => (
     <>
-      {mountedTabs.has('products_balance') && (
-        <TabPanel active={activeTab === 'products_balance'}>
-          <InventoryProductsBalanceTab />
-        </TabPanel>
-      )}
-      {mountedTabs.has('location_movements') && (
-        <TabPanel active={activeTab === 'location_movements'}>
-          <InventoryLocationMovementsTab />
-        </TabPanel>
-      )}
-      {mountedTabs.has('category_balance') && (
-        <TabPanel active={activeTab === 'category_balance'}>
-          <InventoryCategoryBalanceTab />
-        </TabPanel>
-      )}
       {mountedTabs.has('categories') && (
         <TabPanel active={activeTab === 'categories'}>
           <InventoryProductOrdersTab orderItems={orderItems} setOrderItems={setOrderItems} />
-        </TabPanel>
-      )}
-      {mountedTabs.has('reports') && (
-        <TabPanel active={activeTab === 'reports'}>
-          <ReportsTab />
         </TabPanel>
       )}
     </>
@@ -191,9 +166,7 @@ export default function InventoryPage() {
         </div>
 
         <div className="max-w-[95%] 2xl:max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-12 flex-1 w-full">
-          <IADataBootstrap>
-            {renderTabContent()}
-          </IADataBootstrap>
+          {renderTabContent()}
         </div>
       </div>
     </div>

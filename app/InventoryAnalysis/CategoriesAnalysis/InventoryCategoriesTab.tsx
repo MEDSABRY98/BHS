@@ -12,7 +12,6 @@ import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import InventoryProductOrdersDetailsTab from './InventoryCategoriesDetailsTab';
 import { getProductOrdersData, getProductMovementsData } from '../Service/inventory_service';
 import { formatProductCategory } from '../Utils/locationTypes';
-import { peekIAPrefetch } from '../Utils/IAPrefetchCache';
 
 export interface BaseProductOrder {
     productId: string;
@@ -71,21 +70,6 @@ export default function InventoryProductOrdersTab({ orderItems, setOrderItems }:
     const fetchOrders = async (opts?: { skipCache?: boolean }) => {
         try {
             setLoading(true);
-
-            if (!opts?.skipCache) {
-                const prefetched = peekIAPrefetch();
-                if (prefetched?.productOrders) {
-                    const data = prefetched.productOrders.map((p) => ({
-                        ...p,
-                        formattedTag: formatProductCategory(p.tags),
-                        onHand: p.qty ?? 0,
-                    }));
-                    setProducts(data);
-                    setError(null);
-                    setLoading(false);
-                    return;
-                }
-            }
 
             const json = await getProductOrdersData();
 

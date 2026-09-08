@@ -232,11 +232,7 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
     ],
 
     'inventory': [
-        { id: 'products_balance', label: 'Products Balance' },
-        { id: 'location_movements', label: 'Location Movements In/Out' },
-        { id: 'category_balance', label: 'Categories Balance' },
         { id: 'categories', label: 'Categories Analysis' },
-        { id: 'reports', label: 'Reports' },
     ],
     'inventory-counting': [
         { id: 'total_count', label: 'Total Count' },
