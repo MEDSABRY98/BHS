@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Search, User, ChevronRight, FileSpreadsheet, Loader2, Mail, CheckCircle2, Archive, ChevronDown, Filter } from "lucide-react";
 import { exportCustomersExcel } from "./ExportExcel";
 import ExportExcelModal, { type ExportExcelOptions } from "./ExportExcelModal";
-import { hasCustomerEmail } from "@/lib/customerEmailLookup";
+import { hasCustomerEmail } from "@/lib/supabase";
 import type { CustomerView } from "../page";
 
 interface CustomersListProps {

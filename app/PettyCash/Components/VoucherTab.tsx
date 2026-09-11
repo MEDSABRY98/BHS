@@ -71,8 +71,22 @@ export default function VoucherTab({
 
   return (
     <div className="max-w-7xl mx-auto no-print">
+      <div className="flex justify-center gap-2 mb-6">
+        <button
+          onClick={() => setVoucherSubTab('add')}
+          className={`px-6 py-3 rounded-xl text-sm font-black transition-all ${voucherSubTab === 'add' ? 'bg-cyan-600 text-white shadow-md' : 'bg-white text-gray-500 hover:bg-gray-50'}`}
+        >
+          Add New Voucher
+        </button>
+        <button
+          onClick={() => setVoucherSubTab('reprint')}
+          className={`px-6 py-3 rounded-xl text-sm font-black transition-all ${voucherSubTab === 'reprint' ? 'bg-cyan-600 text-white shadow-md' : 'bg-white text-gray-500 hover:bg-gray-50'}`}
+        >
+          Reprint Voucher
+        </button>
+      </div>
       {voucherSubTab === 'add' ? (
-        <div className="max-w-4xl mx-auto">
+        <div className="w-full">
           <div className="bg-white rounded-2xl shadow-xl p-8 border-2 border-cyan-100">
             <div className="flex items-center gap-4 mb-8 border-b pb-6">
               <div className="bg-cyan-600 text-white p-3 rounded-xl">

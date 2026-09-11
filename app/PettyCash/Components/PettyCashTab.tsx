@@ -610,6 +610,15 @@ export default function PettyCashTab() {
   const pendingCount = filteredExpenses.filter(e => e.paid === 'No').length;
   const balance = receipts.reduce((sum, r) => sum + r.amount, 0) - expenses.filter(e => e.paid === 'Yes').reduce((sum, e) => sum + e.amount, 0);
 
+  const handleRefresh = () => {
+    fetchRecords();
+    fetchNextVoucherNumber();
+    fetchVoucherHistory();
+    if (activeTab === 'history') {
+      fetchHistoryRecords();
+    }
+  };
+
   return (
     <div className="flex min-h-screen w-full bg-[#F8F9FA] text-black">
       {/* Sidebar - Desktop */}
@@ -623,6 +632,8 @@ export default function PettyCashTab() {
           setShowBalance={setShowBalance}
           isCollapsed={isSidebarCollapsed}
           onToggleCollapse={toggleSidebar}
+          onRefresh={handleRefresh}
+          isRefreshing={loading}
         />
       </aside>
 
@@ -646,95 +657,22 @@ export default function PettyCashTab() {
           isCollapsed={false}
           onToggleCollapse={() => { }}
           onCloseMobile={() => setIsMobileSidebarOpen(false)}
+          onRefresh={handleRefresh}
+          isRefreshing={loading}
         />
       </aside>
 
       {/* Main Content Area */}
-      <div className={`flex-1 flex flex-col min-w-0 ${isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-72'} transition-all duration-300 min-h-screen`}>
-        {/* Top Bar */}
-        <header className="sticky top-0 z-30 bg-white/85 backdrop-blur-md border-b border-slate-200 shadow-sm transition-all duration-300 no-print">
-          <div className="max-w-[98%] mx-auto px-4 py-3 flex items-center justify-between gap-4 min-h-[5rem]">
-            {/* Left section: Hamburger for Mobile & Refresh */}
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => setIsMobileSidebarOpen(true)}
-                className="p-2.5 text-slate-600 hover:text-slate-900 lg:hidden rounded-xl hover:bg-slate-100 transition-all"
-                title="Open Navigation Menu"
-              >
-                <Menu className="w-6 h-6" />
-              </button>
-
-              <button
-                onClick={() => {
-                  fetchRecords();
-                  fetchNextVoucherNumber();
-                  fetchVoucherHistory();
-                  if (activeTab === 'history') {
-                    fetchHistoryRecords();
-                  }
-                }}
-                disabled={loading}
-                className={`p-2.5 rounded-xl border border-slate-200 text-slate-500 hover:text-cyan-600 hover:border-cyan-200 hover:bg-cyan-50 transition-all ${loading ? 'opacity-50' : 'hover:scale-105 active:scale-95'}`}
-                title="Refresh Data"
-              >
-                <RefreshCcw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
-              </button>
-            </div>
-
-            {/* Middle Section: Display Active Tab Label or Voucher Sub-tabs */}
-            <div className="flex items-center gap-2">
-              {activeTab === 'voucher' ? (
-                <div className="flex gap-1.5 bg-slate-100 p-1.5 rounded-2xl border border-slate-200 shadow-inner">
-                  <button
-                    onClick={() => setVoucherSubTab('add')}
-                    className={`px-5 py-2 rounded-xl text-xs font-black transition-all ${voucherSubTab === 'add' ? 'bg-white text-cyan-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-                  >
-                    Add New
-                  </button>
-                  <button
-                    onClick={() => {
-                      setVoucherSubTab('reprint');
-                      fetchVoucherHistory();
-                    }}
-                    className={`px-5 py-2 rounded-xl text-xs font-black transition-all ${voucherSubTab === 'reprint' ? 'bg-white text-cyan-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-                  >
-                    Reprint
-                  </button>
-                </div>
-              ) : (
-                <span className="hidden md:inline text-lg font-extrabold text-slate-800 tracking-tight">
-                  {tabs.find(t => t.id === activeTab)?.name || 'Petty Cash'}
-                </span>
-              )}
-            </div>
-
-            {/* Right Section: Export or Voucher actions */}
-            <div className="flex items-center gap-3">
-              {activeTab === 'stats' && (
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => {
-                      setSettleDate(new Date().toISOString().split('T')[0]);
-                      setIsSettleModalOpen(true);
-                    }}
-                    className="flex items-center justify-center h-10 w-10 bg-cyan-700 hover:bg-cyan-800 text-white rounded-xl shadow-md transition-all hover:scale-105 active:scale-95"
-                    title="Close current active period and archive records"
-                  >
-                    <Archive className="w-5 h-5" />
-                  </button>
-                  <button
-                    onClick={exportToExcel}
-                    className="flex items-center justify-center h-10 w-10 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-md transition-all hover:scale-105 active:scale-95"
-                    title="Export to Excel"
-                  >
-                    <FileSpreadsheet className="w-5 h-5" />
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        </header>
-
+      <div className={`flex-1 flex flex-col min-w-0 ${isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-72'} transition-all duration-300 min-h-screen pt-4`}>
+        {/* Mobile Hamburger Menu (Floating) */}
+        <div className="lg:hidden sticky top-4 z-30 px-6 mb-4">
+          <button
+            onClick={() => setIsMobileSidebarOpen(true)}
+            className="p-2.5 bg-white rounded-xl shadow-sm border border-slate-200 text-slate-600 hover:text-slate-900 transition-all"
+          >
+            <Menu className="w-6 h-6" />
+          </button>
+        </div>
         {/* Content Body */}
         <div className="p-6 max-w-[98%] mx-auto w-full flex-1">
           {activeTab === 'receipts' && (
@@ -771,6 +709,11 @@ export default function PettyCashTab() {
               setToDate={setToDate}
               uniqueRecipients={uniqueRecipients}
               onOpenEditModal={openEditModal}
+              onExportClick={exportToExcel}
+              onSettleClick={() => {
+                setSettleDate(new Date().toISOString().split('T')[0]);
+                setIsSettleModalOpen(true);
+              }}
             />
           )}
 

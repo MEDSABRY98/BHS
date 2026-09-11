@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, Calendar, TrendingUp, TrendingDown, Clock, BarChart3, Wallet, Eye, EyeOff } from 'lucide-react';
+import { Search, Calendar, TrendingUp, TrendingDown, Clock, BarChart3, Wallet, Eye, EyeOff, Archive, FileSpreadsheet } from 'lucide-react';
 
 interface Entry {
   id: string;
@@ -43,6 +43,8 @@ interface StatsTabProps {
   onOpenEditModal: (entry: Entry, type: 'receipt' | 'expense') => void;
   showBalance: boolean;
   setShowBalance: (show: boolean) => void;
+  onSettleClick: () => void;
+  onExportClick: () => void;
 }
 
 export default function StatsTab({
@@ -69,7 +71,9 @@ export default function StatsTab({
   uniqueRecipients,
   onOpenEditModal,
   showBalance,
-  setShowBalance
+  setShowBalance,
+  onSettleClick,
+  onExportClick
 }: StatsTabProps) {
   const [statsSubTab, setStatsSubTab] = useState<'receipts' | 'expenses' | 'pending'>('receipts');
 
@@ -149,6 +153,17 @@ export default function StatsTab({
 
       {/* Search and Date Filter */}
       <div className="bg-white rounded-xl shadow-lg p-4">
+        <div className="flex flex-col md:flex-row gap-4 mb-4 justify-between items-center">
+            <h2 className="text-lg font-bold text-gray-800">Statistics Filters</h2>
+            <div className="flex gap-2">
+                <button onClick={onSettleClick} className="flex items-center gap-2 px-4 py-2 bg-cyan-700 hover:bg-cyan-800 text-white rounded-lg transition-all text-sm font-bold shadow-md">
+                    <Archive className="w-4 h-4" /> Close Period
+                </button>
+                <button onClick={onExportClick} className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-all text-sm font-bold shadow-md">
+                    <FileSpreadsheet className="w-4 h-4" /> Export Excel
+                </button>
+            </div>
+        </div>
         <div className="flex flex-col md:flex-row gap-4">
           {/* Search Box */}
           <div className="flex-1">

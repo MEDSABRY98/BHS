@@ -13,7 +13,8 @@ import {
   ChevronLeft,
   ChevronRight,
   X,
-  ArrowLeft
+  ArrowLeft,
+  RefreshCcw
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -26,6 +27,8 @@ interface SidebarProps {
   isCollapsed: boolean;
   onToggleCollapse: () => void;
   onCloseMobile?: () => void;
+  onRefresh?: () => void;
+  isRefreshing?: boolean;
 }
 
 export const tabs = [
@@ -45,7 +48,9 @@ export default function Sidebar({
   setShowBalance,
   isCollapsed,
   onToggleCollapse,
-  onCloseMobile
+  onCloseMobile,
+  onRefresh,
+  isRefreshing
 }: SidebarProps) {
   const [hoveredTab, setHoveredTab] = useState<{ label: string; top: number } | null>(null);
 
@@ -172,8 +177,18 @@ export default function Sidebar({
         </div>
       )}
 
-      {/* Toggle Collapse Button */}
-      <div className="p-4 border-t border-white/5 shrink-0 flex justify-center">
+      {/* Footer Buttons */}
+      <div className={`p-4 border-t border-white/5 shrink-0 flex ${isCollapsed ? 'flex-col gap-2' : 'flex-row justify-center gap-4'} items-center`}>
+        {onRefresh && (
+          <button
+            onClick={onRefresh}
+            disabled={isRefreshing}
+            className={`flex items-center justify-center w-10 h-10 hover:bg-white/10 rounded-xl transition-all duration-200 text-cyan-400 ${isRefreshing ? 'opacity-50' : ''}`}
+            title="Refresh Data"
+          >
+            <RefreshCcw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
+          </button>
+        )}
         <button
           onClick={onToggleCollapse}
           className="flex items-center justify-center w-10 h-10 hover:bg-white/10 rounded-xl transition-all duration-200 text-cyan-400"

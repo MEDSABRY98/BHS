@@ -1,8 +1,7 @@
 "use client";
 import React, { useEffect, useState } from "react";
 import { CheckCircle } from "lucide-react";
-import { bhs_supabase, fetchAllData, getAllCustomerEmails, getLuluEmails } from "@/lib/supabase";
-import { buildCustomerEmailMap, getCustomerEmail } from "@/lib/customerEmailLookup";
+import { bhs_supabase, fetchAllData, getAllCustomerEmails, getLuluEmails, buildCustomerEmailMap, getCustomerEmail } from "@/lib/supabase";
 import Sidebar, { CUSTOMERS_DISCOUNTS_TAB_IDS } from "./Utils/Sidebar";
 import { getAllowedModuleTabIds, getCurrentUserFromStorage } from '@/app/AdminControl/AdminControlTab';
 import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
