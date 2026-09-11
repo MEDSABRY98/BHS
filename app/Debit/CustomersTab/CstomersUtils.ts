@@ -359,6 +359,7 @@ export function generateCustomerAnalysis(data: InvoiceRow[]): CustomerAnalysis[]
     matchingsMap: Map<string, number>;
     cities: Set<string>;
     customerTags: Set<string>;
+    customerClasses: Set<string>;
     invoiceNumbers: Set<string>;
     totalSalesDebit?: number;
     lastPaymentDate: Date | null;
@@ -398,6 +399,7 @@ export function generateCustomerAnalysis(data: InvoiceRow[]): CustomerAnalysis[]
         matchingsMap: new Map(),
         cities: new Set(),
         customerTags: new Set(),
+        customerClasses: new Set(),
         invoiceNumbers: new Set(),
         lastPaymentDate: null,
         lastPaymentMatching: null,
@@ -464,6 +466,7 @@ export function generateCustomerAnalysis(data: InvoiceRow[]): CustomerAnalysis[]
 
     if (row.city && row.city.trim()) existing.cities?.add(row.city.trim());
     if (row.customerTag && row.customerTag.trim()) existing.customerTags?.add(row.customerTag.trim());
+    if (row.customerClass && row.customerClass.trim()) existing.customerClasses?.add(row.customerClass.trim());
     if (row.number) existing.invoiceNumbers?.add(row.number.toString());
     if (row.matching) {
       const currentMatchTotal = existing.matchingsMap.get(row.matching) || 0;
@@ -615,7 +618,7 @@ export function generateCustomerAnalysis(data: InvoiceRow[]): CustomerAnalysis[]
     return {
       customerId: c.customerId, customerName: c.customerName, totalDebit: c.totalDebit, totalCredit: c.totalCredit, netDebt: c.netDebt,
       creditLimit: c.creditLimit, paymentTerm: c.paymentTerm, accountStatus: c.accountStatus,
-      netSales: c.netSales || 0, transactionCount: c.transactionCount, hasOpenMatchings: hasOpen, cities: c.cities, customerTags: c.customerTags, invoiceNumbers: c.invoiceNumbers,
+      netSales: c.netSales || 0, transactionCount: c.transactionCount, hasOpenMatchings: hasOpen, cities: c.cities, customerTags: c.customerTags, customerClasses: c.customerClasses, invoiceNumbers: c.invoiceNumbers,
       lastPaymentDate: c.lastPaymentDate, lastPaymentMatching: c.lastPaymentMatching, lastPaymentAmount: c.lastPaymentAmount,
       lastSalesDate: c.lastSalesDate, lastSalesAmount: c.lastSalesAmount, overdueAmount: totalOverdue, maxOverdueDays, hasOB: hasOBFlag, openOBAmount, agingBreakdown,
       payments3m: c.payments3m, paymentsCount3m: c.paymentsCount3m, sales3m: c.sales3m, salesCount3m: c.salesCount3m, lastTransactionDate: c.lastTransactionDate, creditPayments: c.creditPayments,

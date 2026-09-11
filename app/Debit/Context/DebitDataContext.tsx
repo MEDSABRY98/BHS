@@ -20,6 +20,7 @@ export interface GlobalDebitFilters {
   overdueMonth: string[];
   overdueYear: string[];
   selectedCustomerTags: string[];
+  selectedCustomerClasses: string[];
 }
 
 export interface DebitDataContextValue {
@@ -86,6 +87,7 @@ export function DebitDataProvider({
     overdueMonth: [],
     overdueYear: [],
     selectedCustomerTags: [],
+    selectedCustomerClasses: [],
   });
   const metaRequestId = useRef(0);
   const fullDataRequestId = useRef(0);

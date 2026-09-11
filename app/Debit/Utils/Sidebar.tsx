@@ -203,7 +203,7 @@ export default function DebitSidebar({
         >
           <Filter className="w-5 h-5 shrink-0 group-hover:scale-110 transition-transform" />
           {/* Active filter indicator */}
-          {(globalFilters.customerRating !== 'ALL' || globalFilters.selectedSalesRep !== 'ALL' || globalFilters.emailFilter !== 'ALL' || globalFilters.overdueMonth.length > 0 || globalFilters.overdueYear.length > 0 || globalFilters.selectedCustomerTags.length > 0) && (
+          {(globalFilters.customerRating !== 'ALL' || globalFilters.selectedSalesRep !== 'ALL' || globalFilters.emailFilter !== 'ALL' || globalFilters.overdueMonth.length > 0 || globalFilters.overdueYear.length > 0 || globalFilters.selectedCustomerTags.length > 0 || globalFilters.selectedCustomerClasses.length > 0) && (
             <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse border-2 border-[#0a0f1d]"></span>
           )}
         </button>

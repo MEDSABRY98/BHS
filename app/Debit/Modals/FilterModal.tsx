@@ -92,7 +92,7 @@ const FilterModal: React.FC<FilterModalProps> = ({
   filteredDataCount,
   data
 }) => {
-  const [activeTab, setActiveTab] = useState<'GENERAL' | 'CUSTOMER_TAGS' | 'OVERDUE_YEARS' | 'OVERDUE_MONTHS'>('GENERAL');
+  const [activeTab, setActiveTab] = useState<'GENERAL' | 'CUSTOMER_CLASSES' | 'CUSTOMER_TAGS' | 'OVERDUE_YEARS' | 'OVERDUE_MONTHS'>('GENERAL');
   const [isRatingOpen, setIsRatingOpen] = useState(false);
   const [isAreaOpen, setIsAreaOpen] = useState(false);
   const [isEmailOpen, setIsEmailOpen] = useState(false);
@@ -104,6 +104,7 @@ const FilterModal: React.FC<FilterModalProps> = ({
     overdueMonth: [] as string[],
     overdueYear: [] as string[],
     selectedCustomerTags: [] as string[],
+    selectedCustomerClasses: [] as string[],
   });
 
   // Sync draft filters with parent filters when modal opens
@@ -116,6 +117,7 @@ const FilterModal: React.FC<FilterModalProps> = ({
         overdueMonth: filters.overdueMonth || [],
         overdueYear: filters.overdueYear || [],
         selectedCustomerTags: filters.selectedCustomerTags || [],
+        selectedCustomerClasses: filters.selectedCustomerClasses || [],
       });
     }
   }, [isOpen, filters]);
@@ -220,6 +222,25 @@ const FilterModal: React.FC<FilterModalProps> = ({
     updateDraftFilter('overdueMonth', next);
   };
 
+  const uniqueCustomerClasses = useMemo(() => {
+    const classes = new Set<string>();
+    data.forEach((row) => {
+      const cls = row.customerClass?.trim();
+      if (cls) classes.add(cls);
+    });
+    return Array.from(classes).sort((a, b) => a.localeCompare(b));
+  }, [data]);
+
+  const toggleCustomerClass = (cls: string) => {
+    const current = Array.isArray(draftFilters.selectedCustomerClasses)
+      ? draftFilters.selectedCustomerClasses
+      : [];
+    const next = current.includes(cls)
+      ? current.filter((c: string) => c !== cls)
+      : [...current, cls];
+    updateDraftFilter('selectedCustomerClasses', next);
+  };
+
   const uniqueCustomerTags = useMemo(() => {
     const tags = new Set<string>();
     data.forEach((row) => {
@@ -254,7 +275,7 @@ const FilterModal: React.FC<FilterModalProps> = ({
 
   const areaOptions = useMemo(() => {
     return [
-      { value: 'ALL', label: 'All Regions' },
+      { value: 'ALL', label: 'All Areas' },
       ...allSalesReps.map(rep => ({ value: rep, label: rep }))
     ];
   }, [allSalesReps]);
@@ -279,6 +300,7 @@ const FilterModal: React.FC<FilterModalProps> = ({
       overdueMonth: [],
       overdueYear: [],
       selectedCustomerTags: [],
+      selectedCustomerClasses: [],
     });
   };
 
@@ -291,6 +313,7 @@ const FilterModal: React.FC<FilterModalProps> = ({
       overdueMonth: draftFilters.overdueMonth,
       overdueYear: draftFilters.overdueYear,
       selectedCustomerTags: draftFilters.selectedCustomerTags,
+      selectedCustomerClasses: draftFilters.selectedCustomerClasses,
     }));
     onClose();
   };
@@ -306,11 +329,32 @@ const FilterModal: React.FC<FilterModalProps> = ({
               <span className="font-medium text-blue-600">{filteredDataCount}</span> results found
             </p>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-gray-200 rounded-full transition-colors text-gray-500">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-            </svg>
-          </button>
+          <div className="flex items-center space-x-1">
+            <button
+              onClick={resetAllFilters}
+              title="Reset All Filters"
+              className="p-2 hover:bg-red-50 text-red-500 rounded-full transition-colors"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+            </button>
+            <button
+              onClick={handleApplyFilters}
+              title="Apply Filters"
+              className="p-2 hover:bg-blue-50 text-blue-600 rounded-full transition-colors"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+              </svg>
+            </button>
+            <div className="w-px h-5 bg-gray-200 mx-1"></div>
+            <button onClick={onClose} title="Close" className="p-2 hover:bg-gray-200 rounded-full transition-colors text-gray-500">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+            </button>
+          </div>
         </div>
 
         {/* Modal Body - Split Layout */}
@@ -319,6 +363,7 @@ const FilterModal: React.FC<FilterModalProps> = ({
           <div className="w-52 bg-gray-50 border-r border-gray-100 p-2 space-y-1 overflow-y-auto rounded-bl-2xl">
             {[
               { id: 'GENERAL', label: 'General Filters' },
+              { id: 'CUSTOMER_CLASSES', label: 'Customer Classes' },
               { id: 'CUSTOMER_TAGS', label: 'Customer Tags' },
               { id: 'OVERDUE_YEARS', label: 'Overdue Years' },
               { id: 'OVERDUE_MONTHS', label: 'Overdue Months' }
@@ -352,7 +397,7 @@ const FilterModal: React.FC<FilterModalProps> = ({
                   />
 
                   <CustomSelect
-                    label="Area / Region"
+                    label="Area"
                     value={draftFilters.selectedSalesRep || 'ALL'}
                     options={areaOptions}
                     onChange={(val) => updateDraftFilter('selectedSalesRep', val)}
@@ -378,29 +423,98 @@ const FilterModal: React.FC<FilterModalProps> = ({
               </div>
             )}
 
-            {activeTab === 'CUSTOMER_TAGS' && (
+            {activeTab === 'CUSTOMER_CLASSES' && (
               <div className="space-y-6">
-                <div>
-                  <h4 className="text-base font-semibold text-gray-800 border-b pb-2">Customer Tags</h4>
+                <div className="flex justify-between items-center border-b pb-2">
+                  <h4 className="text-base font-semibold text-gray-800">Customer Classes</h4>
+                  <div className="flex items-center space-x-1">
+                    <button
+                      type="button"
+                      onClick={() => updateDraftFilter('selectedCustomerClasses', [...uniqueCustomerClasses])}
+                      title="Select All"
+                      className="p-1.5 hover:bg-emerald-50 text-emerald-600 rounded-full transition-colors"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => updateDraftFilter('selectedCustomerClasses', [])}
+                      title="Clear All"
+                      className="p-1.5 hover:bg-red-50 text-red-500 rounded-full transition-colors"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      updateDraftFilter('selectedCustomerTags', [...uniqueCustomerTags])
-                    }
-                    className="w-full py-2.5 text-xs font-bold uppercase tracking-wide text-emerald-700 bg-transparent border-2 border-emerald-500 rounded-xl hover:bg-emerald-50 transition-all"
-                  >
-                    Select All
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => updateDraftFilter('selectedCustomerTags', [])}
-                    className="w-full py-2.5 text-xs font-bold uppercase tracking-wide text-red-600 bg-transparent border-2 border-red-500 rounded-xl hover:bg-red-50 transition-all"
-                  >
-                    Clear
-                  </button>
+                {uniqueCustomerClasses.length === 0 ? (
+                  <div className="text-center py-8 text-gray-400 text-sm font-medium">
+                    No customer classes found in the dataset.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => updateDraftFilter('selectedCustomerClasses', [])}
+                      className={`px-4 py-3.5 rounded-xl border text-sm font-semibold transition-all text-center flex items-center justify-center ${
+                        !draftFilters.selectedCustomerClasses ||
+                        draftFilters.selectedCustomerClasses.length === 0
+                          ? 'border-blue-600 bg-blue-50 text-blue-700 shadow-sm ring-1 ring-blue-100'
+                          : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      All Classes
+                    </button>
+                    {uniqueCustomerClasses.map((cls) => (
+                      <button
+                        key={cls}
+                        type="button"
+                        onClick={() => toggleCustomerClass(cls)}
+                        className={`px-4 py-3.5 rounded-xl border text-sm font-semibold transition-all text-center flex items-center justify-center ${
+                          draftFilters.selectedCustomerClasses &&
+                          draftFilters.selectedCustomerClasses.includes(cls)
+                            ? 'border-blue-600 bg-blue-50 text-blue-700 shadow-sm ring-1 ring-blue-100 font-bold'
+                            : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50'
+                        }`}
+                      >
+                        {cls}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeTab === 'CUSTOMER_TAGS' && (
+              <div className="space-y-6">
+                <div className="flex justify-between items-center border-b pb-2">
+                  <h4 className="text-base font-semibold text-gray-800">Customer Tags</h4>
+                  <div className="flex items-center space-x-1">
+                    <button
+                      type="button"
+                      onClick={() => updateDraftFilter('selectedCustomerTags', [...uniqueCustomerTags])}
+                      title="Select All"
+                      className="p-1.5 hover:bg-emerald-50 text-emerald-600 rounded-full transition-colors"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => updateDraftFilter('selectedCustomerTags', [])}
+                      title="Clear All"
+                      className="p-1.5 hover:bg-red-50 text-red-500 rounded-full transition-colors"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
 
                 {uniqueCustomerTags.length === 0 ? (
@@ -445,7 +559,6 @@ const FilterModal: React.FC<FilterModalProps> = ({
               <div className="space-y-6">
                 <div>
                   <h4 className="text-base font-semibold text-gray-800 border-b pb-2">Overdue Years</h4>
-                  <p className="text-sm text-gray-500 mt-2">Filter customers who have overdue balances in the selected year(s). Select multiple if needed.</p>
                 </div>
                 {uniqueYears.length === 0 ? (
                   <div className="text-center py-8 text-gray-400 text-sm font-medium">
@@ -485,7 +598,6 @@ const FilterModal: React.FC<FilterModalProps> = ({
               <div className="space-y-6">
                 <div>
                   <h4 className="text-base font-semibold text-gray-800 border-b pb-2">Overdue Months</h4>
-                  <p className="text-sm text-gray-500 mt-2">Filter and select specific month(s) to see customers with overdue balances. Select multiple if needed.</p>
                 </div>
 
                 {Array.isArray(draftFilters.overdueYear) && draftFilters.overdueYear.length > 0 && (
@@ -536,21 +648,7 @@ const FilterModal: React.FC<FilterModalProps> = ({
           </div>
         </div>
 
-        {/* Modal Footer */}
-        <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex justify-between items-center rounded-b-2xl">
-          <button
-            onClick={resetAllFilters}
-            className="text-red-600 hover:text-red-700 text-sm font-semibold px-4 py-2 hover:bg-red-50 rounded-lg transition-colors"
-          >
-            Reset All Filters
-          </button>
-          <button
-            onClick={handleApplyFilters}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg font-medium shadow-sm transition-all shadow-blue-200"
-          >
-            Apply Filters
-          </button>
-        </div>
+
       </div>
     </div>
   );

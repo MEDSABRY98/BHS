@@ -32,6 +32,7 @@ export interface CustomerAnalysis {
   hasOpenMatchings?: boolean;
   cities?: Set<string>;
   customerTags?: Set<string>;
+  customerClasses?: Set<string>;
   invoiceNumbers?: Set<string>;
   lastPaymentDate?: Date | null;
   lastPaymentMatching?: string | null; // Matching ID tied to last payment (if any)

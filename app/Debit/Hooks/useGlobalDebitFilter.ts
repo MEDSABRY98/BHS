@@ -29,7 +29,8 @@ export function useGlobalDebitFilter(
       emailFilter,
       overdueMonth,
       overdueYear,
-      selectedCustomerTags
+      selectedCustomerTags,
+      selectedCustomerClasses
     } = globalFilters;
 
     if (selectedSalesRep !== 'ALL') result = result.filter(c => c.cities && c.cities.has(selectedSalesRep));
@@ -38,6 +39,13 @@ export function useGlobalDebitFilter(
       const tagSet = new Set(selectedCustomerTags);
       result = result.filter(
         (c) => c.customerTags && Array.from(c.customerTags).some((tag) => tagSet.has(tag))
+      );
+    }
+
+    if (Array.isArray(selectedCustomerClasses) && selectedCustomerClasses.length > 0) {
+      const classSet = new Set(selectedCustomerClasses);
+      result = result.filter(
+        (c) => c.customerClasses && Array.from(c.customerClasses).some((cls) => classSet.has(cls))
       );
     }
 
@@ -174,7 +182,8 @@ export function useGlobalDebitFilter(
       globalFilters.emailFilter === 'ALL' &&
       globalFilters.overdueMonth.length === 0 &&
       globalFilters.overdueYear.length === 0 &&
-      globalFilters.selectedCustomerTags.length === 0
+      globalFilters.selectedCustomerTags.length === 0 &&
+      globalFilters.selectedCustomerClasses.length === 0
     ) {
       return data;
     }
