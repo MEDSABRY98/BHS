@@ -27,8 +27,7 @@ import Login from '@/app/Components/Auth/Login';
 import MainLoader from '@/app/Components/Loading/MainLoader';
 import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import { SalesInvoice, hasSalesDataAccess } from '@/lib/supabase';
-import { ArrowLeft, BarChart3, LogOut, User, FileUp, FileSpreadsheet, ChevronDown, AlertCircle, X, Users, Menu } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import { ArrowLeft, BarChart3, LogOut, User, FileSpreadsheet, AlertCircle, X, Users, Menu } from 'lucide-react';
 import { toast } from '@/app/Components/Notification';
 import { exportSalesExcelTable } from '@/app/Sales/Export/ExcelExport';
 import { getAllowedSalesTabIds, isSalesTabAllowed } from '@/app/Sales/Utils/salesTabPermissions';
@@ -36,16 +35,6 @@ import { getCustomersList, getMyCustomersData, batchSaveCustomerMapping } from '
 import { syncAndGetSalesData, getLocalSalesData } from '@/app/Sales/Cache/SalesSyncService';
 import { getSalesMetadata } from '@/app/Sales/Service/sales_core_service';
 import { trackSalesTab } from '@/app/Audit/Model/SalesTabAudit';
-
-const MAPPING_EXPORT_HEADERS = [
-  'CUSTOMER ID',
-  'CUSTOMER MAIN NAME',
-  'CUSTOMER SUB NAME',
-  'AREA',
-  'MARKETS',
-  'SALESREP',
-  'MERCHANDISER',
-] as const;
 
 export default function SalesPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -73,8 +62,6 @@ export default function SalesPage() {
   });
   const [customerMapping, setCustomerMapping] = useState<Record<string, any>>({});
   const mainContentRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   useSyncLiveUser(setCurrentUser);
@@ -231,138 +218,6 @@ export default function SalesPage() {
     }
   };
 
-  const handleUploadMapping = async (mapping: Record<string, any>) => {
-    if (!userHasSalesDataAccess) {
-      toast.error('Only users with sales data access can upload customer mappings.');
-      return;
-    }
-
-    // Save locally for immediate UI update
-    setCustomerMapping(mapping);
-    localStorage.setItem('salesCustomerMapping', JSON.stringify(mapping));
-
-    const userId = salesUserId;
-
-    if (!userId) {
-      toast.error('User ID is missing. Please log in again.');
-      return;
-    }
-
-    try {
-      await batchSaveCustomerMapping(userId, mapping);
-      console.log('Mapping synced successfully to DB');
-    } catch (error) {
-      console.error('Failed to sync mapping:', error);
-      toast.error('Local mapping saved, but failed to sync to database.');
-    }
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!userHasSalesDataAccess) return;
-
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      const bstr = event.target?.result;
-      const wb = XLSX.read(bstr, { type: 'binary' });
-      const wsname = wb.SheetNames[0];
-      const ws = wb.Sheets[wsname];
-      const dataRows = XLSX.utils.sheet_to_json(ws) as any[];
-
-      const mapping: Record<string, any> = {};
-      dataRows.forEach(rawRow => {
-        // Normalize keys to uppercase and trim spaces
-        const row: Record<string, any> = {};
-        Object.keys(rawRow).forEach(key => {
-          row[key.toString().trim().toUpperCase()] = rawRow[key];
-        });
-
-        const id = row['CUSTOMER ID']?.toString().trim();
-        if (id) {
-          mapping[id] = {
-            customerMainName: row['CUSTOMER MAIN NAME']?.toString().trim() || '',
-            customerName: row['CUSTOMER SUB NAME']?.toString().trim() || '',
-            area: row['AREA']?.toString().trim() || '',
-            market: row['MARKETS']?.toString().trim() || '',
-            merchandiser: row['MERCHANDISER']?.toString().trim() || '',
-            salesRep: row['SALESREP']?.toString().trim() || '',
-          };
-        }
-      });
-
-      toast.loading('Saving and syncing mapping to database...', { id: 'mapping_upload' });
-      await handleUploadMapping(mapping);
-      toast.dismiss('mapping_upload');
-      toast.success('Customer data uploaded and synced successfully!');
-
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    };
-    reader.readAsBinaryString(file);
-  };
-
-  const downloadTemplate = async () => {
-    const rows = [['12345', 'Main Company', 'Branch A', 'Cairo', 'Main Market', 'Jane Smith', 'John Doe']];
-    await exportSalesExcelTable(
-      [...MAPPING_EXPORT_HEADERS],
-      rows,
-      'Customer_Mapping_Template.xlsx',
-      { sheetName: 'Template' }
-    );
-  };
-
-  const downloadTemplateWithData = async () => {
-    toast.loading('Fetching customer data...', { id: 'fetching_customers' });
-    try {
-      const userId = salesUserId;
-      const [uniqueCustomers, myCustomersResult] = await Promise.all([
-        getCustomersList(),
-        userId
-          ? getMyCustomersData(userId)
-          : Promise.resolve(null),
-      ]);
-
-      if (!uniqueCustomers || uniqueCustomers.length === 0) {
-        toast.warning('No current customer data found to extract.');
-        toast.dismiss('fetching_customers');
-        return;
-      }
-
-      const mappingByCustomerId = new Map<string, Record<string, string>>();
-      if (myCustomersResult) {
-        (myCustomersResult || []).forEach((m: Record<string, string>) => {
-          const id = String(m['CUSTOMER ID'] || '').trim();
-          if (id) mappingByCustomerId.set(id, m);
-        });
-      }
-
-      const rows = uniqueCustomers.map((c: { id: string; mainName: string; subName: string }) => {
-        const mapping = mappingByCustomerId.get(String(c.id).trim());
-        return [
-          c.id,
-          c.mainName,
-          c.subName,
-          mapping?.['AREA'] || '',
-          mapping?.['MARKET'] || '',
-          mapping?.['SALES_REP'] || '',
-          mapping?.['MERCHANDISER'] || '',
-        ];
-      });
-
-      const fileName = `Customer_Mapping_With_Data_${new Date().toLocaleDateString('en-GB').replace(/\//g, '-')}.xlsx`;
-      await exportSalesExcelTable([...MAPPING_EXPORT_HEADERS], rows, fileName, {
-        sheetName: 'Data Template',
-      });
-      toast.success('Template downloaded successfully!');
-    } catch (error) {
-      console.error('Error fetching customers:', error);
-      toast.error('Failed to download template with data.');
-    } finally {
-      toast.dismiss('fetching_customers');
-    }
-  };
-
   const renderTabContent = () => {
     if (!salesUserId) {
       return <SalesTabLoader />;
@@ -399,7 +254,7 @@ export default function SalesPage() {
           <SalesTop10Tab userId={salesUserId} />
         </SalesTabPanel>
         <SalesTabPanel tabId="sales-customers" activeTab={activeTab} isVisited={visitedTabs.has('sales-customers')}>
-          <SalesCustomersTab userId={salesUserId} onUploadMapping={handleUploadMapping} showCosts={showCosts} />
+          <SalesCustomersTab userId={salesUserId} showCosts={showCosts} />
         </SalesTabPanel>
         <SalesTabPanel tabId="sales-customers-comparison" activeTab={activeTab} isVisited={visitedTabs.has('sales-customers-comparison')}>
           <SalesCustomersComparisonTab userId={salesUserId} />
@@ -453,7 +308,6 @@ export default function SalesPage() {
             lastUpdated={lastUpdated}
             isCollapsed={isSidebarCollapsed}
             onToggleCollapse={toggleSidebar}
-            onUploadClick={() => setIsUploadModalOpen(true)}
             onRefresh={handleRefresh}
             hasSalesDataAccess={userHasSalesDataAccess}
             FilterNode={<SalesFilterButton inSidebar={true} isCollapsed={isSidebarCollapsed} />}
@@ -488,7 +342,6 @@ export default function SalesPage() {
             isCollapsed={false}
             onToggleCollapse={() => { }}
             onCloseMobile={() => setIsMobileSidebarOpen(false)}
-            onUploadClick={() => setIsUploadModalOpen(true)}
             onRefresh={handleRefresh}
             hasSalesDataAccess={userHasSalesDataAccess}
             FilterNode={<SalesFilterButton inSidebar={true} isCollapsed={false} />}
@@ -502,89 +355,6 @@ export default function SalesPage() {
             {renderTabContent()}
           </main>
         </div>
-
-      {/* UPLOAD/DOWNLOAD MODAL — sales managers only */}
-      {userHasSalesDataAccess && isUploadModalOpen && (
-        <div className="fixed inset-0 z-[10001] flex items-center justify-center p-4">
-          <div
-            className="absolute inset-0 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300"
-            onClick={() => setIsUploadModalOpen(false)}
-          />
-          <div className="relative w-full max-w-xl bg-white rounded-[32px] shadow-2xl border border-white/20 animate-in zoom-in-95 slide-in-from-bottom-8 duration-500 overflow-hidden">
-            <div className="bg-slate-50/80 backdrop-blur-sm px-8 py-6 border-b border-slate-100 flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="w-10 h-10 bg-green-600 rounded-xl flex items-center justify-center shadow-lg shadow-green-100">
-                  <FileSpreadsheet className="w-5 h-5 text-white" />
-                </div>
-                <h3 className="text-xl font-black text-slate-900 tracking-tight">Customer Data Management</h3>
-              </div>
-              <button
-                onClick={() => setIsUploadModalOpen(false)}
-                className="p-2 hover:bg-slate-100 rounded-lg transition-colors group"
-              >
-                <X className="w-5 h-5 text-slate-300 group-hover:text-slate-600 transition-colors" />
-              </button>
-            </div>
-
-            <div className="p-8 space-y-4">
-              <button
-                onClick={() => {
-                  setIsUploadModalOpen(false);
-                  fileInputRef.current?.click();
-                }}
-                className="w-full flex items-center justify-between p-5 bg-green-50/50 hover:bg-green-50 border border-green-100 hover:border-green-200 rounded-2xl transition-all group"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-sm text-green-600 group-hover:scale-110 transition-transform">
-                    <FileUp className="w-6 h-6" />
-                  </div>
-                  <div className="text-left">
-                    <p className="font-bold text-slate-900">Upload Excel File</p>
-                  </div>
-                </div>
-                <ChevronDown className="w-5 h-5 text-slate-400 -rotate-90" />
-              </button>
-
-              <button
-                onClick={() => {
-                  downloadTemplate();
-                  setIsUploadModalOpen(false);
-                }}
-                className="w-full flex items-center justify-between p-5 bg-blue-50/50 hover:bg-blue-50 border border-blue-100 hover:border-blue-200 rounded-2xl transition-all group"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-sm text-blue-600 group-hover:scale-110 transition-transform">
-                    <FileSpreadsheet className="w-6 h-6" />
-                  </div>
-                  <div className="text-left">
-                    <p className="font-bold text-slate-900">Download Blank Template</p>
-                  </div>
-                </div>
-                <ChevronDown className="w-5 h-5 text-slate-400 -rotate-90" />
-              </button>
-
-              <button
-                onClick={() => {
-                  downloadTemplateWithData();
-                  setIsUploadModalOpen(false);
-                }}
-                className="w-full flex items-center justify-between p-5 bg-orange-50/50 hover:bg-orange-50 border border-orange-100 hover:border-orange-200 rounded-2xl transition-all group"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-sm text-orange-600 group-hover:scale-110 transition-transform">
-                    <Users className="w-6 h-6" />
-                  </div>
-                  <div className="text-left">
-                    <p className="font-bold text-slate-900">Download Template with Data</p>
-                  </div>
-                </div>
-                <ChevronDown className="w-5 h-5 text-slate-400 -rotate-90" />
-              </button>
-            </div>
-
-          </div>
-        </div>
-      )}
 
     </div>
           </SalesRawDataBridge>

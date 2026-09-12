@@ -20,7 +20,6 @@ import {
   User,
   X,
   Sparkles,
-  FileSpreadsheet,
   RefreshCw,
 } from 'lucide-react';
 import { getAllowedSalesTabIds, type SalesTabId } from './salesTabPermissions';
@@ -34,7 +33,6 @@ interface SalesSidebarProps {
   isCollapsed: boolean;
   onToggleCollapse: () => void;
   onCloseMobile?: () => void;
-  onUploadClick?: () => void;
   onRefresh?: () => void;
   hasSalesDataAccess?: boolean;
   FilterNode?: React.ReactNode;
@@ -48,7 +46,6 @@ export default function SalesSidebar({
   isCollapsed,
   onToggleCollapse,
   onCloseMobile,
-  onUploadClick,
   onRefresh,
   hasSalesDataAccess: hasSalesDataAccessProp,
   FilterNode
@@ -169,16 +166,6 @@ export default function SalesSidebar({
         <div className={`flex gap-2 ${isCollapsed ? 'flex-col' : 'flex-row items-center'}`}>
           {FilterNode}
           
-          {hasSalesDataAccessProp && onUploadClick && (
-            <button
-              onClick={onUploadClick}
-              className="flex items-center justify-center w-10 h-10 hover:bg-white/10 rounded-xl transition-all duration-200 text-emerald-400 group relative"
-              title="Upload Data"
-            >
-              <FileSpreadsheet className="w-5 h-5 group-hover:scale-110 transition-transform" />
-              {isCollapsed && <span className="absolute left-14 opacity-0 group-hover:opacity-100 whitespace-nowrap bg-black/80 px-2 py-1 rounded text-xs pointer-events-none transition-opacity z-50">Upload Data</span>}
-            </button>
-          )}
 
           {onRefresh && (
             <button

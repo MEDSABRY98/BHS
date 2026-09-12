@@ -29,6 +29,7 @@ export default function CustomerTermsTab({ data }: CustomerTermsTabProps) {
   const { refresh } = useDebitData();
   const [searchTerm, setSearchTerm] = useState('');
   const debouncedSearchTerm = useDebouncedValue(searchTerm);
+  const [customOverdueDays, setCustomOverdueDays] = useState<number>(90);
 
   // Edit Modal State
   const [selectedCustomer, setSelectedCustomer] = useState<any | null>(null);
@@ -123,7 +124,9 @@ export default function CustomerTermsTab({ data }: CustomerTermsTabProps) {
           ? Array.from(c.cities).join(', ') 
           : (Array.isArray(c.cities) ? (c.cities as string[]).join(', ') : '-');
 
-        const severeDebt = (c.agingBreakdown?.ninetyOneToOneTwenty || 0) + (c.agingBreakdown?.older || 0);
+        const severeDebt = c.openInvoicesAging
+          ? c.openInvoicesAging.filter(inv => inv.daysOverdue > customOverdueDays).reduce((sum, inv) => sum + inv.amount, 0)
+          : ((c.agingBreakdown?.ninetyOneToOneTwenty || 0) + (c.agingBreakdown?.older || 0));
 
         return {
           customerId: c.customerId || '',
@@ -142,7 +145,7 @@ export default function CustomerTermsTab({ data }: CustomerTermsTabProps) {
       })
       .filter(c => Math.abs(c.netDebt) > 0.01)
       .sort((a, b) => b.netDebt - a.netDebt);
-  }, [customerAnalysis]);
+  }, [customerAnalysis, customOverdueDays]);
 
   const filteredCustomers = useMemo(() => {
     let result = customerTerms;
@@ -334,7 +337,9 @@ export default function CustomerTermsTab({ data }: CustomerTermsTabProps) {
                 <th className="py-4.5 px-4 text-xs font-black uppercase tracking-wider">Payment Term</th>
                 <th className="py-4.5 px-4 text-xs font-black uppercase tracking-wider">Exc Days</th>
                 <th className="py-4.5 px-4 text-xs font-black uppercase tracking-wider">Net Debt</th>
-                <th className="py-4.5 px-4 text-xs font-black uppercase tracking-wider">&gt;90 Days Debt</th>
+                <th className="py-4.5 px-4 text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1">
+                  &gt; <input type="number" className="w-14 text-center bg-slate-800 text-white rounded border border-slate-700 px-1 py-0.5 text-sm focus:outline-none focus:border-blue-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" value={customOverdueDays} onChange={(e) => setCustomOverdueDays(Number(e.target.value) || 0)} />
+                </th>
                 <th className="py-4.5 px-4 text-xs font-black uppercase tracking-wider">Credit Limit</th>
                 <th className="py-4.5 px-4 text-xs font-black uppercase tracking-wider">Exceeded Amt</th>
                 <th className="py-4.5 px-4 text-xs font-black uppercase tracking-wider">% Exc</th>

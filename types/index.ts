@@ -53,6 +53,7 @@ export interface CustomerAnalysis {
     ninetyOneToOneTwenty: number; // 91-120 days
     older: number; // > 120 days
   };
+  openInvoicesAging?: { amount: number; daysOverdue: number }[];
   creditPayments?: number;
   creditReturns?: number;
   creditDiscounts?: number;
