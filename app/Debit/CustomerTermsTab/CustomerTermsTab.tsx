@@ -20,6 +20,9 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { bhs_supabase } from '@/lib/supabase';
 import { toast } from '@/app/Components/Notification';
 import { useDebitData } from '../Context/DebitDataContext';
+import CustomerTermsDefaultView from './Views/CustomerTermsDefaultView';
+import CustomerTermsNoTagsView from './Views/CustomerTermsNoTagsView';
+import CustomerTermsTagsView from './Views/CustomerTermsTagsView';
 
 interface CustomerTermsTabProps {
   data: InvoiceRow[];
@@ -30,6 +33,7 @@ export default function CustomerTermsTab({ data }: CustomerTermsTabProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const debouncedSearchTerm = useDebouncedValue(searchTerm);
   const [customOverdueDays, setCustomOverdueDays] = useState<number>(90);
+  const [viewMode, setViewMode] = useState<'DEFAULT' | 'NO TAGS' | 'TAGS ONLY'>('DEFAULT');
 
   // Edit Modal State
   const [selectedCustomer, setSelectedCustomer] = useState<any | null>(null);
@@ -140,7 +144,8 @@ export default function CustomerTermsTab({ data }: CustomerTermsTabProps) {
           exceededAmount,
           exceededPercentage,
           accountStatus: c.accountStatus || 'ACTIVE',
-          agingBreakdown: c.agingBreakdown
+          agingBreakdown: c.agingBreakdown,
+          customerTags: c.customerTags
         };
       })
       .filter(c => Math.abs(c.netDebt) > 0.01)
@@ -177,6 +182,13 @@ export default function CustomerTermsTab({ data }: CustomerTermsTabProps) {
 
     return result;
   }, [customerTerms, debouncedSearchTerm, appliedStatusFilter, appliedMinExceededDays, appliedMinExceededAmount]);
+
+  const viewData = useMemo(() => {
+    if (viewMode === 'NO TAGS') {
+      return filteredCustomers.filter(c => !c.customerTags || c.customerTags.size === 0);
+    }
+    return filteredCustomers;
+  }, [filteredCustomers, viewMode]);
 
   const handleExportExcel = async () => {
     try {
@@ -260,8 +272,8 @@ export default function CustomerTermsTab({ data }: CustomerTermsTabProps) {
     }
   };
 
-  const totalDebt = useMemo(() => filteredCustomers.reduce((sum, c) => sum + c.netDebt, 0), [filteredCustomers]);
-  const totalExceeded = useMemo(() => filteredCustomers.reduce((sum, c) => sum + c.exceededAmount, 0), [filteredCustomers]);
+  const totalDebt = useMemo(() => viewData.reduce((sum, c) => sum + c.netDebt, 0), [viewData]);
+  const totalExceeded = useMemo(() => viewData.reduce((sum, c) => sum + c.exceededAmount, 0), [viewData]);
 
   return (
     <div className="p-6 font-sans">
@@ -284,197 +296,98 @@ export default function CustomerTermsTab({ data }: CustomerTermsTabProps) {
           </div>
         </div>
 
-        <div className="flex items-center gap-3 w-full md:w-auto">
-          <div className="relative flex-1 md:w-80">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search by customer, ID or city..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full bg-gray-50 border border-gray-200 rounded-xl py-2.5 pl-11 pr-4 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm font-bold transition-all"
-            />
+        <div className="flex flex-col md:flex-row items-center gap-3 w-full md:w-auto">
+          {/* View Toggles */}
+          <div className="flex items-center bg-gray-100 p-1 rounded-xl shrink-0 self-start md:self-auto w-full md:w-auto">
+            <button
+              onClick={() => setViewMode('DEFAULT')}
+              className={`flex-1 md:w-32 px-4 py-2 text-center text-xs font-black uppercase tracking-wider rounded-lg transition-all ${viewMode === 'DEFAULT' ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-black hover:bg-gray-200/50'}`}
+            >
+              Default
+            </button>
+            <button
+              onClick={() => setViewMode('NO TAGS')}
+              className={`flex-1 md:w-32 px-4 py-2 text-center text-xs font-black uppercase tracking-wider rounded-lg transition-all ${viewMode === 'NO TAGS' ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-black hover:bg-gray-200/50'}`}
+            >
+              No Tags
+            </button>
+            <button
+              onClick={() => setViewMode('TAGS ONLY')}
+              className={`flex-1 md:w-32 px-4 py-2 text-center text-xs font-black uppercase tracking-wider rounded-lg transition-all ${viewMode === 'TAGS ONLY' ? 'bg-black text-white shadow-sm' : 'text-gray-500 hover:text-black hover:bg-gray-200/50'}`}
+            >
+              Tags Only
+            </button>
           </div>
 
-          <button
-            onClick={openFilterModal}
-            className={`flex items-center justify-center h-11 w-11 rounded-xl transition-colors shadow-sm shrink-0 cursor-pointer ${
-              appliedStatusFilter !== 'ALL' || appliedMinExceededDays || appliedMinExceededAmount
-                ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                : 'bg-white hover:bg-gray-50 border border-gray-200 text-gray-700'
-            }`}
-            title="Filter Customers"
-          >
-            <Filter className="h-5 w-5" />
-            {(appliedStatusFilter !== 'ALL' || appliedMinExceededDays || appliedMinExceededAmount) && (
-              <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white"></span>
-            )}
-          </button>
+          <div className="flex items-center gap-3 w-full md:w-auto">
+            <div className="relative flex-1 md:w-80">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search by customer, ID or city..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl py-2.5 pl-11 pr-4 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm font-bold transition-all"
+              />
+            </div>
 
-          <button
-            onClick={handleExportExcel}
-            disabled={filteredCustomers.length === 0}
-            className="flex items-center justify-center h-11 w-11 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition-colors shadow-sm disabled:opacity-50 shrink-0 cursor-pointer"
-            title="Export to Excel"
-          >
-            <FileSpreadsheet className="h-5 w-5" />
-          </button>
+            <button
+              onClick={openFilterModal}
+              className={`flex items-center justify-center h-11 w-11 rounded-xl transition-colors shadow-sm shrink-0 cursor-pointer ${
+                appliedStatusFilter !== 'ALL' || appliedMinExceededDays || appliedMinExceededAmount
+                  ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                  : 'bg-white hover:bg-gray-50 border border-gray-200 text-gray-700'
+              }`}
+              title="Filter Customers"
+            >
+              <Filter className="h-5 w-5" />
+              {(appliedStatusFilter !== 'ALL' || appliedMinExceededDays || appliedMinExceededAmount) && (
+                <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white"></span>
+              )}
+            </button>
+
+            <button
+              onClick={handleExportExcel}
+              disabled={filteredCustomers.length === 0}
+              className="flex items-center justify-center h-11 w-11 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition-colors shadow-sm disabled:opacity-50 shrink-0 cursor-pointer"
+              title="Export to Excel"
+            >
+              <FileSpreadsheet className="h-5 w-5" />
+            </button>
+          </div>
         </div>
       </div>
 
       {/* Table Section */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200">
-        {filteredCustomers.length === 0 ? (
-          <NoData title="NO CUSTOMERS FOUND" />
+        {viewMode === 'TAGS ONLY' ? (
+          <CustomerTermsTagsView 
+            filteredCustomers={viewData}
+            customOverdueDays={customOverdueDays}
+            setCustomOverdueDays={setCustomOverdueDays}
+            setSelectedCustomerForAging={setSelectedCustomerForAging}
+            openEditModal={openEditModal}
+          />
+        ) : viewMode === 'NO TAGS' ? (
+          <CustomerTermsNoTagsView 
+            filteredCustomers={viewData}
+            customOverdueDays={customOverdueDays}
+            setCustomOverdueDays={setCustomOverdueDays}
+            totalDebt={totalDebt}
+            totalExceeded={totalExceeded}
+            setSelectedCustomerForAging={setSelectedCustomerForAging}
+            openEditModal={openEditModal}
+          />
         ) : (
-          <div className="w-full">
-            <table className="w-full text-center border-collapse" style={{ minWidth: '1200px', direction: 'ltr' }}>
-            <thead className="bg-slate-900 text-white sticky top-0 z-30 shadow-md">
-              <tr className="text-center">
-                <th className="py-4.5 px-4 text-xs font-black uppercase tracking-wider">#</th>
-                <th className="py-4.5 px-4 text-xs font-black uppercase tracking-wider">Customer Name</th>
-                <th className="py-4.5 px-4 text-xs font-black uppercase tracking-wider">City</th>
-                <th className="py-4.5 px-4 text-xs font-black uppercase tracking-wider">Payment Term</th>
-                <th className="py-4.5 px-4 text-xs font-black uppercase tracking-wider">Exc Days</th>
-                <th className="py-4.5 px-4 text-xs font-black uppercase tracking-wider">Net Debt</th>
-                <th className="py-4.5 px-4 text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1">
-                  &gt; <input type="number" className="w-14 text-center bg-slate-800 text-white rounded border border-slate-700 px-1 py-0.5 text-sm focus:outline-none focus:border-blue-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" value={customOverdueDays} onChange={(e) => setCustomOverdueDays(Number(e.target.value) || 0)} />
-                </th>
-                <th className="py-4.5 px-4 text-xs font-black uppercase tracking-wider">Credit Limit</th>
-                <th className="py-4.5 px-4 text-xs font-black uppercase tracking-wider">Exceeded Amt</th>
-                <th className="py-4.5 px-4 text-xs font-black uppercase tracking-wider">% Exc</th>
-                <th className="py-4.5 px-4 text-xs font-black uppercase tracking-wider">
-                  <AlertCircle className="w-4 h-4 mx-auto" />
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-150">
-              {filteredCustomers.map((c, index) => (
-                <tr key={index} className="group hover:bg-gray-50/50 transition-all text-center">
-                  <td className="py-3 px-4 text-center text-xs font-black text-gray-400">{index + 1}</td>
-                  <td className="py-3 px-4 text-left">
-                    <div className="flex flex-col items-start gap-1">
-                      <button 
-                        onClick={() => setSelectedCustomerForAging(c)}
-                        className={`font-black text-sm block truncate max-w-xs cursor-pointer transition-colors hover:underline ${c.accountStatus === 'ON_HOLD' ? 'text-gray-400 line-through' : 'text-black'}`}
-                        title={c.customerName}
-                      >
-                        {c.customerName}
-                      </button>
-                      {c.accountStatus === 'ON_HOLD' && (
-                        <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded text-[9px] font-black uppercase tracking-wider">
-                          On Hold
-                        </span>
-                      )}
-                    </div>
-                  </td>
-                  <td className="py-3 px-4 text-center">
-                    <span className="inline-flex items-center px-2.5 py-1 bg-blue-50 text-blue-600 rounded-lg text-xs font-black uppercase tracking-wider">
-                      {c.city}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4 text-center">
-                    <span className="inline-block px-3 py-1 bg-indigo-50 text-indigo-700 rounded-lg text-sm font-black">
-                      {c.paymentTerm} days
-                    </span>
-                  </td>
-                  <td className="py-3 px-4 text-center">
-                    {c.exceededDays > 0 ? (
-                      <span className="px-3 py-1 bg-red-50 text-red-600 rounded-lg font-black text-sm">
-                        +{c.exceededDays} d
-                      </span>
-                    ) : (
-                      <span className="text-xs text-emerald-600 font-bold">OK</span>
-                    )}
-                  </td>
-                  <td className="py-3 px-4 text-center">
-                    <span className="text-sm font-black text-black whitespace-nowrap">
-                      {c.netDebt.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} AED
-                    </span>
-                  </td>
-                  <td className="py-3 px-4 text-center">
-                    <span className={`text-sm font-black whitespace-nowrap ${c.severeDebt > 0 ? 'text-red-600' : 'text-gray-400'}`}>
-                      {c.severeDebt.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} AED
-                    </span>
-                  </td>
-                  <td className="py-3 px-4 text-center">
-                    {c.creditLimit > 0 ? (
-                      <span className="text-sm font-black text-gray-500 whitespace-nowrap">
-                        {c.creditLimit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} AED
-                      </span>
-                    ) : (
-                      <span className="text-xs text-gray-300 font-bold">—</span>
-                    )}
-                  </td>
-                  <td className="py-3 px-4 text-center">
-                    {c.exceededAmount > 0.01 ? (
-                      <span className="px-2 py-1 bg-red-50 text-red-600 rounded-lg font-black text-xs whitespace-nowrap">
-                        +{c.exceededAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} AED
-                      </span>
-                    ) : (
-                      <span className="text-xs text-emerald-600 font-bold whitespace-nowrap">OK</span>
-                    )}
-                  </td>
-                  <td className="py-3 px-4 text-center">
-                    {c.exceededAmount > 0.01 ? (
-                      <span className="inline-block px-2.5 py-1 bg-red-100 text-red-700 text-xs font-black rounded-lg">
-                        {c.exceededPercentage.toFixed(1)}%
-                      </span>
-                    ) : (
-                      <span className="text-xs text-gray-300 font-bold">—</span>
-                    )}
-                  </td>
-                  <td className="py-3 px-4 text-center">
-                    <button 
-                      onClick={() => openEditModal(c)}
-                      className="p-2 bg-gray-50 text-gray-400 hover:text-black hover:bg-gray-100 rounded-lg transition-all"
-                      title="Edit Terms"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              
-              {/* Total Footer Row */}
-              <tr className="bg-gray-100 font-bold border-t-2 border-gray-300 text-center">
-                <td className="py-3 px-4">-</td>
-                <td className="py-3 px-4 text-sm font-black text-black">Total</td>
-                <td className="py-3 px-4">-</td>
-                <td className="py-3 px-4 text-sm font-black text-indigo-600">
-                  {Math.round(filteredCustomers.reduce((sum, c) => sum + c.paymentTerm, 0) / (filteredCustomers.length || 1))} days avg
-                </td>
-                <td className="py-3 px-4 text-sm font-black text-red-600">
-                  {Math.round(filteredCustomers.reduce((sum, c) => sum + c.exceededDays, 0) / (filteredCustomers.length || 1))} days avg
-                </td>
-                <td className="py-3 px-4 text-sm font-black text-black">
-                  {totalDebt.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} AED
-                </td>
-                <td className="py-3 px-4 text-sm font-black text-red-600">
-                  {filteredCustomers.reduce((sum, c) => sum + c.severeDebt, 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} AED
-                </td>
-                <td className="py-3 px-4 text-sm font-black text-gray-500">
-                  {filteredCustomers.reduce((sum, c) => sum + c.creditLimit, 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} AED
-                </td>
-                <td className="py-3 px-4 text-sm font-black text-red-600">
-                  {totalExceeded > 0.01 ? `+${totalExceeded.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} AED` : '—'}
-                </td>
-                <td className="py-5 px-4">
-                  {totalExceeded > 0.01 ? (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-red-600 text-white text-xs font-black rounded-lg">
-                      Warning
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-600 text-white text-xs font-black rounded-lg">
-                      OK
-                    </span>
-                  )}
-                </td>
-                <td className="py-5 px-4">-</td>
-              </tr>
-            </tbody>
-          </table>
-          </div>
+          <CustomerTermsDefaultView 
+            filteredCustomers={viewData}
+            customOverdueDays={customOverdueDays}
+            setCustomOverdueDays={setCustomOverdueDays}
+            totalDebt={totalDebt}
+            totalExceeded={totalExceeded}
+            setSelectedCustomerForAging={setSelectedCustomerForAging}
+            openEditModal={openEditModal}
+          />
         )}
       </div>
 
