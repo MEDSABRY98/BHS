@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { InvoiceRow } from '@/types';
 import { useCustomerData } from '../CustomersTab/CustomersData';
-import { exportDebitExcelTable } from '../Utils/ExcelExport';
+import { exportDebitExcelTable, exportDebitExcelWorkbook, recordsFromTable } from '../Utils/ExcelExport';
 import { useDebouncedValue } from '../Hooks/useDebouncedValue';
 import { 
   FileText,
@@ -193,7 +193,8 @@ export default function CustomerTermsTab({ data }: CustomerTermsTabProps) {
   const handleExportExcel = async () => {
     try {
       const headers = ['Customer ID', 'Customer Name', 'City', 'Payment Term (Days)', 'Exceeded Days', 'Net Debt (AED)', '>90 Days Debt', 'Credit Limit (AED)', 'Exceeded Amount (AED)', 'Exceeded %'];
-      const rows = filteredCustomers.map(c => [
+      
+      const formatRow = (c: any) => [
         c.customerId,
         c.customerName,
         c.city,
@@ -204,12 +205,49 @@ export default function CustomerTermsTab({ data }: CustomerTermsTabProps) {
         c.creditLimit,
         c.exceededAmount,
         `${c.exceededPercentage.toFixed(1)}%`
-      ]);
+      ];
 
-      await exportDebitExcelTable(headers, rows, `Customer_Terms_${new Date().toISOString().split('T')[0]}`, {
-        sheetName: 'Customer Terms',
-        numericColumns: ['Net Debt (AED)', '>90 Days Debt', 'Credit Limit (AED)', 'Exceeded Amount (AED)']
+      const defaultRows = filteredCustomers.map(formatRow);
+      const noTagsRows = filteredCustomers.filter(c => !c.customerTags || c.customerTags.size === 0).map(formatRow);
+      
+      // Group and sort Tags exactly like the UI
+      const tagsOnlyHeaders = ['Tag', ...headers];
+      const taggedCustomers = filteredCustomers.filter(c => c.customerTags && c.customerTags.size > 0);
+      const groups: Record<string, typeof taggedCustomers> = {};
+      
+      taggedCustomers.forEach(c => {
+        const tags = Array.from(c.customerTags || []) as string[];
+        tags.forEach(tag => {
+          if (!groups[tag]) groups[tag] = [];
+          groups[tag].push(c);
+        });
       });
+
+      const sortedTags = Object.keys(groups).sort();
+      const tagsOnlyRows: any[] = [];
+      
+      sortedTags.forEach(tag => {
+        const rows = groups[tag];
+        rows.sort((a: any, b: any) => {
+          if (a.city !== b.city) return a.city.localeCompare(b.city);
+          if (a.customerName !== b.customerName) return a.customerName.localeCompare(b.customerName);
+          return b.netDebt - a.netDebt;
+        });
+        
+        rows.forEach((c: any) => {
+          tagsOnlyRows.push([tag, ...formatRow(c)]);
+        });
+      });
+
+      const options = { numericColumns: ['Net Debt (AED)', '>90 Days Debt', 'Credit Limit (AED)', 'Exceeded Amount (AED)'] };
+
+      const sheets = [
+        { name: 'Default', data: recordsFromTable(headers, defaultRows), options },
+        { name: 'No Tags', data: recordsFromTable(headers, noTagsRows), options },
+        { name: 'Tags Only', data: recordsFromTable(tagsOnlyHeaders, tagsOnlyRows), options }
+      ];
+
+      await exportDebitExcelWorkbook(sheets, `Customer_Terms_${new Date().toISOString().split('T')[0]}`);
     } catch (err) {
       console.error('Failed to export Excel:', err);
       alert('Error exporting Excel report.');
