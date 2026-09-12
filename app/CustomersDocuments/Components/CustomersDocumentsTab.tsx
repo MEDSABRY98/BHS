@@ -7,7 +7,7 @@ import {
   Loader2,
   User
 } from 'lucide-react';
-import Loading from '@/app/Components/Loading';
+import MainLoader from '@/app/Components/Loading/MainLoader';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import { updateCustomerDocument } from '../Service/customers_documents_service';
 
@@ -106,7 +106,7 @@ export default function CustomersDocumentsTab({
     return 'text-emerald-600 font-bold';
   };
 
-  if (loading && data.length === 0) return <Loading message="Syncing with Intelligence Database..." />;
+  if (loading && data.length === 0) return <MainLoader message="Syncing with Intelligence Database..." />;
 
   return (
     <div className="w-full space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20">

@@ -5,13 +5,13 @@ import { FileText, Tag, X } from 'lucide-react';
 import { InvoiceRow } from '@/types';
 
 // Sub-components
-import { usePaymentTDataTab } from './PaymentTDataHookTab';
-import PaymentTDashboardTab from './PaymentTDashboardTab';
-import PaymentTDetailsDashboardTab from './PaymentTDetailsDashboardTab';
-import PaymentTCustomerTab from './PaymentTCustomerTab';
-import PaymentTPeriodTab from './PaymentTPeriodTab';
-import PaymentTAreaTab from './PaymentTAreaTab';
-import PaymentTExportTab from './PaymentTExportTab';
+import { usePaymentTDataTab } from './Utils/PaymentTDataHookTab';
+import PaymentTDashboardTab from './PaymentTDashboardTab/PaymentTDashboardTab';
+import PaymentTDetailsDashboardTab from './PaymentTDetailsDashboardTab/PaymentTDetailsDashboardTab';
+import PaymentTCustomerTab from './PaymentTCustomerTab/PaymentTCustomerTab';
+import PaymentTPeriodTab from './PaymentTPeriodTab/PaymentTPeriodTab';
+import PaymentTAreaTab from './PaymentTAreaTab/PaymentTAreaTab';
+import PaymentTExportTab from './PaymentTExportTab/PaymentTExportTab';
 import CustomerTagsPickerModal from '../Modals/CustomerTagsPickerModal';
 
 interface PaymentTrackerTabProps {
@@ -41,24 +41,6 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
                 onChange={(e) => p.setSearch(e.target.value)}
                 className={`${inputClass} flex-1`}
               />
-              <button
-                type="button"
-                onClick={() => p.setIsTagsPickerOpen(true)}
-                className={`relative shrink-0 h-9 w-9 flex items-center justify-center rounded-lg border transition-all ${
-                  p.selectedCustomerTags.length > 0
-                    ? 'bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100'
-                    : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
-                }`}
-                title="Filter by customer tags"
-                aria-label="Filter by customer tags"
-              >
-                <Tag className="w-4 h-4" />
-                {p.selectedCustomerTags.length > 0 && (
-                  <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-indigo-600 text-white text-[10px] font-bold leading-[18px] text-center">
-                    {p.selectedCustomerTags.length}
-                  </span>
-                )}
-              </button>
             </div>
           </div>
 
@@ -72,23 +54,15 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
               <input type="text" placeholder="MM" maxLength={2} value={p.chartMonth} onChange={(e) => p.setChartMonth(e.target.value)} className={`${inputClass} text-center font-medium w-full`} />
             </div>
           </div>
-          <div className="w-full sm:w-36">
+          <div className="w-full sm:w-48">
             <label className={labelClass}>From</label>
             <input type="date" value={p.dateFrom} onChange={(e) => p.setDateFrom(e.target.value)} className={inputClass} />
           </div>
-          <div className="w-full sm:w-36">
+          <div className="w-full sm:w-48">
             <label className={labelClass}>To</label>
             <input type="date" value={p.dateTo} onChange={(e) => p.setDateTo(e.target.value)} className={inputClass} />
           </div>
-          <div className="w-full sm:w-48">
-            <label className={labelClass}>City</label>
-            <select value={p.selectedSalesRep} onChange={(e) => p.setSelectedSalesRep(e.target.value)} className={inputClass}>
-              <option value="">All Cities</option>
-              {p.cities.map((rep) => (
-                <option key={rep} value={rep}>{rep}</option>
-              ))}
-            </select>
-          </div>
+
 
           <div className="flex gap-2">
             <button

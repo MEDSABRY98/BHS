@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Login from '@/app/Components/Auth/Login';
-import Loading from '@/app/Components/Loading';
+import MainLoader from '@/app/Components/Loading/MainLoader';
 import { ArrowLeft, Hash } from 'lucide-react';
 import InventoryItemCodeTab from './InventoryItemCodeTab';
 import { useInventoryItemCodeTabAudit } from '@/app/Audit/Model/InventoryItemCodeTabAudit';
@@ -35,7 +35,7 @@ export default function InventoryItemCodePage() {
   useInventoryItemCodeTabAudit(isAuthenticated);
 
   if (isChecking) {
-    return <Loading />;
+    return <MainLoader />;
   }
 
   if (!isAuthenticated) {

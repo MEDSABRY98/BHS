@@ -11,7 +11,7 @@ import {
   X,
 } from 'lucide-react';
 import { InvoiceRow } from '@/types';
-import { PdfExportSections } from './PaymentTTypesTab';
+import { PdfExportSections } from '../Utils/PaymentTTypesTab';
 import { generatePaymentAnalysisPDFZip, type PaymentPdfFilterContext } from '@/app/Debit/PaymentTrackerTab/Pdf/PaymentUtils';
 import { generatePaymentAnalysisExcel } from '@/app/Debit/PaymentTrackerTab/Pdf/PaymentExcelUtils';
 

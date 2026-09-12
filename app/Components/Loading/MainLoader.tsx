@@ -6,7 +6,7 @@ interface LoadingProps {
   fullScreen?: boolean;
 }
 
-const Loading = ({ message = 'BHS Analysis', className = '', fullScreen = true }: LoadingProps) => {
+const MainLoader = ({ message = 'BHS Analysis', className = '', fullScreen = true }: LoadingProps) => {
   const positionClasses = fullScreen ? 'fixed inset-0 z-[9999]' : 'relative w-full h-full min-h-[400px] rounded-2xl z-10';
 
   return (
@@ -33,17 +33,13 @@ const Loading = ({ message = 'BHS Analysis', className = '', fullScreen = true }
           <div className="absolute inset-4 rounded-full border-[0.5px] border-slate-200/50 pointer-events-none" />
 
           {/* BHS central logo mark */}
-          <div className="text-4xl font-extralight tracking-widest text-[#D4AF37] opacity-80 select-none animate-pulse" style={{ animationDuration: '4s' }}>
+          <div className="absolute inset-0 flex items-center justify-center text-4xl font-extralight tracking-widest pl-[0.1em] text-[#D4AF37] opacity-80 select-none animate-pulse" style={{ animationDuration: '4s' }}>
             BHS
           </div>
         </div>
 
         {/* Minimal Quiet Typography and Progress Indicator */}
         <div className="mt-4 flex flex-col items-center">
-          <h2 className="text-[11px] font-extrabold tracking-[0.70em] text-slate-500 uppercase pl-[0.70em] opacity-90 text-center">
-            {message}
-          </h2>
-
           {/* Subtle Center-Expanding 1px Progress Line */}
           <div className="relative w-20 h-[1px] bg-slate-100 rounded-full overflow-hidden mt-6">
             <div className="absolute top-0 bottom-0 left-1/2 -translate-x-1/2 bg-[#D4AF37]/50 rounded-full animate-[line-expand_2s_cubic-bezier(0.25,1,0.5,1)_infinite]" />
@@ -76,4 +72,4 @@ const Loading = ({ message = 'BHS Analysis', className = '', fullScreen = true }
   );
 };
 
-export default Loading;
+export default MainLoader;

@@ -9,7 +9,7 @@ import AdminSidebar from './Utils/Sidebar';
 import TabPanel from '@/app/Components/Layout/TabPanel';
 import { verifyUserCredentials } from '@/app/DataBase/Service/database_service';
 import Login from '@/app/Components/Auth/Login';
-import Loading from '@/app/Components/Loading';
+import MainLoader from '@/app/Components/Loading/MainLoader';
 
 export default function AdminControlPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -86,7 +86,7 @@ export default function AdminControlPage() {
   const adminName = currentUser?.name || '';
 
   if (isLoading) {
-    return <Loading />;
+    return <MainLoader />;
   }
 
   if (!isAuthenticated) {

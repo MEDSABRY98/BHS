@@ -5,7 +5,6 @@ import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
 import { useSearchParams } from 'next/navigation';
 import { Menu } from 'lucide-react';
 
-import CustomersLandingTab from './CustomersTab/CustomersSwitchsTab';
 import CustomersSummariesTab from './CustomersSummariesTab/CustomersSummariesTab';
 import DebitInsightsDashboard from './DebitInsightsTab/DebitInsightsDashboard';
 import CustomerTermsTab from './CustomerTermsTab/CustomerTermsTab';
@@ -20,7 +19,7 @@ import CityTab from './CityTab/CityTab';
 import AgesTab from './AgesTab/AgesTab';
 import CustomersTab from './CustomersTab/CustomersTab';
 import MakeStatementTab from './MakeStatementTab/MakeStatementTab';
-import Loading from '@/app/Components/Loading';
+import MainLoader from '@/app/Components/Loading/MainLoader';
 import TabLoader from '@/app/Components/Loading/TabLoader';
 import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import Login from '@/app/Components/Auth/Login';
@@ -161,7 +160,7 @@ function DebitPageShell({
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm">
           <div className="p-4 sm:p-6 lg:p-8">
         <TabPanel tabId="customers" activeTab={activeTab} isVisited={visitedTabs.has('customers') && dataReady}>
-          <CustomersLandingTab data={globallyFilteredData} initialCustomer={initialCustomer} />
+          <CustomersTab data={globallyFilteredData} initialCustomer={initialCustomer} />
         </TabPanel>
         <TabPanel tabId="customers-summaries" activeTab={activeTab} isVisited={visitedTabs.has('customers-summaries') && dataReady}>
           <CustomersSummariesTab data={globallyFilteredData} />
@@ -345,7 +344,7 @@ function DebitPageContent() {
   };
 
   if (isChecking) {
-    return <Loading />;
+    return <MainLoader />;
   }
 
   if (!isAuthenticated) {

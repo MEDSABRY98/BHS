@@ -2,8 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { fetchSavedScrapReports } from '../Service/InventoryScrapService';
-import { Download, Calendar, FileText, Search, Loader2, StickyNote } from 'lucide-react';
+import { Download, Calendar, FileText, Search, Loader2, StickyNote, FileSpreadsheet } from 'lucide-react';
 import { downloadInventoryScrapReportPDF } from '@/app/InventoryScrap/Pdf/InventoryScrapReportPdf';
+import { exportInventoryScrapExcel } from '../Export/ExcelExport';
 import NoData from '@/app/Components/DataState/NoDataTab';
 
 interface ReportItem {
@@ -29,6 +30,7 @@ export default function SavedReportsTab() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [downloadingExcelId, setDownloadingExcelId] = useState<string | null>(null);
   const [reportToDownload, setReportToDownload] = useState<SavedReport | null>(null);
   const [notes, setNotes] = useState('');
 
@@ -112,6 +114,28 @@ export default function SavedReportsTab() {
       console.error('Error downloading scrap report PDF:', err);
     } finally {
       setDownloadingId(null);
+    }
+  };
+
+  const handleDownloadExcel = async (report: SavedReport) => {
+    setDownloadingExcelId(report.reportId);
+    try {
+      const excelData = report.items.map((item, index) => ({
+        '#': index + 1,
+        'Product ID': item.productId,
+        'Barcode': item.barcode,
+        'Name': item.name,
+        'Reason': item.reason,
+        'Quantity': item.qty,
+        'Unit': item.unit,
+        'Unit Cost': item.cost,
+        'Total Cost': Number((item.qty * item.cost).toFixed(2))
+      }));
+      await exportInventoryScrapExcel(excelData, `ScrapReport_${report.reportId}.xlsx`);
+    } catch (err) {
+      console.error('Error downloading Excel:', err);
+    } finally {
+      setDownloadingExcelId(null);
     }
   };
 
@@ -203,19 +227,32 @@ export default function SavedReportsTab() {
                 </div>
               </div>
 
-              <div className="pt-4 border-t border-slate-100 mt-2">
+              <div className="pt-4 border-t border-slate-100 mt-2 flex gap-3">
                 <button
                   onClick={() => openDownloadModal(report)}
                   disabled={downloadingId === report.reportId}
                   title={`Download ${report.reportId}.pdf`}
-                  className="w-full py-3 px-4 flex items-center justify-center gap-2 bg-black hover:bg-zinc-800 text-[#D4AF37] font-bold rounded-2xl transition-all active:scale-[0.98] cursor-pointer text-xs shadow-sm disabled:opacity-60 disabled:pointer-events-none"
+                  className="flex-1 py-3 px-2 flex items-center justify-center gap-2 bg-black hover:bg-zinc-800 text-[#D4AF37] font-bold rounded-2xl transition-all active:scale-[0.98] cursor-pointer text-xs shadow-sm disabled:opacity-60 disabled:pointer-events-none"
                 >
                   {downloadingId === report.reportId ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
                   ) : (
                     <Download className="w-4 h-4" />
                   )}
-                  Download PDF
+                  PDF
+                </button>
+                <button
+                  onClick={() => handleDownloadExcel(report)}
+                  disabled={downloadingExcelId === report.reportId}
+                  title={`Download ${report.reportId}.xlsx`}
+                  className="flex-1 py-3 px-2 flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl transition-all active:scale-[0.98] cursor-pointer text-xs shadow-sm disabled:opacity-60 disabled:pointer-events-none"
+                >
+                  {downloadingExcelId === report.reportId ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <FileSpreadsheet className="w-4 h-4" />
+                  )}
+                  Excel
                 </button>
               </div>
             </div>

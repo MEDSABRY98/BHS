@@ -2,7 +2,7 @@
 
 import React from 'react';
 import NoData from '@/app/Components/DataState/NoDataTab';
-import { AreaStat } from './PaymentTTypesTab';
+import { AreaStat } from '../Utils/PaymentTTypesTab';
 
 interface PaymentTAreaTabProps {
   areaStats: AreaStat[];

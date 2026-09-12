@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import PettyCashTab from './Components/PettyCashTab';
 import { useAuditAfterAuth } from '@/app/Audit/Utils/useModuleTabAudit';
 import Login from '@/app/Components/Auth/Login';
-import Loading from '@/app/Components/Loading';
+import MainLoader from '@/app/Components/Loading/MainLoader';
 
 import { verifyUserCredentials } from '@/app/DataBase/Service/database_service';
 import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
@@ -64,7 +64,7 @@ export default function PettyCashPage() {
   };
 
   if (isChecking) {
-    return <Loading />;
+    return <MainLoader />;
   }
 
   if (!isAuthenticated) {

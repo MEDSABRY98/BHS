@@ -12,12 +12,12 @@ import {
   Legend,
   ResponsiveContainer 
 } from 'recharts';
-import { formatDate } from './PaymentTUtilsTab';
+import { formatDate } from '../Utils/PaymentTUtilsTab';
 import { 
   PaymentByCustomer, 
   PaymentEntry, 
   DetailMode 
-} from './PaymentTTypesTab';
+} from '../Utils/PaymentTTypesTab';
 
 interface PaymentTCustomerTabProps {
   detailMode: DetailMode;

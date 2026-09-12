@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Search, Package, AlertCircle, ChevronDown, Filter, Check } from 'lucide-react';
-import Loading from '@/app/Components/Loading';
+import MainLoader from '@/app/Components/Loading/MainLoader';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import * as XLSX from 'xlsx';
@@ -83,7 +83,7 @@ export default function InventoryItemCodeTab() {
     });
 
     if (loading) {
-        return <Loading message="Loading Item Codes..." />;
+        return <MainLoader message="Loading Item Codes..." />;
     }
 
     if (error) {

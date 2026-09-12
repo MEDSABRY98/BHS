@@ -24,7 +24,7 @@ import { SalesRawDataBridge } from '@/app/Sales/Context/SalesRawDataBridge';
 import { SalesRefreshBridge } from '@/app/Sales/Context/SalesRefreshBridge';
 
 import Login from '@/app/Components/Auth/Login';
-import Loading from '@/app/Components/Loading';
+import MainLoader from '@/app/Components/Loading/MainLoader';
 import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import { SalesInvoice, hasSalesDataAccess } from '@/lib/supabase';
 import { ArrowLeft, BarChart3, LogOut, User, FileUp, FileSpreadsheet, ChevronDown, AlertCircle, X, Users, Menu } from 'lucide-react';
@@ -431,7 +431,7 @@ export default function SalesPage() {
   };
 
   if (isChecking) {
-    return <Loading />;
+    return <MainLoader />;
   }
 
   if (!isAuthenticated) {

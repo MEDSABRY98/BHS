@@ -8,7 +8,7 @@ import InventorySidebar, { INVENTORY_ANALYSIS_TAB_IDS, type InventoryTabId } fro
 import { getAllowedModuleTabIds } from '@/app/AdminControl/AdminControlTab';
 import { useInventoryTabAudit } from '@/app/Audit/Model/InventoryTabAudit';
 import Login from '@/app/Components/Auth/Login';
-import Loading from '@/app/Components/Loading';
+import MainLoader from '@/app/Components/Loading/MainLoader';
 import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
 
 function TabPanel({
@@ -116,7 +116,7 @@ export default function InventoryPage() {
   );
 
   if (isChecking) {
-    return <Loading />;
+    return <MainLoader />;
   }
 
   if (!isAuthenticated) {

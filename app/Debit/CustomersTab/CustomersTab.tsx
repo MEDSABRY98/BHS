@@ -14,13 +14,15 @@ import NoData from '@/app/Components/DataState/NoDataTab';
 import CustomerDetailsTab from '../CustomerDetailsTab/CustomerDetailsTab';
 import { generateAccountStatementPDF, generateBulkCustomerStatementsPDF } from '@/app/Debit/CustomerDetailsTab/Pdf/StatementUtils';
 import { generateBulkDebitSummaryPDF } from '@/app/Debit/CustomersTab/Pdf/SummaryUtils';
-import { FileSpreadsheet, FileText } from 'lucide-react';
+import { FileSpreadsheet, FileText, EyeOff, Eye } from 'lucide-react';
 import { saveTrackedAs } from '@/app/Audit/Utils/TrackedDownload';
 
 // Sub-components
 import DefaultView from './Views/DefaultView';
 import SummaryView from './Views/SummaryView';
 import YearlyView from './Views/YearlyView';
+import NoTagsView from './Views/NoTagsView';
+import TagsOnlyView from './Views/TagsOnlyView';
 import RatingBreakdownModal from './Modals/RatingBreakdownModal';
 import CollectionStatsModal from './Modals/CollectionStatsModal';
 import MonthlyBreakdownModal from './Modals/MonthlyBreakdownModal';
@@ -64,7 +66,8 @@ export default function CustomersTab({
   const { getCustomerInvoices } = useDebitData();
   // --- States ---
   const [sorting, setSorting] = useState<SortingState>([]);
-  const [viewMode, setViewMode] = useState<'DEFAULT' | 'SUMMARY' | 'YEARLY'>('DEFAULT');
+  const [viewMode, setViewMode] = useState<'DEFAULT' | 'SUMMARY' | 'YEARLY' | 'NO TAGS' | 'TAGS ONLY'>('DEFAULT');
+  const [hideZeroBalance, setHideZeroBalance] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<string | null>(initialCustomer || null);
   const [selectedCustomersForDownload, setSelectedCustomersForDownload] = useState<Set<string>>(new Set());
   const [isDownloading, setIsDownloading] = useState(false);
@@ -768,8 +771,12 @@ export default function CustomersTab({
     })
   ], [filteredData, selectedCustomersForDownload, customerAnalysis]);
 
+  const displayData = useMemo(() => {
+    return hideZeroBalance ? filteredData.filter(c => Math.abs(c.netDebt) > 0.01) : filteredData;
+  }, [filteredData, hideZeroBalance]);
+
   const table = useReactTable({
-    data: filteredData,
+    data: displayData,
     columns,
     state: { sorting },
     onSortingChange: setSorting,
@@ -779,13 +786,13 @@ export default function CustomersTab({
 
   const headerCount = useMemo(() => {
     if (viewMode === 'YEARLY') return yearlyPivotData.rows.length;
-    return filteredData.length;
-  }, [viewMode, filteredData, yearlyPivotData.rows]);
+    return displayData.length;
+  }, [viewMode, displayData, yearlyPivotData.rows]);
 
   const headerTotal = useMemo(() => {
     if (viewMode === 'YEARLY') return yearlyPivotData.rows.reduce((sum, r) => sum + r.totalNetDebt, 0);
-    return filteredData.reduce((sum, c) => sum + c.netDebt, 0);
-  }, [viewMode, filteredData, yearlyPivotData.rows]);
+    return displayData.reduce((sum, c) => sum + c.netDebt, 0);
+  }, [viewMode, displayData, yearlyPivotData.rows]);
 
   // --- Render logic ---
   if (selectedCustomer) {
@@ -804,7 +811,7 @@ export default function CustomersTab({
   return (
     <div className="flex flex-col h-full bg-white">
       {/* Header Toolbar */}
-      <div className="p-2 bg-white border-b border-gray-200 flex items-center gap-3 sticky top-14 z-20 shadow-sm overflow-x-auto no-scrollbar">
+      <div className="p-2 bg-white border-b border-gray-200 flex items-center gap-3 shadow-sm overflow-x-auto no-scrollbar">
         <div className="w-10 shrink-0">
           {onBack && (
             <button onClick={onBack} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
@@ -838,22 +845,36 @@ export default function CustomersTab({
             </div>
           </div>
 
+          <button
+            onClick={() => setHideZeroBalance(prev => !prev)}
+            title={hideZeroBalance ? 'Show zero-balance customers' : 'Hide zero-balance customers'}
+            className={`shrink-0 p-2 rounded-xl border transition-all ${
+              hideZeroBalance
+                ? 'bg-amber-50 border-amber-300 text-amber-600 hover:bg-amber-100'
+                : 'bg-white border-gray-200 text-gray-400 hover:bg-gray-50 hover:text-gray-600'
+            }`}
+          >
+            {hideZeroBalance ? <EyeOff size={18} /> : <Eye size={18} />}
+          </button>
+
           <div className="h-6 w-px bg-gray-200 mx-1 shrink-0"></div>
 
           {/* View Mode Toggle */}
           <div className="bg-gray-100 p-1 rounded-xl flex items-center shrink-0">
-            {(['DEFAULT', 'SUMMARY', 'YEARLY'] as const).map(m => (
+            {(['DEFAULT', 'SUMMARY', 'YEARLY', 'NO TAGS', 'TAGS ONLY'] as const).map(m => (
               <button
                 key={m}
                 onClick={() => setViewMode(m)}
-                className={`px-4 py-1.5 rounded-lg text-xs font-black transition-all ${viewMode === m ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
+                  viewMode === m ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                }`}
               >
-                {m.charAt(0) + m.slice(1).toLowerCase()}
+                {m === 'NO TAGS' ? 'No Tags' : m === 'TAGS ONLY' ? 'Tags Only' : m.charAt(0) + m.slice(1).toLowerCase()}
               </button>
             ))}
           </div>
 
-          <div className="h-6 w-px bg-gray-200 mx-1 shrink-0"></div>
+
 
           <CustomersExcelButton filteredData={baseFilteredData} data={data} yearlyPivotData={yearlyPivotData} />
           <button onClick={() => exportToPDF(filteredData, 'Customers_PDF_Report')} className="p-2.5 bg-white border border-gray-200 rounded-xl hover:border-red-400 text-red-600 transition-all shadow-sm shrink-0" title="Export PDF">
@@ -938,6 +959,40 @@ export default function CustomersTab({
                 setSelectedCustomer={handleCustomerSelect}
                 yearlySorting={yearlySorting}
                 handleYearlySort={handleYearlySort}
+              />
+            )}
+
+            {viewMode === 'NO TAGS' && (
+              <NoTagsView
+                table={table}
+                selectedCustomersForDownload={selectedCustomersForDownload}
+                toggleCustomerSelection={toggleCustomerSelection}
+                setSelectedCustomer={handleCustomerSelect}
+                setSelectedCustomerForMonths={setSelectedCustomerForMonths}
+                setSelectedCollectionStats={setSelectedCollectionStats}
+                setSelectedRatingCustomer={setSelectedRatingCustomer}
+                setRatingBreakdown={setRatingBreakdown}
+                mode={mode}
+                customerAnalysis={customerAnalysis}
+                filteredData={filteredData}
+                isDateFilterActive={!!(filters.filterYear || filters.filterMonth || filters.dateRangeFrom || filters.dateRangeTo)}
+              />
+            )}
+
+            {viewMode === 'TAGS ONLY' && (
+              <TagsOnlyView
+                table={table}
+                selectedCustomersForDownload={selectedCustomersForDownload}
+                toggleCustomerSelection={toggleCustomerSelection}
+                setSelectedCustomer={handleCustomerSelect}
+                setSelectedCustomerForMonths={setSelectedCustomerForMonths}
+                setSelectedCollectionStats={setSelectedCollectionStats}
+                setSelectedRatingCustomer={setSelectedRatingCustomer}
+                setRatingBreakdown={setRatingBreakdown}
+                mode={mode}
+                customerAnalysis={customerAnalysis}
+                filteredData={filteredData}
+                isDateFilterActive={!!(filters.filterYear || filters.filterMonth || filters.dateRangeFrom || filters.dateRangeTo)}
               />
             )}
           </>

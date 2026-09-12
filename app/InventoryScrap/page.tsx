@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import InventoryScrapTab from '@/app/InventoryScrap/Components/InventoryScrapTab';
 import { useInventoryScrapTabAudit } from '@/app/Audit/Model/InventoryScrapTabAudit';
 import Login from '@/app/Components/Auth/Login';
-import Loading from '@/app/Components/Loading';
+import MainLoader from '@/app/Components/Loading/MainLoader';
 import {
   ArrowLeft,
   Trash2,
@@ -153,7 +153,7 @@ export default function InventoryScrapPage() {
   };
 
   if (isChecking) {
-    return <Loading />;
+    return <MainLoader />;
   }
 
   if (!isAuthenticated) {

@@ -120,8 +120,6 @@ export const useCustomerData = (data: InvoiceRow[] = [], filters: any, mode: any
     let result = baseFilteredData;
     if (mode === 'OB_POS') result = result.filter(c => (c.openOBAmount || 0) > 0.01);
     else if (mode === 'OB_NEG') result = result.filter(c => (c.openOBAmount || 0) < -0.01);
-    else if (mode === 'CREDIT') result = result.filter(c => c.netDebt < -0.01);
-    else result = result.filter(c => c.netDebt > 0.01);
     return result;
   }, [baseFilteredData, mode]);
 

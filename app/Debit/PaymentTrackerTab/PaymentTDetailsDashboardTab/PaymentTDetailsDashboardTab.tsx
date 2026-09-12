@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { InvoiceRow } from '@/types';
 import { getInvoiceType } from '@/app/Debit/Utils/InvoiceType';
-import { parseDate } from './PaymentTUtilsTab';
+import { parseDate } from '../Utils/PaymentTUtilsTab';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, LabelList } from 'recharts';
 
 interface PaymentTDetailsDashboardTabProps {

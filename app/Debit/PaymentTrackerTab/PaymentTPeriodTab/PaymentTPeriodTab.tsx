@@ -2,13 +2,13 @@
 
 import React from 'react';
 import NoData from '@/app/Components/DataState/NoDataTab';
-import { formatDate } from './PaymentTUtilsTab';
+import { formatDate } from '../Utils/PaymentTUtilsTab';
 import {
   PaymentByPeriod,
   PaymentEntry,
   PeriodType,
   DetailMode
-} from './PaymentTTypesTab';
+} from '../Utils/PaymentTTypesTab';
 
 interface PaymentTPeriodTabProps {
   detailMode: DetailMode;

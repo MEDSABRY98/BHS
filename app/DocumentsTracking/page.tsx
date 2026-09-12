@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import DocumentsTrackingTab from './Components/DocumentsTrackingTab';
 import { useAuditAfterAuth } from '@/app/Audit/Utils/useModuleTabAudit';
 import { ChevronLeft } from 'lucide-react';
-import Loading from '@/app/Components/Loading';
+import MainLoader from '@/app/Components/Loading/MainLoader';
 import { verifyUserCredentials } from '@/app/DataBase/Service/database_service';
 import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
 
@@ -49,7 +49,7 @@ export default function DocumentsTrackingPage() {
         validateAndSetUser();
     }, [router]);
 
-    if (isChecking) return <Loading />;
+    if (isChecking) return <MainLoader />;
     if (!currentUser) return null;
 
     return (

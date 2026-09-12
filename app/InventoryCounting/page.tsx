@@ -14,7 +14,7 @@ import { InventoryCountingFiltersProvider } from './Model/InventoryCountingFilte
 import FiltersModal from './Utils/FiltersModal';
 import ICDataBootstrap from './Utils/ICDataBootstrap';
 import Login from '@/app/Components/Auth/Login';
-import Loading from '@/app/Components/Loading';
+import MainLoader from '@/app/Components/Loading/MainLoader';
 import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
 
 function hasInventoryCountingAccess(user: any): boolean {
@@ -135,7 +135,7 @@ export default function InventoryCountingPage() {
   };
 
   if (isChecking) {
-    return <Loading />;
+    return <MainLoader />;
   }
 
   if (!isAuthenticated) {

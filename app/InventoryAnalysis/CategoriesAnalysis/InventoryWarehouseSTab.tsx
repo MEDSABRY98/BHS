@@ -11,7 +11,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { addArabicFont } from '@/app/Components/Pdf/shared';
 import { saveTrackedPdf, triggerTrackedDownload } from '@/app/Audit/Utils/TrackedDownload';
-import Loading from '@/app/Components/Loading';
+import MainLoader from '@/app/Components/Loading/MainLoader';
 import { useInventoryWarehouseTabAudit } from '@/app/Audit/Model/InventoryTabAudit';
 import { toast } from '@/app/Components/Notification';
 
@@ -1010,7 +1010,7 @@ export default function InventoryWh20ItemsTab() {
     };
 
     if (loading) {
-        return <Loading message="Loading Inventory..." />;
+        return <MainLoader message="Loading Inventory..." />;
     }
 
     return (

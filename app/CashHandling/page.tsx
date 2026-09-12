@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Login from '@/app/Components/Auth/Login';
-import Loading from '@/app/Components/Loading';
+import MainLoader from '@/app/Components/Loading/MainLoader';
 import CashHandlingSidebar, { CashHandlingTabId } from './Utils/Sidebar';
 import { Menu } from 'lucide-react';
 import { verifyUserCredentials } from '@/app/DataBase/Service/database_service';
@@ -128,7 +128,7 @@ export default function CashHandlingPage() {
   };
 
   if (isChecking) {
-    return <Loading message="Loading Cash Handling Data..." />;
+    return <MainLoader message="Loading Cash Handling Data..." />;
   }
 
   if (!isAuthenticated) {
