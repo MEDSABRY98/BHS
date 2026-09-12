@@ -182,6 +182,10 @@ export default function CustomerDiscountsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
 
+  // Filter State
+  const [selectedCity, setSelectedCity] = useState("All");
+  const [selectedDiscountType, setSelectedDiscountType] = useState<"All" | "Monthly" | "WithPayment">("All");
+
   // Details View State
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerView | null>(null);
   const [activeTab, setActiveTab] = useState<"details" | "pending" | "semi" | "settled">("details");
@@ -261,18 +265,31 @@ export default function CustomerDiscountsPage() {
 
   // Filter customers in Grid view
   useEffect(() => {
-    if (!searchQuery.trim()) {
-      setFilteredCustomers(customers);
-    } else {
+    let result = customers;
+
+    if (searchQuery.trim()) {
       const lowerQ = searchQuery.toLowerCase();
-      setFilteredCustomers(
-        customers.filter(c =>
-          c.customerName.toLowerCase().includes(lowerQ) ||
-          c.customerId.toLowerCase().includes(lowerQ)
-        )
+      result = result.filter(c =>
+        c.customerName.toLowerCase().includes(lowerQ) ||
+        c.customerId.toLowerCase().includes(lowerQ)
       );
     }
-  }, [searchQuery, customers]);
+
+    if (selectedCity !== "All") {
+      result = result.filter(c => c.city === selectedCity);
+    }
+
+    if (selectedDiscountType !== "All") {
+      result = result.filter(c => {
+        const hasWithPayment = c.discounts.some(d => d.settlementType === "with_payment");
+        if (selectedDiscountType === "Monthly") return !hasWithPayment;
+        if (selectedDiscountType === "WithPayment") return hasWithPayment;
+        return true;
+      });
+    }
+
+    setFilteredCustomers(result);
+  }, [searchQuery, customers, selectedCity, selectedDiscountType]);
 
   // Load all customers for Add form when view is "add"
   useEffect(() => {
@@ -943,20 +960,28 @@ export default function CustomerDiscountsPage() {
 
   const { pending: pendingMonthGroups, semiSettled: semiSettledMonthGroups, settled: settledMonthGroups } =
     splitMonthGroups(allMonthGroups);
-
   // Format month to English name
   const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
   const getMonthName = (m: number) => monthNames[m - 1] || m.toString();
 
+  const availableCities = React.useMemo(() => {
+    return Array.from(new Set(customers.map(c => c.city).filter(Boolean))).sort();
+  }, [customers]);
+
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden font-sans">
+    <div className="flex h-screen bg-[#F8F9FA] font-sans overflow-hidden">
       <Sidebar
         isSidebarOpen={isSidebarOpen}
         setIsSidebarOpen={setIsSidebarOpen}
         currentView={currentView}
         setCurrentView={setCurrentView}
-        setSelectedCustomer={setSelectedCustomer}
+        setSelectedCustomer={setSelectedCustomer as any}
         currentUser={currentUser}
+        selectedCity={selectedCity}
+        setSelectedCity={setSelectedCity}
+        availableCities={availableCities}
+        selectedDiscountType={selectedDiscountType}
+        setSelectedDiscountType={setSelectedDiscountType}
       />
 
       {/* Main Workspace Area (Right) */}

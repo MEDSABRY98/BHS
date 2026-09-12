@@ -36,19 +36,11 @@ export default function CustomersList({
 }: CustomersListProps) {
   const [exporting, setExporting] = useState(false);
   const [exportModalOpen, setExportModalOpen] = useState(false);
-  const [settlementFilter, setSettlementFilter] = useState<"All" | "Monthly" | "WithPayment">("All");
-  const [filterOpen, setFilterOpen] = useState(false);
 
   const safeCustomers = customers ?? [];
   const safeFilteredCustomers = filteredCustomers ?? [];
 
-  const finalFilteredCustomers = safeFilteredCustomers.filter(c => {
-    if (settlementFilter === "All") return true;
-    const hasWithPayment = c.discounts.some(d => d.settlementType === "with_payment");
-    if (settlementFilter === "Monthly") return !hasWithPayment;
-    if (settlementFilter === "WithPayment") return hasWithPayment;
-    return true;
-  });
+  const finalFilteredCustomers = safeFilteredCustomers;
 
   const exportCities = Array.from(new Set(safeCustomers.map((c) => c.city || "Unknown"))).filter(Boolean);
 
@@ -155,44 +147,6 @@ export default function CustomersList({
                 className="block w-full pl-11 pr-4 py-3 bg-white border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#D4AF37] focus:border-[#D4AF37] transition-all font-medium text-gray-900 placeholder-gray-400 shadow-sm"
               />
             </div>
-
-            <div className="relative w-full sm:w-48">
-              <button
-                onClick={() => setFilterOpen(!filterOpen)}
-                className="w-full flex items-center justify-between px-4 py-3 bg-white border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#D4AF37] focus:border-[#D4AF37] transition-all font-medium text-gray-900 shadow-sm"
-              >
-                <div className="flex items-center gap-2 text-sm">
-                  <Filter className="w-4 h-4 text-gray-400" />
-                  {settlementFilter === "All" ? "All Types" : settlementFilter === "Monthly" ? "Monthly" : "With Payment"}
-                </div>
-                <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${filterOpen ? "rotate-180" : ""}`} />
-              </button>
-              
-              {filterOpen && (
-                <>
-                  <div className="fixed inset-0 z-10" onClick={() => setFilterOpen(false)} />
-                  <div className="absolute top-full mt-2 w-full bg-white border border-gray-100 rounded-2xl shadow-xl overflow-hidden z-20 animate-in fade-in slide-in-from-top-2 duration-200">
-                    {[
-                      { value: "All", label: "All Types" },
-                      { value: "Monthly", label: "Monthly" },
-                      { value: "WithPayment", label: "With Payment" }
-                    ].map(opt => (
-                      <button
-                        key={opt.value}
-                        onClick={() => {
-                          setSettlementFilter(opt.value as any);
-                          setFilterOpen(false);
-                        }}
-                        className={`w-full text-left px-4 py-3 text-sm font-medium transition-colors hover:bg-gray-50 flex items-center justify-between ${settlementFilter === opt.value ? "text-[#D4AF37] bg-[#D4AF37]/5" : "text-gray-700"}`}
-                      >
-                        {opt.label}
-                        {settlementFilter === opt.value && <CheckCircle2 className="w-4 h-4 text-[#D4AF37]" />}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
             
             <button
               onClick={() => setExportModalOpen(true)}
@@ -206,9 +160,9 @@ export default function CustomersList({
         </div>
 
         {loading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
-            {[...Array(9)].map((_, i) => (
-              <div key={i} className="bg-white border border-gray-100 rounded-3xl p-6 shadow-sm flex flex-col gap-6 animate-pulse min-h-[200px]">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+            {[...Array(12)].map((_, i) => (
+              <div key={i} className="bg-white border border-gray-100 rounded-3xl p-5 shadow-sm flex flex-col gap-5 animate-pulse min-h-[180px]">
                 <div className="flex items-center gap-4">
                   <div className="bg-gray-200 w-14 h-14 rounded-2xl" />
                   <div className="flex-1 space-y-3">
@@ -230,7 +184,7 @@ export default function CustomersList({
             <p className="text-gray-500 mt-2">Try a different search query or add a new discount.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
             {finalFilteredCustomers.map((c) => {
               const hasWithPayment = c.discounts.some(d => d.settlementType === "with_payment");
               const borderClass = c.discounts.length > 0
@@ -243,11 +197,11 @@ export default function CustomersList({
               <div
                 key={c.customerId}
                 onClick={() => handleSelectCustomer(c)}
-                className={`bg-white rounded-3xl p-6 border border-gray-100 shadow-sm hover:shadow-lg transition-all cursor-pointer group flex flex-col h-full ${borderClass}`}
+                className={`bg-white rounded-3xl p-5 border border-gray-100 shadow-sm hover:shadow-lg transition-all cursor-pointer group flex flex-col h-full ${borderClass}`}
               >
-                <div className="flex justify-between items-start mb-5">
-                  <div className="bg-[#D4AF37]/10 p-3 rounded-2xl group-hover:bg-[#D4AF37]/20 transition-colors">
-                    <User className="w-7 h-7 text-[#D4AF37]" />
+                <div className="flex justify-between items-start mb-4">
+                  <div className="bg-[#D4AF37]/10 p-2.5 rounded-2xl group-hover:bg-[#D4AF37]/20 transition-colors">
+                    <User className="w-6 h-6 text-[#D4AF37]" />
                   </div>
                   <div className="flex items-center gap-2">
                     {(() => {
@@ -283,8 +237,8 @@ export default function CustomersList({
                     </span>
                   </div>
                 </div>
-                <h3 className="text-xl font-bold text-gray-800 mb-1 group-hover:text-[#D4AF37] transition-colors leading-snug">{c.customerName}</h3>
-                <p className="text-sm text-gray-500 flex items-center gap-2 mb-6">
+                <h3 className="text-lg font-bold text-gray-800 mb-1 group-hover:text-[#D4AF37] transition-colors leading-snug">{c.customerName}</h3>
+                <p className="text-sm text-gray-500 flex items-center gap-2 mb-5">
                   <span className="w-1.5 h-1.5 rounded-full bg-blue-400"></span>
                   {c.city}
                 </p>

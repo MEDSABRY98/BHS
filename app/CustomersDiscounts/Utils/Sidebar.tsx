@@ -11,8 +11,10 @@ import {
   PlusCircle,
   ShieldCheck,
   Users,
+  Filter,
 } from 'lucide-react';
 import { getAllowedModuleTabIds } from '@/app/AdminControl/AdminControlTab';
+import CustomersFilterModal from '../Modals/CustomersFilterModal';
 
 interface SidebarProps {
   isSidebarOpen: boolean;
@@ -21,6 +23,11 @@ interface SidebarProps {
   setCurrentView: (view: 'grid' | 'add' | 'details' | 'months' | 'stats' | 'values') => void;
   setSelectedCustomer: (val: null) => void;
   currentUser?: any;
+  selectedCity: string;
+  setSelectedCity: (city: string) => void;
+  availableCities: string[];
+  selectedDiscountType: "All" | "Monthly" | "WithPayment";
+  setSelectedDiscountType: (type: "All" | "Monthly" | "WithPayment") => void;
 }
 
 export const CUSTOMERS_DISCOUNTS_TAB_IDS = ['grid', 'months', 'stats', 'values', 'add'] as const;
@@ -40,8 +47,14 @@ export default function Sidebar({
   setCurrentView,
   setSelectedCustomer,
   currentUser,
+  selectedCity,
+  setSelectedCity,
+  availableCities,
+  selectedDiscountType,
+  setSelectedDiscountType,
 }: SidebarProps) {
   const [hoveredTab, setHoveredTab] = useState<{ label: string; top: number } | null>(null);
+  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
 
   const isCollapsed = !isSidebarOpen;
   const tabs = useMemo(() => {
@@ -122,13 +135,27 @@ export default function Sidebar({
             </button>
           );
         })}
+
       </nav>
 
-      <div className="p-4 border-t border-white/5 mt-auto flex flex-col gap-2 shrink-0">
+      <div className={`p-4 border-t border-white/5 mt-auto flex ${isCollapsed ? 'flex-col' : 'flex-row'} items-center justify-center gap-2 shrink-0`}>
+        <button
+          type="button"
+          onClick={() => setIsFilterModalOpen(true)}
+          className={`relative flex items-center justify-center w-10 h-10 hover:bg-white/10 rounded-xl transition-all duration-200 ${
+            isFilterModalOpen ? 'text-[#D4AF37] bg-white/5' : 'text-slate-400'
+          }`}
+          title="Filter Customers"
+        >
+          <Filter className="w-5 h-5 shrink-0" />
+          {(selectedCity !== "All" || selectedDiscountType !== "All") && (
+            <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border border-[#0a0f1d]"></span>
+          )}
+        </button>
         <button
           type="button"
           onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-          className="flex items-center justify-center w-10 h-10 mx-auto hover:bg-white/10 rounded-xl transition-all duration-200 text-slate-400 group"
+          className="flex items-center justify-center w-10 h-10 hover:bg-white/10 rounded-xl transition-all duration-200 text-slate-400 group"
           title={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
         >
           {isCollapsed ? <ChevronRight className="w-5 h-5 shrink-0" /> : <ChevronLeft className="w-5 h-5 shrink-0" />}
@@ -147,6 +174,17 @@ export default function Sidebar({
           </div>
         </div>
       )}
+
+      {/* Filter Modal */}
+      <CustomersFilterModal
+        isOpen={isFilterModalOpen}
+        onClose={() => setIsFilterModalOpen(false)}
+        selectedCity={selectedCity}
+        setSelectedCity={setSelectedCity}
+        availableCities={availableCities}
+        selectedDiscountType={selectedDiscountType}
+        setSelectedDiscountType={setSelectedDiscountType}
+      />
     </div>
   );
 }
