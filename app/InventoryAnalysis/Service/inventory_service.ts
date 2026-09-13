@@ -165,6 +165,33 @@ export async function fetchAllInventoryMovesStable(): Promise<InventoryMoveRow[]
   return allRows;
 }
 
+export async function fetchInventoryMovesForProducts(productIds: string[]): Promise<InventoryMoveRow[]> {
+  const SELECT = 'ID,DATE,REFERENCE,"LOCATION FROM","LOCATION TO","PRODUCT ID",QTY';
+  const results: InventoryMoveRow[] = [];
+  
+  const chunkSize = 200;
+  for (let i = 0; i < productIds.length; i += chunkSize) {
+    const chunk = productIds.slice(i, i + chunkSize);
+    let lastId: string | null = null;
+    while (true) {
+      let query = bhs_supabase
+        .from('web_INVENTORY_MOVES')
+        .select(SELECT)
+        .in('PRODUCT ID', chunk)
+        .order('ID', { ascending: true })
+        .limit(1000);
+      if (lastId !== null) query = query.gt('ID', lastId);
+      const { data, error } = await query;
+      if (error) throw error;
+      if (!data || data.length === 0) break;
+      results.push(...(data as InventoryMoveRow[]));
+      lastId = String(data[data.length - 1].ID ?? '');
+      if (data.length < 1000) break;
+    }
+  }
+  return results;
+}
+
 async function fetchInventoryProducts(): Promise<InventoryProductRow[]> {
   return fetchAllInventoryRows<InventoryProductRow>('bhs_PRODUCTS', '*');
 }
@@ -438,9 +465,11 @@ function hasUsableMovementsRpcData(data: unknown): boolean {
   });
 }
 
-export async function getProductMovementsData() {
+export async function getProductMovementsData(productIds?: string[]) {
   try {
-    const moveRows = await fetchInventoryMoves();
+    const moveRows = productIds?.length 
+      ? await fetchInventoryMovesForProducts(productIds)
+      : await fetchInventoryMoves();
     const registry = await loadLocationRegistry();
     const aggregated = aggregateMovements(moveRows, registry);
     return { success: true, data: aggregated };
@@ -1006,10 +1035,12 @@ function applyPeriodMovementBuckets(
 
 
 
-async function computeProductsBalanceReportDataJs(filters?: { dateFrom?: string; dateTo?: string; location?: string }) {
+async function computeProductsBalanceReportDataJs(filters?: { dateFrom?: string; dateTo?: string; location?: string; productIds?: string[] }) {
   const [products, moveRows, registry] = await Promise.all([
     fetchInventoryProducts(),
-    fetchAllInventoryMovesStable(),
+    filters?.productIds?.length 
+      ? fetchInventoryMovesForProducts(filters.productIds)
+      : fetchAllInventoryMovesStable(),
     loadLocationRegistry(),
   ]);
 
@@ -1142,7 +1173,7 @@ function mapRpcProductsBalanceRows(data: unknown): ProductBalanceRow[] {
     .filter((row) => row.productName);
 }
 
-export async function getProductsBalanceReportData(filters?: { dateFrom?: string; dateTo?: string; location?: string }) {
+export async function getProductsBalanceReportData(filters?: { dateFrom?: string; dateTo?: string; location?: string; productIds?: string[] }) {
   try {
 
 

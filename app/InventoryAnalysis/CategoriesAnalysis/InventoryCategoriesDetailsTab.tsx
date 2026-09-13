@@ -69,7 +69,12 @@ export default function InventoryProductOrdersDetailsTab({
     const fetchMovements = async () => {
         try {
             setFetchingMovements(true);
-            const json = await getProductMovementsData();
+            const pIds = localProducts.filter(p => p.formattedTag === categoryName).map(p => p.productId);
+            if (pIds.length === 0) {
+                setMovements({});
+                return;
+            }
+            const json = await getProductMovementsData(pIds);
             if (json.success) {
                 setMovements(json.data || {});
             }
@@ -83,7 +88,12 @@ export default function InventoryProductOrdersDetailsTab({
     const fetchBalances = async () => {
         try {
             setFetchingBalance(true);
-            const json = await getProductsBalanceReportData();
+            const pIds = localProducts.filter(p => p.formattedTag === categoryName).map(p => p.productId);
+            if (pIds.length === 0) {
+                setEndingBalances({});
+                return;
+            }
+            const json = await getProductsBalanceReportData({ productIds: pIds });
             if (json.success) {
                 const map: Record<string, number> = {};
                 (json.data || []).forEach((item: any) => {
