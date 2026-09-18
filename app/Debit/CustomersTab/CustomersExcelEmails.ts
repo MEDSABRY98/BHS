@@ -1,4 +1,4 @@
-﻿import { InvoiceRow } from '@/types';
+import { InvoiceRow } from '@/types';
 import { getInvoiceType } from './CstomersUtils';
 import { sortInvoicesByDateThenNumber } from '@/app/Debit/CustomerDetailsTab/Utils';
 
@@ -39,12 +39,12 @@ export const generateSingleCustomerExcelBlob = async (customerName: string, invo
   titleRow.height = 30;
   const titleCell = ws.getCell('A1');
   titleCell.value = customerName;
-  titleCell.font = { name: 'Calibri', size: 14, bold: true, color: { argb: 'FFFFFFFF' } };
+  titleCell.font = { name: 'Calibri', size: 14, bold: true, color: { argb: 'FF000000' } };
   titleCell.alignment = { vertical: 'middle', horizontal: 'center' };
   titleCell.fill = {
     type: 'pattern',
     pattern: 'solid',
-    fgColor: { argb: 'FF000000' } // Seamless with header row
+    fgColor: { argb: 'FFF2F2F2' } // Seamless with header row
   };
 
   // Row 2: Headers

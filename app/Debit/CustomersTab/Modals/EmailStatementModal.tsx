@@ -6,7 +6,7 @@ interface EmailStatementModalProps {
   onClose: () => void;
   emailStatementDate: string;
   setEmailStatementDate: (date: string) => void;
-  onConfirm: (date: string, isShort: boolean) => void;
+  onConfirm: (date: string, isShort: boolean, format: 'excel' | 'pdf' | 'both') => void;
   isProcessing: boolean;
 }
 
@@ -19,6 +19,7 @@ const EmailStatementModal: React.FC<EmailStatementModalProps> = ({
   isProcessing,
 }) => {
   const [isShortInvoiceId, setIsShortInvoiceId] = React.useState(true);
+  const [exportFormat, setExportFormat] = React.useState<'excel' | 'pdf' | 'both'>('both');
 
   if (!isOpen) return null;
 
@@ -48,6 +49,24 @@ const EmailStatementModal: React.FC<EmailStatementModalProps> = ({
 
         {/* Body */}
         <div className="px-6 pb-6 pt-2">
+          <div className="mb-6">
+            <label className="block text-sm font-semibold text-slate-700 mb-2">Export Format</label>
+            <div className="flex gap-4">
+              <label className={`flex-1 cursor-pointer border rounded-xl p-3 flex flex-col items-center justify-center gap-1 hover:bg-slate-50 transition-all ${exportFormat === 'excel' ? 'border-blue-500 bg-blue-50' : 'border-slate-200'}`}>
+                <input type="radio" name="exportFormatModal" className="sr-only" checked={exportFormat === 'excel'} onChange={() => setExportFormat('excel')} />
+                <span className="text-sm font-bold text-slate-900">Excel Only</span>
+              </label>
+              <label className={`flex-1 cursor-pointer border rounded-xl p-3 flex flex-col items-center justify-center gap-1 hover:bg-slate-50 transition-all ${exportFormat === 'pdf' ? 'border-blue-500 bg-blue-50' : 'border-slate-200'}`}>
+                <input type="radio" name="exportFormatModal" className="sr-only" checked={exportFormat === 'pdf'} onChange={() => setExportFormat('pdf')} />
+                <span className="text-sm font-bold text-slate-900">PDF Only</span>
+              </label>
+              <label className={`flex-1 cursor-pointer border rounded-xl p-3 flex flex-col items-center justify-center gap-1 hover:bg-slate-50 transition-all ${exportFormat === 'both' ? 'border-blue-500 bg-blue-50' : 'border-slate-200'}`}>
+                <input type="radio" name="exportFormatModal" className="sr-only" checked={exportFormat === 'both'} onChange={() => setExportFormat('both')} />
+                <span className="text-sm font-bold text-slate-900">Both</span>
+              </label>
+            </div>
+          </div>
+
           <div className="mb-6">
             <label className="block text-sm font-semibold text-slate-700 mb-2">Statement Date</label>
             <div className="relative group">
@@ -95,6 +114,7 @@ const EmailStatementModal: React.FC<EmailStatementModalProps> = ({
             </div>
           </div>
 
+
           <div className="flex gap-3">
             <button
               onClick={onClose}
@@ -103,7 +123,7 @@ const EmailStatementModal: React.FC<EmailStatementModalProps> = ({
               Cancel
             </button>
             <button
-              onClick={() => onConfirm(emailStatementDate, isShortInvoiceId)}
+              onClick={() => onConfirm(emailStatementDate, isShortInvoiceId, exportFormat)}
               disabled={isProcessing}
               className="flex-1 py-3 px-4 rounded-xl text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-sm shadow-blue-200 transition-all active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-70 disabled:pointer-events-none"
             >

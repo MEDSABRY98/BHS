@@ -181,7 +181,7 @@ export default function CustomersTab({
     }
   };
 
-  const handleBulkZIPDownload = async (overrideDate?: string, isShort?: boolean) => {
+  const handleBulkZIPDownload = async (overrideDate?: string, isShort?: boolean, exportFormat: 'excel' | 'pdf' | 'both' = 'both') => {
     if (selectedCustomersForDownload.size === 0) {
       alert('Please select customers to download');
       return;
@@ -217,11 +217,22 @@ export default function CustomersTab({
         if (netOnlyInvoices.length === 0) continue;
 
         const dateLabel = effectiveDate ? `Up To ${formatDmy(new Date(effectiveDate))}` : 'All Months (Net Only)';
-        const pdfBlob = await generateAccountStatementPDF(customerName, netOnlyInvoices, true, dateLabel, isShort ?? true);
-        if (pdfBlob) {
-          const cleanName = customerName.replace(/[^a-zA-Z0-9\u0600-\u06FF \-_]/g, '').trim();
-          zip.file(`${cleanName}.pdf`, pdfBlob as Blob);
-          count++;
+        const cleanName = customerName.replace(/[^a-zA-Z0-9\u0600-\u06FF \-_]/g, '').trim();
+        
+        if (exportFormat === 'pdf' || exportFormat === 'both') {
+          const pdfBlob = await generateAccountStatementPDF(customerName, netOnlyInvoices, true, dateLabel, isShort ?? true);
+          if (pdfBlob) {
+            zip.file(`${cleanName}.pdf`, pdfBlob as Blob);
+            count++;
+          }
+        }
+        
+        if (exportFormat === 'excel' || exportFormat === 'both') {
+          const excelBlob = await generateSingleCustomerExcelBlob(customerName, netOnlyInvoices, isShort ?? true);
+          if (excelBlob) {
+            zip.file(`${cleanName}.xlsx`, excelBlob);
+            count++;
+          }
         }
       }
 
@@ -241,7 +252,7 @@ export default function CustomersTab({
     }
   };
 
-  const handleBulkEmail = async (overrideDate?: string, isShort?: boolean) => {
+  const handleBulkEmail = async (overrideDate?: string, isShort?: boolean, exportFormat: 'excel' | 'pdf' | 'both' = 'both') => {
     if (selectedCustomersForDownload.size === 0) {
       alert('Please select customers to email');
       return;
@@ -286,31 +297,37 @@ export default function CustomersTab({
         if (netOnlyInvoices.length === 0) return null;
 
         const netDebt = netOnlyInvoices.reduce((sum, inv) => sum + (inv.netDebt || 0), 0);
-        const pdfBlob = await generateAccountStatementPDF(
-          customerName,
-          netOnlyInvoices,
-          true,
-          dateLabel,
-          shortInvoice
-        );
-        if (!pdfBlob) return null;
+        let pdfBase64 = '';
+        if (exportFormat === 'pdf' || exportFormat === 'both') {
+          const pdfBlob = await generateAccountStatementPDF(
+            customerName,
+            netOnlyInvoices,
+            true,
+            dateLabel,
+            shortInvoice
+          );
+          if (pdfBlob) {
+            pdfBase64 = await new Promise<string>((resolve) => {
+              const reader = new FileReader();
+              reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
+              reader.readAsDataURL(pdfBlob as Blob);
+            });
+          }
+        }
 
-        const pdfBase64 = await new Promise<string>((resolve) => {
-          const reader = new FileReader();
-          reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
-          reader.readAsDataURL(pdfBlob as Blob);
-        });
-
-        const excelBlob = await generateSingleCustomerExcelBlob(
-          customerName,
-          netOnlyInvoices,
-          shortInvoice
-        );
-        const excelBase64 = await new Promise<string>((resolve) => {
-          const excelReader = new FileReader();
-          excelReader.onloadend = () => resolve((excelReader.result as string).split(',')[1]);
-          excelReader.readAsDataURL(excelBlob);
-        });
+        let excelBase64 = '';
+        if (exportFormat === 'excel' || exportFormat === 'both') {
+          const excelBlob = await generateSingleCustomerExcelBlob(
+            customerName,
+            netOnlyInvoices,
+            shortInvoice
+          );
+          excelBase64 = await new Promise<string>((resolve) => {
+            const excelReader = new FileReader();
+            excelReader.onloadend = () => resolve((excelReader.result as string).split(',')[1]);
+            excelReader.readAsDataURL(excelBlob);
+          });
+        }
 
         const customerData =
           customerAnalysis.find((c) => c.customerName === customerName) ||
@@ -353,22 +370,28 @@ export default function CustomersTab({
         ];
 
         attachments.forEach((att) => {
-          parts.push(
-            '--' + boundary,
-            `Content-Type: application/pdf; name="${att.cleanName}.pdf"`,
-            'Content-Transfer-Encoding: base64',
-            `Content-Disposition: attachment; filename="${att.cleanName}.pdf"`,
-            '',
-            att.pdfBase64,
-            '',
-            '--' + boundary,
-            `Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet; name="${att.cleanName}.xlsx"`,
-            'Content-Transfer-Encoding: base64',
-            `Content-Disposition: attachment; filename="${att.cleanName}.xlsx"`,
-            '',
-            att.excelBase64,
-            ''
-          );
+          if (att.pdfBase64) {
+            parts.push(
+              '--' + boundary,
+              `Content-Type: application/pdf; name="${att.cleanName}.pdf"`,
+              'Content-Transfer-Encoding: base64',
+              `Content-Disposition: attachment; filename="${att.cleanName}.pdf"`,
+              '',
+              att.pdfBase64,
+              ''
+            );
+          }
+          if (att.excelBase64) {
+            parts.push(
+              '--' + boundary,
+              `Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet; name="${att.cleanName}.xlsx"`,
+              'Content-Transfer-Encoding: base64',
+              `Content-Disposition: attachment; filename="${att.cleanName}.xlsx"`,
+              '',
+              att.excelBase64,
+              ''
+            );
+          }
         });
 
         parts.push('--' + boundary + '--');
@@ -485,7 +508,7 @@ export default function CustomersTab({
     }
   };
 
-  const handleBulkLuluEmail = async (overrideDate?: string, isShort?: boolean) => {
+  const handleBulkLuluEmail = async (overrideDate?: string, isShort?: boolean, exportFormat: 'excel' | 'pdf' | 'both' = 'both') => {
     if (selectedCustomersForDownload.size === 0) {
       alert('Please select customers to email');
       return;
@@ -542,23 +565,29 @@ export default function CustomersTab({
         const netDebt = netOnlyInvoices.reduce((sum, inv) => sum + (inv.netDebt || 0), 0);
         const dateLabel = effectiveDate ? `Up To ${formatDmy(new Date(effectiveDate))}` : 'All Months (Net Only)';
 
-        // Generate PDF
-        const pdfBlob = await generateAccountStatementPDF(customerName, netOnlyInvoices, true, dateLabel, isShort ?? true);
-        if (!pdfBlob) continue;
+        let pdfBase64 = '';
+        if (exportFormat === 'pdf' || exportFormat === 'both') {
+          const pdfBlob = await generateAccountStatementPDF(customerName, netOnlyInvoices, true, dateLabel, isShort ?? true);
+          if (pdfBlob) {
+            pdfBase64 = await new Promise<string>((resolve) => {
+              const reader = new FileReader();
+              reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
+              reader.readAsDataURL(pdfBlob as Blob);
+            });
+          }
+        }
 
-        const pdfBase64 = await new Promise<string>((resolve) => {
-          const reader = new FileReader();
-          reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
-          reader.readAsDataURL(pdfBlob as Blob);
-        });
-
-        // Generate Excel
-        const excelBlob = await generateSingleCustomerExcelBlob(customerName, netOnlyInvoices, isShort ?? true);
-        const excelBase64 = await new Promise<string>((resolve) => {
-          const reader = new FileReader();
-          reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
-          reader.readAsDataURL(excelBlob);
-        });
+        let excelBase64 = '';
+        if (exportFormat === 'excel' || exportFormat === 'both') {
+          const excelBlob = await generateSingleCustomerExcelBlob(customerName, netOnlyInvoices, isShort ?? true);
+          if (excelBlob) {
+            excelBase64 = await new Promise<string>((resolve) => {
+              const reader = new FileReader();
+              reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
+              reader.readAsDataURL(excelBlob);
+            });
+          }
+        }
 
         const cleanName = customerName.replace(/[^a-zA-Z0-9\u0600-\u06FF \-_]/g, '').trim();
         const boundary = "----=_NextPart_000_0001_01C2A9A1.12345678";
@@ -1022,12 +1051,12 @@ export default function CustomersTab({
         onClose={() => setStatementModalAction(null)}
         emailStatementDate={emailStatementDate}
         setEmailStatementDate={setEmailStatementDate}
-        onConfirm={(date, isShort) => {
+        onConfirm={(date, isShort, format) => {
           const action = statementModalAction;
           setStatementModalAction(null);
-          if (action === 'EMAIL') handleBulkEmail(date, isShort);
-          else if (action === 'ZIP') handleBulkZIPDownload(date, isShort);
-          else if (action === 'EMAIL_LULU') handleBulkLuluEmail(date, isShort);
+          if (action === 'EMAIL') handleBulkEmail(date, isShort, format);
+          else if (action === 'ZIP') handleBulkZIPDownload(date, isShort, format);
+          else if (action === 'EMAIL_LULU') handleBulkLuluEmail(date, isShort, format);
         }}
         isProcessing={isDownloading}
       />

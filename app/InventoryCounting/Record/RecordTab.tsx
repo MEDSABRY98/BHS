@@ -2,8 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Search, History, RefreshCw, FileSpreadsheet, Pencil, Trash2 } from 'lucide-react';
-import * as XLSX from 'xlsx';
-import { writeTrackedXlsxFile } from '@/app/Audit/Utils/TrackedDownload';
+import { exportInventoryCountingExcelTable } from '../Export/ExcelExport';
 import TabLoader from '@/app/Components/Loading/TabLoader';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import TabFetchError from '@/app/Components/DataState/TabFetchError';
@@ -124,25 +123,38 @@ export default function RecordTab() {
     return matchesSearch && matchesUser && matchesWarehouse;
   });
 
-  const handleExport = () => {
-    const exportData = filteredData.map((item, idx) => ({
-      '#': idx + 1,
-      'Row ID': item.rowId,
-      Date: item.date,
-      Type: formatCountType(item.countType),
-      User: item.user,
-      Warehouse: item.warehouse,
-      Barcode: item.barcodeName,
-      'Product Name': item.productName,
-      'Qty in Box': item.qtyInBox,
-      'Count Details': item.countDetails,
-      'Counted Qty': item.countedQty,
-    }));
+  const handleExport = async () => {
+    const headers = [
+      '#',
+      'Row ID',
+      'Date',
+      'User',
+      'Warehouse',
+      'Barcode',
+      'Product Name',
+      'Qty in Box',
+      'Count Details',
+      'Counted Qty',
+    ];
 
-    const worksheet = XLSX.utils.json_to_sheet(exportData);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Record');
-    writeTrackedXlsxFile(workbook, `Inventory_Record_${new Date().toISOString().split('T')[0]}.xlsx`);
+    const exportRows = filteredData.map((item, idx) => [
+      idx + 1,
+      item.rowId,
+      item.date,
+      item.user,
+      item.warehouse,
+      item.barcodeName,
+      item.productName,
+      item.qtyInBox,
+      item.countDetails,
+      item.countedQty,
+    ]);
+
+    const filename = `Inventory_Record_${new Date().toISOString().split('T')[0]}.xlsx`;
+    await exportInventoryCountingExcelTable(headers, exportRows, filename, {
+      sheetName: 'Record',
+      numericColumns: ['Row ID', 'Qty in Box', 'Counted Qty'],
+    });
   };
 
   const handleSaveRecord = async (values: {

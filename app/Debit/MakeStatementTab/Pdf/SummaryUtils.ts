@@ -4,6 +4,7 @@ import { getInvoiceType } from '@/app/Debit/Utils/InvoiceType';
 import { addArabicFont } from '@/app/Components/Pdf/shared';
 import { sortInvoicesByDateThenNumber } from '@/app/Debit/CustomerDetailsTab/Utils';
 import { saveTrackedPdf } from '@/app/Audit/Utils/TrackedDownload';
+import { parseDate } from '@/app/Debit/CustomersTab/CstomersUtils';
 
 // --- Colors ---
 const COLORS = {
@@ -80,8 +81,8 @@ function drawStatementHeader(doc: any, customerName: string, invoices: any[], ma
   let balanceDateStr = currentDate;
   for (let i = invoices.length - 1; i >= 0; i--) {
     if (invoices[i].date) {
-      const d = new Date(invoices[i].date);
-      if (!isNaN(d.getTime())) {
+      const d = parseDate(invoices[i].date);
+      if (d && !isNaN(d.getTime())) {
         balanceDateStr = `${d.getDate().toString().padStart(2, '0')}-${d.toLocaleDateString('en-US', { month: 'short' })}-${d.getFullYear()}`;
         break;
       }

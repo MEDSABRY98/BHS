@@ -7,8 +7,12 @@ import {
   Package,
   RefreshCw,
   Search,
+  Download,
+  Loader2,
 } from 'lucide-react';
 import NoData from '@/app/Components/DataState/NoDataTab';
+import { fetchArchivedAllICDetails } from '../Service/InventoryCountingService';
+import { exportInventoryCountingExcel } from '../Export/ExcelExport';
 import TabLoader from '@/app/Components/Loading/TabLoader';
 import { useInventoryCountingArchive } from './InventoryCountingArchiveContext';
 import type { InventoryCountingTabId } from '../Utils/Sidebar';
@@ -40,6 +44,38 @@ export default function ArchivesTab({ onViewArchive }: ArchivesTabProps) {
   } = useInventoryCountingArchive();
   const [searchQuery, setSearchQuery] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [downloadingArchiveId, setDownloadingArchiveId] = useState<string | null>(null);
+
+  const handleDownloadExcel = async (e: React.MouseEvent, id: string, label: string) => {
+    e.stopPropagation();
+    setDownloadingArchiveId(id);
+    try {
+      const result = await fetchArchivedAllICDetails(id);
+      if (result.success && result.data && result.data.length > 0) {
+        const formattedData = result.data.map((row) => {
+          const newRow: Record<string, unknown> = {};
+          Object.entries(row).forEach(([k, v]) => {
+            const newKey = k.replace(/([A-Z])/g, ' $1').trim().toUpperCase();
+            newRow[newKey] = v;
+          });
+          return newRow;
+        });
+
+        const filename = label 
+          ? `IC_Archive_${id}_${label.replace(/[^a-z0-9]/gi, '_')}` 
+          : `IC_Archive_${id}`;
+
+        await exportInventoryCountingExcel(formattedData, filename, { sheetName: 'Details' });
+      } else {
+        alert(result.error || 'No data found or failed to download');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Error downloading archive data');
+    } finally {
+      setDownloadingArchiveId(null);
+    }
+  };
 
   useEffect(() => {
     void refreshArchives();
@@ -138,15 +174,22 @@ export default function ArchivesTab({ onViewArchive }: ArchivesTabProps) {
       {filteredArchives.length === 0 ? (
         <NoData title={searchQuery.trim() ? 'No Matching Archives' : 'No Archived Sessions Yet'} />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {filteredArchives.map((archive) => {
             const isSelected = archiveId === archive.archiveId;
             return (
-              <button
+              <div
                 key={archive.archiveId}
-                type="button"
+                role="button"
+                tabIndex={0}
                 onClick={() => openArchive(archive.archiveId)}
-                className={`text-left rounded-[1.75rem] border p-5 transition-all ${
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    openArchive(archive.archiveId);
+                  }
+                }}
+                className={`text-left rounded-[1.75rem] border p-5 transition-all cursor-pointer ${
                   isSelected
                     ? 'border-amber-300 bg-amber-50 shadow-md shadow-amber-100'
                     : 'border-slate-100 bg-white hover:border-amber-200 hover:bg-amber-50/40 shadow-sm'
@@ -184,14 +227,28 @@ export default function ArchivesTab({ onViewArchive }: ArchivesTabProps) {
                         {archive.detailRowCount.toLocaleString()} detail ·{' '}
                         {archive.totalRowCount.toLocaleString()} totals
                       </p>
-                      <p className="text-[11px] font-medium text-slate-400">
-                        Closed {formatClosedAt(archive.closedAt)}
-                        {archive.resetLive ? ' · Live reset' : ''}
-                      </p>
+                      <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
+                        <p className="text-[11px] font-medium text-slate-400">
+                          Closed {formatClosedAt(archive.closedAt)}
+                          {archive.resetLive ? ' · Live reset' : ''}
+                        </p>
+                        <button
+                          onClick={(e) => handleDownloadExcel(e, archive.archiveId, archive.label || '')}
+                          disabled={downloadingArchiveId === archive.archiveId}
+                          className="flex items-center justify-center w-8 h-8 rounded-full bg-emerald-50 text-emerald-600 hover:bg-emerald-100 hover:text-emerald-700 transition-colors disabled:opacity-50 disabled:pointer-events-none"
+                          title="Download Excel"
+                        >
+                          {downloadingArchiveId === archive.archiveId ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Download className="w-4 h-4" />
+                          )}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </button>
+              </div>
             );
           })}
         </div>

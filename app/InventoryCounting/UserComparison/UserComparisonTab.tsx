@@ -2,8 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Search, Package, RefreshCw, ChevronDown, FileSpreadsheet, ArrowUpDown } from 'lucide-react';
-import * as XLSX from 'xlsx';
-import { writeTrackedXlsxFile } from '@/app/Audit/Utils/TrackedDownload';
+import { exportInventoryCountingExcelTable } from '../Export/ExcelExport';
 import TabLoader from '@/app/Components/Loading/TabLoader';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import TabFetchError from '@/app/Components/DataState/TabFetchError';
@@ -254,25 +253,28 @@ export default function UserComparisonTab() {
     </th>
   );
 
-  const handleExport = () => {
-    const exportData = sortedData.map((item, idx) => {
-      const row: Record<string, string | number> = {
-        '#': idx + 1,
-        Barcode: item.barcodeName,
-        'Product Name': item.productName,
-        'Available Qty': item.availableQty,
-        Diff: getRowDifference(item),
-      };
+  const handleExport = async () => {
+    const headers = ['#', 'Barcode', 'Product Name', 'Available Qty', 'Diff', ...visibleUsers];
+
+    const exportRows = sortedData.map((item, idx) => {
+      const row = [
+        idx + 1,
+        item.barcodeName,
+        item.productName,
+        item.availableQty,
+        getRowDifference(item),
+      ];
       visibleUsers.forEach((user) => {
-        row[user] = item.userQtys[user] || 0;
+        row.push(item.userQtys[user] || 0);
       });
       return row;
     });
 
-    const worksheet = XLSX.utils.json_to_sheet(exportData);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'User Comparison');
-    writeTrackedXlsxFile(workbook, `User_Comparison_${new Date().toISOString().split('T')[0]}.xlsx`);
+    const filename = `User_Comparison_${new Date().toISOString().split('T')[0]}.xlsx`;
+    await exportInventoryCountingExcelTable(headers, exportRows, filename, {
+      sheetName: 'User Comparison',
+      numericColumns: ['Available Qty', 'Diff', ...visibleUsers],
+    });
   };
 
   if (loading) return <TabLoader />;

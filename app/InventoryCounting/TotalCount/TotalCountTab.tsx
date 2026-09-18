@@ -2,8 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { ArrowUpDown, Search, Package, RefreshCw, ChevronDown, FileSpreadsheet } from 'lucide-react';
-import * as XLSX from 'xlsx';
-import { writeTrackedXlsxFile } from '@/app/Audit/Utils/TrackedDownload';
+import { exportInventoryCountingExcelTable } from '../Export/ExcelExport';
 import TabLoader from '@/app/Components/Loading/TabLoader';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import TabFetchError from '@/app/Components/DataState/TabFetchError';
@@ -246,22 +245,30 @@ export default function TotalCountTab() {
     setSortConfig({ key, direction });
   };
 
-  const handleExport = () => {
-    const exportData = filteredData.map((item, idx) => ({
-      '#': idx + 1,
-      Barcode: item.barcodeName,
-      'Product Name': item.productName,
-      'Available Qty': item.availableQty,
-      'Total Counted': item.totalCountedQty,
-      Difference: item.difference,
-      Normal: item.normalQty,
-      'Damage & Expire': item.damageQty,
-    }));
+  const handleExport = async () => {
+    const headers = [
+      '#',
+      'Barcode',
+      'Product Name',
+      'Available Qty',
+      'Total Counted',
+      'Difference',
+    ];
 
-    const worksheet = XLSX.utils.json_to_sheet(exportData);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Total Count');
-    writeTrackedXlsxFile(workbook, `Total_Count_${new Date().toISOString().split('T')[0]}.xlsx`);
+    const exportRows = filteredData.map((item, idx) => [
+      idx + 1,
+      item.barcodeName,
+      item.productName,
+      item.availableQty,
+      item.totalCountedQty,
+      item.difference,
+    ]);
+
+    const filename = `Total_Count_${new Date().toISOString().split('T')[0]}.xlsx`;
+    await exportInventoryCountingExcelTable(headers, exportRows, filename, {
+      sheetName: 'Total Count',
+      numericColumns: ['Available Qty', 'Total Counted', 'Difference'],
+    });
   };
 
   const handleSaveItem = async (updatedValues: Partial<ICItem>) => {
