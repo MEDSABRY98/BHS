@@ -4,7 +4,8 @@ import { useMemo } from 'react';
 import {
   ComposedChart,
   CartesianGrid,
-  Line,
+  Bar,
+  Cell,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -94,36 +95,23 @@ export default function AgingBreakdownChart({ breakdown, totalDebt, forPdf = fal
   );
   const total = totalDebt ?? bucketsTotal;
 
-  const dotLabel = useMemo(
-    () =>
-      function DotLabel(props: { cx?: number; cy?: number; index?: number }) {
-        return <PctDotLabel {...props} chartData={chartData} />;
-      },
-    [chartData]
-  );
-
-  const renderDot = useMemo(
-    () =>
-      (props: { cx?: number; cy?: number; index?: number }) => {
-        const { cx = 0, cy = 0, index = 0 } = props;
-        const point = chartData[index];
-        if (!point || point.amount <= 0.01) return <g key={`dot-${index}`} />;
-        return (
-          <g key={`dot-${index}`}>
-            {/* Labels above dot */}
-            <text x={cx} y={cy - 50} textAnchor="middle" fill="#111827" fontSize={13} fontWeight={800}>
-              {formatBarAmount(point.amount)}
-            </text>
-            <text x={cx} y={cy - 20} textAnchor="middle" fill="#6366F1" fontSize={14} fontWeight={700}>
-              {point.pct.toFixed(1)}%
-            </text>
-            {/* Dot circle */}
-            <circle cx={cx} cy={cy} r={6} fill={point.fill} stroke={point.stroke} strokeWidth={2} />
-          </g>
-        );
-      },
-    [chartData]
-  );
+  const renderCustomBarLabel = (props: any) => {
+    const { x, y, width, index } = props;
+    const point = chartData[index];
+    if (!point || point.amount <= 0.01) return null;
+    const cx = x + width / 2;
+    const cy = y;
+    return (
+      <g>
+        <text x={cx} y={cy - 28} textAnchor="middle" fill="#111827" fontSize={13} fontWeight={800}>
+          {formatBarAmount(point.amount)}
+        </text>
+        <text x={cx} y={cy - 8} textAnchor="middle" fill="#6366F1" fontSize={14} fontWeight={700}>
+          {point.pct.toFixed(1)}%
+        </text>
+      </g>
+    );
+  };
 
   const chart = (
     <ResponsiveContainer width="100%" height={forPdf ? 620 : 400}>
@@ -160,16 +148,16 @@ export default function AgingBreakdownChart({ breakdown, totalDebt, forPdf = fal
             }}
           />
         )}
-        <Line
-          type="monotone"
-          dataKey="pct"
-          name="% of Total"
-          stroke="#6366F1"
-          strokeWidth={2.5}
-          dot={renderDot}
-          activeDot={{ r: 8, stroke: '#6366F1', strokeWidth: 2, fill: '#fff' }}
+        <Bar
+          dataKey="amount"
           isAnimationActive={false}
-        />
+          label={renderCustomBarLabel}
+          radius={[4, 4, 0, 0]}
+        >
+          {chartData.map((entry, index) => (
+            <Cell key={`cell-${index}`} fill={entry.fill} stroke={entry.stroke} strokeWidth={2} />
+          ))}
+        </Bar>
       </ComposedChart>
     </ResponsiveContainer>
   );

@@ -7,7 +7,9 @@ import {
   isPaymentTxn,
   getPaymentAmount,
   calculateDebtRating,
-  generateCustomerAnalysis
+  generateCustomerAnalysis,
+  buildInvoicesWithNetDebtForExport,
+  toNetOnlyOpenInvoicesForExport
 } from '../CustomersTab/CstomersUtils';
 
 export function useGlobalDebitFilter(
@@ -26,7 +28,9 @@ export function useGlobalDebitFilter(
     const fromDate = globalFilters.dateFrom ? new Date(globalFilters.dateFrom) : null;
     if (fromDate) fromDate.setHours(0, 0, 0, 0);
 
-    return data.filter(row => {
+    const openInvoices = toNetOnlyOpenInvoicesForExport(buildInvoicesWithNetDebtForExport(data));
+
+    return openInvoices.filter(row => {
       if (!row.date) return true;
       const rowDate = new Date(row.date);
       
