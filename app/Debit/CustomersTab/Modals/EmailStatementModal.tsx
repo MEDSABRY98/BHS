@@ -4,17 +4,13 @@ import { Mail, CalendarDays } from 'lucide-react';
 interface EmailStatementModalProps {
   isOpen: boolean;
   onClose: () => void;
-  emailStatementDate: string;
-  setEmailStatementDate: (date: string) => void;
-  onConfirm: (date: string, isShort: boolean, format: 'excel' | 'pdf' | 'both') => void;
+  onConfirm: (isShort: boolean, format: 'excel' | 'pdf' | 'both') => void;
   isProcessing: boolean;
 }
 
 const EmailStatementModal: React.FC<EmailStatementModalProps> = ({
   isOpen,
   onClose,
-  emailStatementDate,
-  setEmailStatementDate,
   onConfirm,
   isProcessing,
 }) => {
@@ -67,20 +63,6 @@ const EmailStatementModal: React.FC<EmailStatementModalProps> = ({
             </div>
           </div>
 
-          <div className="mb-6">
-            <label className="block text-sm font-semibold text-slate-700 mb-2">Statement Date</label>
-            <div className="relative group">
-              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                <CalendarDays className="h-5 w-5 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
-              </div>
-              <input
-                type="date"
-                className="w-full bg-slate-50 border border-slate-200 text-slate-900 text-base py-3 pl-11 pr-4 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-semibold shadow-sm"
-                value={emailStatementDate}
-                onChange={(e) => setEmailStatementDate(e.target.value)}
-              />
-            </div>
-          </div>
 
           <div className="mb-6">
             <label className="block text-sm font-semibold text-slate-700 mb-2">Invoice Number Format</label>
@@ -123,7 +105,7 @@ const EmailStatementModal: React.FC<EmailStatementModalProps> = ({
               Cancel
             </button>
             <button
-              onClick={() => onConfirm(emailStatementDate, isShortInvoiceId, exportFormat)}
+              onClick={() => onConfirm(isShortInvoiceId, exportFormat)}
               disabled={isProcessing}
               className="flex-1 py-3 px-4 rounded-xl text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-sm shadow-blue-200 transition-all active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-70 disabled:pointer-events-none"
             >

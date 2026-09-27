@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { InvoiceRow, CustomerAnalysis } from '@/types';
+import { buildInvoicesByCustomer } from '../Utils/DebitIndexes';
 import { GlobalDebitFilters, LuluEmailRecord } from '../Context/DebitDataContext';
 import {
   parseDate,
@@ -16,10 +17,35 @@ export function useGlobalDebitFilter(
   customersWithEmails: Map<string, string>,
   luluEmails: LuluEmailRecord[]
 ): InvoiceRow[] {
+  const dateFilteredData = useMemo(() => {
+    if (!globalFilters.dateTo && !globalFilters.dateFrom) return data;
+    
+    const toDate = globalFilters.dateTo ? new Date(globalFilters.dateTo) : null;
+    if (toDate) toDate.setHours(23, 59, 59, 999);
+
+    const fromDate = globalFilters.dateFrom ? new Date(globalFilters.dateFrom) : null;
+    if (fromDate) fromDate.setHours(0, 0, 0, 0);
+
+    return data.filter(row => {
+      if (!row.date) return true;
+      const rowDate = new Date(row.date);
+      
+      if (toDate && rowDate > toDate) return false;
+      if (fromDate && rowDate < fromDate) return false;
+      
+      return true;
+    });
+  }, [data, globalFilters.dateTo, globalFilters.dateFrom]);
+
+  const effectiveInvoicesByCustomer = useMemo(() => {
+    if (!globalFilters.dateTo && !globalFilters.dateFrom) return invoicesByCustomer;
+    return buildInvoicesByCustomer(dateFilteredData);
+  }, [dateFilteredData, invoicesByCustomer, globalFilters.dateTo, globalFilters.dateFrom]);
+
   // First, calculate CustomerAnalysis to know rating, sales reps, etc.
   const customerAnalysis = useMemo(() => {
-    return generateCustomerAnalysis(data);
-  }, [data]);
+    return generateCustomerAnalysis(dateFilteredData);
+  }, [dateFilteredData]);
 
   const validCustomers = useMemo(() => {
     let result = customerAnalysis;
@@ -75,7 +101,7 @@ export function useGlobalDebitFilter(
       };
 
       result = result.filter(c => {
-        const customerInvoices = invoicesByCustomer.get(c.customerName) || [];
+        const customerInvoices = effectiveInvoicesByCustomer.get(c.customerName) || [];
         const matchingGroups = new Map<string, InvoiceRow[]>();
         customerInvoices.forEach(inv => {
           const key = inv.matching || 'UNMATCHED';
@@ -124,7 +150,7 @@ export function useGlobalDebitFilter(
 
     if (overdueYear && Array.isArray(overdueYear) && overdueYear.length > 0) {
       result = result.filter(c => {
-        const customerInvoices = invoicesByCustomer.get(c.customerName) || [];
+        const customerInvoices = effectiveInvoicesByCustomer.get(c.customerName) || [];
         const matchingGroups = new Map<string, InvoiceRow[]>();
         customerInvoices.forEach(inv => {
           const key = inv.matching || 'UNMATCHED';
@@ -171,8 +197,12 @@ export function useGlobalDebitFilter(
       });
     }
 
+    if (globalFilters.hideZeroBalance) {
+      result = result.filter(c => c.netDebt > 0.01);
+    }
+
     return new Set(result.map(c => c.customerName));
-  }, [customerAnalysis, globalFilters, customersWithEmails, luluEmails, invoicesByCustomer]);
+  }, [customerAnalysis, globalFilters, customersWithEmails, luluEmails, effectiveInvoicesByCustomer]);
 
   return useMemo(() => {
     // If no global filters are active that restrict customers, we can just return data to avoid a new array
@@ -183,11 +213,14 @@ export function useGlobalDebitFilter(
       globalFilters.overdueMonth.length === 0 &&
       globalFilters.overdueYear.length === 0 &&
       globalFilters.selectedCustomerTags.length === 0 &&
-      globalFilters.selectedCustomerClasses.length === 0
+      globalFilters.selectedCustomerClasses.length === 0 &&
+      !globalFilters.dateTo &&
+      !globalFilters.dateFrom &&
+      !globalFilters.hideZeroBalance
     ) {
       return data;
     }
 
-    return data.filter(row => validCustomers.has(row.customerName));
-  }, [data, validCustomers, globalFilters]);
+    return dateFilteredData.filter(row => validCustomers.has(row.customerName));
+  }, [data, dateFilteredData, validCustomers, globalFilters]);
 }

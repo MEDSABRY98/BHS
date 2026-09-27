@@ -92,7 +92,7 @@ const FilterModal: React.FC<FilterModalProps> = ({
   filteredDataCount,
   data
 }) => {
-  const [activeTab, setActiveTab] = useState<'GENERAL' | 'CUSTOMER_CLASSES' | 'CUSTOMER_TAGS' | 'OVERDUE_YEARS' | 'OVERDUE_MONTHS'>('GENERAL');
+  const [activeTab, setActiveTab] = useState<'GENERAL' | 'DATES' | 'CUSTOMER_CLASSES' | 'CUSTOMER_TAGS' | 'OVERDUE_YEARS' | 'OVERDUE_MONTHS'>('GENERAL');
   const [isRatingOpen, setIsRatingOpen] = useState(false);
   const [isAreaOpen, setIsAreaOpen] = useState(false);
   const [isEmailOpen, setIsEmailOpen] = useState(false);
@@ -105,6 +105,9 @@ const FilterModal: React.FC<FilterModalProps> = ({
     overdueYear: [] as string[],
     selectedCustomerTags: [] as string[],
     selectedCustomerClasses: [] as string[],
+    dateFrom: '',
+    dateTo: '',
+    hideZeroBalance: false,
   });
 
   // Sync draft filters with parent filters when modal opens
@@ -118,6 +121,9 @@ const FilterModal: React.FC<FilterModalProps> = ({
         overdueYear: filters.overdueYear || [],
         selectedCustomerTags: filters.selectedCustomerTags || [],
         selectedCustomerClasses: filters.selectedCustomerClasses || [],
+        dateFrom: filters.dateFrom || '',
+        dateTo: filters.dateTo || '',
+        hideZeroBalance: filters.hideZeroBalance || false,
       });
     }
   }, [isOpen, filters]);
@@ -301,6 +307,9 @@ const FilterModal: React.FC<FilterModalProps> = ({
       overdueYear: [],
       selectedCustomerTags: [],
       selectedCustomerClasses: [],
+      dateFrom: '',
+      dateTo: '',
+      hideZeroBalance: false,
     });
   };
 
@@ -314,6 +323,9 @@ const FilterModal: React.FC<FilterModalProps> = ({
       overdueYear: draftFilters.overdueYear,
       selectedCustomerTags: draftFilters.selectedCustomerTags,
       selectedCustomerClasses: draftFilters.selectedCustomerClasses,
+      dateFrom: draftFilters.dateFrom,
+      dateTo: draftFilters.dateTo,
+      hideZeroBalance: draftFilters.hideZeroBalance,
     }));
     onClose();
   };
@@ -363,6 +375,7 @@ const FilterModal: React.FC<FilterModalProps> = ({
           <div className="w-52 bg-gray-50 border-r border-gray-100 p-2 space-y-1 overflow-y-auto rounded-bl-2xl">
             {[
               { id: 'GENERAL', label: 'General Filters' },
+              { id: 'DATES', label: 'Dates' },
               { id: 'CUSTOMER_CLASSES', label: 'Customer Classes' },
               { id: 'CUSTOMER_TAGS', label: 'Customer Tags' },
               { id: 'OVERDUE_YEARS', label: 'Overdue Years' },
@@ -419,6 +432,55 @@ const FilterModal: React.FC<FilterModalProps> = ({
                       if (open) { setIsRatingOpen(false); setIsAreaOpen(false); }
                     }}
                   />
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'DATES' && (
+              <div className="space-y-6 max-w-lg">
+                <h4 className="text-base font-semibold text-gray-800 border-b pb-2">Dates</h4>
+                <div className="space-y-4">
+                  <div className="relative">
+                    <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wider">
+                      Date From
+                    </label>
+                    <input
+                      type="date"
+                      className="w-full bg-white border border-gray-200 text-gray-800 text-sm py-2.5 px-4 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all font-semibold hover:border-gray-300"
+                      value={draftFilters.dateFrom}
+                      onChange={(e) => updateDraftFilter('dateFrom', e.target.value)}
+                    />
+                  </div>
+
+                  <div className="relative">
+                    <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wider">
+                      Date To
+                    </label>
+                    <input
+                      type="date"
+                      className="w-full bg-white border border-gray-200 text-gray-800 text-sm py-2.5 px-4 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all font-semibold hover:border-gray-300"
+                      value={draftFilters.dateTo}
+                      onChange={(e) => updateDraftFilter('dateTo', e.target.value)}
+                    />
+                  </div>
+
+                  <div className="pt-2 border-t border-gray-100">
+                    <label className="flex items-center space-x-3 cursor-pointer group">
+                      <div className="relative">
+                        <input
+                          type="checkbox"
+                          className="sr-only"
+                          checked={draftFilters.hideZeroBalance}
+                          onChange={(e) => updateDraftFilter('hideZeroBalance', e.target.checked)}
+                        />
+                        <div className={`w-10 h-5.5 rounded-full transition-colors ${draftFilters.hideZeroBalance ? 'bg-blue-500' : 'bg-gray-200'}`}></div>
+                        <div className={`absolute left-0.5 top-0.5 w-4.5 h-4.5 bg-white rounded-full transition-transform transform ${draftFilters.hideZeroBalance ? 'translate-x-4.5' : 'translate-x-0'} shadow-sm`}></div>
+                      </div>
+                      <span className="text-sm font-semibold text-gray-700 group-hover:text-gray-900 transition-colors">
+                        Hide Customers with Zero or Negative Balance
+                      </span>
+                    </label>
+                  </div>
                 </div>
               </div>
             )}

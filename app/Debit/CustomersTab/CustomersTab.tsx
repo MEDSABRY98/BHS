@@ -63,7 +63,7 @@ export default function CustomersTab({
   initialCustomer,
   onCustomerToggle,
 }: CustomersTabProps) {
-  const { getCustomerInvoices } = useDebitData();
+  const { getCustomerInvoices, globalFilters } = useDebitData();
   // --- States ---
   const [sorting, setSorting] = useState<SortingState>([]);
   const [viewMode, setViewMode] = useState<'DEFAULT' | 'SUMMARY' | 'YEARLY' | 'NO TAGS' | 'TAGS ONLY'>('DEFAULT');
@@ -76,7 +76,6 @@ export default function CustomersTab({
   const [ratingBreakdown, setRatingBreakdown] = useState<any | null>(null);
   const [selectedCustomerForMonths, setSelectedCustomerForMonths] = useState<string | null>(null);
   const [statementModalAction, setStatementModalAction] = useState<'EMAIL' | 'ZIP' | 'EMAIL_LULU' | null>(null);
-  const [emailStatementDate, setEmailStatementDate] = useState(new Date().toISOString().split('T')[0]);
   const [yearlySorting, setYearlySorting] = useState<{ id: string; desc: boolean }>({ id: 'totalNetDebt', desc: true });
   const [filters, setFilters] = useState({
     search: '',
@@ -181,18 +180,18 @@ export default function CustomersTab({
     }
   };
 
-  const handleBulkZIPDownload = async (overrideDate?: string, isShort?: boolean, exportFormat: 'excel' | 'pdf' | 'both' = 'both') => {
+  const handleBulkZIPDownload = async (isShort?: boolean, exportFormat: 'excel' | 'pdf' | 'both' = 'both') => {
     if (selectedCustomersForDownload.size === 0) {
       alert('Please select customers to download');
       return;
     }
 
-    if (!overrideDate && statementModalAction !== 'ZIP') {
+    if (statementModalAction !== 'ZIP') {
       setStatementModalAction('ZIP');
       return;
     }
 
-    const effectiveDate = overrideDate || emailStatementDate;
+    const effectiveDate = globalFilters.dateTo || null;
     setIsDownloading(true);
     try {
       const JSZip = (await import('jszip')).default;
@@ -205,18 +204,32 @@ export default function CustomersTab({
 
         let netOnlyInvoices = toNetOnlyOpenInvoicesForExport(buildInvoicesWithNetDebtForExport(customerInvoices));
 
-        if (effectiveDate) {
-          const limitDate = new Date(effectiveDate);
-          limitDate.setHours(23, 59, 59, 999);
+        if (effectiveDate || globalFilters.dateFrom) {
+          const limitDate = effectiveDate ? new Date(effectiveDate) : null;
+          if (limitDate) limitDate.setHours(23, 59, 59, 999);
+
+          const fromDate = globalFilters.dateFrom ? new Date(globalFilters.dateFrom) : null;
+          if (fromDate) fromDate.setHours(0, 0, 0, 0);
+
           netOnlyInvoices = netOnlyInvoices.filter(inv => {
             const rowDate = parseDate(inv.date);
-            return !rowDate || rowDate <= limitDate;
+            if (!rowDate) return true;
+            if (limitDate && rowDate > limitDate) return false;
+            if (fromDate && rowDate < fromDate) return false;
+            return true;
           });
         }
 
         if (netOnlyInvoices.length === 0) continue;
 
-        const dateLabel = effectiveDate ? `Up To ${formatDmy(new Date(effectiveDate))}` : 'All Months (Net Only)';
+        let dateLabel = 'All Months (Net Only)';
+        if (effectiveDate && globalFilters.dateFrom) {
+          dateLabel = `From ${formatDmy(new Date(globalFilters.dateFrom))} To ${formatDmy(new Date(effectiveDate))}`;
+        } else if (effectiveDate) {
+          dateLabel = `Up To ${formatDmy(new Date(effectiveDate))}`;
+        } else if (globalFilters.dateFrom) {
+          dateLabel = `From ${formatDmy(new Date(globalFilters.dateFrom))}`;
+        }
         const cleanName = customerName.replace(/[^a-zA-Z0-9\u0600-\u06FF \-_]/g, '').trim();
         
         if (exportFormat === 'pdf' || exportFormat === 'both') {
@@ -252,28 +265,41 @@ export default function CustomersTab({
     }
   };
 
-  const handleBulkEmail = async (overrideDate?: string, isShort?: boolean, exportFormat: 'excel' | 'pdf' | 'both' = 'both') => {
+  const handleBulkEmail = async (isShort?: boolean, exportFormat: 'excel' | 'pdf' | 'both' = 'both') => {
     if (selectedCustomersForDownload.size === 0) {
       alert('Please select customers to email');
       return;
     }
 
-    if (!overrideDate && statementModalAction !== 'EMAIL') {
+    if (statementModalAction !== 'EMAIL') {
       setStatementModalAction('EMAIL');
       return;
     }
 
-    const effectiveDate = overrideDate || emailStatementDate;
+    const effectiveDate = globalFilters.dateTo || null;
     setIsDownloading(true);
     try {
       const JSZip = (await import('jszip')).default;
       const zip = new JSZip();
       let count = 0;
       const normalize = (s: any) => String(s || '').toLowerCase().trim().replace(/\s+/g, ' ');
-      const dateLabel = effectiveDate
-        ? `Up To ${formatDmy(new Date(effectiveDate))}`
-        : 'All Months (Net Only)';
-      const asOfText = effectiveDate ? ` as of ${formatDmy(new Date(effectiveDate))}` : '';
+      let dateLabel = 'All Months (Net Only)';
+      if (effectiveDate && globalFilters.dateFrom) {
+        dateLabel = `From ${formatDmy(new Date(globalFilters.dateFrom))} To ${formatDmy(new Date(effectiveDate))}`;
+      } else if (effectiveDate) {
+        dateLabel = `Up To ${formatDmy(new Date(effectiveDate))}`;
+      } else if (globalFilters.dateFrom) {
+        dateLabel = `From ${formatDmy(new Date(globalFilters.dateFrom))}`;
+      }
+
+      let asOfText = '';
+      if (effectiveDate && globalFilters.dateFrom) {
+        asOfText = ` (from ${formatDmy(new Date(globalFilters.dateFrom))} to ${formatDmy(new Date(effectiveDate))})`;
+      } else if (effectiveDate) {
+        asOfText = ` as of ${formatDmy(new Date(effectiveDate))}`;
+      } else if (globalFilters.dateFrom) {
+        asOfText = ` from ${formatDmy(new Date(globalFilters.dateFrom))}`;
+      }
       const shortInvoice = isShort ?? true;
       const subject = 'Statement of Account - Al Marai Al Arabia Trading Sole Proprietorship L.L.C';
 
@@ -285,12 +311,19 @@ export default function CustomersTab({
           buildInvoicesWithNetDebtForExport(customerInvoices)
         );
 
-        if (effectiveDate) {
-          const limitDate = new Date(effectiveDate);
-          limitDate.setHours(23, 59, 59, 999);
+        if (effectiveDate || globalFilters.dateFrom) {
+          const limitDate = effectiveDate ? new Date(effectiveDate) : null;
+          if (limitDate) limitDate.setHours(23, 59, 59, 999);
+
+          const fromDate = globalFilters.dateFrom ? new Date(globalFilters.dateFrom) : null;
+          if (fromDate) fromDate.setHours(0, 0, 0, 0);
+
           netOnlyInvoices = netOnlyInvoices.filter((inv) => {
             const rowDate = parseDate(inv.date);
-            return !rowDate || rowDate <= limitDate;
+            if (!rowDate) return true;
+            if (limitDate && rowDate > limitDate) return false;
+            if (fromDate && rowDate < fromDate) return false;
+            return true;
           });
         }
 
@@ -508,18 +541,18 @@ export default function CustomersTab({
     }
   };
 
-  const handleBulkLuluEmail = async (overrideDate?: string, isShort?: boolean, exportFormat: 'excel' | 'pdf' | 'both' = 'both') => {
+  const handleBulkLuluEmail = async (isShort?: boolean, exportFormat: 'excel' | 'pdf' | 'both' = 'both') => {
     if (selectedCustomersForDownload.size === 0) {
       alert('Please select customers to email');
       return;
     }
 
-    if (!overrideDate && statementModalAction !== 'EMAIL_LULU') {
+    if (statementModalAction !== 'EMAIL_LULU') {
       setStatementModalAction('EMAIL_LULU');
       return;
     }
 
-    const effectiveDate = overrideDate || emailStatementDate;
+    const effectiveDate = globalFilters.dateTo || null;
     setIsDownloading(true);
     try {
       const JSZip = (await import('jszip')).default;
@@ -551,19 +584,34 @@ export default function CustomersTab({
 
         let netOnlyInvoices = toNetOnlyOpenInvoicesForExport(buildInvoicesWithNetDebtForExport(customerInvoices));
 
-        if (effectiveDate) {
-          const limitDate = new Date(effectiveDate);
-          limitDate.setHours(23, 59, 59, 999);
-          netOnlyInvoices = netOnlyInvoices.filter(inv => {
+        if (effectiveDate || globalFilters.dateFrom) {
+          const limitDate = effectiveDate ? new Date(effectiveDate) : null;
+          if (limitDate) limitDate.setHours(23, 59, 59, 999);
+
+          const fromDate = globalFilters.dateFrom ? new Date(globalFilters.dateFrom) : null;
+          if (fromDate) fromDate.setHours(0, 0, 0, 0);
+
+          netOnlyInvoices = netOnlyInvoices.filter((inv) => {
             const rowDate = parseDate(inv.date);
-            return !rowDate || rowDate <= limitDate;
+            if (!rowDate) return true;
+            if (limitDate && rowDate > limitDate) return false;
+            if (fromDate && rowDate < fromDate) return false;
+            return true;
           });
         }
 
         if (netOnlyInvoices.length === 0) continue;
 
         const netDebt = netOnlyInvoices.reduce((sum, inv) => sum + (inv.netDebt || 0), 0);
-        const dateLabel = effectiveDate ? `Up To ${formatDmy(new Date(effectiveDate))}` : 'All Months (Net Only)';
+        
+        let dateLabel = 'All Months (Net Only)';
+        if (effectiveDate && globalFilters.dateFrom) {
+          dateLabel = `From ${formatDmy(new Date(globalFilters.dateFrom))} To ${formatDmy(new Date(effectiveDate))}`;
+        } else if (effectiveDate) {
+          dateLabel = `Up To ${formatDmy(new Date(effectiveDate))}`;
+        } else if (globalFilters.dateFrom) {
+          dateLabel = `From ${formatDmy(new Date(globalFilters.dateFrom))}`;
+        }
 
         let pdfBase64 = '';
         if (exportFormat === 'pdf' || exportFormat === 'both') {
@@ -1049,14 +1097,12 @@ export default function CustomersTab({
       <EmailStatementModal
         isOpen={statementModalAction !== null}
         onClose={() => setStatementModalAction(null)}
-        emailStatementDate={emailStatementDate}
-        setEmailStatementDate={setEmailStatementDate}
-        onConfirm={(date, isShort, format) => {
+        onConfirm={(isShort, format) => {
           const action = statementModalAction;
           setStatementModalAction(null);
-          if (action === 'EMAIL') handleBulkEmail(date, isShort, format);
-          else if (action === 'ZIP') handleBulkZIPDownload(date, isShort, format);
-          else if (action === 'EMAIL_LULU') handleBulkLuluEmail(date, isShort, format);
+          if (action === 'EMAIL') handleBulkEmail(isShort, format);
+          else if (action === 'ZIP') handleBulkZIPDownload(isShort, format);
+          else if (action === 'EMAIL_LULU') handleBulkLuluEmail(isShort, format);
         }}
         isProcessing={isDownloading}
       />

@@ -158,7 +158,7 @@ const toNetOnlyOpenInvoices = (invList: InvoiceWithNetDebt[]): InvoiceWithNetDeb
 };
 
 export default function CustomerDetails({ customerName, invoices, onBack, initialTab = 'dashboard' }: CustomerDetailsProps) {
-  const { customersWithEmails } = useDebitData();
+  const { customersWithEmails, globalFilters } = useDebitData();
   const MATCHING_FILTER_ALL_OPEN = 'All Open Matchings';
   const MATCHING_FILTER_ALL_UNMATCHED = 'All Unmatched';
 
@@ -219,7 +219,6 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
   const [customerEmails, setCustomerEmails] = useState<string[]>([]);
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [showCustomerEmailsModal, setShowCustomerEmailsModal] = useState(false);
-  const [emailStatementDate, setEmailStatementDate] = useState(new Date().toISOString().split('T')[0]);
   const [isProcessingEmail, setIsProcessingEmail] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
 
@@ -300,10 +299,10 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
     setShowEmailModal(true);
   };
 
-  const handleEmailConfirm = async (overrideDate: string, isShort: boolean) => {
+  const handleEmailConfirm = async (isShort: boolean, exportFormat: 'excel' | 'pdf' | 'both' = 'both') => {
     if (customerEmails.length === 0) return;
 
-    const effectiveDate = overrideDate || emailStatementDate;
+    const effectiveDate = globalFilters.dateTo || null;
     setShowEmailModal(false);
     setIsProcessingEmail(true);
 
@@ -319,39 +318,70 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
         });
       }
 
+      if (globalFilters.dateFrom) {
+        const fromDate = new Date(globalFilters.dateFrom);
+        fromDate.setHours(0, 0, 0, 0);
+        netOnlyInvoices = netOnlyInvoices.filter(inv => {
+          const rowDate = parseDate(inv.date);
+          return !rowDate || rowDate >= fromDate;
+        });
+      }
+
       if (netOnlyInvoices.length === 0) {
         alert('No open invoices to send.');
         return;
       }
 
       const netDebt = netOnlyInvoices.reduce((sum, inv) => sum + (inv.netDebt || 0), 0);
-      const dateLabel = effectiveDate ? `Up To ${formatDmy(new Date(effectiveDate))}` : 'All Months (Net Only)';
-      const { generateAccountStatementPDF } = await import('@/app/Debit/CustomerDetailsTab/Pdf/StatementUtils');
-      const pdfBlob = await generateAccountStatementPDF(customerName, netOnlyInvoices, true, dateLabel, isShort ?? true);
-      if (!pdfBlob) throw new Error('Failed to generate PDF');
+      let dateLabel = 'All Months (Net Only)';
+      if (effectiveDate && globalFilters.dateFrom) {
+        dateLabel = `From ${formatDmy(new Date(globalFilters.dateFrom))} To ${formatDmy(new Date(effectiveDate))}`;
+      } else if (effectiveDate) {
+        dateLabel = `Up To ${formatDmy(new Date(effectiveDate))}`;
+      } else if (globalFilters.dateFrom) {
+        dateLabel = `From ${formatDmy(new Date(globalFilters.dateFrom))}`;
+      }
+      let pdfBase64 = '';
+      if (exportFormat === 'pdf' || exportFormat === 'both') {
+        const { generateAccountStatementPDF } = await import('@/app/Debit/CustomerDetailsTab/Pdf/StatementUtils');
+        const pdfBlob = await generateAccountStatementPDF(customerName, netOnlyInvoices, true, dateLabel, isShort ?? true);
+        if (!pdfBlob) throw new Error('Failed to generate PDF');
 
-      const pdfBase64 = await new Promise<string>((resolve) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
-        reader.readAsDataURL(pdfBlob as Blob);
-      });
+        pdfBase64 = await new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
+          reader.readAsDataURL(pdfBlob as Blob);
+        });
+      }
 
-      const excelBlob = await generateSingleCustomerExcelBlob(customerName, netOnlyInvoices, isShort ?? true);
-      const excelBase64 = await new Promise<string>((resolve) => {
-        const excelReader = new FileReader();
-        excelReader.onloadend = () => resolve((excelReader.result as string).split(',')[1]);
-        excelReader.readAsDataURL(excelBlob);
-      });
+      let excelBase64 = '';
+      if (exportFormat === 'excel' || exportFormat === 'both') {
+        const excelBlob = await generateSingleCustomerExcelBlob(customerName, netOnlyInvoices, isShort ?? true);
+        excelBase64 = await new Promise<string>((resolve) => {
+          const excelReader = new FileReader();
+          excelReader.onloadend = () => resolve((excelReader.result as string).split(',')[1]);
+          excelReader.readAsDataURL(excelBlob);
+        });
+      }
 
       const cleanName = customerName.replace(/[^a-zA-Z0-9\u0600-\u06FF \-_]/g, '').trim();
       const boundary = "----=_NextPart_000_0001_01C2A9A1.12345678";
       const subject = 'Statement of Account - Al Marai Al Arabia Trading Sole Proprietorship L.L.C';
+      let asOfText = '';
+      if (effectiveDate && globalFilters.dateFrom) {
+        asOfText = ` (from ${formatDmy(new Date(globalFilters.dateFrom))} to ${formatDmy(new Date(effectiveDate))})`;
+      } else if (effectiveDate) {
+        asOfText = ` as of ${formatDmy(new Date(effectiveDate))}`;
+      } else if (globalFilters.dateFrom) {
+        asOfText = ` from ${formatDmy(new Date(globalFilters.dateFrom))}`;
+      }
+
       const htmlBody = `
 <div style="font-family: Arial, sans-serif; font-size: 14px; color: #333; line-height: 1.6;">
   <p>Dear Team,</p>
   <p>We hope this message finds you well.</p>
   <p>Please find attached your account statement.</p>
-  <p><strong style="color: #dc2626; font-size: 15px;">Your current balance ${effectiveDate ? 'as of ' + formatDmy(new Date(effectiveDate)) : ''} is: ${netDebt.toLocaleString('en-US')} AED</strong></p>
+  <p><strong style="color: #dc2626; font-size: 15px;">Your current balance${asOfText} is: ${netDebt.toLocaleString('en-US')} AED</strong></p>
   <p>Kindly provide us with your statement of account and any Tax-Rebeat invoices for reconciliation.</p>
   <p>Best regards,<br><br>Accounts<br>Al Marai Al Arabia Trading Sole Proprietorship L.L.C</p>
 </div>
@@ -373,22 +403,33 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
         '',
         htmlBody,
         '',
-        '--' + boundary,
-        `Content-Type: application/pdf; name="${cleanName}.pdf"`,
-        'Content-Transfer-Encoding: base64',
-        `Content-Disposition: attachment; filename="${cleanName}.pdf"`,
-        '',
-        pdfBase64,
-        '',
-        '--' + boundary,
-        `Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet; name="${cleanName}.xlsx"`,
-        'Content-Transfer-Encoding: base64',
-        `Content-Disposition: attachment; filename="${cleanName}.xlsx"`,
-        '',
-        excelBase64,
-        '',
-        '--' + boundary + '--',
       ];
+
+      if (pdfBase64) {
+        emlLines.push(
+          '--' + boundary,
+          `Content-Type: application/pdf; name="${cleanName}.pdf"`,
+          'Content-Transfer-Encoding: base64',
+          `Content-Disposition: attachment; filename="${cleanName}.pdf"`,
+          '',
+          pdfBase64,
+          ''
+        );
+      }
+
+      if (excelBase64) {
+        emlLines.push(
+          '--' + boundary,
+          `Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet; name="${cleanName}.xlsx"`,
+          'Content-Transfer-Encoding: base64',
+          `Content-Disposition: attachment; filename="${cleanName}.xlsx"`,
+          '',
+          excelBase64,
+          ''
+        );
+      }
+
+      emlLines.push('--' + boundary + '--');
 
       const JSZip = (await import('jszip')).default;
       const zip = new JSZip();
@@ -490,11 +531,29 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
 
   // Prepare invoices data with Net Debt and Residual
   const invoicesWithNetDebt = useMemo(() => {
-    // We now strictly rely on the 'residualAmount' from Google Sheets.
-    // Legacy fallback calculations (matchingTotals, maxDebits) and SPI overrides have been fully removed 
-    // to prevent any overlap or interference.
+    let relevantInvoices = invoices;
+    
+    if (globalFilters.dateTo) {
+      const toDate = new Date(globalFilters.dateTo);
+      toDate.setHours(23, 59, 59, 999);
+      relevantInvoices = relevantInvoices.filter(inv => {
+        if (!inv.date) return true;
+        const invDate = new Date(inv.date);
+        return invDate <= toDate;
+      });
+    }
 
-    return invoices.map((invoice, index) => {
+    if (globalFilters.dateFrom) {
+      const fromDate = new Date(globalFilters.dateFrom);
+      fromDate.setHours(0, 0, 0, 0);
+      relevantInvoices = relevantInvoices.filter(inv => {
+        if (!inv.date) return true;
+        const invDate = new Date(inv.date);
+        return invDate >= fromDate;
+      });
+    }
+
+    return relevantInvoices.map((invoice, index) => {
       let residual: number | undefined = undefined;
       const parsedDate = parseInvoiceDate(invoice.date);
 
@@ -510,7 +569,7 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
         parsedDate
       };
     });
-  }, [invoices]);
+  }, [invoices, globalFilters.dateTo, globalFilters.dateFrom]);
 
   // Get matchings with residual for filtering
   const availableMatchingsWithResidual = useMemo(() => {
@@ -2187,8 +2246,6 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
         <EmailStatementModal
           isOpen={showEmailModal}
           onClose={() => setShowEmailModal(false)}
-          emailStatementDate={emailStatementDate}
-          setEmailStatementDate={setEmailStatementDate}
           onConfirm={handleEmailConfirm}
           isProcessing={isProcessingEmail}
         />
