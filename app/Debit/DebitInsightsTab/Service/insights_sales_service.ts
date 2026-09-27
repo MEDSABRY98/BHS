@@ -35,7 +35,7 @@ export type InsightsSalesOverlayBatch = {
 
 function isSalesOrReturn(invoiceNumber?: string | null): boolean {
   const num = (invoiceNumber || '').toString().toUpperCase().trim();
-  return num.startsWith('SAL') || num.startsWith('RSAL');
+  return (num.startsWith('SAL') || num.startsWith('INV')) || (num.startsWith('RSAL') || num.startsWith('RINV'));
 }
 
 function shiftYears(date: Date, years: number): Date {

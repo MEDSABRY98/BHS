@@ -449,13 +449,13 @@ export default function CustomersGroupTab({ data }: CustomersGroupTabProps) {
         const num = (inv.number || '').trim().toUpperCase();
 
         if (showOB && num.startsWith('OB')) return true;
-        if (showSales && num.startsWith('SAL') && inv.debit > 0) return true;
-        if (showReturns && num.startsWith('RSAL') && inv.credit > 0) return true;
+        if (showSales && (num.startsWith('SAL') || num.startsWith('INV')) && inv.debit > 0) return true;
+        if (showReturns && (num.startsWith('RSAL') || num.startsWith('RINV')) && inv.credit > 0) return true;
         if (showDiscounts && num.startsWith('BIL')) return true;
         if (showJV && num.startsWith('JV')) return true;
         if (showPayments) {
-          const isNotPayment = num.startsWith('SAL') ||
-            num.startsWith('RSAL') ||
+          const isNotPayment = (num.startsWith('SAL') || num.startsWith('INV')) ||
+            (num.startsWith('RSAL') || num.startsWith('RINV')) ||
             num.startsWith('BIL') ||
             num.startsWith('JV') ||
             num.startsWith('OB');
@@ -620,9 +620,9 @@ export default function CustomersGroupTab({ data }: CustomersGroupTabProps) {
 
       if (num.startsWith('OB')) {
         obTotal += netDebt;
-      } else if (num.startsWith('SAL') && inv.debit > 0) {
+      } else if ((num.startsWith('SAL') || num.startsWith('INV')) && inv.debit > 0) {
         salesTotal += netDebt;
-      } else if (num.startsWith('RSAL') && inv.credit > 0) {
+      } else if ((num.startsWith('RSAL') || num.startsWith('RINV')) && inv.credit > 0) {
         returnsTotal += netDebt;
       } else if (num.startsWith('BIL')) {
         discountsTotal += netDebt;

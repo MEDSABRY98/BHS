@@ -167,11 +167,11 @@ export default function CustomersSummariesTab({ data, onRefresh }: CustomersSumm
         const number = inv.number ? inv.number.toUpperCase() : '';
 
         if (year === previousYear) {
-          if (number.startsWith('SAL')) salesPrev += inv.debit;
-          else if (number.startsWith('RSAL')) returnsPrev += inv.credit;
+          if ((number.startsWith('SAL') || number.startsWith('INV'))) salesPrev += inv.debit;
+          else if ((number.startsWith('RSAL') || number.startsWith('RINV'))) returnsPrev += inv.credit;
         } else if (year === currentYear) {
-          if (number.startsWith('SAL')) salesCurrent += inv.debit;
-          else if (number.startsWith('RSAL')) returnsCurrent += inv.credit;
+          if ((number.startsWith('SAL') || number.startsWith('INV'))) salesCurrent += inv.debit;
+          else if ((number.startsWith('RSAL') || number.startsWith('RINV'))) returnsCurrent += inv.credit;
         }
       });
 

@@ -41,7 +41,10 @@ export default function DashboardTab(props: SharedTabProps) {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {/* Last Sale Invoice */}
               {(() => {
-                const sales = filteredInvoices.filter(inv => (inv.number || '').toString().toUpperCase().startsWith('SAL'));
+                const sales = filteredInvoices.filter(inv => {
+                  const upper = (inv.number || '').toString().toUpperCase();
+                  return upper.startsWith('SAL') || upper.startsWith('INV');
+                });
                 const latestSale = sales.length > 0 ? [...sales].sort((a, b) => {
                   const dateA = a.parsedDate || (a.date ? new Date(a.date) : new Date(0));
                   const dateB = b.parsedDate || (b.date ? new Date(b.date) : new Date(0));
@@ -80,7 +83,10 @@ export default function DashboardTab(props: SharedTabProps) {
 
               {/* Last Return Invoice */}
               {(() => {
-                const returns = filteredInvoices.filter(inv => (inv.number || '').toString().toUpperCase().startsWith('RSAL'));
+                const returns = filteredInvoices.filter(inv => {
+                  const upper = (inv.number || '').toString().toUpperCase();
+                  return upper.startsWith('RSAL') || upper.startsWith('RINV');
+                });
                 const latestReturn = returns.length > 0 ? [...returns].sort((a, b) => {
                   const dateA = a.parsedDate || (a.date ? new Date(a.date) : new Date(0));
                   const dateB = b.parsedDate || (b.date ? new Date(b.date) : new Date(0));

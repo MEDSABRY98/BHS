@@ -1,6 +1,20 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { InvoiceRow } from '@/types';
 import { parseDate } from '../CustomersTab/CstomersUtils';
+import { 
+  Settings2, 
+  CalendarDays, 
+  Users, 
+  Tags, 
+  Clock, 
+  CalendarClock, 
+  X, 
+  Check,
+  ChevronDown,
+  RotateCcw,
+  Filter,
+  CheckCircle2
+} from 'lucide-react';
 
 interface FilterModalProps {
   isOpen: boolean;
@@ -32,29 +46,22 @@ const CustomSelect: React.FC<CustomSelectProps> = ({
 
   return (
     <div className="relative">
-      <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wider">
+      <label className="block text-[11px] font-bold text-gray-400 mb-2 tracking-wider uppercase">
         {label}
       </label>
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full bg-white border border-gray-200 text-gray-800 text-sm py-2.5 px-4 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all font-semibold flex justify-between items-center text-left hover:border-gray-300"
+        className="w-full bg-slate-50 border-2 border-slate-100 text-slate-700 text-sm py-3 px-4 rounded-xl focus:outline-none focus:border-indigo-500 hover:bg-slate-100 hover:border-slate-200 transition-all font-semibold flex justify-between items-center text-left"
       >
         <span>{selectedOption.label}</span>
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          className={`h-4.5 w-4.5 text-gray-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
-          viewBox="0 0 20 20"
-          fill="currentColor"
-        >
-          <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-        </svg>
+        <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-300 ${isOpen ? 'rotate-180 text-indigo-500' : ''}`} />
       </button>
 
       {isOpen && (
         <>
           <div className="fixed inset-0 z-30" onClick={() => setIsOpen(false)} />
-          <div className="absolute left-0 right-0 mt-1.5 bg-white border border-gray-150 rounded-xl shadow-xl z-40 py-1.5 max-h-60 overflow-y-auto animate-in fade-in slide-in-from-top-2 duration-150">
+          <div className="absolute left-0 right-0 mt-2 bg-white border border-slate-100 rounded-xl shadow-xl shadow-slate-200/50 z-40 py-2 max-h-60 overflow-y-auto animate-in fade-in slide-in-from-top-2 duration-200">
             {options.map((opt) => (
               <button
                 key={opt.value}
@@ -63,18 +70,14 @@ const CustomSelect: React.FC<CustomSelectProps> = ({
                   onChange(opt.value);
                   setIsOpen(false);
                 }}
-                className={`w-full text-left px-4 py-2.5 text-sm transition-all flex justify-between items-center ${
+                className={`w-full text-left px-4 py-3 text-sm transition-colors flex justify-between items-center ${
                   opt.value === value
-                    ? 'bg-blue-50 text-blue-700 font-bold'
-                    : 'text-gray-700 hover:bg-gray-50'
+                    ? 'bg-indigo-50 text-indigo-700 font-bold'
+                    : 'text-slate-600 hover:bg-slate-50 font-medium'
                 }`}
               >
                 <span>{opt.label}</span>
-                {opt.value === value && (
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4.5 w-4.5 text-blue-600" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                  </svg>
-                )}
+                {opt.value === value && <Check className="w-4 h-4 text-indigo-600" />}
               </button>
             ))}
           </div>
@@ -110,7 +113,6 @@ const FilterModal: React.FC<FilterModalProps> = ({
     hideZeroBalance: false,
   });
 
-  // Sync draft filters with parent filters when modal opens
   useEffect(() => {
     if (isOpen) {
       setDraftFilters({
@@ -136,13 +138,11 @@ const FilterModal: React.FC<FilterModalProps> = ({
     return `${months[date.getMonth()]} ${date.getFullYear()}`;
   };
 
-  // Calculate unique overdue months from dataset, sorted oldest to newest
   const overdueMonths = useMemo(() => {
     const monthsMap = new Map<string, Date>();
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    // Group invoices by customer name
     const customerInvoicesMap = new Map<string, InvoiceRow[]>();
     data.forEach(row => {
       const invoices = customerInvoicesMap.get(row.customerName) || [];
@@ -314,8 +314,8 @@ const FilterModal: React.FC<FilterModalProps> = ({
   };
 
   const handleApplyFilters = () => {
-    setFilters((prev: any) => ({
-      ...prev,
+    setFilters({
+      ...filters,
       customerRating: draftFilters.customerRating,
       selectedSalesRep: draftFilters.selectedSalesRep,
       emailFilter: draftFilters.emailFilter,
@@ -326,20 +326,56 @@ const FilterModal: React.FC<FilterModalProps> = ({
       dateFrom: draftFilters.dateFrom,
       dateTo: draftFilters.dateTo,
       hideZeroBalance: draftFilters.hideZeroBalance,
-    }));
+    });
     onClose();
   };
 
+  const tabs = [
+    { id: 'GENERAL', label: 'General', icon: Settings2 },
+    { id: 'DATES', label: 'Dates', icon: CalendarDays },
+    { id: 'CUSTOMER_CLASSES', label: 'Classes', icon: Users },
+    { id: 'CUSTOMER_TAGS', label: 'Tags', icon: Tags },
+    { id: 'OVERDUE_YEARS', label: 'Years', icon: Clock },
+    { id: 'OVERDUE_MONTHS', label: 'Months', icon: CalendarClock },
+  ];
+
+  const getBadgeCount = (tabId: string) => {
+    let c = 0;
+    switch(tabId) {
+      case 'GENERAL':
+        if (draftFilters.customerRating !== 'ALL') c++;
+        if (draftFilters.selectedSalesRep !== 'ALL') c++;
+        if (draftFilters.emailFilter !== 'ALL') c++;
+        return c;
+      case 'DATES':
+        if (draftFilters.dateFrom) c++;
+        if (draftFilters.dateTo) c++;
+        if (draftFilters.hideZeroBalance) c++;
+        return c;
+      case 'CUSTOMER_CLASSES': return draftFilters.selectedCustomerClasses?.length || 0;
+      case 'CUSTOMER_TAGS': return draftFilters.selectedCustomerTags?.length || 0;
+      case 'OVERDUE_YEARS': return draftFilters.overdueYear?.length || 0;
+      case 'OVERDUE_MONTHS': return draftFilters.overdueMonth?.length || 0;
+      default: return 0;
+    }
+  };
+
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 px-4 py-8 animate-in fade-in duration-200">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl h-[700px] max-h-[90vh] overflow-visible flex flex-col animate-in zoom-in-95 duration-300">
-        {/* Modal Header */}
-        <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50 rounded-t-2xl">
-          <div>
-            <h3 className="text-lg font-bold text-gray-900">Advanced Filters</h3>
-            <p className="text-sm text-gray-500">
-              <span className="font-medium text-blue-600">{filteredDataCount}</span> results found
-            </p>
+    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 sm:p-6 animate-in fade-in duration-200">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-5xl h-[800px] max-h-[95vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-300 ring-1 ring-slate-900/5">
+        
+        {/* Header */}
+        <div className="px-8 py-6 border-b border-slate-100 flex justify-between items-center bg-white z-10">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600">
+              <Filter className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-xl font-bold text-slate-800">Advanced Filters</h3>
+              <p className="text-sm text-slate-500 font-medium mt-0.5">
+                <span className="text-indigo-600 font-bold bg-indigo-50 px-2 py-0.5 rounded-md">{filteredDataCount}</span> results match your criteria
+              </p>
+            </div>
           </div>
           <div className="flex items-center space-x-1">
             <button
@@ -347,370 +383,359 @@ const FilterModal: React.FC<FilterModalProps> = ({
               title="Reset All Filters"
               className="p-2 hover:bg-red-50 text-red-500 rounded-full transition-colors"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
+              <RotateCcw className="w-5 h-5" />
             </button>
             <button
               onClick={handleApplyFilters}
               title="Apply Filters"
-              className="p-2 hover:bg-blue-50 text-blue-600 rounded-full transition-colors"
+              className="p-2 hover:bg-indigo-50 text-indigo-600 rounded-full transition-colors"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-              </svg>
+              <Check className="w-5 h-5" />
             </button>
-            <div className="w-px h-5 bg-gray-200 mx-1"></div>
-            <button onClick={onClose} title="Close" className="p-2 hover:bg-gray-200 rounded-full transition-colors text-gray-500">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-              </svg>
+            <div className="w-px h-5 bg-slate-200 mx-1"></div>
+            <button onClick={onClose} title="Close" className="p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-400 hover:text-slate-600">
+              <X className="w-5 h-5" />
             </button>
           </div>
         </div>
 
-        {/* Modal Body - Split Layout */}
-        <div className="flex flex-1 overflow-visible min-h-0">
-          {/* Sidebar Tabs */}
-          <div className="w-52 bg-gray-50 border-r border-gray-100 p-2 space-y-1 overflow-y-auto rounded-bl-2xl">
-            {[
-              { id: 'GENERAL', label: 'General Filters' },
-              { id: 'DATES', label: 'Dates' },
-              { id: 'CUSTOMER_CLASSES', label: 'Customer Classes' },
-              { id: 'CUSTOMER_TAGS', label: 'Customer Tags' },
-              { id: 'OVERDUE_YEARS', label: 'Overdue Years' },
-              { id: 'OVERDUE_MONTHS', label: 'Overdue Months' }
-            ].map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
-                className={`w-full text-left px-4 py-3 rounded-lg text-sm font-medium transition-all ${activeTab === tab.id ? 'bg-white text-blue-700 shadow-sm ring-1 ring-blue-100' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}`}
-              >
-                {tab.label}
-              </button>
-            ))}
+        {/* Body Split */}
+        <div className="flex flex-1 overflow-hidden bg-slate-50/50">
+          
+          {/* Sidebar */}
+          <div className="w-64 bg-white border-r border-slate-100 p-4 space-y-2 overflow-y-auto z-10">
+            <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-4 px-2">Filter Categories</div>
+            {tabs.map(tab => {
+              const Icon = tab.icon;
+              const isActive = activeTab === tab.id;
+              const badgeCount = getBadgeCount(tab.id);
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id as any)}
+                  className={`w-full flex items-center justify-between px-4 py-3.5 rounded-2xl text-sm font-semibold transition-all duration-200 ${
+                    isActive 
+                      ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' 
+                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Icon className={`w-5 h-5 ${isActive ? 'text-indigo-200' : 'text-slate-400'}`} />
+                    <span>{tab.label}</span>
+                  </div>
+                  {badgeCount > 0 && (
+                    <div className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                      isActive ? 'bg-white/20 text-white' : 'bg-indigo-100 text-indigo-700'
+                    }`}>
+                      {badgeCount}
+                    </div>
+                  )}
+                </button>
+              );
+            })}
           </div>
 
           {/* Content Area */}
-          <div className={`flex-1 p-6 bg-white min-h-0 ${activeTab === 'GENERAL' ? 'overflow-visible' : 'overflow-y-auto'}`}>
-            {activeTab === 'GENERAL' && (
-              <div className="space-y-6 max-w-lg">
-                <h4 className="text-base font-semibold text-gray-800 border-b pb-2">General Filters</h4>
-                <div className="space-y-4">
-                  <CustomSelect
-                    label="Customer Rating"
-                    value={draftFilters.customerRating || 'ALL'}
-                    options={ratingOptions}
-                    onChange={(val) => updateDraftFilter('customerRating', val)}
-                    isOpen={isRatingOpen}
-                    setIsOpen={(open) => {
-                      setIsRatingOpen(open);
-                      if (open) { setIsAreaOpen(false); setIsEmailOpen(false); }
-                    }}
-                  />
-
-                  <CustomSelect
-                    label="Area"
-                    value={draftFilters.selectedSalesRep || 'ALL'}
-                    options={areaOptions}
-                    onChange={(val) => updateDraftFilter('selectedSalesRep', val)}
-                    isOpen={isAreaOpen}
-                    setIsOpen={(open) => {
-                      setIsAreaOpen(open);
-                      if (open) { setIsRatingOpen(false); setIsEmailOpen(false); }
-                    }}
-                  />
-
-                  <CustomSelect
-                    label="Email Status"
-                    value={draftFilters.emailFilter || 'ALL'}
-                    options={emailOptions}
-                    onChange={(val) => updateDraftFilter('emailFilter', val)}
-                    isOpen={isEmailOpen}
-                    setIsOpen={(open) => {
-                      setIsEmailOpen(open);
-                      if (open) { setIsRatingOpen(false); setIsAreaOpen(false); }
-                    }}
-                  />
+          <div className="flex-1 p-8 overflow-y-auto relative">
+            <div className="w-full animate-in slide-in-from-right-4 fade-in duration-300">
+              
+              {activeTab === 'GENERAL' && (
+                <div className="space-y-8 max-w-2xl">
+                  <div>
+                    <h4 className="text-lg font-bold text-slate-800 mb-6">General Settings</h4>
+                    <div className="space-y-5">
+                      <CustomSelect
+                        label="Customer Rating"
+                        value={draftFilters.customerRating || 'ALL'}
+                        options={ratingOptions}
+                        onChange={(val) => updateDraftFilter('customerRating', val)}
+                        isOpen={isRatingOpen}
+                        setIsOpen={(open) => { setIsRatingOpen(open); if (open) { setIsAreaOpen(false); setIsEmailOpen(false); } }}
+                      />
+                      <CustomSelect
+                        label="Area / Sales Rep"
+                        value={draftFilters.selectedSalesRep || 'ALL'}
+                        options={areaOptions}
+                        onChange={(val) => updateDraftFilter('selectedSalesRep', val)}
+                        isOpen={isAreaOpen}
+                        setIsOpen={(open) => { setIsAreaOpen(open); if (open) { setIsRatingOpen(false); setIsEmailOpen(false); } }}
+                      />
+                      <CustomSelect
+                        label="Email Status"
+                        value={draftFilters.emailFilter || 'ALL'}
+                        options={emailOptions}
+                        onChange={(val) => updateDraftFilter('emailFilter', val)}
+                        isOpen={isEmailOpen}
+                        setIsOpen={(open) => { setIsEmailOpen(open); if (open) { setIsRatingOpen(false); setIsAreaOpen(false); } }}
+                      />
+                    </div>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {activeTab === 'DATES' && (
-              <div className="space-y-6 max-w-lg">
-                <h4 className="text-base font-semibold text-gray-800 border-b pb-2">Dates</h4>
-                <div className="space-y-4">
-                  <div className="relative">
-                    <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wider">
-                      Date From
-                    </label>
-                    <input
-                      type="date"
-                      className="w-full bg-white border border-gray-200 text-gray-800 text-sm py-2.5 px-4 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all font-semibold hover:border-gray-300"
-                      value={draftFilters.dateFrom}
-                      onChange={(e) => updateDraftFilter('dateFrom', e.target.value)}
-                    />
-                  </div>
-
-                  <div className="relative">
-                    <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wider">
-                      Date To
-                    </label>
-                    <input
-                      type="date"
-                      className="w-full bg-white border border-gray-200 text-gray-800 text-sm py-2.5 px-4 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all font-semibold hover:border-gray-300"
-                      value={draftFilters.dateTo}
-                      onChange={(e) => updateDraftFilter('dateTo', e.target.value)}
-                    />
-                  </div>
-
-                  <div className="pt-2 border-t border-gray-100">
-                    <label className="flex items-center space-x-3 cursor-pointer group">
+              {activeTab === 'DATES' && (
+                <div className="space-y-8 max-w-2xl">
+                  <div>
+                    <h4 className="text-lg font-bold text-slate-800 mb-6">Time Period</h4>
+                    <div className="grid grid-cols-2 gap-5">
                       <div className="relative">
+                        <label className="block text-[11px] font-bold text-slate-400 mb-2 tracking-wider uppercase">Date From</label>
                         <input
-                          type="checkbox"
-                          className="sr-only"
-                          checked={draftFilters.hideZeroBalance}
-                          onChange={(e) => updateDraftFilter('hideZeroBalance', e.target.checked)}
+                          type="date"
+                          className="w-full bg-slate-50 border-2 border-slate-100 text-slate-700 text-sm py-3 px-4 rounded-xl focus:outline-none focus:border-indigo-500 hover:bg-slate-100 transition-colors font-semibold"
+                          value={draftFilters.dateFrom}
+                          onChange={(e) => updateDraftFilter('dateFrom', e.target.value)}
                         />
-                        <div className={`w-10 h-5.5 rounded-full transition-colors ${draftFilters.hideZeroBalance ? 'bg-blue-500' : 'bg-gray-200'}`}></div>
-                        <div className={`absolute left-0.5 top-0.5 w-4.5 h-4.5 bg-white rounded-full transition-transform transform ${draftFilters.hideZeroBalance ? 'translate-x-4.5' : 'translate-x-0'} shadow-sm`}></div>
                       </div>
-                      <span className="text-sm font-semibold text-gray-700 group-hover:text-gray-900 transition-colors">
-                        Hide Customers with Zero or Negative Balance
-                      </span>
-                    </label>
+                      <div className="relative">
+                        <label className="block text-[11px] font-bold text-slate-400 mb-2 tracking-wider uppercase">Date To</label>
+                        <input
+                          type="date"
+                          className="w-full bg-slate-50 border-2 border-slate-100 text-slate-700 text-sm py-3 px-4 rounded-xl focus:outline-none focus:border-indigo-500 hover:bg-slate-100 transition-colors font-semibold"
+                          value={draftFilters.dateTo}
+                          onChange={(e) => updateDraftFilter('dateTo', e.target.value)}
+                        />
+                      </div>
+                    </div>
+                    
+                    <div className="mt-8 pt-6 border-t border-slate-200">
+                      <label className="flex items-center justify-between cursor-pointer group bg-white border-2 border-slate-100 hover:border-indigo-200 p-4 rounded-2xl transition-all shadow-sm hover:shadow-md">
+                        <div>
+                          <p className="text-sm font-bold text-slate-800">Hide Zero Balance</p>
+                          <p className="text-xs text-slate-500 font-medium mt-0.5">Remove customers with zero or negative balance</p>
+                        </div>
+                        <div className="relative inline-flex items-center">
+                          <input
+                            type="checkbox"
+                            className="sr-only"
+                            checked={draftFilters.hideZeroBalance}
+                            onChange={(e) => updateDraftFilter('hideZeroBalance', e.target.checked)}
+                          />
+                          <div className={`w-12 h-6 rounded-full transition-colors duration-300 ${draftFilters.hideZeroBalance ? 'bg-indigo-500' : 'bg-slate-200'}`}></div>
+                          <div className={`absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-transform duration-300 shadow-sm ${draftFilters.hideZeroBalance ? 'translate-x-6' : 'translate-x-0'}`}></div>
+                        </div>
+                      </label>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {activeTab === 'CUSTOMER_CLASSES' && (
-              <div className="space-y-6">
-                <div className="flex justify-between items-center border-b pb-2">
-                  <h4 className="text-base font-semibold text-gray-800">Customer Classes</h4>
-                  <div className="flex items-center space-x-1">
-                    <button
-                      type="button"
-                      onClick={() => updateDraftFilter('selectedCustomerClasses', [...uniqueCustomerClasses])}
-                      title="Select All"
-                      className="p-1.5 hover:bg-emerald-50 text-emerald-600 rounded-full transition-colors"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                      </svg>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => updateDraftFilter('selectedCustomerClasses', [])}
-                      title="Clear All"
-                      className="p-1.5 hover:bg-red-50 text-red-500 rounded-full transition-colors"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-
-                {uniqueCustomerClasses.length === 0 ? (
-                  <div className="text-center py-8 text-gray-400 text-sm font-medium">
-                    No customer classes found in the dataset.
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                    <button
-                      type="button"
-                      onClick={() => updateDraftFilter('selectedCustomerClasses', [])}
-                      className={`px-4 py-3.5 rounded-xl border text-sm font-semibold transition-all text-center flex items-center justify-center ${
-                        !draftFilters.selectedCustomerClasses ||
-                        draftFilters.selectedCustomerClasses.length === 0
-                          ? 'border-blue-600 bg-blue-50 text-blue-700 shadow-sm ring-1 ring-blue-100'
-                          : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50'
-                      }`}
-                    >
-                      All Classes
-                    </button>
-                    {uniqueCustomerClasses.map((cls) => (
+              {activeTab === 'CUSTOMER_CLASSES' && (
+                <div className="space-y-6">
+                  <div className="flex justify-between items-end mb-6">
+                    <div>
+                      <h4 className="text-lg font-bold text-slate-800">Customer Classes</h4>
+                    </div>
+                    <div className="flex items-center space-x-2">
                       <button
-                        key={cls}
-                        type="button"
-                        onClick={() => toggleCustomerClass(cls)}
-                        className={`px-4 py-3.5 rounded-xl border text-sm font-semibold transition-all text-center flex items-center justify-center ${
-                          draftFilters.selectedCustomerClasses &&
-                          draftFilters.selectedCustomerClasses.includes(cls)
-                            ? 'border-blue-600 bg-blue-50 text-blue-700 shadow-sm ring-1 ring-blue-100 font-bold'
-                            : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50'
-                        }`}
+                        onClick={() => updateDraftFilter('selectedCustomerClasses', [...uniqueCustomerClasses])}
+                        className="text-xs font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-colors"
                       >
-                        {cls}
+                        Select All
                       </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {activeTab === 'CUSTOMER_TAGS' && (
-              <div className="space-y-6">
-                <div className="flex justify-between items-center border-b pb-2">
-                  <h4 className="text-base font-semibold text-gray-800">Customer Tags</h4>
-                  <div className="flex items-center space-x-1">
-                    <button
-                      type="button"
-                      onClick={() => updateDraftFilter('selectedCustomerTags', [...uniqueCustomerTags])}
-                      title="Select All"
-                      className="p-1.5 hover:bg-emerald-50 text-emerald-600 rounded-full transition-colors"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                      </svg>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => updateDraftFilter('selectedCustomerTags', [])}
-                      title="Clear All"
-                      className="p-1.5 hover:bg-red-50 text-red-500 rounded-full transition-colors"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-
-                {uniqueCustomerTags.length === 0 ? (
-                  <div className="text-center py-8 text-gray-400 text-sm font-medium">
-                    No customer tags found in the dataset.
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                    <button
-                      type="button"
-                      onClick={() => updateDraftFilter('selectedCustomerTags', [])}
-                      className={`px-4 py-3.5 rounded-xl border text-sm font-semibold transition-all text-center flex items-center justify-center ${
-                        !draftFilters.selectedCustomerTags ||
-                        draftFilters.selectedCustomerTags.length === 0
-                          ? 'border-blue-600 bg-blue-50 text-blue-700 shadow-sm ring-1 ring-blue-100'
-                          : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50'
-                      }`}
-                    >
-                      All Tags
-                    </button>
-                    {uniqueCustomerTags.map((tag) => (
                       <button
-                        key={tag}
-                        type="button"
-                        onClick={() => toggleCustomerTag(tag)}
-                        className={`px-4 py-3.5 rounded-xl border text-sm font-semibold transition-all text-center flex items-center justify-center ${
-                          draftFilters.selectedCustomerTags &&
-                          draftFilters.selectedCustomerTags.includes(tag)
-                            ? 'border-blue-600 bg-blue-50 text-blue-700 shadow-sm ring-1 ring-blue-100 font-bold'
-                            : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50'
-                        }`}
+                        onClick={() => updateDraftFilter('selectedCustomerClasses', [])}
+                        className="text-xs font-bold text-red-600 hover:text-red-800 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg transition-colors"
                       >
-                        {tag}
+                        Clear Selection
                       </button>
-                    ))}
+                    </div>
                   </div>
-                )}
-              </div>
-            )}
 
-            {activeTab === 'OVERDUE_YEARS' && (
-              <div className="space-y-6">
-                <div>
-                  <h4 className="text-base font-semibold text-gray-800 border-b pb-2">Overdue Years</h4>
+                  {uniqueCustomerClasses.length === 0 ? (
+                    <div className="text-center py-12 text-slate-400 text-sm font-medium border-2 border-dashed border-slate-200 rounded-2xl">
+                      No customer classes found.
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-3 gap-3">
+                      {uniqueCustomerClasses.map((cls) => {
+                        const isSelected = draftFilters.selectedCustomerClasses?.includes(cls);
+                        return (
+                          <button
+                            key={cls}
+                            onClick={() => toggleCustomerClass(cls)}
+                            className={`px-4 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2 border-2 ${
+                              isSelected
+                                ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-sm'
+                                : 'border-slate-100 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50'
+                            }`}
+                          >
+                            {isSelected && <CheckCircle2 className="w-4 h-4" />}
+                            {cls}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
-                {uniqueYears.length === 0 ? (
-                  <div className="text-center py-8 text-gray-400 text-sm font-medium">
-                    No overdue years detected in the dataset.
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                    <button
-                      onClick={() => updateDraftFilter('overdueYear', [])}
-                      className={`px-4 py-3.5 rounded-xl border text-sm font-semibold transition-all text-center flex items-center justify-center ${
-                        (!draftFilters.overdueYear || draftFilters.overdueYear.length === 0)
-                          ? 'border-blue-600 bg-blue-50 text-blue-700 shadow-sm ring-1 ring-blue-100'
-                          : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50'
-                      }`}
-                    >
-                      All Years
-                    </button>
-                    {uniqueYears.map(year => (
-                      <button
-                        key={year}
-                        onClick={() => toggleOverdueYear(year)}
-                        className={`px-4 py-3.5 rounded-xl border text-sm font-semibold transition-all text-center flex items-center justify-center ${
-                          (draftFilters.overdueYear && draftFilters.overdueYear.includes(year))
-                            ? 'border-blue-600 bg-blue-50 text-blue-700 shadow-sm ring-1 ring-blue-100 font-bold'
-                            : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50'
-                        }`}
-                      >
-                        {year}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
+              )}
 
-            {activeTab === 'OVERDUE_MONTHS' && (
-              <div className="space-y-6">
-                <div>
-                  <h4 className="text-base font-semibold text-gray-800 border-b pb-2">Overdue Months</h4>
+              {activeTab === 'CUSTOMER_TAGS' && (
+                <div className="space-y-6">
+                  <div className="flex justify-between items-end mb-6">
+                    <div>
+                      <h4 className="text-lg font-bold text-slate-800">Customer Tags</h4>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={() => updateDraftFilter('selectedCustomerTags', [...uniqueCustomerTags])}
+                        className="text-xs font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-colors"
+                      >
+                        Select All
+                      </button>
+                      <button
+                        onClick={() => updateDraftFilter('selectedCustomerTags', [])}
+                        className="text-xs font-bold text-red-600 hover:text-red-800 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg transition-colors"
+                      >
+                        Clear Selection
+                      </button>
+                    </div>
+                  </div>
+
+                  {uniqueCustomerTags.length === 0 ? (
+                    <div className="text-center py-12 text-slate-400 text-sm font-medium border-2 border-dashed border-slate-200 rounded-2xl">
+                      No customer tags found.
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-3 gap-3">
+                      {uniqueCustomerTags.map((tag) => {
+                        const isSelected = draftFilters.selectedCustomerTags?.includes(tag);
+                        return (
+                          <button
+                            key={tag}
+                            onClick={() => toggleCustomerTag(tag)}
+                            className={`px-4 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2 border-2 ${
+                              isSelected
+                                ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-sm'
+                                : 'border-slate-100 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50'
+                            }`}
+                          >
+                            {isSelected && <CheckCircle2 className="w-4 h-4" />}
+                            {tag}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
+              )}
 
-                {Array.isArray(draftFilters.overdueYear) && draftFilters.overdueYear.length > 0 && (
-                  <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 flex justify-between items-center text-xs text-blue-700 font-medium">
-                    <span>Showing months for year(s): <strong>{draftFilters.overdueYear.join(', ')}</strong></span>
-                    <button
-                      onClick={() => updateDraftFilter('overdueYear', [])}
-                      className="text-blue-600 hover:text-blue-800 underline font-bold"
-                    >
-                      Show All Years
-                    </button>
-                  </div>
-                )}
-
-                {displayedMonths.length === 0 ? (
-                  <div className="text-center py-8 text-gray-400 text-sm font-medium">
-                    No overdue months detected for the selected criteria.
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                    <button
-                      onClick={() => updateDraftFilter('overdueMonth', [])}
-                      className={`px-4 py-3.5 rounded-xl border text-sm font-semibold transition-all text-center flex items-center justify-center ${
-                        (!draftFilters.overdueMonth || draftFilters.overdueMonth.length === 0)
-                          ? 'border-blue-600 bg-blue-50 text-blue-700 shadow-sm ring-1 ring-blue-100'
-                          : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50'
-                      }`}
-                    >
-                      All Months
-                    </button>
-                    {displayedMonths.map(month => (
+              {activeTab === 'OVERDUE_YEARS' && (
+                <div className="space-y-6">
+                  <div className="flex justify-between items-end mb-6">
+                    <div>
+                      <h4 className="text-lg font-bold text-slate-800">Overdue Years</h4>
+                    </div>
+                    <div className="flex items-center space-x-2">
                       <button
-                        key={month}
-                        onClick={() => toggleOverdueMonth(month)}
-                        className={`px-4 py-3.5 rounded-xl border text-sm font-semibold transition-all text-center flex items-center justify-center ${
-                          (draftFilters.overdueMonth && draftFilters.overdueMonth.includes(month))
-                            ? 'border-blue-600 bg-blue-50 text-blue-700 shadow-sm ring-1 ring-blue-100 font-bold'
-                            : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50'
-                        }`}
+                        onClick={() => updateDraftFilter('overdueYear', [...uniqueYears])}
+                        className="text-xs font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-colors"
                       >
-                        {month}
+                        Select All
                       </button>
-                    ))}
+                      <button
+                        onClick={() => updateDraftFilter('overdueYear', [])}
+                        className="text-xs font-bold text-red-600 hover:text-red-800 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg transition-colors"
+                      >
+                        Clear Selection
+                      </button>
+                    </div>
                   </div>
-                )}
-              </div>
-            )}
+
+                  {uniqueYears.length === 0 ? (
+                    <div className="text-center py-12 text-slate-400 text-sm font-medium border-2 border-dashed border-slate-200 rounded-2xl">
+                      No overdue years detected.
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-3 gap-3">
+                      {uniqueYears.map(year => {
+                        const isSelected = draftFilters.overdueYear?.includes(year);
+                        return (
+                          <button
+                            key={year}
+                            onClick={() => toggleOverdueYear(year)}
+                            className={`py-4 rounded-xl text-lg font-bold transition-all flex flex-col items-center justify-center gap-1 border-2 ${
+                              isSelected
+                                ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-sm'
+                                : 'border-slate-100 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50'
+                            }`}
+                          >
+                            {year}
+                            {isSelected && <CheckCircle2 className="w-4 h-4 text-indigo-500" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {activeTab === 'OVERDUE_MONTHS' && (
+                <div className="space-y-6">
+                  <div className="flex justify-between items-end mb-6">
+                    <div>
+                      <h4 className="text-lg font-bold text-slate-800">Overdue Months</h4>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={() => updateDraftFilter('overdueMonth', [...displayedMonths])}
+                        className="text-xs font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-colors"
+                      >
+                        Select All
+                      </button>
+                      <button
+                        onClick={() => updateDraftFilter('overdueMonth', [])}
+                        className="text-xs font-bold text-red-600 hover:text-red-800 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg transition-colors"
+                      >
+                        Clear Selection
+                      </button>
+                    </div>
+                  </div>
+
+                  {draftFilters.overdueYear?.length > 0 && (
+                    <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 flex justify-between items-center">
+                      <p className="text-sm text-blue-800 font-medium">
+                        Showing months for year(s): <span className="font-bold">{draftFilters.overdueYear.join(', ')}</span>
+                      </p>
+                      <button
+                        onClick={() => updateDraftFilter('overdueYear', [])}
+                        className="text-xs font-bold text-blue-600 hover:text-blue-800 bg-white px-3 py-1.5 rounded-lg shadow-sm"
+                      >
+                        Show All
+                      </button>
+                    </div>
+                  )}
+
+                  {displayedMonths.length === 0 ? (
+                    <div className="text-center py-12 text-slate-400 text-sm font-medium border-2 border-dashed border-slate-200 rounded-2xl">
+                      No overdue months detected.
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-3 gap-3">
+                      {displayedMonths.map(month => {
+                        const isSelected = draftFilters.overdueMonth?.includes(month);
+                        return (
+                          <button
+                            key={month}
+                            onClick={() => toggleOverdueMonth(month)}
+                            className={`py-3 px-2 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 border-2 ${
+                              isSelected
+                                ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-sm'
+                                : 'border-slate-100 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50'
+                            }`}
+                          >
+                            {isSelected && <CheckCircle2 className="w-4 h-4" />}
+                            {month}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
-
-
       </div>
     </div>
   );

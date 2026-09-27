@@ -42,8 +42,8 @@ const isPaymentTxn = (inv: { number?: string | null; credit?: number | null }): 
   if (num.startsWith('BNK')) return true;
   if ((inv.credit || 0) <= 0.01) return false;
   return (
-    !num.startsWith('SAL') &&
-    !num.startsWith('RSAL') &&
+    !(num.startsWith('SAL') || num.startsWith('INV')) &&
+    !(num.startsWith('RSAL') || num.startsWith('RINV')) &&
     !num.startsWith('BIL') &&
     !num.startsWith('JV') &&
     !num.startsWith('OB')
@@ -234,9 +234,9 @@ export default function CityTab({ data }: CityTabProps) {
       existing.transactionCount += 1;
 
       const num = row.number?.toString().toUpperCase() || '';
-      if (num.startsWith('SAL')) {
+      if ((num.startsWith('SAL') || num.startsWith('INV'))) {
         existing.netSales = (existing.netSales || 0) + row.debit;
-      } else if (num.startsWith('RSAL')) {
+      } else if ((num.startsWith('RSAL') || num.startsWith('RINV'))) {
         existing.netSales = (existing.netSales || 0) - row.credit;
       }
 
@@ -262,7 +262,7 @@ export default function CityTab({ data }: CityTabProps) {
           }
         }
         const num = row.number?.toString().toUpperCase() || '';
-        if (num.startsWith('SAL') && row.debit > 0) {
+        if ((num.startsWith('SAL') || num.startsWith('INV')) && row.debit > 0) {
           if (!existing.lastSalesDate || rowDate > existing.lastSalesDate) {
             existing.lastSalesDate = rowDate;
             existing.lastSalesAmount = row.debit;
@@ -296,14 +296,14 @@ export default function CityTab({ data }: CityTabProps) {
       const sales3m = customerInvoices
         .filter(inv => {
           const num = inv.number?.toString().toUpperCase() || '';
-          return num.startsWith('SAL') && isInLast90(inv.date);
+          return (num.startsWith('SAL') || num.startsWith('INV')) && isInLast90(inv.date);
         })
         .reduce((s, inv) => s + inv.debit, 0);
 
       const salesCount3m = customerInvoices
         .filter(inv => {
           const num = inv.number?.toString().toUpperCase() || '';
-          return num.startsWith('SAL') && isInLast90(inv.date);
+          return (num.startsWith('SAL') || num.startsWith('INV')) && isInLast90(inv.date);
         })
         .length;
 

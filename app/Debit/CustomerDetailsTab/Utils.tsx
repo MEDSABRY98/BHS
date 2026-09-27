@@ -11,8 +11,8 @@ export const isPaymentTxn = (inv: { number?: string | null; credit?: number | nu
   }
   if ((inv.credit || 0) <= 0.01) return false;
   return (
-    !num.startsWith('SAL') &&
-    !num.startsWith('RSAL') &&
+    !(num.startsWith('SAL') || num.startsWith('INV')) &&
+    !(num.startsWith('RSAL') || num.startsWith('RINV')) &&
     !num.startsWith('BIL') &&
     !num.startsWith('JV') &&
     !num.startsWith('OB') &&
@@ -87,7 +87,7 @@ export const shortenInvoiceNumber = (invoiceNumber: string | undefined | null, m
   const cleaned = invoiceNumber.replace(/\s*\(.*?\)\s*$/, '').trim();
   const upper = cleaned.toUpperCase();
 
-  if (upper.startsWith('SAL') || upper.startsWith('RSAL') || upper.startsWith('BIL') || upper.startsWith('JV')) {
+  if ((upper.startsWith('SAL') || upper.startsWith('INV')) || (upper.startsWith('RSAL') || upper.startsWith('RINV')) || upper.startsWith('BIL') || upper.startsWith('JV')) {
     const mainPart = cleaned.split(/\s+/)[0];
     return mainPart;
   }

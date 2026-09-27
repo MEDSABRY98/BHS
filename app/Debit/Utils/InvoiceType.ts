@@ -21,9 +21,9 @@ export const getInvoiceType = (inv: InvoiceTypeInput): string => {
     return debit > 0.01 ? 'R-Payment' : 'Payment';
   } else if (num.startsWith('PBNK') && debit > 0.01) {
     return 'Our-Paid';
-  } else if (num.startsWith('SAL')) {
+  } else if ((num.startsWith('SAL') || num.startsWith('INV'))) {
     return 'Sales';
-  } else if (num.startsWith('RSAL')) {
+  } else if ((num.startsWith('RSAL') || num.startsWith('RINV'))) {
     return 'Return';
   } else if (num.startsWith('RBIL')) {
     return 'R-BIL';

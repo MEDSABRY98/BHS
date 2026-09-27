@@ -127,13 +127,13 @@ export default function OpenTransactionsTab({ data }: CustomersOpenMatchesTabPro
           type = inv.debit > 0.01 ? 'R-Payment' : 'Payment';
         } else if (num.startsWith('PBNK') && inv.debit > 0.01) {
           type = 'Our-Paid';
-        } else if (num.startsWith('SAL')) {
+        } else if ((num.startsWith('SAL') || num.startsWith('INV'))) {
           // Only show SAL if it's partially closed (has matching and residual)
           // Don't show unmatched SAL (fully open)
           if (inv.matching && inv.residual !== undefined && Math.abs(inv.residual) > 0.01) {
             type = 'Sales';
           }
-        } else if (num.startsWith('RSAL')) {
+        } else if ((num.startsWith('RSAL') || num.startsWith('RINV'))) {
           type = 'Return';
         } else if (num.startsWith('JV') || num.startsWith('BIL')) {
           type = 'Discount';

@@ -128,7 +128,7 @@ function computeNetSales(rows: InvoiceRow[], from: Date, to: Date): number {
     if (!d || d < from || d > to) return;
     const num = (row.number || '').toString().toUpperCase().trim();
     // Every SAL / RSAL row: full ledger net (debit − credit), no partial amounts
-    if (num.startsWith('SAL') || num.startsWith('RSAL')) {
+    if ((num.startsWith('SAL') || num.startsWith('INV')) || (num.startsWith('RSAL') || num.startsWith('RINV'))) {
       netSales += (row.debit || 0) - (row.credit || 0);
     }
   });

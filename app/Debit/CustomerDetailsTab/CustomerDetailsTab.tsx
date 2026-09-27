@@ -853,8 +853,8 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
         const num = (inv.number || '').trim().toUpperCase();
 
         if (showOB && num.startsWith('OB')) return true;
-        if (showSales && num.startsWith('SAL') && inv.debit > 0) return true;
-        if (showReturns && num.startsWith('RSAL') && inv.credit > 0) return true;
+        if (showSales && (num.startsWith('SAL') || num.startsWith('INV')) && inv.debit > 0) return true;
+        if (showReturns && (num.startsWith('RSAL') || num.startsWith('RINV')) && inv.credit > 0) return true;
         if (showDiscounts && num.startsWith('BIL')) return true;
         if (showJV && num.startsWith('JV')) return true;
         if (showPayments && isPaymentTxn(inv)) {
@@ -966,8 +966,8 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
         const num = (inv.number || '').trim().toUpperCase();
 
         if (showOB && num.startsWith('OB')) return true;
-        if (showSales && num.startsWith('SAL') && inv.debit > 0) return true;
-        if (showReturns && num.startsWith('RSAL') && inv.credit > 0) return true;
+        if (showSales && (num.startsWith('SAL') || num.startsWith('INV')) && inv.debit > 0) return true;
+        if (showReturns && (num.startsWith('RSAL') || num.startsWith('RINV')) && inv.credit > 0) return true;
         if (showDiscounts && num.startsWith('BIL')) return true;
         if (showJV && num.startsWith('JV')) return true;
         if (showPayments && isPaymentTxn(inv)) {
@@ -1008,19 +1008,19 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
 
       // 1. Calculate Net Sales (Debit)
       // Include SAL (Debit)
-      if (num.startsWith('SAL')) {
+      if ((num.startsWith('SAL') || num.startsWith('INV'))) {
         existing.debit += invoice.debit;
       }
       // Deduct RSAL (Credit) from Sales
-      if (num.startsWith('RSAL')) {
+      if ((num.startsWith('RSAL') || num.startsWith('RINV'))) {
         existing.debit -= invoice.credit;
       }
 
       // 2. Calculate Smart Payments (Credit)
       // Only count credits that are NOT SAL, RSAL, BIL, JV
       if (invoice.credit > 0.01) {
-        const isNotPayment = num.startsWith('SAL') ||
-          num.startsWith('RSAL') ||
+        const isNotPayment = (num.startsWith('SAL') || num.startsWith('INV')) ||
+          (num.startsWith('RSAL') || num.startsWith('RINV')) ||
           num.startsWith('BIL') ||
           num.startsWith('JV');
 
@@ -1650,9 +1650,9 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
 
       if (num.startsWith('OB')) {
         obTotal += netDebt;
-      } else if (num.startsWith('SAL') && inv.debit > 0) {
+      } else if ((num.startsWith('SAL') || num.startsWith('INV')) && inv.debit > 0) {
         salesTotal += netDebt;
-      } else if (num.startsWith('RSAL') && inv.credit > 0) {
+      } else if ((num.startsWith('RSAL') || num.startsWith('RINV')) && inv.credit > 0) {
         returnsTotal += netDebt;
       } else if (num.startsWith('BIL')) {
         discountsTotal += netDebt;
@@ -1875,12 +1875,12 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
     // Breakdown for collection analysis
     const salesDebit = filteredInvoices.reduce((sum, inv) => {
       const num = inv.number.toUpperCase();
-      return num.startsWith('SAL') ? sum + inv.debit : sum;
+      return (num.startsWith('SAL') || num.startsWith('INV')) ? sum + inv.debit : sum;
     }, 0);
 
     const returnsAmount = filteredInvoices.reduce((sum, inv) => {
       const num = inv.number.toUpperCase();
-      return num.startsWith('RSAL') ? sum + inv.credit : sum;
+      return (num.startsWith('RSAL') || num.startsWith('RINV')) ? sum + inv.credit : sum;
     }, 0);
 
     const discountsAmount = filteredInvoices.reduce((sum, inv) => {
@@ -1959,8 +1959,8 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
 
     // Calculate Average Monthly Sales
     // Logic: (Sum(SAL) - Sum(RSAL)) / Span in Months
-    const salesInvoices = filteredInvoices.filter(inv => inv.number.toUpperCase().startsWith('SAL'));
-    const returnInvoices = filteredInvoices.filter(inv => inv.number.toUpperCase().startsWith('RSAL'));
+    const salesInvoices = filteredInvoices.filter(inv => (inv.number.toUpperCase().startsWith('SAL') || inv.number.toUpperCase().startsWith('INV')));
+    const returnInvoices = filteredInvoices.filter(inv => (inv.number.toUpperCase().startsWith('RSAL') || inv.number.toUpperCase().startsWith('RINV')));
 
     const totalSalesAmount = salesInvoices.reduce((sum, inv) => sum + inv.debit, 0);
     const totalReturnsAmount = returnInvoices.reduce((sum, inv) => sum + inv.credit, 0);
@@ -2013,7 +2013,10 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
       return d >= since90 && d <= now;
     };
 
-    const salesInvoices90 = filteredInvoices.filter(inv => inv.number?.toUpperCase().startsWith('SAL') && isInLast90(inv.date));
+    const salesInvoices90 = filteredInvoices.filter(inv => {
+      const upper = inv.number?.toUpperCase() || '';
+      return (upper.startsWith('SAL') || upper.startsWith('INV')) && isInLast90(inv.date);
+    });
     const sales3m = salesInvoices90.reduce((sum, inv) => sum + inv.debit, 0);
     const salesCount3m = salesInvoices90.length;
 

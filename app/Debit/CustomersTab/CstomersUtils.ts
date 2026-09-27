@@ -266,8 +266,8 @@ export const isPaymentTxn = (inv: { number?: string | null; credit?: number | nu
   if (num.startsWith('PBNK')) return (inv.credit || 0) > 0.01;
   if ((inv.credit || 0) <= 0.01) return false;
   return (
-    !num.startsWith('SAL') &&
-    !num.startsWith('RSAL') &&
+    !(num.startsWith('SAL') || num.startsWith('INV')) &&
+    !(num.startsWith('RSAL') || num.startsWith('RINV')) &&
     !num.startsWith('BIL') &&
     !num.startsWith('JV') &&
     !num.startsWith('OB')
@@ -303,7 +303,7 @@ export const getOverdueMonths = (customerName: string, invoices: InvoiceRow[]): 
     if (matchingKey === 'UNMATCHED') {
       group.forEach(inv => {
         const num = inv.number?.toString().toUpperCase() || '';
-        if (num.startsWith('SAL')) {
+        if ((num.startsWith('SAL') || num.startsWith('INV'))) {
           const invNetDebt = inv.debit - inv.credit;
           if (Math.abs(invNetDebt) > 0.01) overdueSalesInvoices.push(inv);
         }
@@ -313,7 +313,7 @@ export const getOverdueMonths = (customerName: string, invoices: InvoiceRow[]): 
       if (residual && Math.abs(residual.residual) > 0.01) {
         const residualHolder = group[residual.residualHolderIndex];
         const num = residualHolder.number?.toString().toUpperCase() || '';
-        if (num.startsWith('SAL')) overdueSalesInvoices.push(residualHolder);
+        if ((num.startsWith('SAL') || num.startsWith('INV'))) overdueSalesInvoices.push(residualHolder);
       }
     }
   });
@@ -337,8 +337,8 @@ export const getInvoiceType = (inv: { number?: string | null; credit?: number | 
   if (num.startsWith('OB')) return 'Opening Balance';
   if (num.startsWith('BNK')) return 'Payment';
   if (num.startsWith('PBNK')) return debit > 0.01 ? 'Our-Paid' : 'Payment';
-  if (num.startsWith('SAL')) return 'Sale';
-  if (num.startsWith('RSAL')) return 'Return';
+  if ((num.startsWith('SAL') || num.startsWith('INV'))) return 'Sale';
+  if ((num.startsWith('RSAL') || num.startsWith('RINV'))) return 'Return';
   if (num.startsWith('JV') || num.startsWith('BIL')) return 'Discount';
   if (credit > 0.01) return 'Payment';
   return 'Invoice/Txn';
@@ -422,8 +422,8 @@ export function generateCustomerAnalysis(data: InvoiceRow[]): CustomerAnalysis[]
     let type = '';
     if (n.startsWith('BNK')) type = 'Payment';
     else if (n.startsWith('PBNK') && row.debit > 0.01) type = 'Other';
-    else if (n.startsWith('SAL')) type = 'Sales';
-    else if (n.startsWith('RSAL')) type = 'Return';
+    else if ((n.startsWith('SAL') || n.startsWith('INV'))) type = 'Sales';
+    else if ((n.startsWith('RSAL') || n.startsWith('RINV'))) type = 'Return';
     else if (n.startsWith('JV') || n.startsWith('BIL')) type = 'Discount';
     else if (row.credit > 0.01 && !n.startsWith('PBNK')) type = 'Payment';
 
@@ -457,10 +457,10 @@ export function generateCustomerAnalysis(data: InvoiceRow[]): CustomerAnalysis[]
     }
 
     const num = row.number?.toString().toUpperCase() || '';
-    if (num.startsWith('SAL')) {
+    if ((num.startsWith('SAL') || num.startsWith('INV'))) {
       existing.netSales = (existing.netSales || 0) + row.debit;
       existing.totalSalesDebit = (existing.totalSalesDebit || 0) + row.debit;
-    } else if (num.startsWith('RSAL')) {
+    } else if ((num.startsWith('RSAL') || num.startsWith('RINV'))) {
       existing.netSales = (existing.netSales || 0) - row.credit;
     }
 
@@ -488,7 +488,7 @@ export function generateCustomerAnalysis(data: InvoiceRow[]): CustomerAnalysis[]
         existing.paymentDates.add(dKey);
       }
       const num = row.number?.toString().toUpperCase() || '';
-      if (num.startsWith('SAL') && row.debit > 0) {
+      if ((num.startsWith('SAL') || num.startsWith('INV')) && row.debit > 0) {
         if (!existing.lastSalesDate || rowDate > existing.lastSalesDate) {
           existing.lastSalesDate = rowDate;
           existing.lastSalesAmount = row.debit;

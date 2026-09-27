@@ -61,9 +61,9 @@ function classifyTransaction(inv: InvoiceRow): TransactionItem | null {
     type = inv.debit > 0.01 ? 'R-Payment' : 'Payment';
   } else if (num.startsWith('PBNK') && inv.debit > 0.01) {
     type = 'Our-Paid';
-  } else if (num.startsWith('SAL')) {
+  } else if ((num.startsWith('SAL') || num.startsWith('INV'))) {
     type = 'Sales';
-  } else if (num.startsWith('RSAL')) {
+  } else if ((num.startsWith('RSAL') || num.startsWith('RINV'))) {
     type = 'Return';
   } else if (num.startsWith('JV') || num.startsWith('BIL')) {
     type = 'Discount';

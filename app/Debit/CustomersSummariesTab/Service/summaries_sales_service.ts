@@ -16,7 +16,7 @@ export type {
 
 function isSalesOrReturn(invoiceNumber?: string | null): boolean {
   const num = (invoiceNumber || '').toString().toUpperCase().trim();
-  return num.startsWith('SAL') || num.startsWith('RSAL');
+  return (num.startsWith('SAL') || num.startsWith('INV')) || (num.startsWith('RSAL') || num.startsWith('RINV'));
 }
 
 function parseInvoiceDate(raw?: string | null): Date | null {
@@ -88,7 +88,7 @@ export async function getSummariesSalesOverlay(
 
       if (!entry.city && city) entry.city = city;
 
-      const isReturn = num.startsWith('RSAL');
+      const isReturn = (num.startsWith('RSAL') || num.startsWith('RINV'));
       if (year === previousYear) {
         if (isReturn) entry.returnsPrev += Math.abs(amount);
         else entry.salesPrev += amount;
