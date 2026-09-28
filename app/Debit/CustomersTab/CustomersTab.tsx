@@ -1049,14 +1049,12 @@ export default function CustomersTab({
       <EmailStatementModal
         isOpen={statementModalAction !== null}
         onClose={() => setStatementModalAction(null)}
-        emailStatementDate={emailStatementDate}
-        setEmailStatementDate={setEmailStatementDate}
-        onConfirm={(date, isShort, format) => {
+        onConfirm={(isShort, format) => {
           const action = statementModalAction;
           setStatementModalAction(null);
-          if (action === 'EMAIL') handleBulkEmail(date, isShort, format);
-          else if (action === 'ZIP') handleBulkZIPDownload(date, isShort, format);
-          else if (action === 'EMAIL_LULU') handleBulkLuluEmail(date, isShort, format);
+          if (action === 'EMAIL') handleBulkEmail(emailStatementDate, isShort, format);
+          else if (action === 'ZIP') handleBulkZIPDownload(emailStatementDate, isShort, format);
+          else if (action === 'EMAIL_LULU') handleBulkLuluEmail(emailStatementDate, isShort, format);
         }}
         isProcessing={isDownloading}
       />
