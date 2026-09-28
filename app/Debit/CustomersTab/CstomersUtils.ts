@@ -661,9 +661,9 @@ export const toNetOnlyOpenInvoicesForExport = (
     });
 };
 
-export const exportToPDF = async (data: CustomerAnalysis[], filename: string = 'customers_report') => {
+export const exportToPDF = async (data: CustomerAnalysis[], filename: string = 'customers_report', groupBy: 'Rep' | 'Tag' = 'Rep') => {
   try {
-    await exportToPDFUtil(data, filename);
+    await exportToPDFUtil(data, filename, new Set(), groupBy);
   } catch (error) {
     console.error('Error in exportToPDF:', error);
     alert('Failed to generate PDF');

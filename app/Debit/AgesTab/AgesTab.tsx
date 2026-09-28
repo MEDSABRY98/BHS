@@ -72,7 +72,7 @@ export default function AgesTab({ data }: AgesTabProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const debouncedSearch = useDebouncedValue(searchQuery);
   const [selectedSalesRep, setSelectedSalesRep] = useState<string>('all');
-  const [showNegativeBalances, setShowNegativeBalances] = useState(false);
+  const [showNegativeBalances, setShowNegativeBalances] = useState(true);
   const [isCityDropdownOpen, setIsCityDropdownOpen] = useState(false);
   const [isPdfExportOpen, setIsPdfExportOpen] = useState(false);
   const [isExportingPdf, setIsExportingPdf] = useState(false);

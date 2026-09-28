@@ -27,6 +27,7 @@ import RatingBreakdownModal from './Modals/RatingBreakdownModal';
 import CollectionStatsModal from './Modals/CollectionStatsModal';
 import MonthlyBreakdownModal from './Modals/MonthlyBreakdownModal';
 import EmailStatementModal from './Modals/EmailStatementModal';
+import SummaryExportModal from './Modals/SummaryExportModal';
 import CustomersExcelButton from './CustomersExcelButton';
 
 // Logic & Utils
@@ -63,7 +64,7 @@ export default function CustomersTab({
   initialCustomer,
   onCustomerToggle,
 }: CustomersTabProps) {
-  const { getCustomerInvoices, globalFilters } = useDebitData();
+  const { getCustomerInvoices } = useDebitData();
   // --- States ---
   const [sorting, setSorting] = useState<SortingState>([]);
   const [viewMode, setViewMode] = useState<'DEFAULT' | 'SUMMARY' | 'YEARLY' | 'NO TAGS' | 'TAGS ONLY'>('DEFAULT');
@@ -76,6 +77,8 @@ export default function CustomersTab({
   const [ratingBreakdown, setRatingBreakdown] = useState<any | null>(null);
   const [selectedCustomerForMonths, setSelectedCustomerForMonths] = useState<string | null>(null);
   const [statementModalAction, setStatementModalAction] = useState<'EMAIL' | 'ZIP' | 'EMAIL_LULU' | null>(null);
+  const [emailStatementDate, setEmailStatementDate] = useState(new Date().toISOString().split('T')[0]);
+  const [isSummaryExportModalOpen, setIsSummaryExportModalOpen] = useState(false);
   const [yearlySorting, setYearlySorting] = useState<{ id: string; desc: boolean }>({ id: 'totalNetDebt', desc: true });
   const [filters, setFilters] = useState({
     search: '',
@@ -180,18 +183,18 @@ export default function CustomersTab({
     }
   };
 
-  const handleBulkZIPDownload = async (isShort?: boolean, exportFormat: 'excel' | 'pdf' | 'both' = 'both') => {
+  const handleBulkZIPDownload = async (overrideDate?: string, isShort?: boolean, exportFormat: 'excel' | 'pdf' | 'both' = 'both') => {
     if (selectedCustomersForDownload.size === 0) {
       alert('Please select customers to download');
       return;
     }
 
-    if (statementModalAction !== 'ZIP') {
+    if (!overrideDate && statementModalAction !== 'ZIP') {
       setStatementModalAction('ZIP');
       return;
     }
 
-    const effectiveDate = globalFilters.dateTo || null;
+    const effectiveDate = overrideDate || emailStatementDate;
     setIsDownloading(true);
     try {
       const JSZip = (await import('jszip')).default;
@@ -204,34 +207,20 @@ export default function CustomersTab({
 
         let netOnlyInvoices = toNetOnlyOpenInvoicesForExport(buildInvoicesWithNetDebtForExport(customerInvoices));
 
-        if (effectiveDate || globalFilters.dateFrom) {
-          const limitDate = effectiveDate ? new Date(effectiveDate) : null;
-          if (limitDate) limitDate.setHours(23, 59, 59, 999);
-
-          const fromDate = globalFilters.dateFrom ? new Date(globalFilters.dateFrom) : null;
-          if (fromDate) fromDate.setHours(0, 0, 0, 0);
-
+        if (effectiveDate) {
+          const limitDate = new Date(effectiveDate);
+          limitDate.setHours(23, 59, 59, 999);
           netOnlyInvoices = netOnlyInvoices.filter(inv => {
             const rowDate = parseDate(inv.date);
-            if (!rowDate) return true;
-            if (limitDate && rowDate > limitDate) return false;
-            if (fromDate && rowDate < fromDate) return false;
-            return true;
+            return !rowDate || rowDate <= limitDate;
           });
         }
 
         if (netOnlyInvoices.length === 0) continue;
 
-        let dateLabel = 'All Months (Net Only)';
-        if (effectiveDate && globalFilters.dateFrom) {
-          dateLabel = `From ${formatDmy(new Date(globalFilters.dateFrom))} To ${formatDmy(new Date(effectiveDate))}`;
-        } else if (effectiveDate) {
-          dateLabel = `Up To ${formatDmy(new Date(effectiveDate))}`;
-        } else if (globalFilters.dateFrom) {
-          dateLabel = `From ${formatDmy(new Date(globalFilters.dateFrom))}`;
-        }
+        const dateLabel = effectiveDate ? `Up To ${formatDmy(new Date(effectiveDate))}` : 'All Months (Net Only)';
         const cleanName = customerName.replace(/[^a-zA-Z0-9\u0600-\u06FF \-_]/g, '').trim();
-        
+
         if (exportFormat === 'pdf' || exportFormat === 'both') {
           const pdfBlob = await generateAccountStatementPDF(customerName, netOnlyInvoices, true, dateLabel, isShort ?? true);
           if (pdfBlob) {
@@ -239,7 +228,7 @@ export default function CustomersTab({
             count++;
           }
         }
-        
+
         if (exportFormat === 'excel' || exportFormat === 'both') {
           const excelBlob = await generateSingleCustomerExcelBlob(customerName, netOnlyInvoices, isShort ?? true);
           if (excelBlob) {
@@ -265,41 +254,28 @@ export default function CustomersTab({
     }
   };
 
-  const handleBulkEmail = async (isShort?: boolean, exportFormat: 'excel' | 'pdf' | 'both' = 'both') => {
+  const handleBulkEmail = async (overrideDate?: string, isShort?: boolean, exportFormat: 'excel' | 'pdf' | 'both' = 'both') => {
     if (selectedCustomersForDownload.size === 0) {
       alert('Please select customers to email');
       return;
     }
 
-    if (statementModalAction !== 'EMAIL') {
+    if (!overrideDate && statementModalAction !== 'EMAIL') {
       setStatementModalAction('EMAIL');
       return;
     }
 
-    const effectiveDate = globalFilters.dateTo || null;
+    const effectiveDate = overrideDate || emailStatementDate;
     setIsDownloading(true);
     try {
       const JSZip = (await import('jszip')).default;
       const zip = new JSZip();
       let count = 0;
       const normalize = (s: any) => String(s || '').toLowerCase().trim().replace(/\s+/g, ' ');
-      let dateLabel = 'All Months (Net Only)';
-      if (effectiveDate && globalFilters.dateFrom) {
-        dateLabel = `From ${formatDmy(new Date(globalFilters.dateFrom))} To ${formatDmy(new Date(effectiveDate))}`;
-      } else if (effectiveDate) {
-        dateLabel = `Up To ${formatDmy(new Date(effectiveDate))}`;
-      } else if (globalFilters.dateFrom) {
-        dateLabel = `From ${formatDmy(new Date(globalFilters.dateFrom))}`;
-      }
-
-      let asOfText = '';
-      if (effectiveDate && globalFilters.dateFrom) {
-        asOfText = ` (from ${formatDmy(new Date(globalFilters.dateFrom))} to ${formatDmy(new Date(effectiveDate))})`;
-      } else if (effectiveDate) {
-        asOfText = ` as of ${formatDmy(new Date(effectiveDate))}`;
-      } else if (globalFilters.dateFrom) {
-        asOfText = ` from ${formatDmy(new Date(globalFilters.dateFrom))}`;
-      }
+      const dateLabel = effectiveDate
+        ? `Up To ${formatDmy(new Date(effectiveDate))}`
+        : 'All Months (Net Only)';
+      const asOfText = effectiveDate ? ` as of ${formatDmy(new Date(effectiveDate))}` : '';
       const shortInvoice = isShort ?? true;
       const subject = 'Statement of Account - Al Marai Al Arabia Trading Sole Proprietorship L.L.C';
 
@@ -311,19 +287,12 @@ export default function CustomersTab({
           buildInvoicesWithNetDebtForExport(customerInvoices)
         );
 
-        if (effectiveDate || globalFilters.dateFrom) {
-          const limitDate = effectiveDate ? new Date(effectiveDate) : null;
-          if (limitDate) limitDate.setHours(23, 59, 59, 999);
-
-          const fromDate = globalFilters.dateFrom ? new Date(globalFilters.dateFrom) : null;
-          if (fromDate) fromDate.setHours(0, 0, 0, 0);
-
+        if (effectiveDate) {
+          const limitDate = new Date(effectiveDate);
+          limitDate.setHours(23, 59, 59, 999);
           netOnlyInvoices = netOnlyInvoices.filter((inv) => {
             const rowDate = parseDate(inv.date);
-            if (!rowDate) return true;
-            if (limitDate && rowDate > limitDate) return false;
-            if (fromDate && rowDate < fromDate) return false;
-            return true;
+            return !rowDate || rowDate <= limitDate;
           });
         }
 
@@ -541,18 +510,18 @@ export default function CustomersTab({
     }
   };
 
-  const handleBulkLuluEmail = async (isShort?: boolean, exportFormat: 'excel' | 'pdf' | 'both' = 'both') => {
+  const handleBulkLuluEmail = async (overrideDate?: string, isShort?: boolean, exportFormat: 'excel' | 'pdf' | 'both' = 'both') => {
     if (selectedCustomersForDownload.size === 0) {
       alert('Please select customers to email');
       return;
     }
 
-    if (statementModalAction !== 'EMAIL_LULU') {
+    if (!overrideDate && statementModalAction !== 'EMAIL_LULU') {
       setStatementModalAction('EMAIL_LULU');
       return;
     }
 
-    const effectiveDate = globalFilters.dateTo || null;
+    const effectiveDate = overrideDate || emailStatementDate;
     setIsDownloading(true);
     try {
       const JSZip = (await import('jszip')).default;
@@ -584,34 +553,19 @@ export default function CustomersTab({
 
         let netOnlyInvoices = toNetOnlyOpenInvoicesForExport(buildInvoicesWithNetDebtForExport(customerInvoices));
 
-        if (effectiveDate || globalFilters.dateFrom) {
-          const limitDate = effectiveDate ? new Date(effectiveDate) : null;
-          if (limitDate) limitDate.setHours(23, 59, 59, 999);
-
-          const fromDate = globalFilters.dateFrom ? new Date(globalFilters.dateFrom) : null;
-          if (fromDate) fromDate.setHours(0, 0, 0, 0);
-
-          netOnlyInvoices = netOnlyInvoices.filter((inv) => {
+        if (effectiveDate) {
+          const limitDate = new Date(effectiveDate);
+          limitDate.setHours(23, 59, 59, 999);
+          netOnlyInvoices = netOnlyInvoices.filter(inv => {
             const rowDate = parseDate(inv.date);
-            if (!rowDate) return true;
-            if (limitDate && rowDate > limitDate) return false;
-            if (fromDate && rowDate < fromDate) return false;
-            return true;
+            return !rowDate || rowDate <= limitDate;
           });
         }
 
         if (netOnlyInvoices.length === 0) continue;
 
         const netDebt = netOnlyInvoices.reduce((sum, inv) => sum + (inv.netDebt || 0), 0);
-        
-        let dateLabel = 'All Months (Net Only)';
-        if (effectiveDate && globalFilters.dateFrom) {
-          dateLabel = `From ${formatDmy(new Date(globalFilters.dateFrom))} To ${formatDmy(new Date(effectiveDate))}`;
-        } else if (effectiveDate) {
-          dateLabel = `Up To ${formatDmy(new Date(effectiveDate))}`;
-        } else if (globalFilters.dateFrom) {
-          dateLabel = `From ${formatDmy(new Date(globalFilters.dateFrom))}`;
-        }
+        const dateLabel = effectiveDate ? `Up To ${formatDmy(new Date(effectiveDate))}` : 'All Months (Net Only)';
 
         let pdfBase64 = '';
         if (exportFormat === 'pdf' || exportFormat === 'both') {
@@ -925,11 +879,10 @@ export default function CustomersTab({
           <button
             onClick={() => setHideZeroBalance(prev => !prev)}
             title={hideZeroBalance ? 'Show zero-balance customers' : 'Hide zero-balance customers'}
-            className={`shrink-0 p-2 rounded-xl border transition-all ${
-              hideZeroBalance
-                ? 'bg-amber-50 border-amber-300 text-amber-600 hover:bg-amber-100'
-                : 'bg-white border-gray-200 text-gray-400 hover:bg-gray-50 hover:text-gray-600'
-            }`}
+            className={`shrink-0 p-2 rounded-xl border transition-all ${hideZeroBalance
+              ? 'bg-amber-50 border-amber-300 text-amber-600 hover:bg-amber-100'
+              : 'bg-white border-gray-200 text-gray-400 hover:bg-gray-50 hover:text-gray-600'
+              }`}
           >
             {hideZeroBalance ? <EyeOff size={18} /> : <Eye size={18} />}
           </button>
@@ -942,9 +895,8 @@ export default function CustomersTab({
               <button
                 key={m}
                 onClick={() => setViewMode(m)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
-                  viewMode === m ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-                }`}
+                className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${viewMode === m ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                  }`}
               >
                 {m === 'NO TAGS' ? 'No Tags' : m === 'TAGS ONLY' ? 'Tags Only' : m.charAt(0) + m.slice(1).toLowerCase()}
               </button>
@@ -954,7 +906,7 @@ export default function CustomersTab({
 
 
           <CustomersExcelButton filteredData={baseFilteredData} data={data} yearlyPivotData={yearlyPivotData} />
-          <button onClick={() => exportToPDF(filteredData, 'Customers_PDF_Report')} className="p-2.5 bg-white border border-gray-200 rounded-xl hover:border-red-400 text-red-600 transition-all shadow-sm shrink-0" title="Export PDF">
+          <button onClick={() => setIsSummaryExportModalOpen(true)} className="p-2.5 bg-white border border-gray-200 rounded-xl hover:border-red-400 text-red-600 transition-all shadow-sm shrink-0" title="Export PDF">
             <FileText size={20} />
           </button>
 
@@ -1097,14 +1049,23 @@ export default function CustomersTab({
       <EmailStatementModal
         isOpen={statementModalAction !== null}
         onClose={() => setStatementModalAction(null)}
-        onConfirm={(isShort, format) => {
+        emailStatementDate={emailStatementDate}
+        setEmailStatementDate={setEmailStatementDate}
+        onConfirm={(date, isShort, format) => {
           const action = statementModalAction;
           setStatementModalAction(null);
-          if (action === 'EMAIL') handleBulkEmail(isShort, format);
-          else if (action === 'ZIP') handleBulkZIPDownload(isShort, format);
-          else if (action === 'EMAIL_LULU') handleBulkLuluEmail(isShort, format);
+          if (action === 'EMAIL') handleBulkEmail(date, isShort, format);
+          else if (action === 'ZIP') handleBulkZIPDownload(date, isShort, format);
+          else if (action === 'EMAIL_LULU') handleBulkLuluEmail(date, isShort, format);
         }}
         isProcessing={isDownloading}
+      />
+
+      <SummaryExportModal
+        open={isSummaryExportModalOpen}
+        onClose={() => setIsSummaryExportModalOpen(false)}
+        filteredData={filteredData}
+        onExport={exportToPDF}
       />
     </div>
   );

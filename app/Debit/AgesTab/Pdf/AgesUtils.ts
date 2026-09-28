@@ -40,6 +40,7 @@ export async function generateAgesPDF(
 
   let isFirstPage = true;
   const sortedCityKeys = Array.from(cityGroups.keys()).sort();
+  const summaryData: any[] = [];
 
   for (const city of sortedCityKeys) {
     const cityData = cityGroups.get(city) || [];
@@ -70,6 +71,8 @@ export async function generateAgesPDF(
       ninetyOneToOneTwenty: acc.ninetyOneToOneTwenty + item.ninetyOneToOneTwenty, older: acc.older + item.older
     }), { total: 0, oneToThirty: 0, thirtyOneToSixty: 0, sixtyOneToNinety: 0, ninetyOneToOneTwenty: 0, older: 0 });
 
+    summaryData.push({ city, ...totals });
+
     tableData.push(['', 'TOTAL', '', totals.total.toLocaleString('en-US'), totals.oneToThirty.toLocaleString('en-US'),
       totals.thirtyOneToSixty.toLocaleString('en-US'), totals.sixtyOneToNinety.toLocaleString('en-US'),
       totals.ninetyOneToOneTwenty.toLocaleString('en-US'), totals.older.toLocaleString('en-US')]);
@@ -90,6 +93,57 @@ export async function generateAgesPDF(
 
     if (typeof (doc as any).autoTable === 'function') (doc as any).autoTable(tableOptions);
     else if (typeof autoTable === 'function') autoTable(doc, tableOptions as any);
+  }
+
+  // Generate Summary Page
+  if (summaryData.length > 0) {
+    doc.addPage('a4', 'l');
+    let summaryY = 20;
+    doc.setFontSize(12); doc.setTextColor(0, 155, 77); doc.setFont('helvetica', 'bold');
+    doc.text('Al Marai Al Arabia Trading Sole Proprietorship L.L.C', pageWidth / 2, summaryY, { align: 'center' });
+    doc.setTextColor(0, 0, 0); summaryY += 7;
+    doc.setFontSize(18); doc.text(`Aging Report | Summary by City`, pageWidth / 2, summaryY, { align: 'center' });
+    summaryY += 10;
+    
+    doc.setFontSize(10); doc.setFont('helvetica', 'normal');
+    const now = new Date();
+    const currentDate = `${now.getDate().toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()}`;
+    let summaryHeader = `Date: ${currentDate}`;
+    if (filterDescription) summaryHeader += `   |   Filter: ${filterDescription}`;
+    doc.text(summaryHeader, margin, summaryY); summaryY += 8;
+
+    const summaryTableData = summaryData.map((item, index) => [
+      (index + 1).toString(), item.city, item.total.toLocaleString('en-US'),
+      item.oneToThirty.toLocaleString('en-US'), item.thirtyOneToSixty.toLocaleString('en-US'),
+      item.sixtyOneToNinety.toLocaleString('en-US'), item.ninetyOneToOneTwenty.toLocaleString('en-US'), item.older.toLocaleString('en-US')
+    ]);
+
+    const grandTotals = summaryData.reduce((acc, item) => ({
+      total: acc.total + item.total, oneToThirty: acc.oneToThirty + item.oneToThirty,
+      thirtyOneToSixty: acc.thirtyOneToSixty + item.thirtyOneToSixty, sixtyOneToNinety: acc.sixtyOneToNinety + item.sixtyOneToNinety,
+      ninetyOneToOneTwenty: acc.ninetyOneToOneTwenty + item.ninetyOneToOneTwenty, older: acc.older + item.older
+    }), { total: 0, oneToThirty: 0, thirtyOneToSixty: 0, sixtyOneToNinety: 0, ninetyOneToOneTwenty: 0, older: 0 });
+
+    summaryTableData.push(['', 'GRAND TOTAL', grandTotals.total.toLocaleString('en-US'), grandTotals.oneToThirty.toLocaleString('en-US'),
+      grandTotals.thirtyOneToSixty.toLocaleString('en-US'), grandTotals.sixtyOneToNinety.toLocaleString('en-US'),
+      grandTotals.ninetyOneToOneTwenty.toLocaleString('en-US'), grandTotals.older.toLocaleString('en-US')]);
+
+    const summaryTableOptions = {
+      startY: summaryY, head: [['#', 'City', 'Total', '0-30', '31-60', '61-90', '91-120', 'Older']],
+      body: summaryTableData, theme: 'grid', styles: { font: 'helvetica', fontSize: 10, halign: 'center', valign: 'middle' },
+      headStyles: { fillColor: [50, 50, 50], textColor: 255, fontStyle: 'bold', halign: 'center', fontSize: 11 },
+      columnStyles: {
+        0: { cellWidth: 15 }, 1: { font: 'Amiri', halign: 'center', fontStyle: 'bold' },
+        2: { cellWidth: 40, fontStyle: 'bold', fillColor: [230, 230, 230] },
+        3: { cellWidth: 30, fontStyle: 'bold' }, 4: { cellWidth: 30, fontStyle: 'bold' },
+        5: { cellWidth: 30, fontStyle: 'bold' }, 6: { cellWidth: 30, fontStyle: 'bold' },
+        7: { cellWidth: 35, textColor: [185, 28, 28], fontStyle: 'bold' }
+      },
+      margin: { left: 5, right: 5 }, didParseCell: (data: any) => { if (data.row.index === summaryTableData.length - 1) { data.cell.styles.fontStyle = 'bold'; data.cell.styles.fillColor = [240, 240, 240]; } }
+    };
+
+    if (typeof (doc as any).autoTable === 'function') (doc as any).autoTable(summaryTableOptions);
+    else if (typeof autoTable === 'function') autoTable(doc, summaryTableOptions as any);
   }
   return doc.output('blob');
 }
@@ -207,6 +261,7 @@ export async function generateCombinedTagsAgesPDF(
   const sortedTags = Array.from(tagGroups.keys()).sort((a, b) => a.localeCompare(b));
 
   let isFirstPage = true;
+  const summaryData: any[] = [];
 
   for (const tag of sortedTags) {
     const tagData = tagGroups.get(tag) || [];
@@ -245,6 +300,8 @@ export async function generateCombinedTagsAgesPDF(
       ninetyOneToOneTwenty: acc.ninetyOneToOneTwenty + item.ninetyOneToOneTwenty, older: acc.older + item.older
     }), { total: 0, oneToThirty: 0, thirtyOneToSixty: 0, sixtyOneToNinety: 0, ninetyOneToOneTwenty: 0, older: 0 });
 
+    summaryData.push({ tag, ...totals });
+
     tableData.push(['', 'TOTAL', '', totals.total.toLocaleString('en-US'), totals.oneToThirty.toLocaleString('en-US'),
       totals.thirtyOneToSixty.toLocaleString('en-US'), totals.sixtyOneToNinety.toLocaleString('en-US'),
       totals.ninetyOneToOneTwenty.toLocaleString('en-US'), totals.older.toLocaleString('en-US')]);
@@ -265,6 +322,57 @@ export async function generateCombinedTagsAgesPDF(
 
     if (typeof (doc as any).autoTable === 'function') (doc as any).autoTable(tableOptions);
     else if (typeof autoTable === 'function') autoTable(doc, tableOptions as any);
+  }
+
+  // Generate Summary Page
+  if (summaryData.length > 0) {
+    doc.addPage('a4', 'l');
+    let summaryY = 20;
+    doc.setFontSize(12); doc.setTextColor(0, 155, 77); doc.setFont('helvetica', 'bold');
+    doc.text('Al Marai Al Arabia Trading Sole Proprietorship L.L.C', pageWidth / 2, summaryY, { align: 'center' });
+    doc.setTextColor(0, 0, 0); summaryY += 7;
+    doc.setFontSize(18); doc.text(`Aging Report | Summary by Tag`, pageWidth / 2, summaryY, { align: 'center' });
+    summaryY += 10;
+    
+    doc.setFontSize(10); doc.setFont('helvetica', 'normal');
+    const now = new Date();
+    const currentDate = `${now.getDate().toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()}`;
+    let summaryHeader = `Date: ${currentDate}`;
+    if (filterDescription) summaryHeader += `   |   Filter: ${filterDescription}`;
+    doc.text(summaryHeader, margin, summaryY); summaryY += 8;
+
+    const summaryTableData = summaryData.map((item, index) => [
+      (index + 1).toString(), item.tag, item.total.toLocaleString('en-US'),
+      item.oneToThirty.toLocaleString('en-US'), item.thirtyOneToSixty.toLocaleString('en-US'),
+      item.sixtyOneToNinety.toLocaleString('en-US'), item.ninetyOneToOneTwenty.toLocaleString('en-US'), item.older.toLocaleString('en-US')
+    ]);
+
+    const grandTotals = summaryData.reduce((acc, item) => ({
+      total: acc.total + item.total, oneToThirty: acc.oneToThirty + item.oneToThirty,
+      thirtyOneToSixty: acc.thirtyOneToSixty + item.thirtyOneToSixty, sixtyOneToNinety: acc.sixtyOneToNinety + item.sixtyOneToNinety,
+      ninetyOneToOneTwenty: acc.ninetyOneToOneTwenty + item.ninetyOneToOneTwenty, older: acc.older + item.older
+    }), { total: 0, oneToThirty: 0, thirtyOneToSixty: 0, sixtyOneToNinety: 0, ninetyOneToOneTwenty: 0, older: 0 });
+
+    summaryTableData.push(['', 'GRAND TOTAL', grandTotals.total.toLocaleString('en-US'), grandTotals.oneToThirty.toLocaleString('en-US'),
+      grandTotals.thirtyOneToSixty.toLocaleString('en-US'), grandTotals.sixtyOneToNinety.toLocaleString('en-US'),
+      grandTotals.ninetyOneToOneTwenty.toLocaleString('en-US'), grandTotals.older.toLocaleString('en-US')]);
+
+    const summaryTableOptions = {
+      startY: summaryY, head: [['#', 'Tag', 'Total', '0-30', '31-60', '61-90', '91-120', 'Older']],
+      body: summaryTableData, theme: 'grid', styles: { font: 'helvetica', fontSize: 10, halign: 'center', valign: 'middle' },
+      headStyles: { fillColor: [50, 50, 50], textColor: 255, fontStyle: 'bold', halign: 'center', fontSize: 11 },
+      columnStyles: {
+        0: { cellWidth: 15 }, 1: { font: 'Amiri', halign: 'center', fontStyle: 'bold' },
+        2: { cellWidth: 40, fontStyle: 'bold', fillColor: [230, 230, 230] },
+        3: { cellWidth: 30, fontStyle: 'bold' }, 4: { cellWidth: 30, fontStyle: 'bold' },
+        5: { cellWidth: 30, fontStyle: 'bold' }, 6: { cellWidth: 30, fontStyle: 'bold' },
+        7: { cellWidth: 35, textColor: [185, 28, 28], fontStyle: 'bold' }
+      },
+      margin: { left: 5, right: 5 }, didParseCell: (data: any) => { if (data.row.index === summaryTableData.length - 1) { data.cell.styles.fontStyle = 'bold'; data.cell.styles.fillColor = [240, 240, 240]; } }
+    };
+
+    if (typeof (doc as any).autoTable === 'function') (doc as any).autoTable(summaryTableOptions);
+    else if (typeof autoTable === 'function') autoTable(doc, summaryTableOptions as any);
   }
   return doc.output('blob');
 }

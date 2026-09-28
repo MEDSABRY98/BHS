@@ -264,8 +264,7 @@ export default function DashboardTab(props: SharedTabProps) {
                       <PieChart>
                         <Pie
                           data={[
-                            { name: 'Due', value: agingData.atDate || 0, color: '#4285F4' },
-                            { name: '1-30', value: agingData.oneToThirty || 0, color: '#9162E4' },
+                            { name: '0-30', value: (agingData.atDate || 0) + (agingData.oneToThirty || 0), color: '#9162E4' },
                             { name: '31-60', value: agingData.thirtyOneToSixty || 0, color: '#F4A100' },
                             { name: '61-90', value: agingData.sixtyOneToNinety || 0, color: '#F06536' },
                             { name: '91-120', value: agingData.ninetyOneToOneTwenty || 0, color: '#D9434E' },
@@ -280,15 +279,16 @@ export default function DashboardTab(props: SharedTabProps) {
                           stroke="none"
                         >
                           {[
-                            { color: '#4285F4' },
-                            { color: '#9162E4' },
-                            { color: '#F4A100' },
-                            { color: '#F06536' },
-                            { color: '#D9434E' },
-                            { color: '#991B1B' }
-                          ].map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.color} />
-                          ))}
+                            { name: '0-30', value: (agingData.atDate || 0) + (agingData.oneToThirty || 0), color: '#9162E4' },
+                            { name: '31-60', value: agingData.thirtyOneToSixty || 0, color: '#F4A100' },
+                            { name: '61-90', value: agingData.sixtyOneToNinety || 0, color: '#F06536' },
+                            { name: '91-120', value: agingData.ninetyOneToOneTwenty || 0, color: '#D9434E' },
+                            { name: '120+', value: agingData.older || 0, color: '#991B1B' }
+                          ]
+                            .filter(d => d.value > 0.01)
+                            .map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={entry.color} />
+                            ))}
                         </Pie>
                       </PieChart>
                     </ResponsiveContainer>
@@ -304,8 +304,7 @@ export default function DashboardTab(props: SharedTabProps) {
                 {/* Right Column: Bucket Details & Bars */}
                 <div className="flex-1 w-full space-y-7 mt-6">
                   {[
-                    { label: '0 - Due Date', value: agingData.atDate, color: '#4285F4' },
-                    { label: '1 - 30 Days', value: agingData.oneToThirty, color: '#9162E4' },
+                    { label: '0 - 30 Days', value: (agingData.atDate || 0) + (agingData.oneToThirty || 0), color: '#9162E4' },
                     { label: '31 - 60 Days', value: agingData.thirtyOneToSixty, color: '#F4A100' },
                     { label: '61 - 90 Days', value: agingData.sixtyOneToNinety, color: '#F06536' },
                     { label: '91 - 120 Days', value: agingData.ninetyOneToOneTwenty, color: '#D9434E' },

@@ -185,7 +185,7 @@ export const useCustomerData = (data: InvoiceRow[] = [], filters: any, mode: any
       if (b === 'OB') return 1;
       return a.localeCompare(b); // Years ascending (2024, 2025, 2026...)
     });
-    const finalRows = Array.from(customerPivotMap.values()).filter(row => row.totalNetDebt > 0.01);
+    const finalRows = Array.from(customerPivotMap.values()).filter(row => Math.abs(row.totalNetDebt) > 0.01);
     finalRows.sort((a, b) => {
       let valA: any = 0; let valB: any = 0;
       if (yearlySorting.id === 'name') { valA = a.customerName; valB = b.customerName; }
