@@ -20,7 +20,6 @@ import { useInventoryCountingFilters } from '../Model/InventoryCountingFiltersCo
 
 export type InventoryCountingTabId =
   | 'total_count'
-  | 'reconciliation'
   | 'user_comparison'
   | 'record'
   | 'archives';
@@ -31,7 +30,6 @@ const INVENTORY_COUNTING_TABS: {
   icon: LucideIcon;
 }[] = [
   { id: 'total_count', label: 'Total Count', icon: Layers },
-  { id: 'reconciliation', label: 'Count Reconciliation', icon: ClipboardCheck },
   { id: 'user_comparison', label: 'User Comparison', icon: Users },
   { id: 'record', label: 'Record', icon: History },
   { id: 'archives', label: 'Archives', icon: Archive },
@@ -51,9 +49,6 @@ export function isCountingTabAllowed(tabId: string): boolean {
         tabId === 'record' &&
         (countingTabs.includes('normal_record') || countingTabs.includes('damage_record'))
       ) {
-        return true;
-      }
-      if (tabId === 'reconciliation' && countingTabs.includes('inventory_count')) {
         return true;
       }
       if (

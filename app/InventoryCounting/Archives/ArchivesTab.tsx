@@ -9,9 +9,11 @@ import {
   Search,
   Download,
   Loader2,
+  Edit3,
 } from 'lucide-react';
+import { toast } from '@/app/Components/Notification';
 import NoData from '@/app/Components/DataState/NoDataTab';
-import { fetchArchivedAllICDetails } from '../Service/InventoryCountingService';
+import { fetchArchivedAllICDetails, updateArchiveLabel } from '../Service/InventoryCountingService';
 import { exportInventoryCountingExcel } from '../Export/ExcelExport';
 import TabLoader from '@/app/Components/Loading/TabLoader';
 import { useInventoryCountingArchive } from './InventoryCountingArchiveContext';
@@ -45,6 +47,8 @@ export default function ArchivesTab({ onViewArchive }: ArchivesTabProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [downloadingArchiveId, setDownloadingArchiveId] = useState<string | null>(null);
+  const [editingArchive, setEditingArchive] = useState<{ id: string; label: string } | null>(null);
+  const [isUpdatingLabel, setIsUpdatingLabel] = useState(false);
 
   const handleDownloadExcel = async (e: React.MouseEvent, id: string, label: string) => {
     e.stopPropagation();
@@ -67,13 +71,39 @@ export default function ArchivesTab({ onViewArchive }: ArchivesTabProps) {
 
         await exportInventoryCountingExcel(formattedData, filename, { sheetName: 'Details' });
       } else {
-        alert(result.error || 'No data found or failed to download');
+        toast.error(result.error || 'No data found or failed to download');
       }
     } catch (err) {
       console.error(err);
-      alert('Error downloading archive data');
+      toast.error('Error downloading archive data');
     } finally {
       setDownloadingArchiveId(null);
+    }
+  };
+
+  const handleEditLabelClick = (id: string, currentLabel: string) => {
+    setEditingArchive({ id, label: currentLabel });
+  };
+
+  const handleSaveLabel = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingArchive) return;
+    
+    setIsUpdatingLabel(true);
+    try {
+      const result = await updateArchiveLabel(editingArchive.id, editingArchive.label.trim());
+      if (result.success) {
+        toast.success('Note updated successfully');
+        void refreshArchives();
+        setEditingArchive(null);
+      } else {
+        toast.error(result.error || 'Failed to update note');
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error('An error occurred while updating the note');
+    } finally {
+      setIsUpdatingLabel(false);
     }
   };
 
@@ -140,11 +170,6 @@ export default function ArchivesTab({ onViewArchive }: ArchivesTabProps) {
     };
   }, [isRefreshing, loadingArchives]);
 
-  const openArchive = (id: string) => {
-    setArchiveId(id);
-    onViewArchive('total_count');
-  };
-
   if (loadingArchives && archives.length === 0) {
     return <TabLoader />;
   }
@@ -176,30 +201,17 @@ export default function ArchivesTab({ onViewArchive }: ArchivesTabProps) {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {filteredArchives.map((archive) => {
-            const isSelected = archiveId === archive.archiveId;
             return (
               <div
                 key={archive.archiveId}
                 role="button"
                 tabIndex={0}
-                onClick={() => openArchive(archive.archiveId)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    openArchive(archive.archiveId);
-                  }
-                }}
-                className={`text-left rounded-[1.75rem] border p-5 transition-all cursor-pointer ${
-                  isSelected
-                    ? 'border-amber-300 bg-amber-50 shadow-md shadow-amber-100'
-                    : 'border-slate-100 bg-white hover:border-amber-200 hover:bg-amber-50/40 shadow-sm'
-                }`}
+                onClick={() => handleEditLabelClick(archive.archiveId, archive.label || '')}
+                className="text-left rounded-[1.75rem] border border-slate-100 bg-white p-5 shadow-sm transition-all cursor-pointer hover:border-amber-200 hover:bg-amber-50/40"
               >
                 <div className="flex items-start gap-4">
                   <div
-                    className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${
-                      isSelected ? 'bg-amber-600 text-white' : 'bg-amber-50 text-amber-700'
-                    }`}
+                    className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 bg-amber-50 text-amber-700"
                   >
                     <Archive className="w-5 h-5" />
                   </div>
@@ -208,11 +220,6 @@ export default function ArchivesTab({ onViewArchive }: ArchivesTabProps) {
                       <h3 className="text-base font-black text-slate-900 truncate">
                         {archive.archiveId}
                       </h3>
-                      {isSelected && (
-                        <span className="inline-flex px-2.5 py-1 rounded-lg bg-amber-600 text-white text-[10px] font-black uppercase tracking-wider">
-                          Viewing
-                        </span>
-                      )}
                     </div>
                     {archive.label && (
                       <p className="text-sm font-bold text-slate-700 mt-1 truncate">{archive.label}</p>
@@ -251,6 +258,63 @@ export default function ArchivesTab({ onViewArchive }: ArchivesTabProps) {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Custom Edit Note Modal */}
+      {editingArchive && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+              <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
+                <Edit3 className="w-5 h-5 text-amber-500" />
+                Edit Archive Note
+              </h3>
+              <button
+                onClick={() => setEditingArchive(null)}
+                className="text-slate-400 hover:text-slate-600 transition-colors"
+                disabled={isUpdatingLabel}
+              >
+                <Search className="w-5 h-5 hidden" /> {/* Dummy icon just in case, wait, let's use Lucide X if imported, otherwise standard text. Ah, X isn't imported from lucide-react here, so let's just use text */}
+                <span className="text-xl leading-none">&times;</span>
+              </button>
+            </div>
+            <form onSubmit={handleSaveLabel} className="p-6">
+              <div className="mb-6">
+                <label className="block text-sm font-bold text-slate-700 mb-2">Note / Label</label>
+                <input
+                  type="text"
+                  value={editingArchive.label}
+                  onChange={(e) => setEditingArchive({ ...editingArchive, label: e.target.value })}
+                  placeholder="Enter a descriptive note..."
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:bg-white focus:border-amber-500 focus:ring-4 focus:ring-amber-500/10 transition-all outline-none"
+                  autoFocus
+                  disabled={isUpdatingLabel}
+                />
+              </div>
+              <div className="flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setEditingArchive(null)}
+                  disabled={isUpdatingLabel}
+                  className="px-5 py-2.5 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-100 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isUpdatingLabel}
+                  className="px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-amber-600 hover:bg-amber-700 transition-colors flex items-center gap-2 disabled:opacity-50"
+                >
+                  {isUpdatingLabel ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    'Save Note'
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>

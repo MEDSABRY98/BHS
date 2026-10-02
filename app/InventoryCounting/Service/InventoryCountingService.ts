@@ -1682,3 +1682,78 @@ export async function deleteReconciliationSession(reconciliationId: string) {
     return { success: false as const, error: message };
   }
 }
+
+/**
+ * Fallback implementation of getProductsBalanceReportData.
+ * The original implementation was deleted with InventoryAnalysis.
+ * This returns the current STOCK QUANTITY from bhs_PRODUCTS.
+ */
+export async function getProductsBalanceReportData(filters?: { dateTo?: string }): Promise<{ success: boolean; data?: any[]; error?: string }> {
+  try {
+    const { data, error } = await bhs_supabase
+      .from('bhs_PRODUCTS')
+      .select('PRODUCT ID, PRODUCT NAME, PRODUCT BARCODE, STOCK QUANTITY');
+
+    if (error) throw error;
+
+    const mapped = (data || []).map((row: any) => ({
+      productId: row['PRODUCT ID'] || '',
+      productName: row['PRODUCT NAME'] || '',
+      barcode: row['PRODUCT BARCODE'] || null,
+      endingStock: Number(row['STOCK QUANTITY']) || 0,
+    }));
+
+    return { success: true, data: mapped };
+  } catch (error: any) {
+    console.error('getProductsBalanceReportData error:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Fallback implementation of getProductNamesByIds.
+ * Fetches product names for a list of product IDs.
+ */
+export async function getProductNamesByIds(productIds: string[]): Promise<{ success: boolean; data?: Record<string, string>; error?: string }> {
+  try {
+    if (!productIds || productIds.length === 0) return { success: true, data: {} };
+
+    const { data, error } = await bhs_supabase
+      .from('bhs_PRODUCTS')
+      .select('PRODUCT ID, PRODUCT NAME')
+      .in('PRODUCT ID', productIds);
+
+    if (error) throw error;
+
+    const result: Record<string, string> = {};
+    (data || []).forEach((row: any) => {
+      const pid = row['PRODUCT ID'];
+      if (pid) {
+        result[pid] = row['PRODUCT NAME'] || '';
+      }
+    });
+
+    return { success: true, data: result };
+  } catch (error: any) {
+    console.error('getProductNamesByIds error:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Update the label (note) for a specific archive.
+ */
+export async function updateArchiveLabel(archiveId: string, newLabel: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { error } = await bhs_supabase
+      .from('mix_INVENTORY_COUNT_ARCHIVE')
+      .update({ LABEL: newLabel })
+      .eq('ARCHIVE_ID', archiveId);
+
+    if (error) throw error;
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error in updateArchiveLabel:', error);
+    return { success: false, error: error.message };
+  }
+}
