@@ -10,6 +10,7 @@ export type ProductRecord = {
   'PRODUCT BARCODE'?: string;
   'PRODUCT CATEGORY'?: string;
   'ITEM CODE'?: number | null;
+  'UNIT'?: string;
 };
 
 type NotifyFn = (msg: string, type?: 'success' | 'error') => void;
@@ -27,6 +28,7 @@ export function useMergeProducts(
   const [mergeTargetBarcode, setMergeTargetBarcode] = useState('');
   const [mergeTargetCategory, setMergeTargetCategory] = useState('');
   const [mergeTargetItemCode, setMergeTargetItemCode] = useState('');
+  const [mergeTargetUnit, setMergeTargetUnit] = useState('');
   const [survivorProductId, setSurvivorProductId] = useState('');
 
   const selectedProducts = products.filter((p) => selectedInternalIds.includes(p.ID));
@@ -45,7 +47,22 @@ export function useMergeProducts(
     setMergeTargetItemCode(
       first?.['ITEM CODE'] != null ? String(first['ITEM CODE']) : ''
     );
+    setMergeTargetUnit(first?.['UNIT'] || '');
     setSurvivorProductId(first?.['PRODUCT ID'] || '');
+  };
+
+  const handleSurvivorChange = (id: string) => {
+    setSurvivorProductId(id);
+    const chosenProduct = selectedProducts.find(p => String(p['PRODUCT ID'] || '').trim() === id);
+    if (chosenProduct) {
+      setMergeTargetName(chosenProduct['PRODUCT NAME'] || '');
+      setMergeTargetBarcode(chosenProduct['PRODUCT BARCODE'] || '');
+      setMergeTargetCategory(chosenProduct['PRODUCT CATEGORY'] || '');
+      setMergeTargetItemCode(
+        chosenProduct['ITEM CODE'] != null ? String(chosenProduct['ITEM CODE']) : ''
+      );
+      setMergeTargetUnit(chosenProduct['UNIT'] || '');
+    }
   };
 
   const handleMergeTrigger = () => {
@@ -103,6 +120,7 @@ export function useMergeProducts(
           targetBarcode: mergeTargetBarcode.trim(),
           targetCategory: mergeTargetCategory.trim(),
           targetItemCode: mergeTargetItemCode.trim() || null,
+          targetUnit: mergeTargetUnit.trim(),
       });
 
       if (!result.success) {
@@ -146,8 +164,10 @@ export function useMergeProducts(
     setMergeTargetCategory,
     mergeTargetItemCode,
     setMergeTargetItemCode,
+    mergeTargetUnit,
+    setMergeTargetUnit,
     survivorProductId,
-    setSurvivorProductId,
+    setSurvivorProductId: handleSurvivorChange,
     handleToggleSelect,
     handleMergeTrigger,
     handleConfirmMerge,

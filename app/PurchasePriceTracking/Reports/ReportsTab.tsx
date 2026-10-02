@@ -16,8 +16,9 @@ import { generateSupplierPriceHistoryReport } from './SupplierPriceHistoryReport
 import { generateProductSupplierComparisonReport } from './ProductSupplierComparisonReport';
 import { generateSupplierPriceMatrixReport } from './SupplierPriceMatrixReport';
 import { usePurchaseModuleFilters, PurchaseFilterButton } from '../Model/PurchaseFilters';
-import { formatProductCategory } from '@/app/InventoryAnalysis/Utils/locationTypes';
 import PriceChangePeriodModal from './PriceChangePeriodModal';
+
+const formatProductCategory = (c: string) => c;
 
 interface Props {
   purchases: PurchaseRecord[];

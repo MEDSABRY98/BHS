@@ -51,14 +51,7 @@ export interface DatabaseNavItem {
   source: DatabaseSourceConfig;
 }
 
-export const DATABASE_DASHBOARD_HREF = '/DataBase/Dashboard';
 
-export const DATABASE_DASHBOARD_NAV = {
-  id: 'db-dashboard',
-  href: DATABASE_DASHBOARD_HREF,
-  icon: LayoutDashboard,
-  label: 'Data Status Dashboard',
-};
 
 export const DATABASE_CATEGORIES: DatabaseCategory[] = [
   {
@@ -163,23 +156,6 @@ export const DATABASE_NAV_ITEMS: DatabaseNavItem[] = [
     category: 'PRODUCTS_INVENTORY',
     source: { table: 'web_INVENTORY_ITEM_CODE', kind: 'reference' },
   },
-  {
-    id: 'db-inv-locations',
-    href: '/DataBase/InventoryLocations',
-    icon: MapPin,
-    label: 'Inventory Locations',
-    category: 'PRODUCTS_INVENTORY',
-    source: { table: 'web_INVENTORY_LOCATIONS', kind: 'reference' },
-  },
-  {
-    id: 'db-inv-moves',
-    href: '/DataBase/InventoryMoves',
-    icon: ArrowLeftRight,
-    label: 'Inventory Moves',
-    category: 'PRODUCTS_INVENTORY',
-    source: { table: 'web_INVENTORY_MOVES', kind: 'transactional', dateColumn: 'DATE' },
-  },
-
   {
     id: 'db-sales',
     href: '/DataBase/Sales',

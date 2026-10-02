@@ -152,7 +152,6 @@ export async function mergeCustomersAction(body: MergeCustomerBody) {
 const PRODUCT_ID_TABLES = [
   { table: 'web_Sales_DB', column: 'PRODUCT ID' },
   { table: 'web_INVENTORY_SCRAB', column: 'PRODUCT ID' },
-  { table: 'web_INVENTORY_MOVES', column: 'PRODUCT ID' },
   { table: 'mix_INVENTORY_COUNT_DETAILS', column: 'PRODUCT ID' },
   { table: 'mix_INVENTORY_COUNT_TOTALS', column: 'PRODUCT ID' },
   { table: 'web_INVENTORY_SCRAB_REPORT', column: 'PRODUCT_ID' },
@@ -167,6 +166,7 @@ type MergeProductBody = {
   targetBarcode?: string;
   targetCategory?: string;
   targetItemCode?: string | number | null;
+  targetUnit?: string;
 };
 
 type ProductRow = {
@@ -230,6 +230,7 @@ export async function mergeProductsAction(body: MergeProductBody) {
     const targetName = String(body.targetName ?? '').trim();
     const targetBarcode = String(body.targetBarcode ?? '').trim();
     const targetCategory = String(body.targetCategory ?? '').trim();
+    const targetUnit = String(body.targetUnit ?? '').trim();
     const targetItemCodeRaw = body.targetItemCode;
     const targetItemCode =
       targetItemCodeRaw === null || targetItemCodeRaw === undefined || targetItemCodeRaw === ''
@@ -296,6 +297,7 @@ export async function mergeProductsAction(body: MergeProductBody) {
         'PRODUCT BARCODE': targetBarcode,
         'PRODUCT CATEGORY': targetCategory,
         'ITEM CODE': targetItemCode,
+        'UNIT': targetUnit,
       })
       .eq('PRODUCT ID', survivorProductId);
 
@@ -325,6 +327,40 @@ export async function mergeProductsAction(body: MergeProductBody) {
     };
   } catch (error: any) {
     console.error('mergeProductsAction error:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+export async function updateProductIdCascade(oldId: string, newId: string) {
+  if (!oldId || !newId || oldId === newId) return { success: true };
+
+  try {
+    const oldIdNormalized = normalizeId(oldId);
+    const newIdNormalized = normalizeId(newId);
+
+    for (const entry of PRODUCT_ID_TABLES) {
+      await updateProductIdReferences(entry, newIdNormalized, oldIdNormalized);
+    }
+
+    for (const table of REGISTRY_TABLES) {
+      // For simple ID updates, we don't merge/reconcile, we just update.
+      await bhs_supabase
+        .from(table)
+        .update({ 'PRODUCT ID': newIdNormalized })
+        .eq('PRODUCT ID', oldIdNormalized);
+    }
+
+    invalidateMemoryCache();
+    invalidateMappingCache();
+    try {
+      await buildAndSaveCache();
+    } catch (cacheError) {
+      console.error('Product ID update succeeded but sales cache rebuild failed:', cacheError);
+    }
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('updateProductIdCascade error:', error);
     return { success: false, error: error.message };
   }
 }

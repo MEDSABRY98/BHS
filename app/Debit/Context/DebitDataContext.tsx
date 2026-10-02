@@ -23,7 +23,9 @@ export interface GlobalDebitFilters {
   selectedCustomerClasses: string[];
   dateFrom: string;
   dateTo: string;
-  hideZeroBalance: boolean;
+  hideZeroAndNegativeBalance: boolean;
+  hideZeroBalanceOnly: boolean;
+  hideNegativeBalanceOnly: boolean;
 }
 
 export interface DebitDataContextValue {
@@ -93,7 +95,9 @@ export function DebitDataProvider({
     selectedCustomerClasses: [],
     dateFrom: '',
     dateTo: '',
-    hideZeroBalance: false,
+    hideZeroAndNegativeBalance: false,
+    hideZeroBalanceOnly: false,
+    hideNegativeBalanceOnly: false,
   });
   const metaRequestId = useRef(0);
   const fullDataRequestId = useRef(0);

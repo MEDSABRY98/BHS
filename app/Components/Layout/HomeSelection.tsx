@@ -133,11 +133,12 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
     { id: 'documents-tracking', title: 'Documents Tracking', path: '/DocumentsTracking', color: 'orange' },
     { id: 'debit', title: 'Debit Analysis', path: '/Debit', color: 'red' },
     { id: 'customers-documents', title: 'Customers Documents', path: '/CustomersDocuments', color: 'indigo' },
-    { id: 'inventory', title: 'Inventory Analysis', path: '/InventoryAnalysis', color: 'indigo' },
+
     { id: 'inventory-item-code', title: 'Inventory Item Code', path: '/InventoryItemCode', color: 'blue' },
     { id: 'inventory-counting', title: 'Inventory Counting', path: '/InventoryCounting', color: 'blue' },
     { id: 'inventory-scrap', title: 'Inventory Scrap', path: '/InventoryScrap', color: 'orange' },
     { id: 'purchase-price-tracking', title: 'Purchase Price Tracking', path: '/PurchasePriceTracking', color: 'yellow' },
+    { id: 'purchase-planning', title: 'Purchase Planning', path: '/PurchasePlanning', color: 'purple' },
     { id: 'sales', title: 'Sales Analysis', path: '/Sales', color: 'green' },
     { id: 'lpo-management', title: "LPO's", path: '/LPOs', color: 'yellow' },
     { id: 'database', title: 'Database', path: '/DataBase', color: 'sky' },

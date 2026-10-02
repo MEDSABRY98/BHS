@@ -15,7 +15,8 @@ import {
   Users,
 } from 'lucide-react';
 import { Product, PurchaseRecord, Supplier } from '../page';
-import { formatProductCategory } from '@/app/InventoryAnalysis/Utils/locationTypes';
+
+const formatProductCategory = (c: string) => c;
 import {
   filterPurchases,
   getAvailableProductSupplierCounts,

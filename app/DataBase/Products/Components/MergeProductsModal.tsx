@@ -9,7 +9,6 @@ const AFFECTED_TABLES = [
   'web_Sales_DB',
   'web_INVENTORY_SCRAB',
   'web_INVENTORY_SCRAB_REPORT',
-  'web_INVENTORY_MOVES',
   'mix_INVENTORY_COUNT_DETAILS',
   'mix_INVENTORY_COUNT_TOTALS',
   'web_INVENTORY_PRODUCTS',
@@ -25,6 +24,7 @@ type MergeProductsModalProps = {
   mergeTargetBarcode: string;
   mergeTargetCategory: string;
   mergeTargetItemCode: string;
+  mergeTargetUnit: string;
   survivorProductId: string;
   onClose: () => void;
   onConfirm: () => void;
@@ -33,6 +33,7 @@ type MergeProductsModalProps = {
   setMergeTargetBarcode: (value: string) => void;
   setMergeTargetCategory: (value: string) => void;
   setMergeTargetItemCode: (value: string) => void;
+  setMergeTargetUnit: (value: string) => void;
   setSurvivorProductId: (value: string) => void;
 };
 
@@ -45,6 +46,7 @@ export default function MergeProductsModal({
   mergeTargetBarcode,
   mergeTargetCategory,
   mergeTargetItemCode,
+  mergeTargetUnit,
   survivorProductId,
   onClose,
   onConfirm,
@@ -53,6 +55,7 @@ export default function MergeProductsModal({
   setMergeTargetBarcode,
   setMergeTargetCategory,
   setMergeTargetItemCode,
+  setMergeTargetUnit,
   setSurvivorProductId,
 }: MergeProductsModalProps) {
   const survivorOptions = useMemo(
@@ -132,6 +135,19 @@ export default function MergeProductsModal({
                     value={mergeTargetName}
                     onChange={(e) => setMergeTargetName(e.target.value)}
                     placeholder="Product name to keep"
+                    className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 text-black font-bold"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">
+                    Final Product Unit
+                  </label>
+                  <input
+                    type="text"
+                    value={mergeTargetUnit}
+                    onChange={(e) => setMergeTargetUnit(e.target.value)}
+                    placeholder="Unit to keep"
                     className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 text-black font-bold"
                   />
                 </div>

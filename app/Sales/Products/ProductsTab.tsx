@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect, memo } from 'react';
 import { SalesInvoice } from '@/lib/supabase';;
 import { Search, ChevronLeft, ChevronRight, Download, FileSpreadsheet } from 'lucide-react';
 import { useSalesModuleFilters } from '@/app/Sales/Model/SalesFilters';
-import { exportSalesExcelTable } from '@/app/Sales/Export/ExcelExport';
+import { exportSalesExcelWorkbook, recordsFromTable } from '@/app/Sales/Export/ExcelExport';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import SalesProductDetails from '../ProductDetails/ProductDetails';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
@@ -21,7 +21,7 @@ interface SalesProductsTabProps {
 const ITEMS_PER_PAGE = 50;
 
 // Memoized row component for better performance
-const ProductRow = memo(({ item, rowNumber, onProductClick }: { item: { productId: string; barcode: string; product: string; amount: number; avgMonthly: number; qty: number; transactions: number }; rowNumber: number; onProductClick: (id: string) => void }) => {
+const ProductRow = memo(({ item, rowNumber, onProductClick }: { item: { productId: string; barcode: string; product: string; unit: string; amount: number; avgMonthly: number; qty: number; avgMonthlyQty: number; transactions: number; monthlySales: Record<string, number>; monthlyQty: Record<string, number> }; rowNumber: number; onProductClick: (id: string) => void }) => {
   return (
     <tr className="border-b border-gray-100 hover:bg-gray-50 text-center">
       <td className="py-3 px-4 text-sm text-gray-600 font-medium">{rowNumber}</td>
@@ -32,6 +32,7 @@ const ProductRow = memo(({ item, rowNumber, onProductClick }: { item: { productI
         {item.barcode || '-'}
       </td>
       <td className="py-3 px-4 text-sm text-gray-800 font-medium w-64 truncate" title={item.product}>{item.product}</td>
+      <td className="py-3 px-4 text-sm text-gray-800 font-medium">{item.unit || '-'}</td>
       <td className="py-3 px-4 text-sm text-gray-800 font-semibold">
         {item.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
       </td>
@@ -41,7 +42,9 @@ const ProductRow = memo(({ item, rowNumber, onProductClick }: { item: { productI
       <td className="py-3 px-4 text-sm text-gray-800 font-semibold">
         {item.qty.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
       </td>
-      <td className="py-3 px-4 text-sm text-gray-800 font-semibold">{item.transactions}</td>
+      <td className="py-3 px-4 text-sm text-gray-800 font-semibold">
+        {(item.avgMonthlyQty || 0).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+      </td>
     </tr>
   );
 });
@@ -109,38 +112,119 @@ export default function SalesProductsTab({ userId, showCosts = true }: SalesProd
       acc.totalAmount += item.amount;
       acc.totalAvgMonthly += (item.avgMonthly || 0);
       acc.totalQty += item.qty;
-      acc.totalTransactions += item.transactions;
+      acc.totalAvgMonthlyQty += (item.avgMonthlyQty || 0);
       return acc;
     }, {
       totalAmount: 0,
       totalAvgMonthly: 0,
       totalQty: 0,
-      totalTransactions: 0
+      totalAvgMonthlyQty: 0
     });
   }, [filteredProducts]);
 
   const exportToExcel = async () => {
-    const headers = ['#', 'Barcode', 'Product Name', 'Amount', 'Monthly Avg', 'Qty', 'Transactions'];
+    // Collect unique sorted months from products
+    const allMonths = new Set<string>();
+    filteredProducts.forEach(item => {
+      if (item.monthlySales) {
+        Object.keys(item.monthlySales).forEach(m => allMonths.add(m));
+      }
+    });
+    const sortedMonths = Array.from(allMonths).sort();
 
-    const rows = filteredProducts.map((item, index) => [
+    // Sheet 1: Main Overview
+    const headers1 = ['#', 'Product ID', 'Barcode', 'Product Name', 'Unit', 'Amount', 'Monthly Avg', 'Qty', 'Avg Qty'];
+
+    const rows1 = filteredProducts.map((item, index) => [
       index + 1,
+      item.productId,
       item.barcode || '-',
       item.product,
+      item.unit || '-',
       item.amount,
       item.avgMonthly || 0,
       item.qty,
-      item.transactions,
+      item.avgMonthlyQty || 0,
     ]);
 
     if (filteredProducts.length > 0) {
-      rows.push(['', '', 'Total', totals.totalAmount, totals.totalAvgMonthly, totals.totalQty, totals.totalTransactions]);
+      rows1.push(['', '', '', 'Total', '', totals.totalAmount, totals.totalAvgMonthly, totals.totalQty, totals.totalAvgMonthlyQty]);
+    }
+
+    // Sheet 2: Monthly Sales (Amount)
+    const headers2 = ['#', 'Product ID', 'Barcode', 'Product Name', ...sortedMonths];
+    const rows2 = filteredProducts.map((item, index) => {
+      const row = [
+        index + 1,
+        item.productId,
+        item.barcode || '-',
+        item.product,
+      ];
+      sortedMonths.forEach(m => {
+        row.push(item.monthlySales?.[m] || 0);
+      });
+      return row;
+    });
+
+    if (filteredProducts.length > 0) {
+      const totalsRow: any[] = ['', '', '', 'Total'];
+      sortedMonths.forEach(m => {
+        const sum = filteredProducts.reduce((acc, item) => acc + (item.monthlySales?.[m] || 0), 0);
+        totalsRow.push(sum);
+      });
+      rows2.push(totalsRow);
+    }
+
+    // Sheet 3: Monthly Sales (Qty)
+    const headers3 = ['#', 'Product ID', 'Barcode', 'Product Name', ...sortedMonths];
+    const rows3 = filteredProducts.map((item, index) => {
+      const row = [
+        index + 1,
+        item.productId,
+        item.barcode || '-',
+        item.product,
+      ];
+      sortedMonths.forEach(m => {
+        row.push(item.monthlyQty?.[m] || 0);
+      });
+      return row;
+    });
+
+    if (filteredProducts.length > 0) {
+      const totalsRow: any[] = ['', '', '', 'Total'];
+      sortedMonths.forEach(m => {
+        const sum = filteredProducts.reduce((acc, item) => acc + (item.monthlyQty?.[m] || 0), 0);
+        totalsRow.push(sum);
+      });
+      rows3.push(totalsRow);
     }
 
     const filename = `sales_products_${new Date().toISOString().split('T')[0]}.xlsx`;
-    await exportSalesExcelTable(headers, rows, filename, {
-      sheetName: 'Products',
-      numericColumns: ['Amount', 'Qty'],
-    });
+    const sheets = [
+      {
+        name: 'Products Overview',
+        data: recordsFromTable(headers1, rows1),
+        options: {
+          numericColumns: ['Amount', 'Monthly Avg', 'Qty', 'Avg Qty']
+        }
+      },
+      {
+        name: 'Monthly Sales (Amount)',
+        data: recordsFromTable(headers2, rows2),
+        options: {
+          numericColumns: sortedMonths
+        }
+      },
+      {
+        name: 'Monthly Sales (Qty)',
+        data: recordsFromTable(headers3, rows3),
+        options: {
+          numericColumns: sortedMonths
+        }
+      }
+    ];
+
+    await exportSalesExcelWorkbook(sheets, filename);
   };
 
   if (isInitialLoading) {
@@ -210,10 +294,11 @@ export default function SalesProductsTab({ userId, showCosts = true }: SalesProd
                   <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-16">#</th>
                   <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-32">Barcode</th>
                   <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-64">Product Name</th>
+                  <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-24">Unit</th>
                   <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-32">Amount</th>
                   <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-32">Monthly Avg</th>
                   <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-24">Qty</th>
-                  <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-32">Transactions</th>
+                  <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-32">Avg Qty</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -228,7 +313,7 @@ export default function SalesProductsTab({ userId, showCosts = true }: SalesProd
               </tbody>
               <tfoot className="bg-gray-50/50 font-bold border-t border-gray-100">
                 <tr className="text-center">
-                  <td className="py-4 px-4 text-sm text-gray-800" colSpan={3}>Grand Total</td>
+                  <td className="py-4 px-4 text-sm text-gray-800" colSpan={4}>Grand Total</td>
                   <td className="py-4 px-4 text-sm text-gray-800">
                     {totals.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </td>
@@ -239,7 +324,7 @@ export default function SalesProductsTab({ userId, showCosts = true }: SalesProd
                     {totals.totalQty.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                   </td>
                   <td className="py-4 px-4 text-sm text-gray-800">
-                    {totals.totalTransactions.toLocaleString()}
+                    {totals.totalAvgMonthlyQty.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
                   </td>
                 </tr>
               </tfoot>

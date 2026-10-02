@@ -8,7 +8,7 @@ const MODULE_ROUTES: { prefix: string; name: string }[] = [
   { prefix: '/DebitInsights', name: 'Debit Insights' },
   { prefix: '/Debit', name: 'Debit Analysis' },
   { prefix: '/CustomersDocuments', name: 'Customers Documents' },
-  { prefix: '/InventoryAnalysis', name: 'Inventory Analysis' },
+
   { prefix: '/InventoryItemCode', name: 'Inventory Item Code' },
   { prefix: '/InventoryCounting', name: 'Inventory Counting' },
   { prefix: '/InventoryScrap', name: 'Inventory Scrap' },

@@ -29,6 +29,7 @@ import { useMergeProducts } from './Hooks/UseMergeProducts';
 import MergeProductsModal from './Components/MergeProductsModal';
 import { exportDatabaseExcel } from '../Utils/ExcelExport';
 import { downloadUploadIssuesReport, normalizeExcelId } from '../Utils/ExcelUploadUtils';
+import { updateProductIdCascade } from '../Service/database_service';
 
 function roundProductCost(value: unknown): number {
   const n = typeof value === 'number' ? value : Number(String(value ?? '').replace(/,/g, ''));
@@ -62,11 +63,13 @@ export default function ProductsPage() {
 
   // Form states
   const [name, setName] = useState('');
+  const [unit, setUnit] = useState('');
   const [barcode, setBarcode] = useState('');
   const [productId, setProductId] = useState('');
   const [itemCode, setItemCode] = useState<string>('');
   const [productCategory, setProductCategory] = useState('');
   const [productCost, setProductCost] = useState<string>('');
+  const [stockQuantity, setStockQuantity] = useState<string>('0');
   const [qtyInBox, setQtyInBox] = useState<string>('0');
   const [isCountable, setIsCountable] = useState<boolean>(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -125,11 +128,13 @@ export default function ProductsPage() {
   const handleOpenModal = (product: any = null) => {
     setEditingProduct(product);
     setName(product ? product["PRODUCT NAME"] : '');
+    setUnit(product ? product["UNIT"] || '' : '');
     setBarcode(product ? product["PRODUCT BARCODE"] || '' : '');
     setProductId(product ? product["PRODUCT ID"] : '');
     setItemCode(product ? (product["ITEM CODE"] ?? '').toString() : '');
     setProductCategory(product ? product["PRODUCT CATEGORY"] || '' : '');
     setProductCost(product ? formatProductCost(product["PRODUCT COST"]) : '');
+    setStockQuantity(product ? (product["STOCK QUANTITY"] ?? '0').toString() : '0');
     setQtyInBox(product ? (product["QTY IN BOX"] ?? '0').toString() : '0');
     setIsCountable(product ? (product["IS_COUNTABLE"] ?? false) : false);
     setIsModalOpen(true);
@@ -165,20 +170,33 @@ export default function ProductsPage() {
       const itemCodeValue = itemCode !== '' ? Number(itemCode) : null;
       const costValue = productCost !== '' ? roundProductCost(productCost) : 0;
       if (editingProduct) {
+        const oldProductId = editingProduct['PRODUCT ID'];
+        const newProductId = productId;
+
         const { error } = await bhs_supabas
           .from('bhs_PRODUCTS')
           .update({
             "PRODUCT NAME": name,
+            "UNIT": unit.trim(),
             "PRODUCT BARCODE": barcode.trim(),
             "PRODUCT ID": productId,
             "ITEM CODE": itemCodeValue,
             "PRODUCT CATEGORY": productCategory,
             "PRODUCT COST": costValue,
+            "STOCK QUANTITY": stockQuantity !== '' ? Number(stockQuantity) : 0,
             "QTY IN BOX": qtyInBox !== '' ? Number(qtyInBox) : 0,
             "IS_COUNTABLE": isCountable
           })
           .eq('ID', editingProduct.ID);
         if (error) throw error;
+
+        if (oldProductId && newProductId && oldProductId !== newProductId) {
+          const cascadeResult = await updateProductIdCascade(oldProductId, newProductId);
+          if (!cascadeResult.success) {
+            console.error('Failed to cascade product ID update:', cascadeResult.error);
+            toast.error('Product updated, but some references might not be updated correctly.');
+          }
+        }
       } else {
         // Query the database view directly to get the absolute maximum ID stored, bypass client-side limits
         const { data: maxIdData, error: maxIdError } = await bhs_supabas
@@ -204,11 +222,13 @@ export default function ProductsPage() {
           .insert({
             ID: nextId,
             "PRODUCT NAME": name,
+            "UNIT": unit.trim(),
             "PRODUCT BARCODE": barcode.trim(),
             "PRODUCT ID": productId,
             "ITEM CODE": itemCodeValue,
             "PRODUCT CATEGORY": productCategory,
             "PRODUCT COST": costValue,
+            "STOCK QUANTITY": stockQuantity !== '' ? Number(stockQuantity) : 0,
             "QTY IN BOX": qtyInBox !== '' ? Number(qtyInBox) : 0,
             "IS_COUNTABLE": isCountable
           });
@@ -361,15 +381,17 @@ export default function ProductsPage() {
         'PRODUCT ID': p['PRODUCT ID'],
         'PRODUCT BARCODE': p['PRODUCT BARCODE'],
         'PRODUCT NAME': p['PRODUCT NAME'],
+        'UNIT': p['UNIT'] || '',
         'PRODUCT CATEGORY': p['PRODUCT CATEGORY'],
         'ITEM CODE': p['ITEM CODE'],
         'PRODUCT COST': roundProductCost(p['PRODUCT COST']),
+        'STOCK QUANTITY': p['STOCK QUANTITY'] || 0,
         'QTY IN BOX': p['QTY IN BOX'] || 0,
         'IS_COUNTABLE': p['IS_COUNTABLE'] ? 'Yes' : 'No'
       }));
 
       await exportDatabaseExcel(exportData, `Products_Database_${new Date().toISOString().split('T')[0]}.xlsx`, {
-        numericColumns: ['PRODUCT COST', 'ITEM CODE', 'QTY IN BOX'],
+        numericColumns: ['PRODUCT COST', 'ITEM CODE', 'QTY IN BOX', 'STOCK QUANTITY'],
       });
       toast.success('Database exported successfully!');
     } catch (err: any) {
@@ -501,6 +523,7 @@ export default function ProductsPage() {
         return {
           ...(id ? { ID: id } : {}),
           'PRODUCT NAME': row['PRODUCT NAME']?.toString().trim() || '',
+          'UNIT': row['UNIT']?.toString().trim() || '',
           'PRODUCT BARCODE': row['PRODUCT BARCODE']?.toString().trim() || '',
           'PRODUCT ID': normalizeExcelId(row['PRODUCT ID']),
           'ITEM CODE': row['ITEM CODE'] ? Number(row['ITEM CODE']) : null,
@@ -509,6 +532,7 @@ export default function ProductsPage() {
             row['PRODUCT COST'] !== undefined && row['PRODUCT COST'] !== ''
               ? roundProductCost(row['PRODUCT COST'])
               : 0,
+          'STOCK QUANTITY': row['STOCK QUANTITY'] !== undefined && row['STOCK QUANTITY'] !== '' ? Number(row['STOCK QUANTITY']) : 0,
           'QTY IN BOX': row['QTY IN BOX'] !== undefined && row['QTY IN BOX'] !== '' ? Number(row['QTY IN BOX']) : 0,
           'IS_COUNTABLE': String(row['IS_COUNTABLE'] || '').toLowerCase() === 'yes',
         };
@@ -707,7 +731,7 @@ export default function ProductsPage() {
                       className="font-black text-black text-base leading-tight group-hover:text-[#D4AF37] transition-colors line-clamp-2"
                       title={product['PRODUCT NAME']}
                     >
-                      {product['PRODUCT NAME'] || '—'}
+                      {product['PRODUCT NAME'] || '—'} {product['UNIT'] && <span className="text-gray-400 font-bold ml-1">({product['UNIT']})</span>}
                     </h3>
                     <div className="text-xs font-bold text-gray-400 mt-1 line-clamp-1 font-mono" title={product['PRODUCT BARCODE']}>
                       {product['PRODUCT BARCODE'] || '—'}
@@ -729,6 +753,11 @@ export default function ProductsPage() {
                       {product['PRODUCT COST'] != null && (
                         <span className="inline-flex items-center px-2.5 py-1 bg-green-50 text-green-600 rounded-xl text-[9px] font-black font-mono tracking-widest">
                           AED {formatProductCost(product['PRODUCT COST'])}
+                        </span>
+                      )}
+                      {product['STOCK QUANTITY'] != null && (
+                        <span className="inline-flex items-center px-2.5 py-1 bg-purple-50 text-purple-600 rounded-xl text-[9px] font-black font-mono tracking-widest">
+                          STOCK: {product['STOCK QUANTITY']}
                         </span>
                       )}
                       {product['IS_COUNTABLE'] && (
@@ -923,16 +952,6 @@ export default function ProductsPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">PRODUCT NAME</label>
-                  <input
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="e.g. Classic Gold Fountain Pen"
-                    required
-                    className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold"
-                  />
-                </div>                 <div className="space-y-2">
                   <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">BARCODE</label>
                   <div className="relative">
                     <Barcode className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -944,6 +963,29 @@ export default function ProductsPage() {
                       className="w-full pl-14 pr-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold font-mono"
                     />
                   </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">PRODUCT NAME</label>
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="e.g. Classic Gold Fountain Pen"
+                    required
+                    className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">UNIT</label>
+                  <input
+                    type="text"
+                    value={unit}
+                    onChange={(e) => setUnit(e.target.value)}
+                    placeholder="e.g. PCS, KG, BOX"
+                    className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold"
+                  />
                 </div>
 
                 <div className="space-y-2">
@@ -969,6 +1011,17 @@ export default function ProductsPage() {
                       if (productCost !== '') setProductCost(formatProductCost(productCost));
                     }}
                     placeholder="0.000"
+                    className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">STOCK QUANTITY</label>
+                  <input
+                    type="number"
+                    value={stockQuantity}
+                    onChange={(e) => setStockQuantity(e.target.value)}
+                    placeholder="0"
                     className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold"
                   />
                 </div>
@@ -1059,6 +1112,7 @@ export default function ProductsPage() {
         mergeTargetBarcode={merge.mergeTargetBarcode}
         mergeTargetCategory={merge.mergeTargetCategory}
         mergeTargetItemCode={merge.mergeTargetItemCode}
+        mergeTargetUnit={merge.mergeTargetUnit}
         survivorProductId={merge.survivorProductId}
         onClose={merge.closeMergeModal}
         onConfirm={merge.handleConfirmMerge}
@@ -1067,6 +1121,7 @@ export default function ProductsPage() {
         setMergeTargetBarcode={merge.setMergeTargetBarcode}
         setMergeTargetCategory={merge.setMergeTargetCategory}
         setMergeTargetItemCode={merge.setMergeTargetItemCode}
+        setMergeTargetUnit={merge.setMergeTargetUnit}
         setSurvivorProductId={merge.setSurvivorProductId}
       />
     </div>

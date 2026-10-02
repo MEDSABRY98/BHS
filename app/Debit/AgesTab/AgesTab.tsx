@@ -72,7 +72,7 @@ export default function AgesTab({ data }: AgesTabProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const debouncedSearch = useDebouncedValue(searchQuery);
   const [selectedSalesRep, setSelectedSalesRep] = useState<string>('all');
-  const [showNegativeBalances, setShowNegativeBalances] = useState(true);
+
   const [isCityDropdownOpen, setIsCityDropdownOpen] = useState(false);
   const [isPdfExportOpen, setIsPdfExportOpen] = useState(false);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
@@ -251,14 +251,8 @@ export default function AgesTab({ data }: AgesTabProps) {
         customer.customerName.toLowerCase().includes(query)
       );
     }
-
-    // Filter out negative balances if option is false
-    if (!showNegativeBalances) {
-      filtered = filtered.filter(customer => customer.total >= 0);
-    }
-
     return filtered;
-  }, [agingData, debouncedSearch, selectedSalesRep, showNegativeBalances]);
+  }, [agingData, debouncedSearch, selectedSalesRep]);
 
   const exportToExcel = async () => {
     // Sort for main sheet: City first, then Net Debit
@@ -616,21 +610,7 @@ export default function AgesTab({ data }: AgesTabProps) {
           )}
         </div>
 
-        <button
-          type="button"
-          onClick={() => setShowNegativeBalances(!showNegativeBalances)}
-          className={`h-11 w-11 flex items-center justify-center rounded-xl border transition-all shadow-sm cursor-pointer relative ${
-            showNegativeBalances
-              ? 'bg-rose-50 border-rose-500 text-rose-600 ring-2 ring-rose-500/10'
-              : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
-          }`}
-          title="Toggle Negative Balances"
-        >
-          <MinusCircle className="w-5 h-5" />
-          {showNegativeBalances && (
-            <span className="absolute -top-1 -right-1 w-2 h-2 bg-rose-500 rounded-full animate-ping" />
-          )}
-        </button>
+
 
 
 

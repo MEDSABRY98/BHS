@@ -14,7 +14,7 @@ import {
   ArrowLeft,
 } from 'lucide-react';
 import { useDataBaseRouteAudit } from '@/app/Audit/Model/DataBaseTabAudit';
-import { findDatabaseNavItemByPath, getDatabaseNavItemsByCategory, DATABASE_DASHBOARD_HREF, DATABASE_DASHBOARD_NAV, DATABASE_NAV_ITEMS } from './Utils/DatabaseHubConfig';
+import { findDatabaseNavItemByPath, getDatabaseNavItemsByCategory, DATABASE_NAV_ITEMS } from './Utils/DatabaseHubConfig';
 import { getAllowedModuleTabIds } from '@/app/AdminControl/AdminControlTab';
 import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
 
@@ -118,14 +118,12 @@ export default function DatabaseLayout({ children }: { children: React.ReactNode
   }
 
   const isHub = pathname === '/DataBase';
-  const isDashboard = pathname === DATABASE_DASHBOARD_HREF;
   const activeNavItem = findDatabaseNavItemByPath(pathname);
   const activeCategoryId = activeNavItem?.category || null;
   const allowedDbTabIds = new Set(getAllowedModuleTabIds(user, 'database', DATABASE_NAV_ITEMS.map((item) => item.id)));
-  const sidebarItems = isHub || isDashboard || !activeCategoryId
+  const sidebarItems = isHub || !activeCategoryId
     ? []
     : getDatabaseNavItemsByCategory(activeCategoryId).filter((item) => allowedDbTabIds.has(item.id));
-  const DashboardIcon = DATABASE_DASHBOARD_NAV.icon;
 
   return (
     <div className="flex min-h-screen bg-[#F8F9FA] text-black">
@@ -170,22 +168,7 @@ export default function DatabaseLayout({ children }: { children: React.ReactNode
                 {!isCollapsed && <span className="font-bold text-xs text-slate-300 uppercase tracking-widest">Hub</span>}
               </Link>
             )}
-            <Link
-              href={DATABASE_DASHBOARD_HREF}
-              className={`w-full flex items-center ${isCollapsed ? 'justify-center px-2' : 'px-4'} py-3.5 rounded-xl transition-all group relative ${isDashboard
-                  ? 'bg-gradient-to-r from-amber-600 to-[#D4AF37] text-white shadow-lg shadow-amber-950/40 border-l-4 border-[#D4AF37] font-bold'
-                  : 'text-slate-400 hover:text-white hover:bg-white/5'
-                }`}
-              title={DATABASE_DASHBOARD_NAV.label}
-            >
-              <DashboardIcon className={`w-5 h-5 shrink-0 ${isCollapsed ? '' : 'mr-3'} ${isDashboard ? 'text-white' : 'group-hover:text-white'}`} />
-              {!isCollapsed && (
-                <span className="text-sm tracking-wide">{DATABASE_DASHBOARD_NAV.label}</span>
-              )}
-              {!isCollapsed && isDashboard && (
-                <ChevronRight className="w-4 h-4 ml-auto text-amber-200" />
-              )}
-            </Link>
+
           </div>
 
           {sidebarItems.map((item) => (
@@ -270,18 +253,7 @@ export default function DatabaseLayout({ children }: { children: React.ReactNode
                       <span className="font-bold text-xs text-slate-300 uppercase tracking-widest">Database Hub</span>
                     </Link>
                   )}
-                  <Link
-                    href={DATABASE_DASHBOARD_HREF}
-                    onClick={() => setIsSidebarOpen(false)}
-                    className={`w-full flex items-center px-4 py-3.5 rounded-xl transition-all group relative ${isDashboard
-                        ? 'bg-gradient-to-r from-amber-600 to-[#D4AF37] text-white shadow-lg shadow-amber-950/40 border-l-4 border-[#D4AF37] font-bold'
-                        : 'text-slate-400 hover:text-white hover:bg-white/5'
-                      }`}
-                  >
-                    <DashboardIcon className={`w-5 h-5 mr-3 ${isDashboard ? 'text-white' : 'group-hover:text-white'}`} />
-                    <span className="text-sm tracking-wide">{DATABASE_DASHBOARD_NAV.label}</span>
-                    {isDashboard && <ChevronRight className="w-4 h-4 ml-auto text-amber-200" />}
-                  </Link>
+
                 </div>
                 {sidebarItems.map((item) => (
                   <NavItem

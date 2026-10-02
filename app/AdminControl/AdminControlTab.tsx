@@ -194,6 +194,7 @@ const SYSTEMS = [
     { id: 'inventory-counting', label: 'Inventory Counting' },
     { id: 'inventory-scrap', label: 'Inventory Scrap' },
     { id: 'purchase-price-tracking', label: 'Purchase Price Tracking' },
+    { id: 'purchase-planning', label: 'Purchase Planning' },
     { id: 'sales', label: 'Sales Analysis' },
     { id: 'lpo-management', label: "LPO's" },
     { id: 'customers-discounts', label: 'Customers Discounts' },

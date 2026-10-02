@@ -110,7 +110,7 @@ export default function CustomersSummariesTab({ data, onRefresh }: CustomersSumm
   const cityDropdownRef = useRef<HTMLDivElement>(null);
   const salesSourceDropdownRef = useRef<HTMLDivElement>(null);
   const debouncedSearch = useDebouncedValue(searchQuery);
-  const [hideNegative, setHideNegative] = useState(false);
+
   const [salesSource, setSalesSource] = useState<SummariesSalesSource>('sales');
   const [salesSourceOpen, setSalesSourceOpen] = useState(false);
   const [salesOverlay, setSalesOverlay] = useState<SummariesSalesOverlay | null>(null);
@@ -341,10 +341,6 @@ export default function CustomersSummariesTab({ data, onRefresh }: CustomersSumm
   const filteredData = useMemo(() => {
     let filtered = summaryData;
 
-    if (hideNegative) {
-      filtered = filtered.filter(item => item.totalAging >= -0.01);
-    }
-
     if (selectedCity !== 'ALL') {
       filtered = filtered.filter((item) => item.city === selectedCity);
     }
@@ -357,7 +353,7 @@ export default function CustomersSummariesTab({ data, onRefresh }: CustomersSumm
       );
     }
     return filtered;
-  }, [summaryData, debouncedSearch, hideNegative, selectedCity]);
+  }, [summaryData, debouncedSearch, selectedCity]);
 
   const exportToExcel = async () => {
     const headers = [
@@ -653,19 +649,6 @@ export default function CustomersSummariesTab({ data, onRefresh }: CustomersSumm
                 </div>
               </div>
             )}
-          </div>
-          <div className="flex items-center justify-center">
-            <button
-              title={hideNegative ? "Show Negatives" : "Hide Negatives"}
-              onClick={() => setHideNegative(!hideNegative)}
-              className={`flex items-center justify-center h-10 w-10 rounded-xl transition-all duration-300 shadow-sm border ${
-                hideNegative 
-                  ? 'bg-slate-100 border-slate-200 text-slate-400 hover:bg-slate-200' 
-                  : 'bg-emerald-50 border-emerald-200 text-emerald-600 hover:bg-emerald-100'
-              }`}
-            >
-              <MinusCircle className="w-5 h-5" />
-            </button>
           </div>
         </div>
         <div className="shrink-0 flex items-center gap-2">

@@ -201,8 +201,12 @@ export function useGlobalDebitFilter(
       });
     }
 
-    if (globalFilters.hideZeroBalance) {
+    if (globalFilters.hideZeroAndNegativeBalance) {
       result = result.filter(c => c.netDebt > 0.01);
+    } else if (globalFilters.hideZeroBalanceOnly) {
+      result = result.filter(c => Math.abs(c.netDebt) > 0.01);
+    } else if (globalFilters.hideNegativeBalanceOnly) {
+      result = result.filter(c => c.netDebt >= -0.01);
     }
 
     return new Set(result.map(c => c.customerName));
@@ -220,7 +224,9 @@ export function useGlobalDebitFilter(
       globalFilters.selectedCustomerClasses.length === 0 &&
       !globalFilters.dateTo &&
       !globalFilters.dateFrom &&
-      !globalFilters.hideZeroBalance
+      !globalFilters.hideZeroAndNegativeBalance &&
+      !globalFilters.hideZeroBalanceOnly &&
+      !globalFilters.hideNegativeBalanceOnly
     ) {
       return data;
     }

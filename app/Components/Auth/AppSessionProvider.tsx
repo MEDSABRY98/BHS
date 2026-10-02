@@ -28,7 +28,7 @@ const PATH_SYSTEMS = [
   { prefix: '/DebitInsights', id: 'debit_insights' },
   { prefix: '/Debit', id: 'debit' },
   { prefix: '/CustomersDocuments', id: 'customers-documents' },
-  { prefix: '/InventoryAnalysis', id: 'inventory' },
+
   { prefix: '/InventoryItemCode', id: 'inventory-item-code' },
   { prefix: '/InventoryCounting', id: 'inventory-counting' },
   { prefix: '/InventoryScrap', id: 'inventory-scrap' },

@@ -4,7 +4,6 @@ import { useEffect } from 'react';
 import { useModuleTabAudit } from '@/app/Audit/Utils/useModuleTabAudit';
 import { TrackModuleSubTab } from '@/app/Audit/Utils/ActivityQueue';
 import {
-  DATABASE_DASHBOARD_HREF,
   findDatabaseNavItemByPath,
 } from '@/app/DataBase/Utils/DatabaseHubConfig';
 
@@ -20,9 +19,7 @@ export const DATABASE_PRODUCTS_TAB_LABELS: Record<DataBaseProductsTabId, string>
 export function resolveDataBaseRouteLabel(pathname: string | null): string | null {
   if (!pathname?.startsWith('/DataBase')) return null;
   if (pathname === '/DataBase') return DATABASE_HUB_VIEW;
-  if (pathname === DATABASE_DASHBOARD_HREF || pathname.startsWith(`${DATABASE_DASHBOARD_HREF}/`)) {
-    return 'Data Status Dashboard';
-  }
+
   return findDatabaseNavItemByPath(pathname)?.label ?? null;
 }
 

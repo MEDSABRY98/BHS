@@ -303,10 +303,7 @@ async function loadAvailableQtyMap(): Promise<Map<string, number>> {
         console.warn('RPC get_live_available_quantities error:', err);
       }
 
-      const { getLiveAvailableQuantitiesFromMoves } = await import(
-        '@/app/InventoryAnalysis/Service/inventory_service'
-      );
-      const map = await getLiveAvailableQuantitiesFromMoves();
+      const map = new Map<string, number>();
       cachedLiveStockMap = { map, expiresAt: Date.now() + LIVE_STOCK_CACHE_MS };
       return map;
     } finally {

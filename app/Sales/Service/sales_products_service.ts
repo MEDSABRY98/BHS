@@ -75,7 +75,8 @@ export async function getProductsData(userId: string, filters: any) {
     if (item.invoiceDate) {
       const d = new Date(item.invoiceDate);
       if (!isNaN(d.getTime())) {
-        uniqueMonths.add(`${d.getFullYear()}-${d.getMonth() + 1}`);
+        const monthStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        uniqueMonths.add(monthStr);
       }
     }
 
@@ -87,8 +88,11 @@ export async function getProductsData(userId: string, filters: any) {
         productId: item.productId || '',
         barcode: item.barcode || '-',
         product: item.product || '-',
+        unit: item.unit || '-',
         totalAmount: 0,
         totalQty: 0,
+        monthlySales: {} as Record<string, number>,
+        monthlyQty: {} as Record<string, number>,
         invoiceNumbers: new Set<string>(),
         allNames: new Set<string>(),
         allBarcodes: new Set<string>()
@@ -98,6 +102,15 @@ export async function getProductsData(userId: string, filters: any) {
 
     existing.totalAmount += Number(item.amount) || 0;
     existing.totalQty += Number(item.qty) || 0;
+
+    if (item.invoiceDate) {
+      const d = new Date(item.invoiceDate);
+      if (!isNaN(d.getTime())) {
+        const monthStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        existing.monthlySales[monthStr] = (existing.monthlySales[monthStr] || 0) + (Number(item.amount) || 0);
+        existing.monthlyQty[monthStr] = (existing.monthlyQty[monthStr] || 0) + (Number(item.qty) || 0);
+      }
+    }
 
     if (item.product) existing.allNames.add(item.product.toLowerCase());
     if (item.barcode) existing.allBarcodes.add(item.barcode.toLowerCase());
@@ -113,9 +126,13 @@ export async function getProductsData(userId: string, filters: any) {
     productId: item.productId,
     barcode: item.barcode,
     product: item.product,
+    unit: item.unit,
     amount: item.totalAmount,
     avgMonthly: item.totalAmount / monthsCount,
     qty: item.totalQty,
+    avgMonthlyQty: item.totalQty / monthsCount,
+    monthlySales: item.monthlySales,
+    monthlyQty: item.monthlyQty,
     transactions: item.invoiceNumbers.size,
     allNames: Array.from(item.allNames),
     allBarcodes: Array.from(item.allBarcodes)

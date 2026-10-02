@@ -14,7 +14,7 @@ import NoData from '@/app/Components/DataState/NoDataTab';
 import CustomerDetailsTab from '../CustomerDetailsTab/CustomerDetailsTab';
 import { generateAccountStatementPDF, generateBulkCustomerStatementsPDF } from '@/app/Debit/CustomerDetailsTab/Pdf/StatementUtils';
 import { generateBulkDebitSummaryPDF } from '@/app/Debit/CustomersTab/Pdf/SummaryUtils';
-import { FileSpreadsheet, FileText, EyeOff, Eye } from 'lucide-react';
+import { FileSpreadsheet, FileText } from 'lucide-react';
 import { saveTrackedAs } from '@/app/Audit/Utils/TrackedDownload';
 
 // Sub-components
@@ -68,7 +68,7 @@ export default function CustomersTab({
   // --- States ---
   const [sorting, setSorting] = useState<SortingState>([]);
   const [viewMode, setViewMode] = useState<'DEFAULT' | 'SUMMARY' | 'YEARLY' | 'NO TAGS' | 'TAGS ONLY'>('DEFAULT');
-  const [hideZeroBalance, setHideZeroBalance] = useState(false);
+
   const [selectedCustomer, setSelectedCustomer] = useState<string | null>(initialCustomer || null);
   const [selectedCustomersForDownload, setSelectedCustomersForDownload] = useState<Set<string>>(new Set());
   const [isDownloading, setIsDownloading] = useState(false);
@@ -802,12 +802,8 @@ export default function CustomersTab({
     })
   ], [filteredData, selectedCustomersForDownload, customerAnalysis]);
 
-  const displayData = useMemo(() => {
-    return hideZeroBalance ? filteredData.filter(c => Math.abs(c.netDebt) > 0.01) : filteredData;
-  }, [filteredData, hideZeroBalance]);
-
   const table = useReactTable({
-    data: displayData,
+    data: filteredData,
     columns,
     state: { sorting },
     onSortingChange: setSorting,
@@ -817,13 +813,13 @@ export default function CustomersTab({
 
   const headerCount = useMemo(() => {
     if (viewMode === 'YEARLY') return yearlyPivotData.rows.length;
-    return displayData.length;
-  }, [viewMode, displayData, yearlyPivotData.rows]);
+    return filteredData.length;
+  }, [viewMode, filteredData, yearlyPivotData.rows]);
 
   const headerTotal = useMemo(() => {
     if (viewMode === 'YEARLY') return yearlyPivotData.rows.reduce((sum, r) => sum + r.totalNetDebt, 0);
-    return displayData.reduce((sum, c) => sum + c.netDebt, 0);
-  }, [viewMode, displayData, yearlyPivotData.rows]);
+    return filteredData.reduce((sum, c) => sum + c.netDebt, 0);
+  }, [viewMode, filteredData, yearlyPivotData.rows]);
 
   // --- Render logic ---
   if (selectedCustomer) {
@@ -876,16 +872,7 @@ export default function CustomersTab({
             </div>
           </div>
 
-          <button
-            onClick={() => setHideZeroBalance(prev => !prev)}
-            title={hideZeroBalance ? 'Show zero-balance customers' : 'Hide zero-balance customers'}
-            className={`shrink-0 p-2 rounded-xl border transition-all ${hideZeroBalance
-              ? 'bg-amber-50 border-amber-300 text-amber-600 hover:bg-amber-100'
-              : 'bg-white border-gray-200 text-gray-400 hover:bg-gray-50 hover:text-gray-600'
-              }`}
-          >
-            {hideZeroBalance ? <EyeOff size={18} /> : <Eye size={18} />}
-          </button>
+
 
           <div className="h-6 w-px bg-gray-200 mx-1 shrink-0"></div>
 

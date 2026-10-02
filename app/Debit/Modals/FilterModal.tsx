@@ -110,7 +110,9 @@ const FilterModal: React.FC<FilterModalProps> = ({
     selectedCustomerClasses: [] as string[],
     dateFrom: '',
     dateTo: '',
-    hideZeroBalance: false,
+    hideZeroAndNegativeBalance: false,
+    hideZeroBalanceOnly: false,
+    hideNegativeBalanceOnly: false,
   });
 
   useEffect(() => {
@@ -125,7 +127,9 @@ const FilterModal: React.FC<FilterModalProps> = ({
         selectedCustomerClasses: filters.selectedCustomerClasses || [],
         dateFrom: filters.dateFrom || '',
         dateTo: filters.dateTo || '',
-        hideZeroBalance: filters.hideZeroBalance || false,
+        hideZeroAndNegativeBalance: filters.hideZeroAndNegativeBalance || false,
+        hideZeroBalanceOnly: filters.hideZeroBalanceOnly || false,
+        hideNegativeBalanceOnly: filters.hideNegativeBalanceOnly || false,
       });
     }
   }, [isOpen, filters]);
@@ -309,7 +313,9 @@ const FilterModal: React.FC<FilterModalProps> = ({
       selectedCustomerClasses: [],
       dateFrom: '',
       dateTo: '',
-      hideZeroBalance: false,
+      hideZeroAndNegativeBalance: false,
+      hideZeroBalanceOnly: false,
+      hideNegativeBalanceOnly: false,
     });
   };
 
@@ -325,7 +331,9 @@ const FilterModal: React.FC<FilterModalProps> = ({
       selectedCustomerClasses: draftFilters.selectedCustomerClasses,
       dateFrom: draftFilters.dateFrom,
       dateTo: draftFilters.dateTo,
-      hideZeroBalance: draftFilters.hideZeroBalance,
+      hideZeroAndNegativeBalance: draftFilters.hideZeroAndNegativeBalance,
+      hideZeroBalanceOnly: draftFilters.hideZeroBalanceOnly,
+      hideNegativeBalanceOnly: draftFilters.hideNegativeBalanceOnly,
     });
     onClose();
   };
@@ -350,7 +358,7 @@ const FilterModal: React.FC<FilterModalProps> = ({
       case 'DATES':
         if (draftFilters.dateFrom) c++;
         if (draftFilters.dateTo) c++;
-        if (draftFilters.hideZeroBalance) c++;
+        if (draftFilters.hideZeroAndNegativeBalance || draftFilters.hideZeroBalanceOnly || draftFilters.hideNegativeBalanceOnly) c++;
         return c;
       case 'CUSTOMER_CLASSES': return draftFilters.selectedCustomerClasses?.length || 0;
       case 'CUSTOMER_TAGS': return draftFilters.selectedCustomerTags?.length || 0;
@@ -498,21 +506,55 @@ const FilterModal: React.FC<FilterModalProps> = ({
                       </div>
                     </div>
                     
-                    <div className="mt-8 pt-6 border-t border-slate-200">
+                    <div className="mt-8 pt-6 border-t border-slate-200 space-y-4">
+                      {/* Hide Zero and Negative */}
                       <label className="flex items-center justify-between cursor-pointer group bg-white border-2 border-slate-100 hover:border-indigo-200 p-4 rounded-2xl transition-all shadow-sm hover:shadow-md">
                         <div>
-                          <p className="text-sm font-bold text-slate-800">Hide Zero Balance</p>
-                          <p className="text-xs text-slate-500 font-medium mt-0.5">Remove customers with zero or negative balance</p>
+                          <p className="text-sm font-bold text-slate-800">Hide Zero & Negative Balance</p>
                         </div>
                         <div className="relative inline-flex items-center">
                           <input
                             type="checkbox"
                             className="sr-only"
-                            checked={draftFilters.hideZeroBalance}
-                            onChange={(e) => updateDraftFilter('hideZeroBalance', e.target.checked)}
+                            checked={draftFilters.hideZeroAndNegativeBalance}
+                            onChange={(e) => updateDraftFilter('hideZeroAndNegativeBalance', e.target.checked)}
                           />
-                          <div className={`w-12 h-6 rounded-full transition-colors duration-300 ${draftFilters.hideZeroBalance ? 'bg-indigo-500' : 'bg-slate-200'}`}></div>
-                          <div className={`absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-transform duration-300 shadow-sm ${draftFilters.hideZeroBalance ? 'translate-x-6' : 'translate-x-0'}`}></div>
+                          <div className={`w-12 h-6 rounded-full transition-colors duration-300 ${draftFilters.hideZeroAndNegativeBalance ? 'bg-indigo-500' : 'bg-slate-200'}`}></div>
+                          <div className={`absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-transform duration-300 shadow-sm ${draftFilters.hideZeroAndNegativeBalance ? 'translate-x-6' : 'translate-x-0'}`}></div>
+                        </div>
+                      </label>
+
+                      {/* Hide Zero Only */}
+                      <label className="flex items-center justify-between cursor-pointer group bg-white border-2 border-slate-100 hover:border-indigo-200 p-4 rounded-2xl transition-all shadow-sm hover:shadow-md">
+                        <div>
+                          <p className="text-sm font-bold text-slate-800">Hide Zero Balance Only</p>
+                        </div>
+                        <div className="relative inline-flex items-center">
+                          <input
+                            type="checkbox"
+                            className="sr-only"
+                            checked={draftFilters.hideZeroBalanceOnly}
+                            onChange={(e) => updateDraftFilter('hideZeroBalanceOnly', e.target.checked)}
+                          />
+                          <div className={`w-12 h-6 rounded-full transition-colors duration-300 ${draftFilters.hideZeroBalanceOnly ? 'bg-indigo-500' : 'bg-slate-200'}`}></div>
+                          <div className={`absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-transform duration-300 shadow-sm ${draftFilters.hideZeroBalanceOnly ? 'translate-x-6' : 'translate-x-0'}`}></div>
+                        </div>
+                      </label>
+
+                      {/* Hide Negative Only */}
+                      <label className="flex items-center justify-between cursor-pointer group bg-white border-2 border-slate-100 hover:border-indigo-200 p-4 rounded-2xl transition-all shadow-sm hover:shadow-md">
+                        <div>
+                          <p className="text-sm font-bold text-slate-800">Hide Negative Balance Only</p>
+                        </div>
+                        <div className="relative inline-flex items-center">
+                          <input
+                            type="checkbox"
+                            className="sr-only"
+                            checked={draftFilters.hideNegativeBalanceOnly}
+                            onChange={(e) => updateDraftFilter('hideNegativeBalanceOnly', e.target.checked)}
+                          />
+                          <div className={`w-12 h-6 rounded-full transition-colors duration-300 ${draftFilters.hideNegativeBalanceOnly ? 'bg-indigo-500' : 'bg-slate-200'}`}></div>
+                          <div className={`absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-transform duration-300 shadow-sm ${draftFilters.hideNegativeBalanceOnly ? 'translate-x-6' : 'translate-x-0'}`}></div>
                         </div>
                       </label>
                     </div>
