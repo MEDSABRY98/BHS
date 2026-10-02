@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { fetchAllProductsForScrap, upsertActiveScrapSession, insertScrapEntry, deleteScrapEntry } from '../Service/InventoryScrapService';
+import { fetchAllProductsForScrap, saveDirectScrapReport } from '../Service/InventoryScrapService';
 import {
   Search,
   Trash2,
@@ -14,11 +14,8 @@ import {
   Box,
   X,
   Plus,
-  Layers,
-  FileSpreadsheet
+  Save
 } from 'lucide-react';
-import * as XLSX from 'xlsx';
-import { writeTrackedXlsxFile } from '@/app/Audit/Utils/TrackedDownload';
 import { toast } from '@/app/Components/Notification';
 import NoData from '@/app/Components/DataState/NoDataTab';
 
@@ -30,37 +27,27 @@ interface Product {
   'ITEM CODE'?: number | null;
 }
 
-interface ScrapEntry {
+interface DraftEntry {
   ID: string;
-  'PRODUCT ID': string;
-  'PRODUCT BARCODE': string;
-  'PRODUCT NAME': string;
+  PRODUCT_ID: string;
+  PRODUCT_BARCODE: string;
+  PRODUCT_NAME: string;
   QTY: number;
   REASON: 'EXPIRED' | 'DAMAGED';
-  CREATED_AT: string;
-  SESSION_ID: string;
-  REPORT_ID?: string | null;
+  UNIT: string;
 }
 
 interface RecordScrapTabProps {
-  scrapEntries: ScrapEntry[];
-  isEntriesLoading: boolean;
-  fetchScrapEntries: () => Promise<void>;
-  currentSession: string;
-  setCurrentSession: (session: string) => void;
+  onReportSaved?: () => void;
 }
 
-export default function RecordScrapTab({
-  scrapEntries,
-  isEntriesLoading,
-  fetchScrapEntries,
-  currentSession,
-  setCurrentSession
-}: RecordScrapTabProps) {
+export default function RecordScrapTab({ onReportSaved }: RecordScrapTabProps = {}) {
   const [products, setProducts] = useState<Product[]>([]);
   const [isProductsLoading, setIsProductsLoading] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
+  const [isSavingReport, setIsSavingReport] = useState(false);
+  
+  // Draft Items State
+  const [draftItems, setDraftItems] = useState<DraftEntry[]>([]);
 
   // Form State
   const [searchQuery, setSearchQuery] = useState('');
@@ -69,15 +56,10 @@ export default function RecordScrapTab({
   const [reason, setReason] = useState<'EXPIRED' | 'DAMAGED'>('EXPIRED');
   const [showDropdown, setShowDropdown] = useState(false);
 
-  // Confirm States
-  const [entryToDelete, setEntryToDelete] = useState<string | null>(null);
-  const [sessionToSaveConfirm, setSessionToSaveConfirm] = useState(false);
-
   useEffect(() => {
     fetchProducts();
   }, []);
 
-  // Fetch all products from database for local search filter
   const fetchProducts = async () => {
     try {
       setIsProductsLoading(true);
@@ -87,70 +69,6 @@ export default function RecordScrapTab({
       console.error('Error fetching products:', err);
     } finally {
       setIsProductsLoading(false);
-    }
-  };
-
-  const calculateNextSessionId = (entries: { SESSION_ID: string }[], currentSessionId?: string) => {
-    const sessionIds = new Set<string>();
-    if (entries) {
-      entries.forEach(e => {
-        if (e.SESSION_ID) sessionIds.add(e.SESSION_ID);
-      });
-    }
-    if (currentSessionId) {
-      sessionIds.add(currentSessionId);
-    }
-
-    let maxNum = 0;
-    sessionIds.forEach(id => {
-      const match = id.match(/^S-(\d+)$/);
-      if (match) {
-        const num = parseInt(match[1], 10);
-        if (num > maxNum) {
-          maxNum = num;
-        }
-      }
-    });
-
-    const nextNum = maxNum + 1;
-    return `S-${String(nextNum).padStart(4, '0')}`;
-  };
-
-  const calculateNextRecordId = (entries: ScrapEntry[]) => {
-    if (!entries || entries.length === 0) {
-      return 'R-0001';
-    }
-
-    let maxNum = 0;
-    entries.forEach(e => {
-      if (e.ID) {
-        const match = e.ID.match(/^R-(\d+)$/);
-        if (match) {
-          const num = parseInt(match[1], 10);
-          if (num > maxNum) {
-            maxNum = num;
-          }
-        }
-      }
-    });
-
-    const nextNum = maxNum + 1;
-    return `R-${String(nextNum).padStart(4, '0')}`;
-  };
-
-  // Roll over to a new session
-  const handleSaveAndNewSession = async () => {
-    try {
-      const nextSession = calculateNextSessionId(scrapEntries, currentSession);
-      await upsertActiveScrapSession(nextSession);
-
-      setCurrentSession(nextSession);
-      setSessionToSaveConfirm(false);
-      toast.success(`Session saved! New session started: ${nextSession}`);
-      await fetchScrapEntries();
-    } catch (err: any) {
-      console.error('Error saving session:', err);
-      toast.error(err.message || 'Failed to roll over session');
     }
   };
 
@@ -167,8 +85,8 @@ export default function RecordScrapTab({
     }).slice(0, 10);
   }, [searchQuery, products]);
 
-  // Submit scrap entry
-  const handleSubmit = async (e: React.FormEvent) => {
+  // Add item to draft
+  const handleAddItem = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedProduct) {
       toast.error('Please select a product first');
@@ -180,86 +98,67 @@ export default function RecordScrapTab({
       return;
     }
 
-    setIsSubmitting(true);
+    const newItem: DraftEntry = {
+      ID: Math.random().toString(36).substring(7),
+      PRODUCT_ID: selectedProduct['PRODUCT ID'],
+      PRODUCT_BARCODE: selectedProduct['PRODUCT BARCODE'],
+      PRODUCT_NAME: selectedProduct['PRODUCT NAME'],
+      QTY: numQty,
+      REASON: reason,
+      UNIT: 'PCS'
+    };
+
+    setDraftItems(prev => [...prev, newItem]);
+    
+    // Reset form
+    setSelectedProduct(null);
+    setQty('');
+    setSearchQuery('');
+  };
+
+  // Remove item from draft
+  const handleRemoveDraftItem = (id: string) => {
+    setDraftItems(prev => prev.filter(item => item.ID !== id));
+  };
+
+  // Save the entire report
+  const handleSaveReport = async () => {
+    if (draftItems.length === 0) {
+      toast.error('No items to save.');
+      return;
+    }
+    
+    setIsSavingReport(true);
     try {
-      const nextRecordId = calculateNextRecordId(scrapEntries);
-      await insertScrapEntry({
-          ID: nextRecordId,
-          'PRODUCT ID': selectedProduct['PRODUCT ID'],
-          QTY: numQty,
-          REASON: reason,
-          SESSION_ID: currentSession
-      });
+      const payload = draftItems.map(item => ({
+        productId: item.PRODUCT_ID,
+        qty: item.QTY,
+        reason: item.REASON,
+        unit: item.UNIT
+      }));
 
-      toast.success('Entry added to current session!');
-
-      // Reset form fields
-      setSelectedProduct(null);
-      setQty('');
-      setSearchQuery('');
-
-      // Reload parent list
-      await fetchScrapEntries();
+      const res = await saveDirectScrapReport(payload);
+      toast.success(`Report ${res.reportId} saved successfully!`);
+      
+      // Clear drafts
+      setDraftItems([]);
+      if (onReportSaved) {
+        onReportSaved();
+      }
     } catch (err: any) {
-      console.error('Error saving scrap entry:', err);
-      toast.error(err.message || 'Failed to save scrap entry');
+      console.error('Error saving report:', err);
+      toast.error(err.message || 'Failed to save report');
     } finally {
-      setIsSubmitting(false);
+      setIsSavingReport(false);
     }
   };
 
-  // Delete scrap entry
-  const handleDeleteEntry = async () => {
-    if (!entryToDelete) return;
-    setIsDeleting(true);
-    try {
-      await deleteScrapEntry(entryToDelete);
-
-      toast.success('Entry deleted successfully');
-      await fetchScrapEntries();
-      setEntryToDelete(null);
-    } catch (err: any) {
-      console.error('Delete error:', err);
-      toast.error(err.message || 'Failed to delete entry');
-    } finally {
-      setIsDeleting(false);
-    }
-  };
-
-  // Export session to Excel
-  const handleExportSessionExcel = (sessionId: string) => {
-    const sessionLogs = scrapEntries.filter(e => e.SESSION_ID === sessionId);
-    if (sessionLogs.length === 0) return;
-
-    const ws = XLSX.utils.json_to_sheet(
-      sessionLogs.map((e) => ({
-        'Session ID': e.SESSION_ID || 'UNTAGGED',
-        'Barcode': e['PRODUCT BARCODE'] || '-',
-        'Product Name': e['PRODUCT NAME'] || '-',
-        'Quantity': e.QTY,
-        'Reason': e.REASON,
-        'Logged At': new Date(e.CREATED_AT).toLocaleString()
-      }))
-    );
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Session Logs');
-    writeTrackedXlsxFile(wb, `BHS_Scrap_Session_${sessionId}.xlsx`);
-  };
-
-
-
-  // Filter for current active session
-  const currentSessionEntries = useMemo(() => {
-    return scrapEntries.filter(e => e.SESSION_ID === currentSession);
-  }, [scrapEntries, currentSession]);
-
-  // Current session metrics
-  const currentSessionMetrics = useMemo(() => {
+  const draftMetrics = useMemo(() => {
     let totalQty = 0;
     let expiredQty = 0;
     let damagedQty = 0;
 
-    currentSessionEntries.forEach((entry) => {
+    draftItems.forEach((entry) => {
       const q = Number(entry.QTY) || 0;
       totalQty += q;
       if (entry.REASON === 'EXPIRED') expiredQty += q;
@@ -267,38 +166,10 @@ export default function RecordScrapTab({
     });
 
     return { totalQty, expiredQty, damagedQty };
-  }, [currentSessionEntries]);
+  }, [draftItems]);
 
   return (
     <div className="space-y-8">
-
-      {/* Active Session Code Card */}
-      <div className="bg-black text-white rounded-[2rem] p-6 border border-gray-900 shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <div className="p-3.5 rounded-2xl bg-white/10 text-[#D4AF37]">
-            <Layers className="w-6 h-6" />
-          </div>
-          <div>
-            <p className="text-[10px] font-black text-gray-400 tracking-[0.2em] uppercase">Current Active Session</p>
-            <p className="text-xl font-black text-[#D4AF37] tracking-tight mt-1">{currentSession}</p>
-          </div>
-        </div>
-
-        {currentSessionEntries.length > 0 ? (
-          <button
-            onClick={() => setSessionToSaveConfirm(true)}
-            className="px-6 py-3.5 bg-[#D4AF37] hover:bg-[#c9a32c] text-black rounded-2xl font-black text-xs uppercase tracking-wider shadow-lg shadow-[#D4AF37]/10 transition-all flex items-center gap-2 cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
-          >
-            <CheckCircle2 className="w-4 h-4" />
-            Save Session
-          </button>
-        ) : (
-          <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider py-2 px-4 bg-white/5 border border-white/5 rounded-xl">
-            Add products below to log under this session
-          </span>
-        )}
-      </div>
-
       {/* Metrics Row */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
         <div className="bg-white rounded-[2rem] p-6 border border-gray-100 shadow-sm flex items-center gap-5">
@@ -306,8 +177,8 @@ export default function RecordScrapTab({
             <Box className="w-6 h-6 text-[#D4AF37]" />
           </div>
           <div>
-            <p className="text-[10px] font-black text-gray-400 tracking-[0.2em] uppercase">Session Total Qty</p>
-            <p className="text-3xl font-black text-black tracking-tighter mt-1">{currentSessionMetrics.totalQty.toLocaleString()}</p>
+            <p className="text-[10px] font-black text-gray-400 tracking-[0.2em] uppercase">Draft Total Qty</p>
+            <p className="text-3xl font-black text-black tracking-tighter mt-1">{draftMetrics.totalQty.toLocaleString()}</p>
           </div>
         </div>
 
@@ -316,8 +187,8 @@ export default function RecordScrapTab({
             <Calendar className="w-6 h-6" />
           </div>
           <div>
-            <p className="text-[10px] font-black text-gray-400 tracking-[0.2em] uppercase">Session Expired</p>
-            <p className="text-3xl font-black text-black tracking-tighter mt-1">{currentSessionMetrics.expiredQty.toLocaleString()}</p>
+            <p className="text-[10px] font-black text-gray-400 tracking-[0.2em] uppercase">Draft Expired</p>
+            <p className="text-3xl font-black text-black tracking-tighter mt-1">{draftMetrics.expiredQty.toLocaleString()}</p>
           </div>
         </div>
 
@@ -326,20 +197,35 @@ export default function RecordScrapTab({
             <AlertTriangle className="w-6 h-6" />
           </div>
           <div>
-            <p className="text-[10px] font-black text-gray-400 tracking-[0.2em] uppercase">Session Damaged</p>
-            <p className="text-3xl font-black text-black tracking-tighter mt-1">{currentSessionMetrics.damagedQty.toLocaleString()}</p>
+            <p className="text-[10px] font-black text-gray-400 tracking-[0.2em] uppercase">Draft Damaged</p>
+            <p className="text-3xl font-black text-black tracking-tighter mt-1">{draftMetrics.damagedQty.toLocaleString()}</p>
           </div>
         </div>
       </div>
 
       {/* Record Scrap Row Form */}
       <div className="bg-white rounded-[2.5rem] p-8 border border-gray-100 shadow-xl shadow-black/[0.02]">
-        <h3 className="text-xl font-black text-black mb-6 flex items-center gap-2">
-          <Sparkles className="w-5 h-5 text-[#D4AF37]" />
-          Record Scrap Product
-        </h3>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+          <h3 className="text-xl font-black text-black flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-[#D4AF37]" />
+            Record Scrap Product
+          </h3>
+          
+          <button
+            onClick={handleSaveReport}
+            disabled={draftItems.length === 0 || isSavingReport}
+            className="px-6 py-3.5 bg-[#D4AF37] hover:bg-[#c9a32c] text-black rounded-2xl font-black text-xs uppercase tracking-wider shadow-lg shadow-[#D4AF37]/10 transition-all flex items-center gap-2 cursor-pointer hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none"
+          >
+            {isSavingReport ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Save className="w-4 h-4" />
+            )}
+            Save Report
+          </button>
+        </div>
 
-        <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-end">
+        <form onSubmit={handleAddItem} className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-end">
           {/* Search Box / Selected Product */}
           <div className="lg:col-span-6 space-y-2 relative">
             <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-1">
@@ -480,180 +366,91 @@ export default function RecordScrapTab({
             </div>
           </div>
 
-          {/* Record Button */}
+          {/* Add Button */}
           <div className="lg:col-span-1">
             <button
               type="submit"
-              disabled={isSubmitting || !selectedProduct}
-              className="w-full py-4 bg-[#D4AF37] text-black hover:bg-[#c9a32c] disabled:opacity-50 disabled:cursor-not-allowed rounded-2xl shadow-xl shadow-[#D4AF37]/10 hover:scale-[1.01] active:scale-[0.99] transition-all flex items-center justify-center cursor-pointer h-[58px]"
-              title="Add to Session"
+              disabled={!selectedProduct}
+              className="w-full py-4 bg-black text-[#D4AF37] hover:bg-gray-900 disabled:opacity-50 disabled:cursor-not-allowed rounded-2xl shadow-xl hover:scale-[1.01] active:scale-[0.99] transition-all flex items-center justify-center cursor-pointer h-[58px]"
+              title="Add to Draft"
             >
-              {isSubmitting ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
-              ) : (
-                <Plus className="w-5 h-5 stroke-[3]" />
-              )}
+              <Plus className="w-5 h-5 stroke-[3]" />
             </button>
           </div>
         </form>
       </div>
 
-      {/* Bottom Area: Current Session Logs List */}
+      {/* Bottom Area: Draft Items List */}
       <div className="bg-white rounded-[2.5rem] p-8 border border-gray-100 shadow-sm min-h-[400px] flex flex-col">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div>
             <h3 className="text-xl font-black text-black flex items-center gap-2">
               <TrendingDown className="w-5 h-5 text-[#D4AF37]" />
-              Current Session Logs
+              Draft Scrap Items
             </h3>
-            <p className="text-xs text-gray-400 font-bold mt-0.5">Showing logs in {currentSession}</p>
+            <p className="text-xs text-gray-400 font-bold mt-0.5">These items will be included when you save the report</p>
           </div>
-
-          {currentSessionEntries.length > 0 && (
-            <button
-              onClick={() => handleExportSessionExcel(currentSession)}
-              className="w-10 h-10 bg-white border border-gray-100 text-black hover:bg-slate-50 rounded-xl shadow-sm transition-all flex items-center justify-center cursor-pointer"
-              title="Export Session Excel"
-            >
-              <FileSpreadsheet className="w-5 h-5 text-emerald-600" />
-            </button>
-          )}
         </div>
 
         {/* Entries Table */}
-        {isEntriesLoading ? (
-          <div className="flex flex-col items-center justify-center py-20 gap-3">
-            <Loader2 className="w-10 h-10 animate-spin text-black" />
-            <span className="text-sm font-bold text-gray-400">Loading current batch logs...</span>
-          </div>
-        ) : currentSessionEntries.length === 0 ? (
-          <NoData title="No Session Logs" />
+        {draftItems.length === 0 ? (
+          <NoData title="No Draft Items" message="Add items from the form above." />
         ) : (
-        <div className="flex-1 overflow-x-auto">
-          <table className="w-full border-collapse text-center">
-            <thead>
-              <tr className="border-b border-gray-100">
-                <th className="pb-4 px-4 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] text-center">Barcode</th>
-                <th className="pb-4 px-4 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] text-center">Product Name</th>
-                <th className="pb-4 px-4 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] text-center">Quantity</th>
-                <th className="pb-4 px-4 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] text-center">Reason</th>
-                <th className="pb-4 px-4 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] text-center w-16">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-                {currentSessionEntries.map((e) => (
-                  <tr key={e.ID} className="group hover:bg-gray-50/30 transition-all text-center animate-in fade-in duration-200">
-                    <td className="py-4 px-4 text-center">
-                      <span className="inline-flex px-2.5 py-1 bg-gray-50 rounded-xl text-[11px] font-black text-gray-600 border border-gray-100 uppercase">
-                        {e['PRODUCT BARCODE'] || '-'}
-                      </span>
-                    </td>
-                    <td className="py-4 px-4 text-center">
-                      <p className="text-sm font-black text-black leading-snug line-clamp-1 max-w-[400px] mx-auto" title={e['PRODUCT NAME']}>
-                        {e['PRODUCT NAME'] || 'Unknown Product'}
-                      </p>
-                    </td>
-                    <td className="py-4 px-4 text-center">
-                      <span className="text-sm font-black text-black">
-                        {Number(e.QTY).toLocaleString()}
-                      </span>
-                    </td>
-                    <td className="py-4 px-4 text-center">
-                      <span className={`inline-flex px-3 py-1 rounded-xl text-[9px] font-black uppercase tracking-wider border ${e.REASON === 'EXPIRED'
-                        ? 'bg-orange-50/50 text-orange-600 border-orange-100'
-                        : 'bg-red-50/50 text-red-600 border-red-100'
-                        }`}>
-                        {e.REASON}
-                      </span>
-                    </td>
-                    <td className="py-4 px-4 text-center">
-                      <div className="flex justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button
-                          onClick={() => setEntryToDelete(e.ID)}
-                          className="p-2 hover:bg-red-50 rounded-xl text-gray-400 hover:text-red-500 transition-all border border-transparent hover:border-red-100 active:scale-90 cursor-pointer"
-                          title="Delete Entry"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-            </tbody>
-          </table>
-        </div>
+          <div className="flex-1 overflow-x-auto">
+            <table className="w-full border-collapse text-center">
+              <thead>
+                <tr className="border-b border-gray-100">
+                  <th className="pb-4 px-4 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] text-center">Barcode</th>
+                  <th className="pb-4 px-4 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] text-center">Product Name</th>
+                  <th className="pb-4 px-4 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] text-center">Quantity</th>
+                  <th className="pb-4 px-4 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] text-center">Reason</th>
+                  <th className="pb-4 px-4 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] text-center w-16">Remove</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                  {draftItems.map((e) => (
+                    <tr key={e.ID} className="group hover:bg-gray-50/30 transition-all text-center animate-in fade-in duration-200">
+                      <td className="py-4 px-4 text-center">
+                        <span className="inline-flex px-2.5 py-1 bg-gray-50 rounded-xl text-[11px] font-black text-gray-600 border border-gray-100 uppercase">
+                          {e.PRODUCT_BARCODE || '-'}
+                        </span>
+                      </td>
+                      <td className="py-4 px-4 text-center">
+                        <p className="text-sm font-black text-black leading-snug line-clamp-1 max-w-[400px] mx-auto" title={e.PRODUCT_NAME}>
+                          {e.PRODUCT_NAME || 'Unknown Product'}
+                        </p>
+                      </td>
+                      <td className="py-4 px-4 text-center">
+                        <span className="text-sm font-black text-black">
+                          {Number(e.QTY).toLocaleString()}
+                        </span>
+                      </td>
+                      <td className="py-4 px-4 text-center">
+                        <span className={`inline-flex px-3 py-1 rounded-xl text-[9px] font-black uppercase tracking-wider border ${e.REASON === 'EXPIRED'
+                          ? 'bg-orange-50/50 text-orange-600 border-orange-100'
+                          : 'bg-red-50/50 text-red-600 border-red-100'
+                          }`}>
+                          {e.REASON}
+                        </span>
+                      </td>
+                      <td className="py-4 px-4 text-center">
+                        <div className="flex justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={() => handleRemoveDraftItem(e.ID)}
+                            className="p-2 hover:bg-red-50 rounded-xl text-gray-400 hover:text-red-500 transition-all border border-transparent hover:border-red-100 active:scale-90 cursor-pointer"
+                            title="Remove from draft"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
-
-      {/* Deletion Confirm Modal */}
-      {entryToDelete && (
-        <div className="fixed inset-0 z-[600] flex items-center justify-center p-6 animate-in fade-in duration-200">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => !isDeleting && setEntryToDelete(null)} />
-          <div className="bg-white rounded-[2.5rem] p-8 border border-gray-100 shadow-2xl relative w-full max-w-sm z-10 animate-in zoom-in-95 duration-200">
-            <h4 className="text-xl font-black text-black">Confirm Deletion</h4>
-            <p className="text-sm text-gray-500 font-bold mt-2 leading-relaxed">
-              Are you sure you want to delete this scrap entry? This action cannot be undone.
-            </p>
-
-            <div className="flex gap-4 mt-6">
-              <button
-                type="button"
-                disabled={isDeleting}
-                onClick={() => setEntryToDelete(null)}
-                className="flex-1 py-3 bg-gray-50 text-gray-400 hover:bg-gray-100 rounded-2xl font-black text-xs uppercase tracking-widest transition-all cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={isDeleting}
-                onClick={handleDeleteEntry}
-                className="flex-1 py-3 bg-red-500 text-white hover:bg-red-600 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-red-500/10 transition-all flex items-center justify-center gap-2 cursor-pointer"
-              >
-                {isDeleting ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  'Delete'
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Save Session Confirmation Modal */}
-      {sessionToSaveConfirm && (
-        <div className="fixed inset-0 z-[600] flex items-center justify-center p-6 animate-in fade-in duration-200">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setSessionToSaveConfirm(false)} />
-          <div className="bg-white rounded-[2.5rem] p-8 border border-gray-100 shadow-2xl relative w-full max-w-md z-10 animate-in zoom-in-95 duration-200">
-            <div className="w-12 h-12 bg-black rounded-2xl flex items-center justify-center text-[#D4AF37] mb-4">
-              <CheckCircle2 className="w-6 h-6" />
-            </div>
-            <h4 className="text-xl font-black text-black">Save Active Session?</h4>
-            <p className="text-sm text-gray-500 font-bold mt-2 leading-relaxed">
-              Saving the session **{currentSession}** marks this batch of entries as completed.
-              A new Session ID code will be generated for your next batch of logs.
-            </p>
-
-            <div className="flex gap-4 mt-8">
-              <button
-                type="button"
-                onClick={() => setSessionToSaveConfirm(false)}
-                className="flex-1 py-3 bg-gray-50 text-gray-400 hover:bg-gray-100 rounded-2xl font-black text-xs uppercase tracking-widest transition-all cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleSaveAndNewSession}
-                className="flex-1 py-3 bg-black text-[#D4AF37] hover:bg-gray-900 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-black/10 transition-all flex items-center justify-center gap-2 cursor-pointer"
-              >
-                Save & Start New
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

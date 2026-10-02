@@ -322,6 +322,9 @@ const SYSTEM_ACTIONS: Record<string, { id: string; label: string; icon: string }
     'purchase-price-tracking': [
         { id: 'edit-price', label: 'Edit Purchase Line Price', icon: '✏️' },
     ],
+    'inventory-scrap': [
+        { id: 'delete', label: 'Delete Reports', icon: '🗑️' }
+    ],
 };
 
 const getSystemIcon = (id: string) => {

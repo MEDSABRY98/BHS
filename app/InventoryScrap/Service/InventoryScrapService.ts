@@ -198,47 +198,7 @@ export async function deleteScrapEntry(id: string) {
   }
 }
 
-// ==========================================
-// Session Actions
-// ==========================================
 
-export async function fetchActiveScrapSession(): Promise<string> {
-  try {
-    const { data, error } = await bhs_supabas
-      .from('web_INVENTORY_SCRAB_LIVE_SESSION_ID')
-      .select('VALUE')
-      .eq('KEY', 'active_scrap_session')
-      .single();
-
-    if (error) {
-      // If no active session, create one
-      const { error: insertErr } = await bhs_supabas
-        .from('web_INVENTORY_SCRAB_LIVE_SESSION_ID')
-        .insert({ KEY: 'active_scrap_session', VALUE: 'S-0001' });
-      if (insertErr) throw insertErr;
-      return 'S-0001';
-    }
-
-    return data.VALUE || 'S-0001';
-  } catch (error: any) {
-    console.error('Error fetching active scrap session:', error);
-    throw new Error(error.message || 'Failed to fetch active session');
-  }
-}
-
-export async function upsertActiveScrapSession(nextSession: string) {
-  try {
-    const { error } = await bhs_supabas
-      .from('web_INVENTORY_SCRAB_LIVE_SESSION_ID')
-      .upsert({ KEY: 'active_scrap_session', VALUE: nextSession });
-
-    if (error) throw error;
-    return { success: true };
-  } catch (error: any) {
-    console.error('Error upserting active scrap session:', error);
-    throw new Error(error.message || 'Failed to upsert active session');
-  }
-}
 
 // ==========================================
 // Products Actions
@@ -278,6 +238,26 @@ export async function fetchAllProductsForScrap(): Promise<Product[]> {
   } catch (error: any) {
     console.error('Error fetching products for scrap:', error);
     throw new Error(error.message || 'Failed to fetch products');
+  }
+}
+
+export async function updateProductCosts(costs: { productId: string; cost: number }[]) {
+  try {
+    for (const item of costs) {
+      const { error } = await bhs_supabas
+        .from('bhs_PRODUCTS')
+        .update({ 'PRODUCT COST': item.cost })
+        .eq('PRODUCT ID', item.productId);
+
+      if (error) {
+        console.error(`Error updating cost for ${item.productId}:`, error);
+        throw error;
+      }
+    }
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error updating product costs:', error);
+    throw new Error(error.message || 'Failed to update product costs');
   }
 }
 
@@ -323,70 +303,10 @@ export async function insertScrapReport(reportData: any) {
   }
 }
 
-/**
- * Convert selected scrap sessions into one Saved Report (SCR-YYYY-####),
- * then lock those sessions by setting REPORT_ID on their scrap rows.
- */
-export async function convertSessionsToScrapReport(sessionIds: string[]): Promise<{ reportId: string }> {
-  const uniqueSessionIds = [...new Set(sessionIds.map((id) => String(id || '').trim()).filter(Boolean))];
-  if (uniqueSessionIds.length === 0) {
-    throw new Error('Select at least one session to convert.');
-  }
-
+export async function saveDirectScrapReport(items: { productId: string; qty: number; reason: string; unit: string }[]): Promise<{ reportId: string }> {
   try {
-    const { data: scrapRows, error: scrapError } = await bhs_supabas
-      .from('web_INVENTORY_SCRAB')
-      .select('*')
-      .in('SESSION_ID', uniqueSessionIds);
-
-    if (scrapError) throw scrapError;
-    if (!scrapRows || scrapRows.length === 0) {
-      throw new Error('No scrap entries found for the selected sessions.');
-    }
-
-    const alreadyReported = scrapRows.filter((row: any) => {
-      const rid = row.REPORT_ID;
-      return rid != null && String(rid).trim() !== '';
-    });
-    if (alreadyReported.length > 0) {
-      const lockedSessions = [
-        ...new Set(alreadyReported.map((row: any) => String(row.SESSION_ID || ''))),
-      ].filter(Boolean);
-      throw new Error(
-        `These sessions were already converted to a report: ${lockedSessions.join(', ')}`,
-      );
-    }
-
-    const foundSessions = new Set(scrapRows.map((row: any) => String(row.SESSION_ID || '')));
-    const missing = uniqueSessionIds.filter((id) => !foundSessions.has(id));
-    if (missing.length > 0) {
-      throw new Error(`No scrap entries found for session(s): ${missing.join(', ')}`);
-    }
-
-    type Agg = { productId: string; qty: number; reason: string; unit: string };
-    const aggregatedMap = new Map<string, Agg>();
-
-    scrapRows.forEach((row: any) => {
-      const productId = String(row['PRODUCT ID'] || '').trim();
-      const reason = String(row.REASON || 'UNSPECIFIED');
-      const key = `${productId}_${reason}`;
-      const existing = aggregatedMap.get(key);
-      const qty = Number(row.QTY) || 0;
-      if (!existing) {
-        aggregatedMap.set(key, {
-          productId,
-          qty,
-          reason,
-          unit: 'PCS',
-        });
-      } else {
-        existing.qty += qty;
-      }
-    });
-
-    const aggregated = [...aggregatedMap.values()].sort((a, b) => b.qty - a.qty);
-    if (aggregated.length === 0) {
-      throw new Error('Nothing to convert for the selected sessions.');
+    if (!items || items.length === 0) {
+      throw new Error('No items to save.');
     }
 
     const currentYear = new Date().getFullYear();
@@ -415,7 +335,7 @@ export async function convertSessionsToScrapReport(sessionIds: string[]): Promis
 
     const nextReportId = `SCR-${currentYear}-${String(maxReportNum + 1).padStart(4, '0')}`;
 
-    const insertPayload = aggregated.map((item, index) => {
+    const insertPayload = items.map((item, index) => {
       const rowId = `R-${String(maxIdNum + 1 + index).padStart(4, '0')}`;
       return {
         ID: rowId,
@@ -429,17 +349,10 @@ export async function convertSessionsToScrapReport(sessionIds: string[]): Promis
 
     await insertScrapReport(insertPayload);
 
-    const { error: lockError } = await bhs_supabas
-      .from('web_INVENTORY_SCRAB')
-      .update({ REPORT_ID: nextReportId })
-      .in('SESSION_ID', uniqueSessionIds);
-
-    if (lockError) throw lockError;
-
     return { reportId: nextReportId };
   } catch (error: any) {
-    console.error('Error converting sessions to scrap report:', error);
-    throw new Error(error.message || 'Failed to convert sessions to report');
+    console.error('Error saving direct scrap report:', error);
+    throw new Error(error.message || 'Failed to save direct scrap report');
   }
 }
 

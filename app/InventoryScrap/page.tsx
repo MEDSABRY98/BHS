@@ -23,8 +23,7 @@ import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
 
 const SCRAP_TABS: { id: InventoryScrapTabId; label: string; icon: typeof Plus }[] = [
   { id: 'record', label: 'Log Scrap', icon: Plus },
-  { id: 'sessions', label: 'View Sessions', icon: Layers },
-  { id: 'history', label: 'Saved Reports', icon: History },
+  { id: 'history', label: 'Scrap History', icon: History },
 ];
 const SCRAP_TAB_IDS = SCRAP_TABS.map((tab) => tab.id);
 

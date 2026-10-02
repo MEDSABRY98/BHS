@@ -25,6 +25,7 @@ export async function downloadInventoryScrapReportPDF(
   items: ScrapReportPdfItem[],
   notes: string = '',
   reportNo: string,
+  disposalMethod: string = '',
 ) {
   const jsPDFModule = await import('jspdf');
   const doc = new jsPDFModule.default({
@@ -153,22 +154,42 @@ export async function downloadInventoryScrapReportPDF(
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8);
   doc.setTextColor(...gold);
-  doc.text('REMARKS & NOTES', margin, y);
+  doc.text('METHOD OF DISPOSAL', margin, y);
   y += 3;
 
   doc.setDrawColor(224, 208, 160);
   doc.setFillColor(253, 252, 248);
-  const notesHeight = 18;
-  doc.rect(margin, y, pageWidth - margin * 2, notesHeight, 'FD');
+  const disposalHeight = 16;
+  doc.rect(margin, y, pageWidth - margin * 2, disposalHeight, 'FD');
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(...gray);
   doc.setFontSize(8);
-  if (notes.trim()) {
-    const split = doc.splitTextToSize(notes, pageWidth - margin * 2 - 6);
+  if (disposalMethod.trim()) {
+    const split = doc.splitTextToSize(disposalMethod, pageWidth - margin * 2 - 6);
     doc.text(split, margin + 3, y + 5);
   }
+  y += disposalHeight + 10;
 
-  y += notesHeight + 14;
+  if (notes.trim()) {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(...gold);
+    doc.text('REMARKS & NOTES', margin, y);
+    y += 3;
+
+    doc.setDrawColor(224, 208, 160);
+    doc.setFillColor(253, 252, 248);
+    const notesHeight = 16;
+    doc.rect(margin, y, pageWidth - margin * 2, notesHeight, 'FD');
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...gray);
+    doc.setFontSize(8);
+    const split = doc.splitTextToSize(notes, pageWidth - margin * 2 - 6);
+    doc.text(split, margin + 3, y + 5);
+    y += notesHeight + 10;
+  }
+
+  y += 4;
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...gold);
   doc.setFontSize(8);
@@ -176,7 +197,7 @@ export async function downloadInventoryScrapReportPDF(
   y += 8;
 
   const sigWidth = (pageWidth - margin * 2 - 10) / 2;
-  const roles = ['Warehouse Manager', 'Finance & Admin Manager'];
+  const roles = ['Warehouse Authority', 'Office Authority'];
   roles.forEach((role, i) => {
     const x = margin + i * (sigWidth + 10);
     doc.setFont('helvetica', 'normal');
