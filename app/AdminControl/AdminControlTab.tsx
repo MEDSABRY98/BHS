@@ -198,6 +198,7 @@ const SYSTEMS = [
     { id: 'sales', label: 'Sales Analysis' },
     { id: 'lpo-management', label: "LPO's" },
     { id: 'customers-discounts', label: 'Customers Discounts' },
+    { id: 'financial-model', label: 'Financial Model' },
     { id: 'database', label: 'Database' },
 ];
 
@@ -247,6 +248,11 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
         { id: 'record', label: 'Log Scrap' },
         { id: 'sessions', label: 'View Sessions' },
         { id: 'history', label: 'Saved Reports' },
+    ],
+    'financial-model': [
+        { id: 'dashboard', label: 'Dashboard' },
+        { id: 'income_statement', label: 'Income Statement' },
+        { id: 'data_entry', label: 'Data Entry' },
     ],
     'cash-receipt': [
         { id: 'new', label: 'New Receipt' },

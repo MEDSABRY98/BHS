@@ -11,6 +11,7 @@ import {
 } from '@tanstack/react-table';
 import { ArrowDown, ArrowUp, Search, Download, Package, Upload, X } from 'lucide-react';
 import { exportStyledExcel } from '@/app/Components/Export/ExcelExport';
+import TabLoader from '@/app/Components/Loading/TabLoader';
 
 const OrderQuantityCell = ({ productId, qtyInBox, showInBoxes }: { productId: string, qtyInBox: number, showInBoxes: boolean }) => {
   const { orderQuantities, setOrderQuantity } = usePurchaseData();
@@ -219,8 +220,7 @@ export function PlanningTab() {
   if (loading) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center min-h-[400px]">
-        <div className="w-12 h-12 border-4 border-gray-200 border-t-indigo-600 rounded-full animate-spin"></div>
-        <p className="mt-4 text-gray-400 font-bold tracking-widest text-sm uppercase">Loading Planning Data...</p>
+        <TabLoader />
       </div>
     );
   }

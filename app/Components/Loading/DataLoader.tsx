@@ -23,9 +23,11 @@ export default function DataLoader({ message = 'Loading Data...', className = ''
       </div>
       
       {/* Text message */}
-      <div className="text-xs font-bold tracking-widest text-slate-500 uppercase animate-pulse">
-        {message}
-      </div>
+      {message && (
+        <div className="text-xs font-bold tracking-widest text-slate-500 uppercase animate-pulse">
+          {message}
+        </div>
+      )}
     </div>
   );
 }
