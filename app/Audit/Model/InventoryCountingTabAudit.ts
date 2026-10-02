@@ -5,7 +5,6 @@ import type { InventoryCountingTabId } from '@/app/InventoryCounting/Utils/Sideb
 
 export const INVENTORY_COUNTING_TAB_LABELS: Record<InventoryCountingTabId, string> = {
   total_count: 'Total Count',
-  reconciliation: 'Count Reconciliation',
   user_comparison: 'User Comparison',
   record: 'Record',
   archives: 'Archives',
