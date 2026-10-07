@@ -5,14 +5,7 @@ import { saveTrackedAs } from '@/app/Audit/Utils/TrackedDownload';
  * (dark header, section pills, accent borders, category groups, profit rows, margins).
  */
 
-export type PLSectionKey =
-  | 'REVENUE'
-  | 'COGS'
-  | 'DIRECT_EXPENSE'
-  | 'INDIRECT_EXPENSE'
-  | 'DEPRECIATION'
-  | 'FINANCE_COST'
-  | 'TAXES';
+export type PLSectionKey = string;
 
 export type PLExportRow =
   | { kind: 'pill'; label: string; section: PLSectionKey }
