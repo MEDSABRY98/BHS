@@ -48,7 +48,6 @@ const allTabs = [
   { id: 'payment-reconciliation-saved', label: 'Saved Reconciliations', icon: FolderOpen },
   { id: 'all-transactions', label: 'All Transactions', icon: FileText },
   { id: 'customers-open-matches', label: 'Open Transactions', icon: Activity },
-  { id: 'payment-tracker', label: 'Payment Tracker', icon: CreditCard },
   { id: 'cities', label: 'Cities', icon: UserCheck },
 
   { id: 'ages', label: 'Ages', icon: Hourglass },

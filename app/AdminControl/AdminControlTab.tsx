@@ -198,6 +198,7 @@ const SYSTEMS = [
     { id: 'sales', label: 'Sales Analysis' },
     { id: 'lpo-management', label: "LPO's" },
     { id: 'customers-discounts', label: 'Customers Discounts' },
+    { id: 'payment-analysis', label: 'Payment Analysis' },
     { id: 'financial-model', label: 'Financial Model' },
     { id: 'suppliers-analysis', label: 'Suppliers Analysis' },
     { id: 'database', label: 'Database' },
@@ -214,7 +215,6 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
         { id: 'payment-reconciliation-saved', label: 'Saved Reconciliations' },
         { id: 'all-transactions', label: 'All Transactions' },
         { id: 'customers-open-matches', label: 'Open Transactions' },
-        { id: 'payment-tracker', label: 'Payment Tracker' },
         { id: 'cities', label: 'Cities' },
         { id: 'ages', label: 'Ages' },
         { id: 'make-statement', label: 'Make Statement' }
@@ -232,6 +232,13 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
         { id: 'sales-products', label: 'Products' },
         { id: 'sales-new-listings', label: 'New Listings' },
         { id: 'sales-download-form', label: 'Stock Report' },
+    ],
+    'payment-analysis': [
+        { id: 'dashboard', label: 'Collections Overview' },
+        { id: 'cities', label: 'Cities Collections' },
+        { id: 'collections', label: 'Customer Collections' },
+        { id: 'unpaid-customers', label: 'Unpaid Customers' },
+        { id: 'periods', label: 'Periods Analysis' },
     ],
 
     'inventory': [

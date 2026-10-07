@@ -13,7 +13,6 @@ import OpenTransactionsTab from './OpenTransactionsTab/OpenTransactionsTab';
 import AllTransactionsTab from './AllTransactionsTab/AllTransactionsTab';
 import PaymentReconciliationTab from './PaymentReconciliationTab/PaymentReconciliationTab';
 import SavedPaymentReconciliationsPageTab from './SavedReconciliations/SavedPaymentReconciliationsPageTab';
-import PaymentTrackerTab from './PaymentTrackerTab/PaymentTrackerTab';
 import CityTab from './CityTab/CityTab';
 
 import AgesTab from './AgesTab/AgesTab';
@@ -197,9 +196,6 @@ function DebitPageShell({
         </TabPanel>
         <TabPanel tabId="customers-open-matches" activeTab={activeTab} isVisited={visitedTabs.has('customers-open-matches') && dataReady}>
           <OpenTransactionsTab data={globallyFilteredData} />
-        </TabPanel>
-        <TabPanel tabId="payment-tracker" activeTab={activeTab} isVisited={visitedTabs.has('payment-tracker') && dataReady}>
-          <PaymentTrackerTab data={globallyFilteredData} dataVersion={dataVersion} />
         </TabPanel>
         <TabPanel tabId="cities" activeTab={activeTab} isVisited={visitedTabs.has('cities') && dataReady}>
           <CityTab data={globallyFilteredData} />
