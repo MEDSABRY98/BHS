@@ -37,6 +37,14 @@ export function TotalExpensesChart({ data }: TotalExpensesChartProps) {
   const totalActual = data.reduce((s, d) => s + d.Actual, 0);
   const totalForecast = data.reduce((s, d) => s + d.Forecast, 0);
   const diff = totalActual - totalForecast;
+  let diffPercent = 0;
+  if (totalForecast !== 0) {
+    diffPercent = (diff / Math.abs(totalForecast)) * 100;
+  } else if (totalActual > 0) {
+    diffPercent = 100;
+  } else if (totalActual < 0) {
+    diffPercent = -100;
+  }
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden flex flex-col h-[380px]">
@@ -50,9 +58,14 @@ export function TotalExpensesChart({ data }: TotalExpensesChartProps) {
             <p className="text-[9px] font-bold text-slate-400 uppercase">Forecast</p>
             <p className="text-sm font-black text-blue-500 tabular-nums">{totalForecast.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
           </div>
+          <div className="flex items-center gap-1.5">
           <span className={`text-xs font-black px-2 py-1 rounded-lg ${diff <= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>
             {diff > 0 ? '+' : ''}{diff.toLocaleString(undefined, { maximumFractionDigits: 0 })}
           </span>
+          <span className={`text-[11px] font-black px-1.5 py-0.5 rounded-md ${diff <= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>
+            {diffPercent > 0 ? '+' : ''}{diffPercent.toFixed(1)}%
+          </span>
+        </div>
         </div>
       </div>
       <div className="flex-1 p-4 min-h-0">

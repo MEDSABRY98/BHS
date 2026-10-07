@@ -29,7 +29,7 @@ interface AgingChartPoint {
 }
 
 const BUCKET_META = [
-  { key: 'oneToThirty' as const, label: '1-30', fill: '#BEF264', stroke: '#A3E635', hint: 'Early overdue' },
+  { key: 'oneToThirty' as const, label: '0-30', fill: '#BEF264', stroke: '#A3E635', hint: 'Early overdue' },
   { key: 'thirtyOneToSixty' as const, label: '31-60', fill: '#FDE68A', stroke: '#FCD34D', hint: 'Moderate risk' },
   { key: 'sixtyOneToNinety' as const, label: '61-90', fill: '#FDBA74', stroke: '#FB923C', hint: 'High risk' },
   { key: 'ninetyOneToOneTwenty' as const, label: '91-120', fill: '#FCA5A5', stroke: '#F87171', hint: 'Critical' },

@@ -1230,7 +1230,7 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
         daysOverdue = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
       }
 
-      if (daysOverdue <= 0) {
+      if (daysOverdue < 0) {
         summary.atDate += amount;
       } else if (daysOverdue <= 30) {
         summary.oneToThirty += amount;

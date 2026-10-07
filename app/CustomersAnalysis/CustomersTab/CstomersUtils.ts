@@ -566,7 +566,7 @@ export function generateCustomerAnalysis(data: InvoiceRow[]): CustomerAnalysis[]
           if (daysOverdue > 0) {
             maxOverdueDays = Math.max(maxOverdueDays, daysOverdue);
           }
-          if (daysOverdue <= 0) agingBreakdown.atDate += invNetDebt;
+          if (daysOverdue < 0) agingBreakdown.atDate += invNetDebt;
           else if (daysOverdue <= 30) agingBreakdown.oneToThirty += invNetDebt;
           else if (daysOverdue <= 60) agingBreakdown.thirtyOneToSixty += invNetDebt;
           else if (daysOverdue <= 90) agingBreakdown.sixtyOneToNinety += invNetDebt;
@@ -586,7 +586,7 @@ export function generateCustomerAnalysis(data: InvoiceRow[]): CustomerAnalysis[]
         if (daysOverdue > 0) {
           maxOverdueDays = Math.max(maxOverdueDays, daysOverdue);
         }
-        if (daysOverdue <= 0) agingBreakdown.atDate += groupNetDebt;
+        if (daysOverdue < 0) agingBreakdown.atDate += groupNetDebt;
         else if (daysOverdue <= 30) agingBreakdown.oneToThirty += groupNetDebt;
         else if (daysOverdue <= 60) agingBreakdown.thirtyOneToSixty += groupNetDebt;
         else if (daysOverdue <= 90) agingBreakdown.sixtyOneToNinety += groupNetDebt;

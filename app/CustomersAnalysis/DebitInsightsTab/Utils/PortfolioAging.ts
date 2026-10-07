@@ -31,7 +31,7 @@ function normalizeReferenceDate(referenceDate: Date): Date {
 }
 
 function addToBucket(breakdown: AgingBreakdown, daysOverdue: number, amount: number) {
-  if (daysOverdue <= 0) breakdown.atDate += amount;
+  if (daysOverdue < 0) breakdown.atDate += amount;
   else if (daysOverdue <= 30) breakdown.oneToThirty += amount;
   else if (daysOverdue <= 60) breakdown.thirtyOneToSixty += amount;
   else if (daysOverdue <= 90) breakdown.sixtyOneToNinety += amount;

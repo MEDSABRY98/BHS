@@ -93,20 +93,20 @@ export function CashFlowStatementTab() {
            calculateSectionTotal('FINANCING', month, modeOverride);
   };
 
-  const getBalances = (modeOverride?: 'ACTUAL' | 'FORECAST') => {
-    const opening = Array(13).fill(0);
+  const getClosingBalances = (modeOverride?: 'ACTUAL' | 'FORECAST') => {
     const closing = Array(13).fill(0);
     const mode = modeOverride || (viewMode === 'BOTH' ? 'ACTUAL' : viewMode);
     
     for (let m = startMonth; m <= endMonth; m++) {
+      const explicitOB = calculateSectionTotal('OPENING_BALANCE', m, mode);
+      const netCF = getNetCashFlow(m, mode);
       if (m === startMonth) {
-        opening[m] = calculateSectionTotal('OPENING_BALANCE', m, modeOverride);
+        closing[m] = explicitOB + netCF;
       } else {
-        opening[m] = closing[m - 1];
+        closing[m] = closing[m - 1] + explicitOB + netCF;
       }
-      closing[m] = opening[m] + getNetCashFlow(m, modeOverride);
     }
-    return { opening, closing };
+    return closing;
   };
 
   // Rendering Helpers
@@ -388,11 +388,11 @@ export function CashFlowStatementTab() {
 
       const spacer = () => rows.push({ kind: 'spacer' });
 
-      // OPENING BALANCE
-      modes.forEach(mode => {
-        const { values, total } = build(m => getBalances(mode).opening[m], () => getBalances(mode).opening[startMonth], mode);
-        rows.push({ kind: 'profit', label: 'Opening Cash Balance' + sfx(mode), values, total, isNet: false, percent: false });
-      });
+      // OPENING BALANCE ACCOUNTS
+      const obAccounts = sectionAccounts('OPENING_BALANCE');
+      if (obAccounts.length > 0) {
+        pushAccounts(obAccounts, 'OPENING_BALANCE');
+      }
       spacer();
 
       const pushCFSection = (type: string, label: string) => {
@@ -434,7 +434,7 @@ export function CashFlowStatementTab() {
 
       // CLOSING BALANCE
       modes.forEach(mode => {
-        const { values, total } = build(m => getBalances(mode).closing[m], () => getBalances(mode).closing[endMonth], mode);
+        const { values, total } = build(m => getClosingBalances(mode)[m], () => getClosingBalances(mode)[endMonth], mode);
         rows.push({ kind: 'profit', label: 'Closing Cash Balance' + sfx(mode), values, total, isNet: true, percent: false });
       });
 
@@ -591,13 +591,8 @@ export function CashFlowStatementTab() {
                 </tr>
               </thead>
               <tbody className="bg-white">
-                {/* OPENING BALANCE */}
-                {renderProfitRow(
-                  'Opening Cash Balance',
-                  (m, mode) => getBalances(mode).opening[m],
-                  (mode) => getBalances(mode).opening[startMonth],
-                  false
-                )}
+                {/* OPENING BALANCE ACCOUNTS */}
+                {filteredAccounts.filter(a => a.ACCOUNT_TYPE === 'OPENING_BALANCE').map(acc => renderRow(acc, 'OPENING_BALANCE'))}
 
                 {/* OPERATING ACTIVITIES */}
                 {renderCashFlowSection('OPERATING', 'Operating Activities', 'bg-emerald-50 text-emerald-700', 'Operating Activities', 'text-emerald-800', 'bg-emerald-50/60', 'border-emerald-200')}
@@ -619,8 +614,8 @@ export function CashFlowStatementTab() {
                 {/* CLOSING BALANCE */}
                 {renderProfitRow(
                   'Closing Cash Balance',
-                  (m, mode) => getBalances(mode).closing[m],
-                  (mode) => getBalances(mode).closing[endMonth],
+                  (m, mode) => getClosingBalances(mode)[m],
+                  (mode) => getClosingBalances(mode)[endMonth],
                   true
                 )}
               </tbody>

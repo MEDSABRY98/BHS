@@ -54,6 +54,10 @@ const SECTION_STYLE: Record<PLSectionKey, { accent: string; pillBg: string; pill
   DEPRECIATION:     { accent: 'FF94A3B8', pillBg: 'FFF1F5F9', pillText: 'FF475569', totalBg: 'FFF8FAFC', totalText: 'FF334155' },
   FINANCE_COST:     { accent: 'FF60A5FA', pillBg: 'FFEFF6FF', pillText: 'FF1D4ED8', totalBg: 'FFEFF6FF', totalText: 'FF1E40AF' },
   TAXES:            { accent: 'FFC084FC', pillBg: 'FFFAF5FF', pillText: 'FF7E22CE', totalBg: 'FFFAF5FF', totalText: 'FF6B21A8' },
+  OPENING_BALANCE:  { accent: 'FF94A3B8', pillBg: 'FFF8FAFC', pillText: 'FF475569', totalBg: 'FFF8FAFC', totalText: 'FF334155' },
+  OPERATING:        { accent: 'FF34D399', pillBg: 'FFECFDF5', pillText: 'FF047857', totalBg: 'FFECFDF5', totalText: 'FF065F46' },
+  INVESTING:        { accent: 'FF60A5FA', pillBg: 'FFEFF6FF', pillText: 'FF1D4ED8', totalBg: 'FFEFF6FF', totalText: 'FF1E40AF' },
+  FINANCING:        { accent: 'FF818CF8', pillBg: 'FFEEF2FF', pillText: 'FF4338CA', totalBg: 'FFEEF2FF', totalText: 'FF3730A3' },
 };
 
 const NUM_FMT = '#,##0.00;[Red]-#,##0.00;"–"';

@@ -196,24 +196,69 @@ export function DataEntryTab() {
   };
 
   const handleExportExcel = async () => {
+    setIsLoading(true);
     try {
-      const { exportStyledExcelTable } = await import('@/app/Components/Export/ExcelExport');
-      const headers = ['ACCOUNT TYPE', 'ACCOUNT CATEGORY', 'ACCOUNT CODE', 'ACCOUNT NAME', 'FORECAST AMOUNT', 'ACTUAL AMOUNT'];
-      const rows = getDisplayOrderedAccounts().map(acc => [
-        acc.ACCOUNT_TYPE,
-        acc.ACCOUNT_CATEGORY,
-        acc.ACCOUNT_CODE,
-        acc.ACCOUNT_NAME,
-        entries[acc.ID]?.FORECAST_AMOUNT || 0,
-        entries[acc.ID]?.ACTUAL_AMOUNT || 0
-      ]);
-      await exportStyledExcelTable(headers, rows, `PnL_DataEntry_${selectedMonth}_${selectedYear}.xlsx`, {
-        numericColumns: ['FORECAST AMOUNT', 'ACTUAL AMOUNT']
+      const year = Number(selectedYear);
+      const { fetchEntriesByYear } = await import('../../Service/FinancialService');
+      const yearEntries = await fetchEntriesByYear(year, 'PL');
+      
+      const orderedAccounts = [...accounts].sort((a, b) => {
+        const orderA = a.ORDER_INDEX || 0;
+        const orderB = b.ORDER_INDEX || 0;
+        if (orderA !== orderB) return orderA - orderB;
+        return a.ACCOUNT_NAME.localeCompare(b.ACCOUNT_NAME);
       });
+
+      const actualRows = orderedAccounts.map(acc => {
+        const rowData: any = {
+          'ACCOUNT TYPE': acc.ACCOUNT_TYPE,
+          'ACCOUNT CATEGORY': acc.ACCOUNT_CATEGORY,
+          'ACCOUNT CODE': acc.ACCOUNT_CODE,
+          'ACCOUNT NAME': acc.ACCOUNT_NAME,
+        };
+        MONTHS.forEach(m => {
+          const entry = yearEntries.find(e => e.ACCOUNT_ID === acc.ID && e.PERIOD_MONTH === m.value);
+          rowData[`${m.label.substring(0, 3)}-${year}`] = entry?.ACTUAL_AMOUNT || 0;
+        });
+        return rowData;
+      });
+
+      const forecastRows = orderedAccounts.map(acc => {
+        const rowData: any = {
+          'ACCOUNT TYPE': acc.ACCOUNT_TYPE,
+          'ACCOUNT CATEGORY': acc.ACCOUNT_CATEGORY,
+          'ACCOUNT CODE': acc.ACCOUNT_CODE,
+          'ACCOUNT NAME': acc.ACCOUNT_NAME,
+        };
+        MONTHS.forEach(m => {
+          const entry = yearEntries.find(e => e.ACCOUNT_ID === acc.ID && e.PERIOD_MONTH === m.value);
+          rowData[`${m.label.substring(0, 3)}-${year}`] = entry?.FORECAST_AMOUNT || 0;
+        });
+        return rowData;
+      });
+
+      const { exportStyledExcelWorkbook } = await import('@/app/Components/Export/ExcelExport');
+      const monthCols = MONTHS.map(m => `${m.label.substring(0, 3)}-${year}`);
+      
+      await exportStyledExcelWorkbook([
+        {
+          name: 'Actual',
+          data: actualRows,
+          options: { numericColumns: monthCols }
+        },
+        {
+          name: 'Forecast',
+          data: forecastRows,
+          options: { numericColumns: monthCols }
+        }
+      ], `PnL_DataEntry_${year}.xlsx`);
+
       toast.success('Excel exported successfully');
     } catch (err) {
       console.error(err);
       toast.error('Export failed');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -228,111 +273,131 @@ export function DataEntryTab() {
         const data = event.target?.result;
         const XLSX = await import('xlsx');
         const workbook = XLSX.read(data, { type: 'binary' });
-        const sheetName = workbook.SheetNames[0];
-        const sheet = workbook.Sheets[sheetName];
-        const rows = XLSX.utils.sheet_to_json<any>(sheet);
         
-        let newEntries = { ...entries };
-        let count = 0;
-        let createdCount = 0;
-        let updatedCount = 0;
+        const year = Number(selectedYear);
+        const { fetchEntriesByYear } = await import('../../Service/FinancialService');
+        const existingEntries = await fetchEntriesByYear(year, 'PL');
+        
+        const bulkDataMap = new Map<string, any>();
         let updatedAccounts = [...accounts];
 
-        for (const row of rows) {
-          const accCode = String(row['ACCOUNT CODE'] || '').trim();
-          const accName = String(row['ACCOUNT NAME'] || '').trim();
-          const accType = String(row['ACCOUNT TYPE'] || '').trim();
-          const accCat = String(row['ACCOUNT CATEGORY'] || '').trim();
+        const processSheet = async (sheetName: string, isActual: boolean) => {
+          const sheet = workbook.Sheets[sheetName];
+          if (!sheet) return;
+          const rows = XLSX.utils.sheet_to_json<any>(sheet);
           
-          if (!accCode && !accName) continue;
-          
-          let matchedAccount = updatedAccounts.find(a => 
-            (accCode && String(a.ACCOUNT_CODE).trim() === accCode) || 
-            (!accCode && accName && a.ACCOUNT_NAME === accName)
-          );
-          
-          if (!matchedAccount && accCode && accName && accType) {
-            try {
-              const newAcc = await createAccount({
-                ACCOUNT_CODE: accCode,
-                ACCOUNT_NAME: accName,
-                ACCOUNT_TYPE: accType,
-                ACCOUNT_CATEGORY: accCat || 'General',
-                IS_ACTIVE: true,
-              } as any);
-              if (newAcc) {
-                matchedAccount = newAcc;
-                updatedAccounts.push(newAcc);
-                createdCount++;
-              }
-            } catch (err) {
-              console.error('Failed to create account', accCode, err);
-            }
-          }
-          
-          if (matchedAccount) {
-            if (
-              (accName && matchedAccount.ACCOUNT_NAME !== accName) || 
-              (accType && matchedAccount.ACCOUNT_TYPE !== accType) || 
-              (accCat && matchedAccount.ACCOUNT_CATEGORY !== accCat)
-            ) {
+          for (const row of rows) {
+            const accCode = String(row['ACCOUNT CODE'] || '').trim();
+            const accName = String(row['ACCOUNT NAME'] || '').trim();
+            const accType = String(row['ACCOUNT TYPE'] || '').trim();
+            const accCat = String(row['ACCOUNT CATEGORY'] || '').trim();
+            
+            if (!accCode && !accName) continue;
+            
+            let matchedAccount = updatedAccounts.find(a => 
+              (accCode && String(a.ACCOUNT_CODE).trim() === accCode) || 
+              (!accCode && accName && a.ACCOUNT_NAME.trim() === accName.trim())
+            );
+            
+            if (!matchedAccount && accCode && accName && accType) {
               try {
-                await updateAccount(matchedAccount.ID, {
-                  ACCOUNT_NAME: accName || matchedAccount.ACCOUNT_NAME,
-                  ACCOUNT_TYPE: accType || matchedAccount.ACCOUNT_TYPE,
-                  ACCOUNT_CATEGORY: accCat || matchedAccount.ACCOUNT_CATEGORY,
-                });
-                
-                // Update in memory so groupedAccounts reflects the change immediately
-                matchedAccount.ACCOUNT_NAME = accName || matchedAccount.ACCOUNT_NAME;
-                matchedAccount.ACCOUNT_TYPE = accType || matchedAccount.ACCOUNT_TYPE;
-                matchedAccount.ACCOUNT_CATEGORY = accCat || matchedAccount.ACCOUNT_CATEGORY;
-                updatedCount++;
+                const newAcc = await createAccount({
+                  ACCOUNT_CODE: accCode,
+                  ACCOUNT_NAME: accName,
+                  ACCOUNT_TYPE: accType,
+                  ACCOUNT_CATEGORY: accCat || 'General',
+                  IS_ACTIVE: true,
+                  STATEMENT_TYPE: 'PL'
+                } as any);
+                if (newAcc) {
+                  matchedAccount = newAcc;
+                  updatedAccounts.push(newAcc);
+                }
               } catch (err) {
-                console.error('Failed to update account details for', accCode, err);
+                console.error('Failed to create account', accCode, err);
               }
             }
+            
+            if (matchedAccount) {
+              if (
+                (accName && matchedAccount.ACCOUNT_NAME !== accName) || 
+                (accType && matchedAccount.ACCOUNT_TYPE !== accType) || 
+                (accCat && matchedAccount.ACCOUNT_CATEGORY !== accCat)
+              ) {
+                try {
+                  await updateAccount(matchedAccount.ID, {
+                    ACCOUNT_NAME: accName || matchedAccount.ACCOUNT_NAME,
+                    ACCOUNT_TYPE: accType || matchedAccount.ACCOUNT_TYPE,
+                    ACCOUNT_CATEGORY: accCat || matchedAccount.ACCOUNT_CATEGORY,
+                  });
+                  matchedAccount.ACCOUNT_NAME = accName || matchedAccount.ACCOUNT_NAME;
+                  matchedAccount.ACCOUNT_TYPE = accType || matchedAccount.ACCOUNT_TYPE;
+                  matchedAccount.ACCOUNT_CATEGORY = accCat || matchedAccount.ACCOUNT_CATEGORY;
+                } catch (err) {
+                  console.error('Failed to update account details for', accCode, err);
+                }
+              }
 
-            newEntries[matchedAccount.ID] = {
-              ACTUAL_AMOUNT: typeof row['ACTUAL AMOUNT'] === 'number' ? row['ACTUAL AMOUNT'] : parseFloat(row['ACTUAL AMOUNT']) || 0,
-              FORECAST_AMOUNT: typeof row['FORECAST AMOUNT'] === 'number' ? row['FORECAST AMOUNT'] : parseFloat(row['FORECAST AMOUNT']) || 0,
-            };
-            count++;
+              Object.keys(row).forEach(colName => {
+                if (['ACCOUNT TYPE', 'ACCOUNT CATEGORY', 'ACCOUNT CODE', 'ACCOUNT NAME'].includes(colName.toUpperCase())) return;
+                
+                const cleanCol = colName.trim();
+                const parts = cleanCol.split('-');
+                if (parts.length === 2) {
+                  const monthStr = parts[0].trim();
+                  const yearStr = parts[1].trim();
+                  const monthObj = MONTHS.find(m => m.label.toLowerCase().startsWith(monthStr.toLowerCase()));
+                  
+                  if (monthObj) {
+                    const monthVal = monthObj.value;
+                    const yearVal = parseInt(yearStr, 10);
+                    if (!isNaN(yearVal)) {
+                      const key = `${matchedAccount.ID}_${monthVal}_${yearVal}`;
+                      if (!bulkDataMap.has(key)) {
+                        const existing = existingEntries.find(e => e.ACCOUNT_ID === matchedAccount?.ID && e.PERIOD_MONTH === monthVal && e.PERIOD_YEAR === yearVal);
+                        bulkDataMap.set(key, {
+                          ACCOUNT_ID: matchedAccount!.ID,
+                          PERIOD_MONTH: monthVal,
+                          PERIOD_YEAR: yearVal,
+                          STATEMENT_TYPE: 'PL',
+                          ACTUAL_AMOUNT: existing?.ACTUAL_AMOUNT || 0,
+                          FORECAST_AMOUNT: existing?.FORECAST_AMOUNT || 0,
+                        });
+                      }
+                      
+                      const entry = bulkDataMap.get(key);
+                      let amount = 0;
+                      if (typeof row[colName] === 'number') amount = row[colName];
+                      else if (typeof row[colName] === 'string') amount = parseFloat(row[colName].replace(/,/g, ''));
+                      
+                      if (!isNaN(amount)) {
+                        if (isActual) entry.ACTUAL_AMOUNT = amount;
+                        else entry.FORECAST_AMOUNT = amount;
+                      }
+                    }
+                  }
+                }
+              });
+            }
           }
-        }
+        };
+
+        await processSheet('Actual', true);
+        await processSheet('Forecast', false);
+
+        const dataToSave = Array.from(bulkDataMap.values());
         
-        if (createdCount > 0 || updatedCount > 0) {
-          updatedAccounts.sort((a, b) => {
-            const orderA = a.ORDER_INDEX || 0;
-            const orderB = b.ORDER_INDEX || 0;
-            if (orderA !== orderB) return orderA - orderB;
-            return a.ACCOUNT_NAME.localeCompare(b.ACCOUNT_NAME);
-          });
-          setAccounts([...updatedAccounts]);
-        }
-        
-        setEntries(newEntries);
-        
-        // Auto-save the imported entries to the database
-        try {
-          const dataToSave = Object.keys(newEntries).map(accountId => ({
-            ACCOUNT_ID: accountId,
-            PERIOD_MONTH: Number(selectedMonth),
-            PERIOD_YEAR: Number(selectedYear),
-            ACTUAL_AMOUNT: newEntries[accountId].ACTUAL_AMOUNT,
-            FORECAST_AMOUNT: newEntries[accountId].FORECAST_AMOUNT,
-            STATEMENT_TYPE: 'PL',
-          }));
+        if (dataToSave.length > 0) {
           await saveFinancialEntries(dataToSave);
-          toast.success(`Imported and SAVED data for ${count} accounts. (New: ${createdCount}, Updated: ${updatedCount})`);
-        } catch (saveErr) {
-          console.error('Failed to auto-save imported data:', saveErr);
-          toast.error('Data imported to screen, but failed to save to database. Please click Save Changes.');
+          toast.success(`Successfully processed ${dataToSave.length} monthly entries`);
+        } else {
+          toast.info('No valid data found to upload');
         }
 
-      } catch (error) {
-        console.error(error);
-        toast.error('Failed to parse Excel file');
+        await loadData(true);
+      } catch (err) {
+        console.error('Upload error:', err);
+        toast.error('Failed to parse or save Excel file');
       } finally {
         setIsLoading(false);
         if (e.target) e.target.value = '';
