@@ -34,7 +34,7 @@ export function buildSupplierStatement(
       return {
         date: t.DATE ? String(t.DATE).split('T')[0] : '',
         number: String(t.NUMBER || '').trim().split(/\s+/)[0] || '',
-        reference: String(t.REFERENCE || t['REF' as any] || '').trim(),
+        reference: String(t.REFERENCE || (t as any).REF || '').trim(),
         debit: residual > 0 ? residual : 0,
         credit: residual < 0 ? -residual : 0,
         net: -residual,
@@ -44,7 +44,7 @@ export function buildSupplierStatement(
       return {
         date: t.DATE ? String(t.DATE).split('T')[0] : '',
         number: String(t.NUMBER || '').trim().split(/\s+/)[0] || '',
-        reference: String(t.REFERENCE || t['REF' as any] || '').trim(),
+        reference: String(t.REFERENCE || (t as any).REF || '').trim(),
         debit: dbDebit,
         credit: dbCredit,
         net: dbCredit - dbDebit,
