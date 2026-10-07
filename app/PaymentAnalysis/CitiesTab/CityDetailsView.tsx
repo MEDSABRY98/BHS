@@ -7,7 +7,8 @@ import {
   getCoreRowModel, 
   getSortedRowModel, 
   flexRender,
-  SortingState
+  SortingState,
+  ColumnDef
 } from '@tanstack/react-table';
 
 interface CityDetailsViewProps {
@@ -77,7 +78,7 @@ export default function CityDetailsView({ cityName, onBack }: CityDetailsViewPro
     }));
   }, [paymentsData, cityName]);
 
-  const columns = useMemo(() => [
+  const columns: ColumnDef<any>[] = useMemo(() => [
     {
       accessorKey: 'monthSort',
       header: 'Month',
