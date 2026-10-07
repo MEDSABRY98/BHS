@@ -260,13 +260,19 @@ export function CashFlowStatementTab() {
 
   const renderCashFlowSection = (type: string, pillLabel: string, pillClasses: string, totalLabel: string, totalTextClass: string, totalBgClass: string, totalBorderClass: string) => {
     const typeAccounts = filteredAccounts.filter(a => a.ACCOUNT_TYPE === type);
-    if (typeAccounts.length === 0) return null;
 
     return (
       <React.Fragment key={`cf-sec-${type}`}>
         {renderSectionPill(`pill-${type}`, pillLabel, pillClasses)}
         {renderCashFlowDirection(typeAccounts, 'IN', 'Cash Inflows', 'bg-emerald-400 text-emerald-700')}
         {renderCashFlowDirection(typeAccounts, 'OUT', 'Cash Outflows', 'bg-red-400 text-red-700')}
+        {typeAccounts.length === 0 && (
+          <tr>
+            <td colSpan={endMonth - startMonth + 3} className="py-6 text-center text-slate-400 text-sm font-medium italic bg-slate-50/50 border-b border-slate-100">
+              No accounts recorded for {pillLabel.toLowerCase()}
+            </td>
+          </tr>
+        )}
         {renderSectionTotal(totalLabel, type, totalTextClass, totalBgClass, totalBorderClass)}
         {renderSpacer(`spacer-${type}`)}
       </React.Fragment>
