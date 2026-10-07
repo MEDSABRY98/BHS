@@ -185,7 +185,6 @@ function migrateInventoryScrapTabs(tabs: string[]): string[] {
 const SYSTEMS = [
     { id: 'cash-receipt', label: 'Cash Receipt' },
     { id: 'cash-handover', label: 'Cash Handover' },
-    { id: 'petty-cash', label: 'Petty Cash' },
     { id: 'documents-tracking', label: 'Documents Tracking' },
     { id: 'debit', label: 'Debit Analysis' },
     { id: 'customers-documents', label: 'Customers Documents' },
@@ -275,13 +274,6 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
     'cash-handover': [
         { id: 'new', label: 'New Handover' },
         { id: 'saved', label: 'Saved Handovers' }
-    ],
-    'petty-cash': [
-        { id: 'receipts', label: 'Receipts' },
-        { id: 'expenses', label: 'Expenses' },
-        { id: 'voucher', label: 'Voucher' },
-        { id: 'stats', label: 'Statistics' },
-        { id: 'history', label: 'History' },
     ],
     'documents-tracking': [
         { id: 'register', label: 'تسجيل شيك جديد' },

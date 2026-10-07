@@ -22,7 +22,6 @@ const SessionContext = createContext<SessionUser>(null);
 const PATH_SYSTEMS = [
   { prefix: '/CashReceipt', id: 'cash-receipt' },
   { prefix: '/CashHandover', id: 'cash-handover' },
-  { prefix: '/PettyCash', id: 'petty-cash' },
   { prefix: '/DocumentsTracking', id: 'documents-tracking' },
   { prefix: '/CustomersSummaries', id: 'customers-summaries' },
   { prefix: '/DebitInsights', id: 'debit_insights' },

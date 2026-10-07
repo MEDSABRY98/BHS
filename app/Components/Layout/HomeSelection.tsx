@@ -129,7 +129,6 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
 
   const ALL_SYSTEMS: SystemItem[] = [
     { id: 'cash-handling', title: 'Cash Handling', path: '/CashHandling', color: 'teal' },
-    { id: 'petty-cash', title: 'Petty Cash', path: '/PettyCash', color: 'cyan' },
     { id: 'documents-tracking', title: 'Documents Tracking', path: '/DocumentsTracking', color: 'orange' },
     { id: 'customers-analysis', title: 'Customers Analysis', path: '/CustomersAnalysis', color: 'red' },
     { id: 'suppliers-analysis', title: 'Suppliers Analysis', path: '/SuppliersAnalysis', color: 'orange' },
