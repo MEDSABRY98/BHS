@@ -1,0 +1,1150 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useDataBaseProductsTabAudit } from '@/app/Audit/Model/DataBaseTabAudit';
+import { bhs_supabas } from '@/lib/supabase';
+import * as XLSX from 'xlsx';
+import {
+  Package,
+  Search,
+  Plus,
+  Edit2,
+  Trash2,
+  X,
+  Save,
+  Barcode,
+  Loader2,
+  MoreVertical,
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  Upload,
+  GitMerge
+} from 'lucide-react';
+import { ConfirmModal } from '../../LPOs/Components/ConfirmModal';
+import NoData from '@/app/Components/DataState/NoDataTab';
+import { usePermissions } from '../../LPOs/Hooks/usePermissions';
+import { toast } from '@/app/Components/Notification';
+import { useMergeProducts } from './Hooks/UseMergeProducts';
+import MergeProductsModal from './Components/MergeProductsModal';
+import { exportDatabaseExcel } from '../Utils/ExcelExport';
+import { downloadUploadIssuesReport, normalizeExcelId } from '../Utils/ExcelUploadUtils';
+import { updateProductIdCascade } from '../Service/database_service';
+
+function roundProductCost(value: unknown): number {
+  const n = typeof value === 'number' ? value : Number(String(value ?? '').replace(/,/g, ''));
+  if (!Number.isFinite(n)) return 0;
+  return Math.round(n * 1000) / 1000;
+}
+
+function formatProductCost(value: unknown): string {
+  if (value === null || value === undefined || value === '') return '';
+  return roundProductCost(value).toFixed(3);
+}
+
+export default function ProductsPage() {
+  const { canEdit, canDelete, isLoaded } = usePermissions();
+  const [products, setProducts] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<any>(null);
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<'save' | 'delete'>('save');
+  const [itemToDelete, setItemToDelete] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 100;
+  const [totalCount, setTotalCount] = useState(0);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
+
+  // Form states
+  const [name, setName] = useState('');
+  const [unit, setUnit] = useState('');
+  const [barcode, setBarcode] = useState('');
+  const [productId, setProductId] = useState('');
+  const [itemCode, setItemCode] = useState<string>('');
+  const [productCategory, setProductCategory] = useState('');
+  const [productCost, setProductCost] = useState<string>('');
+  const [stockQuantity, setStockQuantity] = useState<string>('0');
+  const [qtyInBox, setQtyInBox] = useState<string>('0');
+  const [isCountable, setIsCountable] = useState<boolean>(false);
+  const [isActive, setIsActive] = useState<boolean>(true);
+  const [isUploading, setIsUploading] = useState(false);
+
+  const [activeTab, setActiveTab] = useState<'products'|'categories'>('products');
+  useDataBaseProductsTabAudit(activeTab);
+  const [categories, setCategories] = useState<{name: string, count: number}[]>([]);
+  const [isConfirmCategoryOpen, setIsConfirmCategoryOpen] = useState(false);
+  const [categoryToDelete, setCategoryToDelete] = useState<string | null>(null);
+  const [isCategoriesLoading, setIsCategoriesLoading] = useState(false);
+
+  // Fetch products when page or search term changes (debounced)
+  useEffect(() => {
+    if (activeTab === 'products') {
+      const handler = setTimeout(() => {
+        fetchProducts(searchTerm, currentPage);
+      }, 300);
+      return () => clearTimeout(handler);
+    }
+  }, [searchTerm, currentPage, activeTab]);
+
+  useEffect(() => {
+    if (activeTab === 'categories') {
+      fetchCategories();
+    }
+  }, [activeTab]);
+
+  async function fetchProducts(search: string = '', page: number = 1) {
+    try {
+      const start = (page - 1) * itemsPerPage;
+      const end = start + itemsPerPage - 1;
+
+      let query = bhs_supabas
+        .from('bhs_PRODUCTS')
+        .select('*', { count: 'exact' });
+
+      if (search.trim()) {
+        const term = `%${search.trim()}%`;
+        query = query.or(`"PRODUCT NAME".ilike.${term},"PRODUCT BARCODE".ilike.${term},"PRODUCT ID".ilike.${term}`);
+      }
+
+      const { data, error, count } = await query
+        .order('PRODUCT NAME')
+        .range(start, end);
+
+      if (error) throw error;
+      setProducts(data || []);
+      setTotalCount(count || 0);
+    } catch (err: any) {
+      toast.error('Failed to load products: ' + err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  const handleOpenModal = (product: any = null) => {
+    setEditingProduct(product);
+    setName(product ? product["PRODUCT NAME"] : '');
+    setUnit(product ? product["UNIT"] || '' : '');
+    setBarcode(product ? product["PRODUCT BARCODE"] || '' : '');
+    setProductId(product ? product["PRODUCT ID"] : '');
+    setItemCode(product ? (product["ITEM CODE"] ?? '').toString() : '');
+    setProductCategory(product ? product["PRODUCT CATEGORY"] || '' : '');
+    setProductCost(product ? formatProductCost(product["PRODUCT COST"]) : '');
+    setStockQuantity(product ? (product["STOCK QUANTITY"] ?? '0').toString() : '0');
+    setQtyInBox(product ? (product["QTY IN BOX"] ?? '0').toString() : '0');
+    setIsCountable(product ? (product["IS_COUNTABLE"] ?? false) : false);
+    setIsActive(product ? (product["IS_ACTIVE"] ?? true) : true);
+    setIsModalOpen(true);
+  };
+
+  const handleSave = (e: React.FormEvent) => {
+    e.preventDefault();
+    executeSave();
+  };
+
+  const executeSave = async () => {
+    setIsSaving(true);
+    try {
+      // Validate Product ID is unique
+      if (productId.trim()) {
+        const { data: existing, error: checkError } = await bhs_supabas
+          .from('bhs_PRODUCTS')
+          .select('ID')
+          .eq('PRODUCT ID', productId.trim())
+          .maybeSingle();
+
+        if (checkError) throw checkError;
+
+        if (existing) {
+          if (!editingProduct || existing.ID !== editingProduct.ID) {
+            toast.error(`The Product ID "${productId}" is already in use by another product!`);
+            setIsSaving(false);
+            return;
+          }
+        }
+      }
+
+      const itemCodeValue = itemCode !== '' ? Number(itemCode) : null;
+      const costValue = productCost !== '' ? roundProductCost(productCost) : 0;
+      if (editingProduct) {
+        const oldProductId = editingProduct['PRODUCT ID'];
+        const newProductId = productId;
+
+        const { error } = await bhs_supabas
+          .from('bhs_PRODUCTS')
+          .update({
+            "PRODUCT NAME": name,
+            "UNIT": unit.trim(),
+            "PRODUCT BARCODE": barcode.trim(),
+            "PRODUCT ID": productId,
+            "ITEM CODE": itemCodeValue,
+            "PRODUCT CATEGORY": productCategory,
+            "PRODUCT COST": costValue,
+            "STOCK QUANTITY": stockQuantity !== '' ? Number(stockQuantity) : 0,
+            "QTY IN BOX": qtyInBox !== '' ? Number(qtyInBox) : 0,
+            "IS_COUNTABLE": isCountable,
+            "IS_ACTIVE": isActive
+          })
+          .eq('ID', editingProduct.ID);
+        if (error) throw error;
+
+        if (oldProductId && newProductId && oldProductId !== newProductId) {
+          const cascadeResult = await updateProductIdCascade(oldProductId, newProductId);
+          if (!cascadeResult.success) {
+            console.error('Failed to cascade product ID update:', cascadeResult.error);
+            toast.error('Product updated, but some references might not be updated correctly.');
+          }
+        }
+      } else {
+        // Query the database view directly to get the absolute maximum ID stored, bypass client-side limits
+        const { data: maxIdData, error: maxIdError } = await bhs_supabas
+          .from('bhs_PRODUCTS_MAX_ID')
+          .select('ID')
+          .single();
+
+        if (maxIdError && maxIdError.code !== 'PGRST116') { // PGRST116 is code for no rows returned, which is fine
+          throw maxIdError;
+        }
+
+        let nextNum = 1;
+        if (maxIdData && maxIdData.ID) {
+          const match = maxIdData.ID.match(/^R-(\d+)$/i);
+          if (match) {
+            nextNum = parseInt(match[1], 10) + 1;
+          }
+        }
+        const nextId = `R-${String(nextNum).padStart(4, '0')}`;
+
+        const { error } = await bhs_supabas
+          .from('bhs_PRODUCTS')
+          .insert({
+            ID: nextId,
+            "PRODUCT NAME": name,
+            "UNIT": unit.trim(),
+            "PRODUCT BARCODE": barcode.trim(),
+            "PRODUCT ID": productId,
+            "ITEM CODE": itemCodeValue,
+            "PRODUCT CATEGORY": productCategory,
+            "PRODUCT COST": costValue,
+            "STOCK QUANTITY": stockQuantity !== '' ? Number(stockQuantity) : 0,
+            "QTY IN BOX": qtyInBox !== '' ? Number(qtyInBox) : 0,
+            "IS_COUNTABLE": isCountable,
+            "IS_ACTIVE": isActive
+          });
+        if (error) throw error;
+      }
+      setIsConfirmOpen(false);
+      setIsModalOpen(false);
+      fetchProducts(searchTerm, currentPage);
+      toast.success(editingProduct ? 'Product updated successfully!' : 'Product added successfully!');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to save product');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDelete = (id: string) => {
+    setItemToDelete(id);
+    setConfirmAction('delete');
+    setIsConfirmOpen(true);
+  };
+
+  const executeDelete = async () => {
+    if (!itemToDelete) return;
+    setIsSaving(true);
+    try {
+      const { error } = await bhs_supabas
+        .from('bhs_PRODUCTS')
+        .delete()
+        .eq('ID', itemToDelete);
+      if (error) throw error;
+      fetchProducts(searchTerm, currentPage);
+      toast.success('Product deleted successfully!');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to delete product');
+    } finally {
+      setIsSaving(false);
+      setIsConfirmOpen(false);
+      setItemToDelete(null);
+    }
+  };
+
+  const fetchCategories = async () => {
+    setIsCategoriesLoading(true);
+    try {
+      let allCategories: string[] = [];
+      let fetchMore = true;
+      let pageIndex = 0;
+      const limit = 1000;
+
+      while (fetchMore) {
+        const { data, error } = await bhs_supabas
+          .from('bhs_PRODUCTS')
+          .select('"PRODUCT CATEGORY"')
+          .range(pageIndex * limit, (pageIndex + 1) * limit - 1);
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          allCategories = [...allCategories, ...data.map((d: any) => d['PRODUCT CATEGORY'] || '')];
+          if (data.length < limit) fetchMore = false;
+          else pageIndex++;
+        } else {
+          fetchMore = false;
+        }
+      }
+
+      const counts: Record<string, number> = {};
+      allCategories.forEach(cat => {
+        const c = cat.trim() || 'Uncategorized';
+        counts[c] = (counts[c] || 0) + 1;
+      });
+
+      const cats = Object.entries(counts)
+        .map(([name, count]) => ({ name, count }))
+        .sort((a, b) => b.count - a.count);
+
+      setCategories(cats);
+    } catch (err: unknown) {
+      console.error(err);
+      toast.error(err instanceof Error ? err.message : 'Failed to load categories');
+    } finally {
+      setIsCategoriesLoading(false);
+    }
+  };
+
+  const handleDeleteCategory = (categoryName: string) => {
+    setCategoryToDelete(categoryName);
+    setIsConfirmCategoryOpen(true);
+  };
+
+  const executeDeleteCategory = async () => {
+    if (!categoryToDelete) return;
+    setIsSaving(true);
+    try {
+      let query = bhs_supabas.from('bhs_PRODUCTS').delete();
+      
+      if (categoryToDelete === 'Uncategorized') {
+        query = query.or('"PRODUCT CATEGORY".eq."","PRODUCT CATEGORY".is.null');
+      } else {
+        query = query.eq('PRODUCT CATEGORY', categoryToDelete);
+      }
+
+      const { error } = await query;
+      if (error) throw error;
+      
+      toast.success('Category and its products deleted successfully');
+      fetchCategories();
+      setTotalCount(prev => prev - (categories.find(c => c.name === categoryToDelete)?.count || 0));
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete category');
+    } finally {
+      setIsSaving(false);
+      setIsConfirmCategoryOpen(false);
+      setCategoryToDelete(null);
+    }
+  };
+
+  const handleExportExcel = async () => {
+    setIsSaving(true);
+    try {
+      let allData: any[] = [];
+      let start = 0;
+      const step = 1000;
+      let hasMore = true;
+
+      while (hasMore) {
+        const { data, error } = await bhs_supabas
+          .from('bhs_PRODUCTS')
+          .select('*')
+          .order('PRODUCT NAME')
+          .range(start, start + step - 1);
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          allData = [...allData, ...data];
+          start += step;
+        } else {
+          hasMore = false;
+        }
+
+        if (data && data.length < step) {
+          hasMore = false;
+        }
+      }
+
+      const exportData = allData.map((p: any) => ({
+        'ID': p.ID,
+        'PRODUCT ID': p['PRODUCT ID'],
+        'PRODUCT BARCODE': p['PRODUCT BARCODE'],
+        'PRODUCT NAME': p['PRODUCT NAME'],
+        'UNIT': p['UNIT'] || '',
+        'PRODUCT CATEGORY': p['PRODUCT CATEGORY'],
+        'ITEM CODE': p['ITEM CODE'],
+        'PRODUCT COST': roundProductCost(p['PRODUCT COST']),
+        'STOCK QUANTITY': p['STOCK QUANTITY'] || 0,
+        'QTY IN BOX': p['QTY IN BOX'] || 0,
+        'IS_COUNTABLE': p['IS_COUNTABLE'] ? 'Yes' : 'No',
+        'STATUS': p['IS_ACTIVE'] === false ? 'Inactive' : 'Active'
+      }));
+
+      await exportDatabaseExcel(exportData, `Products_Database_${new Date().toISOString().split('T')[0]}.xlsx`, {
+        numericColumns: ['PRODUCT COST', 'ITEM CODE', 'QTY IN BOX', 'STOCK QUANTITY'],
+      });
+      toast.success('Database exported successfully!');
+    } catch (err: any) {
+      toast.error('Failed to export data: ' + err.message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+
+
+  const handleImportExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    try {
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data, { type: 'array' });
+      const firstSheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[firstSheetName];
+      const jsonData: Record<string, unknown>[] = XLSX.utils.sheet_to_json(worksheet);
+
+      if (jsonData.length === 0) {
+        toast.error('The uploaded Excel file is empty.');
+        return;
+      }
+
+      const { data: latestProducts, error: fetchErr } = await bhs_supabas
+        .from('bhs_PRODUCTS')
+        .select('ID, "PRODUCT ID"');
+
+      if (fetchErr) throw fetchErr;
+
+      const dbProductIdToIdMap = new Map<string, string>();
+      (latestProducts || []).forEach((product) => {
+        const productId = normalizeExcelId(product['PRODUCT ID']);
+        if (productId) {
+          dbProductIdToIdMap.set(productId, product.ID);
+        }
+      });
+
+      const duplicateProductIdsInFile = new Map<string, number[]>();
+      const duplicateIdsInFile = new Map<string, number[]>();
+      const missingIdRows: number[] = [];
+      const missingNameRows: number[] = [];
+      const missingProductIdRows: number[] = [];
+      const conflictingProductIdRows: string[] = [];
+
+      const trackRow = (map: Map<string, number[]>, key: string, rowNumber: number) => {
+        if (!key) return;
+        const rows = map.get(key) || [];
+        rows.push(rowNumber);
+        map.set(key, rows);
+      };
+
+      jsonData.forEach((row, index) => {
+        const rowNumber = index + 2;
+        let recordId = row['ID']?.toString().trim() || '';
+        const productId = normalizeExcelId(row['PRODUCT ID']);
+        const productName = row['PRODUCT NAME']?.toString().trim() || '';
+
+        // Auto-resolve ID if missing but PRODUCT ID exists in DB
+        if (!recordId && productId && dbProductIdToIdMap.has(productId)) {
+          recordId = dbProductIdToIdMap.get(productId)!;
+          row['ID'] = recordId; // Update row for the mapping later
+        }
+
+        if (!productName) missingNameRows.push(rowNumber);
+        if (!productId) missingProductIdRows.push(rowNumber);
+
+        if (recordId) trackRow(duplicateIdsInFile, recordId, rowNumber);
+        if (productId) trackRow(duplicateProductIdsInFile, productId, rowNumber);
+
+        if (productId && recordId && dbProductIdToIdMap.has(productId)) {
+          const existingId = dbProductIdToIdMap.get(productId);
+          if (existingId && existingId !== recordId) {
+            conflictingProductIdRows.push(
+              `Row ${rowNumber}: PRODUCT ID "${productId}" already belongs to record ${existingId}, not ${recordId}`
+            );
+          }
+        }
+      });
+
+      const issueSections = [
+        {
+          heading: `=== MISSING PRODUCT NAME (${missingNameRows.length}) ===`,
+          lines: missingNameRows.map((row) => `Row ${row}`),
+        },
+        {
+          heading: `=== MISSING PRODUCT ID (${missingProductIdRows.length}) ===`,
+          lines: missingProductIdRows.map((row) => `Row ${row}`),
+        },
+        {
+          heading: '=== DUPLICATE PRODUCT ID IN FILE ===',
+          lines: [...duplicateProductIdsInFile.entries()]
+            .filter(([, rows]) => rows.length > 1)
+            .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
+            .map(([productId, rows]) => `${productId} -> rows ${rows.join(', ')}`),
+        },
+        {
+          heading: '=== DUPLICATE ID IN FILE ===',
+          lines: [...duplicateIdsInFile.entries()]
+            .filter(([, rows]) => rows.length > 1)
+            .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
+            .map(([recordId, rows]) => `${recordId} -> rows ${rows.join(', ')}`),
+        },
+        {
+          heading: `=== PRODUCT ID ALREADY LINKED TO ANOTHER RECORD (${conflictingProductIdRows.length}) ===`,
+          lines: conflictingProductIdRows,
+        },
+      ];
+
+      const hasIssues = issueSections.some((section) => section.lines.length > 0);
+      if (hasIssues) {
+        downloadUploadIssuesReport(
+          `Products_Upload_Issues_${new Date().toISOString().split('T')[0]}.txt`,
+          'Products Upload - Issues Found',
+          issueSections
+        );
+        toast.error(
+          'Upload blocked. A text file with all issues has been downloaded. Fix the Excel file and upload again.'
+        );
+        return;
+      }
+
+      const formattedData = jsonData.map((row) => {
+        const id = row['ID']?.toString().trim();
+        return {
+          ...(id ? { ID: id } : {}),
+          'PRODUCT NAME': row['PRODUCT NAME']?.toString().trim() || '',
+          'UNIT': row['UNIT']?.toString().trim() || '',
+          'PRODUCT BARCODE': row['PRODUCT BARCODE']?.toString().trim() || '',
+          'PRODUCT ID': normalizeExcelId(row['PRODUCT ID']),
+          'ITEM CODE': row['ITEM CODE'] ? Number(row['ITEM CODE']) : null,
+          'PRODUCT CATEGORY': row['PRODUCT CATEGORY']?.toString().trim() || '',
+          'PRODUCT COST':
+            row['PRODUCT COST'] !== undefined && row['PRODUCT COST'] !== ''
+              ? roundProductCost(row['PRODUCT COST'])
+              : 0,
+          'STOCK QUANTITY': row['STOCK QUANTITY'] !== undefined && row['STOCK QUANTITY'] !== '' ? Number(row['STOCK QUANTITY']) : 0,
+          'QTY IN BOX': row['QTY IN BOX'] !== undefined && row['QTY IN BOX'] !== '' ? Number(row['QTY IN BOX']) : 0,
+          'IS_COUNTABLE': String(row['IS_COUNTABLE'] || '').toLowerCase() === 'yes',
+          'IS_ACTIVE': row['STATUS'] ? String(row['STATUS']).toLowerCase() === 'active' : true,
+        };
+      });
+
+      const chunkSize = 500;
+      for (let i = 0; i < formattedData.length; i += chunkSize) {
+        const chunk = formattedData.slice(i, i + chunkSize);
+        const { error } = await bhs_supabas
+          .from('bhs_PRODUCTS')
+          .upsert(chunk, { onConflict: 'ID' });
+
+        if (error) throw error;
+      }
+
+      toast.success(`Successfully imported ${formattedData.length} products!`);
+      fetchProducts(searchTerm, currentPage);
+    } catch (err: any) {
+      toast.error('Failed to import data: ' + err.message);
+    } finally {
+      setIsUploading(false);
+      e.target.value = '';
+    }
+  };
+
+  const totalPages = Math.ceil(totalCount / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedProducts = products;
+
+  const triggerMessage = (type: 'success' | 'error', text: string) => {
+    if (type === 'success') toast.success(text);
+    else toast.error(text);
+  };
+
+  const merge = useMergeProducts(
+    products,
+    () => fetchProducts(searchTerm, currentPage),
+    (msg, type = 'success') => triggerMessage(type, msg)
+  );
+
+  useEffect(() => {
+    merge.setSelectedInternalIds([]);
+  }, [searchTerm, currentPage]);
+
+  return (
+    <div className="space-y-8">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex flex-col md:flex-row md:items-center gap-6">
+          <h1 className="text-4xl font-normal text-black tracking-tighter flex items-center gap-3">
+            Products DB <span className="text-lg font-black text-gray-600 bg-gray-100 px-4 py-1.5 rounded-full border border-gray-200">{totalCount.toLocaleString()}</span>
+          </h1>
+
+          <div className="flex bg-gray-100 p-1 rounded-2xl w-fit">
+            <button
+              onClick={() => setActiveTab('products')}
+              className={`px-6 py-2.5 rounded-xl text-sm font-black tracking-widest uppercase transition-all ${
+                activeTab === 'products'
+                  ? 'bg-white text-black shadow-sm'
+                  : 'text-gray-500 hover:text-black'
+              }`}
+            >
+              Products
+            </button>
+            <button
+              onClick={() => setActiveTab('categories')}
+              className={`px-6 py-2.5 rounded-xl text-sm font-black tracking-widest uppercase transition-all ${
+                activeTab === 'categories'
+                  ? 'bg-white text-black shadow-sm'
+                  : 'text-gray-500 hover:text-black'
+              }`}
+            >
+              Product Categories
+            </button>
+          </div>
+        </div>
+        <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
+          {canEdit && (
+            <>
+              <button
+                onClick={handleExportExcel}
+                disabled={isSaving}
+                className="p-4 bg-white border border-gray-200 text-green-600 rounded-2xl shadow-sm hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center disabled:opacity-50"
+                title="Export Excel"
+              >
+                <Download className="w-6 h-6" />
+              </button>
+
+              <label
+                className={`p-4 bg-white border border-gray-200 text-blue-600 rounded-2xl shadow-sm hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center cursor-pointer ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                title="Import/Update from Excel"
+              >
+                {isUploading ? <Loader2 className="w-6 h-6 animate-spin" /> : <Upload className="w-6 h-6" />}
+                <input
+                  type="file"
+                  accept=".xlsx, .xls"
+                  className="hidden"
+                  onChange={handleImportExcel}
+                  disabled={isUploading}
+                />
+              </label>
+
+              <button
+                onClick={merge.handleMergeTrigger}
+                disabled={merge.isMerging || merge.selectedInternalIds.length < 2}
+                className="p-4 bg-white border border-gray-200 text-purple-600 rounded-2xl shadow-sm hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center disabled:opacity-50"
+                title={
+                  merge.selectedInternalIds.length < 2
+                    ? 'Select at least 2 products to merge'
+                    : `Merge ${merge.selectedInternalIds.length} products`
+                }
+              >
+                {merge.isMerging ? (
+                  <Loader2 className="w-6 h-6 animate-spin" />
+                ) : (
+                  <GitMerge className="w-6 h-6" />
+                )}
+              </button>
+
+              <button
+                onClick={() => handleOpenModal()}
+                className="p-4 bg-black text-[#D4AF37] rounded-2xl shadow-xl shadow-black/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center"
+                title="New Product"
+              >
+                <Plus className="w-6 h-6" />
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+
+      {activeTab === 'products' ? (
+        <>
+          <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+        <div className="relative">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Search by name, barcode, ID, or item code..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all"
+          />
+        </div>
+      </div>
+
+      {isLoading ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+          {Array(8).fill(0).map((_, i) => (
+            <div key={i} className="animate-pulse bg-white border border-gray-100 rounded-[2.5rem] p-6 h-[220px] flex flex-col justify-between">
+              <div className="space-y-4">
+                <div className="w-12 h-12 bg-gray-50 rounded-2xl" />
+                <div className="h-6 bg-gray-50 rounded-xl w-3/4" />
+                <div className="h-4 bg-gray-50 rounded-xl w-1/2" />
+              </div>
+              <div className="h-10 bg-gray-50 rounded-2xl w-full" />
+            </div>
+          ))}
+        </div>
+      ) : paginatedProducts.length === 0 ? (
+        <NoData title="NO PRODUCTS FOUND" />
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+          {paginatedProducts.map((product) => {
+            const isSelected = merge.selectedInternalIds.includes(product.ID);
+
+            return (
+              <div
+                key={product.ID}
+                onClick={() => canEdit && handleOpenModal(product)}
+                className={`group bg-white border rounded-[2.5rem] p-6 transition-all duration-300 flex flex-col justify-between min-h-[220px] ${
+                  isSelected ? 'border-[#D4AF37] ring-2 ring-[#D4AF37]/20' : 'border-gray-100'
+                } ${canEdit ? 'hover:shadow-xl hover:border-black/5 cursor-pointer' : ''}`}
+              >
+                <div>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-start gap-3">
+                      {canEdit && (
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={() => merge.handleToggleSelect(product.ID)}
+                          className="mt-3 w-4 h-4 rounded border-gray-300"
+                          title="Select for merge"
+                        />
+                      )}
+                      <div className="w-12 h-12 rounded-2xl bg-black text-[#D4AF37] flex items-center justify-center shadow-lg shadow-black/10">
+                        <Package className="w-5 h-5" />
+                      </div>
+                    </div>
+                    <span className="text-xs font-bold text-gray-300 uppercase tracking-widest">{product.ID}</span>
+                  </div>
+
+                  <div className="mt-4">
+                    <h3
+                      className="font-black text-black text-base leading-tight group-hover:text-[#D4AF37] transition-colors line-clamp-2"
+                      title={product['PRODUCT NAME']}
+                    >
+                      {product['PRODUCT NAME'] || '—'} {product['UNIT'] && <span className="text-gray-400 font-bold ml-1">({product['UNIT']})</span>}
+                    </h3>
+                    <div className="text-xs font-bold text-gray-400 mt-1 line-clamp-1 font-mono" title={product['PRODUCT BARCODE']}>
+                      {product['PRODUCT BARCODE'] || '—'}
+                    </div>
+                    <div className="flex flex-wrap gap-2 mt-3">
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-gray-50 text-gray-500 rounded-xl text-[9px] font-black uppercase tracking-widest font-mono">
+                        ID: {product['PRODUCT ID']}
+                      </span>
+                      <span className={`inline-flex items-center px-2.5 py-1 rounded-xl text-[9px] font-black uppercase tracking-widest ${product['IS_ACTIVE'] === false ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                        {product['IS_ACTIVE'] === false ? 'Inactive' : 'Active'}
+                      </span>
+                      {product['PRODUCT CATEGORY'] && (
+                        <span className="inline-flex items-center px-2.5 py-1 bg-gray-100 text-gray-600 rounded-xl text-[9px] font-black uppercase tracking-widest truncate max-w-full">
+                          {product['PRODUCT CATEGORY']}
+                        </span>
+                      )}
+                      {product['ITEM CODE'] != null && (
+                        <span className="inline-flex items-center px-2.5 py-1 bg-[#D4AF37]/10 text-[#B8960C] rounded-xl text-[9px] font-black font-mono tracking-widest">
+                          #{product['ITEM CODE']}
+                        </span>
+                      )}
+                      {product['PRODUCT COST'] != null && (
+                        <span className="inline-flex items-center px-2.5 py-1 bg-green-50 text-green-600 rounded-xl text-[9px] font-black font-mono tracking-widest">
+                          AED {formatProductCost(product['PRODUCT COST'])}
+                        </span>
+                      )}
+                      {product['STOCK QUANTITY'] != null && (
+                        <span className="inline-flex items-center px-2.5 py-1 bg-purple-50 text-purple-600 rounded-xl text-[9px] font-black font-mono tracking-widest">
+                          STOCK: {product['STOCK QUANTITY']}
+                        </span>
+                      )}
+                      {product['IS_COUNTABLE'] && (
+                        <span className="inline-flex items-center px-2.5 py-1 bg-blue-50 text-blue-600 rounded-xl text-[9px] font-black uppercase tracking-widest">
+                          COUNTABLE
+                        </span>
+                      )}
+                      <div className="w-full mt-2">
+                        <div className="bg-gray-50 rounded-xl p-2 text-center">
+                          <div className="text-[8px] font-black text-gray-400 uppercase tracking-widest">IN BOX</div>
+                          <div className="text-xs font-black text-black">{product['QTY IN BOX'] || 0}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-6 pt-3 border-t border-gray-50 flex items-center justify-end">
+                  <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all duration-300">
+                    {canEdit && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenModal(product);
+                        }}
+                        className="p-2 hover:bg-gray-50 rounded-xl text-gray-400 hover:text-black transition-all border border-transparent hover:border-gray-100"
+                        title="Edit Product"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                    )}
+                    {canDelete && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDelete(product.ID);
+                        }}
+                        className="p-2 hover:bg-red-50 rounded-xl text-gray-400 hover:text-red-500 transition-all border border-transparent hover:border-red-100"
+                        title="Delete Product"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Pagination Controls */}
+      {totalPages > 1 && (
+        <div className="bg-white px-8 py-6 rounded-3xl border border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm mt-6">
+          <div className="text-xs font-bold text-gray-400 uppercase tracking-widest">
+            Showing <span className="text-black font-black">{startIndex + 1}</span> to{" "}
+            <span className="text-black font-black">
+              {Math.min(startIndex + itemsPerPage, totalCount)}
+            </span>{" "}
+            of <span className="text-black font-black">{totalCount}</span> products
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+              disabled={currentPage === 1}
+              className="w-10 h-10 bg-gray-50 border border-gray-100 rounded-xl flex items-center justify-center text-gray-400 hover:text-black hover:border-black disabled:opacity-30 disabled:hover:text-gray-400 disabled:hover:border-gray-100 transition-all"
+              title="Previous Page"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
+              .map((p, idx, arr) => {
+                const prev = arr[idx - 1];
+                const showEllipsis = prev && p - prev > 1;
+
+                return (
+                  <div key={p} className="flex items-center gap-2">
+                    {showEllipsis && <span className="text-xs text-gray-400 font-bold px-1">...</span>}
+                    <button
+                      onClick={() => setCurrentPage(p)}
+                      className={`w-10 h-10 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${currentPage === p
+                        ? 'bg-black text-[#D4AF37] shadow-lg shadow-black/10'
+                        : 'bg-gray-50 text-gray-400 hover:text-black border border-gray-100 hover:border-black'
+                        }`}
+                    >
+                      {p}
+                    </button>
+                  </div>
+                );
+              })}
+
+            <button
+              onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+              disabled={currentPage === totalPages}
+              className="w-10 h-10 bg-gray-50 border border-gray-100 rounded-xl flex items-center justify-center text-gray-400 hover:text-black hover:border-black disabled:opacity-30 disabled:hover:text-gray-400 disabled:hover:border-gray-100 transition-all"
+              title="Next Page"
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      )}
+      </>
+      ) : (
+        <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+          {isCategoriesLoading ? (
+            <div className="p-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                {Array(8).fill(0).map((_, i) => (
+                  <div key={i} className="animate-pulse bg-white border border-gray-100 rounded-[2.5rem] p-6 h-[220px] flex flex-col justify-between">
+                    <div className="space-y-4">
+                      <div className="w-12 h-12 bg-gray-50 rounded-2xl" />
+                      <div className="h-6 bg-gray-50 rounded-xl w-3/4" />
+                      <div className="h-4 bg-gray-50 rounded-xl w-1/2" />
+                    </div>
+                    <div className="h-10 bg-gray-50 rounded-2xl w-full" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : categories.length === 0 ? (
+            <div className="p-12 text-center text-gray-500 font-bold uppercase tracking-widest">
+              No Categories Found
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-100">
+                    <th className="px-6 py-4 text-xs font-black text-gray-500 uppercase tracking-widest text-center">Category Name</th>
+                    <th className="px-6 py-4 text-xs font-black text-gray-500 uppercase tracking-widest text-center">Products Count</th>
+                    {canDelete && (
+                      <th className="px-6 py-4 text-xs font-black text-gray-500 uppercase tracking-widest text-center">Actions</th>
+                    )}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {categories.map((cat, idx) => (
+                    <tr key={idx} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-6 py-5 font-bold text-black text-center">{cat.name}</td>
+                      <td className="px-6 py-5 text-center">
+                        <span className="bg-gray-100 text-gray-600 px-3 py-1 rounded-full text-xs font-black">
+                          {cat.count.toLocaleString()}
+                        </span>
+                      </td>
+                      {canDelete && (
+                        <td className="px-6 py-5 text-center">
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteCategory(cat.name)}
+                            className="px-4 py-2 bg-red-50 hover:bg-red-500 text-red-500 hover:text-white rounded-xl text-xs font-black tracking-widest uppercase transition-all inline-block"
+                          >
+                            Delete Category
+                          </button>
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Product Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="bg-white w-full max-w-4xl rounded-[2.5rem] shadow-2xl animate-in slide-in-from-bottom-8 duration-500 overflow-hidden">
+            <div className="p-8 pb-4 flex items-center justify-between border-b border-gray-100">
+              <h2 className="text-2xl font-bold">{editingProduct ? 'Edit Product' : 'New Product'}</h2>
+              <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-gray-100 rounded-xl transition-all">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSave} className="p-8 space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">PRODUCT ID</label>
+                  <input
+                    type="text"
+                    value={productId}
+                    onChange={(e) => setProductId(e.target.value)}
+                    placeholder="Internal SKU or ID"
+                    required
+                    className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">BARCODE</label>
+                  <div className="relative">
+                    <Barcode className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <input
+                      type="text"
+                      value={barcode}
+                      onChange={(e) => setBarcode(e.target.value)}
+                      placeholder="Barcode (optional)"
+                      className="w-full pl-14 pr-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">PRODUCT NAME</label>
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="e.g. Classic Gold Fountain Pen"
+                    required
+                    className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">UNIT</label>
+                  <input
+                    type="text"
+                    value={unit}
+                    onChange={(e) => setUnit(e.target.value)}
+                    placeholder="e.g. PCS, KG, BOX"
+                    className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">PRODUCT CATEGORY</label>
+                  <input
+                    type="text"
+                    value={productCategory}
+                    onChange={(e) => setProductCategory(e.target.value)}
+                    placeholder="e.g. ELECTRONICS"
+                    className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">PRODUCT COST (AED)</label>
+                  <input
+                    type="number"
+                    step="0.001"
+                    min="0"
+                    value={productCost}
+                    onChange={(e) => setProductCost(e.target.value)}
+                    onBlur={() => {
+                      if (productCost !== '') setProductCost(formatProductCost(productCost));
+                    }}
+                    placeholder="0.000"
+                    className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">STOCK QUANTITY</label>
+                  <input
+                    type="number"
+                    value={stockQuantity}
+                    onChange={(e) => setStockQuantity(e.target.value)}
+                    placeholder="0"
+                    className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">ITEM CODE</label>
+                  <input
+                    type="number"
+                    value={itemCode}
+                    onChange={(e) => setItemCode(e.target.value)}
+                    placeholder="e.g. 1001"
+                    className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold font-mono"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">QTY IN BOX</label>
+                  <input
+                    type="number"
+                    value={qtyInBox}
+                    onChange={(e) => setQtyInBox(e.target.value)}
+                    className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold"
+                  />
+                </div>
+
+                <div className="flex items-center gap-6 md:pt-6">
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      id="isCountable"
+                      checked={isCountable}
+                      onChange={(e) => setIsCountable(e.target.checked)}
+                      className="w-5 h-5 rounded border-gray-300 text-black focus:ring-black/5 cursor-pointer"
+                    />
+                    <label htmlFor="isCountable" className="text-sm font-bold text-gray-700 cursor-pointer">
+                      Is Countable?
+                    </label>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      id="isActive"
+                      checked={isActive}
+                      onChange={(e) => setIsActive(e.target.checked)}
+                      className="w-5 h-5 rounded border-gray-300 text-black focus:ring-black/5 cursor-pointer"
+                    />
+                    <label htmlFor="isActive" className="text-sm font-bold text-gray-700 cursor-pointer">
+                      Active Product
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-4 flex gap-4">
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  className="flex-1 py-4 bg-gray-100 text-gray-700 rounded-2xl font-bold hover:bg-gray-200 transition-all"
+                >
+                  CANCEL
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSaving}
+                  className="flex-1 py-4 bg-black text-[#D4AF37] rounded-2xl font-bold shadow-xl shadow-black/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                >
+                  {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+                  SAVE PRODUCT
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      <ConfirmModal
+        isOpen={isConfirmOpen}
+        onConfirm={executeDelete}
+        onCancel={() => setIsConfirmOpen(false)}
+        isLoading={isSaving}
+        title="Confirm Deletion"
+        message="Are you sure you want to delete this product? This action cannot be undone."
+      />
+
+      <ConfirmModal
+        isOpen={isConfirmCategoryOpen}
+        onConfirm={executeDeleteCategory}
+        onCancel={() => { setIsConfirmCategoryOpen(false); setCategoryToDelete(null); }}
+        isLoading={isSaving}
+        title="Delete Category"
+        message={`Are you sure you want to completely delete the category "${categoryToDelete}" and ALL its products from the database? This action cannot be undone.`}
+      />
+
+      <MergeProductsModal
+        isOpen={merge.showMergeModal}
+        isConfirmingMerge={merge.isConfirmingMerge}
+        isMerging={merge.isMerging}
+        selectedProducts={merge.selectedProducts}
+        mergeTargetName={merge.mergeTargetName}
+        mergeTargetBarcode={merge.mergeTargetBarcode}
+        mergeTargetCategory={merge.mergeTargetCategory}
+        mergeTargetItemCode={merge.mergeTargetItemCode}
+        mergeTargetUnit={merge.mergeTargetUnit}
+        survivorProductId={merge.survivorProductId}
+        onClose={merge.closeMergeModal}
+        onConfirm={merge.handleConfirmMerge}
+        onBackFromConfirm={() => merge.setIsConfirmingMerge(false)}
+        setMergeTargetName={merge.setMergeTargetName}
+        setMergeTargetBarcode={merge.setMergeTargetBarcode}
+        setMergeTargetCategory={merge.setMergeTargetCategory}
+        setMergeTargetItemCode={merge.setMergeTargetItemCode}
+        setMergeTargetUnit={merge.setMergeTargetUnit}
+        setSurvivorProductId={merge.setSurvivorProductId}
+      />
+    </div>
+  );
+}

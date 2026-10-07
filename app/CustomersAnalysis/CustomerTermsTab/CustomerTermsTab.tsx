@@ -1,0 +1,658 @@
+'use client';
+
+import { useMemo, useState } from 'react';
+import { InvoiceRow } from '@/types';
+import { useCustomerData } from '../CustomersTab/CustomersData';
+import { exportDebitExcelTable, exportDebitExcelWorkbook, recordsFromTable } from '../Utils/ExcelExport';
+import { useDebouncedValue } from '../Hooks/useDebouncedValue';
+import { 
+  FileText,
+  Search, 
+  FileSpreadsheet, 
+  Edit2,
+  X,
+  Loader2,
+  AlertCircle,
+  Filter
+} from 'lucide-react';
+import NoData from '@/app/Components/DataState/NoDataTab';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
+import { bhs_supabase } from '@/lib/supabase';
+import { toast } from '@/app/Components/Notification';
+import { useDebitData } from '../Context/DebitDataContext';
+import CustomerTermsDefaultView from './Views/CustomerTermsDefaultView';
+import CustomerTermsNoTagsView from './Views/CustomerTermsNoTagsView';
+import CustomerTermsTagsView from './Views/CustomerTermsTagsView';
+
+interface CustomerTermsTabProps {
+  data: InvoiceRow[];
+}
+
+export default function CustomerTermsTab({ data }: CustomerTermsTabProps) {
+  const { refresh } = useDebitData();
+  const [searchTerm, setSearchTerm] = useState('');
+  const debouncedSearchTerm = useDebouncedValue(searchTerm);
+  const [customOverdueDays, setCustomOverdueDays] = useState<number>(90);
+  const [viewMode, setViewMode] = useState<'DEFAULT' | 'NO TAGS' | 'TAGS ONLY'>('DEFAULT');
+
+  // Edit Modal State
+  const [selectedCustomer, setSelectedCustomer] = useState<any | null>(null);
+  const [editPaymentTerm, setEditPaymentTerm] = useState<string>('');
+  const [editCreditLimit, setEditCreditLimit] = useState<string>('');
+  const [editAccountStatus, setEditAccountStatus] = useState<'ACTIVE' | 'ON_HOLD'>('ACTIVE');
+  const [isSaving, setIsSaving] = useState(false);
+  const [selectedCustomerForAging, setSelectedCustomerForAging] = useState<any | null>(null);
+  // Applied Filter State
+  const [appliedStatusFilter, setAppliedStatusFilter] = useState<'ALL' | 'ACTIVE' | 'ON_HOLD'>('ALL');
+  const [appliedMinExceededDays, setAppliedMinExceededDays] = useState<string>('');
+  const [appliedMinExceededAmount, setAppliedMinExceededAmount] = useState<string>('');
+
+  // Draft Filter State
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [draftStatusFilter, setDraftStatusFilter] = useState<'ALL' | 'ACTIVE' | 'ON_HOLD'>('ALL');
+  const [draftMinExceededDays, setDraftMinExceededDays] = useState<string>('');
+  const [draftMinExceededAmount, setDraftMinExceededAmount] = useState<string>('');
+
+  const openFilterModal = () => {
+    setDraftStatusFilter(appliedStatusFilter);
+    setDraftMinExceededDays(appliedMinExceededDays);
+    setDraftMinExceededAmount(appliedMinExceededAmount);
+    setIsFilterOpen(true);
+  };
+
+  const applyFilters = () => {
+    setAppliedStatusFilter(draftStatusFilter);
+    setAppliedMinExceededDays(draftMinExceededDays);
+    setAppliedMinExceededAmount(draftMinExceededAmount);
+    setIsFilterOpen(false);
+  };
+
+  const clearFilters = () => {
+    setAppliedStatusFilter('ALL');
+    setAppliedMinExceededDays('');
+    setAppliedMinExceededAmount('');
+    setIsFilterOpen(false);
+  };
+
+  const filters = useMemo(() => ({
+    search: '',
+    filterYear: '',
+    filterMonth: '',
+    dateRangeFrom: '',
+    dateRangeTo: '',
+    invoiceTypeFilter: 'ALL',
+    matchingFilter: 'ALL',
+    selectedSalesRep: 'ALL',
+    closedFilter: 'ALL',
+    debtOperator: 'GT',
+    debtAmount: '',
+    collectionRateOperator: 'GT',
+    collectionRateValue: '',
+    collectionRateTypes: new Set(['PAYMENT', 'RETURN', 'DISCOUNT']),
+    lastPaymentValue: '',
+    lastPaymentUnit: 'DAYS',
+    lastPaymentStatus: 'ACTIVE',
+    lastPaymentAmountOperator: 'GT',
+    lastPaymentAmountValue: '',
+    hasOB: false,
+    overdueAmount: '',
+    overdueAging: 'ALL',
+    netSalesOperator: 'GT',
+    minTotalDebit: '',
+    noSalesValue: '',
+    noSalesUnit: 'DAYS',
+    lastSalesStatus: 'ACTIVE',
+    lastSalesAmountOperator: 'GT',
+    lastSalesAmountValue: '',
+    dateRangeType: 'LAST_TRANSACTION',
+    debtType: 'ALL',
+    selectedReps: [],
+    customerRating: 'ALL',
+    emailFilter: 'ALL',
+    overdueMonth: [],
+    overdueYear: [],
+  }), []);
+
+  const { customerAnalysis } = useCustomerData(data, filters, 'DEBIT', { id: 'netDebt', desc: true });
+
+  const customerTerms = useMemo(() => {
+    return customerAnalysis
+      .map(c => {
+        const limit = c.creditLimit || 0;
+        const debt = c.netDebt || 0;
+        const paymentTerm = (c as any).paymentTerm ?? 90;
+        const exceededDays = Math.max(0, (c.maxOverdueDays || 0) - paymentTerm);
+        const exceededAmount = limit > 0 ? Math.max(0, debt - limit) : 0;
+        const exceededPercentage = limit > 0 ? (exceededAmount / limit) * 100 : 0;
+        const cityStr = c.cities && c.cities instanceof Set && c.cities.size > 0 
+          ? Array.from(c.cities).join(', ') 
+          : (Array.isArray(c.cities) ? (c.cities as string[]).join(', ') : '-');
+
+        const severeDebt = c.openInvoicesAging
+          ? c.openInvoicesAging.filter(inv => inv.daysOverdue > customOverdueDays).reduce((sum, inv) => sum + inv.amount, 0)
+          : ((c.agingBreakdown?.ninetyOneToOneTwenty || 0) + (c.agingBreakdown?.older || 0));
+
+        return {
+          customerId: c.customerId || '',
+          customerName: c.customerName,
+          city: cityStr,
+          paymentTerm,
+          exceededDays,
+          netDebt: debt,
+          severeDebt,
+          creditLimit: limit,
+          exceededAmount,
+          exceededPercentage,
+          accountStatus: c.accountStatus || 'ACTIVE',
+          agingBreakdown: c.agingBreakdown,
+          customerTags: c.customerTags
+        };
+      })
+      .filter(c => Math.abs(c.netDebt) > 0.01)
+      .sort((a, b) => b.netDebt - a.netDebt);
+  }, [customerAnalysis, customOverdueDays]);
+
+  const filteredCustomers = useMemo(() => {
+    let result = customerTerms;
+
+    // Search filter
+    if (debouncedSearchTerm.trim()) {
+      const term = debouncedSearchTerm.toLowerCase().trim();
+      result = result.filter(c => 
+        c.customerName.toLowerCase().includes(term) ||
+        c.city.toLowerCase().includes(term) ||
+        c.customerId.toLowerCase().includes(term)
+      );
+    }
+
+    // Status filter
+    if (appliedStatusFilter !== 'ALL') {
+      result = result.filter(c => c.accountStatus === appliedStatusFilter);
+    }
+
+    // Exceeded Days filter
+    if (appliedMinExceededDays && !isNaN(Number(appliedMinExceededDays))) {
+      result = result.filter(c => c.exceededDays >= Number(appliedMinExceededDays));
+    }
+
+    // Exceeded Amount filter
+    if (appliedMinExceededAmount && !isNaN(Number(appliedMinExceededAmount))) {
+      result = result.filter(c => c.exceededAmount >= Number(appliedMinExceededAmount));
+    }
+
+    return result;
+  }, [customerTerms, debouncedSearchTerm, appliedStatusFilter, appliedMinExceededDays, appliedMinExceededAmount]);
+
+  const viewData = useMemo(() => {
+    if (viewMode === 'NO TAGS') {
+      return filteredCustomers.filter(c => !c.customerTags || c.customerTags.size === 0);
+    }
+    return filteredCustomers;
+  }, [filteredCustomers, viewMode]);
+
+  const handleExportExcel = async () => {
+    try {
+      const headers = ['Customer ID', 'Customer Name', 'City', 'Payment Term (Days)', 'Exceeded Days', 'Net Debt (AED)', '>90 Days Debt', 'Credit Limit (AED)', 'Exceeded Amount (AED)', 'Exceeded %'];
+      
+      const formatRow = (c: any) => [
+        c.customerId,
+        c.customerName,
+        c.city,
+        c.paymentTerm,
+        c.exceededDays,
+        c.netDebt,
+        c.severeDebt,
+        c.creditLimit,
+        c.exceededAmount,
+        `${c.exceededPercentage.toFixed(1)}%`
+      ];
+
+      const defaultRows = filteredCustomers.map(formatRow);
+      const noTagsRows = filteredCustomers.filter(c => !c.customerTags || c.customerTags.size === 0).map(formatRow);
+      
+      // Group and sort Tags exactly like the UI
+      const tagsOnlyHeaders = ['Tag', ...headers];
+      const taggedCustomers = filteredCustomers.filter(c => c.customerTags && c.customerTags.size > 0);
+      const groups: Record<string, typeof taggedCustomers> = {};
+      
+      taggedCustomers.forEach(c => {
+        const tags = Array.from(c.customerTags || []) as string[];
+        tags.forEach(tag => {
+          if (!groups[tag]) groups[tag] = [];
+          groups[tag].push(c);
+        });
+      });
+
+      const sortedTags = Object.keys(groups).sort();
+      const tagsOnlyRows: any[] = [];
+      
+      sortedTags.forEach(tag => {
+        const rows = groups[tag];
+        rows.sort((a: any, b: any) => {
+          if (a.city !== b.city) return a.city.localeCompare(b.city);
+          if (a.customerName !== b.customerName) return a.customerName.localeCompare(b.customerName);
+          return b.netDebt - a.netDebt;
+        });
+        
+        rows.forEach((c: any) => {
+          tagsOnlyRows.push([tag, ...formatRow(c)]);
+        });
+      });
+
+      const options = { numericColumns: ['Net Debt (AED)', '>90 Days Debt', 'Credit Limit (AED)', 'Exceeded Amount (AED)'] };
+
+      const sheets = [
+        { name: 'Default', data: recordsFromTable(headers, defaultRows), options },
+        { name: 'No Tags', data: recordsFromTable(headers, noTagsRows), options },
+        { name: 'Tags Only', data: recordsFromTable(tagsOnlyHeaders, tagsOnlyRows), options }
+      ];
+
+      await exportDebitExcelWorkbook(sheets, `Customer_Terms_${new Date().toISOString().split('T')[0]}`);
+    } catch (err) {
+      console.error('Failed to export Excel:', err);
+      alert('Error exporting Excel report.');
+    }
+  };
+
+  const openEditModal = (c: any) => {
+    setSelectedCustomer(c);
+    setEditPaymentTerm(c.paymentTerm.toString());
+    setEditCreditLimit(c.creditLimit.toString());
+    setEditAccountStatus(c.accountStatus || 'ACTIVE');
+  };
+
+  const handleSaveTerms = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedCustomer) return;
+    setIsSaving(true);
+    try {
+      const pTerm = Number(editPaymentTerm) || 90;
+      const cLimit = Number(editCreditLimit) || 0;
+
+      const { data: custData, error: fetchErr } = await bhs_supabase
+        .from('bhs_CUSTOMERS')
+        .select('"CUSTOMER MAIN NAME", "CUSTOMER TAG"')
+        .eq('CUSTOMER ID', selectedCustomer.customerId)
+        .limit(1)
+        .single();
+
+      if (fetchErr && fetchErr.code !== 'PGRST116') {
+        throw fetchErr;
+      }
+
+      await bhs_supabase
+        .from('bhs_CUSTOMERS')
+        .update({ "PAYMENT TERM": pTerm, "CREDIT LIMIT": cLimit, "ACCOUNT STATUS": editAccountStatus })
+        .eq('CUSTOMER ID', selectedCustomer.customerId);
+
+      if (custData?.['CUSTOMER MAIN NAME']) {
+        await bhs_supabase
+          .from('bhs_CUSTOMERS')
+          .update({ "PAYMENT TERM": pTerm })
+          .eq('CUSTOMER MAIN NAME', custData['CUSTOMER MAIN NAME']);
+      }
+
+      if (custData?.['CUSTOMER TAG']) {
+        await bhs_supabase
+          .from('bhs_CUSTOMERS')
+          .update({ "PAYMENT TERM": pTerm })
+          .eq('CUSTOMER TAG', custData['CUSTOMER TAG']);
+      }
+
+      setSelectedCustomer(null);
+      toast.success('Updated successfully! Refreshing data in background...');
+      refresh(true).catch(console.error);
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || 'Failed to update customer terms.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const totalDebt = useMemo(() => viewData.reduce((sum, c) => sum + c.netDebt, 0), [viewData]);
+  const totalExceeded = useMemo(() => viewData.reduce((sum, c) => sum + c.exceededAmount, 0), [viewData]);
+
+  return (
+    <div className="p-6 font-sans">
+      {/* Header Section */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+        <div className="flex flex-wrap items-center gap-3">
+          <h1 className="text-3xl font-normal text-black tracking-tighter flex items-center gap-3">
+            <FileText className="w-8 h-8 text-blue-500 shrink-0" />
+            Customer Terms
+          </h1>
+          <div className="flex flex-wrap gap-2">
+            <span className="bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-xs font-black border border-blue-100 shadow-sm">
+              {filteredCustomers.length} Customers
+            </span>
+            {totalExceeded > 0.01 && (
+              <span className="bg-red-50 text-red-700 px-3 py-1 rounded-full text-xs font-black border border-red-100 shadow-sm">
+                Overdraft: {Math.round(totalExceeded).toLocaleString('en-US')} AED
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div className="flex flex-col md:flex-row items-center gap-3 w-full md:w-auto">
+          {/* View Toggles */}
+          <div className="flex items-center bg-gray-100 p-1 rounded-xl shrink-0 self-start md:self-auto w-full md:w-auto">
+            <button
+              onClick={() => setViewMode('DEFAULT')}
+              className={`flex-1 md:w-32 px-4 py-2 text-center text-xs font-black uppercase tracking-wider rounded-lg transition-all ${viewMode === 'DEFAULT' ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-black hover:bg-gray-200/50'}`}
+            >
+              Default
+            </button>
+            <button
+              onClick={() => setViewMode('NO TAGS')}
+              className={`flex-1 md:w-32 px-4 py-2 text-center text-xs font-black uppercase tracking-wider rounded-lg transition-all ${viewMode === 'NO TAGS' ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-black hover:bg-gray-200/50'}`}
+            >
+              No Tags
+            </button>
+            <button
+              onClick={() => setViewMode('TAGS ONLY')}
+              className={`flex-1 md:w-32 px-4 py-2 text-center text-xs font-black uppercase tracking-wider rounded-lg transition-all ${viewMode === 'TAGS ONLY' ? 'bg-black text-white shadow-sm' : 'text-gray-500 hover:text-black hover:bg-gray-200/50'}`}
+            >
+              Tags Only
+            </button>
+          </div>
+
+          <div className="flex items-center gap-3 w-full md:w-auto">
+            <div className="relative flex-1 md:w-80">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search by customer, ID or city..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl py-2.5 pl-11 pr-4 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm font-bold transition-all"
+              />
+            </div>
+
+            <button
+              onClick={openFilterModal}
+              className={`flex items-center justify-center h-11 w-11 rounded-xl transition-colors shadow-sm shrink-0 cursor-pointer ${
+                appliedStatusFilter !== 'ALL' || appliedMinExceededDays || appliedMinExceededAmount
+                  ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                  : 'bg-white hover:bg-gray-50 border border-gray-200 text-gray-700'
+              }`}
+              title="Filter Customers"
+            >
+              <Filter className="h-5 w-5" />
+              {(appliedStatusFilter !== 'ALL' || appliedMinExceededDays || appliedMinExceededAmount) && (
+                <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white"></span>
+              )}
+            </button>
+
+            <button
+              onClick={handleExportExcel}
+              disabled={filteredCustomers.length === 0}
+              className="flex items-center justify-center h-11 w-11 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition-colors shadow-sm disabled:opacity-50 shrink-0 cursor-pointer"
+              title="Export to Excel"
+            >
+              <FileSpreadsheet className="h-5 w-5" />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Table Section */}
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200">
+        {viewMode === 'TAGS ONLY' ? (
+          <CustomerTermsTagsView 
+            filteredCustomers={viewData}
+            customOverdueDays={customOverdueDays}
+            setCustomOverdueDays={setCustomOverdueDays}
+            setSelectedCustomerForAging={setSelectedCustomerForAging}
+            openEditModal={openEditModal}
+          />
+        ) : viewMode === 'NO TAGS' ? (
+          <CustomerTermsNoTagsView 
+            filteredCustomers={viewData}
+            customOverdueDays={customOverdueDays}
+            setCustomOverdueDays={setCustomOverdueDays}
+            totalDebt={totalDebt}
+            totalExceeded={totalExceeded}
+            setSelectedCustomerForAging={setSelectedCustomerForAging}
+            openEditModal={openEditModal}
+          />
+        ) : (
+          <CustomerTermsDefaultView 
+            filteredCustomers={viewData}
+            customOverdueDays={customOverdueDays}
+            setCustomOverdueDays={setCustomOverdueDays}
+            totalDebt={totalDebt}
+            totalExceeded={totalExceeded}
+            setSelectedCustomerForAging={setSelectedCustomerForAging}
+            openEditModal={openEditModal}
+          />
+        )}
+      </div>
+
+      {/* Edit Modal */}
+      {selectedCustomer && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/20 animate-in fade-in duration-300">
+          <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="p-6 border-b border-gray-50 flex items-center justify-between">
+              <div>
+                <h3 className="text-xl font-bold">Edit Customer Terms</h3>
+                <p className="text-sm text-gray-500 font-bold mt-1 line-clamp-1">{selectedCustomer.customerName}</p>
+              </div>
+              <button 
+                onClick={() => setSelectedCustomer(null)}
+                className="p-2 text-gray-400 hover:text-black hover:bg-gray-50 rounded-xl transition-all"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <form onSubmit={handleSaveTerms} className="p-6 space-y-5">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">Payment Term (Days)</label>
+                <input
+                  type="number"
+                  value={editPaymentTerm}
+                  onChange={(e) => setEditPaymentTerm(e.target.value)}
+                  placeholder="e.g. 90"
+                  min="0"
+                  step="1"
+                  required
+                  className="w-full px-5 py-3.5 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">Credit Limit (AED)</label>
+                <input
+                  type="number"
+                  value={editCreditLimit}
+                  onChange={(e) => setEditCreditLimit(e.target.value)}
+                  placeholder="e.g. 50000"
+                  min="0"
+                  step="any"
+                  required
+                  className="w-full px-5 py-3.5 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold"
+                />
+              </div>
+
+              <div className="space-y-3 pt-2">
+                <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">Account Status</label>
+                <label className="flex items-center gap-3 p-4 border border-gray-100 rounded-xl cursor-pointer hover:bg-gray-50 transition-colors">
+                  <div className="relative">
+                    <input 
+                      type="checkbox" 
+                      className="sr-only peer"
+                      checked={editAccountStatus === 'ON_HOLD'}
+                      onChange={(e) => setEditAccountStatus(e.target.checked ? 'ON_HOLD' : 'ACTIVE')}
+                    />
+                    <div className="w-11 h-6 bg-emerald-100 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-emerald-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-500"></div>
+                  </div>
+                  <div>
+                    <div className="text-sm font-black text-black">
+                      {editAccountStatus === 'ON_HOLD' ? 'Suspend Account (On Hold)' : 'Active Account'}
+                    </div>
+                    <div className="text-[10px] text-gray-500 font-bold">
+                      {editAccountStatus === 'ON_HOLD' ? 'This customer is currently suspended.' : 'This customer can make new transactions.'}
+                    </div>
+                  </div>
+                </label>
+              </div>
+
+              <div className="pt-4 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setSelectedCustomer(null)}
+                  className="flex-1 py-4 bg-gray-50 text-gray-400 hover:text-black font-black text-xs uppercase tracking-wider rounded-xl transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSaving}
+                  className="flex-1 py-4 bg-black text-[#D4AF37] hover:bg-gray-900 font-black text-xs uppercase tracking-wider rounded-xl transition-all shadow-xl shadow-black/10 flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Save'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Filter Modal */}
+      {isFilterOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/20 animate-in fade-in duration-300">
+          <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="p-6 border-b border-gray-50 flex items-center justify-between">
+              <div>
+                <h3 className="text-xl font-bold">Filter Options</h3>
+                <p className="text-sm text-gray-500 font-bold mt-1">Narrow down customers list</p>
+              </div>
+              <button 
+                onClick={() => setIsFilterOpen(false)}
+                className="p-2 text-gray-400 hover:text-black hover:bg-gray-50 rounded-xl transition-all"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-5">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">Account Status</label>
+                <div className="relative">
+                  <select
+                    value={draftStatusFilter}
+                    onChange={(e) => setDraftStatusFilter(e.target.value as any)}
+                    className="appearance-none cursor-pointer w-full px-5 py-3.5 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold pr-10 hover:bg-gray-100"
+                  >
+                    <option value="ALL">All Customers</option>
+                    <option value="ACTIVE">Active</option>
+                    <option value="ON_HOLD">On Hold</option>
+                  </select>
+                  <div className="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none text-gray-400">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">Min Exceeded Days</label>
+                <input
+                  type="number"
+                  value={draftMinExceededDays}
+                  onChange={(e) => setDraftMinExceededDays(e.target.value)}
+                  placeholder="e.g. 30"
+                  min="0"
+                  step="1"
+                  className="w-full px-5 py-3.5 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">Min Exceeded Amount (AED)</label>
+                <input
+                  type="number"
+                  value={draftMinExceededAmount}
+                  onChange={(e) => setDraftMinExceededAmount(e.target.value)}
+                  placeholder="e.g. 5000"
+                  min="0"
+                  step="any"
+                  className="w-full px-5 py-3.5 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold"
+                />
+              </div>
+
+              <div className="pt-4 flex gap-3">
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  className="flex-1 py-4 bg-gray-50 text-gray-400 hover:text-red-600 font-black text-xs uppercase tracking-wider rounded-xl transition-all"
+                >
+                  Clear Filters
+                </button>
+                <button
+                  type="button"
+                  onClick={applyFilters}
+                  className="flex-1 py-4 bg-black text-[#D4AF37] hover:bg-gray-900 font-black text-xs uppercase tracking-wider rounded-xl transition-all shadow-xl shadow-black/10 flex items-center justify-center gap-2"
+                >
+                  Apply Filters
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Aging Chart Modal */}
+      {selectedCustomerForAging && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="bg-slate-900 px-6 py-4 flex justify-between items-center text-white">
+              <h2 className="text-xl font-black tracking-tight">{selectedCustomerForAging.customerName} - Aging Debt</h2>
+              <button 
+                onClick={() => setSelectedCustomerForAging(null)}
+                className="text-white/70 hover:text-white transition-colors p-1 rounded-full hover:bg-white/10"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            <div className="p-8">
+              <div className="h-[400px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={[
+                      { name: '0-30 Days', value: selectedCustomerForAging.agingBreakdown?.oneToThirty || 0, color: '#f59e0b' },
+                      { name: '31-60 Days', value: selectedCustomerForAging.agingBreakdown?.thirtyOneToSixty || 0, color: '#f97316' },
+                      { name: '61-90 Days', value: selectedCustomerForAging.agingBreakdown?.sixtyOneToNinety || 0, color: '#ef4444' },
+                      { name: '91-120 Days', value: selectedCustomerForAging.agingBreakdown?.ninetyOneToOneTwenty || 0, color: '#b91c1c' },
+                      { name: '> 120 Days', value: selectedCustomerForAging.agingBreakdown?.older || 0, color: '#7f1d1d' },
+                    ]}
+                    margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
+                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fontWeight: 700, fill: '#6b7280' }} dy={10} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fontWeight: 700, fill: '#6b7280' }} dx={-10} tickFormatter={(val) => val.toLocaleString('en-US')} />
+                    <Tooltip 
+                      cursor={{ fill: '#f3f4f6' }}
+                      contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)', fontWeight: 800 }}
+                      formatter={(value: number) => [value.toLocaleString('en-US') + ' AED', 'Amount']}
+                    />
+                    <Bar dataKey="value" radius={[6, 6, 0, 0]} maxBarSize={60}>
+                      {
+                        [...Array(5)].map((_, index) => (
+                          <Cell key={`cell-${index}`} fill={['#f59e0b', '#f97316', '#ef4444', '#b91c1c', '#7f1d1d'][index]} />
+                        ))
+                      }
+                      <LabelList dataKey="value" position="top" formatter={(val: any) => val > 0 ? val.toLocaleString('en-US') : ''} style={{ fontSize: '14px', fontWeight: 900, fill: '#1f2937' }} />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

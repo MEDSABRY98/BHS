@@ -1,0 +1,323 @@
+'use client';
+
+import React, { useState, useEffect } from 'react';
+import { Plus, Edit2, Trash2, Search, MailPlus, FileSpreadsheet } from 'lucide-react';
+import { exportStyledExcel } from '@/app/Components/Export/ExcelExport';
+import NoData from '@/app/Components/DataState/NoDataTab';
+import { toast } from '@/app/Components/Notification';
+import { fetchLuluEmails, addLuluEmail, updateLuluEmail, deleteLuluEmail } from '../Service/database_service';
+
+export default function LuluEmailsDatabasePage() {
+  const [data, setData] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<any>(null);
+  const [editingItem, setEditingItem] = useState<any>(null);
+  
+  const [formData, setFormData] = useState({
+    customerId: '',
+    customerCode: '',
+    to: '',
+    cc: ''
+  });
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const res = await fetchLuluEmails();
+      if (res.success && res.data) {
+        setData(res.data);
+      }
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filteredData = data.filter(item => 
+    (item['CUSTOMER ID']?.toLowerCase() || '').includes(search.toLowerCase()) ||
+    (item['CUSTOMER CODE']?.toLowerCase() || '').includes(search.toLowerCase()) ||
+    (item['TO:']?.toLowerCase() || '').includes(search.toLowerCase())
+  );
+
+  const handleExport = async () => {
+    if (filteredData.length === 0) {
+      toast.warning('No data to export');
+      return;
+    }
+    
+    const exportData = filteredData.map(item => ({
+      'Customer ID': item['CUSTOMER ID'] || '',
+      'Customer Name': item['Customer Name'] || 'Unknown Customer',
+      'Customer Code': item['CUSTOMER CODE'] || '',
+      'To': item['TO:'] || '',
+      'CC': item['CC:'] || ''
+    }));
+
+    await exportStyledExcel(exportData, `LuluEmails_DB_${new Date().toISOString().split('T')[0]}.xlsx`);
+  };
+
+  const handleOpenModal = (item: any = null) => {
+    if (item) {
+      setEditingItem(item);
+      setFormData({
+        customerId: item['CUSTOMER ID'] || '',
+        customerCode: item['CUSTOMER CODE'] || '',
+        to: item['TO:'] || '',
+        cc: item['CC:'] || ''
+      });
+    } else {
+      setEditingItem(null);
+      setFormData({ customerId: '', customerCode: '', to: '', cc: '' });
+    }
+    setIsModalOpen(true);
+  };
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      let res;
+      if (editingItem) {
+        res = await updateLuluEmail(editingItem.ID, formData.customerId, formData.customerCode, formData.to, formData.cc);
+      } else {
+        res = await addLuluEmail(formData.customerId, formData.customerCode, formData.to, formData.cc);
+      }
+      if (!res.success) throw new Error(res.error || 'Failed to save');
+      setIsModalOpen(false);
+      loadData();
+      toast.success(editingItem ? 'Email updated successfully!' : 'Email added successfully!');
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to save email');
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!itemToDelete) return;
+    try {
+      const id = itemToDelete.ID || null;
+      const customerId = itemToDelete['CUSTOMER ID'] || null;
+
+      const res = await deleteLuluEmail(id, customerId);
+      if (!res.success) throw new Error(res.error || 'Failed to delete email');
+      
+      loadData();
+      toast.success('Email deleted successfully!');
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to delete email');
+    } finally {
+      setItemToDelete(null);
+    }
+  };
+
+  const handleDelete = (item: any) => {
+    setItemToDelete(item);
+  };
+
+  return (
+    <div className="space-y-8">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-4xl font-normal text-black tracking-tighter flex items-center gap-3">Lulu Emails DB <span className="text-lg font-black text-gray-600 bg-gray-100 px-4 py-1.5 rounded-full border border-gray-200">{data.length.toLocaleString()}</span></h1>
+        </div>
+        <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
+          <button
+            onClick={handleExport}
+            className="p-4 bg-white text-green-700 border border-green-200 rounded-2xl shadow-sm hover:bg-green-50 active:scale-[0.98] transition-all flex items-center justify-center"
+            title="Export to Excel"
+          >
+            <FileSpreadsheet className="w-6 h-6" />
+          </button>
+          <button
+            onClick={() => handleOpenModal()}
+            className="p-4 bg-black text-[#D4AF37] rounded-2xl shadow-xl shadow-black/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center"
+            title="New Lulu Email"
+          >
+            <Plus className="w-6 h-6" />
+          </button>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="p-4 border-b border-gray-100">
+          <div className="relative max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search by Customer ID, Code, or TO..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/50"
+            />
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-center border-collapse">
+            <thead>
+              <tr className="bg-gray-50 text-xs uppercase tracking-wider text-gray-500">
+                <th className="px-6 py-4 font-medium border-b border-gray-100 text-center w-32">Customer ID</th>
+                <th className="px-6 py-4 font-medium border-b border-gray-100 text-center w-64">Customer Name</th>
+                <th className="px-6 py-4 font-medium border-b border-gray-100 text-center w-32">Customer Code</th>
+                <th className="px-6 py-4 font-medium border-b border-gray-100 text-center w-64">To</th>
+                <th className="px-6 py-4 font-medium border-b border-gray-100 text-center w-64">CC</th>
+                <th className="px-6 py-4 font-medium border-b border-gray-100 text-center w-32">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {loading ? (
+                Array(5).fill(0).map((_, i) => (
+                  <tr key={i} className="animate-pulse">
+                    <td colSpan={6} className="px-6 py-6">
+                      <div className="h-6 bg-gray-50 rounded-xl w-full"></div>
+                    </td>
+                  </tr>
+                ))
+              ) : filteredData.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="p-0">
+                    <NoData title="NO LULU EMAILS FOUND" />
+                  </td>
+                </tr>
+              ) : (
+                filteredData.map((item, idx) => (
+                  <tr key={item.ID || idx} className="hover:bg-gray-50/50 transition-colors">
+                    <td className="px-6 py-4 text-sm text-gray-500 text-center">{item['CUSTOMER ID']}</td>
+                    <td className="px-6 py-4 text-sm font-medium text-gray-900 text-center">{item['Customer Name']}</td>
+                    <td className="px-6 py-4 text-sm text-gray-500 text-center">{item['CUSTOMER CODE']}</td>
+                    <td className="px-6 py-4 text-sm text-gray-500 max-w-[200px] truncate mx-auto text-center">{item['TO:']}</td>
+                    <td className="px-6 py-4 text-sm text-gray-500 max-w-[200px] truncate mx-auto text-center">{item['CC:']}</td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center justify-center gap-2">
+                        <button
+                          onClick={() => handleOpenModal(item)}
+                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(item)}
+                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+              <h2 className="text-lg font-bold text-gray-900">{editingItem ? 'Edit Lulu Email Record' : 'Add New Lulu Email'}</h2>
+              <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-600">×</button>
+            </div>
+            <form onSubmit={handleSave} className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Customer ID</label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.customerId}
+                    onChange={(e) => setFormData({...formData, customerId: e.target.value})}
+                    className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/50"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Customer Code</label>
+                  <input
+                    type="text"
+                    value={formData.customerCode}
+                    onChange={(e) => setFormData({...formData, customerCode: e.target.value})}
+                    className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/50"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">TO: Emails (comma separated)</label>
+                <textarea
+                  required
+                  rows={2}
+                  value={formData.to}
+                  onChange={(e) => setFormData({...formData, to: e.target.value})}
+                  className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/50"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">CC: Emails (comma separated)</label>
+                <textarea
+                  rows={2}
+                  value={formData.cc}
+                  onChange={(e) => setFormData({...formData, cc: e.target.value})}
+                  className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/50"
+                />
+              </div>
+              <div className="flex justify-end gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  className="px-5 py-2 text-gray-600 hover:bg-gray-100 rounded-xl font-medium transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-[#D4AF37] hover:bg-[#C5A028] text-white rounded-xl font-medium transition-colors"
+                >
+                  Save Changes
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {itemToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-xl animate-in zoom-in-95">
+            <div className="p-6 text-center">
+              <div className="w-16 h-16 bg-red-50 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Trash2 className="w-8 h-8" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Delete Email</h3>
+              <p className="text-gray-500 text-sm">
+                Are you sure you want to delete this Lulu email record? This action cannot be undone.
+              </p>
+            </div>
+            <div className="p-4 bg-gray-50 border-t border-gray-100 flex gap-3 justify-center w-full">
+              <button
+                type="button"
+                onClick={() => setItemToDelete(null)}
+                className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-xl hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmDelete}
+                className="flex-1 px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-xl hover:bg-red-700 transition-colors flex items-center justify-center"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

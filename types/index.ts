@@ -1,0 +1,126 @@
+export interface InvoiceRow {
+  id?: string | number;
+  date: string;
+  dueDate?: string;
+  number: string;
+  customerId?: string;
+  customerName: string;
+  city?: string;
+  debit: number;
+  credit: number;
+  salesRep: string;
+  matching?: string;
+  residualAmount?: number;
+  creditLimit?: number;
+  paymentTerm?: number;
+  customerTag?: string;
+  customerClass?: string;
+  accountStatus?: 'ACTIVE' | 'ON_HOLD';
+  isCustomerVendor?: boolean;
+}
+
+export interface CustomerAnalysis {
+  customerId?: string;
+  customerName: string;
+  totalDebit: number;
+  totalCredit: number;
+  netDebt: number;
+  creditLimit?: number;
+  paymentTerm?: number;
+  accountStatus?: 'ACTIVE' | 'ON_HOLD';
+  netSales?: number; // Net Sales = SAL debit - RSAL credit (matching Dashboard)
+  transactionCount: number;
+  hasOpenMatchings?: boolean;
+  cities?: Set<string>;
+  customerTags?: Set<string>;
+  customerClasses?: Set<string>;
+  invoiceNumbers?: Set<string>;
+  lastPaymentDate?: Date | null;
+  lastPaymentMatching?: string | null; // Matching ID tied to last payment (if any)
+  lastPaymentAmount?: number | null; // Amount of last payment
+  lastPaymentClosure?: string; // Human label describing whether last payment is closed
+  lastSalesDate?: Date | null;
+  lastSalesAmount?: number | null; // Amount of last sale
+  lastTransactionDate?: Date | null; // NEW: Date of valid transaction of any type
+  overdueAmount?: number; // Total overdue amount
+  maxOverdueDays?: number; // Maximum days overdue across all open invoices
+  hasOB?: boolean; // Has unpaid OB invoices (OB invoices with netDebt > 0)
+  openOBAmount?: number; // Total netDebt of unpaid OB invoices
+  agingBreakdown?: {
+    atDate: number; // <= 0 days (Current)
+    oneToThirty: number; // 1-30 days
+    thirtyOneToSixty: number; // 31-60 days
+    sixtyOneToNinety: number; // 61-90 days
+    ninetyOneToOneTwenty: number; // 91-120 days
+    older: number; // > 120 days
+  };
+  openInvoicesAging?: { amount: number; daysOverdue: number }[];
+  creditPayments?: number;
+  creditReturns?: number;
+  creditDiscounts?: number;
+  totalSalesDebit?: number;
+  sales3m?: number;
+  salesCount3m?: number;
+  payments3m?: number;
+  paymentsCount3m?: number;
+  avgPaymentInterval?: number;
+}
+
+export interface CityAnalysis {
+  city: string;
+  totalDebit: number;
+  totalCredit: number;
+  netDebt: number;
+  customerCount: number;
+  transactionCount: number;
+  collectionRate: number;
+  goodCustomersCount: number;
+  mediumCustomersCount: number;
+  badCustomersCount: number;
+}
+
+export interface YearAnalysis {
+  year: string;
+  totalDebit: number;
+  totalCredit: number;
+  netDebt: number;
+  transactionCount: number;
+  collectionRate: number;
+  goodCustomersCount: number;
+  mediumCustomersCount: number;
+  badCustomersCount: number;
+}
+
+export interface MonthAnalysis {
+  month: string;
+  year: string;
+  totalDebit: number;
+  totalCredit: number;
+  netDebt: number;
+  transactionCount: number;
+  collectionRate: number;
+  goodCustomersCount: number;
+  mediumCustomersCount: number;
+  badCustomersCount: number;
+}
+
+export interface Note {
+  user: string;
+  customerName: string;
+  content: string;
+  timestamp?: string;
+  rowIndex?: number;
+  isSolved?: boolean;
+}
+
+
+export interface VisitCustomerEntry {
+  date: string;
+  customerName: string;
+  city: string;
+  salesRepName: string;
+  collectMoney: string;
+  howMuchCollectMoney: number;
+  notes: string;
+  rowIndex?: number;
+}

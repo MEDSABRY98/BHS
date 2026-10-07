@@ -1,0 +1,106 @@
+export type InsightsPeriodPreset = 'trailing12m' | 'ytd' | 'trailing6m' | 'trailing3m' | 'custom';
+
+export type InsightsSalesSource = 'debit' | 'sales';
+
+export interface InsightsFilters {
+  asOfDate: string;
+  periodPreset: InsightsPeriodPreset;
+  periodFrom: string;
+  periodTo: string;
+  salesRep: string[];
+  customers: string[];
+  customerTags: string[];
+  customerClassifications?: string[];
+  salesSource: InsightsSalesSource;
+}
+
+export interface InsightsSalesOverlay {
+  periodNetSales: number;
+  priorYearNetSales: number;
+  monthly: { month: string; netSales: number }[];
+  monthlyCurrentYear: { month: string; netSales: number }[];
+  monthlyPreviousYear: { month: string; netSales: number }[];
+}
+
+export interface AgingBreakdown {
+  atDate: number;
+  oneToThirty: number;
+  thirtyOneToSixty: number;
+  sixtyOneToNinety: number;
+  ninetyOneToOneTwenty: number;
+  older: number;
+}
+
+export interface InsightsPeriodMetrics {
+  netSales: number;
+  netSalesPriorYear: number;
+  netSalesYoYChange: number | null;
+  collections: number;
+  collectionsPriorYear: number;
+  collectionsYoYChange: number | null;
+  collectionRate: number | null;
+}
+
+export interface InsightsTrendPoint {
+  month: string;
+  monthLabel: string;
+  openDebt: number;
+  netSales: number;
+  collections: number;
+}
+
+export interface YoYTrendPoint {
+  monthName: string;
+  monthIndex: number;
+  cyOpenDebt: number;
+  pyOpenDebt: number;
+  cyNetSales: number;
+  pyNetSales: number;
+  cyCollections: number;
+  pyCollections: number;
+  cyCollectionRate: number | null;
+  pyCollectionRate: number | null;
+}
+
+export interface DebitInsightsMetrics {
+  totalOpenDebt: number;
+  agingBreakdown: AgingBreakdown;
+  period: InsightsPeriodMetrics;
+  trendSeries: InsightsTrendPoint[];
+  currentYearTrend: InsightsTrendPoint[];
+  previousYearTrend: InsightsTrendPoint[];
+  cities: string[];
+}
+
+export interface AgingBreakdown {
+  atDate: number;
+  oneToThirty: number;
+  thirtyOneToSixty: number;
+  sixtyOneToNinety: number;
+  ninetyOneToOneTwenty: number;
+  older: number;
+}
+
+export interface InsightsPeriodMetrics {
+  netSales: number;
+  netSalesPriorYear: number;
+  netSalesYoYChange: number | null;
+  collections: number;
+  collectionRate: number | null;
+}
+
+export interface InsightsTrendPoint {
+  month: string;
+  monthLabel: string;
+  openDebt: number;
+  netSales: number;
+  collections: number;
+}
+
+export interface DebitInsightsMetrics {
+  totalOpenDebt: number;
+  agingBreakdown: AgingBreakdown;
+  period: InsightsPeriodMetrics;
+  trendSeries: InsightsTrendPoint[];
+  cities: string[];
+}

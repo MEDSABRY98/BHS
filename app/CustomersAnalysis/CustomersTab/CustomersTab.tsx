@@ -1,0 +1,1057 @@
+'use client';
+
+import { useMemo, useState } from 'react';
+import {
+  useReactTable,
+  getCoreRowModel,
+  getSortedRowModel,
+  flexRender,
+  createColumnHelper,
+  SortingState,
+} from '@tanstack/react-table';
+import { InvoiceRow, CustomerAnalysis } from '@/types';
+import NoData from '@/app/Components/DataState/NoDataTab';
+import CustomerDetailsTab from '../CustomerDetailsTab/CustomerDetailsTab';
+import { generateAccountStatementPDF, generateBulkCustomerStatementsPDF } from '@/app/CustomersAnalysis/CustomerDetailsTab/Pdf/StatementUtils';
+import { generateBulkDebitSummaryPDF } from '@/app/CustomersAnalysis/CustomersTab/Pdf/SummaryUtils';
+import { FileSpreadsheet, FileText } from 'lucide-react';
+import { saveTrackedAs } from '@/app/Audit/Utils/TrackedDownload';
+
+// Sub-components
+import DefaultView from './Views/DefaultView';
+import SummaryView from './Views/SummaryView';
+import YearlyView from './Views/YearlyView';
+import NoTagsView from './Views/NoTagsView';
+import TagsOnlyView from './Views/TagsOnlyView';
+import RatingBreakdownModal from './Modals/RatingBreakdownModal';
+import CollectionStatsModal from './Modals/CollectionStatsModal';
+import MonthlyBreakdownModal from './Modals/MonthlyBreakdownModal';
+import EmailStatementModal from './Modals/EmailStatementModal';
+import SummaryExportModal from './Modals/SummaryExportModal';
+import CustomersExcelButton from './CustomersExcelButton';
+
+// Logic & Utils
+import { useCustomerData } from './CustomersData';
+import {
+  copyToClipboard,
+  formatDmy,
+  calculateCustomerMonthlyBreakdown,
+  calculateDebtRating,
+  buildInvoicesWithNetDebtForExport,
+  toNetOnlyOpenInvoicesForExport,
+  exportToExcel,
+  exportToPDF,
+  parseDate
+} from './CstomersUtils';
+import { generateSingleCustomerExcelBlob } from './CustomersExcelEmails';
+import { useDebouncedValue } from '../Hooks/useDebouncedValue';
+import { useDebitData } from '../Context/DebitDataContext';
+
+interface CustomersTabProps {
+  data: InvoiceRow[];
+  mode?: 'DEBIT' | 'OB_POS' | 'OB_NEG' | 'CREDIT';
+  onBack?: () => void;
+  initialCustomer?: string;
+  onCustomerToggle?: (isOpen: boolean) => void;
+}
+
+const columnHelper = createColumnHelper<CustomerAnalysis>();
+
+export default function CustomersTab({
+  data,
+  mode = 'DEBIT',
+  onBack,
+  initialCustomer,
+  onCustomerToggle,
+}: CustomersTabProps) {
+  const { getCustomerInvoices } = useDebitData();
+  // --- States ---
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [viewMode, setViewMode] = useState<'DEFAULT' | 'SUMMARY' | 'YEARLY' | 'NO TAGS' | 'TAGS ONLY'>('DEFAULT');
+
+  const [selectedCustomer, setSelectedCustomer] = useState<string | null>(initialCustomer || null);
+  const [selectedCustomersForDownload, setSelectedCustomersForDownload] = useState<Set<string>>(new Set());
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [selectedCollectionStats, setSelectedCollectionStats] = useState<any | null>(null);
+  const [selectedRatingCustomer, setSelectedRatingCustomer] = useState<CustomerAnalysis | null>(null);
+  const [ratingBreakdown, setRatingBreakdown] = useState<any | null>(null);
+  const [selectedCustomerForMonths, setSelectedCustomerForMonths] = useState<string | null>(null);
+  const [statementModalAction, setStatementModalAction] = useState<'EMAIL' | 'ZIP' | 'EMAIL_LULU' | null>(null);
+  const [emailStatementDate, setEmailStatementDate] = useState(new Date().toISOString().split('T')[0]);
+  const [isSummaryExportModalOpen, setIsSummaryExportModalOpen] = useState(false);
+  const [yearlySorting, setYearlySorting] = useState<{ id: string; desc: boolean }>({ id: 'totalNetDebt', desc: true });
+  const [filters, setFilters] = useState({
+    search: '',
+    filterYear: '',
+    filterMonth: '',
+    dateRangeFrom: '',
+    dateRangeTo: '',
+    invoiceTypeFilter: 'ALL' as 'ALL' | 'OB' | 'SAL',
+    matchingFilter: 'ALL',
+    closedFilter: 'ALL' as 'ALL' | 'HIDE' | 'ONLY',
+    debtOperator: 'GT',
+    debtAmount: '',
+    collectionRateOperator: 'GT',
+    collectionRateValue: '',
+    collectionRateTypes: new Set(['PAYMENT', 'RETURN', 'DISCOUNT']),
+    lastPaymentValue: '',
+    lastPaymentUnit: 'DAYS' as 'DAYS' | 'MONTHS',
+    lastPaymentStatus: 'ACTIVE' as 'ACTIVE' | 'INACTIVE',
+    lastPaymentAmountOperator: 'GT',
+    lastPaymentAmountValue: '',
+    hasOB: false,
+    overdueAmount: '',
+    overdueAging: 'ALL',
+    netSalesOperator: 'GT',
+    minTotalDebit: '',
+    noSalesValue: '',
+    noSalesUnit: 'DAYS' as 'DAYS' | 'MONTHS',
+    lastSalesStatus: 'ACTIVE' as 'ACTIVE' | 'INACTIVE',
+    lastSalesAmountOperator: 'GT',
+    lastSalesAmountValue: '',
+    dateRangeType: 'LAST_TRANSACTION' as 'LAST_TRANSACTION' | 'LAST_SALE' | 'LAST_PAYMENT',
+    debtType: 'ALL' as 'ALL' | 'DEBTOR' | 'CREDITOR',
+  });
+
+  const debouncedSearch = useDebouncedValue(filters.search);
+  const queryFilters = useMemo(
+    () => ({ ...filters, search: debouncedSearch }),
+    [filters, debouncedSearch],
+  );
+
+  const {
+    customerAnalysis,
+    filteredData,
+    baseFilteredData,
+    customersWithEmails,
+    luluEmails,
+    yearlyPivotData,
+    allSalesReps
+  } = useCustomerData(data, queryFilters, mode, yearlySorting);
+
+  const totalNetDebt = useMemo(() => {
+    return filteredData.reduce((sum, c) => sum + c.netDebt, 0);
+  }, [filteredData]);
+
+  // --- Handlers ---
+  const toggleCustomerSelection = (customerName: string) => {
+    setSelectedCustomersForDownload(prev => {
+      const next = new Set(prev);
+      if (next.has(customerName)) next.delete(customerName);
+      else next.add(customerName);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedCustomersForDownload.size === filteredData.length) {
+      setSelectedCustomersForDownload(new Set());
+    } else {
+      setSelectedCustomersForDownload(new Set(filteredData.map(c => c.customerName)));
+    }
+  };
+
+  const handleCustomerSelect = (name: string) => {
+    setSelectedCustomer(name);
+    if (onCustomerToggle) onCustomerToggle(true);
+  };
+
+  const handleYearlySort = (id: string) => {
+    setYearlySorting(prev => ({
+      id,
+      desc: prev.id === id ? !prev.desc : true
+    }));
+  };
+
+  const handleBulkDownload = async () => {
+    if (selectedCustomersForDownload.size === 0) {
+      alert('Please select customers to download');
+      return;
+    }
+    setIsDownloading(true);
+    try {
+      const customersToDehydrate = filteredData.filter(c => selectedCustomersForDownload.has(c.customerName));
+      const pdfBlob = await generateBulkDebitSummaryPDF(customersToDehydrate);
+      if (pdfBlob) {
+        saveTrackedAs(pdfBlob as Blob, `Debit_Summary_${new Date().toISOString().split('T')[0]}.pdf`);
+      }
+    } catch (error) {
+      console.error('Error generating summary PDF:', error);
+      alert('Error downloading file');
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  const handleBulkZIPDownload = async (overrideDate?: string, isShort?: boolean, exportFormat: 'excel' | 'pdf' | 'both' = 'both') => {
+    if (selectedCustomersForDownload.size === 0) {
+      alert('Please select customers to download');
+      return;
+    }
+
+    if (!overrideDate && statementModalAction !== 'ZIP') {
+      setStatementModalAction('ZIP');
+      return;
+    }
+
+    const effectiveDate = overrideDate || emailStatementDate;
+    setIsDownloading(true);
+    try {
+      const JSZip = (await import('jszip')).default;
+      const zip = new JSZip();
+      let count = 0;
+
+      for (const customerName of selectedCustomersForDownload) {
+        const customerInvoices = getCustomerInvoices(customerName);
+        if (customerInvoices.length === 0) continue;
+
+        let netOnlyInvoices = toNetOnlyOpenInvoicesForExport(buildInvoicesWithNetDebtForExport(customerInvoices));
+
+        if (effectiveDate) {
+          const limitDate = new Date(effectiveDate);
+          limitDate.setHours(23, 59, 59, 999);
+          netOnlyInvoices = netOnlyInvoices.filter(inv => {
+            const rowDate = parseDate(inv.date);
+            return !rowDate || rowDate <= limitDate;
+          });
+        }
+
+        if (netOnlyInvoices.length === 0) continue;
+
+        const dateLabel = effectiveDate ? `Up To ${formatDmy(new Date(effectiveDate))}` : 'All Months (Net Only)';
+        const cleanName = customerName.replace(/[^a-zA-Z0-9\u0600-\u06FF \-_]/g, '').trim();
+
+        if (exportFormat === 'pdf' || exportFormat === 'both') {
+          const pdfBlob = await generateAccountStatementPDF(customerName, netOnlyInvoices, true, dateLabel, isShort ?? true);
+          if (pdfBlob) {
+            zip.file(`${cleanName}.pdf`, pdfBlob as Blob);
+            count++;
+          }
+        }
+
+        if (exportFormat === 'excel' || exportFormat === 'both') {
+          const excelBlob = await generateSingleCustomerExcelBlob(customerName, netOnlyInvoices, isShort ?? true);
+          if (excelBlob) {
+            zip.file(`${cleanName}.xlsx`, excelBlob);
+            count++;
+          }
+        }
+      }
+
+      if (count > 0) {
+        const content = await zip.generateAsync({ type: 'blob' });
+        saveTrackedAs(content, `Customer_Statements_${new Date().toISOString().split('T')[0]}.zip`);
+        setSelectedCustomersForDownload(new Set());
+      } else {
+        alert('No files generated.');
+      }
+    } catch (error) {
+      console.error('Error in bulk download:', error);
+      alert('Error downloading ZIP.');
+    } finally {
+      setIsDownloading(false);
+      setStatementModalAction(null);
+    }
+  };
+
+  const handleBulkEmail = async (overrideDate?: string, isShort?: boolean, exportFormat: 'excel' | 'pdf' | 'both' = 'both') => {
+    if (selectedCustomersForDownload.size === 0) {
+      alert('Please select customers to email');
+      return;
+    }
+
+    if (!overrideDate && statementModalAction !== 'EMAIL') {
+      setStatementModalAction('EMAIL');
+      return;
+    }
+
+    const effectiveDate = overrideDate || emailStatementDate;
+    setIsDownloading(true);
+    try {
+      const JSZip = (await import('jszip')).default;
+      const zip = new JSZip();
+      let count = 0;
+      const normalize = (s: any) => String(s || '').toLowerCase().trim().replace(/\s+/g, ' ');
+      const dateLabel = effectiveDate
+        ? `Up To ${formatDmy(new Date(effectiveDate))}`
+        : 'All Months (Net Only)';
+      const asOfText = effectiveDate ? ` as of ${formatDmy(new Date(effectiveDate))}` : '';
+      const shortInvoice = isShort ?? true;
+      const subject = 'Statement of Account - Al Marai Al Arabia Trading Sole Proprietorship L.L.C';
+
+      const prepareCustomerExport = async (customerName: string) => {
+        const customerInvoices = getCustomerInvoices(customerName);
+        if (customerInvoices.length === 0) return null;
+
+        let netOnlyInvoices = toNetOnlyOpenInvoicesForExport(
+          buildInvoicesWithNetDebtForExport(customerInvoices)
+        );
+
+        if (effectiveDate) {
+          const limitDate = new Date(effectiveDate);
+          limitDate.setHours(23, 59, 59, 999);
+          netOnlyInvoices = netOnlyInvoices.filter((inv) => {
+            const rowDate = parseDate(inv.date);
+            return !rowDate || rowDate <= limitDate;
+          });
+        }
+
+        if (netOnlyInvoices.length === 0) return null;
+
+        const netDebt = netOnlyInvoices.reduce((sum, inv) => sum + (inv.netDebt || 0), 0);
+        let pdfBase64 = '';
+        if (exportFormat === 'pdf' || exportFormat === 'both') {
+          const pdfBlob = await generateAccountStatementPDF(
+            customerName,
+            netOnlyInvoices,
+            true,
+            dateLabel,
+            shortInvoice
+          );
+          if (pdfBlob) {
+            pdfBase64 = await new Promise<string>((resolve) => {
+              const reader = new FileReader();
+              reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
+              reader.readAsDataURL(pdfBlob as Blob);
+            });
+          }
+        }
+
+        let excelBase64 = '';
+        if (exportFormat === 'excel' || exportFormat === 'both') {
+          const excelBlob = await generateSingleCustomerExcelBlob(
+            customerName,
+            netOnlyInvoices,
+            shortInvoice
+          );
+          excelBase64 = await new Promise<string>((resolve) => {
+            const excelReader = new FileReader();
+            excelReader.onloadend = () => resolve((excelReader.result as string).split(',')[1]);
+            excelReader.readAsDataURL(excelBlob);
+          });
+        }
+
+        const customerData =
+          customerAnalysis.find((c) => c.customerName === customerName) ||
+          filteredData.find((c) => c.customerName === customerName);
+        const targetEmail =
+          customersWithEmails.get(normalize(customerData?.customerId)) || '';
+
+        return {
+          customerName,
+          cleanName: customerName.replace(/[^a-zA-Z0-9\u0600-\u06FF \-_]/g, '').trim(),
+          netDebt,
+          pdfBase64,
+          excelBase64,
+          targetEmail,
+        };
+      };
+
+      const buildEml = (
+        toEmails: string[],
+        htmlBody: string,
+        attachments: Array<{ cleanName: string; pdfBase64: string; excelBase64: string }>,
+        fileBaseName: string
+      ) => {
+        const boundary = `----=_NextPart_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+        const parts: string[] = [
+          `Date: ${new Date().toUTCString()}`,
+          `To: ${toEmails.join(', ')}`,
+          'From: accounting@marae.ae',
+          'Subject: ' + subject,
+          'MIME-Version: 1.0',
+          'X-Unsent: 1',
+          `Content-Type: multipart/mixed; boundary="${boundary}"`,
+          '',
+          '--' + boundary,
+          'Content-Type: text/html; charset="UTF-8"',
+          'Content-Transfer-Encoding: 7bit',
+          '',
+          htmlBody,
+          '',
+        ];
+
+        attachments.forEach((att) => {
+          if (att.pdfBase64) {
+            parts.push(
+              '--' + boundary,
+              `Content-Type: application/pdf; name="${att.cleanName}.pdf"`,
+              'Content-Transfer-Encoding: base64',
+              `Content-Disposition: attachment; filename="${att.cleanName}.pdf"`,
+              '',
+              att.pdfBase64,
+              ''
+            );
+          }
+          if (att.excelBase64) {
+            parts.push(
+              '--' + boundary,
+              `Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet; name="${att.cleanName}.xlsx"`,
+              'Content-Transfer-Encoding: base64',
+              `Content-Disposition: attachment; filename="${att.cleanName}.xlsx"`,
+              '',
+              att.excelBase64,
+              ''
+            );
+          }
+        });
+
+        parts.push('--' + boundary + '--');
+        zip.file(`${fileBaseName}.eml`, parts.join('\r\n'));
+      };
+
+      // Lulu customers stay on the Lulu email flow — never group them into a tag email
+      const luluIds = new Set(luluEmails.map((l) => normalize(l.customerId)).filter(Boolean));
+      const luluCodes = new Set(luluEmails.map((l) => normalize(l.customerCode)).filter(Boolean));
+      const isLuluCustomer = (customerName: string, customerId?: string) =>
+        luluIds.has(normalize(customerId)) || luluCodes.has(normalize(customerName));
+
+      // Tags from selected (non-Lulu) customers → one email per tag with ALL non-Lulu customers sharing that tag
+      const tagsFromSelection = new Set<string>();
+      const untaggedSelected: string[] = [];
+
+      selectedCustomersForDownload.forEach((customerName) => {
+        const row =
+          customerAnalysis.find((c) => c.customerName === customerName) ||
+          filteredData.find((c) => c.customerName === customerName);
+        if (isLuluCustomer(customerName, row?.customerId)) return;
+
+        const tags = row?.customerTags;
+        if (tags && tags.size > 0) {
+          tags.forEach((tag) => tagsFromSelection.add(tag));
+        } else {
+          untaggedSelected.push(customerName);
+        }
+      });
+
+      for (const tag of tagsFromSelection) {
+        const members = customerAnalysis
+          .filter(
+            (c) =>
+              c.customerTags &&
+              c.customerTags.has(tag) &&
+              !isLuluCustomer(c.customerName, c.customerId)
+          )
+          .map((c) => c.customerName);
+
+        const prepared: NonNullable<Awaited<ReturnType<typeof prepareCustomerExport>>>[] = [];
+        for (const name of members) {
+          const item = await prepareCustomerExport(name);
+          if (item) prepared.push(item);
+        }
+        if (prepared.length === 0) continue;
+
+        const totalDebt = prepared.reduce((sum, item) => sum + item.netDebt, 0);
+        const balanceLines = prepared
+          .map(
+            (item) =>
+              `<p style="margin: 4px 0;"><strong>${item.customerName}</strong>: <span style="color: #dc2626;">${item.netDebt.toLocaleString('en-US')} AED</span></p>`
+          )
+          .join('');
+
+        const htmlBody = `
+<div style="font-family: Arial, sans-serif; font-size: 14px; color: #333; line-height: 1.6;">
+  <p>Dear Team,</p>
+  <p>We hope this message finds you well.</p>
+  <p>Please find attached the account statements for customer tag <strong>${tag}</strong>.</p>
+  ${balanceLines}
+  <p><strong style="color: #dc2626; font-size: 15px;">Total balance${asOfText}: ${totalDebt.toLocaleString('en-US')} AED</strong></p>
+  <p>Kindly provide us with your statement of account and any Tax-Rebeat invoices for reconciliation.</p>
+  <p>Best regards,<br><br>Accounts<br>Al Marai Al Arabia Trading Sole Proprietorship L.L.C</p>
+</div>
+        `.trim();
+
+        const toEmails = Array.from(
+          new Set(prepared.map((item) => item.targetEmail).filter(Boolean))
+        );
+        const cleanTag = tag.replace(/[^a-zA-Z0-9\u0600-\u06FF \-_]/g, '').trim() || 'Tag';
+        buildEml(toEmails, htmlBody, prepared, `Tag_${cleanTag}`);
+        count++;
+      }
+
+      // Customers without a tag → one email each (unchanged)
+      for (const customerName of untaggedSelected) {
+        const item = await prepareCustomerExport(customerName);
+        if (!item) continue;
+
+        const htmlBody = `
+<div style="font-family: Arial, sans-serif; font-size: 14px; color: #333; line-height: 1.6;">
+  <p>Dear Team,</p>
+  <p>We hope this message finds you well.</p>
+  <p>Please find attached your account statement.</p>
+  <p><strong style="color: #dc2626; font-size: 15px;">Your current balance${asOfText} is: ${item.netDebt.toLocaleString('en-US')} AED</strong></p>
+  <p>Kindly provide us with your statement of account and any Tax-Rebeat invoices for reconciliation.</p>
+  <p>Best regards,<br><br>Accounts<br>Al Marai Al Arabia Trading Sole Proprietorship L.L.C</p>
+</div>
+        `.trim();
+
+        buildEml(
+          item.targetEmail ? [item.targetEmail] : [],
+          htmlBody,
+          [item],
+          item.cleanName
+        );
+        count++;
+      }
+
+      if (count > 0) {
+        const content = await zip.generateAsync({ type: 'blob' });
+        saveTrackedAs(content, `Customer_Emails_${new Date().toISOString().split('T')[0]}.zip`);
+        setStatementModalAction(null);
+      } else {
+        alert('No emails generated.');
+      }
+    } catch (error) {
+      console.error('Error in bulk email:', error);
+      alert('Error generating emails.');
+    } finally {
+      setIsDownloading(false);
+      setStatementModalAction(null);
+    }
+  };
+
+  const handleBulkLuluEmail = async (overrideDate?: string, isShort?: boolean, exportFormat: 'excel' | 'pdf' | 'both' = 'both') => {
+    if (selectedCustomersForDownload.size === 0) {
+      alert('Please select customers to email');
+      return;
+    }
+
+    if (!overrideDate && statementModalAction !== 'EMAIL_LULU') {
+      setStatementModalAction('EMAIL_LULU');
+      return;
+    }
+
+    const effectiveDate = overrideDate || emailStatementDate;
+    setIsDownloading(true);
+    try {
+      const JSZip = (await import('jszip')).default;
+      const zip = new JSZip();
+      let count = 0;
+
+      for (const customerName of selectedCustomersForDownload) {
+        const normalize = (s: any) => String(s || '').toLowerCase().trim().replace(/\s+/g, ' ');
+        const customerData = filteredData.find(c => c.customerName === customerName);
+        const custId = customerData?.customerId;
+
+        const luluRec = luluEmails.find(l => normalize(l.customerId) === normalize(custId));
+
+        if (!luluRec) {
+          console.warn(`No Lulu email data found for: ${customerName}`);
+          continue;
+        }
+
+        const email = luluRec.to || customersWithEmails.get(normalize(custId));
+        if (!email) {
+          console.warn(`No email found for customer: ${customerName}`);
+          continue;
+        }
+
+        console.log(`Processing Lulu email for: ${customerName}`, email);
+
+        const customerInvoices = getCustomerInvoices(customerName);
+        if (customerInvoices.length === 0) continue;
+
+        let netOnlyInvoices = toNetOnlyOpenInvoicesForExport(buildInvoicesWithNetDebtForExport(customerInvoices));
+
+        if (effectiveDate) {
+          const limitDate = new Date(effectiveDate);
+          limitDate.setHours(23, 59, 59, 999);
+          netOnlyInvoices = netOnlyInvoices.filter(inv => {
+            const rowDate = parseDate(inv.date);
+            return !rowDate || rowDate <= limitDate;
+          });
+        }
+
+        if (netOnlyInvoices.length === 0) continue;
+
+        const netDebt = netOnlyInvoices.reduce((sum, inv) => sum + (inv.netDebt || 0), 0);
+        const dateLabel = effectiveDate ? `Up To ${formatDmy(new Date(effectiveDate))}` : 'All Months (Net Only)';
+
+        let pdfBase64 = '';
+        if (exportFormat === 'pdf' || exportFormat === 'both') {
+          const pdfBlob = await generateAccountStatementPDF(customerName, netOnlyInvoices, true, dateLabel, isShort ?? true);
+          if (pdfBlob) {
+            pdfBase64 = await new Promise<string>((resolve) => {
+              const reader = new FileReader();
+              reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
+              reader.readAsDataURL(pdfBlob as Blob);
+            });
+          }
+        }
+
+        let excelBase64 = '';
+        if (exportFormat === 'excel' || exportFormat === 'both') {
+          const excelBlob = await generateSingleCustomerExcelBlob(customerName, netOnlyInvoices, isShort ?? true);
+          if (excelBlob) {
+            excelBase64 = await new Promise<string>((resolve) => {
+              const reader = new FileReader();
+              reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
+              reader.readAsDataURL(excelBlob);
+            });
+          }
+        }
+
+        const cleanName = customerName.replace(/[^a-zA-Z0-9\u0600-\u06FF \-_]/g, '').trim();
+        const boundary = "----=_NextPart_000_0001_01C2A9A1.12345678";
+        const subject = 'Statement of Account - Al Marai Al Arabia Trading Sole Proprietorship L.L.C';
+        const htmlBody = `
+<div style="font-family: Arial, sans-serif; font-size: 14px; color: #333; line-height: 1.6;">
+  <p>Dear Team,</p>
+  <p>We hope this message finds you well.</p>
+  <p>Please find attached your account statement.</p>
+  <p><strong style="color: #dc2626; font-size: 15px;">Your current balance ${effectiveDate ? 'as of ' + formatDmy(new Date(effectiveDate)) : ''} is: ${netDebt.toLocaleString('en-US')} AED</strong></p>
+  <p>Kindly provide us with your statement of account and any Tax-Rebeat invoices for reconciliation.</p>
+  <p>Best regards,<br><br>Accounts<br>Al Marai Al Arabia Trading Sole Proprietorship L.L.C</p>
+</div>
+        `.trim();
+
+        const cleanEmails = (str: string) => str.replace(/;/g, ',').split(',').map(e => e.trim()).filter(Boolean).join(', ');
+        const toEmail = cleanEmails(email || '');
+        const ccEmail = cleanEmails(luluRec.cc || '');
+
+        let emlHeaders = [
+          `Date: ${new Date().toUTCString()}`,
+          `To: ${toEmail}`,
+          ccEmail ? `Cc: ${ccEmail}` : null,
+          'From: accounting@marae.ae',
+          'Subject: ' + subject,
+          'MIME-Version: 1.0',
+          'X-Unsent: 1',
+          'Content-Type: multipart/mixed; boundary="' + boundary + '"',
+        ].filter(line => line !== null).join('\r\n');
+
+        const emlContent = [
+          emlHeaders,
+          '',
+          '--' + boundary,
+          'Content-Type: text/html; charset="UTF-8"',
+          'Content-Transfer-Encoding: 7bit',
+          '',
+          htmlBody,
+          '',
+          '--' + boundary,
+          `Content-Type: application/pdf; name="${cleanName}.pdf"`,
+          'Content-Transfer-Encoding: base64',
+          `Content-Disposition: attachment; filename="${cleanName}.pdf"`,
+          '',
+          pdfBase64,
+          '',
+          '--' + boundary,
+          `Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet; name="${cleanName}.xlsx"`,
+          'Content-Transfer-Encoding: base64',
+          `Content-Disposition: attachment; filename="${cleanName}.xlsx"`,
+          '',
+          excelBase64,
+          '',
+          '--' + boundary + '--'
+        ].join('\r\n');
+
+        zip.file(`${cleanName}.eml`, emlContent);
+        count++;
+      }
+
+      if (count > 0) {
+        const content = await zip.generateAsync({ type: 'blob' });
+        saveTrackedAs(content, `Lulu_Emails_${new Date().toISOString().split('T')[0]}.zip`);
+        setStatementModalAction(null);
+      } else {
+        alert('No matching Lulu customers found in selection.');
+      }
+    } catch (error) {
+      console.error('Error in Lulu email generation:', error);
+      alert('Error generating emails.');
+    } finally {
+      setIsDownloading(false);
+      setStatementModalAction(null);
+    }
+  };
+
+  const handleBulkPrint = async () => {
+    setIsDownloading(true);
+    try {
+      const customersToPrint = Array.from(selectedCustomersForDownload);
+      if (customersToPrint.length === 0) return;
+
+      const statements: Array<{ customerName: string; invoices: any[] }> = [];
+      for (const custName of customersToPrint) {
+        const customerRows = getCustomerInvoices(custName);
+        if (customerRows.length === 0) continue;
+
+        const invoicesWithNetDebt = buildInvoicesWithNetDebtForExport(customerRows);
+        const netOnlyInvoices = invoicesWithNetDebt
+          .filter(inv => !inv.matching || (inv.residual !== undefined && Math.abs(inv.residual) > 0.01))
+          .map(inv => inv.matching && inv.residual !== undefined ? { ...inv, credit: inv.debit - inv.residual, netDebt: inv.residual } : inv);
+
+        if (netOnlyInvoices.length === 0) continue;
+        statements.push({ customerName: custName, invoices: netOnlyInvoices });
+      }
+
+      const pdfBlob = await generateBulkCustomerStatementsPDF(statements);
+      const url = URL.createObjectURL(pdfBlob as Blob);
+      window.open(url, '_blank');
+    } catch (error) {
+      console.error('Error generating bulk print:', error);
+      alert('Error generating print document.');
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  // --- Table Setup ---
+  const columns = useMemo(() => [
+    columnHelper.accessor('customerName', {
+      header: () => (
+        <div className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={filteredData.length > 0 && selectedCustomersForDownload.size === filteredData.length}
+            onChange={toggleSelectAll}
+            className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
+            title="Select All"
+            onClick={(e) => e.stopPropagation()}
+          />
+          <span>Customer Name</span>
+        </div>
+      ),
+      cell: (info) => {
+        const name = info.getValue();
+        return (
+          <div className="flex items-center gap-2 w-full">
+            <input
+              type="checkbox"
+              checked={selectedCustomersForDownload.has(name)}
+              onChange={() => toggleCustomerSelection(name)}
+              onClick={(e) => e.stopPropagation()}
+              className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 shrink-0"
+            />
+            <button
+              onClick={() => {
+                setSelectedCustomer(name);
+                if (onCustomerToggle) onCustomerToggle(true);
+              }}
+              className="font-bold text-gray-900 hover:text-blue-600 text-left transition-colors truncate"
+            >
+              {name}
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                copyToClipboard(name);
+              }}
+              className="p-1 hover:bg-gray-100 rounded text-gray-400 hover:text-gray-600"
+              title="Copy"
+            >
+              <FileText size={14} />
+            </button>
+          </div>
+        );
+      }
+    }),
+    columnHelper.accessor('cities', {
+      id: 'city',
+      header: 'City',
+      cell: (info) => {
+        const val = info.getValue();
+        if (val && val instanceof Set && val.size > 0) return Array.from(val).join(', ');
+        if (Array.isArray(val) && val.length > 0) return val.join(', ');
+        return '-';
+      }
+    }),
+    columnHelper.accessor('netDebt', {
+      header: 'Net Debit',
+      cell: (info) => (
+        <button
+          onClick={() => setSelectedCustomerForMonths(info.row.original.customerName)}
+          className={`font-bold ${info.getValue() > 0 ? 'text-red-600' : info.getValue() < 0 ? 'text-green-600' : 'text-gray-600'}`}
+        >
+          {info.getValue().toLocaleString('en-US')}
+        </button>
+      )
+    }),
+
+    columnHelper.accessor('avgPaymentInterval', {
+      id: 'payFreq',
+      header: 'Pay Frequency',
+      cell: (info) => {
+        const val = info.getValue();
+        return (
+          <div className="font-bold text-gray-700">
+            {val ? `${val.toFixed(1)} days` : '-'}
+          </div>
+        );
+      }
+    }),
+    columnHelper.display({
+      id: 'debtRating',
+      header: 'Rating',
+      cell: (info) => {
+        const rating = calculateDebtRating(info.row.original);
+        return (
+          <button
+            onClick={() => {
+              const breakdown = calculateDebtRating(info.row.original, true);
+              setSelectedRatingCustomer(info.row.original);
+              setRatingBreakdown(breakdown);
+            }}
+            className={`px-3 py-1 rounded-full text-xs font-bold border ${rating === 'Good' ? 'bg-green-50 text-green-600 border-green-200' : rating === 'Medium' ? 'bg-yellow-50 text-yellow-600 border-yellow-200' : 'bg-red-50 text-red-600 border-red-200'}`}
+          >
+            {rating}
+          </button>
+        );
+      }
+    })
+  ], [filteredData, selectedCustomersForDownload, customerAnalysis]);
+
+  const table = useReactTable({
+    data: filteredData,
+    columns,
+    state: { sorting },
+    onSortingChange: setSorting,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+  });
+
+  const headerCount = useMemo(() => {
+    if (viewMode === 'YEARLY') return yearlyPivotData.rows.length;
+    return filteredData.length;
+  }, [viewMode, filteredData, yearlyPivotData.rows]);
+
+  const headerTotal = useMemo(() => {
+    if (viewMode === 'YEARLY') return yearlyPivotData.rows.reduce((sum, r) => sum + r.totalNetDebt, 0);
+    return filteredData.reduce((sum, c) => sum + c.netDebt, 0);
+  }, [viewMode, filteredData, yearlyPivotData.rows]);
+
+  // --- Render logic ---
+  if (selectedCustomer) {
+    return (
+      <CustomerDetailsTab
+        customerName={selectedCustomer}
+        onBack={() => {
+          setSelectedCustomer(null);
+          if (onCustomerToggle) onCustomerToggle(false);
+        }}
+        invoices={getCustomerInvoices(selectedCustomer)}
+      />
+    );
+  }
+
+  return (
+    <div className="flex flex-col h-full bg-white">
+      {/* Header Toolbar */}
+      <div className="p-2 bg-white border-b border-gray-200 flex items-center gap-3 shadow-sm overflow-x-auto no-scrollbar">
+        <div className="w-10 shrink-0">
+          {onBack && (
+            <button onClick={onBack} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
+              </svg>
+            </button>
+          )}
+        </div>
+
+        <div className="flex flex-1 items-center justify-center gap-2">
+          <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm font-black shadow-sm" title="Total Customers">
+            {headerCount}
+          </span>
+          <span className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-sm font-black shadow-sm" title="Total Net Debt">
+            {Math.round(headerTotal).toLocaleString('en-US')}
+          </span>
+
+          <div className="relative group min-w-[480px]">
+            <input
+              type="text"
+              placeholder="Search customers..."
+              className="w-full bg-gray-50 border border-gray-200 text-gray-900 text-sm py-2 px-4 pl-9 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all font-bold"
+              value={filters.search}
+              onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
+            />
+            <div className="absolute left-3 top-2.5 text-gray-400">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+          </div>
+
+
+
+          <div className="h-6 w-px bg-gray-200 mx-1 shrink-0"></div>
+
+          {/* View Mode Toggle */}
+          <div className="bg-gray-100 p-1 rounded-xl flex items-center shrink-0">
+            {(['DEFAULT', 'SUMMARY', 'YEARLY', 'NO TAGS', 'TAGS ONLY'] as const).map(m => (
+              <button
+                key={m}
+                onClick={() => setViewMode(m)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${viewMode === m ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                  }`}
+              >
+                {m === 'NO TAGS' ? 'No Tags' : m === 'TAGS ONLY' ? 'Tags Only' : m.charAt(0) + m.slice(1).toLowerCase()}
+              </button>
+            ))}
+          </div>
+
+
+
+          <CustomersExcelButton filteredData={baseFilteredData} data={data} yearlyPivotData={yearlyPivotData} />
+          <button onClick={() => setIsSummaryExportModalOpen(true)} className="p-2.5 bg-white border border-gray-200 rounded-xl hover:border-red-400 text-red-600 transition-all shadow-sm shrink-0" title="Export PDF">
+            <FileText size={20} />
+          </button>
+
+          {selectedCustomersForDownload.size > 0 && (
+            <div className="flex items-center gap-1 bg-blue-600 p-1 rounded-xl shadow-lg animate-in zoom-in-95 duration-200 shrink-0">
+              <button onClick={handleBulkDownload} className="w-9 h-9 flex items-center justify-center hover:bg-white/20 rounded-lg text-white transition-colors font-black text-sm" title="Download Summary PDF">
+                D
+              </button>
+              <button onClick={() => handleBulkZIPDownload()} className="w-9 h-9 flex items-center justify-center hover:bg-white/20 rounded-lg text-white transition-colors font-black text-sm" title="Download ZIP Statements">
+                AS
+              </button>
+              <button onClick={handleBulkPrint} className="w-9 h-9 flex items-center justify-center hover:bg-white/20 rounded-lg text-white transition-colors font-black text-sm" title="Bulk Print Statements">
+                P
+              </button>
+              <button onClick={() => handleBulkEmail()} className="w-9 h-9 flex items-center justify-center hover:bg-white/20 rounded-lg text-white transition-colors font-black text-sm" title="Generate ZIP for Email">
+                E
+              </button>
+              <button onClick={() => handleBulkLuluEmail()} className="w-9 h-9 flex items-center justify-center hover:bg-white/20 rounded-lg text-white transition-colors font-black text-sm" title="Generate ZIP for Lulu (PDF+XL)">
+                EL
+              </button>
+              <div className="w-px h-6 bg-white/20 mx-1"></div>
+              <button onClick={() => setSelectedCustomersForDownload(new Set())} className="p-2 hover:bg-white/20 rounded-lg text-white transition-colors" title="Clear selection">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+              </button>
+            </div>
+          )}
+        </div>
+        <div className="w-10 shrink-0"></div>
+      </div>
+
+      {/* Main Content Area */}
+      <div className="flex-1 overflow-auto p-4 md:p-6">
+
+        {filteredData.length === 0 ? (
+          <NoData />
+        ) : (
+          <>
+            {viewMode === 'DEFAULT' && (
+              <DefaultView
+                table={table}
+                selectedCustomersForDownload={selectedCustomersForDownload}
+                toggleCustomerSelection={toggleCustomerSelection}
+                setSelectedCustomer={handleCustomerSelect}
+                setSelectedCustomerForMonths={setSelectedCustomerForMonths}
+                setSelectedCollectionStats={setSelectedCollectionStats}
+                setSelectedRatingCustomer={setSelectedRatingCustomer}
+                setRatingBreakdown={setRatingBreakdown}
+
+                mode={mode}
+                customerAnalysis={customerAnalysis}
+                filteredData={filteredData}
+                isDateFilterActive={!!(filters.filterYear || filters.filterMonth || filters.dateRangeFrom || filters.dateRangeTo)}
+              />
+            )}
+
+            {viewMode === 'SUMMARY' && (
+              <SummaryView
+                table={table}
+                filteredData={filteredData}
+                selectedCustomersForDownload={selectedCustomersForDownload}
+                toggleCustomerSelection={toggleCustomerSelection}
+                toggleSelectAll={toggleSelectAll}
+                setSelectedCustomer={handleCustomerSelect}
+
+              />
+            )}
+
+            {viewMode === 'YEARLY' && yearlyPivotData && (
+              <YearlyView
+                yearlyPivotData={{
+                  ...yearlyPivotData,
+                  rows: yearlyPivotData.rows.filter((r: any) => filteredData.some(c => c.customerName === r.customerName))
+                }}
+                selectedCustomersForDownload={selectedCustomersForDownload}
+                setSelectedCustomersForDownload={setSelectedCustomersForDownload}
+                toggleCustomerSelection={toggleCustomerSelection}
+                setSelectedCustomer={handleCustomerSelect}
+                yearlySorting={yearlySorting}
+                handleYearlySort={handleYearlySort}
+              />
+            )}
+
+            {viewMode === 'NO TAGS' && (
+              <NoTagsView
+                table={table}
+                selectedCustomersForDownload={selectedCustomersForDownload}
+                toggleCustomerSelection={toggleCustomerSelection}
+                setSelectedCustomer={handleCustomerSelect}
+                setSelectedCustomerForMonths={setSelectedCustomerForMonths}
+                setSelectedCollectionStats={setSelectedCollectionStats}
+                setSelectedRatingCustomer={setSelectedRatingCustomer}
+                setRatingBreakdown={setRatingBreakdown}
+                mode={mode}
+                customerAnalysis={customerAnalysis}
+                filteredData={filteredData}
+                isDateFilterActive={!!(filters.filterYear || filters.filterMonth || filters.dateRangeFrom || filters.dateRangeTo)}
+              />
+            )}
+
+            {viewMode === 'TAGS ONLY' && (
+              <TagsOnlyView
+                table={table}
+                selectedCustomersForDownload={selectedCustomersForDownload}
+                toggleCustomerSelection={toggleCustomerSelection}
+                setSelectedCustomer={handleCustomerSelect}
+                setSelectedCustomerForMonths={setSelectedCustomerForMonths}
+                setSelectedCollectionStats={setSelectedCollectionStats}
+                setSelectedRatingCustomer={setSelectedRatingCustomer}
+                setRatingBreakdown={setRatingBreakdown}
+                mode={mode}
+                customerAnalysis={customerAnalysis}
+                filteredData={filteredData}
+                isDateFilterActive={!!(filters.filterYear || filters.filterMonth || filters.dateRangeFrom || filters.dateRangeTo)}
+              />
+            )}
+          </>
+        )}
+      </div>
+
+      {/* Modals */}
+      <RatingBreakdownModal
+        customer={selectedRatingCustomer}
+        breakdown={ratingBreakdown}
+        onClose={() => { setSelectedRatingCustomer(null); setRatingBreakdown(null); }}
+      />
+
+      <CollectionStatsModal
+        stats={selectedCollectionStats}
+        onClose={() => setSelectedCollectionStats(null)}
+      />
+
+      <MonthlyBreakdownModal
+        customerName={selectedCustomerForMonths}
+        monthlyData={selectedCustomerForMonths ? calculateCustomerMonthlyBreakdown(selectedCustomerForMonths, data) : null}
+        onClose={() => setSelectedCustomerForMonths(null)}
+      />
+
+      <EmailStatementModal
+        isOpen={statementModalAction !== null}
+        onClose={() => setStatementModalAction(null)}
+        onConfirm={(isShort, format) => {
+          const action = statementModalAction;
+          setStatementModalAction(null);
+          if (action === 'EMAIL') handleBulkEmail(emailStatementDate, isShort, format);
+          else if (action === 'ZIP') handleBulkZIPDownload(emailStatementDate, isShort, format);
+          else if (action === 'EMAIL_LULU') handleBulkLuluEmail(emailStatementDate, isShort, format);
+        }}
+        isProcessing={isDownloading}
+      />
+
+      <SummaryExportModal
+        open={isSummaryExportModalOpen}
+        onClose={() => setIsSummaryExportModalOpen(false)}
+        filteredData={filteredData}
+        onExport={exportToPDF}
+      />
+    </div>
+  );
+}
