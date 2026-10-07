@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useState, useRef } from 'react';
 import { bhs_supabas } from '@/lib/supabase';
 
 // Helper to calculate the last 4 completed months
@@ -94,9 +94,15 @@ export function PurchaseDataProvider({ children }: { children: React.ReactNode }
     });
   };
 
+  const fetchPromiseRef = useRef<Promise<void> | null>(null);
+
   const fetchAllData = async () => {
+    if (fetchPromiseRef.current) return fetchPromiseRef.current;
+    
     setLoading(true);
-    try {
+    
+    const promise = (async () => {
+      try {
       // 1. Fetch Products
       const { data: rawProducts, error: prodError } = await bhs_supabas
         .from('bhs_PRODUCTS')
@@ -201,9 +207,14 @@ export function PurchaseDataProvider({ children }: { children: React.ReactNode }
       setProducts(processedProducts);
     } catch (err) {
       console.error('Error fetching purchase planning data:', err);
-    } finally {
-      setLoading(false);
-    }
+      } finally {
+        setLoading(false);
+        fetchPromiseRef.current = null;
+      }
+    })();
+    
+    fetchPromiseRef.current = promise;
+    return promise;
   };
 
   useEffect(() => {

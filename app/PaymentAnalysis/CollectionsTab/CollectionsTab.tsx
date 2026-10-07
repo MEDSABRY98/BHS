@@ -21,7 +21,7 @@ export default function CollectionsTab() {
   const [viewMode, setViewMode] = useState<'DEFAULT' | 'NO TAGS' | 'TAGS ONLY'>('DEFAULT');
 
   const aggregatedData = useMemo(() => {
-    const map = new Map<string, { customerId: string, customerName: string, city: string, collected: number, refunded: number, tags: string[] }>();
+    const map = new Map<string, { customerId: string, customerName: string, city: string, collected: number, refunded: number, tags: string[], paymentDates: string[] }>();
 
     paymentsData.forEach(row => {
       const category = getPaymentCategory(row);
@@ -31,22 +31,32 @@ export default function CollectionsTab() {
 
       if (!map.has(customerId)) {
         const tags = row.customerTag ? row.customerTag.split(',').map(t => t.trim()).filter(Boolean) : [];
-        map.set(customerId, { customerId, customerName, city, collected: 0, refunded: 0, tags });
+        map.set(customerId, { customerId, customerName, city, collected: 0, refunded: 0, tags, paymentDates: [] });
       }
 
       const entry = map.get(customerId)!;
 
       if (category === 'Payment') {
         entry.collected += (Number(row.credit) || 0);
+        if (row.date) entry.paymentDates.push(row.date);
       } else if (category === 'Refund') {
         entry.refunded += (Number(row.debit) || 0);
       }
     });
 
-    return Array.from(map.values()).map(entry => ({
-      ...entry,
-      netCollection: entry.collected - entry.refunded
-    }));
+    return Array.from(map.values()).map(entry => {
+      let freqDays: number | null = null;
+      if (entry.paymentDates.length > 1) {
+        const sorted = entry.paymentDates.map(d => new Date(d).getTime()).sort((a,b) => a - b);
+        const diffMs = sorted[sorted.length - 1] - sorted[0];
+        freqDays = diffMs / (1000 * 60 * 60 * 24) / (sorted.length - 1);
+      }
+      return {
+        ...entry,
+        netCollection: entry.collected - entry.refunded,
+        paymentFrequencyDays: freqDays
+      };
+    });
   }, [paymentsData]);
 
   const filteredData = useMemo(() => {
@@ -140,6 +150,24 @@ export default function CollectionsTab() {
         return (
           <span className={`font-mono font-black text-lg ${val > 0 ? 'text-emerald-600' : val < 0 ? 'text-red-500' : 'text-slate-800'}`}>
             {val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </span>
+        );
+      }
+    },
+    {
+      accessorKey: 'paymentFrequencyDays',
+      header: 'Pay Frequency',
+      cell: (info: any) => {
+        const val = info.getValue() as number | null;
+        if (val === null) return <span className="text-slate-400 text-xs">-</span>;
+        
+        let colorClass = 'text-emerald-600';
+        if (val > 30) colorClass = 'text-orange-500';
+        if (val > 60) colorClass = 'text-red-500';
+
+        return (
+          <span className={`font-mono font-semibold text-sm ${colorClass}`}>
+            Every {Math.round(val)} Days
           </span>
         );
       }
@@ -245,6 +273,7 @@ export default function CollectionsTab() {
                   <th className="px-6 py-5 whitespace-nowrap">Collected Amount</th>
                   <th className="px-6 py-5 whitespace-nowrap">Refunded / Bounced</th>
                   <th className="px-6 py-5 whitespace-nowrap">Net Collection</th>
+                  <th className="px-6 py-5 whitespace-nowrap">Pay Frequency</th>
                 </tr>
               </thead>
               <tbody className="text-center divide-y divide-slate-50">
@@ -280,6 +309,7 @@ export default function CollectionsTab() {
                           <td className="px-6 py-3 font-mono font-black text-[#D4AF37]">
                             {tagTotalNet.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </td>
+                          <td className="px-6 py-3"></td>
                         </tr>
                         {/* Tag Customers */}
                         {rows.map(row => (
@@ -302,6 +332,20 @@ export default function CollectionsTab() {
                             </td>
                             <td className="px-6 py-4 font-mono font-black text-center text-slate-900 group-hover:text-[#D4AF37] transition-colors">
                               {row.netCollection.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </td>
+                            <td className="px-6 py-4 text-center">
+                              {(() => {
+                                const val = row.paymentFrequencyDays;
+                                if (val === null) return <span className="text-slate-400 text-xs">-</span>;
+                                let colorClass = 'text-emerald-600';
+                                if (val > 30) colorClass = 'text-orange-500';
+                                if (val > 60) colorClass = 'text-red-500';
+                                return (
+                                  <span className={`font-mono font-semibold text-sm ${colorClass}`}>
+                                    Every {Math.round(val)} Days
+                                  </span>
+                                );
+                              })()}
                             </td>
                           </tr>
                         ))}
@@ -327,7 +371,7 @@ export default function CollectionsTab() {
               <tbody className="text-center">
                 {table.getRowModel().rows.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-6 py-12 text-center text-slate-500 font-medium">
+                    <td colSpan={6} className="px-6 py-12 text-center text-slate-500 font-medium">
                       No collection data found.
                     </td>
                   </tr>
@@ -361,6 +405,7 @@ export default function CollectionsTab() {
                     <td className="px-6 py-4 font-mono font-black text-lg text-slate-800">
                       {totals.net.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
+                    <td className="px-6 py-4"></td>
                   </tr>
                 </tfoot>
               )}

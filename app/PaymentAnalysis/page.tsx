@@ -10,6 +10,7 @@ import MainLoader from '../Components/Loading/MainLoader';
 import DashboardTab from './DashboardTab/DashboardTab';
 import CitiesTab from './CitiesTab/CitiesTab';
 import CollectionsTab from './CollectionsTab/CollectionsTab';
+import UnpaidCustomersTab from './UnpaidCustomersTab/UnpaidCustomersTab';
 import PeriodsTab from './PeriodsTab/PeriodsTab';
 
 function PaymentAnalysisShell({
@@ -39,6 +40,7 @@ function PaymentAnalysisShell({
         {activeTab === 'dashboard' && <DashboardTab />}
         {activeTab === 'cities' && <CitiesTab />}
         {activeTab === 'collections' && <CollectionsTab />}
+        {activeTab === 'unpaid-customers' && <UnpaidCustomersTab />}
         {activeTab === 'periods' && <PeriodsTab />}
       </div>
     );
