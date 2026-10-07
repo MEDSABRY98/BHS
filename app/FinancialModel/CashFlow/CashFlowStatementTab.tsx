@@ -4,7 +4,7 @@ import DataLoader from '@/app/Components/Loading/DataLoader';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import { toast } from '@/app/Components/Notification';
 import { fetchAccounts, fetchEntriesByYear, FinancialAccount, FinancialEntry } from '../Service/FinancialService';
-import type { PLExportRow, PLSectionKey } from './Export/PLExcelExport';
+import type { PLExportRow, PLSectionKey } from '../PL/Export/PLExcelExport';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -350,7 +350,7 @@ export function CashFlowStatementTab() {
   const handleExportExcel = async () => {
     setIsExporting(true);
     try {
-      const { exportPLToExcel } = await import('./Export/PLExcelExport');
+      const { exportPLToExcel } = await import('../PL/Export/PLExcelExport');
       const isPct = displayFormat === 'PERCENTAGE';
       const modes: ('ACTUAL' | 'FORECAST')[] = viewMode === 'BOTH' ? ['FORECAST', 'ACTUAL'] : [viewMode];
       const sfx = (mode: 'ACTUAL' | 'FORECAST') => (viewMode === 'BOTH' ? (mode === 'FORECAST' ? ' (F)' : ' (A)') : '');
