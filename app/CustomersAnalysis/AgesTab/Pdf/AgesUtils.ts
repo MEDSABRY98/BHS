@@ -6,6 +6,7 @@ export async function generateAgesPDF(
   filteredData: Array<{
     customerName: string;
     cities: string[];
+    atDate: number;
     oneToThirty: number;
     thirtyOneToSixty: number;
     sixtyOneToNinety: number;
@@ -66,14 +67,14 @@ export async function generateAgesPDF(
     ]);
 
     const totals = cityData.reduce((acc, item) => ({
-      total: acc.total + item.total, oneToThirty: acc.oneToThirty + item.oneToThirty,
+      total: acc.total + item.total, atDate: acc.atDate + item.atDate, oneToThirty: acc.oneToThirty + item.oneToThirty,
       thirtyOneToSixty: acc.thirtyOneToSixty + item.thirtyOneToSixty, sixtyOneToNinety: acc.sixtyOneToNinety + item.sixtyOneToNinety,
       ninetyOneToOneTwenty: acc.ninetyOneToOneTwenty + item.ninetyOneToOneTwenty, older: acc.older + item.older
-    }), { total: 0, oneToThirty: 0, thirtyOneToSixty: 0, sixtyOneToNinety: 0, ninetyOneToOneTwenty: 0, older: 0 });
+    }), { total: 0, atDate: 0, oneToThirty: 0, thirtyOneToSixty: 0, sixtyOneToNinety: 0, ninetyOneToOneTwenty: 0, older: 0 });
 
     summaryData.push({ city, ...totals });
 
-    tableData.push(['', 'TOTAL', '', totals.total.toLocaleString('en-US'), totals.oneToThirty.toLocaleString('en-US'),
+    tableData.push(['', 'TOTAL', '', totals.total.toLocaleString('en-US'), totals.atDate.toLocaleString('en-US'), totals.oneToThirty.toLocaleString('en-US'),
       totals.thirtyOneToSixty.toLocaleString('en-US'), totals.sixtyOneToNinety.toLocaleString('en-US'),
       totals.ninetyOneToOneTwenty.toLocaleString('en-US'), totals.older.toLocaleString('en-US')]);
 
@@ -119,12 +120,12 @@ export async function generateAgesPDF(
     ]);
 
     const grandTotals = summaryData.reduce((acc, item) => ({
-      total: acc.total + item.total, oneToThirty: acc.oneToThirty + item.oneToThirty,
+      total: acc.total + item.total, atDate: acc.atDate + item.atDate, oneToThirty: acc.oneToThirty + item.oneToThirty,
       thirtyOneToSixty: acc.thirtyOneToSixty + item.thirtyOneToSixty, sixtyOneToNinety: acc.sixtyOneToNinety + item.sixtyOneToNinety,
       ninetyOneToOneTwenty: acc.ninetyOneToOneTwenty + item.ninetyOneToOneTwenty, older: acc.older + item.older
-    }), { total: 0, oneToThirty: 0, thirtyOneToSixty: 0, sixtyOneToNinety: 0, ninetyOneToOneTwenty: 0, older: 0 });
+    }), { total: 0, atDate: 0, oneToThirty: 0, thirtyOneToSixty: 0, sixtyOneToNinety: 0, ninetyOneToOneTwenty: 0, older: 0 });
 
-    summaryTableData.push(['', 'GRAND TOTAL', grandTotals.total.toLocaleString('en-US'), grandTotals.oneToThirty.toLocaleString('en-US'),
+    summaryTableData.push(['', 'GRAND TOTAL', grandTotals.total.toLocaleString('en-US'), grandTotals.atDate.toLocaleString('en-US'), grandTotals.oneToThirty.toLocaleString('en-US'),
       grandTotals.thirtyOneToSixty.toLocaleString('en-US'), grandTotals.sixtyOneToNinety.toLocaleString('en-US'),
       grandTotals.ninetyOneToOneTwenty.toLocaleString('en-US'), grandTotals.older.toLocaleString('en-US')]);
 
@@ -153,6 +154,7 @@ export async function generateSingleRegionAgesPDF(
   regionData: Array<{
     customerName: string;
     cities: string[];
+    atDate: number;
     oneToThirty: number;
     thirtyOneToSixty: number;
     sixtyOneToNinety: number;
@@ -193,10 +195,10 @@ export async function generateSingleRegionAgesPDF(
   ]);
 
   const totals = sortedData.reduce((acc, item) => ({
-    total: acc.total + item.total, oneToThirty: acc.oneToThirty + item.oneToThirty,
+    total: acc.total + item.total, atDate: acc.atDate + item.atDate, oneToThirty: acc.oneToThirty + item.oneToThirty,
     thirtyOneToSixty: acc.thirtyOneToSixty + item.thirtyOneToSixty, sixtyOneToNinety: acc.sixtyOneToNinety + item.sixtyOneToNinety,
     ninetyOneToOneTwenty: acc.ninetyOneToOneTwenty + item.ninetyOneToOneTwenty, older: acc.older + item.older
-  }), { total: 0, oneToThirty: 0, thirtyOneToSixty: 0, sixtyOneToNinety: 0, ninetyOneToOneTwenty: 0, older: 0 });
+  }), { total: 0, atDate: 0, oneToThirty: 0, thirtyOneToSixty: 0, sixtyOneToNinety: 0, ninetyOneToOneTwenty: 0, older: 0 });
 
   tableData.push(['', 'TOTAL', '', totals.total.toLocaleString('en-US'), totals.oneToThirty.toLocaleString('en-US'),
     totals.thirtyOneToSixty.toLocaleString('en-US'), totals.sixtyOneToNinety.toLocaleString('en-US'),
@@ -228,6 +230,7 @@ export async function generateCombinedTagsAgesPDF(
     customerName: string;
     cities: string[];
     customerTags: string[];
+    atDate: number;
     oneToThirty: number;
     thirtyOneToSixty: number;
     sixtyOneToNinety: number;
@@ -295,14 +298,14 @@ export async function generateCombinedTagsAgesPDF(
     ]);
 
     const totals = sortedData.reduce((acc, item) => ({
-      total: acc.total + item.total, oneToThirty: acc.oneToThirty + item.oneToThirty,
+      total: acc.total + item.total, atDate: acc.atDate + item.atDate, oneToThirty: acc.oneToThirty + item.oneToThirty,
       thirtyOneToSixty: acc.thirtyOneToSixty + item.thirtyOneToSixty, sixtyOneToNinety: acc.sixtyOneToNinety + item.sixtyOneToNinety,
       ninetyOneToOneTwenty: acc.ninetyOneToOneTwenty + item.ninetyOneToOneTwenty, older: acc.older + item.older
-    }), { total: 0, oneToThirty: 0, thirtyOneToSixty: 0, sixtyOneToNinety: 0, ninetyOneToOneTwenty: 0, older: 0 });
+    }), { total: 0, atDate: 0, oneToThirty: 0, thirtyOneToSixty: 0, sixtyOneToNinety: 0, ninetyOneToOneTwenty: 0, older: 0 });
 
     summaryData.push({ tag, ...totals });
 
-    tableData.push(['', 'TOTAL', '', totals.total.toLocaleString('en-US'), totals.oneToThirty.toLocaleString('en-US'),
+    tableData.push(['', 'TOTAL', '', totals.total.toLocaleString('en-US'), totals.atDate.toLocaleString('en-US'), totals.oneToThirty.toLocaleString('en-US'),
       totals.thirtyOneToSixty.toLocaleString('en-US'), totals.sixtyOneToNinety.toLocaleString('en-US'),
       totals.ninetyOneToOneTwenty.toLocaleString('en-US'), totals.older.toLocaleString('en-US')]);
 
@@ -348,12 +351,12 @@ export async function generateCombinedTagsAgesPDF(
     ]);
 
     const grandTotals = summaryData.reduce((acc, item) => ({
-      total: acc.total + item.total, oneToThirty: acc.oneToThirty + item.oneToThirty,
+      total: acc.total + item.total, atDate: acc.atDate + item.atDate, oneToThirty: acc.oneToThirty + item.oneToThirty,
       thirtyOneToSixty: acc.thirtyOneToSixty + item.thirtyOneToSixty, sixtyOneToNinety: acc.sixtyOneToNinety + item.sixtyOneToNinety,
       ninetyOneToOneTwenty: acc.ninetyOneToOneTwenty + item.ninetyOneToOneTwenty, older: acc.older + item.older
-    }), { total: 0, oneToThirty: 0, thirtyOneToSixty: 0, sixtyOneToNinety: 0, ninetyOneToOneTwenty: 0, older: 0 });
+    }), { total: 0, atDate: 0, oneToThirty: 0, thirtyOneToSixty: 0, sixtyOneToNinety: 0, ninetyOneToOneTwenty: 0, older: 0 });
 
-    summaryTableData.push(['', 'GRAND TOTAL', grandTotals.total.toLocaleString('en-US'), grandTotals.oneToThirty.toLocaleString('en-US'),
+    summaryTableData.push(['', 'GRAND TOTAL', grandTotals.total.toLocaleString('en-US'), grandTotals.atDate.toLocaleString('en-US'), grandTotals.oneToThirty.toLocaleString('en-US'),
       grandTotals.thirtyOneToSixty.toLocaleString('en-US'), grandTotals.sixtyOneToNinety.toLocaleString('en-US'),
       grandTotals.ninetyOneToOneTwenty.toLocaleString('en-US'), grandTotals.older.toLocaleString('en-US')]);
 

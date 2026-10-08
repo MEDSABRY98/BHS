@@ -1,19 +1,27 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Calendar, FileSpreadsheet, Download, Loader2, Search, X } from 'lucide-react';
+import { Calendar, FileSpreadsheet, Download, Loader2, Search, X, ChevronRight, ChevronDown } from 'lucide-react';
 import DataLoader from '@/app/Components/Loading/DataLoader';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import { toast } from '@/app/Components/Notification';
 import { fetchAccounts, fetchEntriesByYear, FinancialAccount, FinancialEntry } from '../Service/FinancialService';
+import { useFinancialModel } from '../Context/FinancialModelContext';
 import type { PLExportRow, PLSectionKey } from './Export/PLExcelExport';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 export function IncomeStatementTab() {
-  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
-  const [startMonth, setStartMonth] = useState<number>(1);
-  const [endMonth, setEndMonth] = useState<number>(12);
+  const { selectedYear, startMonth, endMonth } = useFinancialModel();
   const [viewMode, setViewMode] = useState<'ACTUAL' | 'FORECAST' | 'BOTH'>('ACTUAL');
   const [displayFormat, setDisplayFormat] = useState<'NUMBERS' | 'PERCENTAGE'>('NUMBERS');
+  const [expandedSections, setExpandedSections] = useState<string[]>([]);
+
+  const toggleSection = (sectionKey: string) => {
+    setExpandedSections(prev => 
+      prev.includes(sectionKey) 
+        ? prev.filter(k => k !== sectionKey) 
+        : [...prev, sectionKey]
+    );
+  };
   
   const [isLoading, setIsLoading] = useState(true);
   const [accounts, setAccounts] = useState<FinancialAccount[]>([]);
@@ -235,21 +243,30 @@ export function IncomeStatementTab() {
       return typeAccounts.map(acc => renderRow(acc, type));
     }
 
-    return categories.map(cat => (
-      <React.Fragment key={`${type}-${cat}`}>
-        <tr>
-          <td colSpan={endMonth - startMonth + 3} className="p-0 bg-slate-100 border-y border-slate-200">
-            <div className="sticky left-0 inline-flex items-center gap-2.5 px-4 py-2.5">
-              <span className="w-1.5 h-4 rounded-full bg-[#D4AF37]" />
-              <span className="text-xs font-black text-slate-700 uppercase tracking-widest">{cat}</span>
-              <span className="text-[10px] font-bold text-slate-500 bg-white px-2 py-0.5 rounded-full border border-slate-200">{grouped[cat].length}</span>
-            </div>
-          </td>
-        </tr>
-        {grouped[cat].map(acc => renderRow(acc, type))}
-        {renderCategoryTotal(cat, type)}
-      </React.Fragment>
-    ));
+    return categories.map(cat => {
+      const isExpanded = expandedSections.includes(`${type}-${cat}`);
+      return (
+        <React.Fragment key={`${type}-${cat}`}>
+          <tr>
+            <td colSpan={endMonth - startMonth + 3} className="p-0 bg-slate-100 border-y border-slate-200">
+              <div 
+                className="sticky left-0 flex items-center gap-2.5 px-4 py-2.5 cursor-pointer hover:bg-slate-200/50 transition-colors w-full min-w-[300px]"
+                onClick={() => toggleSection(`${type}-${cat}`)}
+              >
+                <span className="w-1.5 h-4 rounded-full bg-[#D4AF37]" />
+                <span className="text-xs font-black text-slate-700 uppercase tracking-widest">{cat}</span>
+                <span className="text-[10px] font-bold text-slate-500 bg-white px-2 py-0.5 rounded-full border border-slate-200">{grouped[cat].length}</span>
+                <div className="ml-auto mr-4">
+                  {isExpanded ? <ChevronDown className="w-4 h-4 text-slate-400" /> : <ChevronRight className="w-4 h-4 text-slate-400" />}
+                </div>
+              </div>
+            </td>
+          </tr>
+          {isExpanded && grouped[cat].map(acc => renderRow(acc, type))}
+          {renderCategoryTotal(cat, type)}
+        </React.Fragment>
+      );
+    });
   };
 
   const renderProfitRowInner = (label: string, calculateMonth: (month: number, mode: 'ACTUAL'|'FORECAST') => number, calculateYear: (mode: 'ACTUAL'|'FORECAST') => number, isNet: boolean = false, mode: 'ACTUAL'|'FORECAST') => (
@@ -307,7 +324,7 @@ export function IncomeStatementTab() {
   );
 
   const renderMarginRow = (label: string, calculateMonthVal: (month: number, mode: 'ACTUAL'|'FORECAST') => number, calculateMonthRev: (month: number, mode: 'ACTUAL'|'FORECAST') => number, calculateYearVal: (mode: 'ACTUAL'|'FORECAST') => number, calculateYearRev: (mode: 'ACTUAL'|'FORECAST') => number, isNet = false) => {
-    if (displayFormat === 'PERCENTAGE') return null;
+    
     if (viewMode === 'BOTH') {
       return (
         <React.Fragment key={`margin-grp-${label}`}>
@@ -373,8 +390,11 @@ export function IncomeStatementTab() {
             pushAccounts(list, type);
           } else {
             cats.forEach(cat => {
-              rows.push({ kind: 'categoryHeader', label: cat, section: type, count: g[cat].length });
-              pushAccounts(g[cat], type);
+              const isExpanded = expandedSections.includes(`${type}-${cat}`);
+                rows.push({ kind: 'categoryHeader', label: cat, section: type, count: g[cat].length });
+                if (isExpanded) {
+                  pushAccounts(g[cat], type);
+                }
               modes.forEach(mode => {
                 const { values, total } = build(m => calculateCategoryTotal(type, cat, m, mode), () => calculateCategoryYearTotal(type, cat, mode), mode);
                 rows.push({ kind: 'categoryTotal', label: cat + sfx(mode), section: type, values, total, percent: isPct });
@@ -400,7 +420,7 @@ export function IncomeStatementTab() {
           const { values, total } = build(m => profitM(m, mode, minus), () => profitY(mode, minus), mode);
           rows.push({ kind: 'profit', label: label + sfx(mode), values, total, isNet, percent: isPct });
         });
-        if (withMargin && !isPct) {
+        if (withMargin) {
           modes.forEach(mode => {
             const { values, total } = build(m => profitM(m, mode, minus), () => profitY(mode, minus), mode, true);
             rows.push({ kind: 'margin', label: `${label} Margin${sfx(mode)}`, values, total, isNet });
@@ -524,31 +544,7 @@ export function IncomeStatementTab() {
             </button>
           </div>
 
-          <div className="flex items-center gap-2">
-            <div className="relative">
-              <input
-                type="number" min={1} max={12} placeholder="MM"
-                className="w-20 pl-8 pr-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-center font-black text-white focus:ring-2 focus:ring-[#D4AF37] focus:border-[#D4AF37] transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none placeholder:text-white/30"
-                value={startMonth} onChange={(e) => setStartMonth(Number(e.target.value))}
-              />
-              <Calendar className="w-4 h-4 text-white/30 absolute left-3 top-1/2 -translate-y-1/2" />
-            </div>
-            <span className="text-white/30 font-bold text-sm">To</span>
-            <div className="relative">
-              <input
-                type="number" min={1} max={12} placeholder="MM"
-                className="w-20 pl-8 pr-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-center font-black text-white focus:ring-2 focus:ring-[#D4AF37] focus:border-[#D4AF37] transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none placeholder:text-white/30"
-                value={endMonth} onChange={(e) => setEndMonth(Number(e.target.value))}
-              />
-              <Calendar className="w-4 h-4 text-white/30 absolute left-3 top-1/2 -translate-y-1/2" />
-            </div>
-            <span className="text-white/20 font-light text-xl mx-1">/</span>
-            <input
-              type="number" min={2000} max={2100} placeholder="YYYY"
-              className="w-24 px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-center font-black text-white focus:ring-2 focus:ring-[#D4AF37] focus:border-[#D4AF37] transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none placeholder:text-white/30"
-              value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))}
-            />
-          </div>
+          
         </div>
       </div>
       

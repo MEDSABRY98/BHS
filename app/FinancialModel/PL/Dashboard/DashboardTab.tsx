@@ -3,6 +3,7 @@ import { Calendar, TrendingUp, TrendingDown, Activity, ArrowUpRight, ArrowDownRi
 import DataLoader from '@/app/Components/Loading/DataLoader';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import { fetchAccounts, fetchEntriesByYear, FinancialAccount, FinancialEntry } from '../../Service/FinancialService';
+import { useFinancialModel } from '../../Context/FinancialModelContext';
 import { ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 // Import Charts
@@ -19,9 +20,7 @@ import { NetProfitChart } from './Charts/NetProfitChart';
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 export function DashboardTab() {
-  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
-  const [startMonth, setStartMonth] = useState<number>(1);
-  const [endMonth, setEndMonth] = useState<number>(12);
+  const { selectedYear, startMonth, endMonth } = useFinancialModel();
   const [isLoading, setIsLoading] = useState(true);
   const [activeView, setActiveView] = useState<'CARDS' | 'CHARTS'>('CARDS');
   const [expandedChart, setExpandedChart] = useState<string | null>(null);
@@ -130,12 +129,7 @@ export function DashboardTab() {
     const gpA = revA - cogsA;
     const marginA = revA === 0 ? 0 : (gpA / revA) * 100;
 
-    const revF = calculateSectionTotal('REVENUE', monthIndex, 'FORECAST');
-    const cogsF = calculateSectionTotal('COGS', monthIndex, 'FORECAST');
-    const gpF = revF - cogsF;
-    const marginF = revF === 0 ? 0 : (gpF / revF) * 100;
-
-    return { month: m, 'Actual Margin': marginA, 'Forecast Margin': marginF };
+    return { month: m, 'Actual Margin': marginA };
   });
 
   // Prepare Data for EBITDA Chart
@@ -166,14 +160,7 @@ export function DashboardTab() {
     const ebitdaA = revA - cogsA - dirA - indirA;
     const marginA = revA === 0 ? 0 : (ebitdaA / revA) * 100;
 
-    const revF = calculateSectionTotal('REVENUE', monthIndex, 'FORECAST');
-    const cogsF = calculateSectionTotal('COGS', monthIndex, 'FORECAST');
-    const dirF = calculateSectionTotal('DIRECT_EXPENSE', monthIndex, 'FORECAST');
-    const indirF = calculateSectionTotal('INDIRECT_EXPENSE', monthIndex, 'FORECAST');
-    const ebitdaF = revF - cogsF - dirF - indirF;
-    const marginF = revF === 0 ? 0 : (ebitdaF / revF) * 100;
-
-    return { month: m, 'Actual Margin': marginA, 'Forecast Margin': marginF };
+    return { month: m, 'Actual Margin': marginA };
   });
 
   // Prepare Data for Net Profit Chart
@@ -210,19 +197,9 @@ export function DashboardTab() {
     const netProfitA = revA - cogsA - expA;
     const marginA = revA === 0 ? 0 : (netProfitA / revA) * 100;
 
-    const revF = calculateSectionTotal('REVENUE', monthIndex, 'FORECAST');
-    const cogsF = calculateSectionTotal('COGS', monthIndex, 'FORECAST');
-    const expF = calculateSectionTotal('DIRECT_EXPENSE', monthIndex, 'FORECAST') + calculateSectionTotal('INDIRECT_EXPENSE', monthIndex, 'FORECAST') +
-                 calculateSectionTotal('DEPRECIATION', monthIndex, 'FORECAST') +
-                 calculateSectionTotal('FINANCE_COST', monthIndex, 'FORECAST') +
-                 calculateSectionTotal('TAXES', monthIndex, 'FORECAST');
-    const netProfitF = revF - cogsF - expF;
-    const marginF = revF === 0 ? 0 : (netProfitF / revF) * 100;
-
     return {
       month: m,
-      'Actual Margin': marginA,
-      'Forecast Margin': marginF,
+      'Actual Margin': marginA
     };
   });
 
@@ -388,10 +365,16 @@ export function DashboardTab() {
     </div>
   );
 
-  const CustomPopupTooltip = ({ active, payload, label }: any) => {
+  const CustomPopupTooltip = ({ active, payload, label, isNegativeCost }: any) => {
     if (active && payload && payload.length) {
-      const actualObj = payload.find((p: any) => p.dataKey === 'Actual');
-      const forecastObj = payload.find((p: any) => p.dataKey === 'Forecast');
+      let actualObj = payload.find((p: any) => p.dataKey === 'Actual');
+      let forecastObj = payload.find((p: any) => p.dataKey === 'Forecast');
+      
+      // Support for Margin charts
+      if (!actualObj && !forecastObj) {
+        actualObj = payload.find((p: any) => p.dataKey === 'Actual Margin');
+        forecastObj = payload.find((p: any) => p.dataKey === 'Forecast Margin');
+      }
       
       if (!actualObj && !forecastObj) {
         return (
@@ -414,6 +397,9 @@ export function DashboardTab() {
         );
       }
 
+      const isMarginChart = !!payload.find((p: any) => p.dataKey === 'Actual Margin');
+      const formatValue = (v: number) => isMarginChart ? `${v.toFixed(1)}%` : v.toLocaleString(undefined, { maximumFractionDigits: 1 });
+
       const actual = actualObj?.value || 0;
       const forecast = forecastObj?.value || 0;
       const diff = actual - forecast;
@@ -427,8 +413,13 @@ export function DashboardTab() {
         variancePercent = -100;
       }
 
-      const formattedVariance = `${variancePercent > 0 ? '+' : ''}${variancePercent.toFixed(1)}%`;
-      const diffColor = diff >= 0 ? 'text-emerald-500' : 'text-red-500';
+      const formattedVariance = isMarginChart ? `${diff > 0 ? '+' : ''}${diff.toFixed(1)}%` : `${variancePercent > 0 ? '+' : ''}${variancePercent.toFixed(1)}%`;
+      
+      const isPositivePerformance = isNegativeCost ? diff < 0 : diff > 0;
+      const isNeutral = diff === 0;
+
+      const diffColor = isNeutral ? 'text-slate-500' : (isPositivePerformance ? 'text-emerald-500' : 'text-red-500');
+      const badgeBg = isNeutral ? 'bg-slate-100 text-slate-600' : (isPositivePerformance ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600');
 
       return (
         <div className="bg-white p-5 rounded-2xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.15)] border border-slate-100 min-w-[220px]">
@@ -440,7 +431,7 @@ export function DashboardTab() {
                   <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: actualObj.color }} />Actual
                 </span>
                 <span className="text-sm font-black text-slate-800 tabular-nums">
-                  {actual.toLocaleString(undefined, { maximumFractionDigits: 1 })}
+                  {formatValue(actual)}
                 </span>
               </div>
             )}
@@ -450,21 +441,30 @@ export function DashboardTab() {
                   <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: forecastObj.color }} />Forecast
                 </span>
                 <span className="text-sm font-black text-slate-800 tabular-nums">
-                  {forecast.toLocaleString(undefined, { maximumFractionDigits: 1 })}
+                  {formatValue(forecast)}
                 </span>
               </div>
             )}
-            <div className="flex justify-between items-center pt-2.5 mt-1 border-t border-slate-100 gap-6">
-              <span className="text-xs font-bold text-slate-600">Variance</span>
-              <div className="flex items-center gap-2">
-                <span className={`text-xs font-bold tabular-nums ${diffColor}`}>
-                  {diff > 0 ? '+' : ''}{diff.toLocaleString(undefined, { maximumFractionDigits: 1 })}
-                </span>
-                <span className={`text-[11px] font-black px-1.5 py-0.5 rounded-md ${diff >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>
-                  {formattedVariance}
-                </span>
+            {forecastObj && (
+              <div className="flex justify-between items-center pt-2.5 mt-1 border-t border-slate-100 gap-6">
+                <span className="text-xs font-bold text-slate-600">Variance</span>
+                <div className="flex items-center gap-2">
+                  <span className={`text-xs font-bold tabular-nums ${diffColor}`}>
+                    {diff > 0 ? '+' : ''}{formatValue(diff)}
+                  </span>
+                  {!isMarginChart && (
+                    <span className={`text-[11px] font-black px-1.5 py-0.5 rounded-md ${badgeBg}`}>
+                      {formattedVariance}
+                    </span>
+                  )}
+                  {isMarginChart && (
+                    <span className={`text-[11px] font-black px-1.5 py-0.5 rounded-md ${badgeBg}`}>
+                      {diff > 0 ? 'Up' : diff < 0 ? 'Down' : 'Flat'}
+                    </span>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
       );
@@ -472,7 +472,7 @@ export function DashboardTab() {
     return null;
   };
 
-  const GenericPopupChart = ({ data, title }: { data: any[], title: string }) => {
+  const GenericPopupChart = ({ data, title, isNegativeCost }: { data: any[], title: string, isNegativeCost?: boolean }) => {
     const keys = data.length > 0 ? Object.keys(data[0]).filter(k => k !== 'month' && k !== 'name') : [];
     
     return (
@@ -501,7 +501,7 @@ export function DashboardTab() {
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
               <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 13, fill: '#94a3b8', fontWeight: 700 }} dy={12} />
               <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 13, fill: '#94a3b8', fontWeight: 600 }} tickFormatter={(v) => v >= 1000 ? `${(v/1000).toFixed(0)}k` : v} />
-              <Tooltip cursor={{ fill: '#f8fafc' }} content={<CustomPopupTooltip />} />
+              <Tooltip cursor={{ fill: '#f8fafc' }} content={<CustomPopupTooltip isNegativeCost={isNegativeCost} />} />
               <Legend wrapperStyle={{ paddingTop: '24px', fontWeight: 700, fontSize: '14px' }} iconType="circle" />
               
               {keys.map((key, i) => {
@@ -552,31 +552,7 @@ export function DashboardTab() {
             </button>
           </div>
 
-          <div className="flex items-center gap-2">
-          <div className="relative">
-            <input
-              type="number" min={1} max={12} placeholder="MM"
-              className="w-20 pl-8 pr-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-center font-black text-white focus:ring-2 focus:ring-[#D4AF37] focus:border-[#D4AF37] transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none placeholder:text-white/30"
-              value={startMonth} onChange={(e) => setStartMonth(Number(e.target.value))}
-            />
-            <Calendar className="w-4 h-4 text-white/30 absolute left-3 top-1/2 -translate-y-1/2" />
-          </div>
-          <span className="text-white/30 font-bold text-sm">To</span>
-          <div className="relative">
-            <input
-              type="number" min={1} max={12} placeholder="MM"
-              className="w-20 pl-8 pr-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-center font-black text-white focus:ring-2 focus:ring-[#D4AF37] focus:border-[#D4AF37] transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none placeholder:text-white/30"
-              value={endMonth} onChange={(e) => setEndMonth(Number(e.target.value))}
-            />
-            <Calendar className="w-4 h-4 text-white/30 absolute left-3 top-1/2 -translate-y-1/2" />
-          </div>
-          <span className="text-white/20 font-light text-xl mx-1">/</span>
-          <input
-            type="number" min={2000} max={2100} placeholder="YYYY"
-            className="w-24 px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-center font-black text-white focus:ring-2 focus:ring-[#D4AF37] focus:border-[#D4AF37] transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none placeholder:text-white/30"
-            value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))}
-          />
-          </div>
+          
         </div>
       </div>
 
@@ -671,8 +647,8 @@ export function DashboardTab() {
             {/* Render Generic Popup Chart with reduced height (!h-[500px]) */}
             <div className="w-full h-[50vh] md:h-[500px] shadow-2xl ring-1 ring-white/20 rounded-[32px]">
                {expandedChart === 'REVENUE' && <GenericPopupChart title="Revenue Analysis" data={revenueData} />}
-               {expandedChart === 'COGS' && <GenericPopupChart title="Cost of Goods Sold" data={cogsData} />}
-               {expandedChart === 'TOTAL_EXPENSES' && <GenericPopupChart title="Total Expenses" data={totalExpensesData} />}
+               {expandedChart === 'COGS' && <GenericPopupChart title="Cost of Goods Sold" data={cogsData} isNegativeCost={true} />}
+               {expandedChart === 'TOTAL_EXPENSES' && <GenericPopupChart title="Total Expenses" data={totalExpensesData} isNegativeCost={true} />}
                {expandedChart === 'GROSS_PROFIT' && <GenericPopupChart title="Gross Profit" data={grossProfitData} />}
                {expandedChart === 'GROSS_MARGIN' && <GenericPopupChart title="Gross Profit Margin" data={grossProfitMarginData} />}
                {expandedChart === 'EBITDA' && <GenericPopupChart title="EBITDA" data={ebitdaData} />}

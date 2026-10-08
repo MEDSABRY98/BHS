@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { ArrowLeft, ChevronLeft, ChevronRight, X, LayoutDashboard, LineChart, FileSpreadsheet, PencilLine, RefreshCw } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ArrowLeft, ChevronLeft, ChevronRight, X, LayoutDashboard, LineChart, FileSpreadsheet, PencilLine, RefreshCw, Filter } from 'lucide-react';
+import { useFinancialModel } from '../Context/FinancialModelContext';
 
 interface SidebarProps {
   activeTab: string;
@@ -11,6 +12,37 @@ interface SidebarProps {
 
 export function Sidebar({ activeTab, setActiveTab, isCollapsed, onToggleCollapse, onCloseMobile }: SidebarProps) {
   const [hoveredTab, setHoveredTab] = useState<{ label: string; top: number } | null>(null);
+  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
+  const { selectedYear, setSelectedYear, startMonth, setStartMonth, endMonth, setEndMonth } = useFinancialModel();
+  const [localYear, setLocalYear] = useState(selectedYear);
+  const [localStartMonth, setLocalStartMonth] = useState(startMonth);
+  const [localEndMonth, setLocalEndMonth] = useState(endMonth);
+
+  useEffect(() => {
+    if (isFilterModalOpen) {
+      setLocalYear(selectedYear);
+      setLocalStartMonth(startMonth);
+      setLocalEndMonth(endMonth);
+    }
+  }, [isFilterModalOpen, selectedYear, startMonth, endMonth]);
+
+  const handleApplyFilters = () => {
+    setSelectedYear(localYear);
+    setStartMonth(localStartMonth);
+    setEndMonth(localEndMonth);
+    setIsFilterModalOpen(false);
+  };
+
+  const handleClearFilters = () => {
+    const currentYear = new Date().getFullYear();
+    setLocalYear(currentYear);
+    setLocalStartMonth(1);
+    setLocalEndMonth(12);
+    setSelectedYear(currentYear);
+    setStartMonth(1);
+    setEndMonth(12);
+    setIsFilterModalOpen(false);
+  };
 
   const tabs = [
     { id: 'dashboard', label: 'P&L Dashboard', icon: LineChart },
@@ -132,6 +164,13 @@ export function Sidebar({ activeTab, setActiveTab, isCollapsed, onToggleCollapse
           <RefreshCw className="w-5 h-5" />
         </button>
         <button
+          onClick={() => setIsFilterModalOpen(true)}
+          className="flex-1 flex items-center justify-center p-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/5 transition-all"
+          title="Global Date Filters"
+        >
+          <Filter className="w-5 h-5" />
+        </button>
+        <button
           onClick={onToggleCollapse}
           className="flex-1 hidden lg:flex items-center justify-center p-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/5 transition-all"
           title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
@@ -139,6 +178,79 @@ export function Sidebar({ activeTab, setActiveTab, isCollapsed, onToggleCollapse
           {isCollapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
         </button>
       </div>
+
+      {isFilterModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-[#121212] border border-white/10 p-6 rounded-2xl w-full max-w-sm shadow-2xl animate-in fade-in zoom-in duration-200">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                <Filter className="w-5 h-5 text-[#D4AF37]" />
+                Global Date Filter
+              </h3>
+              <button onClick={() => setIsFilterModalOpen(false)} className="text-slate-400 hover:text-white transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Year</label>
+                <input 
+                  type="number"
+                  min={2000}
+                  max={2100}
+                  placeholder="YYYY"
+                  value={localYear || ''} 
+                  onChange={(e) => setLocalYear(Number(e.target.value))}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#D4AF37] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                />
+              </div>
+              
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">From Month</label>
+                  <input 
+                    type="number"
+                    min={1}
+                    max={12}
+                    placeholder="MM"
+                    value={localStartMonth || ''} 
+                    onChange={(e) => setLocalStartMonth(Number(e.target.value))}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#D4AF37] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">To Month</label>
+                  <input 
+                    type="number"
+                    min={1}
+                    max={12}
+                    placeholder="MM"
+                    value={localEndMonth || ''} 
+                    onChange={(e) => setLocalEndMonth(Number(e.target.value))}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#D4AF37] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  />
+                </div>
+              </div>
+            </div>
+            
+            <div className="mt-8 flex justify-center gap-3">
+              <button 
+                onClick={handleClearFilters}
+                className="px-6 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl transition-colors"
+              >
+                Clear Filters
+              </button>
+              <button 
+                onClick={handleApplyFilters}
+                className="px-6 py-2 bg-[#D4AF37] hover:bg-[#B8942E] text-black font-bold rounded-xl transition-colors"
+              >
+                Apply Filters
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </aside>
   );
 }

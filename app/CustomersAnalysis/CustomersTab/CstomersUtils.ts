@@ -344,7 +344,7 @@ export const getInvoiceType = (inv: { number?: string | null; credit?: number | 
   return 'Invoice/Txn';
 };
 
-export function generateCustomerAnalysis(data: InvoiceRow[]): CustomerAnalysis[] {
+export function generateCustomerAnalysis(data: InvoiceRow[], agingMode: 'days' | 'months' = 'days'): CustomerAnalysis[] {
   interface CustomerData {
     customerId: string;
     customerName: string;
@@ -566,7 +566,7 @@ export function generateCustomerAnalysis(data: InvoiceRow[]): CustomerAnalysis[]
           if (daysOverdue > 0) {
             maxOverdueDays = Math.max(maxOverdueDays, daysOverdue);
           }
-          if (daysOverdue < 0) agingBreakdown.atDate += invNetDebt;
+          if (daysOverdue <= 0) agingBreakdown.atDate += invNetDebt;
           else if (daysOverdue <= 30) agingBreakdown.oneToThirty += invNetDebt;
           else if (daysOverdue <= 60) agingBreakdown.thirtyOneToSixty += invNetDebt;
           else if (daysOverdue <= 90) agingBreakdown.sixtyOneToNinety += invNetDebt;
@@ -586,7 +586,7 @@ export function generateCustomerAnalysis(data: InvoiceRow[]): CustomerAnalysis[]
         if (daysOverdue > 0) {
           maxOverdueDays = Math.max(maxOverdueDays, daysOverdue);
         }
-        if (daysOverdue < 0) agingBreakdown.atDate += groupNetDebt;
+        if (daysOverdue <= 0) agingBreakdown.atDate += groupNetDebt;
         else if (daysOverdue <= 30) agingBreakdown.oneToThirty += groupNetDebt;
         else if (daysOverdue <= 60) agingBreakdown.thirtyOneToSixty += groupNetDebt;
         else if (daysOverdue <= 90) agingBreakdown.sixtyOneToNinety += groupNetDebt;
@@ -1019,12 +1019,13 @@ export const exportToExcel = async (
 
   // --- Ages View ---
   if (opts.includeAges) {
-    const ageHeaders = ['0 - 30', '31 - 60', '61 - 90', '91 - 120', 'OLDER'];
+    const ageHeaders = ['0', '1 - 30', '31 - 60', '61 - 90', '91 - 120', 'OLDER'];
 
     const getAgeBuckets = (c: CustomerAnalysis) => {
       const a = c.agingBreakdown;
       return {
-        zeroToThirty: (a?.atDate || 0) + (a?.oneToThirty || 0),
+        atDate: a?.atDate || 0,
+        oneToThirty: a?.oneToThirty || 0,
         thirtyOneToSixty: a?.thirtyOneToSixty || 0,
         sixtyOneToNinety: a?.sixtyOneToNinety || 0,
         ninetyOneToOneTwenty: a?.ninetyOneToOneTwenty || 0,
@@ -1056,7 +1057,8 @@ export const exportToExcel = async (
           (c.lastPaymentAmount || 0).toFixed(2),
           getDaysSinceLastPayment(c),
           (c.netDebt || 0).toFixed(2),
-          buckets.zeroToThirty.toFixed(2),
+          buckets.atDate.toFixed(2),
+          buckets.oneToThirty.toFixed(2),
           buckets.thirtyOneToSixty.toFixed(2),
           buckets.sixtyOneToNinety.toFixed(2),
           buckets.ninetyOneToOneTwenty.toFixed(2),

@@ -4,14 +4,13 @@ import DataLoader from '@/app/Components/Loading/DataLoader';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import { toast } from '@/app/Components/Notification';
 import { fetchAccounts, fetchEntriesByYear, FinancialAccount, FinancialEntry } from '../Service/FinancialService';
+import { useFinancialModel } from '../Context/FinancialModelContext';
 import type { PLExportRow, PLSectionKey } from '../PL/Export/PLExcelExport';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 export function CashFlowStatementTab() {
-  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
-  const [startMonth, setStartMonth] = useState<number>(1);
-  const [endMonth, setEndMonth] = useState<number>(12);
+  const { selectedYear, startMonth, endMonth } = useFinancialModel();
   const [viewMode, setViewMode] = useState<'ACTUAL' | 'FORECAST' | 'BOTH'>('ACTUAL');
   const [displayFormat, setDisplayFormat] = useState<'NUMBERS' | 'PERCENTAGE'>('NUMBERS');
   
@@ -539,31 +538,7 @@ export function CashFlowStatementTab() {
             </button>
           </div>
 
-          <div className="flex items-center gap-2">
-            <div className="relative">
-              <input
-                type="number" min={1} max={12} placeholder="MM"
-                className="w-20 pl-8 pr-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-center font-black text-white focus:ring-2 focus:ring-[#D4AF37] focus:border-[#D4AF37] transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none placeholder:text-white/30"
-                value={startMonth} onChange={(e) => setStartMonth(Number(e.target.value))}
-              />
-              <Calendar className="w-4 h-4 text-white/30 absolute left-3 top-1/2 -translate-y-1/2" />
-            </div>
-            <span className="text-white/30 font-bold text-sm">To</span>
-            <div className="relative">
-              <input
-                type="number" min={1} max={12} placeholder="MM"
-                className="w-20 pl-8 pr-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-center font-black text-white focus:ring-2 focus:ring-[#D4AF37] focus:border-[#D4AF37] transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none placeholder:text-white/30"
-                value={endMonth} onChange={(e) => setEndMonth(Number(e.target.value))}
-              />
-              <Calendar className="w-4 h-4 text-white/30 absolute left-3 top-1/2 -translate-y-1/2" />
-            </div>
-            <span className="text-white/20 font-light text-xl mx-1">/</span>
-            <input
-              type="number" min={2000} max={2100} placeholder="YYYY"
-              className="w-24 px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-center font-black text-white focus:ring-2 focus:ring-[#D4AF37] focus:border-[#D4AF37] transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none placeholder:text-white/30"
-              value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))}
-            />
-          </div>
+          
         </div>
       </div>
       

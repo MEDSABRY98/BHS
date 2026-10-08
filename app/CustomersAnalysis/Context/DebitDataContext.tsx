@@ -26,6 +26,7 @@ export interface GlobalDebitFilters {
   hideZeroAndNegativeBalance: boolean;
   hideZeroBalanceOnly: boolean;
   hideNegativeBalanceOnly: boolean;
+  agingMode: 'days' | 'months';
 }
 
 export interface DebitDataContextValue {
@@ -98,6 +99,7 @@ export function DebitDataProvider({
     hideZeroAndNegativeBalance: false,
     hideZeroBalanceOnly: false,
     hideNegativeBalanceOnly: false,
+      agingMode: 'days',
   });
   const metaRequestId = useRef(0);
   const fullDataRequestId = useRef(0);

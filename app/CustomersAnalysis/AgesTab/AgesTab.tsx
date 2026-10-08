@@ -15,6 +15,7 @@ import {
 import { FileSpreadsheet, FileText, MapPin, ChevronDown, Check, MinusCircle, Tag, Users, X, Loader2 } from 'lucide-react';
 import { saveTrackedAs } from '@/app/Audit/Utils/TrackedDownload';
 import { InvoiceRow } from '@/types';
+import { useDebitData } from '../Context/DebitDataContext';
 import NoData from '@/app/Components/DataState/NoDataTab';
 
 interface AgesTabProps {
@@ -27,6 +28,7 @@ interface CustomerAgingSummary {
   customerName: string;
   cities: string[];
   customerTags: string[];
+  atDate: number;
   oneToThirty: number;
   thirtyOneToSixty: number;
   sixtyOneToNinety: number;
@@ -72,7 +74,8 @@ export default function AgesTab({ data }: AgesTabProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const debouncedSearch = useDebouncedValue(searchQuery);
   const [selectedSalesRep, setSelectedSalesRep] = useState<string>('all');
-  const [agingMode, setAgingMode] = useState<'days' | 'months'>('days');
+  const { globalFilters } = useDebitData();
+  const agingMode = globalFilters.agingMode;
 
   const [isCityDropdownOpen, setIsCityDropdownOpen] = useState(false);
   const [isPdfExportOpen, setIsPdfExportOpen] = useState(false);
@@ -125,6 +128,7 @@ export default function AgesTab({ data }: AgesTabProps) {
         customerName,
         cities: Array.from(citiesSet).sort(),
         customerTags: Array.from(tagsSet).sort(),
+        atDate: 0,
         oneToThirty: 0,
         thirtyOneToSixty: 0,
         sixtyOneToNinety: 0,
@@ -196,7 +200,9 @@ export default function AgesTab({ data }: AgesTabProps) {
             daysOverdue = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
           }
 
-          if (daysOverdue <= 30) {
+          if (daysOverdue <= 0) {
+            summary.atDate += amountToAge;
+          } else if (daysOverdue <= 30) {
             summary.oneToThirty += amountToAge;
           } else if (daysOverdue <= 60) {
             summary.thirtyOneToSixty += amountToAge;
@@ -213,6 +219,7 @@ export default function AgesTab({ data }: AgesTabProps) {
       // Include in summary if there is significant debt or open items
       const hasValues = Math.abs(summary.total) > 0.01 ||
         Math.abs(summary.older) > 0.01 ||
+        Math.abs(summary.atDate) > 0.01 ||
         Math.abs(summary.oneToThirty) > 0.01 ||
         Math.abs(summary.thirtyOneToSixty) > 0.01 ||
         Math.abs(summary.sixtyOneToNinety) > 0.01 ||
@@ -277,7 +284,8 @@ export default function AgesTab({ data }: AgesTabProps) {
       'Customer Name': item.customerName,
       'City': item.cities.join(', ') || '',
       'NET DEBIT': item.total,
-      '0 - 30': item.oneToThirty,
+      '0': item.atDate,
+      '1 - 30': item.oneToThirty,
       '31 - 60': item.thirtyOneToSixty,
       '61 - 90': item.sixtyOneToNinety,
       '91 - 120': item.ninetyOneToOneTwenty,
@@ -321,6 +329,7 @@ export default function AgesTab({ data }: AgesTabProps) {
     sortedCities.forEach(city => {
       const cityData = cityMap.get(city)!;
       const cityTotal = cityData.reduce((sum, item) => sum + item.total, 0);
+      const cityAtDate = cityData.reduce((sum, item) => sum + item.atDate, 0);
       const city1To30 = cityData.reduce((sum, item) => sum + item.oneToThirty, 0);
       const city31To60 = cityData.reduce((sum, item) => sum + item.thirtyOneToSixty, 0);
       const city61To90 = cityData.reduce((sum, item) => sum + item.sixtyOneToNinety, 0);
@@ -333,7 +342,8 @@ export default function AgesTab({ data }: AgesTabProps) {
         'Customer Name': 'TOTAL',
         'City': '',
         'NET DEBIT': cityTotal,
-        '0 - 30': city1To30,
+        '0': cityAtDate,
+        '1 - 30': city1To30,
         '31 - 60': city31To60,
         '61 - 90': city61To90,
         '91 - 120': city91To120,
@@ -490,8 +500,12 @@ export default function AgesTab({ data }: AgesTabProps) {
           );
         },
       }),
+      columnHelper.accessor('atDate', {
+        header: '0',
+        cell: (info) => (info.getValue() || 0).toLocaleString('en-US'),
+      }),
       columnHelper.accessor('oneToThirty', {
-        header: '0 - 30',
+        header: '1 - 30',
         cell: (info) => (
           <span className="whitespace-nowrap">
             {info.getValue().toLocaleString('en-US')}
@@ -615,22 +629,7 @@ export default function AgesTab({ data }: AgesTabProps) {
           )}
         </div>
 
-        <div className="flex bg-slate-100 p-1 rounded-xl shadow-sm border border-slate-200">
-          <button
-            onClick={() => setAgingMode('days')}
-            className={`px-4 py-2 text-sm font-bold rounded-lg transition-colors ${agingMode === 'days' ? 'bg-white text-blue-700 shadow' : 'text-slate-500 hover:text-slate-700'}`}
-            title="Calculate aging by exact days from invoice date"
-          >
-            Days Aging
-          </button>
-          <button
-            onClick={() => setAgingMode('months')}
-            className={`px-4 py-2 text-sm font-bold rounded-lg transition-colors ${agingMode === 'months' ? 'bg-white text-blue-700 shadow' : 'text-slate-500 hover:text-slate-700'}`}
-            title="Calculate aging by payment terms in calendar months"
-          >
-            Months Aging
-          </button>
-        </div>
+        
 
         <input
           type="text"

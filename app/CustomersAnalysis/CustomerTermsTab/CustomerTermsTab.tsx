@@ -622,7 +622,8 @@ export default function CustomerTermsTab({ data }: CustomerTermsTabProps) {
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
                     data={[
-                      { name: '0-30 Days', value: selectedCustomerForAging.agingBreakdown?.oneToThirty || 0, color: '#f59e0b' },
+                      { name: '0 Days', value: selectedCustomerForAging.agingBreakdown?.atDate || 0, color: '#94a3b8' },
+                      { name: '1-30 Days', value: selectedCustomerForAging.agingBreakdown?.oneToThirty || 0, color: '#f59e0b' },
                       { name: '31-60 Days', value: selectedCustomerForAging.agingBreakdown?.thirtyOneToSixty || 0, color: '#f97316' },
                       { name: '61-90 Days', value: selectedCustomerForAging.agingBreakdown?.sixtyOneToNinety || 0, color: '#ef4444' },
                       { name: '91-120 Days', value: selectedCustomerForAging.agingBreakdown?.ninetyOneToOneTwenty || 0, color: '#b91c1c' },

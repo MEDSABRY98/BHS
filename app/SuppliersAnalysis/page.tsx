@@ -9,6 +9,7 @@ import ExpectedPaymentsTab from './ExpectedPaymentsTab/ExpectedPaymentsTab';
 import { SuppliersDataProvider, useSuppliersData } from './Context/SuppliersDataContext';
 import TabLoader from '../Components/Loading/TabLoader';
 import MainLoader from '../Components/Loading/MainLoader';
+import NoData from '../Components/DataState/NoDataTab';
 
 function SuppliersPageShell({
   activeTab,
@@ -25,11 +26,19 @@ function SuppliersPageShell({
   isMobileSidebarOpen: boolean;
   setIsMobileSidebarOpen: (open: boolean) => void;
 }) {
-  const { loading } = useSuppliersData();
+  const { loading, data } = useSuppliersData();
 
   const renderBody = () => {
     if (loading) {
       return <TabLoader className="!min-h-full flex-1" />;
+    }
+
+    if (!data || data.length === 0) {
+      return (
+        <div className="max-w-[92%] 2xl:max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-12 flex-1 w-full flex items-center justify-center min-h-[70vh]">
+          <NoData title="NO DATA FOUND" message="No suppliers data available. Please ensure data is uploaded in the main modules." />
+        </div>
+      );
     }
 
     return (

@@ -31,7 +31,7 @@ function normalizeReferenceDate(referenceDate: Date): Date {
 }
 
 function addToBucket(breakdown: AgingBreakdown, daysOverdue: number, amount: number) {
-  if (daysOverdue < 0) breakdown.atDate += amount;
+  if (daysOverdue <= 0) breakdown.atDate += amount;
   else if (daysOverdue <= 30) breakdown.oneToThirty += amount;
   else if (daysOverdue <= 60) breakdown.thirtyOneToSixty += amount;
   else if (daysOverdue <= 90) breakdown.sixtyOneToNinety += amount;
@@ -42,20 +42,28 @@ function addToBucket(breakdown: AgingBreakdown, daysOverdue: number, amount: num
 function computeDaysOverdue(
   dueDate: string | null | undefined,
   invoiceDate: string | null | undefined,
-  referenceDate: Date
+  referenceDate: Date,
+  paymentTerm: number | undefined,
+  agingMode: 'days' | 'months'
 ): number {
   const parsedTarget = dueDate ? parseDate(dueDate) : invoiceDate ? parseDate(invoiceDate) : null;
   if (!parsedTarget) return 0;
   
   // Clone to avoid mutating the potentially cached Date object from parseDate
   const targetDate = new Date(parsedTarget);
+  if (agingMode === 'months' && paymentTerm !== undefined) {
+    const monthsToAdd = Math.round((paymentTerm || 0) / 30);
+    targetDate.setMonth(targetDate.getMonth() + monthsToAdd + 1);
+    targetDate.setDate(1);
+  }
   targetDate.setHours(0, 0, 0, 0);
   return Math.ceil((referenceDate.getTime() - targetDate.getTime()) / (1000 * 60 * 60 * 24));
 }
 
 export function computeCustomerAging(
   customerInvoices: InvoiceRow[],
-  referenceDate: Date = new Date()
+  referenceDate: Date = new Date(),
+  agingMode: 'days' | 'months' = 'days'
 ): CustomerAgingResult {
   const ref = normalizeReferenceDate(referenceDate);
   const customerName = customerInvoices[0]?.customerName || '';
@@ -107,7 +115,7 @@ export function computeCustomerAging(
     }
 
     if (shouldAge) {
-      const daysOverdue = computeDaysOverdue(inv.dueDate, inv.date, ref);
+      const daysOverdue = computeDaysOverdue(inv.dueDate, inv.date, ref, inv.paymentTerm, agingMode);
       addToBucket(agingBreakdown, daysOverdue, amountToAge);
       totalOverdue += amountToAge;
     }

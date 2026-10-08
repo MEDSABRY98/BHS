@@ -14,7 +14,8 @@ import {
   Wallet,
   Filter,
   MapPin,
-  UserX
+  UserX,
+  CalendarClock
 } from 'lucide-react';
 import { usePaymentAnalysis } from '../Context/PaymentAnalysisContext';
 import GlobalFiltersModal from './GlobalFiltersModal';
@@ -35,6 +36,7 @@ const navItems = [
   { id: 'collections', label: 'Customer Collections', icon: Users },
   { id: 'unpaid-customers', label: 'Unpaid Customers', icon: UserX },
   { id: 'periods', label: 'Periods Analysis', icon: CalendarDays },
+  { id: 'expected-collections', label: 'Expected Collections', icon: CalendarClock },
 ];
 
 export default function PaymentSidebar({

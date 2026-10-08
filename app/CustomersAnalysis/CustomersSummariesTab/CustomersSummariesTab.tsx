@@ -12,6 +12,7 @@ import {
 } from '@tanstack/react-table';
 import { FileSpreadsheet, MapPin, ChevronDown, Search, Check, Loader2, MinusCircle } from 'lucide-react';
 import { InvoiceRow } from '@/types';
+import { useDebitData } from '../Context/DebitDataContext';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import { toast } from '@/app/Components/Notification';
 import { useDebouncedValue } from '../Hooks/useDebouncedValue';
@@ -37,6 +38,7 @@ interface CustomerSummary {
   netSalesPrev: number;
   netSalesCurrent: number;
   growth: number | null;
+  atDate: number;
   oneToThirty: number;
   thirtyOneToSixty: number;
   sixtyOneToNinety: number;
@@ -102,6 +104,8 @@ function readUserId(): string {
 const columnHelper = createColumnHelper<CustomerSummary>();
 
 export default function CustomersSummariesTab({ data, onRefresh }: CustomersSummariesTabProps) {
+  const { globalFilters } = useDebitData();
+  const agingMode = globalFilters.agingMode;
   const [sorting, setSorting] = useState<SortingState>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCity, setSelectedCity] = useState('ALL');
@@ -176,7 +180,7 @@ export default function CustomersSummariesTab({ data, onRefresh }: CustomersSumm
       });
 
       // Aging Logic
-      let oneToThirty = 0, thirtyOneToSixty = 0, sixtyOneToNinety = 0, ninetyOneToOneTwenty = 0, older = 0;
+      let atDate = 0, oneToThirty = 0, thirtyOneToSixty = 0, sixtyOneToNinety = 0, ninetyOneToOneTwenty = 0, older = 0;
       const matchingTotals = new Map<string, number>();
       const maxDebits = new Map<string, number>();
       const mainInvoiceIndices = new Map<string, number>();
@@ -214,11 +218,16 @@ export default function CustomersSummariesTab({ data, onRefresh }: CustomersSumm
           let daysOverdue = 0;
           let targetDate = parseInvoiceDate(inv.dueDate) || parseInvoiceDate(inv.date);
           if (targetDate && !isNaN(targetDate.getTime())) {
+            if (agingMode === 'months' && inv.paymentTerm !== undefined) {
+              const monthsToAdd = Math.round((inv.paymentTerm || 0) / 30);
+              targetDate = new Date(targetDate.getFullYear(), targetDate.getMonth() + monthsToAdd + 1, 1);
+            }
             targetDate.setHours(0, 0, 0, 0);
             const diffTime = today.getTime() - targetDate.getTime();
             daysOverdue = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
           }
-          if (daysOverdue <= 30) oneToThirty += amountToAge;
+          if (daysOverdue <= 0) atDate += amountToAge;
+          else if (daysOverdue <= 30) oneToThirty += amountToAge;
           else if (daysOverdue <= 60) thirtyOneToSixty += amountToAge;
           else if (daysOverdue <= 90) sixtyOneToNinety += amountToAge;
           else if (daysOverdue <= 120) ninetyOneToOneTwenty += amountToAge;
@@ -226,7 +235,7 @@ export default function CustomersSummariesTab({ data, onRefresh }: CustomersSumm
         }
       });
 
-      const totalAging = oneToThirty + thirtyOneToSixty + sixtyOneToNinety + ninetyOneToOneTwenty + older;
+      const totalAging = atDate + oneToThirty + thirtyOneToSixty + sixtyOneToNinety + ninetyOneToOneTwenty + older;
       const netSalesPrev = salesPrev - returnsPrev;
       const netSalesCurrent = salesCurrent - returnsCurrent;
       const growth =
@@ -243,6 +252,7 @@ export default function CustomersSummariesTab({ data, onRefresh }: CustomersSumm
           netSalesPrev,
           netSalesCurrent,
           growth,
+          atDate,
           oneToThirty,
           thirtyOneToSixty,
           sixtyOneToNinety,
@@ -465,8 +475,12 @@ export default function CustomersSummariesTab({ data, onRefresh }: CustomersSumm
           );
         },
       }),
+      columnHelper.accessor('atDate', {
+        header: '0',
+        cell: (info) => (info.getValue() || 0).toLocaleString('en-US'),
+      }),
       columnHelper.accessor('oneToThirty', {
-        header: '0 - 30',
+        header: '1 - 30',
         cell: (info) => info.getValue().toLocaleString('en-US'),
       }),
       columnHelper.accessor('thirtyOneToSixty', {

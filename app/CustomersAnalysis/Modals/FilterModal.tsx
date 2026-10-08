@@ -13,7 +13,8 @@ import {
   ChevronDown,
   RotateCcw,
   Filter,
-  CheckCircle2
+  CheckCircle2,
+  Wallet
 } from 'lucide-react';
 
 interface FilterModalProps {
@@ -95,7 +96,7 @@ const FilterModal: React.FC<FilterModalProps> = ({
   filteredDataCount,
   data
 }) => {
-  const [activeTab, setActiveTab] = useState<'GENERAL' | 'DATES' | 'CUSTOMER_CLASSES' | 'CUSTOMER_TAGS' | 'OVERDUE_YEARS' | 'OVERDUE_MONTHS'>('GENERAL');
+  const [activeTab, setActiveTab] = useState<'GENERAL' | 'BALANCES' | 'DATES' | 'CUSTOMER_CLASSES' | 'CUSTOMER_TAGS' | 'OVERDUE_YEARS' | 'OVERDUE_MONTHS'>('GENERAL');
   const [isRatingOpen, setIsRatingOpen] = useState(false);
   const [isAreaOpen, setIsAreaOpen] = useState(false);
   const [isEmailOpen, setIsEmailOpen] = useState(false);
@@ -113,6 +114,7 @@ const FilterModal: React.FC<FilterModalProps> = ({
     hideZeroAndNegativeBalance: false,
     hideZeroBalanceOnly: false,
     hideNegativeBalanceOnly: false,
+    agingMode: 'days' as 'days' | 'months',
   });
 
   useEffect(() => {
@@ -130,6 +132,7 @@ const FilterModal: React.FC<FilterModalProps> = ({
         hideZeroAndNegativeBalance: filters.hideZeroAndNegativeBalance || false,
         hideZeroBalanceOnly: filters.hideZeroBalanceOnly || false,
         hideNegativeBalanceOnly: filters.hideNegativeBalanceOnly || false,
+        agingMode: filters.agingMode || 'days',
       });
     }
   }, [isOpen, filters]);
@@ -316,6 +319,7 @@ const FilterModal: React.FC<FilterModalProps> = ({
       hideZeroAndNegativeBalance: false,
       hideZeroBalanceOnly: false,
       hideNegativeBalanceOnly: false,
+      agingMode: 'days',
     });
   };
 
@@ -334,12 +338,14 @@ const FilterModal: React.FC<FilterModalProps> = ({
       hideZeroAndNegativeBalance: draftFilters.hideZeroAndNegativeBalance,
       hideZeroBalanceOnly: draftFilters.hideZeroBalanceOnly,
       hideNegativeBalanceOnly: draftFilters.hideNegativeBalanceOnly,
+      agingMode: draftFilters.agingMode,
     });
     onClose();
   };
 
   const tabs = [
     { id: 'GENERAL', label: 'General', icon: Settings2 },
+    { id: 'BALANCES', label: 'Balances', icon: Wallet },
     { id: 'DATES', label: 'Dates', icon: CalendarDays },
     { id: 'CUSTOMER_CLASSES', label: 'Classes', icon: Users },
     { id: 'CUSTOMER_TAGS', label: 'Tags', icon: Tags },
@@ -355,10 +361,13 @@ const FilterModal: React.FC<FilterModalProps> = ({
         if (draftFilters.selectedSalesRep !== 'ALL') c++;
         if (draftFilters.emailFilter !== 'ALL') c++;
         return c;
+      case 'BALANCES':
+        if (draftFilters.hideZeroAndNegativeBalance || draftFilters.hideZeroBalanceOnly || draftFilters.hideNegativeBalanceOnly) c++;
+        if (draftFilters.agingMode !== 'days') c++;
+        return c;
       case 'DATES':
         if (draftFilters.dateFrom) c++;
         if (draftFilters.dateTo) c++;
-        if (draftFilters.hideZeroAndNegativeBalance || draftFilters.hideZeroBalanceOnly || draftFilters.hideNegativeBalanceOnly) c++;
         return c;
       case 'CUSTOMER_CLASSES': return draftFilters.selectedCustomerClasses?.length || 0;
       case 'CUSTOMER_TAGS': return draftFilters.selectedCustomerTags?.length || 0;
@@ -481,32 +490,12 @@ const FilterModal: React.FC<FilterModalProps> = ({
                 </div>
               )}
 
-              {activeTab === 'DATES' && (
+              
+              {activeTab === 'BALANCES' && (
                 <div className="space-y-8 max-w-2xl">
                   <div>
-                    <h4 className="text-lg font-bold text-slate-800 mb-6">Time Period</h4>
-                    <div className="grid grid-cols-2 gap-5">
-                      <div className="relative">
-                        <label className="block text-[11px] font-bold text-slate-400 mb-2 tracking-wider uppercase">Date From</label>
-                        <input
-                          type="date"
-                          className="w-full bg-slate-50 border-2 border-slate-100 text-slate-700 text-sm py-3 px-4 rounded-xl focus:outline-none focus:border-indigo-500 hover:bg-slate-100 transition-colors font-semibold"
-                          value={draftFilters.dateFrom}
-                          onChange={(e) => updateDraftFilter('dateFrom', e.target.value)}
-                        />
-                      </div>
-                      <div className="relative">
-                        <label className="block text-[11px] font-bold text-slate-400 mb-2 tracking-wider uppercase">Date To</label>
-                        <input
-                          type="date"
-                          className="w-full bg-slate-50 border-2 border-slate-100 text-slate-700 text-sm py-3 px-4 rounded-xl focus:outline-none focus:border-indigo-500 hover:bg-slate-100 transition-colors font-semibold"
-                          value={draftFilters.dateTo}
-                          onChange={(e) => updateDraftFilter('dateTo', e.target.value)}
-                        />
-                      </div>
-                    </div>
-                    
-                    <div className="mt-8 pt-6 border-t border-slate-200 space-y-4">
+                    <h4 className="text-lg font-bold text-slate-800 mb-6">Balance Filters</h4>
+                    <div className="space-y-4">
                       {/* Hide Zero and Negative */}
                       <label className="flex items-center justify-between cursor-pointer group bg-white border-2 border-slate-100 hover:border-indigo-200 p-4 rounded-2xl transition-all shadow-sm hover:shadow-md">
                         <div>
@@ -558,6 +547,56 @@ const FilterModal: React.FC<FilterModalProps> = ({
                         </div>
                       </label>
                     </div>
+                    <div className="mt-8 pt-6 border-t border-slate-200">
+                      <h4 className="text-[11px] font-bold text-slate-400 mb-4 tracking-wider uppercase">Aging Calculation Mode</h4>
+                      <div className="flex bg-slate-100 p-1 rounded-xl shadow-sm border border-slate-200 w-fit">
+                        <button
+                          onClick={() => updateDraftFilter('agingMode', 'days')}
+                          className={`px-6 py-2.5 text-sm font-bold rounded-lg transition-colors ${draftFilters.agingMode === 'days' ? 'bg-white text-indigo-700 shadow' : 'text-slate-500 hover:text-slate-700'}`}
+                          title="Calculate aging by exact days from invoice date"
+                        >
+                          Exact Days
+                        </button>
+                        <button
+                          onClick={() => updateDraftFilter('agingMode', 'months')}
+                          className={`px-6 py-2.5 text-sm font-bold rounded-lg transition-colors ${draftFilters.agingMode === 'months' ? 'bg-white text-indigo-700 shadow' : 'text-slate-500 hover:text-slate-700'}`}
+                          title="Calculate aging by payment terms in calendar months"
+                        >
+                          Calendar Months
+                        </button>
+                      </div>
+                    </div>
+
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'DATES' && (
+                <div className="space-y-8 max-w-2xl">
+                  <div>
+                    <h4 className="text-lg font-bold text-slate-800 mb-6">Time Period</h4>
+                    <div className="grid grid-cols-2 gap-5">
+                      <div className="relative">
+                        <label className="block text-[11px] font-bold text-slate-400 mb-2 tracking-wider uppercase">Date From</label>
+                        <input
+                          type="date"
+                          className="w-full bg-slate-50 border-2 border-slate-100 text-slate-700 text-sm py-3 px-4 rounded-xl focus:outline-none focus:border-indigo-500 hover:bg-slate-100 transition-colors font-semibold"
+                          value={draftFilters.dateFrom}
+                          onChange={(e) => updateDraftFilter('dateFrom', e.target.value)}
+                        />
+                      </div>
+                      <div className="relative">
+                        <label className="block text-[11px] font-bold text-slate-400 mb-2 tracking-wider uppercase">Date To</label>
+                        <input
+                          type="date"
+                          className="w-full bg-slate-50 border-2 border-slate-100 text-slate-700 text-sm py-3 px-4 rounded-xl focus:outline-none focus:border-indigo-500 hover:bg-slate-100 transition-colors font-semibold"
+                          value={draftFilters.dateTo}
+                          onChange={(e) => updateDraftFilter('dateTo', e.target.value)}
+                        />
+                      </div>
+                    </div>
+                    
+
                   </div>
                 </div>
               )}

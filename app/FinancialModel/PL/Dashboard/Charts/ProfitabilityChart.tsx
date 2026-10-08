@@ -7,24 +7,13 @@ interface ProfitabilityChartProps { data: any[]; }
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
     const actual = payload.find((p: any) => p.dataKey === 'Actual Margin')?.value || 0;
-    const forecast = payload.find((p: any) => p.dataKey === 'Forecast Margin')?.value || 0;
-    const diff = actual - forecast;
-    const diffColor = diff >= 0 ? 'text-emerald-500' : 'text-red-500';
     return (
-      <div className="bg-white p-4 rounded-xl shadow-lg border border-slate-100 min-w-[180px]">
+      <div className="bg-white p-4 rounded-xl shadow-lg border border-slate-100 min-w-[150px]">
         <p className="font-black text-slate-900 mb-2 text-sm border-b border-slate-100 pb-2">{label}</p>
         <div className="space-y-1.5">
           <div className="flex justify-between items-center gap-4">
             <span className="text-xs font-bold text-slate-500 flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-[#D4AF37]" />Actual</span>
             <span className="text-xs font-black text-slate-800 tabular-nums">{actual.toFixed(1)}%</span>
-          </div>
-          <div className="flex justify-between items-center gap-4">
-            <span className="text-xs font-bold text-slate-500 flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-blue-400" />Forecast</span>
-            <span className="text-xs font-black text-slate-800 tabular-nums">{forecast.toFixed(1)}%</span>
-          </div>
-          <div className="flex justify-between items-center pt-1.5 border-t border-slate-100 gap-4">
-            <span className="text-xs font-bold text-slate-600">Variance</span>
-            <span className={`text-xs font-black tabular-nums ${diffColor}`}>{diff > 0 ? '+' : ''}{diff.toFixed(1)}%</span>
           </div>
         </div>
       </div>
@@ -35,8 +24,6 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 
 export function ProfitabilityChart({ data }: ProfitabilityChartProps) {
   const avgActual = data.length ? data.reduce((s, d) => s + (d['Actual Margin'] || 0), 0) / data.length : 0;
-  const avgForecast = data.length ? data.reduce((s, d) => s + (d['Forecast Margin'] || 0), 0) / data.length : 0;
-  const diff = avgActual - avgForecast;
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden flex flex-col h-[320px]">
@@ -44,15 +31,6 @@ export function ProfitabilityChart({ data }: ProfitabilityChartProps) {
         <div>
           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Net Profit Margin</p>
           <p className="text-base font-black text-slate-900 tabular-nums mt-0.5">Avg {avgActual.toFixed(1)}%</p>
-        </div>
-        <div className="flex items-center gap-4">
-          <div className="text-right">
-            <p className="text-[9px] font-bold text-slate-400 uppercase">Forecast Avg</p>
-            <p className="text-sm font-black text-blue-500 tabular-nums">{avgForecast.toFixed(1)}%</p>
-          </div>
-          <span className={`text-xs font-black px-2 py-1 rounded-lg ${diff >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>
-            {diff > 0 ? '+' : ''}{diff.toFixed(1)}%
-          </span>
         </div>
       </div>
       <div className="flex-1 p-4 min-h-0">
@@ -63,17 +41,12 @@ export function ProfitabilityChart({ data }: ProfitabilityChartProps) {
                 <stop offset="5%" stopColor="#D4AF37" stopOpacity={0.25} />
                 <stop offset="95%" stopColor="#D4AF37" stopOpacity={0} />
               </linearGradient>
-              <linearGradient id="npMarginForecastArea" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.15} />
-                <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
-              </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
             <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#94a3b8', fontWeight: 700 }} dy={8} />
             <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#94a3b8', fontWeight: 600 }} tickFormatter={(v) => `${v.toFixed(0)}%`} />
             <Tooltip content={<CustomTooltip />} cursor={{ stroke: '#e2e8f0', strokeWidth: 1 }} />
             <Area type="monotone" dataKey="Actual Margin" stroke="#D4AF37" strokeWidth={2.5} fill="url(#npMarginActualArea)" dot={{ r: 3, fill: '#D4AF37', strokeWidth: 0 }} activeDot={{ r: 5 }} />
-            <Area type="monotone" dataKey="Forecast Margin" stroke="#3b82f6" strokeWidth={2} strokeDasharray="5 4" fill="url(#npMarginForecastArea)" dot={{ r: 3, fill: '#3b82f6', strokeWidth: 0 }} activeDot={{ r: 5 }} />
           </AreaChart>
         </ResponsiveContainer>
       </div>
