@@ -1,4 +1,5 @@
 'use server';
+import { requireSession } from '@/lib/session';
 
 import { InvoiceRow } from '@/types';
 import { getDebitData } from '@/app/CustomersAnalysis/Service/debit_service';
@@ -33,6 +34,7 @@ interface DebitInsightsComputeInput {
  * (same source as Debit module via getDebitData).
  */
 export async function getDebitInsightsData(): Promise<DebitInsightsDataResult> {
+  await requireSession();
   try {
     const result = await getDebitData();
     const data = Array.isArray(result?.data) ? (result.data as InvoiceRow[]) : [];
@@ -54,6 +56,7 @@ export async function getDebitInsightsData(): Promise<DebitInsightsDataResult> {
 export async function computeDebitInsightsMetrics(
   input: DebitInsightsComputeInput
 ): Promise<DebitInsightsMetrics> {
+  await requireSession();
   const { rows, filters, userId } = input;
   const metrics = computeBaseMetrics(rows, filters);
 

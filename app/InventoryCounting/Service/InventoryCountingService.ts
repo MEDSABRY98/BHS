@@ -1,4 +1,5 @@
 'use server';
+import { requireSession } from '@/lib/session';
 
 import { bhs_supabase } from '@/lib/supabase';
 
@@ -435,6 +436,7 @@ async function recalcICTotalForProduct(productId: string, countType: CountType):
 
 /** Combined Normal + Damage totals with live available stock. */
 export async function fetchICTotalCountData() {
+  await requireSession();
   try {
     const [products, normalTotals, damageTotals, liveStockMap] = await Promise.all([
       loadCountableProducts(),
@@ -489,6 +491,7 @@ export async function fetchICTotalCountData() {
 
 /** Per-user comparison — official grand total + detail sums by USER (Normal + Damage). */
 export async function fetchICUserComparisonData() {
+  await requireSession();
   try {
     const [products, normalTotals, damageTotals, normalDetails, damageDetails, liveStockMap] =
       await Promise.all([
@@ -574,6 +577,7 @@ export async function fetchICUserComparisonData() {
  * Does not rebuild product×stock tables or call live stock.
  */
 export async function fetchICDetailRecords() {
+  await requireSession();
   try {
     const [products, normalDetails, damageDetails] = await Promise.all([
       loadCountableProducts(),
@@ -606,6 +610,7 @@ export async function fetchICDetailRecords() {
 }
 
 export async function fetchArchivedICDetailRecords(archiveId: string) {
+  await requireSession();
   try {
     const [products, normalDetails, damageDetails] = await Promise.all([
       loadCountableProducts(),
@@ -640,6 +645,7 @@ export async function fetchArchivedICDetailRecords(archiveId: string) {
 }
 
 export async function fetchICTotal(countType: CountType) {
+  await requireSession();
   try {
     const [products, totals, liveStockMap] = await Promise.all([
       loadCountableProducts(),
@@ -659,6 +665,7 @@ export async function fetchICTotal(countType: CountType) {
 }
 
 export async function fetchAllICDetails() {
+  await requireSession();
   try {
     const [normalDetails, damageDetails, products] = await Promise.all([
       fetchAllMixCountRows<MixCountDetailRow>(
@@ -719,6 +726,7 @@ export async function updateICRecord(
     warehouse?: string;
   }
 ) {
+  await requireSession();
   try {
     const updatePayload: Record<string, any> = {
       'QTY IN BOX': parseNum(values.qtyInBox),
@@ -757,6 +765,7 @@ export async function updateICRecord(
 }
 
 export async function deleteICRecord(rowId: string, countType: CountType, productId: string) {
+  await requireSession();
   try {
     const { error } = await bhs_supabase
       .from('mix_INVENTORY_COUNT_DETAILS')
@@ -774,6 +783,7 @@ export async function deleteICRecord(rowId: string, countType: CountType, produc
 }
 
 export async function fetchICDetails(countType: CountType) {
+  await requireSession();
   try {
     const [details, products] = await Promise.all([
       fetchAllMixCountRows<MixCountDetailRow>(
@@ -799,6 +809,7 @@ export async function updateICItem(
   productId: string,
   newValues: { barcodeName: string; productName: string; availableQty: number; qtyInBox: number }
 ) {
+  await requireSession();
   try {
     const { data, error } = await bhs_supabase
       .from('bhs_PRODUCTS')
@@ -822,6 +833,7 @@ export async function updateICItem(
 
 /** Users & warehouses for shared parent-level filters. */
 export async function fetchICFilterOptions() {
+  await requireSession();
   try {
     const { data: details, error } = await bhs_supabase
       .from('mix_INVENTORY_COUNT_DETAILS')
@@ -865,6 +877,7 @@ export interface ICProductSearchResult {
 
 /** Fetch product barcodes by ID from bhs_PRODUCTS. */
 export async function getICProductBarcodesByIds(productIds: string[]) {
+  await requireSession();
   try {
     const uniqueIds = [...new Set(productIds.map((id) => id.trim()).filter(Boolean))];
     if (uniqueIds.length === 0) {
@@ -900,6 +913,7 @@ export async function getICProductBarcodesByIds(productIds: string[]) {
 
 /** Search countable products by name, barcode, or ID. */
 export async function searchICProducts(query: string, limit = 12) {
+  await requireSession();
   try {
     const q = query.trim();
     if (q.length < 2) {
@@ -983,6 +997,7 @@ async function fetchAllCountableProductsByCategory(categoryName: string): Promis
 
 /** Distinct product categories for countable products. */
 export async function fetchICProductCategories() {
+  await requireSession();
   try {
     const products = await fetchAllMixCountRows<{ 'PRODUCT CATEGORY': string | null }>(
       'bhs_PRODUCTS',
@@ -1009,6 +1024,7 @@ export async function fetchICProductCategories() {
 
 /** All countable products in a category. */
 export async function fetchICProductsByCategory(categoryName: string) {
+  await requireSession();
   try {
     const name = categoryName.trim();
     if (!name) {
@@ -1031,6 +1047,7 @@ export async function fetchICProductsByCategory(categoryName: string) {
 // ─── Archive session ───────────────────────────────────────────────────────
 
 export async function generateNextArchiveId(): Promise<string> {
+  await requireSession();
   const year = new Date().getFullYear();
   const prefix = `IC-${year}-`;
 
@@ -1055,6 +1072,7 @@ export async function generateNextArchiveId(): Promise<string> {
 }
 
 export async function fetchInventoryCountArchives() {
+  await requireSession();
   try {
     const { data, error } = await bhs_supabase
       .from('mix_INVENTORY_COUNT_ARCHIVE')
@@ -1081,6 +1099,7 @@ export async function closeInventoryCountSession(input: {
   countDate?: string;
   resetLive: boolean;
 }) {
+  await requireSession();
   let archiveId = '';
 
   try {
@@ -1164,6 +1183,7 @@ export async function closeInventoryCountSession(input: {
 }
 
 export async function fetchArchivedICTotalCountData(archiveId: string) {
+  await requireSession();
   try {
     const [products, normalTotals, damageTotals, liveStockMap] = await Promise.all([
       loadCountableProducts(),
@@ -1219,6 +1239,7 @@ export async function fetchArchivedICTotalCountData(archiveId: string) {
 }
 
 export async function fetchArchivedICUserComparisonData(archiveId: string) {
+  await requireSession();
   try {
     const [products, normalTotals, damageTotals, normalDetails, damageDetails, liveStockMap] =
       await Promise.all([
@@ -1304,6 +1325,7 @@ export async function fetchArchivedICUserComparisonData(archiveId: string) {
 }
 
 export async function fetchArchivedAllICDetails(archiveId: string) {
+  await requireSession();
   try {
     const [normalDetails, damageDetails, products] = await Promise.all([
       fetchAllArchiveRows<MixCountDetailRow>(
@@ -1353,6 +1375,7 @@ export async function fetchArchivedAllICDetails(archiveId: string) {
 }
 
 export async function fetchArchivedICFilterOptions(archiveId: string) {
+  await requireSession();
   try {
     const details = await fetchAllArchiveRows<{
       USER: string | null;
@@ -1469,6 +1492,7 @@ async function fetchAllReconciliationRows(
 }
 
 export async function generateNextReconciliationId(): Promise<string> {
+  await requireSession();
   const year = new Date().getFullYear();
   const prefix = `ICR-${year}-`;
 
@@ -1497,6 +1521,7 @@ export async function saveReconciliationSession(input: {
   lines: ICReconciliationSaveLine[];
   reconciliationId?: string;
 }) {
+  await requireSession();
   try {
     const lines = input.lines.filter((line) => line.productId.trim() && line.resultQty !== null);
     if (lines.length === 0) {
@@ -1550,6 +1575,7 @@ export async function saveReconciliationSession(input: {
 }
 
 export async function fetchReconciliationSessions() {
+  await requireSession();
   try {
     const rows = await fetchAllReconciliationRows();
     const sessionMap = new Map<string, ICReconciliationSessionSummary>();
@@ -1592,6 +1618,7 @@ export async function fetchReconciliationSessions() {
 }
 
 export async function fetchReconciliationSession(reconciliationId: string) {
+  await requireSession();
   try {
     const id = reconciliationId.trim();
     if (!id) {
@@ -1664,6 +1691,7 @@ export async function fetchReconciliationSession(reconciliationId: string) {
 }
 
 export async function deleteReconciliationSession(reconciliationId: string) {
+  await requireSession();
   try {
     const id = reconciliationId.trim();
     if (!id) {
@@ -1691,6 +1719,7 @@ export async function deleteReconciliationSession(reconciliationId: string) {
  * This returns the current STOCK QUANTITY from bhs_PRODUCTS.
  */
 export async function getProductsBalanceReportData(filters?: { dateTo?: string }): Promise<{ success: boolean; data?: any[]; error?: string }> {
+  await requireSession();
   try {
     const { data, error } = await bhs_supabase
       .from('bhs_PRODUCTS')
@@ -1717,6 +1746,7 @@ export async function getProductsBalanceReportData(filters?: { dateTo?: string }
  * Fetches product names for a list of product IDs.
  */
 export async function getProductNamesByIds(productIds: string[]): Promise<{ success: boolean; data?: Record<string, string>; error?: string }> {
+  await requireSession();
   try {
     if (!productIds || productIds.length === 0) return { success: true, data: {} };
 
@@ -1746,6 +1776,7 @@ export async function getProductNamesByIds(productIds: string[]): Promise<{ succ
  * Update the label (note) for a specific archive.
  */
 export async function updateArchiveLabel(archiveId: string, newLabel: string): Promise<{ success: boolean; error?: string }> {
+  await requireSession();
   try {
     const { error } = await bhs_supabase
       .from('mix_INVENTORY_COUNT_ARCHIVE')

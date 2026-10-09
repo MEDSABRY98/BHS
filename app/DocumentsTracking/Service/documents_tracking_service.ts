@@ -1,8 +1,10 @@
 'use server';
+import { requireSession } from '@/lib/session';
 
 import { bhs_supabase } from '@/lib/supabase';
 
 export async function getDocumentsTracking() {
+  await requireSession();
     try {
         const { data, error } = await bhs_supabase
             .from('web_Documents_Tracking')
@@ -36,6 +38,7 @@ export async function getDocumentsTracking() {
 }
 
 export async function addDocumentsTrackingRecords(records: any[]) {
+  await requireSession();
     try {
         if (!records || !Array.isArray(records)) {
             throw new Error('Records array is required');
@@ -71,6 +74,7 @@ export async function addDocumentsTrackingRecords(records: any[]) {
 }
 
 export async function updateDocumentTrackingRecord(rowIndex: string, data: any) {
+  await requireSession();
     try {
         if (!rowIndex) {
             throw new Error('rowIndex is required');
@@ -104,6 +108,7 @@ export async function updateDocumentTrackingRecord(rowIndex: string, data: any) 
 }
 
 export async function bulkUpdateDocumentsTrackingRecords(updates: { rowIndex: string; data: any }[]) {
+  await requireSession();
     try {
         if (!updates || !Array.isArray(updates)) {
             throw new Error('updates array is required for bulk update');
@@ -140,6 +145,7 @@ export async function bulkUpdateDocumentsTrackingRecords(updates: { rowIndex: st
 }
 
 export async function deleteDocumentTrackingRecord(rowIndex: string) {
+  await requireSession();
     try {
         if (!rowIndex) {
             throw new Error('rowIndex is required');
@@ -160,6 +166,7 @@ export async function deleteDocumentTrackingRecord(rowIndex: string) {
 }
 
 export async function getCustomers() {
+  await requireSession();
     try {
         const { data, error } = await bhs_supabase
             .from('bhs_CUSTOMERS')
@@ -189,6 +196,7 @@ export async function getCustomers() {
 }
 
 export async function getDeliveryPersonnel() {
+  await requireSession();
     try {
         const { data, error } = await bhs_supabase
             .from('web_Documents_Tracking')

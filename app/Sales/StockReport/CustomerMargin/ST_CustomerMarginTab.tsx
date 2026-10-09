@@ -12,7 +12,7 @@ import {
 import NoData from '@/app/Components/DataState/NoDataTab';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
 import { exportSalesExcel } from '@/app/Sales/Export/ExcelExport';
-import { generateCustomerMarginProducts } from '@/app/Sales/StockReport/CustomerMarginProducts';
+import { generateCustomerMarginProducts } from './CustomerMarginProducts';
 
 interface SalesST_CustomerMarginProps {
   subCustomersData: any[];

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { User, Lock, Loader2, ArrowRight, Eye, EyeOff, Sparkles, ShieldCheck } from 'lucide-react';
 import { verifyUserCredentials } from '@/app/DataBase/Service/database_service';
+import { restoreSessionUser } from '@/app/Components/Auth/sessionClient';
 import './Login.css';
 
 interface LoginProps {
@@ -21,26 +22,9 @@ export default function Login({ onLogin }: LoginProps) {
   }, []);
 
   const autoLoginIfSaved = async () => {
-    try {
-      const savedUser = localStorage.getItem('currentUser');
-      const savedPassword = localStorage.getItem('userPassword');
-      if (savedUser && savedPassword) {
-        const userData = JSON.parse(savedUser);
-        if (userData?.name) {
-          const result = await verifyUserCredentials(userData.name, savedPassword);
-          if (result.success && result.user) {
-            onLogin(result.user);
-            localStorage.setItem('userPassword', savedPassword);
-            return;
-          }
-          localStorage.removeItem('currentUser');
-          localStorage.removeItem('userPassword');
-        }
-      }
-    } catch {
-      localStorage.removeItem('currentUser');
-      localStorage.removeItem('userPassword');
-    }
+    // Restores the login from the session cookie (no password kept in the browser)
+    const user = await restoreSessionUser();
+    if (user) onLogin(user);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -57,7 +41,7 @@ export default function Login({ onLogin }: LoginProps) {
     try {
       const result = await verifyUserCredentials(trimmedUsername, password);
       if (result.success && result.user) {
-        localStorage.setItem('userPassword', password);
+        localStorage.removeItem('userPassword');
         setTimeout(() => onLogin(result.user), 400);
       } else {
         setError(result.error || 'Invalid credentials');

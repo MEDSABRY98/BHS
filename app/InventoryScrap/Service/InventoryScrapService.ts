@@ -1,4 +1,5 @@
 'use server';
+import { requireSession } from '@/lib/session';
 
 import { bhs_supabas } from '@/lib/supabase';
 
@@ -108,6 +109,7 @@ function enrichScrapWithProduct(
 // ==========================================
 
 export async function fetchAllScrapEntries(): Promise<ScrapEntry[]> {
+  await requireSession();
   try {
     const { data: scrapData, error: scrapError } = await bhs_supabas
       .from('web_INVENTORY_SCRAB')
@@ -132,6 +134,7 @@ export async function fetchAllScrapEntries(): Promise<ScrapEntry[]> {
 }
 
 export async function fetchScrapEntriesByDateRange(fromDate: string, toDate: string): Promise<ScrapEntry[]> {
+  await requireSession();
   try {
     const { data: scrapData, error: scrapError } = await bhs_supabas
       .from('web_INVENTORY_SCRAB')
@@ -158,6 +161,7 @@ export async function fetchScrapEntriesByDateRange(fromDate: string, toDate: str
 }
 
 export async function insertScrapEntry(entryData: Partial<ScrapEntry>) {
+  await requireSession();
   try {
     const { error } = await bhs_supabas
       .from('web_INVENTORY_SCRAB')
@@ -172,6 +176,7 @@ export async function insertScrapEntry(entryData: Partial<ScrapEntry>) {
 }
 
 export async function deleteScrapEntry(id: string) {
+  await requireSession();
   try {
     const { data: existing, error: fetchError } = await bhs_supabas
       .from('web_INVENTORY_SCRAB')
@@ -205,6 +210,7 @@ export async function deleteScrapEntry(id: string) {
 // ==========================================
 
 export async function fetchAllProductsForScrap(): Promise<Product[]> {
+  await requireSession();
   try {
     let allProducts: Product[] = [];
     let page = 0;
@@ -242,6 +248,7 @@ export async function fetchAllProductsForScrap(): Promise<Product[]> {
 }
 
 export async function updateProductCosts(costs: { productId: string; cost: number }[]) {
+  await requireSession();
   try {
     for (const item of costs) {
       const { error } = await bhs_supabas
@@ -266,6 +273,7 @@ export async function updateProductCosts(costs: { productId: string; cost: numbe
 // ==========================================
 
 export async function fetchSavedScrapReports() {
+  await requireSession();
   try {
     const { data: scrapData, error: scrapError } = await bhs_supabas
       .from('web_INVENTORY_SCRAB_REPORT')
@@ -290,6 +298,7 @@ export async function fetchSavedScrapReports() {
 }
 
 export async function insertScrapReport(reportData: any) {
+  await requireSession();
   try {
     const { error } = await bhs_supabas
       .from('web_INVENTORY_SCRAB_REPORT')
@@ -304,6 +313,7 @@ export async function insertScrapReport(reportData: any) {
 }
 
 export async function saveDirectScrapReport(items: { productId: string; qty: number; reason: string; unit: string }[]): Promise<{ reportId: string }> {
+  await requireSession();
   try {
     if (!items || items.length === 0) {
       throw new Error('No items to save.');
@@ -357,6 +367,7 @@ export async function saveDirectScrapReport(items: { productId: string; qty: num
 }
 
 export async function fetchMaxScrapReportId() {
+  await requireSession();
   try {
     const { data, error } = await bhs_supabas
       .from('web_INVENTORY_SCRAB_REPORT')
@@ -372,6 +383,7 @@ export async function fetchMaxScrapReportId() {
 }
 
 export async function fetchMaxScrapReportRowId() {
+  await requireSession();
   try {
     const { data, error } = await bhs_supabas
       .from('web_INVENTORY_SCRAB_REPORT')
@@ -389,6 +401,7 @@ export async function fetchMaxScrapReportRowId() {
 }
 
 export async function deleteScrapReport(reportId: string) {
+  await requireSession();
   try {
     const { error } = await bhs_supabas
       .from('web_INVENTORY_SCRAB_REPORT')
@@ -404,6 +417,7 @@ export async function deleteScrapReport(reportId: string) {
 }
 
 export async function deleteScrapSession(sessionId: string) {
+  await requireSession();
   try {
     const { data: rows, error: fetchError } = await bhs_supabas
       .from('web_INVENTORY_SCRAB')

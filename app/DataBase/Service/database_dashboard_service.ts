@@ -1,4 +1,5 @@
 'use server';
+import { requireSession } from '@/lib/session';
 
 import { bhs_supabas } from '@/lib/supabase';
 import { getDebitMetadata } from '@/app/CustomersAnalysis/Service/debit_service';
@@ -161,5 +162,6 @@ async function fetchSourceStatus(item: DatabaseNavItem): Promise<DatabaseSourceS
 }
 
 export async function fetchDatabaseSourcesStatus(): Promise<DatabaseSourceStatus[]> {
+  await requireSession();
   return Promise.all(DATABASE_NAV_ITEMS.map(fetchSourceStatus));
 }

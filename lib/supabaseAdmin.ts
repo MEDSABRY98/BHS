@@ -14,6 +14,9 @@ export function getSupabaseAdmin(): SupabaseClient {
   }
 
   const key = serviceKey || anonKey;
+  if (!serviceKey) {
+    console.warn('[supabaseAdmin] SUPABASE_SERVICE_ROLE_KEY is not set — falling back to the public anon key. Set it on the server before locking the database.');
+  }
   if (!key) {
     throw new Error('SUPABASE_SERVICE_ROLE_KEY or NEXT_PUBLIC_SUPABASE_ANON_KEY is required');
   }

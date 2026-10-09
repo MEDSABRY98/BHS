@@ -115,7 +115,7 @@ export default function SalesDailySalesTab({ userId, showCosts = true }: SalesDa
             'Product ID': '',
             'Barcode': '',
             'Product Name': '',
-            'Cost Price': 0,
+            ...(showCosts ? { 'Cost Price': 0 } : {}),
             'Selling Price': 0,
             'Category': '',
             'Main Customer Name': invoice.customerMainName || '',
@@ -133,7 +133,7 @@ export default function SalesDailySalesTab({ userId, showCosts = true }: SalesDa
               'Product ID': line.productId || line.product || '',
               'Barcode': line.barcode || '',
               'Product Name': line.product || '',
-              'Cost Price': Number(line.productCost) || 0,
+              ...(showCosts ? { 'Cost Price': Number(line.productCost) || 0 } : {}),
               'Selling Price': Number(line.productPrice) || 0,
               'Category': line.productTag || '',
               'Main Customer Name': invoice.customerMainName || '',
@@ -146,7 +146,7 @@ export default function SalesDailySalesTab({ userId, showCosts = true }: SalesDa
           });
         }
       });
-      numericColumns = ['Cost Price', 'Selling Price', 'Total'];
+      numericColumns = showCosts ? ['Cost Price', 'Selling Price', 'Total'] : ['Selling Price', 'Total'];
     }
 
     await exportSalesExcel(worksheetData, `All_Invoices_${type}.xlsx`, {

@@ -32,8 +32,8 @@ import { toast } from '@/app/Components/Notification';
 import { exportSalesExcelTable } from '@/app/Sales/Export/ExcelExport';
 import { getAllowedSalesTabIds, isSalesTabAllowed } from '@/app/Sales/Utils/salesTabPermissions';
 import { getCustomersList, getMyCustomersData, batchSaveCustomerMapping } from '@/app/Sales/Service/sales_customers_service';
-import { syncAndGetSalesData, getLocalSalesData } from '@/app/Sales/Cache/SalesSyncService';
 import { getSalesMetadata } from '@/app/Sales/Service/sales_core_service';
+import { logoutEverywhere } from '@/app/Components/Auth/sessionClient';
 import { trackSalesTab } from '@/app/Audit/Model/SalesTabAudit';
 
 export default function SalesPage() {
@@ -171,8 +171,7 @@ export default function SalesPage() {
   const handleLogout = () => {
     setIsAuthenticated(false);
     setCurrentUser(null);
-    localStorage.removeItem('currentUser');
-    localStorage.removeItem('userPassword');
+    void logoutEverywhere();
     setActiveTab('sales-overview');
   };
 
@@ -204,7 +203,6 @@ export default function SalesPage() {
     if (!salesUserId) return;
     try {
       toast.loading('Refreshing sales data...', { id: 'sales_refresh' });
-      await syncAndGetSalesData(salesUserId);
       const result = await getSalesMetadata(salesUserId, true);
       setUniqueValues(result.uniqueValues);
       setLastUpdated(result.lastUpdated);
@@ -260,7 +258,7 @@ export default function SalesPage() {
           <SalesCustomersComparisonTab userId={salesUserId} />
         </SalesTabPanel>
         <SalesTabPanel tabId="sales-inactive-customers" activeTab={activeTab} isVisited={visitedTabs.has('sales-inactive-customers')}>
-          <SalesInactiveCustomersTab userId={salesUserId} />
+          <SalesInactiveCustomersTab userId={salesUserId} showCosts={showCosts} />
         </SalesTabPanel>
         <SalesTabPanel tabId="sales-statistics" activeTab={activeTab} isVisited={visitedTabs.has('sales-statistics')}>
           <SalesStatisticsTab userId={salesUserId} showCosts={showCosts} />

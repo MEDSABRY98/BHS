@@ -1,4 +1,5 @@
 'use server';
+import { requireSession } from '@/lib/session';
 
 import { bhs_supabas } from '@/lib/supabase';
 
@@ -64,6 +65,7 @@ async function syncCustomersFromBhs() {
 }
 
 export async function getCustomersDocuments() {
+  await requireSession();
   try {
     // 1. Perform auto-sync from bhs_CUSTOMERS before listing
     await syncCustomersFromBhs();
@@ -127,6 +129,7 @@ export async function getCustomersDocuments() {
 }
 
 export async function updateCustomerDocument(rowIndex: number | string, data: any) {
+  await requireSession();
   try {
     if (!rowIndex) {
       return { success: false, error: 'rowIndex (ID) is required' };

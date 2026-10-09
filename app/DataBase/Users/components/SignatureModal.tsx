@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { bhs_supabas } from '@/lib/supabase';
+import { adminListUsers, adminGetUserSignature, adminSaveUserSignature } from '@/app/DataBase/Service/database_service';
 import { X, Loader2, Save, FilePenLine } from 'lucide-react';
 import SignaturePad from '@/app/DataBase/Users/components/SignaturePad';
 import SearchSelect from '../../../LPOs/Components/DropDownList';
@@ -53,14 +53,9 @@ export default function SignatureModal({
   async function fetchUsers() {
     setIsLoading(true);
     try {
-      const { data, error } = await bhs_supabas
-        .from('bhs_USERS')
-        .select('*')
-        .order('NAME');
+      const data: any[] = await adminListUsers();
 
-      if (error) throw error;
-
-      const sortedUsers = (data || []).sort((a, b) => {
+      const sortedUsers = (data || []).sort((a: any, b: any) => {
         if (a.ID === currentAdminId) return -1;
         if (b.ID === currentAdminId) return 1;
         if (a.USER_TYPE === 'Driver' && b.USER_TYPE !== 'Driver') return -1;
@@ -78,14 +73,8 @@ export default function SignatureModal({
 
   async function fetchUserSignature(userId: string) {
     try {
-      const { data, error } = await bhs_supabas
-        .from('bhs_USERS')
-        .select('SIGNATURE')
-        .eq('ID', userId)
-        .single();
-
-      if (error) throw error;
-      setSelectedUserSignature(data?.SIGNATURE || null);
+      const signature = await adminGetUserSignature(userId);
+      setSelectedUserSignature(signature || null);
       setNewSignatureBase64('');
     } catch (err) {
       console.error('Error fetching user signature:', err);
@@ -97,12 +86,7 @@ export default function SignatureModal({
     setIsSaving(true);
     setSuccessMsg('');
     try {
-      const { error } = await bhs_supabas
-        .from('bhs_USERS')
-        .update({ SIGNATURE: newSignatureBase64 })
-        .eq('ID', selectedUserId);
-
-      if (error) throw error;
+      await adminSaveUserSignature(selectedUserId, newSignatureBase64);
 
       setSelectedUserSignature(newSignatureBase64);
       setSuccessMsg('Signature saved successfully!');

@@ -114,10 +114,11 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
 
       const perms = JSON.parse(roleStr);
       if (perms.systems) {
-        if (systemId === 'cash-handling') {
+        if (systemId === 'vouchers' || systemId === 'cash-handling') {
           return perms.systems.includes('cash-receipt') || 
                  perms.systems.includes('cash-handover') || 
-                 perms.systems.includes('cash-handling');
+                 perms.systems.includes('cash-handling') ||
+                 perms.systems.includes('vouchers');
         }
         return perms.systems.includes(systemId);
       }
@@ -128,7 +129,7 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
   };
 
   const ALL_SYSTEMS: SystemItem[] = [
-    { id: 'cash-handling', title: 'Cash Handling', path: '/CashHandling', color: 'teal' },
+    { id: 'vouchers', title: 'Vouchers', path: '/Vouchers', color: 'teal' },
     { id: 'documents-tracking', title: 'Documents Tracking', path: '/DocumentsTracking', color: 'orange' },
     { id: 'customers-analysis', title: 'Customers Analysis', path: '/CustomersAnalysis', color: 'red' },
     { id: 'suppliers-analysis', title: 'Suppliers Analysis', path: '/SuppliersAnalysis', color: 'orange' },

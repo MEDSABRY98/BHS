@@ -5,8 +5,8 @@ import { useModuleTabAudit } from '@/app/Audit/Utils/useModuleTabAudit';
 export type CashReceiptTabId = 'new' | 'saved' | 'stats';
 
 export const CASH_RECEIPT_TAB_LABELS: Record<CashReceiptTabId, string> = {
-  new: 'New Receipt',
-  saved: 'Saved Receipts',
+  new: 'New Voucher',
+  saved: 'Vouchers Register',
   stats: 'Statistics',
 };
 

@@ -1,8 +1,10 @@
 'use server';
+import { requireSession } from '@/lib/session';
 
 import { resolveCustomerEmailTargets, getAllCustomerEmails, getLuluEmails } from '@/lib/supabase';
 
 export async function getCustomerEmails(customerName?: string) {
+  await requireSession();
   try {
     if (customerName) {
       const { customers, emails } = await resolveCustomerEmailTargets(customerName);
@@ -19,6 +21,7 @@ export async function getCustomerEmails(customerName?: string) {
 }
 
 export async function getLuluCustomerEmails() {
+  await requireSession();
   try {
     const luluEmails = await getLuluEmails();
     return { customers: luluEmails };

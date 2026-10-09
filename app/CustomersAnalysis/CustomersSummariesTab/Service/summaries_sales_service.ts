@@ -1,4 +1,5 @@
 'use server';
+import { requireSession } from '@/lib/session';
 
 import { getFilteredSalesData } from '@/app/Sales/Cache/SalesMappingCache';
 import { parseDate } from '@/app/CustomersAnalysis/DebitInsightsTab/Utils/DateUtils';
@@ -44,6 +45,7 @@ const EMPTY_OVERLAY: SummariesSalesOverlay = { byCustomer: [] };
 export async function getSummariesSalesOverlay(
   input: SummariesSalesOverlayInput
 ): Promise<SummariesSalesOverlay> {
+  await requireSession();
   const userId = String(input.userId || '').trim();
   if (!userId) return EMPTY_OVERLAY;
 

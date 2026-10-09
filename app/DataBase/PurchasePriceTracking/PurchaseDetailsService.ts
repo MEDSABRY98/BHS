@@ -1,4 +1,5 @@
 'use server';
+import { requireSession } from '@/lib/session';
 
 import { bhs_supabas } from '@/lib/supabase';
 import { allocateSupplierRecordIds } from '@/app/DataBase/Utils/SupplierRecordIds';
@@ -13,6 +14,7 @@ function monthRange(year: number, month: number) {
 }
 
 export async function getPurchaseDetailsMonthsSummary() {
+  await requireSession();
   try {
     const { data, error } = await bhs_supabas.rpc('get_suppliers_purchase_months_summary');
 
@@ -69,6 +71,7 @@ export async function getPurchaseDetailsMonthsSummary() {
 }
 
 export async function deletePurchaseDetailsMonth(year: number, month: number) {
+  await requireSession();
   try {
     const { startDate, endDate } = monthRange(year, month);
 
@@ -160,6 +163,7 @@ async function fetchExistingInvoiceKeys(invoiceNumbers: string[]): Promise<Set<s
 }
 
 export async function uploadPurchaseDetails(rows: any[]) {
+  await requireSession();
   try {
     if (rows.length === 0) {
       throw new Error('Valid rows are required');
@@ -301,6 +305,7 @@ export async function uploadPurchaseDetails(rows: any[]) {
 }
 
 export async function updatePurchaseUnitPrice(id: string, unitPrice: number) {
+  await requireSession();
   try {
     const trimmedId = id?.toString().trim();
     if (!trimmedId) {

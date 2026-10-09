@@ -1,4 +1,5 @@
 'use server';
+import { requireSession } from '@/lib/session';
 
 import { 
   getMappingServer,
@@ -22,6 +23,7 @@ import { bhs_supabas } from '@/lib/supabase';
 // 0. Cache & Metadata (From api/Sales/route.ts, Build, Metadata, Mapping)
 // -------------------------------------------------------------
 export async function getSalesMonthsCache(refresh: boolean = false) {
+  await requireSession();
   if (!refresh) {
     const { data: cacheRow, error: cacheErr } = await bhs_supabas
       .from('web_Sales_DB_Cache')
@@ -52,6 +54,7 @@ export async function getSalesMonthsCache(refresh: boolean = false) {
 }
 
 export async function getSalesDataCache(refresh: boolean = false) {
+  await requireSession();
   if (!refresh) {
     const { data: cacheRow, error: cacheErr } = await bhs_supabas
       .from('web_Sales_DB_Cache')
@@ -78,6 +81,7 @@ export async function getSalesDataCache(refresh: boolean = false) {
 }
 
 export async function deleteSalesMonth(year: number, month: number) {
+  await requireSession();
   const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
   const endDate = month === 12
     ? `${year + 1}-01-01`
@@ -98,6 +102,7 @@ export async function deleteSalesMonth(year: number, month: number) {
 }
 
 export async function deleteAllSalesData() {
+  await requireSession();
   const { error } = await bhs_supabas
     .from('web_Sales_DB')
     .delete()
@@ -112,11 +117,13 @@ export async function deleteAllSalesData() {
 }
 
 export async function buildSalesCache() {
+  await requireSession();
   const { rows } = await buildAndSaveCache();
   return { success: true, rows };
 }
 
 export async function getSalesMetadata(userId: string, forceRefresh: boolean = false) {
+  await requireSession();
   if (forceRefresh) {
     invalidateMemoryCache();
     invalidateMappingCache();
@@ -200,6 +207,7 @@ export async function getSalesMetadata(userId: string, forceRefresh: boolean = f
 }
 
 export async function uploadSalesMappingsBulk(userId: string, mapping: any) {
+  await requireSession();
   const isManager = await checkHasSalesDataAccess(userId);
   if (!isManager) {
     throw new Error('Unauthorized. Only sales managers can upload mappings.');
@@ -259,6 +267,7 @@ export async function uploadSalesMappingsBulk(userId: string, mapping: any) {
 
 
 export async function getOverviewData(userId: string, filters: any) {
+  await requireSession();
   const augmentedData = await getFilteredSalesData(userId);
   return buildOverviewFromFilteredData(augmentedData, filters);
 }
@@ -267,11 +276,13 @@ export async function getOverviewData(userId: string, filters: any) {
 // 2. Daily Sales Data
 // -------------------------------------------------------------
 export async function fetchSalesStockRawData(userId: string, filters: any) {
+  await requireSession();
   const data = await getFilteredSalesData(userId);
   return applySalesCommonFilters(data, filters);
 }
 
 export async function getDailySalesData(userId: string, filters: any, invoiceTypeFilter: string) {
+  await requireSession();
   const raw = await fetchSalesStockRawData(userId, filters);
   return buildDailySalesFromRaw(raw, invoiceTypeFilter);
 }
@@ -280,6 +291,7 @@ export async function getDailySalesData(userId: string, filters: any, invoiceTyp
 // 3. Statistics Data
 // -------------------------------------------------------------
 export async function getStatisticsData(userId: string, filters: any) {
+  await requireSession();
   const raw = await fetchSalesStockRawData(userId, filters);
   return buildStatisticsFromRaw(raw);
 }
@@ -288,6 +300,7 @@ export async function getStatisticsData(userId: string, filters: any) {
 // 4. Top 10 Data
 // -------------------------------------------------------------
 export async function getTop10Data(userId: string, filters: any) {
+  await requireSession();
   const augmentedData = await getFilteredSalesData(userId);
 
   let globallyFilteredData = augmentedData;
@@ -456,6 +469,7 @@ function _matchesListingFilters(item: any, filters: any): boolean {
 }
 
 export async function getNewListingsData(userId: string, filters: any) {
+  await requireSession();
   const augmentedData = await getFilteredSalesData(userId);
   const canonicalProductIds = _buildCanonicalProductIds(augmentedData);
 
@@ -558,10 +572,12 @@ export async function getNewListingsData(userId: string, filters: any) {
 
 
 export async function getSalesWatermarkServer(): Promise<string | null> {
+  await requireSession();
   return getSalesWatermark();
 }
 
 export async function getSalesDeltaServer(watermark: string): Promise<any[]> {
+  await requireSession();
   return getSalesDelta(watermark);
 }
 
@@ -572,6 +588,7 @@ import { resolveSalesUserContext, isMappingAssignedToUser, getGlobalMappings } f
 // SECURE CLIENT DATA FETCH (Delta or Full)
 // -------------------------------------------------------------
 export async function getClientSalesData(userId: string, watermark?: string): Promise<any[]> {
+  await requireSession();
   const userContext = await resolveSalesUserContext(userId);
   if (!userContext) return [];
 

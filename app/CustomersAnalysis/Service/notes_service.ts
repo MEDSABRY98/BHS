@@ -1,8 +1,10 @@
 'use server';
+import { requireSession } from '@/lib/session';
 
 import { getNotes, addNote, updateNote, deleteNoteRow } from '@/lib/supabase';
 
 export async function getCustomerNotes(customerName?: string) {
+  await requireSession();
   try {
     const notes = await getNotes(customerName || undefined);
     return notes;
@@ -13,6 +15,7 @@ export async function getCustomerNotes(customerName?: string) {
 }
 
 export async function createNote(body: { customerName: string; content: string; isSolved?: boolean }) {
+  await requireSession();
   const { customerName, content, isSolved } = body;
 
   if (!customerName || !content) {
@@ -29,6 +32,7 @@ export async function createNote(body: { customerName: string; content: string; 
 }
 
 export async function updateCustomerNote(body: { rowIndex: number; content: string; isSolved?: boolean }) {
+  await requireSession();
   const { rowIndex, content, isSolved } = body;
 
   if (!rowIndex || !content) {
@@ -45,6 +49,7 @@ export async function updateCustomerNote(body: { rowIndex: number; content: stri
 }
 
 export async function deleteCustomerNote(rowIndex: number) {
+  await requireSession();
   if (!rowIndex) {
     throw new Error('Missing required fields');
   }

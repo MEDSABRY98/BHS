@@ -1,10 +1,25 @@
 import { bhs_supabas, hasSalesDataAccessFromDb, parseBoolFlag } from '@/lib/supabase';
 import { getSalesDataServer } from '@/app/Sales/Cache/SalesCache';
+import { getSession } from '@/lib/session';
 
 let globalMappingCache: Map<string, any> | null = null;
 let cachedUsersList: { id: string; name: string }[] | null = null;
 let globalCustomerTagCache: Map<string, string> | null = null;
 let globalCustomerClassCache: Map<string, string> | null = null;
+
+// ─────────────────────────────────────────────────────────────
+//  PER-USER CACHES (warm server instance)
+//  - userContextCache: user's name / data-access flag, short TTL so
+//    permission changes still apply within a minute.
+//  - userDataCache: the user's mapped sales rows. Reused as long as the
+//    underlying sales cache and mapping cache are the same objects, so it
+//    rebuilds automatically after a refresh or mapping upload.
+//    All full-access users share one entry.
+// ─────────────────────────────────────────────────────────────
+const USER_CONTEXT_TTL_MS = 60_000;
+const USER_DATA_CACHE_MAX = 25;
+const userContextCache = new Map<string, { ctx: SalesUserContext | null; at: number }>();
+const userDataCache = new Map<string, { raw: any[]; mappings: Map<string, any>; data: any[] }>();
 
 export async function getGlobalMappings(): Promise<Map<string, any>> {
   if (globalMappingCache) return globalMappingCache;
@@ -89,10 +104,22 @@ function isMappingAssignedToUser(
   return false;
 }
 
-async function resolveSalesUserContext(userId: string): Promise<SalesUserContext | null> {
-  const cleanUserId = String(userId || '').trim().toUpperCase();
+async function resolveSalesUserContext(_userIdFromClient: string): Promise<SalesUserContext | null> {
+  // The user is taken from the signed session cookie, never from the id the
+  // browser sends — otherwise anyone could pass another user's id.
+  const session = await getSession();
+  const cleanUserId = String(session?.uid || '').trim().toUpperCase();
   if (!cleanUserId) return null;
 
+  const cached = userContextCache.get(cleanUserId);
+  if (cached && Date.now() - cached.at < USER_CONTEXT_TTL_MS) return cached.ctx;
+
+  const ctx = await fetchSalesUserContext(cleanUserId);
+  userContextCache.set(cleanUserId, { ctx, at: Date.now() });
+  return ctx;
+}
+
+async function fetchSalesUserContext(cleanUserId: string): Promise<SalesUserContext | null> {
   const { data: user } = await bhs_supabas
     .from('bhs_USERS')
     .select('NAME, ROLE, SALES_DATA_ACCESS')
@@ -130,6 +157,8 @@ export function invalidateMappingCache(userId?: string) {
   cachedUsersList = null;
   globalCustomerTagCache = null;
   globalCustomerClassCache = null;
+  userContextCache.clear();
+  userDataCache.clear();
   console.log('🗑️ Global mapping cache invalidated');
 }
 
@@ -166,6 +195,15 @@ export async function getFilteredSalesData(userId: string): Promise<any[]> {
   const allMappings = await getGlobalMappings();
   const { cleanUserId, cleanUserName, hasSalesDataAccess } = userContext;
 
+  // Same sales cache + same mappings -> same result: reuse it.
+  const cacheKey = hasSalesDataAccess ? '__ALL__' : `${cleanUserId}|${cleanUserName}`;
+  const hit = userDataCache.get(cacheKey);
+  if (hit && hit.raw === rawSales && hit.mappings === allMappings) {
+    userDataCache.delete(cacheKey);
+    userDataCache.set(cacheKey, hit); // mark as recently used
+    return hit.data;
+  }
+
   const processed: any[] = [];
   rawSales.forEach((item: any) => {
     const cId = String(item.customerId || '').trim().toUpperCase();
@@ -189,6 +227,13 @@ export async function getFilteredSalesData(userId: string): Promise<any[]> {
       });
     }
   });
+
+  userDataCache.delete(cacheKey);
+  userDataCache.set(cacheKey, { raw: rawSales, mappings: allMappings, data: processed });
+  if (userDataCache.size > USER_DATA_CACHE_MAX) {
+    const oldest = userDataCache.keys().next().value;
+    if (oldest !== undefined) userDataCache.delete(oldest);
+  }
 
   return processed;
 }

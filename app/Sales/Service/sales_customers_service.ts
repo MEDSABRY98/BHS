@@ -1,4 +1,5 @@
 'use server';
+import { requireSession } from '@/lib/session';
 
 import { bhs_supabas, SalesInvoice } from '@/lib/supabase';
 import { 
@@ -44,6 +45,7 @@ async function getCustomerNameMap() {
 // 1. Customers Data
 // -------------------------------------------------------------
 export async function getCustomersData(userId: string, filters: any, activeTab: string) {
+  await requireSession();
   const augmentedData = await getFilteredSalesData(userId);
   const customerNameMap = await getCustomerNameMap();
 
@@ -201,6 +203,7 @@ export async function getCustomersData(userId: string, filters: any, activeTab: 
 // 2. Customer Details Data
 // -------------------------------------------------------------
 export async function getCustomerDetailsData(userId: string, filters: any, customerName: string, customerId: string, customerType: string) {
+  await requireSession();
   const augmentedData = await getFilteredSalesData(userId);
   const targetCustomerId = normCustomerId(customerId);
 
@@ -321,6 +324,7 @@ function buildMainGroupDataForSub(
 // 3. Customers List
 // -------------------------------------------------------------
 export async function getCustomersList() {
+  await requireSession();
   const { data, error } = await bhs_supabas
     .from('bhs_CUSTOMERS')
     .select('"CUSTOMER ID", "CUSTOMER MAIN NAME", "CUSTOMER SUB NAME", "CUSTOMER CITY"')
@@ -340,6 +344,7 @@ export async function getCustomersList() {
 // 4. Customers Comparison
 // -------------------------------------------------------------
 export async function getCustomersComparisonData(userId: string, filters: any, currentYear: number, prevYear: number, selectedMonths: string[]) {
+  await requireSession();
   const augmentedData = await getFilteredSalesData(userId);
 
   let globallyFilteredData = augmentedData;
@@ -504,6 +509,7 @@ function mapMappingToCustomerRow(m: {
 }
 
 export async function getMyCustomersData(userId: string) {
+  await requireSession();
   const filteredMappings = await getMappingServer(userId);
   return Array.from(filteredMappings.values())
     .map(mapMappingToCustomerRow)
@@ -511,6 +517,7 @@ export async function getMyCustomersData(userId: string) {
 }
 
 export async function batchSaveCustomerMapping(userId: string, mapping: Record<string, any>) {
+  await requireSession();
   const isManager = await checkHasSalesDataAccess(userId);
   if (!isManager) {
     throw new Error('Unauthorized. Only sales managers can upload mappings.');
@@ -567,6 +574,7 @@ export async function batchSaveCustomerMapping(userId: string, mapping: Record<s
 // 6. Inactive Customers
 // -------------------------------------------------------------
 export async function getInactiveCustomersData(userId: string, filters: any, days: number | string, minAmount: number | string) {
+  await requireSession();
   const augmentedData = await getFilteredSalesData(userId);
 
   let globallyFilteredData = augmentedData;
@@ -721,6 +729,7 @@ async function resolveCustomerNames(customerIds: string[]) {
 }
 
 export async function getInactiveCustomerExceptions() {
+  await requireSession();
   const { data: rows, error } = await bhs_supabas
     .from(INACTIVE_CUSTOMERS_TABLE)
     .select('"ID", "CUSTOMER ID", "CREATED_AT"')
@@ -741,6 +750,7 @@ export async function getInactiveCustomerExceptions() {
 }
 
 export async function hideInactiveCustomer(customerId: string, customerName?: string) {
+  await requireSession();
   const cId = String(customerId || '').trim();
   if (!cId) {
     throw new Error('customerId is required');
@@ -771,6 +781,7 @@ export async function hideInactiveCustomer(customerId: string, customerName?: st
 }
 
 export async function restoreInactiveCustomer(customerId: string) {
+  await requireSession();
   const cId = String(customerId || '').trim();
   if (!cId) {
     throw new Error('customerId is required');

@@ -8,63 +8,38 @@ import {
   ChevronRight,
   DollarSign,
   X,
-  BarChart3,
-  ClipboardList
+  RefreshCw
 } from 'lucide-react';
 
-export type CashHandlingTabId = 'new' | 'saved' | 'stats' | 'handover-new' | 'handover-saved';
+export type VouchersTabId = 'new' | 'saved';
 
-interface CashHandlingSidebarProps {
-  activeTab: CashHandlingTabId;
-  onTabChange: (tab: CashHandlingTabId) => void;
-  currentUser?: any;
+interface VouchersSidebarProps {
+  activeTab: VouchersTabId;
+  onTabChange: (tab: VouchersTabId) => void;
+  visibleTabs: VouchersTabId[];
   isCollapsed: boolean;
   onToggleCollapse: () => void;
   onCloseMobile?: () => void;
+  onRefresh?: () => void;
 }
 
-export default function CashHandlingSidebar({
+export default function VouchersSidebar({
   activeTab,
   onTabChange,
-  currentUser,
+  visibleTabs,
   isCollapsed,
   onToggleCollapse,
-  onCloseMobile
-}: CashHandlingSidebarProps) {
+  onCloseMobile,
+  onRefresh
+}: VouchersSidebarProps) {
   const [hoveredTab, setHoveredTab] = useState<{ label: string; top: number } | null>(null);
 
   const allTabs = [
-    { id: 'new' as const, label: 'New Receipt', icon: PlusCircle, module: 'cash-receipt' },
-    { id: 'saved' as const, label: 'Saved Receipts', icon: List, module: 'cash-receipt' },
-    { id: 'stats' as const, label: 'Statistics', icon: BarChart3, module: 'cash-receipt' },
-    { id: 'handover-new' as const, label: 'New Handover', icon: PlusCircle, module: 'cash-handover' },
-    { id: 'handover-saved' as const, label: 'Saved Handovers', icon: ClipboardList, module: 'cash-handover' }
+    { id: 'new' as const, label: 'New Voucher', icon: PlusCircle },
+    { id: 'saved' as const, label: 'Vouchers Register', icon: List },
   ];
 
-  // Filter tabs based on user permissions
-  const getFilteredTabs = () => {
-    if (!currentUser) return [];
-    if (currentUser.name === 'MED Sabry') return allTabs;
-
-    try {
-      const perms = JSON.parse(currentUser.role || '{}');
-      return allTabs.filter(tab => {
-        if (tab.module === 'cash-receipt') {
-          return perms['cash-receipt'] && Array.isArray(perms['cash-receipt']) && perms['cash-receipt'].includes(tab.id);
-        }
-        if (tab.module === 'cash-handover') {
-          const mappedId = tab.id.replace('handover-', ''); // e.g., handover-new -> new
-          return perms['cash-handover'] && Array.isArray(perms['cash-handover']) && perms['cash-handover'].includes(mappedId);
-        }
-        return false;
-      });
-    } catch (e) {
-      // Default to all if permission role parsing fails
-    }
-    return allTabs;
-  };
-
-  const tabs = getFilteredTabs();
+  const tabs = allTabs.filter((tab) => visibleTabs.includes(tab.id));
 
   return (
     <div className="flex flex-col h-full bg-[#0a0f1d] text-white border-r border-amber-950/20">
@@ -103,7 +78,7 @@ export default function CashHandlingSidebar({
           </div>
           {!isCollapsed && (
             <div className="animate-in fade-in duration-300">
-              <h2 className="text-lg font-bold tracking-tight text-white">Cash Handling</h2>
+              <h2 className="text-lg font-bold tracking-tight text-white">Vouchers</h2>
             </div>
           )}
         </div>
@@ -145,8 +120,17 @@ export default function CashHandlingSidebar({
         })}
       </nav>
 
-      {/* Toggle Collapse Button */}
-      <div className="p-4 border-t border-white/5 mt-auto flex justify-center shrink-0">
+      {/* Toggle Collapse & Refresh Buttons */}
+      <div className={`p-4 border-t border-white/5 mt-auto flex ${isCollapsed ? 'flex-col items-center gap-3' : 'justify-center gap-3'} shrink-0`}>
+        {onRefresh && (
+          <button
+            onClick={onRefresh}
+            className="flex items-center justify-center w-10 h-10 hover:bg-white/10 rounded-xl transition-all duration-200 text-emerald-400"
+            title="Refresh Vouchers Data"
+          >
+            <RefreshCw className="w-5 h-5" />
+          </button>
+        )}
         <button
           onClick={onToggleCollapse}
           className="flex items-center justify-center w-10 h-10 hover:bg-white/10 rounded-xl transition-all duration-200 text-amber-400"

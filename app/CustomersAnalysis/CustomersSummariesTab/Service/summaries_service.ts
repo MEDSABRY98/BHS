@@ -1,4 +1,5 @@
 'use server';
+import { requireSession } from '@/lib/session';
 
 import { InvoiceRow } from '@/types';
 import { getDebitData } from '@/app/CustomersAnalysis/Service/debit_service';
@@ -29,6 +30,7 @@ export interface CustomersSummariesDataResult {
  * Main Customers Summaries data loader — mix_DEBIT via getDebitData.
  */
 export async function getCustomersSummariesData(): Promise<CustomersSummariesDataResult> {
+  await requireSession();
   try {
     const result = await getDebitData();
     const data = Array.isArray(result?.data) ? (result.data as InvoiceRow[]) : [];
@@ -49,5 +51,6 @@ export async function getCustomersSummariesData(): Promise<CustomersSummariesDat
 export async function fetchSummariesSalesOverlayForYears(
   input: SummariesSalesOverlayInput
 ): Promise<SummariesSalesOverlay> {
+  await requireSession();
   return getSummariesSalesOverlay(input);
 }

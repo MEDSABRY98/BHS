@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { bhs_supabas, parseBoolFlag, toTextBoolFlag } from '@/lib/supabase';
+import { parseBoolFlag, toTextBoolFlag } from '@/lib/supabase';
+import { adminListUsers, adminSaveUser, adminDeleteUser } from '@/app/DataBase/Service/database_service';
 import {
   Users,
   Search,
@@ -74,17 +75,7 @@ export default function UsersPage() {
 
   async function fetchUsers(search: string = '') {
     try {
-      let query = bhs_supabas
-        .from('bhs_USERS')
-        .select('*');
-
-      if (search.trim()) {
-        const term = `%${search.trim()}%`;
-        query = query.or(`NAME.ilike.${term},ID.ilike.${term}`);
-      }
-
-      const { data, error } = await query.order('NAME');
-      if (error) throw error;
+      const data = await adminListUsers(search);
       setUsers(data || []);
     } catch (err) {
       console.error(err);
@@ -98,7 +89,7 @@ export default function UsersPage() {
     setNAME(user ? user.NAME : '');
     setROLE(user ? user.ROLE : 'user');
     setUSER_TYPE(user ? user.USER_TYPE : 'Creator');
-    setPASSWORD(user ? user.PASSWORD : '');
+    setPASSWORD(''); // passwords are never sent to the browser; leave empty to keep
     setIS_IN_OFFICE(user ? user.IS_IN_OFFICE : false);
     setCANCEL_AUTHORITY(user ? parseBoolFlag(user.CANCEL_AUTHORITY) : false);
     setCITY(user ? user.CITY || '' : '');
@@ -115,59 +106,21 @@ export default function UsersPage() {
     setIsSaving(true);
     const salesDataAccessValue = toTextBoolFlag(salesDataAccess);
     try {
-      if (editingUser) {
-        const { data, error } = await bhs_supabas
-          .from('bhs_USERS')
-          .update({
-            NAME,
-            ROLE,
-            USER_TYPE,
-            PASSWORD,
-            IS_IN_OFFICE,
-            CANCEL_AUTHORITY,
-            CITY,
-            SALES_DATA_ACCESS: salesDataAccessValue,
-          })
-          .eq('ID', editingUser.ID)
-          .select('*')
-          .single();
-        if (error) throw error;
-        if (data) {
-          setUsers((prev) => prev.map((u) => (u.ID === data.ID ? data : u)));
-        }
-      } else {
-        const { data: maxIdData, error: maxIdError } = await bhs_supabas
-          .from('bhs_USERS_MAX_ID')
-          .select('ID')
-          .single();
-
-        if (maxIdError && maxIdError.code !== 'PGRST116') {
-          throw maxIdError;
-        }
-
-        let nextNum = 1;
-        if (maxIdData && maxIdData.ID) {
-          const match = maxIdData.ID.match(/^R-(\d+)$/i);
-          if (match) {
-            nextNum = parseInt(match[1], 10) + 1;
-          }
-        }
-        const nextId = `R-${String(nextNum).padStart(4, '0')}`;
-
-        const { error } = await bhs_supabas
-          .from('bhs_USERS')
-          .insert({
-            ID: nextId,
-            NAME,
-            ROLE,
-            USER_TYPE,
-            PASSWORD,
-            IS_IN_OFFICE,
-            CANCEL_AUTHORITY,
-            CITY,
-            SALES_DATA_ACCESS: salesDataAccessValue,
-          });
-        if (error) throw error;
+      const saved = await adminSaveUser(
+        {
+          NAME,
+          ROLE,
+          USER_TYPE,
+          PASSWORD, // empty when editing = keep the current password
+          IS_IN_OFFICE,
+          CANCEL_AUTHORITY,
+          CITY,
+          SALES_DATA_ACCESS: salesDataAccessValue,
+        },
+        editingUser ? editingUser.ID : null
+      );
+      if (editingUser && saved) {
+        setUsers((prev) => prev.map((u) => (u.ID === (saved as any).ID ? saved : u)));
       }
       setIsConfirmOpen(false);
       setIsModalOpen(false);
@@ -190,11 +143,7 @@ export default function UsersPage() {
     if (!itemToDelete) return;
     setIsSaving(true);
     try {
-      const { error } = await bhs_supabas
-        .from('bhs_USERS')
-        .delete()
-        .eq('ID', itemToDelete);
-      if (error) throw error;
+      await adminDeleteUser(itemToDelete);
       fetchUsers(searchTerm);
       toast.success('User deleted successfully!');
     } catch (err: any) {
@@ -572,8 +521,9 @@ export default function UsersPage() {
                       type="text"
                       value={PASSWORD}
                       onChange={(e) => setPASSWORD(e.target.value)}
-                      placeholder="Access Code"
-                      required
+                      placeholder={editingUser ? 'Leave empty to keep current password' : 'Access Code'}
+                      required={!editingUser}
+                      autoComplete="new-password"
                       className="w-full pl-14 pr-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold"
                     />
                   </div>

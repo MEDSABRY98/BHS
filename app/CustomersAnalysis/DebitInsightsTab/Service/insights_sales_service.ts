@@ -1,4 +1,5 @@
 'use server';
+import { requireSession } from '@/lib/session';
 
 import { getFilteredSalesData } from '@/app/Sales/Cache/SalesMappingCache';
 import {
@@ -145,6 +146,7 @@ function buildOverlay(
 export async function getInsightsSalesOverlay(
   input: InsightsSalesOverlayInput
 ): Promise<InsightsSalesOverlay> {
+  await requireSession();
   const userId = String(input.userId || '').trim();
   if (!userId) return EMPTY_SALES_OVERLAY;
 
@@ -168,6 +170,7 @@ export async function getInsightsSalesOverlay(
 export async function getInsightsSalesOverlayBatch(
   input: InsightsSalesOverlayBatchInput
 ): Promise<InsightsSalesOverlayBatch> {
+  await requireSession();
   const userId = String(input.userId || '').trim();
   if (!userId) {
     return { all: EMPTY_SALES_OVERLAY, byCity: {} };

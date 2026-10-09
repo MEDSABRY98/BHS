@@ -1,8 +1,10 @@
 'use server';
+import { requireSession } from '@/lib/session';
 
 import { bhs_supabas, fetchAllData } from '@/lib/supabase';
 
 export async function getItemCodesData() {
+  await requireSession();
   try {
     const data = await fetchAllData(() =>
       bhs_supabas.from('web_INVENTORY_ITEM_CODE').select('TAGS,"ITEM CODE",BARCODE'),

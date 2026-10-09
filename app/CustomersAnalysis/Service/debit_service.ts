@@ -1,4 +1,5 @@
 'use server';
+import { requireSession } from '@/lib/session';
 
 import { bhs_supabase, getSheetData } from '@/lib/supabase';
 import { InvoiceRow } from '@/types';
@@ -50,6 +51,7 @@ function mapDebitRpcRow(row: Record<string, unknown>): InvoiceRow {
 }
 
 export async function getDebitData() {
+  await requireSession();
   try {
     const data = await getSheetData();
     return { data };
@@ -60,6 +62,7 @@ export async function getDebitData() {
 }
 
 export async function getDebitMetadata(): Promise<DebitMetadata> {
+  await requireSession();
   try {
     const { data, error } = await bhs_supabase.rpc('get_debit_metadata');
     if (!error && data?.success) {
@@ -102,6 +105,7 @@ export async function getDebitTransactionsPaginated(options?: {
   limit?: number;
   offset?: number;
 }) {
+  await requireSession();
   try {
     const { data, error } = await bhs_supabase.rpc('get_debit_transactions', {
       p_search: options?.search?.trim() || null,
@@ -166,6 +170,7 @@ export async function getDebitCustomersSummary(): Promise<{
   success: boolean;
   data: DebitCustomersSummaryRow[];
 }> {
+  await requireSession();
   try {
     const { data, error } = await bhs_supabase.rpc('get_debit_customers_aggregated');
     if (!error && Array.isArray(data)) {
@@ -192,6 +197,7 @@ export async function getDebitCustomersSummary(): Promise<{
 }
 
 export async function getDebitPaymentsSummary(options?: { dateFrom?: string; dateTo?: string }) {
+  await requireSession();
   try {
     const { data, error } = await bhs_supabase.rpc('get_debit_payments_summary', {
       p_date_from: options?.dateFrom || null,
@@ -275,6 +281,7 @@ async function bulkInsertChunks(
 }
 
 export async function generateNextPaymentReconciliationId(): Promise<string> {
+  await requireSession();
   const year = new Date().getFullYear();
   const prefix = `PR-${year}-`;
 
@@ -303,6 +310,7 @@ export async function savePaymentReconciliationSession(input: {
   header: PaymentReconciliationSaveHeader;
   lines: PaymentReconciliationSaveLine[];
 }) {
+  await requireSession();
   try {
     const lines = input.lines.filter(
       (line) => line.customerId.trim() && line.invoiceNumber.trim() && Number.isFinite(line.appliedAmount),
@@ -381,6 +389,7 @@ export async function savePaymentReconciliationSession(input: {
 }
 
 export async function fetchPaymentReconciliationSessions() {
+  await requireSession();
   try {
     const { data: headers, error: headerError } = await bhs_supabase
       .from(PR_HEADER_TABLE)
@@ -422,6 +431,7 @@ export async function fetchPaymentReconciliationSessions() {
 }
 
 export async function fetchPaymentReconciliationSession(sessionId: string) {
+  await requireSession();
   try {
     const id = sessionId.trim();
     if (!id) {
@@ -480,6 +490,7 @@ export async function fetchPaymentReconciliationSession(sessionId: string) {
 }
 
 export async function deletePaymentReconciliationSession(sessionId: string) {
+  await requireSession();
   try {
     const id = sessionId.trim();
     if (!id) {

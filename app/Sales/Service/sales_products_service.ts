@@ -1,4 +1,5 @@
 'use server';
+import { requireSession } from '@/lib/session';
 
 import { getFilteredSalesData } from '@/app/Sales/Cache/SalesMappingCache';
 
@@ -6,6 +7,7 @@ import { getFilteredSalesData } from '@/app/Sales/Cache/SalesMappingCache';
 // 1. Products Data
 // -------------------------------------------------------------
 export async function getProductsData(userId: string, filters: any) {
+  await requireSession();
   const augmentedData = await getFilteredSalesData(userId);
 
   let globallyFilteredData = augmentedData;
@@ -61,7 +63,8 @@ export async function getProductsData(userId: string, filters: any) {
     }
   }
 
-  globallyFilteredData.sort((a, b) => {
+  // Copy before sorting: the unfiltered array is the shared cached dataset
+  globallyFilteredData = [...globallyFilteredData].sort((a, b) => {
     const dateA = a.invoiceDate ? new Date(a.invoiceDate).getTime() : 0;
     const dateB = b.invoiceDate ? new Date(b.invoiceDate).getTime() : 0;
     return dateB - dateA;
@@ -147,6 +150,7 @@ export async function getProductsData(userId: string, filters: any) {
 // 2. Product Details Data
 // -------------------------------------------------------------
 export async function getProductDetailsData(userId: string, filters: any, productId: string) {
+  await requireSession();
   const augmentedData = await getFilteredSalesData(userId);
 
   let productRawData = augmentedData.filter(item => {
@@ -217,6 +221,7 @@ export async function getProductDetailsData(userId: string, filters: any, produc
 // 3. Categories Data
 // -------------------------------------------------------------
 export async function getCategoriesData(userId: string, filters: any) {
+  await requireSession();
   const augmentedData = await getFilteredSalesData(userId);
 
   let globallyFilteredData = augmentedData;

@@ -1,8 +1,10 @@
 'use server';
+import { requireSession } from '@/lib/session';
 
 import { bhs_supabase } from '@/lib/supabase';
 
 export async function deleteSuppliersTransactionsData() {
+  await requireSession();
   try {
     const { error } = await bhs_supabase.from('web_SUPPLIERS_ANALYSIS').delete().neq('ID', 0);
     if (error) throw error;
@@ -15,6 +17,7 @@ export async function deleteSuppliersTransactionsData() {
 }
 
 export async function uploadSuppliersTransactionsData(payload: any[] | string) {
+  await requireSession();
   try {
     const data = typeof payload === 'string' ? JSON.parse(payload) : payload;
     if (!data || !Array.isArray(data)) {

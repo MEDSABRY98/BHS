@@ -7,7 +7,7 @@ import UserActivityTab from './UserActivityTab/UserActivityTab';
 import AdminControlTab from './AdminControlTab';
 import AdminSidebar from './Utils/Sidebar';
 import TabPanel from '@/app/Components/Layout/TabPanel';
-import { verifyUserCredentials } from '@/app/DataBase/Service/database_service';
+import { restoreSessionUser } from '@/app/Components/Auth/sessionClient';
 import Login from '@/app/Components/Auth/Login';
 import MainLoader from '@/app/Components/Loading/MainLoader';
 
@@ -31,31 +31,12 @@ export default function AdminControlPage() {
   useEffect(() => {
     const validateAndSetUser = async () => {
       setIsLoading(true);
-      const savedUser = localStorage.getItem('currentUser');
-      const savedPassword = localStorage.getItem('userPassword');
-
-      if (savedUser && savedPassword) {
-        try {
-          const userData = JSON.parse(savedUser);
-          if (userData && userData.name) {
-            const result = await verifyUserCredentials(userData.name, savedPassword);
-
-            if (result.success && result.user) {
-              setCurrentUser(result.user);
-              setIsAuthenticated(true);
-              localStorage.setItem('currentUser', JSON.stringify(result.user));
-
-              if (result.user.name !== 'MED Sabry') {
-                router.push('/');
-              }
-            } else {
-              localStorage.removeItem('currentUser');
-              localStorage.removeItem('userPassword');
-            }
-          }
-        } catch {
-          localStorage.removeItem('currentUser');
-          localStorage.removeItem('userPassword');
+      const user = await restoreSessionUser();
+      if (user) {
+        setCurrentUser(user);
+        setIsAuthenticated(true);
+        if (user.name !== 'MED Sabry') {
+          router.push('/');
         }
       }
       setTimeout(() => setIsLoading(false), 800);

@@ -15,6 +15,7 @@ import TabFetchError from '@/app/Components/DataState/TabFetchError';
 
 interface SalesInactiveCustomersTabProps {
   userId: string;
+  showCosts?: boolean;
 }
 
 const ITEMS_PER_PAGE = 50;
@@ -82,7 +83,7 @@ const InactiveCustomerRow = memo(({ item, rowNumber, onCustomerClick, onExclude,
 
 InactiveCustomerRow.displayName = 'InactiveCustomerRow';
 
-export default function SalesInactiveCustomersTab({ userId }: SalesInactiveCustomersTabProps) {
+export default function SalesInactiveCustomersTab({ userId, showCosts = true }: SalesInactiveCustomersTabProps) {
   const { commonFilters: filters, inactiveDays: days, inactiveMinAmount: minAmount } = useSalesModuleFilters();
   const { dataVersion } = useSalesDataContext();
   const [searchQuery, setSearchQuery] = useState('');
@@ -249,7 +250,7 @@ export default function SalesInactiveCustomersTab({ userId }: SalesInactiveCusto
   }
 
   if (selectedCustomer) return (
-    <SalesCustomerDetails customerName={selectedCustomer} userId={userId} onBack={() => setSelectedCustomer(null)} initialTab="dashboard" auditParentTabId="sales-inactive-customers" />
+    <SalesCustomerDetails customerName={selectedCustomer} userId={userId} showCosts={showCosts} onBack={() => setSelectedCustomer(null)} initialTab="dashboard" auditParentTabId="sales-inactive-customers" />
   );
 
   const totalPages = Math.ceil(filteredCustomers.length / ITEMS_PER_PAGE);

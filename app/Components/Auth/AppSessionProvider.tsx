@@ -3,6 +3,8 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { fetchUserSession } from '@/app/DataBase/Service/database_service';
+import { restoreSessionUser } from '@/app/Components/Auth/sessionClient';
+import MainLoader from '@/app/Components/Loading/MainLoader';
 
 const POLL_MS = 20_000;
 export const SESSION_EVENT = 'bhs-permissions-updated';
@@ -84,6 +86,9 @@ function sessionFingerprint(user: SessionUser): string {
 
 export function AppSessionProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<SessionUser>(null);
+  // Children render only after the session cookie has been checked, so no
+  // page fires server actions (or trusts a stale localStorage user) before that.
+  const [ready, setReady] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
   const userRef = useRef<SessionUser>(null);
@@ -130,12 +135,38 @@ export function AppSessionProvider({ children }: { children: React.ReactNode }) 
     }
 
     const result = await fetchUserSession(name);
-    if (!result.success || !result.user) return;
+    if (!result.success || !result.user) {
+      // Session expired or user removed: log out locally and go to the login page
+      if (result.error === 'Not logged in') {
+        try {
+          localStorage.removeItem('currentUser');
+          localStorage.removeItem('userPassword');
+        } catch {
+          // ignore storage errors
+        }
+        if (userRef.current) setUser(null);
+        if (pathnameRef.current !== '/') router.replace('/');
+      }
+      return;
+    }
     applyUser({ ...(stored || {}), ...result.user });
-  }, [applyUser]);
+  }, [applyUser, router]);
 
   useEffect(() => {
-    setUser(readStoredUser());
+    let cancelled = false;
+    restoreSessionUser().finally(() => {
+      if (cancelled) return;
+      setUser(readStoredUser());
+      setReady(true);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!ready) return;
     void syncFromDb();
 
     const timer = window.setInterval(() => {
@@ -162,7 +193,7 @@ export function AppSessionProvider({ children }: { children: React.ReactNode }) 
       document.removeEventListener('visibilitychange', onVisibility);
       window.removeEventListener('storage', onStorage);
     };
-  }, [syncFromDb]);
+  }, [syncFromDb, ready]);
 
   useEffect(() => {
     const systemId = resolveSystemId(pathname);
@@ -171,7 +202,7 @@ export function AppSessionProvider({ children }: { children: React.ReactNode }) 
     }
   }, [pathname, user, router]);
 
-  return <SessionContext.Provider value={user}>{children}</SessionContext.Provider>;
+  return <SessionContext.Provider value={user}>{ready ? children : <MainLoader />}</SessionContext.Provider>;
 }
 
 export function useLiveCurrentUser(): SessionUser {

@@ -2,10 +2,10 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { SalesInvoice } from '@/lib/supabase';;
-import { Search, ChevronLeft, ChevronRight, Loader2, FileText, FileSpreadsheet, FileDown } from 'lucide-react';
-import { generateSalesPricelistPDF } from '@/app/Sales/StockReport/Pricelist';
-import { generateSalesStockFormPDF } from '@/app/Sales/StockReport/StockForm';
-import { generateSalesAnalysisComparisonPDF } from '@/app/Sales/StockReport/AnalysisComparison';;
+import { Search, ChevronLeft, ChevronRight, Loader2, FileText, FileSpreadsheet, FileDown, Settings2, X } from 'lucide-react';
+import { generateSalesPricelistPDF } from './Pricelist';
+import { generateSalesStockFormPDF } from './StockForm';
+import { generateSalesAnalysisComparisonPDF } from './AnalysisComparison';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
 import JSZip from 'jszip';
@@ -28,6 +28,8 @@ export default function SalesST_ByCustomers({ customersData, loading, refreshTri
   const [currentPage, setCurrentPage] = useState(1);
   const [generationProgress, setGenerationProgress] = useState({ current: 0, total: 0 });
   const [showDownloadModal, setShowDownloadModal] = useState(false);
+  const [analysisModalConfig, setAnalysisModalConfig] = useState<{ isOpen: boolean; customerName: string | null; mode: 'pdf' | 'excel' | 'bulk_pdf' } | null>(null);
+  const [selectedAnalysisCols, setSelectedAnalysisCols] = useState({ barcode: true, product: true, mostPrice: true, maxPrice: true, cost: showCosts, diff: showCosts, margin: showCosts });
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -52,7 +54,7 @@ export default function SalesST_ByCustomers({ customersData, loading, refreshTri
 
   useEffect(() => { setCurrentPage(1); }, [debouncedSearchQuery]);
 
-  const handleDownload = async (customerName: string, mode: 'order' | 'pricelist' | 'analysis', strategy: 'most' | 'max' = 'most') => {
+  const handleDownload = async (customerName: string, mode: 'order' | 'pricelist' | 'analysis', strategy: 'most' | 'max' = 'most', selectedCols?: any) => {
     const customer = customersData.find(c => c.customer === customerName);
     if (!customer) return;
     try {
@@ -75,7 +77,7 @@ export default function SalesST_ByCustomers({ customersData, loading, refreshTri
       if (mode === 'pricelist') {
         await generateSalesPricelistPDF(customer.customer, productsToPrint as any, false, strategy);
       } else if (mode === 'analysis') {
-        await generateSalesAnalysisComparisonPDF(customer.customer, productsToPrint as any, false);
+        await generateSalesAnalysisComparisonPDF(customer.customer, productsToPrint as any, false, selectedCols);
       } else {
         await generateSalesStockFormPDF(customer.customer, productsToPrint as any, false);
       }
@@ -106,7 +108,7 @@ export default function SalesST_ByCustomers({ customersData, loading, refreshTri
     }
   };
 
-  const handleExportAnalysisExcel = async (customerName: string) => {
+  const handleExportAnalysisExcel = async (customerName: string, selectedCols: any) => {
     const customer = customersData.find(c => c.customer === customerName);
     if (!customer) return;
 
@@ -122,24 +124,28 @@ export default function SalesST_ByCustomers({ customersData, loading, refreshTri
         const diff = frequent - cost;
         const margin = frequent > 0 ? (diff / frequent) * 100 : 0;
 
-        const row: any = {
-          '#': index + 1,
-          'Barcode': p.barcode,
-          'Product': p.product,
-          'Most Price': frequent,
-          'Max Price': maxPrice,
-        };
+        const row: any = { '#': index + 1 };
+        if (selectedCols.barcode) row['Barcode'] = p.barcode;
+        if (selectedCols.product) row['Product'] = p.product;
+        if (selectedCols.mostPrice) row['Most Price'] = frequent;
+        if (selectedCols.maxPrice) row['Max Price'] = maxPrice;
 
         if (showCosts) {
-          row['Cost'] = cost;
-          row['Diff'] = diff;
-          row['%'] = `${margin.toFixed(1)}%`;
+          if (selectedCols.cost) row['Cost'] = cost;
+          if (selectedCols.diff) row['Diff'] = diff;
+          if (selectedCols.margin) row['%'] = `${margin.toFixed(1)}%`;
         }
 
         return row;
       });
 
-      const numericColumns = showCosts ? ['Most Price', 'Max Price', 'Cost', 'Diff'] : ['Most Price', 'Max Price'];
+      const numericColumns = [];
+      if (selectedCols.mostPrice) numericColumns.push('Most Price');
+      if (selectedCols.maxPrice) numericColumns.push('Max Price');
+      if (showCosts) {
+        if (selectedCols.cost) numericColumns.push('Cost');
+        if (selectedCols.diff) numericColumns.push('Diff');
+      }
 
       await exportSalesExcel(exportData, `Sales_Analysis_${customerName}_${new Date().toISOString().split('T')[0]}.xlsx`, {
         sheetName: 'Analysis',
@@ -152,7 +158,7 @@ export default function SalesST_ByCustomers({ customersData, loading, refreshTri
     }
   };
 
-  const handleDownloadAllPDFs = async (mode: 'order' | 'pricelist' | 'analysis', strategy: 'most' | 'max' = 'most') => {
+  const handleDownloadAllPDFs = async (mode: 'order' | 'pricelist' | 'analysis', strategy: 'most' | 'max' = 'most', selectedCols?: any) => {
     if (filteredCustomers.length === 0) return;
     setShowDownloadModal(false);
     try {
@@ -181,7 +187,7 @@ export default function SalesST_ByCustomers({ customersData, loading, refreshTri
         if (mode === 'pricelist') {
           blob = await generateSalesPricelistPDF(customer.customer, productsToPrint as any, true, strategy) as unknown as Blob;
         } else if (mode === 'analysis') {
-          blob = await generateSalesAnalysisComparisonPDF(customer.customer, productsToPrint as any, true) as unknown as Blob;
+          blob = await generateSalesAnalysisComparisonPDF(customer.customer, productsToPrint as any, true, selectedCols) as unknown as Blob;
         } else {
           blob = await generateSalesStockFormPDF(customer.customer, productsToPrint as any, true) as unknown as Blob;
         }
@@ -274,7 +280,7 @@ export default function SalesST_ByCustomers({ customersData, loading, refreshTri
                       <td className="py-3 px-4 text-center">
                         <div className="flex items-center justify-center gap-2">
                           <button
-                            onClick={() => handleExportAnalysisExcel(c.customer)}
+                            onClick={() => setAnalysisModalConfig({ isOpen: true, customerName: c.customer, mode: 'excel' })}
                             disabled={isGenerating}
                             className="p-2 bg-white border border-emerald-200 text-emerald-600 rounded-lg hover:bg-emerald-600 hover:text-white hover:border-emerald-600 transition-all disabled:opacity-30"
                             title="Analysis Excel"
@@ -282,7 +288,7 @@ export default function SalesST_ByCustomers({ customersData, loading, refreshTri
                             <FileSpreadsheet className="w-4 h-4" />
                           </button>
                           <button
-                            onClick={() => handleDownload(c.customer, 'analysis')}
+                            onClick={() => setAnalysisModalConfig({ isOpen: true, customerName: c.customer, mode: 'pdf' })}
                             disabled={isGenerating}
                             className="p-2 bg-white border border-red-200 text-red-600 rounded-lg hover:bg-red-600 hover:text-white hover:border-red-600 transition-all disabled:opacity-30"
                             title="Analysis PDF"
@@ -333,7 +339,10 @@ export default function SalesST_ByCustomers({ customersData, loading, refreshTri
 
               {showCosts && (
                 <button
-                  onClick={() => handleDownloadAllPDFs('analysis')}
+                  onClick={() => {
+                    setShowDownloadModal(false);
+                    setAnalysisModalConfig({ isOpen: true, customerName: null, mode: 'bulk_pdf' });
+                  }}
                   className="w-full py-5 bg-emerald-600 text-white font-black text-xs uppercase tracking-[0.1em] rounded-2xl hover:bg-emerald-500 transition-all shadow-xl flex items-center justify-center gap-3"
                 >
                   <div className="w-6 h-6 bg-white/10 rounded-lg flex items-center justify-center">
@@ -365,6 +374,63 @@ export default function SalesST_ByCustomers({ customersData, loading, refreshTri
 
             </div>
             <button onClick={() => setShowDownloadModal(false)} className="mt-8 w-full text-xs font-black text-slate-400 hover:text-slate-600 uppercase tracking-widest transition-colors">Abort Engine</button>
+          </div>
+        </div>
+      )}
+      {analysisModalConfig?.isOpen && (
+        <div className="fixed inset-0 z-[1100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300" onClick={() => setAnalysisModalConfig(null)} />
+          <div className="relative bg-white rounded-[32px] shadow-2xl p-8 max-w-sm w-full animate-in zoom-in-95 duration-300 border border-white/20">
+            <button onClick={() => setAnalysisModalConfig(null)} className="absolute top-6 right-6 p-2 text-slate-400 hover:text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-full transition-colors">
+              <X className="w-5 h-5" />
+            </button>
+            <div className="w-16 h-16 bg-blue-50 rounded-[24px] flex items-center justify-center mx-auto mb-6">
+              <Settings2 className="w-8 h-8 text-blue-600" />
+            </div>
+            <h2 className="text-xl font-black text-slate-900 text-center mb-1 tracking-tight">Select Columns</h2>
+            <p className="text-slate-500 text-center text-xs font-bold uppercase tracking-wider mb-8">Customize your report</p>
+            
+            <div className="space-y-2 mb-8">
+              {Object.keys(selectedAnalysisCols).map((key) => {
+                const labelMap: any = { barcode: 'Barcode', product: 'Product', mostPrice: 'Most Price', maxPrice: 'Max Price', cost: 'Cost', diff: 'Difference', margin: 'Margin %' };
+                if ((key === 'cost' || key === 'diff' || key === 'margin') && !showCosts) return null;
+                const isChecked = (selectedAnalysisCols as any)[key];
+                
+                return (
+                  <label key={key} className={`flex items-center justify-between p-3.5 rounded-2xl cursor-pointer transition-all border ${isChecked ? 'bg-blue-50/50 border-blue-100 shadow-sm scale-[1.02]' : 'bg-slate-50 border-transparent hover:bg-slate-100'}`}>
+                    <span className={`text-sm font-bold transition-colors ${isChecked ? 'text-blue-900' : 'text-slate-500'}`}>{labelMap[key]}</span>
+                    <div className="relative flex items-center">
+                      <input 
+                        type="checkbox" 
+                        className="sr-only" 
+                        checked={isChecked} 
+                        onChange={(e) => setSelectedAnalysisCols(prev => ({ ...prev, [key]: e.target.checked }))} 
+                      />
+                      <div className={`w-12 h-6 rounded-full transition-colors duration-300 ${isChecked ? 'bg-blue-600' : 'bg-slate-200'}`}>
+                        <div className={`absolute left-[2px] top-[2px] w-5 h-5 rounded-full transition-transform duration-300 flex items-center justify-center bg-white shadow-sm ${isChecked ? 'translate-x-6' : 'translate-x-0'}`} />
+                      </div>
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+
+            <button
+              onClick={() => {
+                const { customerName, mode } = analysisModalConfig;
+                setAnalysisModalConfig(null);
+                if (mode === 'bulk_pdf') {
+                  handleDownloadAllPDFs('analysis', 'most', selectedAnalysisCols);
+                } else if (mode === 'pdf' && customerName) {
+                  handleDownload(customerName, 'analysis', 'most', selectedAnalysisCols);
+                } else if (mode === 'excel' && customerName) {
+                  handleExportAnalysisExcel(customerName, selectedAnalysisCols);
+                }
+              }}
+              className="w-full py-4 bg-slate-900 text-white font-black text-xs uppercase tracking-[0.1em] rounded-xl hover:bg-slate-800 transition-all shadow-lg flex items-center justify-center gap-2"
+            >
+              Generate Report
+            </button>
           </div>
         </div>
       )}

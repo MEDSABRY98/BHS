@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import HomeSelection from '@/app/Components/Layout/HomeSelection';
 import Login from '@/app/Components/Auth/Login';
 import MainLoader from '@/app/Components/Loading/MainLoader';
-import { verifyUserCredentials } from '@/app/DataBase/Service/database_service';
+import { restoreSessionUser, logoutEverywhere } from '@/app/Components/Auth/sessionClient';
 import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
 
 export default function Home() {
@@ -18,32 +18,10 @@ export default function Home() {
   useEffect(() => {
     const validateAndSetUser = async () => {
       setIsLoading(true);
-      const savedUser = localStorage.getItem('currentUser');
-      const savedPassword = localStorage.getItem('userPassword');
-
-      if (savedUser && savedPassword) {
-        try {
-          const userData = JSON.parse(savedUser);
-          if (userData && userData.name) {
-            // Verify user still exists and password is correct
-            const result = await verifyUserCredentials(userData.name, savedPassword);
-
-            if (result.success && result.user) {
-              // User still exists and credentials are valid
-              setCurrentUser(result.user);
-              setIsAuthenticated(true);
-              // Update localStorage with fresh user data
-              localStorage.setItem('currentUser', JSON.stringify(result.user));
-            } else {
-              // User deleted or password changed, clear localStorage
-              localStorage.removeItem('currentUser');
-              localStorage.removeItem('userPassword');
-            }
-          }
-        } catch (e) {
-          localStorage.removeItem('currentUser');
-          localStorage.removeItem('userPassword');
-        }
+      const user = await restoreSessionUser();
+      if (user) {
+        setCurrentUser(user);
+        setIsAuthenticated(true);
       }
 
       // Ensure loading shows for at least 800ms for a smoother transition as requested
@@ -64,8 +42,7 @@ export default function Home() {
   const handleLogout = () => {
     setIsAuthenticated(false);
     setCurrentUser(null);
-    localStorage.removeItem('currentUser');
-    localStorage.removeItem('userPassword');
+    void logoutEverywhere();
   };
 
   if (isLoading) {

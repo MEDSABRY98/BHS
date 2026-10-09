@@ -1,6 +1,17 @@
 'use server';
 
 import { bhs_supabas, bhs_supabase } from '@/lib/supabase';
+import { getSupabaseAdmin } from '@/lib/supabaseAdmin';
+import {
+  clearSession,
+  createSession,
+  getSessionUser,
+  hashPassword,
+  requireAdmin,
+  requireSession,
+  toSessionUser,
+  verifyPassword,
+} from '@/lib/session';
 import { buildAndSaveCache, invalidateMemoryCache } from '@/app/Sales/Cache/SalesCache';
 import { invalidateMappingCache } from '@/app/Sales/Cache/SalesMappingCache';
 
@@ -52,6 +63,7 @@ async function updateCustomerIdReferences(
 }
 
 export async function mergeCustomersAction(body: MergeCustomerBody) {
+  await requireSession();
   try {
     const survivorCustomerId = normalizeId(body.survivorCustomerId);
     const sourceCustomerIds = (body.sourceCustomerIds || [])
@@ -224,6 +236,7 @@ async function reconcileRegistryTable(
 }
 
 export async function mergeProductsAction(body: MergeProductBody) {
+  await requireSession();
   try {
     const survivorProductId = normalizeId(body.survivorProductId);
     const sourceProductIds = (body.sourceProductIds || []).map(normalizeId).filter(Boolean);
@@ -332,6 +345,7 @@ export async function mergeProductsAction(body: MergeProductBody) {
 }
 
 export async function updateProductIdCascade(oldId: string, newId: string) {
+  await requireSession();
   if (!oldId || !newId || oldId === newId) return { success: true };
 
   try {
@@ -370,6 +384,7 @@ export async function updateProductIdCascade(oldId: string, newId: string) {
 // ------------------------------------------------------------------------------------------------
 
 export async function fetchNormalEmails() {
+  await requireSession();
   try {
     const { data, error } = await bhs_supabase.from('debit_EMILS').select('*');
     if (error) throw error;
@@ -406,6 +421,7 @@ export async function fetchNormalEmails() {
 }
 
 export async function addNormalEmail(customerId: string, email: string) {
+  await requireSession();
   try {
     const { data, error } = await bhs_supabase.from('debit_EMILS').insert({
       'CUSTOMER ID': customerId,
@@ -420,6 +436,7 @@ export async function addNormalEmail(customerId: string, email: string) {
 }
 
 export async function updateNormalEmail(id: string, customerId: string, email: string) {
+  await requireSession();
   try {
     let query = bhs_supabase.from('debit_EMILS').update({
       'CUSTOMER ID': customerId,
@@ -441,6 +458,7 @@ export async function updateNormalEmail(id: string, customerId: string, email: s
 }
 
 export async function deleteNormalEmail(id: string | null, customerId: string | null) {
+  await requireSession();
   try {
     let query = bhs_supabase.from('debit_EMILS').delete();
     if (id) {
@@ -464,6 +482,7 @@ export async function deleteNormalEmail(id: string | null, customerId: string | 
 // ------------------------------------------------------------------------------------------------
 
 export async function fetchLuluEmails() {
+  await requireSession();
   try {
     const { data, error } = await bhs_supabase.from('debit_EMILS_LULU').select('*');
     if (error) throw error;
@@ -499,6 +518,7 @@ export async function fetchLuluEmails() {
 }
 
 export async function addLuluEmail(customerId: string, customerCode: string, to: string, cc: string) {
+  await requireSession();
   try {
     const { data, error } = await bhs_supabase.from('debit_EMILS_LULU').insert({
       'CUSTOMER ID': customerId,
@@ -515,6 +535,7 @@ export async function addLuluEmail(customerId: string, customerCode: string, to:
 }
 
 export async function updateLuluEmail(id: string, customerId: string, customerCode: string, to: string, cc: string) {
+  await requireSession();
   try {
     let query = bhs_supabase.from('debit_EMILS_LULU').update({
       'CUSTOMER ID': customerId,
@@ -538,6 +559,7 @@ export async function updateLuluEmail(id: string, customerId: string, customerCo
 }
 
 export async function deleteLuluEmail(id: string | null, customerId: string | null) {
+  await requireSession();
   try {
     let query = bhs_supabase.from('debit_EMILS_LULU').delete();
     if (id) {
@@ -561,6 +583,7 @@ export async function deleteLuluEmail(id: string | null, customerId: string | nu
 // ------------------------------------------------------------------------------------------------
 
 export async function deleteDebitData() {
+  await requireSession();
   try {
     const { error } = await bhs_supabase.from('mix_DEBIT').delete().neq('ID', 0); // Delete all rows
     if (error) throw error;
@@ -573,6 +596,7 @@ export async function deleteDebitData() {
 }
 
 export async function uploadDebitData(payload: any[] | string) {
+  await requireSession();
   try {
     const data = typeof payload === 'string' ? JSON.parse(payload) : payload;
     if (!data || !Array.isArray(data)) {
@@ -697,75 +721,72 @@ export async function uploadDebitData(payload: any[] | string) {
 // ------------------------------------------------------------------------------------------------
 // USERS ACTIONS (bhs_USERS)
 // ------------------------------------------------------------------------------------------------
+// All user/auth actions run with the server-only key (getSupabaseAdmin) and
+// identify the caller from the signed session cookie (lib/session.ts).
+// Passwords are never returned to the browser.
+
+const USER_PUBLIC_FIELDS = 'ID, NAME, ROLE, AUTHORITY, SALES_DATA_ACCESS';
+
+function stripPassword<T extends Record<string, any>>(row: T): Omit<T, 'PASSWORD'> {
+  if (!row) return row;
+  const { PASSWORD: _omit, ...rest } = row as any;
+  return rest;
+}
 
 export async function fetchUsersList() {
+  await requireAdmin();
   try {
-    const { data: dbUsers, error } = await bhs_supabase
+    const { data: dbUsers, error } = await getSupabaseAdmin()
       .from('bhs_USERS')
-      .select('ID, NAME, ROLE, AUTHORITY, SALES_DATA_ACCESS')
+      .select(USER_PUBLIC_FIELDS)
       .order('NAME');
 
     if (error) throw error;
-
-    const parseBool = (val: any) => val === true || val === 'TRUE' || val === 'true' || val === 1;
-
-    const userNames = dbUsers.map((u: any) => ({
-      id: u.ID,
-      name: u.NAME,
-      role: u.AUTHORITY || '',
-      userAdmin: u.ROLE,
-      salesDataAccess: parseBool(u.SALES_DATA_ACCESS)
-    }));
-
-    return { success: true, users: userNames };
+    return { success: true, users: (dbUsers || []).map(toSessionUser) };
   } catch (error: any) {
     console.error('Service Error:', error);
     return { success: false, error: 'Failed to fetch users' };
   }
 }
 
-export async function fetchUserSession(name: string) {
+/**
+ * Returns the logged-in user (fresh from DB). The `name` argument is kept for
+ * backwards compatibility but ignored — the session decides who the user is.
+ */
+export async function fetchUserSession(_name?: string) {
   try {
-    if (!name) {
-      return { success: false, error: 'Name is required' };
-    }
-
-    const { data: user, error } = await bhs_supabase
-      .from('bhs_USERS')
-      .select('ID, NAME, ROLE, AUTHORITY, SALES_DATA_ACCESS')
-      .eq('NAME', name)
-      .maybeSingle();
-
-    if (error) throw error;
-    if (!user) {
-      return { success: false, error: 'User not found' };
-    }
-
-    const parseBool = (val: any) => val === true || val === 'TRUE' || val === 'true' || val === 1;
-
-    return {
-      success: true,
-      user: {
-        id: user.ID,
-        name: user.NAME,
-        role: user.AUTHORITY || '',
-        userAdmin: user.ROLE,
-        salesDataAccess: parseBool(user.SALES_DATA_ACCESS),
-      },
-    };
+    const user = await getSessionUser();
+    if (!user) return { success: false, error: 'Not logged in' };
+    return { success: true, user };
   } catch (error: any) {
     console.error('Service Error:', error);
     return { success: false, error: error.message || 'Failed to fetch user session' };
   }
 }
 
+/** Current logged-in user from the session cookie, or null. */
+export async function getCurrentUser() {
+  try {
+    return await getSessionUser();
+  } catch (error) {
+    console.error('Service Error:', error);
+    return null;
+  }
+}
+
+export async function logoutAction() {
+  await clearSession();
+  return { success: true };
+}
+
 export async function updateUserRole(name: string, role: string) {
+  await requireAdmin();
   try {
     if (!name || role === undefined) {
       return { success: false, error: 'Name and role are required' };
     }
 
-    const { error } = await bhs_supabase
+    const { error } = await getSupabaseAdmin()
       .from('bhs_USERS')
       .update({ AUTHORITY: role })
       .eq('NAME', name);
@@ -779,40 +800,164 @@ export async function updateUserRole(name: string, role: string) {
   }
 }
 
+// Passwords live in "bhs_USER_SECRETS" (ID, PASSWORD) — a table the public key
+// cannot read. Until the migration SQL has run, the old bhs_USERS.PASSWORD
+// column is used as a fallback and moved over on the user's next login.
+const SECRETS_TABLE = 'bhs_USER_SECRETS';
+
+// Hashing + moving passwords out of bhs_USERS is OFF by default, because other
+// apps (e.g. the Flutter apps) may still check bhs_USERS.PASSWORD as plain text.
+// Turn on with env PASSWORD_HASHING=on once every app logs in through this server.
+const PASSWORD_HASHING_ENABLED = process.env.PASSWORD_HASHING === 'on';
+
+async function readStoredPassword(userId: string): Promise<{ value: string | null; source: 'secrets' | 'users' | null; secretsAvailable: boolean }> {
+  const db = getSupabaseAdmin();
+  const { data: secret, error: secretErr } = await db.from(SECRETS_TABLE).select('PASSWORD').eq('ID', userId).maybeSingle();
+  const secretsAvailable = !secretErr;
+  if (secret?.PASSWORD) return { value: secret.PASSWORD, source: 'secrets', secretsAvailable };
+
+  const { data: legacy } = await db.from('bhs_USERS').select('PASSWORD').eq('ID', userId).maybeSingle();
+  if (legacy?.PASSWORD) return { value: legacy.PASSWORD, source: 'users', secretsAvailable };
+  return { value: null, source: null, secretsAvailable };
+}
+
+async function writePasswordHash(userId: string, hash: string, secretsAvailable?: boolean) {
+  const db = getSupabaseAdmin();
+  if (!PASSWORD_HASHING_ENABLED) {
+    // compatibility mode: keep the value where the other apps expect it
+    const { error } = await db.from('bhs_USERS').update({ PASSWORD: hash }).eq('ID', userId);
+    if (error) throw new Error(error.message);
+    return;
+  }
+  const useSecrets = secretsAvailable ?? !(await db.from(SECRETS_TABLE).select('ID').limit(1)).error;
+  if (useSecrets) {
+    const { error } = await db.from(SECRETS_TABLE).upsert({ ID: userId, PASSWORD: hash, UPDATED_AT: new Date().toISOString() });
+    if (error) throw new Error(error.message);
+    // remove the copy from the readable users table
+    await db.from('bhs_USERS').update({ PASSWORD: '' }).eq('ID', userId);
+  } else {
+    const { error } = await db.from('bhs_USERS').update({ PASSWORD: hash }).eq('ID', userId);
+    if (error) throw new Error(error.message);
+  }
+}
+
+function storableNewPassword(plain: string) {
+  return PASSWORD_HASHING_ENABLED ? hashPassword(plain) : plain;
+}
+
 export async function verifyUserCredentials(name: string, password?: string) {
   try {
     if (!name || !password) {
       return { success: false, error: 'Name and password are required' };
     }
 
-    const { data: user, error } = await bhs_supabase
+    const { data: row, error } = await getSupabaseAdmin()
       .from('bhs_USERS')
-      .select('ID, NAME, ROLE, AUTHORITY, SALES_DATA_ACCESS')
+      .select(USER_PUBLIC_FIELDS)
       .eq('NAME', name)
-      .eq('PASSWORD', password)
       .maybeSingle();
 
     if (error) throw error;
+    if (!row) return { success: false, error: 'Invalid credentials' };
 
-    const parseBool = (val: any) => val === true || val === 'TRUE' || val === 'true' || val === 1;
+    const stored = await readStoredPassword((row as any).ID);
+    const check = verifyPassword(password, stored.value);
+    if (!check.ok) return { success: false, error: 'Invalid credentials' };
 
-    if (user) {
-      return {
-        success: true,
-        user: {
-          id: user.ID,
-          name: user.NAME,
-          role: user.AUTHORITY || '',
-          userAdmin: user.ROLE,
-          salesDataAccess: parseBool(user.SALES_DATA_ACCESS)
-        }
-      };
-    } else {
-      return { success: false, error: 'Invalid credentials' };
+    // Upgrade plain text -> hash, and move it out of bhs_USERS (best effort)
+    if (PASSWORD_HASHING_ENABLED && (check.legacy || stored.source === 'users')) {
+      try {
+        await writePasswordHash((row as any).ID, check.legacy ? hashPassword(password) : String(stored.value), stored.secretsAvailable);
+      } catch (e: any) {
+        console.warn('Password upgrade failed:', e?.message || e);
+      }
     }
+
+    const user = toSessionUser(row);
+    await createSession({ id: user.id, name: user.name });
+    return { success: true, user };
   } catch (error: any) {
     console.error('Service Error:', error);
     return { success: false, error: 'Internal server error' };
   }
 }
 
+// ------------------------------------------------------------------------------------------------
+// USERS DB MANAGEMENT (admin only) — used by DataBase/Users
+// ------------------------------------------------------------------------------------------------
+
+export async function adminListUsers(search: string = '') {
+  await requireAdmin();
+  let query = getSupabaseAdmin().from('bhs_USERS').select('*');
+  const term = String(search || '').trim().replace(/[%,()]/g, '');
+  if (term) query = query.or(`NAME.ilike.%${term}%,ID.ilike.%${term}%`);
+  const { data, error } = await query.order('NAME');
+  if (error) throw new Error(error.message);
+  return (data || []).map(stripPassword);
+}
+
+export async function adminSaveUser(
+  fields: {
+    NAME: string;
+    ROLE: string;
+    USER_TYPE: string;
+    PASSWORD?: string;
+    IS_IN_OFFICE: boolean;
+    CANCEL_AUTHORITY: boolean;
+    CITY: string;
+    SALES_DATA_ACCESS: string;
+  },
+  editingId?: string | null
+) {
+  await requireAdmin();
+  const db = getSupabaseAdmin();
+  const { PASSWORD, ...rest } = fields;
+  const payload: Record<string, any> = { ...rest };
+  const newPassword = String(PASSWORD || '');
+
+  if (editingId) {
+    const { data, error } = await db.from('bhs_USERS').update(payload).eq('ID', editingId).select('*').single();
+    if (error) throw new Error(error.message);
+    if (newPassword) await writePasswordHash(editingId, storableNewPassword(newPassword));
+    return stripPassword(data);
+  }
+
+  if (!newPassword) throw new Error('Password is required for a new user');
+
+  const { data: maxIdData, error: maxIdError } = await db.from('bhs_USERS_MAX_ID').select('ID').single();
+  if (maxIdError && maxIdError.code !== 'PGRST116') throw new Error(maxIdError.message);
+
+  let nextNum = 1;
+  const match = String(maxIdData?.ID || '').match(/^R-(\d+)$/i);
+  if (match) nextNum = parseInt(match[1], 10) + 1;
+  const nextId = `R-${String(nextNum).padStart(4, '0')}`;
+
+  const { data, error } = await db.from('bhs_USERS').insert({ ID: nextId, ...payload, PASSWORD: '' }).select('*').single();
+  if (error) throw new Error(error.message);
+  await writePasswordHash(nextId, storableNewPassword(newPassword));
+  return stripPassword(data);
+}
+
+export async function adminDeleteUser(id: string) {
+  const admin = await requireAdmin();
+  if (String(id) === String(admin.id)) throw new Error('You cannot delete your own account');
+  const db = getSupabaseAdmin();
+  const { error } = await db.from('bhs_USERS').delete().eq('ID', id);
+  if (error) throw new Error(error.message);
+  await db.from(SECRETS_TABLE).delete().eq('ID', id); // ignore if table not created yet
+  return { success: true };
+}
+
+export async function adminGetUserSignature(id: string) {
+  await requireAdmin();
+  const { data, error } = await getSupabaseAdmin().from('bhs_USERS').select('SIGNATURE').eq('ID', id).single();
+  if (error) throw new Error(error.message);
+  return (data?.SIGNATURE as string) || null;
+}
+
+export async function adminSaveUserSignature(id: string, signatureBase64: string) {
+  await requireAdmin();
+  const { error } = await getSupabaseAdmin().from('bhs_USERS').update({ SIGNATURE: signatureBase64 }).eq('ID', id);
+  if (error) throw new Error(error.message);
+  return { success: true };
+}

@@ -6,7 +6,7 @@ import DocumentsTrackingTab from './Components/DocumentsTrackingTab';
 import { useAuditAfterAuth } from '@/app/Audit/Utils/useModuleTabAudit';
 import { ChevronLeft } from 'lucide-react';
 import MainLoader from '@/app/Components/Loading/MainLoader';
-import { verifyUserCredentials } from '@/app/DataBase/Service/database_service';
+import { restoreSessionUser } from '@/app/Components/Auth/sessionClient';
 import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
 
 export default function DocumentsTrackingPage() {
@@ -19,25 +19,9 @@ export default function DocumentsTrackingPage() {
     useEffect(() => {
         const validateAndSetUser = async () => {
             try {
-                const savedUser = localStorage.getItem('currentUser');
-                const savedPassword = localStorage.getItem('userPassword');
-
-                if (savedUser) {
-                    const userData = JSON.parse(savedUser);
-
-                    if (savedPassword) {
-                        try {
-                            const result = await verifyUserCredentials(userData.name, savedPassword);
-                            if (result.success && result.user) {
-                                setCurrentUser(result.user);
-                                localStorage.setItem('currentUser', JSON.stringify(result.user));
-                                return;
-                            }
-                        } catch (e) {
-                            console.error('Failed to refresh user data:', e);
-                        }
-                    }
-                    setCurrentUser(userData);
+                const user = await restoreSessionUser();
+                if (user) {
+                    setCurrentUser(user);
                 } else {
                     router.push('/');
                 }

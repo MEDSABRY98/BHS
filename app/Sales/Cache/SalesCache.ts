@@ -8,35 +8,85 @@ const STORAGE_FILE = 'sales_cache.json';
 
 // ─────────────────────────────────────────────────────────────
 //  MEMORY LAYER (warm Vercel instances)
+//  Each warm instance keeps its own copy. To stop instances from serving
+//  old data after a Refresh on another instance, the storage file's
+//  last-modified time is re-checked at most once a minute, in the
+//  background (the request is never delayed by the check).
 // ─────────────────────────────────────────────────────────────
 let memoryCache: any[] | null = null;
+let memoryVersion: string | null = null;   // storage file updated_at the memory copy came from
+let lastVersionCheckAt = 0;
+let versionCheckInFlight: Promise<void> | null = null;
+const VERSION_CHECK_INTERVAL_MS = 60_000;
+
+async function getStorageFileVersion(): Promise<string | null> {
+  try {
+    const { data, error } = await bhs_supabas
+      .storage
+      .from(STORAGE_BUCKET)
+      .list('', { search: STORAGE_FILE, limit: 100 });
+    if (error || !data) return null;
+    const file = data.find((f: any) => f.name === STORAGE_FILE);
+    return file ? String(file.updated_at || file.created_at || '') || null : null;
+  } catch {
+    return null;
+  }
+}
+
+async function downloadStorageCache(): Promise<any[] | null> {
+  const { data: fileData, error } = await bhs_supabas
+    .storage
+    .from(STORAGE_BUCKET)
+    .download(STORAGE_FILE);
+  if (error || !fileData) return null;
+  const parsed = JSON.parse(await fileData.text());
+  return Array.isArray(parsed) && parsed.length > 0 ? parsed : null;
+}
+
+// Background: reload memory if the storage file changed since we loaded it
+function scheduleVersionCheck() {
+  if (versionCheckInFlight) return;
+  if (Date.now() - lastVersionCheckAt < VERSION_CHECK_INTERVAL_MS) return;
+  lastVersionCheckAt = Date.now();
+
+  versionCheckInFlight = (async () => {
+    try {
+      const version = await getStorageFileVersion();
+      if (!version || version === memoryVersion) return;
+      const fresh = await downloadStorageCache();
+      if (fresh) {
+        memoryCache = fresh;          // new array -> per-user caches rebuild automatically
+        memoryVersion = version;
+        console.log(`🔄 Storage cache changed, reloaded: ${fresh.length} rows`);
+      }
+    } catch (e) {
+      console.warn('⚠️ Cache version check failed:', e);
+    } finally {
+      versionCheckInFlight = null;
+    }
+  })();
+}
 
 // ─────────────────────────────────────────────────────────────
 //  PUBLIC: Read cache (used by every API route)
 //  Priority: Memory → Storage JSON → DB fallback
 // ─────────────────────────────────────────────────────────────
 export async function getSalesDataServer(): Promise<any[]> {
-  // 1. Memory hit (fastest — same warm Vercel instance, kept indefinitely)
+  // 1. Memory hit (fastest). Freshness is checked in the background.
   if (memoryCache) {
+    scheduleVersionCheck();
     return memoryCache;
   }
 
   // 2. Supabase Storage hit (fast — single HTTP request, CDN cached)
   try {
-    const { data: fileData, error } = await bhs_supabas
-      .storage
-      .from(STORAGE_BUCKET)
-      .download(STORAGE_FILE);
-
-    if (!error && fileData) {
-      const text = await fileData.text();
-      const parsed = JSON.parse(text) as any[];
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        // Warm memory for next requests in this instance
-        memoryCache = parsed;
-        console.log(`📦 Storage cache hit: ${parsed.length} rows`);
-        return memoryCache;
-      }
+    const [version, parsed] = await Promise.all([getStorageFileVersion(), downloadStorageCache()]);
+    if (parsed) {
+      memoryCache = parsed;
+      memoryVersion = version;
+      lastVersionCheckAt = Date.now();
+      console.log(`📦 Storage cache hit: ${parsed.length} rows`);
+      return memoryCache;
     }
   } catch (e) {
     console.warn('⚠️ Storage cache miss, falling back to DB:', e);
@@ -46,6 +96,8 @@ export async function getSalesDataServer(): Promise<any[]> {
   console.log('🔄 DB fallback: building cache from scratch...');
   const built = await buildFromDB();
   memoryCache = built;
+  memoryVersion = await getStorageFileVersion();
+  lastVersionCheckAt = Date.now();
   return memoryCache;
 }
 
@@ -67,8 +119,10 @@ export async function buildAndSaveCache(): Promise<{ rows: number }> {
 
   if (error) throw new Error(`Storage upload failed: ${error.message}`);
 
-  // Update memory immediately
+  // Update memory immediately (and remember which file version it matches)
   memoryCache = data;
+  memoryVersion = await getStorageFileVersion();
+  lastVersionCheckAt = Date.now();
 
   console.log(`✅ Cache built & saved: ${data.length} rows → ${STORAGE_BUCKET}/${STORAGE_FILE}`);
   return { rows: data.length };
@@ -79,6 +133,7 @@ export async function buildAndSaveCache(): Promise<{ rows: number }> {
 // ─────────────────────────────────────────────────────────────
 export function invalidateMemoryCache() {
   memoryCache = null;
+  memoryVersion = null;
 }
 
 // ─────────────────────────────────────────────────────────────

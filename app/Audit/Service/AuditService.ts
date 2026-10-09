@@ -1,4 +1,5 @@
 'use server';
+import { getSession } from '@/lib/session';
 
 import { getSupabaseAdmin } from '@/lib/supabaseAdmin';
 import { AllocateActivityIds } from '@/app/Audit/Utils/ActivityId';
@@ -181,6 +182,7 @@ async function FetchUserNames(
 export async function IngestActivityEvents(
   events: ActivitySessionPayload[],
 ): Promise<{ ok: boolean; inserted: number; ids?: string[]; error?: string }> {
+  if (!(await getSession())) return undefined as any;
   try {
     if (!events.length) return { ok: true, inserted: 0, ids: [] };
 
@@ -224,6 +226,7 @@ export async function UpdateActivitySession(
     SESSION_MINUTES?: number | null;
   },
 ): Promise<{ ok: boolean; error?: string }> {
+  if (!(await getSession())) return undefined as any;
   try {
     const sessionId = id.trim();
     if (!sessionId) return { ok: false, error: 'Missing session id' };
@@ -258,6 +261,7 @@ export async function GetActivitySummary(params: {
   moduleName?: string;
   adminName: string;
 }): Promise<ActivitySummaryResponse> {
+  if (!(await getSession())) return undefined as any;
   if (!IsAdmin(params.adminName)) {
     throw new Error('Forbidden');
   }
