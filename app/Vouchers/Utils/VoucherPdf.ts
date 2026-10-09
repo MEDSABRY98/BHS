@@ -108,9 +108,6 @@ export async function generateVoucherPdf(v: CashVoucher, opts: VoucherPdfOptions
   doc.setFontSize(8.5);
   doc.setTextColor(...C.slate200);
   doc.text('Trading Sole Proprietorship L.L.C', M + 26, 21);
-  doc.setFontSize(7.5);
-  doc.setTextColor(...C.slate400);
-  doc.text(COMPANY.location, M + 26, 26.5);
 
   // title, right aligned (manual width so letter spacing doesn't overflow)
   const rightText = (text: string, yy: number, size: number, color: RGB, spacing: number) => {
