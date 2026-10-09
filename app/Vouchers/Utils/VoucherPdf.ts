@@ -86,28 +86,28 @@ export async function generateVoucherPdf(v: CashVoucher, opts: VoucherPdfOptions
 
   // ── Header band ──────────────────────────────────────────
   doc.setFillColor(...C.ink);
-  doc.rect(0, 0, W, 38, 'F');
+  doc.rect(0, 0, W, 27, 'F');
   doc.setFillColor(...C.gold);
-  doc.rect(0, 38, W, 1.4, 'F');
+  doc.rect(0, 27, W, 1.4, 'F');
 
   // monogram
   doc.setDrawColor(...C.gold);
   doc.setLineWidth(0.6);
-  doc.roundedRect(M, 9, 20, 20, 3, 3, 'S');
+  doc.roundedRect(M, 5, 17, 17, 3, 3, 'S');
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(13);
+  doc.setFontSize(11);
   doc.setTextColor(...C.gold);
-  doc.text('AM', M + 10, 21.6, { align: 'center' });
+  doc.text('AM', M + 8.5, 16.5, { align: 'center' });
 
   // company block (two lines so it never runs into the title)
   doc.setTextColor(...C.white);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(14);
-  doc.text(COMPANY.shortName, M + 26, 15.5, { charSpace: 0.4 });
+  doc.setFontSize(13);
+  doc.text(COMPANY.shortName, M + 22, 11, { charSpace: 0.4 });
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);
   doc.setTextColor(...C.slate200);
-  doc.text('Trading Sole Proprietorship L.L.C', M + 26, 21);
+  doc.text('Trading Sole Proprietorship L.L.C', M + 22, 16.5);
 
   // title, right aligned (manual width so letter spacing doesn't overflow)
   const rightText = (text: string, yy: number, size: number, color: RGB, spacing: number) => {
@@ -117,11 +117,11 @@ export async function generateVoucherPdf(v: CashVoucher, opts: VoucherPdfOptions
     const w = doc.getTextWidth(text) + spacing * (text.length - 1);
     doc.text(text, W - M - w, yy, { charSpace: spacing });
   };
-  rightText(L.title, 18, 15, C.gold, 0.9);
-  rightText(v.TYPE === 'IN' ? 'CASH IN' : 'CASH OUT', 25, 8, C.white, 0.8);
+  rightText(L.title, 12, 14, C.gold, 0.9);
+  rightText(v.TYPE === 'IN' ? 'CASH IN' : 'CASH OUT', 18, 7, C.white, 0.8);
 
   // ── Info boxes ───────────────────────────────────────────
-  let y = 48;
+  let y = 37;
   const gap = 4;
   const bw = (CW - gap * 2) / 3;
   infoBox(doc, 'Voucher No.', v.ID, M, y, bw);

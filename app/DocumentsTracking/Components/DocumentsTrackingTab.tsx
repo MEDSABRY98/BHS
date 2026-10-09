@@ -283,46 +283,59 @@ export default function DocumentsTrackingTab({ currentUser }: { currentUser?: an
         setIsLoading(true);
         try {
             const doc = new jsPDF('p', 'mm', 'a4');
-            const pageWidth = 210;
-            const pageHeight = 297;
+            const W = doc.internal.pageSize.getWidth();
+            const M = 16;
+            const gold: [number, number, number] = [212, 175, 55];
+            const black: [number, number, number] = [15, 15, 15];
+            const gray: [number, number, number] = [85, 85, 85];
+
             const today = new Date().toLocaleDateString('en-GB');
             const labelText = type === 'received' ? 'Received From:' : 'Delivered To:';
+            const titleText = type === 'received' ? 'RECEIPT' : 'HANDOVER';
 
-            // 1. Full Page Gold Border (A4)
-            doc.setDrawColor(201, 162, 39); // #c9a227
-            doc.setLineWidth(1.5);
-            doc.rect(5, 5, pageWidth - 10, pageHeight - 10);
+            // 1. Header band
+            doc.setFillColor(...black);
+            doc.rect(0, 0, W, 27, 'F');
+            doc.setFillColor(...gold);
+            doc.rect(0, 27, W, 1.4, 'F');
 
-            // 2. Title
-            const titleText = type === 'received' ? 'CHEQUE RECEIPT' : 'CHEQUE HANDOVER';
-            doc.setFont('Helvetica', 'bold');
-            doc.setFontSize(22);
-            doc.setTextColor(0, 0, 0);
-            doc.text(titleText, pageWidth / 2, 25, { align: 'center' });
-
-            // 3. Simplified Header
-            doc.setDrawColor(201, 162, 39); // #c9a227
-            doc.setLineWidth(1.2);
-
-            // Date Segment
+            // 2. monogram
+            doc.setDrawColor(...gold);
+            doc.setLineWidth(0.6);
+            doc.roundedRect(M, 5, 17, 17, 3, 3, 'S');
+            doc.setFont('helvetica', 'bold');
             doc.setFontSize(11);
-            doc.setFont('Helvetica', 'bold');
-            doc.text('Date:', 15, 39);
-            const dateLineStart = 27;
-            const dateLineEnd = 58;
-            doc.line(dateLineStart, 41, dateLineEnd, 41);
-            doc.setFont('Helvetica', 'normal');
-            doc.text(today, (dateLineStart + dateLineEnd) / 2, 39, { align: 'center' });
+            doc.setTextColor(...gold);
+            doc.text('AM', M + 8.5, 16.5, { align: 'center' });
 
-            // Person Name Segment
-            doc.setFont('Helvetica', 'bold');
-            doc.text(labelText, 63, 39);
-            const receiverLineStart = 90;
-            const receiverLineEnd = 195;
-            doc.line(receiverLineStart, 41, receiverLineEnd, 41);
-            doc.setFontSize(13); // Larger font for the name
-            doc.setFont('Helvetica', 'normal');
-            doc.text(personName, (receiverLineStart + receiverLineEnd) / 2, 39, { align: 'center' });
+            // 3. company block
+            doc.setTextColor(255, 255, 255);
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(13);
+            doc.text('Al Marai Al Arabia', M + 22, 11, { charSpace: 0.4 });
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(8.5);
+            doc.setTextColor(226, 232, 240);
+            doc.text('Trading Sole Proprietorship L.L.C', M + 22, 16.5);
+
+            // 4. title, right aligned
+            const rightText = (text: string, yy: number, size: number, color: [number, number, number], spacing: number) => {
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(size);
+                doc.setTextColor(...color);
+                const w = doc.getTextWidth(text) + spacing * (text.length - 1);
+                doc.text(text, W - M - w, yy, { charSpace: spacing });
+            };
+            rightText('CHEQUE', 14, 15, gold, 0.9);
+            rightText(titleText, 21, 8, [255, 255, 255], 0.8);
+
+            // 5. Info Details (Date, Person)
+            let currentY = 40;
+            doc.setTextColor(...gray);
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(10);
+            doc.text(`Date: ${today}`, M, currentY);
+            doc.text(`${labelText} ${personName}`, W - M, currentY, { align: 'right' });
 
             // 4. Cheque Table (Columns: #, Drawer Name, Cheque Date, Cheque Number, Amount)
             const sortedCheques = [...selectedCheques].sort((a, b) => a.client.localeCompare(b.client));
@@ -372,13 +385,13 @@ export default function DocumentsTrackingTab({ currentUser }: { currentUser?: an
 
             doc.setFont('Helvetica', 'bold');
             doc.text(`Total Cheques: ${selectedCheques.length}`, 15, finalY);
-            doc.text(`Total Amount: ${totalAmount.toLocaleString('en-US')} AED`, pageWidth - 15, finalY, { align: 'right' });
+            doc.text(`Total Amount: ${totalAmount.toLocaleString('en-US')} AED`, W - 15, finalY, { align: 'right' });
 
             const margin = 15;
-            const contentWidth = pageWidth - margin * 2;
+            const contentWidth = W - margin * 2;
             const signatureWidth = contentWidth * 0.55;
             const signatureX = margin + (contentWidth - signatureWidth) / 2;
-            const signatureY = Math.max(finalY + 24, pageHeight - 68);
+            const signatureY = Math.max(finalY + 24, doc.internal.pageSize.getHeight() - 68);
 
             doc.setDrawColor(0, 0, 0);
             doc.setLineWidth(0.5);
