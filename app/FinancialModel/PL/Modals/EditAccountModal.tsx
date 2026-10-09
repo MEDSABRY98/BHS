@@ -35,7 +35,7 @@ export default function EditAccountModal({ account, onClose, onSuccess, statemen
         ACCOUNT_NAME: accountName,
         ACCOUNT_TYPE: accountType,
         ACCOUNT_CATEGORY: accountCategory || 'General',
-        COST_BEHAVIOR: costBehavior ? costBehavior : null,
+        COST_BEHAVIOR: costBehavior ? costBehavior : undefined,
         ...(statementType === 'CF' && { CF_DIRECTION: cfDirection as 'IN' | 'OUT' }),
       });
       import('@/app/Components/Notification').then(({ toast }) => {
