@@ -334,7 +334,7 @@ export function DataEntryTab() {
                     ACCOUNT_NAME: accName || matchedAccount.ACCOUNT_NAME,
                     ACCOUNT_TYPE: accType || matchedAccount.ACCOUNT_TYPE,
                     ACCOUNT_CATEGORY: accCat || matchedAccount.ACCOUNT_CATEGORY,
-                    COST_BEHAVIOR: costBehavior || matchedAccount.COST_BEHAVIOR,
+                    COST_BEHAVIOR: (costBehavior || matchedAccount.COST_BEHAVIOR) as "VARIABLE" | "FIXED" | undefined,
                   });
                   matchedAccount.ACCOUNT_NAME = accName || matchedAccount.ACCOUNT_NAME;
                   matchedAccount.ACCOUNT_TYPE = accType || matchedAccount.ACCOUNT_TYPE;
