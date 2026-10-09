@@ -107,6 +107,36 @@ export function DashboardTab() {
     return { month: m, Actual: expA, Forecast: expF };
   });
 
+  // Prepare Data for Direct Expenses Chart
+  const directExpensesData = MONTHS.slice(startMonth - 1, endMonth).map((m, i) => {
+    const monthIndex = startMonth + i;
+    return {
+      month: m,
+      Actual: calculateSectionTotal('DIRECT_EXPENSE', monthIndex, 'ACTUAL'),
+      Forecast: calculateSectionTotal('DIRECT_EXPENSE', monthIndex, 'FORECAST'),
+    };
+  });
+
+  // Prepare Data for Indirect Expenses Chart
+  const indirectExpensesData = MONTHS.slice(startMonth - 1, endMonth).map((m, i) => {
+    const monthIndex = startMonth + i;
+    return {
+      month: m,
+      Actual: calculateSectionTotal('INDIRECT_EXPENSE', monthIndex, 'ACTUAL'),
+      Forecast: calculateSectionTotal('INDIRECT_EXPENSE', monthIndex, 'FORECAST'),
+    };
+  });
+
+  // Prepare Data for Depreciation Chart
+  const depreciationData = MONTHS.slice(startMonth - 1, endMonth).map((m, i) => {
+    const monthIndex = startMonth + i;
+    return {
+      month: m,
+      Actual: calculateSectionTotal('DEPRECIATION', monthIndex, 'ACTUAL'),
+      Forecast: calculateSectionTotal('DEPRECIATION', monthIndex, 'FORECAST'),
+    };
+  });
+
   // Prepare Data for Gross Profit Chart
   const grossProfitData = MONTHS.slice(startMonth - 1, endMonth).map((m, i) => {
     const monthIndex = startMonth + i;
@@ -593,9 +623,9 @@ export function DashboardTab() {
                   Expenses Breakdown
                 </h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-5">
-                  <DualKpiCard title="Direct Expenses" actual={dirA} forecast={dirF} isNegativeCost accentColor="border-orange-400" icon={Briefcase} onClick={() => setExpandedChart('TOTAL_EXPENSES')} />
-                  <DualKpiCard title="Indirect Expenses" actual={indirA} forecast={indirF} isNegativeCost accentColor="border-orange-400" icon={Briefcase} onClick={() => setExpandedChart('TOTAL_EXPENSES')} />
-                  <DualKpiCard title="Depreciation" actual={depA} forecast={depF} isNegativeCost accentColor="border-slate-400" icon={PieChart} onClick={() => setExpandedChart('TOTAL_EXPENSES')} />
+                  <DualKpiCard title="Direct Expenses" actual={dirA} forecast={dirF} isNegativeCost accentColor="border-orange-400" icon={Briefcase} onClick={() => setExpandedChart('DIRECT_EXPENSES')} />
+                  <DualKpiCard title="Indirect Expenses" actual={indirA} forecast={indirF} isNegativeCost accentColor="border-orange-400" icon={Briefcase} onClick={() => setExpandedChart('INDIRECT_EXPENSES')} />
+                  <DualKpiCard title="Depreciation" actual={depA} forecast={depF} isNegativeCost accentColor="border-slate-400" icon={PieChart} onClick={() => setExpandedChart('DEPRECIATION')} />
                   <DualKpiCard title="Total Expenses" actual={expA} forecast={expF} isNegativeCost accentColor="border-red-500" icon={Briefcase} onClick={() => setExpandedChart('TOTAL_EXPENSES')} />
                 </div>
               </div>
@@ -649,6 +679,9 @@ export function DashboardTab() {
                {expandedChart === 'REVENUE' && <GenericPopupChart title="Revenue Analysis" data={revenueData} />}
                {expandedChart === 'COGS' && <GenericPopupChart title="Cost of Goods Sold" data={cogsData} isNegativeCost={true} />}
                {expandedChart === 'TOTAL_EXPENSES' && <GenericPopupChart title="Total Expenses" data={totalExpensesData} isNegativeCost={true} />}
+               {expandedChart === 'DIRECT_EXPENSES' && <GenericPopupChart title="Direct Expenses" data={directExpensesData} isNegativeCost={true} />}
+               {expandedChart === 'INDIRECT_EXPENSES' && <GenericPopupChart title="Indirect Expenses" data={indirectExpensesData} isNegativeCost={true} />}
+               {expandedChart === 'DEPRECIATION' && <GenericPopupChart title="Depreciation" data={depreciationData} isNegativeCost={true} />}
                {expandedChart === 'GROSS_PROFIT' && <GenericPopupChart title="Gross Profit" data={grossProfitData} />}
                {expandedChart === 'GROSS_MARGIN' && <GenericPopupChart title="Gross Profit Margin" data={grossProfitMarginData} />}
                {expandedChart === 'EBITDA' && <GenericPopupChart title="EBITDA" data={ebitdaData} />}
