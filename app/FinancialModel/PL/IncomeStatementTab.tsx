@@ -430,17 +430,17 @@ export function IncomeStatementTab() {
 
       const spacer = () => rows.push({ kind: 'spacer' });
 
-      pushSection('REVENUE', 'Revenues', 'Revenues'); spacer();
-      pushSection('COGS', 'Cost of Goods Sold (COGS)', 'COGS');
+      pushSection('REVENUE', 'Revenues', 'Total Revenues'); spacer();
+      pushSection('COGS', 'Cost of Goods Sold (COGS)', 'Total COGS');
       pushProfit('Gross Profit', ['COGS'], true); spacer();
-      pushSection('DIRECT_EXPENSE', 'Direct Expenses', 'Direct Expenses', true); spacer();
-      pushSection('INDIRECT_EXPENSE', 'Indirect Expenses', 'Indirect Expenses', true); spacer();
+      pushSection('DIRECT_EXPENSE', 'Direct Expenses', 'Total Direct Expenses', true); spacer();
+      pushSection('INDIRECT_EXPENSE', 'Indirect Expenses', 'Total Indirect Expenses', true); spacer();
       pushProfit('EBITDA', ['COGS', 'DIRECT_EXPENSE', 'INDIRECT_EXPENSE'], true); spacer();
-      pushSection('DEPRECIATION', 'Depreciation', 'Depreciation'); spacer();
+      pushSection('DEPRECIATION', 'Depreciation', 'Total Depreciation'); spacer();
       pushProfit('EBIT', ['COGS', 'DIRECT_EXPENSE', 'INDIRECT_EXPENSE', 'DEPRECIATION'], false); spacer();
-      pushSection('FINANCE_COST', 'Finance Cost', 'Finance Cost'); spacer();
+      pushSection('FINANCE_COST', 'Finance Cost', 'Total Finance Cost'); spacer();
       pushProfit('Net Profit (BT)', ['COGS', 'DIRECT_EXPENSE', 'INDIRECT_EXPENSE', 'DEPRECIATION', 'FINANCE_COST'], true); spacer();
-      pushSection('TAXES', 'Taxes', 'Taxes'); spacer();
+      pushSection('TAXES', 'Taxes', 'Total Taxes'); spacer();
       pushProfit('Net Profit (AT)', ['COGS', 'DIRECT_EXPENSE', 'INDIRECT_EXPENSE', 'DEPRECIATION', 'FINANCE_COST', 'TAXES'], true, true);
 
       const modeLabel = viewMode === 'BOTH' ? 'Forecast vs Actual' : viewMode === 'ACTUAL' ? 'Actuals' : 'Forecast';

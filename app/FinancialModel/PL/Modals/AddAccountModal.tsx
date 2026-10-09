@@ -13,6 +13,7 @@ export default function AddAccountModal({ onClose, onSuccess, statementType = 'P
   const [accountName, setAccountName] = useState('');
   const [accountType, setAccountType] = useState(statementType === 'PL' ? 'REVENUE' : 'OPERATING');
   const [accountCategory, setAccountCategory] = useState('');
+  const [costBehavior, setCostBehavior] = useState<'VARIABLE' | 'FIXED' | ''>('');
   const [cfDirection, setCfDirection] = useState<'IN'|'OUT'>('IN');
   
   const [isSaving, setIsSaving] = useState(false);
@@ -33,6 +34,7 @@ export default function AddAccountModal({ onClose, onSuccess, statementType = 'P
         ACCOUNT_NAME: accountName,
         ACCOUNT_TYPE: accountType,
         ACCOUNT_CATEGORY: accountCategory || 'General',
+        COST_BEHAVIOR: costBehavior ? costBehavior : undefined,
         IS_ACTIVE: true,
         STATEMENT_TYPE: statementType,
         ...(statementType === 'CF' && { CF_DIRECTION: cfDirection as 'IN' | 'OUT' }),
@@ -149,6 +151,20 @@ export default function AddAccountModal({ onClose, onSuccess, statementType = 'P
                 className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#D4AF37] focus:border-[#D4AF37] transition-all text-slate-900 font-semibold"
               />
             </div>
+            {statementType === 'PL' && (
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Cost Behavior</label>
+                <select 
+                  value={costBehavior}
+                  onChange={(e) => setCostBehavior(e.target.value as 'VARIABLE' | 'FIXED' | '')}
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#D4AF37] focus:border-[#D4AF37] transition-all text-slate-900 font-semibold"
+                >
+                  <option value="">Auto (Default)</option>
+                  <option value="VARIABLE">Variable Cost</option>
+                  <option value="FIXED">Fixed Cost</option>
+                </select>
+              </div>
+            )}
           </div>
 
           <div className="pt-4 flex gap-3">

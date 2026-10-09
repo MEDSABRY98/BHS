@@ -10,6 +10,7 @@ export interface FinancialAccount {
   ORDER_INDEX?: number;
   STATEMENT_TYPE?: string;
   CF_DIRECTION?: 'IN' | 'OUT';
+  COST_BEHAVIOR?: 'VARIABLE' | 'FIXED';
 }
 
 export interface FinancialEntry {

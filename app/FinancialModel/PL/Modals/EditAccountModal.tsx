@@ -14,6 +14,7 @@ export default function EditAccountModal({ account, onClose, onSuccess, statemen
   const [accountName, setAccountName] = useState(account.ACCOUNT_NAME || '');
   const [accountType, setAccountType] = useState(account.ACCOUNT_TYPE || 'REVENUE');
   const [accountCategory, setAccountCategory] = useState(account.ACCOUNT_CATEGORY || '');
+  const [costBehavior, setCostBehavior] = useState<'VARIABLE' | 'FIXED' | ''>(account.COST_BEHAVIOR || '');
   const [cfDirection, setCfDirection] = useState<'IN'|'OUT'>(account.CF_DIRECTION || 'IN');
   
   const [isSaving, setIsSaving] = useState(false);
@@ -34,6 +35,7 @@ export default function EditAccountModal({ account, onClose, onSuccess, statemen
         ACCOUNT_NAME: accountName,
         ACCOUNT_TYPE: accountType,
         ACCOUNT_CATEGORY: accountCategory || 'General',
+        COST_BEHAVIOR: costBehavior ? costBehavior : null,
         ...(statementType === 'CF' && { CF_DIRECTION: cfDirection as 'IN' | 'OUT' }),
       });
       import('@/app/Components/Notification').then(({ toast }) => {
@@ -151,6 +153,20 @@ export default function EditAccountModal({ account, onClose, onSuccess, statemen
                 className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#D4AF37] focus:border-[#D4AF37] transition-all text-slate-900 font-semibold"
               />
             </div>
+            {statementType === 'PL' && (
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Cost Behavior</label>
+                <select 
+                  value={costBehavior}
+                  onChange={(e) => setCostBehavior(e.target.value as 'VARIABLE' | 'FIXED' | '')}
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#D4AF37] focus:border-[#D4AF37] transition-all text-slate-900 font-semibold"
+                >
+                  <option value="">Auto (Default)</option>
+                  <option value="VARIABLE">Variable Cost</option>
+                  <option value="FIXED">Fixed Cost</option>
+                </select>
+              </div>
+            )}
           </div>
 
           <div className="pt-4 flex gap-3">

@@ -213,6 +213,7 @@ export function DataEntryTab() {
         const rowData: any = {
           'ACCOUNT TYPE': acc.ACCOUNT_TYPE,
           'ACCOUNT CATEGORY': acc.ACCOUNT_CATEGORY,
+          'COST BEHAVIOR': acc.COST_BEHAVIOR || '',
           'ACCOUNT CODE': acc.ACCOUNT_CODE,
           'ACCOUNT NAME': acc.ACCOUNT_NAME,
         };
@@ -227,6 +228,7 @@ export function DataEntryTab() {
         const rowData: any = {
           'ACCOUNT TYPE': acc.ACCOUNT_TYPE,
           'ACCOUNT CATEGORY': acc.ACCOUNT_CATEGORY,
+          'COST BEHAVIOR': acc.COST_BEHAVIOR || '',
           'ACCOUNT CODE': acc.ACCOUNT_CODE,
           'ACCOUNT NAME': acc.ACCOUNT_NAME,
         };
@@ -291,6 +293,7 @@ export function DataEntryTab() {
             const accName = String(row['ACCOUNT NAME'] || '').trim();
             const accType = String(row['ACCOUNT TYPE'] || '').trim();
             const accCat = String(row['ACCOUNT CATEGORY'] || '').trim();
+            const costBehavior = String(row['COST BEHAVIOR'] || '').trim();
             
             if (!accCode && !accName) continue;
             
@@ -306,6 +309,7 @@ export function DataEntryTab() {
                   ACCOUNT_NAME: accName,
                   ACCOUNT_TYPE: accType,
                   ACCOUNT_CATEGORY: accCat || 'General',
+                  COST_BEHAVIOR: costBehavior || undefined,
                   IS_ACTIVE: true,
                   STATEMENT_TYPE: 'PL'
                 } as any);
@@ -322,24 +326,27 @@ export function DataEntryTab() {
               if (
                 (accName && matchedAccount.ACCOUNT_NAME !== accName) || 
                 (accType && matchedAccount.ACCOUNT_TYPE !== accType) || 
-                (accCat && matchedAccount.ACCOUNT_CATEGORY !== accCat)
+                (accCat && matchedAccount.ACCOUNT_CATEGORY !== accCat) ||
+                (costBehavior && matchedAccount.COST_BEHAVIOR !== costBehavior)
               ) {
                 try {
                   await updateAccount(matchedAccount.ID, {
                     ACCOUNT_NAME: accName || matchedAccount.ACCOUNT_NAME,
                     ACCOUNT_TYPE: accType || matchedAccount.ACCOUNT_TYPE,
                     ACCOUNT_CATEGORY: accCat || matchedAccount.ACCOUNT_CATEGORY,
+                    COST_BEHAVIOR: costBehavior || matchedAccount.COST_BEHAVIOR,
                   });
                   matchedAccount.ACCOUNT_NAME = accName || matchedAccount.ACCOUNT_NAME;
                   matchedAccount.ACCOUNT_TYPE = accType || matchedAccount.ACCOUNT_TYPE;
                   matchedAccount.ACCOUNT_CATEGORY = accCat || matchedAccount.ACCOUNT_CATEGORY;
+                  matchedAccount.COST_BEHAVIOR = costBehavior as any || matchedAccount.COST_BEHAVIOR;
                 } catch (err) {
                   console.error('Failed to update account details for', accCode, err);
                 }
               }
 
               Object.keys(row).forEach(colName => {
-                if (['ACCOUNT TYPE', 'ACCOUNT CATEGORY', 'ACCOUNT CODE', 'ACCOUNT NAME'].includes(colName.toUpperCase())) return;
+                if (['ACCOUNT TYPE', 'ACCOUNT CATEGORY', 'COST BEHAVIOR', 'ACCOUNT CODE', 'ACCOUNT NAME'].includes(colName.toUpperCase())) return;
                 
                 const cleanCol = colName.trim();
                 const parts = cleanCol.split('-');
