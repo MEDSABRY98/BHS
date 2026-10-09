@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, ChevronLeft, ChevronRight, X, LayoutDashboard, LineChart, FileSpreadsheet, PencilLine, RefreshCw, Filter } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, X, LayoutDashboard, LineChart, FileSpreadsheet, PencilLine, RefreshCw, Filter, Target } from 'lucide-react';
 import { useFinancialModel } from '../Context/FinancialModelContext';
 
 interface SidebarProps {
@@ -47,6 +47,7 @@ export function Sidebar({ activeTab, setActiveTab, isCollapsed, onToggleCollapse
   const tabs = [
     { id: 'dashboard', label: 'P&L Dashboard', icon: LineChart },
     { id: 'income_statement', label: 'P&L Statement', icon: FileSpreadsheet },
+    { id: 'break_even', label: 'Break-Even Point', icon: Target },
     { id: 'data_entry', label: 'P&L Data Entry', icon: PencilLine },
     { id: 'cf_statement', label: 'Cash Flow Statement', icon: FileSpreadsheet },
     { id: 'cf_data_entry', label: 'Cash Flow Data Entry', icon: PencilLine },
