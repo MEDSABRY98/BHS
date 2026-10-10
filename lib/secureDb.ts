@@ -11,7 +11,8 @@ import { getCustomerEmails, getLuluCustomerEmails } from '@/app/Emails/Service/e
 type SecureStep = [string, unknown[]];
 type SecureRequest = { table: string; steps: SecureStep[] };
 export type SecureResult = {
-  data: any;
+  // list queries return rows, single()/maybeSingle() return one row — typed so both compile
+  data: (any[] & Record<string, any>) | null;
   error: { message: string; code?: string; details?: string; hint?: string } | null;
   count: number | null;
   status: number;
@@ -119,7 +120,7 @@ class SecureQuery implements PromiseLike<SecureResult> {
 }
 
 // `any` keeps every existing call site compiling exactly as before
-export const bhs_supabase: { from: (table: string) => any } = {
+export const bhs_supabase: { from: (table: string) => SecureQuery } = {
   from: (table: string) => new SecureQuery(table),
 };
 export const bhs_supabas = bhs_supabase;
