@@ -216,9 +216,15 @@ export default function CustomersSummariesTab({ data, onRefresh }: CustomersSumm
 
         if (shouldAge) {
           let daysOverdue = 0;
-          let targetDate = parseInvoiceDate(inv.dueDate) || parseInvoiceDate(inv.date);
+          // Days: from the due date (already includes the payment term).
+          // Months: invoice month + payment term (months), from the 1st of the next month —
+          //         counted from the INVOICE date, same as Expected Collections.
+          const useInvoiceDate = agingMode === 'months' && inv.paymentTerm !== undefined;
+          let targetDate = useInvoiceDate
+            ? parseInvoiceDate(inv.date) || parseInvoiceDate(inv.dueDate)
+            : parseInvoiceDate(inv.dueDate) || parseInvoiceDate(inv.date);
           if (targetDate && !isNaN(targetDate.getTime())) {
-            if (agingMode === 'months' && inv.paymentTerm !== undefined) {
+            if (useInvoiceDate) {
               const monthsToAdd = Math.round((inv.paymentTerm || 0) / 30);
               targetDate = new Date(targetDate.getFullYear(), targetDate.getMonth() + monthsToAdd + 1, 1);
             }

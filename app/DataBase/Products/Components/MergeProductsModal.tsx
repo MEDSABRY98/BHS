@@ -6,13 +6,8 @@ import SearchSelect from '@/app/LPOs/Components/DropDownList';
 import type { ProductRecord } from '../Hooks/UseMergeProducts';
 
 const AFFECTED_TABLES = [
-  'web_Sales_DB',
-  'web_INVENTORY_SCRAB',
-  'web_INVENTORY_SCRAB_REPORT',
-  'mix_INVENTORY_COUNT_DETAILS',
-  'mix_INVENTORY_COUNT_TOTALS',
-  'web_INVENTORY_PRODUCTS',
-  'mix_INVENTORY_COUNT_PRODUCTS',
+  'Every table that uses the Product ID (sales, scrap, inventory counts & archives, purchase prices…)',
+  'All changes happen together — if anything fails, nothing is changed',
 ];
 
 type MergeProductsModalProps = {
@@ -232,7 +227,7 @@ export default function MergeProductsModal({
                   Affected tables
                 </p>
                 {AFFECTED_TABLES.map((table) => (
-                  <p key={table} className="truncate">• {table}</p>
+                  <p key={table} className="col-span-2">• {table}</p>
                 ))}
               </div>
               <p className="text-[11px] text-gray-400">This action cannot be undone.</p>

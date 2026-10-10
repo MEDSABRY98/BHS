@@ -5,7 +5,7 @@ import { Download, Upload, Trash2, AlertTriangle, CheckCircle, FileSpreadsheet }
 import * as XLSX from 'xlsx';
 import { toast } from '@/app/Components/Notification';
 import { deleteDebitData, uploadDebitData } from '../Service/database_service';
-import { bhs_supabas } from '@/lib/supabase';
+import { bhs_supabas } from '@/lib/secureDb';
 import { exportDatabaseExcelTable } from '../Utils/ExcelExport';
 import { downloadUploadIssuesReport } from '../Utils/ExcelUploadUtils';
 

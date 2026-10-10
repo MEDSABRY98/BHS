@@ -8,6 +8,7 @@ export async function getItemCodesData() {
   try {
     const data = await fetchAllData(() =>
       bhs_supabas.from('web_INVENTORY_ITEM_CODE').select('TAGS,"ITEM CODE",BARCODE'),
+      'ID', // fixed order so pages don't overlap or skip rows
     );
 
     const mapped = data

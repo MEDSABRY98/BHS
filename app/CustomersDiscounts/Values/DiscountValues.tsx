@@ -12,7 +12,7 @@ import {
   X,
 } from 'lucide-react';
 import { getDebitData } from '@/app/CustomersAnalysis/Service/debit_service';
-import { bhs_supabase, fetchAllData } from '@/lib/supabase';
+import { bhs_supabase, fetchAllData } from '@/lib/secureDb';
 import type { InvoiceRow } from '@/types';
 import type { CustomerView } from '../page';
 import { buildNetSalesByCustomerId } from './DiscountValuesNetSales';
@@ -80,6 +80,15 @@ function parseYearMonth(dateStr: string): { year: number; month: number } | null
   const month = Number(m[2]);
   if (!year || month < 1 || month > 12) return null;
   return { year, month };
+}
+
+/** Calendar months covered by the range (partial months count as 1). Rent is monthly. */
+function monthsInRange(dateFrom: string, dateTo: string): number {
+  const a = parseYearMonth(dateFrom);
+  const b = parseYearMonth(dateTo);
+  if (!a || !b) return 1;
+  const n = (b.year - a.year) * 12 + (b.month - a.month) + 1;
+  return n > 0 ? n : 1;
 }
 
 type ValueRow = {
@@ -176,6 +185,8 @@ export default function DiscountValues({ customers }: DiscountValuesProps) {
     [debitRows, dateFrom, dateTo],
   );
 
+  const rentMonths = useMemo(() => monthsInRange(dateFrom, dateTo), [dateFrom, dateTo]);
+
   const rows = useMemo<ValueRow[]>(() => {
     return customers
       .map((c) => {
@@ -184,7 +195,7 @@ export default function DiscountValues({ customers }: DiscountValuesProps) {
         c.discounts.forEach((d) => {
           const val = Number(d.value) || 0;
           if (d.type === 'percentage') discountPercent += val;
-          else rent += val;
+          else rent += val * rentMonths;
         });
 
         let netSales = netSalesByCustomer.get(String(c.customerId).trim()) || 0;
@@ -206,7 +217,7 @@ export default function DiscountValues({ customers }: DiscountValuesProps) {
       })
       .filter((row) => row.netSales > 0 || row.rent > 0)
       .sort((a, b) => a.customerName.localeCompare(b.customerName));
-  }, [customers, netSalesByCustomer]);
+  }, [customers, netSalesByCustomer, rentMonths]);
 
   const scopedRows = useMemo(() => {
     if (customerScope === 'all') return rows;
@@ -460,7 +471,7 @@ export default function DiscountValues({ customers }: DiscountValuesProps) {
                         <th className="px-5 py-4 w-[13%]">Net Sales</th>
                         <th className="px-5 py-4 w-[14%]">Discount Value</th>
                         <th className="px-5 py-4 w-[8%] text-[#D4AF37]">D %</th>
-                        <th className="px-5 py-4 w-[10%]">Rent</th>
+                        <th className="px-5 py-4 w-[10%]">Rent{rentMonths > 1 ? ` (${rentMonths} months)` : ''}</th>
                         <th className="px-5 py-4 w-[8%] text-purple-400">R %</th>
                       </tr>
                     </thead>

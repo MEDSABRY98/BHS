@@ -10,6 +10,7 @@ import CustomersDocumentsGrid from './Components/CustomersDocumentsGrid';
 import { useCustomersDocumentsTabAudit } from '@/app/Audit/Model/CustomersDocumentsTabAudit';
 import { getCustomersDocuments, updateCustomerDocument } from './Service/customers_documents_service';
 import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
+import { toast } from '@/app/Components/Notification';
 
 export default function CustomersDocumentsPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -61,6 +62,8 @@ export default function CustomersDocumentsPage() {
       const result = await getCustomersDocuments();
       if (result.success) {
         setData(result.data as any);
+      } else {
+        toast.error(result.error || 'Failed to load customer documents.');
       }
     } catch (error) {
       console.error('Error fetching customer documents:', error);
@@ -100,15 +103,18 @@ export default function CustomersDocumentsPage() {
   }, [data, searchQuery, docFilters]);
 
   const handleUpdate = async (rowIndex: string, field: any, value: string) => {
-    try {
-      const newData = data.map(item =>
-        item.rowIndex === rowIndex ? { ...item, [field]: value } : item
-      );
-      setData(newData);
+    const previous = data.find(item => item.rowIndex === rowIndex)?.[field];
+    const setField = (v: any) =>
+      setData(prev => prev.map(item => (item.rowIndex === rowIndex ? { ...item, [field]: v } : item)));
 
-      await updateCustomerDocument(rowIndex, { [field]: value });
-    } catch (error) {
+    setField(value);
+    try {
+      const result = await updateCustomerDocument(rowIndex, { [field]: value });
+      if (!result?.success) throw new Error(result?.error || 'Failed to save');
+    } catch (error: any) {
       console.error('Error updating document:', error);
+      setField(previous); // put the old value back so the screen matches the database
+      toast.error(error?.message || 'Could not save the change.');
     }
   };
 

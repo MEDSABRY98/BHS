@@ -12,6 +12,7 @@ import {
 import { ArrowDown, ArrowUp, Search, Download, Package, Upload, X } from 'lucide-react';
 import { exportStyledExcel } from '@/app/Components/Export/ExcelExport';
 import TabLoader from '@/app/Components/Loading/TabLoader';
+import TabFetchError from '@/app/Components/DataState/TabFetchError';
 
 const OrderQuantityCell = ({ productId, qtyInBox, showInBoxes }: { productId: string, qtyInBox: number, showInBoxes: boolean }) => {
   const { orderQuantities, setOrderQuantity } = usePurchaseData();
@@ -39,7 +40,7 @@ const OrderQuantityCell = ({ productId, qtyInBox, showInBoxes }: { productId: st
 };
 
 export function PlanningTab() {
-  const { products, months, orderQuantities, setOrderQuantity, loading, globalFilters } = usePurchaseData();
+  const { products, months, orderQuantities, setOrderQuantity, loading, error, refresh, globalFilters } = usePurchaseData();
   const [sorting, setSorting] = useState<SortingState>([{ id: 'name', desc: false }]);
   const [searchTerm, setSearchTerm] = useState('');
   const [showInBoxes, setShowInBoxes] = useState(false);
@@ -221,6 +222,18 @@ export function PlanningTab() {
     return (
       <div className="flex-1 flex flex-col items-center justify-center min-h-[400px]">
         <TabLoader />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center min-h-[400px]">
+        <TabFetchError
+          title="Couldn't load purchase planning"
+          message={error}
+          onRetry={() => void refresh()}
+        />
       </div>
     );
   }

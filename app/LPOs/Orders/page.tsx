@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { bhs_supabas } from '@/lib/supabase';
+import { bhs_supabas } from '@/lib/secureDb';
 import { useLpoData } from '../Context/LpoDataContext';
 import {
   Search,
@@ -16,7 +16,6 @@ import NoData from '@/app/Components/DataState/NoDataTab';
 import TabLoader from '@/app/Components/Loading/TabLoader';
 import { toast } from '@/app/Components/Notification';
 import { usePermissions } from '../Hooks/usePermissions';
-import OrdersFilterMenu, { FilterCriteria } from '../OrderDetails/Components/OrdersFilterMenu';
 import { ConfirmModal } from '../Components/ConfirmModal';
 import { exportLPOsExcel } from '../Export/ExcelExport';
 
@@ -71,15 +70,11 @@ function resolveCurrentUserProfile(users: any[]) {
 
 export default function OrdersPage() {
   const { canEdit } = usePermissions();
-  const { orders, users, loading, refresh } = useLpoData();
+  const { orders, users, loading, refresh, filters } = useLpoData();
   const [currentUserProfile, setCurrentUserProfile] = useState<any>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const staffList = users;
-  const [advancedFilters, setAdvancedFilters] = useState<FilterCriteria>({
-    invoiceStatus: 'All',
-    driverId: 'All'
-  });
   const [isFiltersLoaded, setIsFiltersLoaded] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 50;
@@ -92,7 +87,7 @@ export default function OrdersPage() {
   // Clear selected checkbox state when filters, pagination, or search change
   useEffect(() => {
     setSelectedOrderIds([]);
-  }, [searchTerm, statusFilter, advancedFilters, currentPage]);
+  }, [searchTerm, statusFilter, filters, currentPage]);
 
   useEffect(() => {
     setCurrentUserProfile(resolveCurrentUserProfile(users));
@@ -107,14 +102,6 @@ export default function OrdersPage() {
       const savedStatus = sessionStorage.getItem('orders_statusFilter');
       if (savedStatus !== null) setStatusFilter(savedStatus);
 
-      const savedAdvanced = sessionStorage.getItem('orders_advancedFilters');
-      if (savedAdvanced !== null) {
-        try {
-          setAdvancedFilters(JSON.parse(savedAdvanced));
-        } catch (e) {
-          console.error('Error parsing stored advanced filters:', e);
-        }
-      }
       setIsFiltersLoaded(true);
     }
   }, []);
@@ -132,16 +119,10 @@ export default function OrdersPage() {
     }
   }, [statusFilter, isFiltersLoaded]);
 
-  useEffect(() => {
-    if (isFiltersLoaded) {
-      sessionStorage.setItem('orders_advancedFilters', JSON.stringify(advancedFilters));
-    }
-  }, [advancedFilters, isFiltersLoaded]);
-
   // Reset pagination to page 1 when search or filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, statusFilter, advancedFilters]);
+  }, [searchTerm, statusFilter, filters]);
 
   const handleUpdateStatus = async (orderId: string, newStatus: string) => {
     const order = processedOrders.find((o) => o.ID === orderId);
@@ -344,38 +325,42 @@ export default function OrdersPage() {
         else if (statusFilter === 'Pending') matchesStatus = isPending;
       }
 
-      // 3. Advanced Filters
+      // 3. Global Filters (Popup Modal)
       let matchesAdvanced = true;
+      const { dateFrom, dateTo, driver, status } = filters;
 
-      if (advancedFilters.invoiceStatus !== 'All') {
-        const status = order.handover_status;
-        const notes = order.tracking_notes;
-        if (advancedFilters.invoiceStatus === 'Handed Over') {
-          matchesAdvanced = (status === 'Handed Over' || status === 'Pending Confirmation' || status === 'Pending') &&
-            notes !== 'SYSTEM_ALREADY_RECEIVED' &&
-            notes !== 'SYSTEM_CANCELLED';
-        } else if (advancedFilters.invoiceStatus === 'Confirmed') {
-          matchesAdvanced = status === 'Confirmed' &&
-            notes !== 'SYSTEM_ALREADY_RECEIVED' &&
-            notes !== 'SYSTEM_CANCELLED';
-        } else if (advancedFilters.invoiceStatus === 'Pending') {
-          matchesAdvanced = (!status || status === 'Not Handed Over' || status === 'Pending Handover') &&
-            notes !== 'SYSTEM_ALREADY_RECEIVED' &&
-            notes !== 'SYSTEM_CANCELLED';
-        } else if (advancedFilters.invoiceStatus === 'Returned') {
-          matchesAdvanced = notes === 'SYSTEM_CANCELLED';
-        } else if (advancedFilters.invoiceStatus === 'ReturnedUnconfirmed') {
-          matchesAdvanced = notes === 'SYSTEM_CANCELLED' && status !== 'Confirmed';
-        }
+      if (dateFrom) {
+        const orderDate = (order.ORDER_DATE || order.CREATED_AT || '').split('T')[0];
+        if (orderDate < dateFrom) matchesAdvanced = false;
       }
 
-      if (matchesAdvanced && advancedFilters.driverId !== 'All') {
-        matchesAdvanced = order.driver_id === advancedFilters.driverId;
+      if (dateTo) {
+        const orderDate = (order.ORDER_DATE || order.CREATED_AT || '').split('T')[0];
+        if (orderDate > dateTo) matchesAdvanced = false;
+      }
+
+      if (driver !== 'ALL') {
+        if (order.driver_id !== driver) matchesAdvanced = false;
+      }
+
+      if (status !== 'ALL') {
+        const isCancelled = order.tracking_notes === 'SYSTEM_CANCELLED';
+        const isDelivered = order.driver_status === 'Delivered' && !isCancelled;
+        
+        if (status === 'Canceled') {
+          if (!isCancelled) matchesAdvanced = false;
+        } else if (status === 'Delivered') {
+          if (!isDelivered) matchesAdvanced = false;
+        } else if (status === 'Pending Driver') {
+          if (isDelivered || isCancelled) matchesAdvanced = false;
+        } else if (status === 'Pending Customer') {
+          if (!isDelivered || order.handover_status === 'Confirmed' || isCancelled) matchesAdvanced = false;
+        }
       }
 
       return matchesSearch && matchesStatus && matchesAdvanced;
     });
-  }, [processedOrders, searchTerm, statusFilter, advancedFilters]);
+  }, [processedOrders, searchTerm, statusFilter, filters]);
 
   const totalPages = useMemo(() => {
     return Math.ceil(filteredOrders.length / ITEMS_PER_PAGE);
@@ -421,11 +406,6 @@ export default function OrdersPage() {
         <div className="flex items-center gap-4">
           <h1 className="text-4xl font-normal text-black tracking-tighter">Orders</h1>
           <div className="flex items-center gap-3">
-            <OrdersFilterMenu
-              activeFilters={advancedFilters}
-              onFilterChange={setAdvancedFilters}
-              staffList={staffList}
-            />
             <div className="px-4 py-2 bg-[#D4AF37]/10 text-black border border-[#D4AF37]/20 rounded-2xl text-[11px] font-black uppercase tracking-widest flex items-center gap-2">
               <span className="w-2 h-2 bg-[#D4AF37] rounded-full animate-pulse" />
               {filteredOrders.length} {filteredOrders.length === 1 ? 'Order' : 'Orders'}

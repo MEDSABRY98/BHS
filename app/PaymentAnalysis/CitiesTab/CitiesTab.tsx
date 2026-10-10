@@ -12,6 +12,7 @@ import {
   SortingState
 } from '@tanstack/react-table';
 import CityDetailsView from './CityDetailsView';
+import { ExportExcelButton, exportCitiesExcel } from '../Export/ExportExcel';
 
 export default function CitiesTab() {
   const { paymentsData } = usePaymentAnalysis();
@@ -163,15 +164,22 @@ export default function CitiesTab() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <h2 className="text-2xl font-black text-slate-900 tracking-tight">Cities Collections</h2>
         
-        <div className="relative">
-          <input 
-            type="text" 
-            placeholder="Search cities..." 
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full sm:w-80 pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:border-[#D4AF37] focus:ring-1 focus:ring-[#D4AF37] transition-all"
+        <div className="flex items-center gap-2 relative">
+          <ExportExcelButton
+            onExport={() => exportCitiesExcel(filteredData)}
+            disabled={filteredData.length === 0}
+            title="Export Cities to Excel"
           />
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <div className="relative">
+            <input 
+              type="text" 
+              placeholder="Search cities..." 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full sm:w-80 pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:border-[#D4AF37] focus:ring-1 focus:ring-[#D4AF37] transition-all"
+            />
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          </div>
         </div>
       </div>
 

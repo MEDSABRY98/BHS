@@ -21,7 +21,7 @@ function parseBoundary(dateStr: string, end: boolean): Date | null {
 }
 
 /**
- * Net sales from Debit ledger rows: SAL / RSAL only, debit − credit,
+ * Net sales from Debit ledger rows: SAL/INV and RSAL/RINV, debit − credit,
  * filtered by invoice date within [dateFrom, dateTo] (inclusive).
  */
 export function buildNetSalesByCustomerId(
@@ -37,7 +37,9 @@ export function buildNetSalesByCustomerId(
     const num = String(row.number || '')
       .toUpperCase()
       .trim();
-    if (!num.startsWith('SAL') && !num.startsWith('RSAL')) continue;
+    const isSale = num.startsWith('SAL') || num.startsWith('INV');
+    const isReturn = num.startsWith('RSAL') || num.startsWith('RINV');
+    if (!isSale && !isReturn) continue;
 
     const customerId = String(row.customerId || '').trim();
     if (!customerId) continue;

@@ -1,18 +1,18 @@
 'use server';
 import { requireSession } from '@/lib/session';
 
-import { resolveCustomerEmailTargets, getAllCustomerEmails, getLuluEmails } from '@/lib/supabase';
+import { resolveCustomerEmailTargets, getAllCustomerEmailsStrict, getLuluEmailsStrict } from '@/lib/supabase';
 
 export async function getCustomerEmails(customerName?: string) {
   await requireSession();
   try {
     if (customerName) {
       const { customers, emails } = await resolveCustomerEmailTargets(customerName);
-      const email = emails[0] ?? null;
+      const email = emails.length ? emails.join(', ') : null;
       return { email, emails, customers };
     }
 
-    const customersWithEmails = await getAllCustomerEmails();
+    const customersWithEmails = await getAllCustomerEmailsStrict();
     return { customers: customersWithEmails };
   } catch (error) {
     console.error('Service Error:', error);
@@ -23,7 +23,7 @@ export async function getCustomerEmails(customerName?: string) {
 export async function getLuluCustomerEmails() {
   await requireSession();
   try {
-    const luluEmails = await getLuluEmails();
+    const luluEmails = await getLuluEmailsStrict();
     return { customers: luluEmails };
   } catch (error) {
     console.error('Service Error:', error);

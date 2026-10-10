@@ -6,7 +6,7 @@ import { usePermissions } from '../../LPOs/Hooks/usePermissions';
 import { ConfirmModal } from '../../LPOs/Components/ConfirmModal';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import { toast } from '@/app/Components/Notification';
-import { bhs_supabas } from '@/lib/supabase';
+import { bhs_supabas } from '@/lib/secureDb';
 import * as XLSX from 'xlsx';
 import { getSalesMonthsCache, deleteSalesMonth, buildSalesCache, deleteAllSalesData } from '@/app/Sales/Service/sales_core_service';
 import { exportDatabaseExcelTable } from '../Utils/ExcelExport';
@@ -151,6 +151,26 @@ export default function SalesDBPage() {
     return values;
   };
 
+  /** Invoice numbers from the file that are already in web_Sales_DB. */
+  const findExistingInvoices = async (invoiceNumbers: string[]): Promise<Set<string>> => {
+    const existing = new Set<string>();
+    const unique = Array.from(new Set(invoiceNumbers.filter(Boolean)));
+    for (let i = 0; i < unique.length; i += 200) {
+      const chunk = unique.slice(i, i + 200);
+      const { data, error } = await bhs_supabas
+        .from('web_Sales_DB')
+        .select('"INVOICE NUMBER"')
+        .in('INVOICE NUMBER', chunk)
+        .limit(1000);
+      if (error) throw error;
+      (data || []).forEach((row: Record<string, unknown>) => {
+        const num = String(row['INVOICE NUMBER'] ?? '').trim();
+        if (num) existing.add(num);
+      });
+    }
+    return existing;
+  };
+
   const getNextSalesRecordNum = async (): Promise<number> => {
     const pageSize = 1000;
     let from = 0;
@@ -160,6 +180,7 @@ export default function SalesDBPage() {
       const { data, error } = await bhs_supabas
         .from('web_Sales_DB')
         .select('ID')
+        .order('ID')
         .range(from, from + pageSize - 1);
 
       if (error) throw error;
@@ -435,7 +456,7 @@ export default function SalesDBPage() {
         return strVal;
       };
 
-      const formattedRows = jsonData.map((row) => {
+      const allFormattedRows = jsonData.map((row) => {
         const price = Number(row['PRICE SALES'] !== undefined ? row['PRICE SALES'] : row['PRODUCT PRICE']) || 0;
         const cost = Number(row['PRICE COST'] !== undefined ? row['PRICE COST'] : row['PRODUCT COST']) || 0;
         const qty = Number(row['QTY']) || 0;
@@ -455,7 +476,13 @@ export default function SalesDBPage() {
           'AMOUNT': amount,
           'QTY': qty
         };
-      }).filter(row => row['INVOICE DATE'] && row['INVOICE NUMBER'] && row['CUSTOMER ID'] && row['PRODUCT ID']);
+      });
+      const isComplete = (row: (typeof allFormattedRows)[number]) =>
+        Boolean(row['INVOICE DATE'] && row['INVOICE NUMBER'] && row['CUSTOMER ID'] && row['PRODUCT ID']);
+      const formattedRows = allFormattedRows.filter(isComplete);
+      const skippedRows = allFormattedRows
+        .map((row, index) => ({ row, excelRow: index + 2 }))
+        .filter(({ row }) => !isComplete(row));
 
       if (formattedRows.length === 0) {
         toast.error('No valid rows found to upload. Check dates, invoice numbers, product IDs, and customer IDs.');
@@ -501,14 +528,62 @@ export default function SalesDBPage() {
         return;
       }
 
-      const chunkSize = 500;
-      for (let i = 0; i < formattedRows.length; i += chunkSize) {
-        const chunk = formattedRows.slice(i, i + chunkSize);
-        const { error: insertErr } = await bhs_supabas
-          .from('web_Sales_DB')
-          .insert(chunk);
+      // Rows that will be skipped (missing date / invoice / customer / product)
+      if (skippedRows.length > 0) {
+        const proceed = window.confirm(
+          `${skippedRows.length} row(s) are missing the invoice date, invoice number, customer ID or product ID and will NOT be uploaded. ` +
+          `A list will be downloaded.\n\nUpload the other ${formattedRows.length} row(s)?`
+        );
+        downloadUploadIssuesReport(
+          `Sales_Skipped_Rows_${new Date().toISOString().split('T')[0]}.txt`,
+          'Sales Upload - Skipped Rows',
+          [{
+            heading: `=== ROWS SKIPPED (${skippedRows.length}) — missing date / invoice / customer / product ===`,
+            lines: skippedRows.map(({ row, excelRow }) =>
+              `Excel row ${excelRow}: date="${row['INVOICE DATE']}" invoice="${row['INVOICE NUMBER']}" customer="${row['CUSTOMER ID']}" product="${row['PRODUCT ID']}"`
+            ),
+          }]
+        );
+        if (!proceed) return;
+      }
 
-        if (insertErr) throw insertErr;
+      // Same invoice uploaded before? (re-uploading a file would double the sales)
+      const existingInvoices = await findExistingInvoices(formattedRows.map((r) => r['INVOICE NUMBER']));
+      if (existingInvoices.size > 0) {
+        const list = [...existingInvoices].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+        downloadUploadIssuesReport(
+          `Sales_Existing_Invoices_${new Date().toISOString().split('T')[0]}.txt`,
+          'Sales Upload - Invoices Already In Database',
+          [{ heading: `=== INVOICES ALREADY UPLOADED (${list.length}) ===`, lines: list }]
+        );
+        const proceed = window.confirm(
+          `${list.length} invoice number(s) in this file are ALREADY in the Sales database (e.g. ${list.slice(0, 5).join(', ')}). ` +
+          `Uploading again will count them twice. A full list was downloaded.\n\nUpload anyway?`
+        );
+        if (!proceed) {
+          toast.error('Upload cancelled — no rows were added.');
+          return;
+        }
+      }
+
+      // Insert in chunks; if any chunk fails, remove what this upload already added
+      const chunkSize = 500;
+      const insertedIds: string[] = [];
+      try {
+        for (let i = 0; i < formattedRows.length; i += chunkSize) {
+          const chunk = formattedRows.slice(i, i + chunkSize);
+          const { error: insertErr } = await bhs_supabas
+            .from('web_Sales_DB')
+            .insert(chunk);
+
+          if (insertErr) throw insertErr;
+          insertedIds.push(...chunk.map((r) => r.ID));
+        }
+      } catch (insertError) {
+        for (let i = 0; i < insertedIds.length; i += 500) {
+          await bhs_supabas.from('web_Sales_DB').delete().in('ID', insertedIds.slice(i, i + 500));
+        }
+        throw insertError;
       }
 
       await bhs_supabas
@@ -524,7 +599,7 @@ export default function SalesDBPage() {
       await fetchSalesMonths(true);
     } catch (err: any) {
       console.error(err);
-      toast.error('Upload failed: ' + (err.message || err.details || 'Unknown error'));
+      toast.error('Upload failed — nothing was added: ' + (err.message || err.details || 'Unknown error'));
     } finally {
       setIsUploading(false);
       e.target.value = '';

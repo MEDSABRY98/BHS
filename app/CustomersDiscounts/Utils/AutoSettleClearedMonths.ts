@@ -1,4 +1,4 @@
-import { bhs_supabase, fetchAllData } from '@/lib/supabase';
+import { bhs_supabase, fetchAllData } from '@/lib/secureDb';
 import { getDebitData } from '@/app/CustomersAnalysis/Service/debit_service';
 import {
   buildOpenBalanceMonthsByCustomer,

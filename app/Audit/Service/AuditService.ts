@@ -1,5 +1,5 @@
 'use server';
-import { getSession } from '@/lib/session';
+import { getSession, getSessionUser } from '@/lib/session';
 
 import { getSupabaseAdmin } from '@/lib/supabaseAdmin';
 import { AllocateActivityIds } from '@/app/Audit/Utils/ActivityId';
@@ -21,7 +21,6 @@ const ADMIN_NAME = 'MED Sabry';
 function IsValidSession(event: unknown): event is ActivitySessionPayload {
   if (!event || typeof event !== 'object') return false;
   const row = event as Record<string, unknown>;
-  if (typeof row.USER_ID !== 'string' || !row.USER_ID.trim()) return false;
   if (typeof row.MODULE_NAME !== 'string' || !row.MODULE_NAME.trim()) return false;
   return true;
 }
@@ -30,10 +29,23 @@ function IsAdmin(name: string | null | undefined): boolean {
   return (name || '').trim().toLowerCase() === ADMIN_NAME.toLowerCase();
 }
 
+// Business day = UAE time (UTC+4, no DST)
+const UAE_OFFSET = '+04:00';
+
 function DayBounds(dateStr: string): { start: string; end: string } {
-  const start = new Date(`${dateStr}T00:00:00.000Z`);
-  const end = new Date(`${dateStr}T23:59:59.999Z`);
+  const safe = /^\d{4}-\d{2}-\d{2}$/.test(dateStr) ? dateStr : TodayUae();
+  const start = new Date(`${safe}T00:00:00.000${UAE_OFFSET}`);
+  const end = new Date(`${safe}T23:59:59.999${UAE_OFFSET}`);
   return { start: start.toISOString(), end: end.toISOString() };
+}
+
+function TodayUae(): string {
+  return new Date(Date.now() + 4 * 3600_000).toISOString().split('T')[0];
+}
+
+// Strip characters that have meaning inside a PostgREST .or() filter
+function SafeFilterText(value: string): string {
+  return value.replace(/[,()%*\\:"']/g, ' ').trim().slice(0, 60);
 }
 
 function SessionMinutes(event: ActivityRecord): number {
@@ -130,7 +142,7 @@ async function ResolveUserFilter(
   supabase: ReturnType<typeof getSupabaseAdmin>,
   userFilter: string,
 ): Promise<string[] | null> {
-  const trimmed = userFilter.trim();
+  const trimmed = SafeFilterText(userFilter);
   if (!trimmed) return null;
 
   if (/^R-\d+/i.test(trimmed)) return [trimmed];
@@ -182,19 +194,21 @@ async function FetchUserNames(
 export async function IngestActivityEvents(
   events: ActivitySessionPayload[],
 ): Promise<{ ok: boolean; inserted: number; ids?: string[]; error?: string }> {
-  if (!(await getSession())) return undefined as any;
+  const session = await getSession();
+  if (!session) return { ok: false, inserted: 0, error: 'Not logged in' };
   try {
-    if (!events.length) return { ok: true, inserted: 0, ids: [] };
+    if (!Array.isArray(events) || !events.length) return { ok: true, inserted: 0, ids: [] };
 
     const validEvents = events.filter(IsValidSession).slice(0, 100);
     if (!validEvents.length) return { ok: false, inserted: 0, error: 'No valid sessions' };
 
     const supabase = getSupabaseAdmin();
-    const ids = await AllocateActivityIds(supabase, validEvents.length);
+    let ids: string[] = [];
 
-    const rows = validEvents.map((event, index) => ({
+    // The user always comes from the signed session — never from the browser.
+    const buildRows = () => validEvents.map((event, index) => ({
       ID: ids[index],
-      USER_ID: event.USER_ID.trim(),
+      USER_ID: session.uid,
       MODULE_NAME: event.MODULE_NAME.trim(),
       FILE_NAME: event.FILE_NAME ?? null,
       TABS: event.TABS ?? null,
@@ -203,7 +217,16 @@ export async function IngestActivityEvents(
       SESSION_MINUTES: event.SESSION_MINUTES ?? null,
     }));
 
-    const { error } = await supabase.from(TABLE).insert(rows);
+    // Sequential R-xxxx numbers. If two users save at the same moment and take the
+    // same number, the database rejects the duplicate and we retry with the next one.
+    let rows: ReturnType<typeof buildRows> = [];
+    let error: { code?: string; message: string } | null = null;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      ids = await AllocateActivityIds(supabase, validEvents.length);
+      rows = buildRows();
+      ({ error } = await supabase.from(TABLE).insert(rows));
+      if (error?.code !== '23505') break;
+    }
     if (error) {
       console.error('[AuditService ingest]', error);
       return { ok: false, inserted: 0, error: error.message };
@@ -226,9 +249,10 @@ export async function UpdateActivitySession(
     SESSION_MINUTES?: number | null;
   },
 ): Promise<{ ok: boolean; error?: string }> {
-  if (!(await getSession())) return undefined as any;
+  const session = await getSession();
+  if (!session) return { ok: false, error: 'Not logged in' };
   try {
-    const sessionId = id.trim();
+    const sessionId = String(id || '').trim();
     if (!sessionId) return { ok: false, error: 'Missing session id' };
 
     const supabase = getSupabaseAdmin();
@@ -242,7 +266,12 @@ export async function UpdateActivitySession(
 
     if (!Object.keys(row).length) return { ok: true };
 
-    const { error } = await supabase.from(TABLE).update(row).eq('ID', sessionId);
+    // Only the owner of a record can update it
+    const { error } = await supabase
+      .from(TABLE)
+      .update(row)
+      .eq('ID', sessionId)
+      .eq('USER_ID', session.uid);
     if (error) {
       console.error('[AuditService update]', error);
       return { ok: false, error: error.message };
@@ -259,14 +288,14 @@ export async function GetActivitySummary(params: {
   date?: string;
   userId?: string;
   moduleName?: string;
-  adminName: string;
+  /** Ignored — kept for compatibility. The admin check uses the signed session. */
+  adminName?: string;
 }): Promise<ActivitySummaryResponse> {
-  if (!(await getSession())) return undefined as any;
-  if (!IsAdmin(params.adminName)) {
-    throw new Error('Forbidden');
-  }
+  const user = await getSessionUser();
+  if (!user) throw new Error('Not logged in');
+  if (!IsAdmin(user.name)) throw new Error('Forbidden');
 
-  const date = params.date || new Date().toISOString().split('T')[0];
+  const date = params.date || TodayUae();
   const { start, end } = DayBounds(date);
   const supabase = getSupabaseAdmin();
 

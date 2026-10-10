@@ -163,6 +163,9 @@ async function fetchAllMixCountRows<T>(
       query = query.eq('IS_COUNTABLE', true);
     }
 
+    // Fixed order so pages never overlap or skip rows
+    query = query.order(table === 'bhs_PRODUCTS' ? 'PRODUCT ID' : 'ID', { ascending: true });
+
     const { data, error } = await query.range(from, from + pageSize - 1);
     if (error) throw error;
     if (!data || data.length === 0) break;
@@ -188,7 +191,7 @@ async function fetchAllArchiveRows<T>(
     let query = bhs_supabase.from(table).select(select).eq('ARCHIVE_ID', archiveId.trim());
     if (filter) query = query.eq(filter.column, filter.value);
 
-    const { data, error } = await query.range(from, from + pageSize - 1);
+    const { data, error } = await query.order('ID', { ascending: true }).range(from, from + pageSize - 1);
     if (error) throw error;
     if (!data || data.length === 0) break;
     allRows.push(...(data as T[]));
@@ -212,30 +215,35 @@ async function bulkInsertChunks(
 }
 
 async function deleteArchiveSession(archiveId: string): Promise<void> {
-  await bhs_supabase
-    .from('mix_INVENTORY_COUNT_DETAILS_ARCHIVE')
-    .delete()
-    .eq('ARCHIVE_ID', archiveId);
-  await bhs_supabase
-    .from('mix_INVENTORY_COUNT_TOTALS_ARCHIVE')
-    .delete()
-    .eq('ARCHIVE_ID', archiveId);
-  await bhs_supabase.from('mix_INVENTORY_COUNT_ARCHIVE').delete().eq('ARCHIVE_ID', archiveId);
+  for (const table of [
+    'mix_INVENTORY_COUNT_DETAILS_ARCHIVE',
+    'mix_INVENTORY_COUNT_TOTALS_ARCHIVE',
+    'mix_INVENTORY_COUNT_ARCHIVE',
+  ]) {
+    const { error } = await bhs_supabase.from(table).delete().eq('ARCHIVE_ID', archiveId);
+    if (error) throw new Error(`${table}: ${error.message}`);
+  }
 }
 
-async function deleteAllLiveICRows(): Promise<void> {
-  for (const table of ['mix_INVENTORY_COUNT_DETAILS', 'mix_INVENTORY_COUNT_TOTALS'] as const) {
-    while (true) {
-      const { data, error } = await bhs_supabase.from(table).select('ID').limit(500);
-      if (error) throw error;
-      if (!data || data.length === 0) break;
+async function countArchiveRows(table: ArchiveTable, archiveId: string): Promise<number> {
+  const { count, error } = await bhs_supabase
+    .from(table)
+    .select('ID', { count: 'exact', head: true })
+    .eq('ARCHIVE_ID', archiveId);
+  if (error) throw error;
+  return count ?? 0;
+}
 
-      const ids = data.map((row) => String((row as { ID: string }).ID));
-      const { error: deleteError } = await bhs_supabase.from(table).delete().in('ID', ids);
-      if (deleteError) throw deleteError;
-      if (data.length < 500) break;
-    }
+/** Deletes exactly these live rows (by ID) — rows added meanwhile are left alone. */
+async function deleteLiveRowsByIds(table: 'mix_INVENTORY_COUNT_DETAILS' | 'mix_INVENTORY_COUNT_TOTALS', ids: string[]): Promise<number> {
+  let deleted = 0;
+  for (let i = 0; i < ids.length; i += 500) {
+    const chunk = ids.slice(i, i + 500);
+    const { error } = await bhs_supabase.from(table).delete().in('ID', chunk);
+    if (error) throw new Error(`${table}: ${error.message}`);
+    deleted += chunk.length;
   }
+  return deleted;
 }
 
 function mapArchiveHeader(row: Record<string, unknown>): ICArchiveHeader {
@@ -373,23 +381,12 @@ function buildICRecords(
 }
 
 async function generateNextRowId(table: 'mix_INVENTORY_COUNT_TOTALS'): Promise<string> {
-  // IDs are zero-padded (R-0001), so lexicographic max matches numeric max.
-  const { data, error } = await bhs_supabase
-    .from(table)
-    .select('ID')
-    .like('ID', 'R-%')
-    .order('ID', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (error) throw error;
-
-  let maxNum = 0;
-  const id = data?.ID?.toString().trim() || '';
-  if (id.startsWith('R-')) {
-    const numPart = parseInt(id.substring(2), 10);
-    if (Number.isFinite(numPart) && numPart > maxNum) maxNum = numPart;
-  }
+  // Numeric max (text order would put R-9999 above R-10000)
+  const rows = await fetchAllMixCountRows<{ ID: string }>(table, 'ID');
+  const maxNum = rows.reduce((max, r) => {
+    const m = String(r.ID || '').trim().match(/^R-(\d+)$/i);
+    return m ? Math.max(max, parseInt(m[1], 10)) : max;
+  }, 0);
   return `R-${String(maxNum + 1).padStart(4, '0')}`;
 }
 
@@ -1131,6 +1128,7 @@ export async function closeInventoryCountSession(input: {
 
     if (headerError) throw headerError;
 
+    // 1) Copy to the archive. If this fails, the archive is removed and the live count is untouched.
     try {
       const detailRows = allDetails.map((row) => ({
         ARCHIVE_ID: archiveId,
@@ -1160,12 +1158,37 @@ export async function closeInventoryCountSession(input: {
         await bulkInsertChunks('mix_INVENTORY_COUNT_TOTALS_ARCHIVE', totalRows);
       }
 
-      if (input.resetLive) {
-        await deleteAllLiveICRows();
+      // 2) Make sure the archive really holds every row before anything is deleted
+      const [archivedDetails, archivedTotals] = await Promise.all([
+        countArchiveRows('mix_INVENTORY_COUNT_DETAILS_ARCHIVE', archiveId),
+        countArchiveRows('mix_INVENTORY_COUNT_TOTALS_ARCHIVE', archiveId),
+      ]);
+      if (archivedDetails !== detailRows.length || archivedTotals !== totalRows.length) {
+        throw new Error(
+          `Archive check failed (details ${archivedDetails}/${detailRows.length}, totals ${archivedTotals}/${totalRows.length}). Nothing was deleted.`
+        );
       }
     } catch (insertError) {
-      await deleteArchiveSession(archiveId);
+      await deleteArchiveSession(archiveId).catch((cleanupError) =>
+        console.error('Could not remove the incomplete archive', archiveId, cleanupError)
+      );
       throw insertError;
+    }
+
+    // 3) Reset: delete ONLY the rows that were archived (counts entered meanwhile stay).
+    //    The archive is complete at this point, so it is never removed here.
+    if (input.resetLive) {
+      try {
+        await deleteLiveRowsByIds('mix_INVENTORY_COUNT_DETAILS', allDetails.map((r) => String(r.ID)));
+        await deleteLiveRowsByIds('mix_INVENTORY_COUNT_TOTALS', allTotals.map((r) => String(r.ID)));
+      } catch (deleteError) {
+        const msg = deleteError instanceof Error ? deleteError.message : 'delete failed';
+        return {
+          success: false as const,
+          error: `The count was archived safely as ${archiveId}, but clearing the live count stopped part-way (${msg}). The archive is complete. The rows that were not cleared are still in the live count — check them before closing again (closing again archives them a second time).`,
+          archiveId,
+        };
+      }
     }
 
     return {
@@ -1478,6 +1501,7 @@ async function fetchAllReconciliationRows(
     }
 
     const { data, error } = await query
+      .order('RECONCILIATION_ID', { ascending: true })
       .order('LINE_NO', { ascending: true })
       .range(from, from + pageSize - 1);
 

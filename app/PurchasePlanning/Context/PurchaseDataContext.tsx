@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useEffect, useMemo, useState, useRef } from 'react';
-import { bhs_supabas } from '@/lib/supabase';
+import { bhs_supabas } from '@/lib/secureDb';
 
 // Helper to calculate the last 4 completed months
 export function getLast4CompletedMonths() {
@@ -103,11 +103,18 @@ export function PurchaseDataProvider({ children }: { children: React.ReactNode }
     
     const promise = (async () => {
       try {
-      // 1. Fetch Products
-      const { data: rawProducts, error: prodError } = await bhs_supabas
-        .from('bhs_PRODUCTS')
-        .select('*');
-      if (prodError) throw prodError;
+      // 1. Fetch ALL products (Supabase returns max 1000 rows per request)
+      const rawProducts: any[] = [];
+      for (let from = 0; ; from += 1000) {
+        const { data, error: prodError } = await bhs_supabas
+          .from('bhs_PRODUCTS')
+          .select('*')
+          .order('ID', { ascending: true })
+          .range(from, from + 999);
+        if (prodError) throw prodError;
+        rawProducts.push(...(data || []));
+        if (!data || data.length < 1000) break;
+      }
 
       // 2. Fetch Sales for the date range
       const oldestDate = months[0].start;
@@ -138,6 +145,7 @@ export function PurchaseDataProvider({ children }: { children: React.ReactNode }
                 .select('"INVOICE DATE", "PRODUCT ID", "QTY"')
                 .gte('INVOICE DATE', oldestDate)
                 .lte('INVOICE DATE', newestDate)
+                .order('ID', { ascending: true }) // fixed order: pages never overlap or skip rows
                 .range(r.from, r.to)
             )
           );

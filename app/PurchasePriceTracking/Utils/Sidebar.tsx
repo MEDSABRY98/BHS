@@ -125,18 +125,18 @@ export default function Sidebar({
       </nav>
 
       <div className="p-4 border-t border-white/5 mt-auto flex flex-col gap-2 shrink-0 items-center justify-center">
-        <div className={`flex gap-2 ${isCollapsed ? 'flex-col' : 'flex-row items-center'}`}>
-          {FilterNode}
-          <button
-            type="button"
-            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-            className="flex items-center justify-center w-10 h-10 hover:bg-white/10 rounded-xl transition-all duration-200 text-slate-400"
-            title={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
-          >
-            {isCollapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
-          </button>
-        </div>
-      </div>
+                  <div className={`flex gap-2 ${isCollapsed ? 'flex-col' : 'flex-row items-center'}`}>
+                    {FilterNode}
+                    <button
+                      type="button"
+                      onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                      className="flex items-center justify-center w-10 h-10 hover:bg-white/10 rounded-xl transition-all duration-200 text-slate-400"
+                      title={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
+                    >
+                      {isCollapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
+                    </button>
+                  </div>
+                </div>
 
       {/* Portal-like Tooltip for Collapsed Sidebar */}
       {hoveredTab && isCollapsed && (

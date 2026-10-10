@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { bhs_supabas } from '@/lib/supabase';
+import { bhs_supabas } from '@/lib/secureDb';
 import { Search, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 import { ConfirmModal } from '@/app/LPOs/Components/ConfirmModal';
 import { usePermissions } from '@/app/LPOs/Hooks/usePermissions';

@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { bhs_supabas, fetchAllData } from '@/lib/supabase';
+import { listLpoUsers, findLpoUserByName } from '../../Service/lpo_users_service';
+import { bhs_supabas } from '@/lib/secureDb';
 import { FileCheck, UserCheck, Clock, ShieldCheck, AlertCircle, Save, Loader2, CheckCircle2, XCircle, Lock, Truck, Printer, Download } from 'lucide-react';
 import { generateCancelInvoicePDF } from '@/app/LPOs/Pdf/CancelInvoicePdf';
 import NoData from '@/app/Components/DataState/NoDataTab';
@@ -29,26 +30,14 @@ export default function InvoicesStatusTab({ orderId, order }: InvoicesStatusTabP
     fetchData();
     resolveCurrentUser();
 
-    // Subscribe to realtime updates for this order's driver tracking
-    const channel = bhs_supabas
-      .channel(`delivery_tracking_${orderId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'app_lpos_DRIVERS',
-          filter: `ORDER_ID=eq.${orderId}`
-        },
-        (payload) => {
-          console.log('Realtime update received in InvoicesStatusTab:', payload);
-          fetchData();
-        }
-      )
-      .subscribe();
+    // Refresh this order's delivery tracking every 20s while the page is visible
+    // (data is loaded through the secure server gateway, so no browser realtime channel).
+    const timer = setInterval(() => {
+      if (typeof document === 'undefined' || document.visibilityState === 'visible') fetchData(true);
+    }, 20000);
 
     return () => {
-      bhs_supabas.removeChannel(channel);
+      clearInterval(timer);
     };
   }, [orderId]);
 
@@ -60,16 +49,12 @@ export default function InvoicesStatusTab({ orderId, order }: InvoicesStatusTabP
         const name = parsed.name || parsed.NAME;
         if (name) {
           const cleanName = name.trim();
-          const { data } = await bhs_supabas
-            .from('bhs_USERS')
-            .select('*')
-            .ilike('NAME', cleanName)
-            .maybeSingle();
+          const { data } = ({ data: await findLpoUserByName(cleanName) });
           if (data) {
             setCurrentUserProfile(data);
           } else {
             // Fallback: fetch all users and match case-insensitively/trimmed
-            const allUsers = await fetchAllData(() => bhs_supabas.from('bhs_USERS').select('*'));
+            const allUsers = await listLpoUsers();
             const matchedUser = allUsers.find(
               (u: any) => u.NAME.trim().toLowerCase() === cleanName.toLowerCase()
             );
@@ -92,8 +77,8 @@ export default function InvoicesStatusTab({ orderId, order }: InvoicesStatusTabP
     }
   };
 
-  const fetchData = async () => {
-    setIsLoading(true);
+  const fetchData = async (silent = false) => {
+    if (!silent) setIsLoading(true);
     try {
       // 1. Fetch delivery data which contains handover info
       const { data: delData, error: delError } = await bhs_supabas
@@ -147,7 +132,7 @@ export default function InvoicesStatusTab({ orderId, order }: InvoicesStatusTabP
     } catch (err) {
       console.error('Error fetching invoice status:', err);
     } finally {
-      setIsLoading(false);
+      if (!silent) setIsLoading(false);
     }
   };
 
@@ -172,15 +157,11 @@ export default function InvoicesStatusTab({ orderId, order }: InvoicesStatusTabP
             const name = parsed.name || parsed.NAME;
             if (name) {
               const cleanName = name.trim();
-              const { data } = await bhs_supabas
-                .from('bhs_USERS')
-                .select('*')
-                .ilike('NAME', cleanName)
-                .maybeSingle();
+              const { data } = ({ data: await findLpoUserByName(cleanName) });
               if (data?.ID) {
                 userId = data.ID;
               } else {
-                const allUsers = await fetchAllData(() => bhs_supabas.from('bhs_USERS').select('*'));
+                const allUsers = await listLpoUsers();
                 const matched = allUsers.find(
                   (u: any) => u.NAME.trim().toLowerCase() === cleanName.toLowerCase()
                 );
@@ -240,11 +221,7 @@ export default function InvoicesStatusTab({ orderId, order }: InvoicesStatusTabP
           const name = parsed.name || parsed.NAME;
           if (name) {
             const cleanName = name.trim();
-            const { data } = await bhs_supabas
-              .from('bhs_USERS')
-              .select('*')
-              .ilike('NAME', cleanName)
-              .maybeSingle();
+            const { data } = ({ data: await findLpoUserByName(cleanName) });
             userId = data?.ID || parsed.id || parsed.ID;
           }
         }
@@ -325,11 +302,7 @@ export default function InvoicesStatusTab({ orderId, order }: InvoicesStatusTabP
           const name = parsed.name || parsed.NAME;
           if (name) {
             const cleanName = name.trim();
-            const { data } = await bhs_supabas
-              .from('bhs_USERS')
-              .select('*')
-              .ilike('NAME', cleanName)
-              .maybeSingle();
+            const { data } = ({ data: await findLpoUserByName(cleanName) });
             userId = data?.ID || parsed.id || parsed.ID;
           }
         }

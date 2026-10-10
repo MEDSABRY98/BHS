@@ -5,7 +5,7 @@ import { Download, Upload, Trash2, AlertTriangle } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { toast } from '@/app/Components/Notification';
 import { deleteSuppliersTransactionsData, uploadSuppliersTransactionsData } from '@/app/SuppliersAnalysis/Service/UploadService';
-import { bhs_supabas } from '@/lib/supabase';
+import { bhs_supabas } from '@/lib/secureDb';
 import { exportDatabaseExcelTable } from '@/app/DataBase/Utils/ExcelExport';
 import { downloadUploadIssuesReport } from '@/app/DataBase/Utils/ExcelUploadUtils';
 

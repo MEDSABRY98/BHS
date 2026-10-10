@@ -1,4 +1,4 @@
-import { bhs_supabas } from '@/lib/supabase';
+import { bhs_supabas } from '@/lib/secureDb';
 
 const TABLE = 'web_INVENTORY_LOCATIONS';
 

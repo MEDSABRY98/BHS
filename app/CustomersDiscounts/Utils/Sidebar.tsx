@@ -139,28 +139,28 @@ export default function Sidebar({
       </nav>
 
       <div className={`p-4 border-t border-white/5 mt-auto flex ${isCollapsed ? 'flex-col' : 'flex-row'} items-center justify-center gap-2 shrink-0`}>
-        <button
-          type="button"
-          onClick={() => setIsFilterModalOpen(true)}
-          className={`relative flex items-center justify-center w-10 h-10 hover:bg-white/10 rounded-xl transition-all duration-200 ${
-            isFilterModalOpen ? 'text-[#D4AF37] bg-white/5' : 'text-slate-400'
-          }`}
-          title="Filter Customers"
-        >
-          <Filter className="w-5 h-5 shrink-0" />
-          {(selectedCity !== "All" || selectedDiscountType !== "All") && (
-            <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border border-[#0a0f1d]"></span>
-          )}
-        </button>
-        <button
-          type="button"
-          onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-          className="flex items-center justify-center w-10 h-10 hover:bg-white/10 rounded-xl transition-all duration-200 text-slate-400 group"
-          title={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
-        >
-          {isCollapsed ? <ChevronRight className="w-5 h-5 shrink-0" /> : <ChevronLeft className="w-5 h-5 shrink-0" />}
-        </button>
-      </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                    className="flex items-center justify-center w-10 h-10 hover:bg-white/10 rounded-xl transition-all duration-200 text-slate-400 group"
+                    title={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
+                  >
+                    {isCollapsed ? <ChevronRight className="w-5 h-5 shrink-0" /> : <ChevronLeft className="w-5 h-5 shrink-0" />}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsFilterModalOpen(true)}
+                    className={`relative flex items-center justify-center w-10 h-10 hover:bg-white/10 rounded-xl transition-all duration-200 ${
+                      isFilterModalOpen ? 'text-[#D4AF37] bg-white/5' : 'text-slate-400'
+                    }`}
+                    title="Filter Customers"
+                  >
+                    <Filter className="w-5 h-5 shrink-0" />
+                    {(selectedCity !== "All" || selectedDiscountType !== "All") && (
+                      <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border border-[#0a0f1d]"></span>
+                    )}
+                  </button>
+                </div>
 
       {/* Portal-like Tooltip for Collapsed Sidebar */}
       {hoveredTab && isCollapsed && (

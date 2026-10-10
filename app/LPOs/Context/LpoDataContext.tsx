@@ -9,7 +9,15 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { bhs_supabas, fetchAllData } from '@/lib/supabase';
+import { listLpoUsers } from '../Service/lpo_users_service';
+import { bhs_supabas, fetchAllData } from '@/lib/secureDb';
+
+export type LpoFilters = {
+  dateFrom: string;
+  dateTo: string;
+  driver: string;
+  status: string;
+};
 
 export type LpoDataContextValue = {
   users: any[];
@@ -21,6 +29,8 @@ export type LpoDataContextValue = {
   refreshing: boolean;
   error: string | null;
   refresh: () => Promise<void>;
+  filters: LpoFilters;
+  setFilters: React.Dispatch<React.SetStateAction<LpoFilters>>;
 };
 
 const LpoDataContext = createContext<LpoDataContextValue | null>(null);
@@ -68,18 +78,25 @@ export function LpoDataProvider({ children }: { children: React.ReactNode }) {
   const [refreshing, setRefreshing] = useState(false);
   const refreshingRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
+  const [filters, setFilters] = useState<LpoFilters>({
+    dateFrom: '',
+    dateTo: '',
+    driver: 'ALL',
+    status: 'ALL',
+  });
 
   const loadAll = useCallback(async (isInitial = false) => {
     if (isInitial) setLoading(true);
     setError(null);
     try {
       const [usersData, customersData, driversData, ordersData] = await Promise.all([
-        fetchAllData(() => bhs_supabas.from('bhs_USERS').select('*').order('NAME')),
+        listLpoUsers(),
         fetchAllData(() =>
           bhs_supabas
             .from('bhs_CUSTOMERS')
             .select('*, "CUSTOMER NAME":"CUSTOMER SUB NAME"')
-            .order('CUSTOMER SUB NAME'),
+            .order('CUSTOMER SUB NAME')
+            .order('CUSTOMER ID'),
         ),
         fetchAllData(() =>
           bhs_supabas.from('app_lpos_DRIVERS').select('*').order('ID', { ascending: false }),
@@ -88,7 +105,8 @@ export function LpoDataProvider({ children }: { children: React.ReactNode }) {
           bhs_supabas
             .from('app_lpos_ORDERS')
             .select(ORDERS_SELECT)
-            .order('CREATED_AT', { ascending: false }),
+            .order('CREATED_AT', { ascending: false })
+            .order('ID', { ascending: false }),
         ),
       ]);
 
@@ -137,8 +155,10 @@ export function LpoDataProvider({ children }: { children: React.ReactNode }) {
       refreshing,
       error,
       refresh,
+      filters,
+      setFilters,
     }),
-    [users, customers, drivers, assignedDrivers, orders, loading, refreshing, error, refresh],
+    [users, customers, drivers, assignedDrivers, orders, loading, refreshing, error, refresh, filters],
   );
 
   return <LpoDataContext.Provider value={value}>{children}</LpoDataContext.Provider>;

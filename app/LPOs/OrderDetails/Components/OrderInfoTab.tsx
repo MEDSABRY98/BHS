@@ -1,7 +1,7 @@
 'use client';
 
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useState } from 'react';
-import { bhs_supabas, fetchAllData } from '@/lib/supabase';
+import { bhs_supabas, fetchAllData } from '@/lib/secureDb';
 import SearchSelect from '../../Components/DropDownList';
 import { toast } from '@/app/Components/Notification';
 import {

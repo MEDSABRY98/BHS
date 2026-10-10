@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { bhs_supabas, fetchAllData } from '@/lib/supabase';
+import { bhs_supabas, fetchAllData } from '@/lib/secureDb';
 import { useLpoData } from '../Context/LpoDataContext';
 import {
   ReceiptText,
@@ -140,42 +140,13 @@ export default function CreateOrderPage() {
     setPendingOrders(pendingOrders.filter(o => o.tempId !== tempId));
   };
 
-  async function generateNextOrderId() {
-    const data = await fetchAllData(() => bhs_supabas.from('app_lpos_ORDERS').select('ID'));
-
-    let highestNum = 0;
-    if (data && data.length > 0) {
-      data.forEach(row => {
-        const lastId = row.ID;
-        if (lastId) {
-          const parts = lastId.split('-');
-          const num = parseInt(parts[parts.length - 1]);
-          if (!isNaN(num) && num > highestNum) {
-            highestNum = num;
-          }
-        }
-      });
-    }
-    const nextNum = highestNum + 1;
-    return `R-${nextNum.toString().padStart(4, '0')}`;
-  }
-
-  async function generateNextDriverId() {
-    const { data } = await bhs_supabas
-      .from('app_lpos_DRIVERS')
-      .select('ID')
-      .order('ID', { ascending: false })
-      .limit(1);
-
-    let nextNum = 1;
-    if (data && data.length > 0) {
-      const lastId = data[0].ID;
-      if (lastId && lastId.startsWith('R-')) {
-        const lastNum = parseInt(lastId.split('-')[1]);
-        if (!isNaN(lastNum)) nextNum = lastNum + 1;
-      }
-    }
-    return `R-${nextNum.toString().padStart(4, '0')}`;
+  /** Highest R-number in a table, read as numbers (text order breaks after R-9999). */
+  async function maxRecordNumber(table: 'app_lpos_ORDERS' | 'app_lpos_DRIVERS') {
+    const rows = await fetchAllData(() => bhs_supabas.from(table).select('ID').order('ID'));
+    return (rows || []).reduce((max: number, row: any) => {
+      const m = String(row.ID || '').match(/(\d+)\s*$/);
+      return m ? Math.max(max, parseInt(m[1], 10)) : max;
+    }, 0);
   }
 
   const handleSaveAll = async () => {
@@ -187,58 +158,77 @@ export default function CreateOrderPage() {
     setIsSubmitting(true);
 
     try {
-      // Generate sequential IDs for each order
-      const startId = await generateNextOrderId();
-      const baseNum = parseInt(startId.split('-')[1]);
-
-      const tempIdToOrderId: Record<string, string> = {};
-      const ordersToInsert = pendingOrders.map(({ tempId, customerName, driverId, driverName, DRIVER_ID, ...rest }, index) => {
-        const currentPkId = `R-${(baseNum + index).toString().padStart(4, '0')}`;
-        const currentOrderId = `ONI-${(baseNum + index).toString().padStart(4, '0')}`;
-        tempIdToOrderId[tempId] = currentOrderId;
-
-        const orderDateVal = rest.ORDER_DATE
-          ? new Date(rest.ORDER_DATE).toISOString()
-          : new Date().toISOString();
-
-        return {
-          ...rest,
-          ID: currentPkId,
-          ORDER_ID: currentOrderId,
-          AMOUNT: parseFloat(rest.AMOUNT) || 0,
-          ORDER_DATE: orderDateVal,
-          STATUS: 'Approved'
-        };
-      });
-
-      const { error: orderError } = await bhs_supabas
-        .from('app_lpos_ORDERS')
-        .insert(ordersToInsert);
-
-      if (orderError) throw orderError;
-
-      // Insert drivers for those who have a driver assigned
+      // Orders and their drivers are saved together: if the drivers fail, the new orders are
+      // removed again, so pressing Save a second time can't create the same orders twice.
+      // Numbers are re-read and retried if another user saved at the same moment.
       const ordersWithDrivers = pendingOrders.filter(o => o.driverId);
-      if (ordersWithDrivers.length > 0) {
-        const startDriverId = await generateNextDriverId();
-        const baseDriverNum = parseInt(startDriverId.split('-')[1]);
+      let saved = false;
+      let lastError: any = null;
 
-        const driversToInsert = ordersWithDrivers.map((order, index) => {
-          const currentDriverId = `R-${(baseDriverNum + index).toString().padStart(4, '0')}`;
+      for (let attempt = 0; attempt < 5 && !saved; attempt++) {
+        const baseNum = (await maxRecordNumber('app_lpos_ORDERS')) + 1;
+
+        const tempIdToOrderId: Record<string, string> = {};
+        const ordersToInsert = pendingOrders.map(({ tempId, customerName, driverId, driverName, DRIVER_ID, ...rest }, index) => {
+          const currentPkId = `R-${(baseNum + index).toString().padStart(4, '0')}`;
+          const currentOrderId = `ONI-${(baseNum + index).toString().padStart(4, '0')}`;
+          tempIdToOrderId[tempId] = currentOrderId;
+
+          const orderDateVal = rest.ORDER_DATE
+            ? new Date(rest.ORDER_DATE).toISOString()
+            : new Date().toISOString();
+
           return {
-            ID: currentDriverId,
-            ORDER_ID: tempIdToOrderId[order.tempId],
-            DRIVERS_NAME: order.driverId,
-            STATUS: 'Dispatched',
-            DISPATCH_TIME: new Date().toISOString()
+            ...rest,
+            ID: currentPkId,
+            ORDER_ID: currentOrderId,
+            AMOUNT: parseFloat(rest.AMOUNT) || 0,
+            ORDER_DATE: orderDateVal,
+            STATUS: 'Approved'
           };
         });
+
+        const { error: orderError } = await bhs_supabas
+          .from('app_lpos_ORDERS')
+          .insert(ordersToInsert);
+
+        if (orderError) {
+          lastError = orderError;
+          if (orderError.code === '23505') continue; // numbers taken meanwhile -> retry
+          throw orderError;
+        }
+
+        if (ordersWithDrivers.length === 0) {
+          saved = true;
+          break;
+        }
+
+        const baseDriverNum = (await maxRecordNumber('app_lpos_DRIVERS')) + 1;
+        const driversToInsert = ordersWithDrivers.map((order, index) => ({
+          ID: `R-${(baseDriverNum + index).toString().padStart(4, '0')}`,
+          ORDER_ID: tempIdToOrderId[order.tempId],
+          DRIVERS_NAME: order.driverId,
+          STATUS: 'Dispatched',
+          DISPATCH_TIME: new Date().toISOString()
+        }));
 
         const { error: driverError } = await bhs_supabas
           .from('app_lpos_DRIVERS')
           .insert(driversToInsert);
 
-        if (driverError) throw driverError;
+        if (driverError) {
+          // Undo the orders of this attempt
+          await bhs_supabas.from('app_lpos_ORDERS').delete().in('ID', ordersToInsert.map(o => o.ID));
+          lastError = driverError;
+          if (driverError.code === '23505') continue;
+          throw new Error(`${driverError.message} — no orders were saved, please try again.`);
+        }
+
+        saved = true;
+      }
+
+      if (!saved) {
+        throw new Error((lastError?.message || 'Could not reserve order numbers') + ' — no orders were saved, please try again.');
       }
 
       toast.success(`${pendingOrders.length} Orders created successfully!`);

@@ -152,33 +152,33 @@ export function Sidebar({ activeTab, setActiveTab, isCollapsed, onToggleCollapse
       )}
 
       <div className={`p-3 mt-auto shrink-0 border-t border-white/5 flex ${isCollapsed ? 'flex-col gap-3' : 'gap-2'}`}>
-        <button
-          onClick={() => {
-            window.dispatchEvent(new Event('refresh-financial-model'));
-            import('@/app/Components/Notification').then(({ toast }) => {
-              toast.success('Module refreshed successfully');
-            });
-          }}
-          className="flex-1 flex items-center justify-center p-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/5 transition-all"
-          title="Refresh Module"
-        >
-          <RefreshCw className="w-5 h-5" />
-        </button>
-        <button
-          onClick={() => setIsFilterModalOpen(true)}
-          className="flex-1 flex items-center justify-center p-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/5 transition-all"
-          title="Global Date Filters"
-        >
-          <Filter className="w-5 h-5" />
-        </button>
-        <button
-          onClick={onToggleCollapse}
-          className="flex-1 hidden lg:flex items-center justify-center p-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/5 transition-all"
-          title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
-        >
-          {isCollapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
-        </button>
-      </div>
+                  <button
+                    onClick={onToggleCollapse}
+                    className="flex-1 hidden lg:flex items-center justify-center p-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/5 transition-all"
+                    title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+                  >
+                    {isCollapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
+                  </button>
+                  <button
+                    onClick={() => setIsFilterModalOpen(true)}
+                    className="flex-1 flex items-center justify-center p-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/5 transition-all"
+                    title="Global Date Filters"
+                  >
+                    <Filter className="w-5 h-5" />
+                  </button>
+                  <button
+                    onClick={() => {
+                      window.dispatchEvent(new Event('refresh-financial-model'));
+                      import('@/app/Components/Notification').then(({ toast }) => {
+                        toast.success('Module refreshed successfully');
+                      });
+                    }}
+                    className="flex-1 flex items-center justify-center p-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/5 transition-all"
+                    title="Refresh Module"
+                  >
+                    <RefreshCw className="w-5 h-5" />
+                  </button>
+                </div>
 
       {isFilterModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">

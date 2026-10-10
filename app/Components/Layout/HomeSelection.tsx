@@ -120,6 +120,10 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
                  perms.systems.includes('cash-handling') ||
                  perms.systems.includes('vouchers');
         }
+        if (systemId === 'customers-analysis') {
+          // Admin Control grants this module as 'debit'
+          return perms.systems.includes('debit') || perms.systems.includes('customers-analysis');
+        }
         return perms.systems.includes(systemId);
       }
     } catch {

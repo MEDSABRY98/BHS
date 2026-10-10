@@ -23,7 +23,9 @@ import {
   ArrowLeft,
   FileX2,
   RefreshCw,
+  Filter,
 } from 'lucide-react';
+import LpoFilterModal from './Components/LpoFilterModal';
 import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
 
 function LpoRefreshButton() {
@@ -34,7 +36,7 @@ function LpoRefreshButton() {
       type="button"
       onClick={() => void refresh()}
       disabled={refreshing}
-      className={`relative flex items-center justify-center w-12 h-12 rounded-2xl transition-all duration-200 ${
+      className={`relative flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-200 shrink-0 ${
         refreshing
           ? 'bg-amber-600 text-white shadow-lg shadow-amber-950/40'
           : 'bg-white/5 text-slate-300 hover:text-white hover:bg-white/10 border border-white/10'
@@ -43,6 +45,34 @@ function LpoRefreshButton() {
     >
       <RefreshCw className={`w-5 h-5 ${refreshing ? 'animate-spin' : ''}`} />
     </button>
+  );
+}
+
+function LpoFilterButton() {
+  const { filters } = useLpoData();
+  const [open, setOpen] = useState(false);
+  const active =
+    Boolean(filters.dateFrom || filters.dateTo) ||
+    (filters.driver && filters.driver !== 'ALL') ||
+    (filters.status && filters.status !== 'ALL');
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className={`relative flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-200 cursor-pointer shrink-0 ${
+          active
+            ? 'bg-amber-600 text-white shadow-lg shadow-amber-950/40'
+            : 'bg-white/5 text-slate-300 hover:text-white hover:bg-white/10 border border-white/10'
+        }`}
+        title="Filters"
+      >
+        <Filter className="w-5 h-5" />
+        {active && <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-white" />}
+      </button>
+      <LpoFilterModal open={open} onClose={() => setOpen(false)} />
+    </>
   );
 }
 
@@ -251,16 +281,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           ))}
         </nav>
 
-        <div className="p-4 border-t border-white/5 mt-auto flex flex-col items-center gap-3 shrink-0">
-          <LpoRefreshButton />
-          <button
-            onClick={toggleSidebar}
-            className="flex items-center justify-center w-10 h-10 hover:bg-white/10 rounded-xl transition-all duration-200 text-slate-400"
-            title={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
-          >
-            {isCollapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
-          </button>
-        </div>
+        <div className={`p-4 border-t border-white/5 mt-auto flex ${isCollapsed ? 'flex-col items-center' : 'flex-row justify-center items-center'} gap-2 shrink-0`}>
+                          <button
+                              onClick={toggleSidebar}
+                              className="flex items-center justify-center w-10 h-10 hover:bg-white/10 rounded-xl transition-all duration-200 text-slate-400"
+                              title={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
+                            >
+                              {isCollapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
+                            </button>
+                          <LpoFilterButton />
+                          <LpoRefreshButton />
+                        </div>
       </aside>
 
       {/* Main Content Area - Shifted by Sidebar Width on Desktop */}
@@ -327,7 +358,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             ))}
           </nav>
 
-          <div className="p-4 border-t border-white/5 mt-auto flex justify-center shrink-0">
+          <div className="p-4 border-t border-white/5 mt-auto flex justify-center gap-3 shrink-0">
+            <LpoFilterButton />
             <LpoRefreshButton />
           </div>
         </aside>

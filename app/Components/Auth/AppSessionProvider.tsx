@@ -21,23 +21,25 @@ export type SessionUser = {
 
 const SessionContext = createContext<SessionUser>(null);
 
-const PATH_SYSTEMS = [
-  { prefix: '/CashReceipt', id: 'cash-receipt' },
-  { prefix: '/CashHandover', id: 'cash-handover' },
-  { prefix: '/DocumentsTracking', id: 'documents-tracking' },
-  { prefix: '/CustomersSummaries', id: 'customers-summaries' },
-  { prefix: '/DebitInsights', id: 'debit_insights' },
-  { prefix: '/Debit', id: 'debit' },
-  { prefix: '/CustomersDocuments', id: 'customers-documents' },
+// URL guard: a page opens only if the user has ONE of the listed system ids.
+const PATH_SYSTEMS: { prefix: string; ids: string[] }[] = [
+  { prefix: '/Vouchers', ids: ['cash-receipt', 'cash-handover', 'cash-handling', 'vouchers'] },
+  { prefix: '/DocumentsTracking', ids: ['documents-tracking'] },
+  { prefix: '/CustomersAnalysis', ids: ['debit', 'customers-analysis'] },
+  { prefix: '/SuppliersAnalysis', ids: ['suppliers-analysis'] },
+  { prefix: '/PaymentAnalysis', ids: ['payment-analysis'] },
+  { prefix: '/CustomersDocuments', ids: ['customers-documents'] },
+  { prefix: '/FinancialModel', ids: ['financial-model'] },
+  { prefix: '/PurchasePlanning', ids: ['purchase-planning'] },
 
-  { prefix: '/InventoryItemCode', id: 'inventory-item-code' },
-  { prefix: '/InventoryCounting', id: 'inventory-counting' },
-  { prefix: '/InventoryScrap', id: 'inventory-scrap' },
-  { prefix: '/PurchasePriceTracking', id: 'purchase-price-tracking' },
-  { prefix: '/Sales', id: 'sales' },
-  { prefix: '/LPOs', id: 'lpo-management' },
-  { prefix: '/DataBase', id: 'database' },
-  { prefix: '/CustomersDiscounts', id: 'customers-discounts' },
+  { prefix: '/InventoryItemCode', ids: ['inventory-item-code'] },
+  { prefix: '/InventoryCounting', ids: ['inventory-counting'] },
+  { prefix: '/InventoryScrap', ids: ['inventory-scrap'] },
+  { prefix: '/PurchasePriceTracking', ids: ['purchase-price-tracking'] },
+  { prefix: '/Sales', ids: ['sales'] },
+  { prefix: '/LPOs', ids: ['lpo-management'] },
+  { prefix: '/DataBase', ids: ['database'] },
+  { prefix: '/CustomersDiscounts', ids: ['customers-discounts'] },
 ].sort((a, b) => b.prefix.length - a.prefix.length);
 
 function readStoredUser(): SessionUser {
@@ -50,11 +52,11 @@ function readStoredUser(): SessionUser {
   }
 }
 
-function resolveSystemId(pathname: string): string | null {
+function resolveSystemIds(pathname: string): string[] | null {
   if (!pathname || pathname === '/') return null;
   if (pathname === '/AdminControl' || pathname.startsWith('/AdminControl/')) return null;
   const match = PATH_SYSTEMS.find((route) => pathname === route.prefix || pathname.startsWith(`${route.prefix}/`));
-  return match?.id ?? null;
+  return match?.ids ?? null;
 }
 
 function isUnrestricted(user: SessionUser): boolean {
@@ -66,13 +68,13 @@ function isUnrestricted(user: SessionUser): boolean {
   return false;
 }
 
-function isSystemAllowed(user: SessionUser, systemId: string): boolean {
+function isSystemAllowed(user: SessionUser, systemIds: string[]): boolean {
   if (!user || isUnrestricted(user)) return true;
   try {
     const roleStr = String(user.role || '').trim();
     if (!roleStr) return true;
     const perms = JSON.parse(roleStr);
-    if (Array.isArray(perms.systems)) return perms.systems.includes(systemId);
+    if (Array.isArray(perms.systems)) return systemIds.some((id) => perms.systems.includes(id));
   } catch {
     return true;
   }
@@ -99,7 +101,7 @@ export function AppSessionProvider({ children }: { children: React.ReactNode }) 
   const applyUser = useCallback((next: SessionUser) => {
     const prev = userRef.current;
     if (sessionFingerprint(prev) === sessionFingerprint(next)) {
-      const systemId = resolveSystemId(pathnameRef.current);
+      const systemId = resolveSystemIds(pathnameRef.current);
       if (systemId && next && !isSystemAllowed(next, systemId)) {
         router.replace('/');
       }
@@ -118,7 +120,7 @@ export function AppSessionProvider({ children }: { children: React.ReactNode }) 
       }
     }
 
-    const systemId = resolveSystemId(pathnameRef.current);
+    const systemId = resolveSystemIds(pathnameRef.current);
     if (systemId && next && !isSystemAllowed(next, systemId)) {
       router.replace('/');
     }
@@ -196,7 +198,7 @@ export function AppSessionProvider({ children }: { children: React.ReactNode }) 
   }, [syncFromDb, ready]);
 
   useEffect(() => {
-    const systemId = resolveSystemId(pathname);
+    const systemId = resolveSystemIds(pathname);
     if (systemId && user && !isSystemAllowed(user, systemId)) {
       router.replace('/');
     }

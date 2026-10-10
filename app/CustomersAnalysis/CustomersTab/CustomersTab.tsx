@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -46,6 +46,7 @@ import {
 import { generateSingleCustomerExcelBlob } from './CustomersExcelEmails';
 import { useDebouncedValue } from '../Hooks/useDebouncedValue';
 import { useDebitData } from '../Context/DebitDataContext';
+import { buildInvoicesByCustomer } from '../Utils/DebitIndexes';
 
 interface CustomersTabProps {
   data: InvoiceRow[];
@@ -64,7 +65,24 @@ export default function CustomersTab({
   initialCustomer,
   onCustomerToggle,
 }: CustomersTabProps) {
-  const { getCustomerInvoices } = useDebitData();
+  const { getCustomerInvoices: getAllCustomerInvoices, globalFilters } = useDebitData();
+
+  // Statements / emails / ZIP must follow the date range chosen in the Filters modal.
+  // `data` is already filtered by that range, so use it whenever a range is set.
+  const globalDateFrom = globalFilters.dateFrom || '';
+  const globalDateTo = globalFilters.dateTo || '';
+  const hasGlobalDateRange = Boolean(globalDateFrom || globalDateTo);
+  const filteredInvoicesByCustomer = useMemo(() => buildInvoicesByCustomer(data), [data]);
+  const getCustomerInvoices = useCallback(
+    (customerName: string) =>
+      hasGlobalDateRange ? filteredInvoicesByCustomer.get(customerName) || [] : getAllCustomerInvoices(customerName),
+    [hasGlobalDateRange, filteredInvoicesByCustomer, getAllCustomerInvoices],
+  );
+  const buildStatementLabel = (effectiveDate?: string) => {
+    if (globalDateFrom && effectiveDate) return `From ${formatDmy(new Date(globalDateFrom))} To ${formatDmy(new Date(effectiveDate))}`;
+    if (globalDateFrom) return `From ${formatDmy(new Date(globalDateFrom))}`;
+    return effectiveDate ? `Up To ${formatDmy(new Date(effectiveDate))}` : 'All Months (Net Only)';
+  };
   // --- States ---
   const [sorting, setSorting] = useState<SortingState>([]);
   const [viewMode, setViewMode] = useState<'DEFAULT' | 'SUMMARY' | 'YEARLY' | 'NO TAGS' | 'TAGS ONLY'>('DEFAULT');
@@ -205,20 +223,21 @@ export default function CustomersTab({
         const customerInvoices = getCustomerInvoices(customerName);
         if (customerInvoices.length === 0) continue;
 
-        let netOnlyInvoices = toNetOnlyOpenInvoicesForExport(buildInvoicesWithNetDebtForExport(customerInvoices));
-
+        let filteredInvoices = customerInvoices;
         if (effectiveDate) {
           const limitDate = new Date(effectiveDate);
           limitDate.setHours(23, 59, 59, 999);
-          netOnlyInvoices = netOnlyInvoices.filter(inv => {
+          filteredInvoices = filteredInvoices.filter(inv => {
             const rowDate = parseDate(inv.date);
             return !rowDate || rowDate <= limitDate;
           });
         }
 
+        let netOnlyInvoices = toNetOnlyOpenInvoicesForExport(buildInvoicesWithNetDebtForExport(filteredInvoices));
+
         if (netOnlyInvoices.length === 0) continue;
 
-        const dateLabel = effectiveDate ? `Up To ${formatDmy(new Date(effectiveDate))}` : 'All Months (Net Only)';
+        const dateLabel = buildStatementLabel(effectiveDate);
         const cleanName = customerName.replace(/[^a-zA-Z0-9\u0600-\u06FF \-_]/g, '').trim();
 
         if (exportFormat === 'pdf' || exportFormat === 'both') {
@@ -272,9 +291,7 @@ export default function CustomersTab({
       const zip = new JSZip();
       let count = 0;
       const normalize = (s: any) => String(s || '').toLowerCase().trim().replace(/\s+/g, ' ');
-      const dateLabel = effectiveDate
-        ? `Up To ${formatDmy(new Date(effectiveDate))}`
-        : 'All Months (Net Only)';
+      const dateLabel = buildStatementLabel(effectiveDate);
       const asOfText = effectiveDate ? ` as of ${formatDmy(new Date(effectiveDate))}` : '';
       const shortInvoice = isShort ?? true;
       const subject = 'Statement of Account - Al Marai Al Arabia Trading Sole Proprietorship L.L.C';
@@ -283,18 +300,19 @@ export default function CustomersTab({
         const customerInvoices = getCustomerInvoices(customerName);
         if (customerInvoices.length === 0) return null;
 
-        let netOnlyInvoices = toNetOnlyOpenInvoicesForExport(
-          buildInvoicesWithNetDebtForExport(customerInvoices)
-        );
-
+        let filteredInvoices = customerInvoices;
         if (effectiveDate) {
           const limitDate = new Date(effectiveDate);
           limitDate.setHours(23, 59, 59, 999);
-          netOnlyInvoices = netOnlyInvoices.filter((inv) => {
+          filteredInvoices = filteredInvoices.filter((inv) => {
             const rowDate = parseDate(inv.date);
             return !rowDate || rowDate <= limitDate;
           });
         }
+
+        let netOnlyInvoices = toNetOnlyOpenInvoicesForExport(
+          buildInvoicesWithNetDebtForExport(filteredInvoices)
+        );
 
         if (netOnlyInvoices.length === 0) return null;
 
@@ -551,21 +569,22 @@ export default function CustomersTab({
         const customerInvoices = getCustomerInvoices(customerName);
         if (customerInvoices.length === 0) continue;
 
-        let netOnlyInvoices = toNetOnlyOpenInvoicesForExport(buildInvoicesWithNetDebtForExport(customerInvoices));
-
+        let filteredInvoices = customerInvoices;
         if (effectiveDate) {
           const limitDate = new Date(effectiveDate);
           limitDate.setHours(23, 59, 59, 999);
-          netOnlyInvoices = netOnlyInvoices.filter(inv => {
+          filteredInvoices = filteredInvoices.filter(inv => {
             const rowDate = parseDate(inv.date);
             return !rowDate || rowDate <= limitDate;
           });
         }
 
+        let netOnlyInvoices = toNetOnlyOpenInvoicesForExport(buildInvoicesWithNetDebtForExport(filteredInvoices));
+
         if (netOnlyInvoices.length === 0) continue;
 
         const netDebt = netOnlyInvoices.reduce((sum, inv) => sum + (inv.netDebt || 0), 0);
-        const dateLabel = effectiveDate ? `Up To ${formatDmy(new Date(effectiveDate))}` : 'All Months (Net Only)';
+        const dateLabel = buildStatementLabel(effectiveDate);
 
         let pdfBase64 = '';
         if (exportFormat === 'pdf' || exportFormat === 'both') {
@@ -830,7 +849,7 @@ export default function CustomersTab({
           setSelectedCustomer(null);
           if (onCustomerToggle) onCustomerToggle(false);
         }}
-        invoices={getCustomerInvoices(selectedCustomer)}
+        invoices={getAllCustomerInvoices(selectedCustomer)}
       />
     );
   }
@@ -1039,9 +1058,10 @@ export default function CustomersTab({
         onConfirm={(isShort, format) => {
           const action = statementModalAction;
           setStatementModalAction(null);
-          if (action === 'EMAIL') handleBulkEmail(emailStatementDate, isShort, format);
-          else if (action === 'ZIP') handleBulkZIPDownload(emailStatementDate, isShort, format);
-          else if (action === 'EMAIL_LULU') handleBulkLuluEmail(emailStatementDate, isShort, format);
+          const statementDate = globalDateTo || emailStatementDate;
+          if (action === 'EMAIL') handleBulkEmail(statementDate, isShort, format);
+          else if (action === 'ZIP') handleBulkZIPDownload(statementDate, isShort, format);
+          else if (action === 'EMAIL_LULU') handleBulkLuluEmail(statementDate, isShort, format);
         }}
         isProcessing={isDownloading}
       />

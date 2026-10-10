@@ -1,5 +1,6 @@
 'use server';
-import { requireSession } from '@/lib/session';
+import { requireSession, getSessionUser, isAdminUser, UnauthorizedError } from '@/lib/session';
+import { getSupabaseAdmin } from '@/lib/supabaseAdmin';
 
 import { bhs_supabase, getSheetData } from '@/lib/supabase';
 import { InvoiceRow } from '@/types';
@@ -28,6 +29,80 @@ export interface DebitCustomersSummaryRow {
   netDebt: number;
   transactionCount: number;
   lastTransactionDate: string | null;
+}
+
+// ─────────────────────────────────────────────────────────────
+//  Tab permissions (same rules as the sidebar: role JSON -> debit / debit_tabs)
+// ─────────────────────────────────────────────────────────────
+async function requireDebitTab(...tabIds: string[]) {
+  const user = await getSessionUser();
+  if (!user) throw new UnauthorizedError('Your session has expired. Please log in again.');
+  if (isAdminUser(user)) return user;
+  try {
+    const perms = JSON.parse(String(user.role || '').trim() || '{}');
+    const allowed = perms?.debit || perms?.debit_tabs;
+    if (Array.isArray(allowed) && !tabIds.some((id) => allowed.includes(id))) {
+      throw new UnauthorizedError("You don't have permission for this action.");
+    }
+  } catch (err) {
+    if (err instanceof UnauthorizedError) throw err;
+    // unparsable role -> full access (same as the UI)
+  }
+  return user;
+}
+
+const db = () => getSupabaseAdmin();
+
+/** Customer Terms: save payment term / credit limit / status (+ same payment term for the customer's main name and tag). */
+export async function updateCustomerTerms(input: {
+  customerId: string;
+  paymentTerm: number;
+  creditLimit: number;
+  accountStatus: string;
+}): Promise<{ success: true } | { success: false; error: string }> {
+  try {
+    await requireDebitTab('credit-limit');
+    const customerId = String(input.customerId || '').trim();
+    if (!customerId) return { success: false, error: 'Customer ID is missing' };
+
+    const paymentTerm = Number(input.paymentTerm);
+    const creditLimit = Number(input.creditLimit);
+    if (!Number.isFinite(paymentTerm) || paymentTerm < 0) return { success: false, error: 'Invalid payment term' };
+    if (!Number.isFinite(creditLimit) || creditLimit < 0) return { success: false, error: 'Invalid credit limit' };
+    const accountStatus = input.accountStatus === 'ON_HOLD' ? 'ON_HOLD' : 'ACTIVE';
+
+    const { data: cust, error: fetchErr } = await db()
+      .from('bhs_CUSTOMERS')
+      .select('"CUSTOMER MAIN NAME", "CUSTOMER TAG"')
+      .eq('CUSTOMER ID', customerId)
+      .limit(1)
+      .maybeSingle();
+    if (fetchErr) throw fetchErr;
+    if (!cust) return { success: false, error: 'Customer not found' };
+
+    const { data: updated, error: updErr } = await db()
+      .from('bhs_CUSTOMERS')
+      .update({ 'PAYMENT TERM': paymentTerm, 'CREDIT LIMIT': creditLimit, 'ACCOUNT STATUS': accountStatus })
+      .eq('CUSTOMER ID', customerId)
+      .select('"CUSTOMER ID"');
+    if (updErr) throw updErr;
+    if (!updated || updated.length === 0) return { success: false, error: 'Nothing was saved (no permission on the customers table?)' };
+
+    const mainName = String(cust['CUSTOMER MAIN NAME'] || '').trim();
+    if (mainName) {
+      const { error } = await db().from('bhs_CUSTOMERS').update({ 'PAYMENT TERM': paymentTerm }).eq('CUSTOMER MAIN NAME', mainName);
+      if (error) throw error;
+    }
+    const tag = String(cust['CUSTOMER TAG'] || '').trim();
+    if (tag) {
+      const { error } = await db().from('bhs_CUSTOMERS').update({ 'PAYMENT TERM': paymentTerm }).eq('CUSTOMER TAG', tag);
+      if (error) throw error;
+    }
+    return { success: true };
+  } catch (error: unknown) {
+    console.error('Error in updateCustomerTerms:', error);
+    return { success: false, error: error instanceof Error ? error.message : (error as any)?.message || 'Failed to update customer terms' };
+  }
 }
 
 function mapDebitRpcRow(row: Record<string, unknown>): InvoiceRow {
@@ -275,17 +350,17 @@ async function bulkInsertChunks(
 ): Promise<void> {
   for (let i = 0; i < rows.length; i += chunkSize) {
     const chunk = rows.slice(i, i + chunkSize);
-    const { error } = await bhs_supabase.from(table).insert(chunk);
+    const { error } = await db().from(table).insert(chunk);
     if (error) throw error;
   }
 }
 
 export async function generateNextPaymentReconciliationId(): Promise<string> {
-  await requireSession();
+  await requireDebitTab('payment-reconciliation');
   const year = new Date().getFullYear();
   const prefix = `PR-${year}-`;
 
-  const { data, error } = await bhs_supabase
+  const { data, error } = await db()
     .from(PR_HEADER_TABLE)
     .select('SESSION_ID')
     .like('SESSION_ID', `${prefix}%`)
@@ -310,8 +385,8 @@ export async function savePaymentReconciliationSession(input: {
   header: PaymentReconciliationSaveHeader;
   lines: PaymentReconciliationSaveLine[];
 }) {
-  await requireSession();
   try {
+    await requireDebitTab('payment-reconciliation');
     const lines = input.lines.filter(
       (line) => line.customerId.trim() && line.invoiceNumber.trim() && Number.isFinite(line.appliedAmount),
     );
@@ -326,12 +401,11 @@ export async function savePaymentReconciliationSession(input: {
 
     const existingId = input.sessionId?.trim() || '';
     const isUpdate = Boolean(existingId);
-    const sessionId = isUpdate ? existingId : await generateNextPaymentReconciliationId();
     const savedAt = new Date().toISOString();
     const paymentDate = input.header.paymentDate?.trim() || null;
     const customersId = [...new Set(input.header.customersId.map((id) => id.trim()).filter(Boolean))];
 
-    const headerRow = {
+    const buildHeader = (sessionId: string) => ({
       SESSION_ID: sessionId,
       PAYMENT_DATE: paymentDate,
       PAYMENT_AMOUNT: input.header.paymentAmount,
@@ -341,57 +415,85 @@ export async function savePaymentReconciliationSession(input: {
       CUSTOMERS_ID: customersId,
       REMAINDER_NOTE: input.header.remainderNote?.trim() || null,
       SAVED_AT: savedAt,
-    };
+    });
+
+    const buildLines = (sessionId: string) =>
+      lines.map((line, index) => ({
+        SESSION_ID: sessionId,
+        LINE_NO: index + 1,
+        CUSTOMER_ID: line.customerId.trim(),
+        INVOICE_NUMBER: line.invoiceNumber.trim(),
+        OPEN_AMOUNT: line.openAmount,
+        APPLIED_AMOUNT: line.appliedAmount,
+        REMAINING_AMOUNT: line.remainingAmount,
+      }));
+
+    let sessionId = existingId;
 
     if (isUpdate) {
-      const { error: deleteLinesError } = await bhs_supabase
-        .from(PR_LINES_TABLE)
-        .delete()
-        .eq('SESSION_ID', sessionId);
+      // Keep a copy of the old lines so they can be put back if saving the new ones fails
+      const { data: oldLines, error: oldErr } = await db().from(PR_LINES_TABLE).select('*').eq('SESSION_ID', sessionId);
+      if (oldErr) throw oldErr;
+      const { data: oldHeader, error: oldHeaderErr } = await db().from(PR_HEADER_TABLE).select('*').eq('SESSION_ID', sessionId).maybeSingle();
+      if (oldHeaderErr) throw oldHeaderErr;
+      if (!oldHeader) return { success: false as const, error: 'This reconciliation no longer exists' };
 
+      const { error: deleteLinesError } = await db().from(PR_LINES_TABLE).delete().eq('SESSION_ID', sessionId);
       if (deleteLinesError) throw deleteLinesError;
 
-      const { error: updateError } = await bhs_supabase
-        .from(PR_HEADER_TABLE)
-        .update(headerRow)
-        .eq('SESSION_ID', sessionId);
-
-      if (updateError) throw updateError;
+      try {
+        await bulkInsertChunks(PR_LINES_TABLE, buildLines(sessionId));
+        const { error: updateError } = await db().from(PR_HEADER_TABLE).update(buildHeader(sessionId)).eq('SESSION_ID', sessionId);
+        if (updateError) throw updateError;
+      } catch (err) {
+        // Roll back: restore the previous lines and header
+        await db().from(PR_LINES_TABLE).delete().eq('SESSION_ID', sessionId);
+        if (oldLines?.length) await bulkInsertChunks(PR_LINES_TABLE, oldLines as Record<string, unknown>[]).catch(() => undefined);
+        await db().from(PR_HEADER_TABLE).update(oldHeader).eq('SESSION_ID', sessionId);
+        throw err;
+      }
     } else {
-      const { error: insertHeaderError } = await bhs_supabase.from(PR_HEADER_TABLE).insert(headerRow);
-      if (insertHeaderError) throw insertHeaderError;
+      // New: reserve the next number (retry if someone else took it at the same moment)
+      let inserted = false;
+      for (let attempt = 0; attempt < 5 && !inserted; attempt++) {
+        sessionId = await generateNextPaymentReconciliationId();
+        const { error } = await db().from(PR_HEADER_TABLE).insert(buildHeader(sessionId));
+        if (!error) inserted = true;
+        else if (error.code !== '23505') throw error;
+      }
+      if (!inserted) throw new Error('Could not reserve a reconciliation number, please try again');
+
+      try {
+        // Clear any leftover lines with this number (from an old deleted session)
+        const { error: clearErr } = await db().from(PR_LINES_TABLE).delete().eq('SESSION_ID', sessionId);
+        if (clearErr) throw clearErr;
+        await bulkInsertChunks(PR_LINES_TABLE, buildLines(sessionId));
+      } catch (err) {
+        // Don't leave an empty header behind
+        await db().from(PR_LINES_TABLE).delete().eq('SESSION_ID', sessionId);
+        await db().from(PR_HEADER_TABLE).delete().eq('SESSION_ID', sessionId);
+        throw err;
+      }
     }
-
-    const dbLines = lines.map((line, index) => ({
-      SESSION_ID: sessionId,
-      LINE_NO: index + 1,
-      CUSTOMER_ID: line.customerId.trim(),
-      INVOICE_NUMBER: line.invoiceNumber.trim(),
-      OPEN_AMOUNT: line.openAmount,
-      APPLIED_AMOUNT: line.appliedAmount,
-      REMAINING_AMOUNT: line.remainingAmount,
-    }));
-
-    await bulkInsertChunks(PR_LINES_TABLE, dbLines);
 
     return {
       success: true as const,
       sessionId,
-      rowCount: dbLines.length,
+      rowCount: lines.length,
       savedAt,
       updated: isUpdate,
     };
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Failed to save payment reconciliation session';
+    const message = error instanceof Error ? error.message : (error as any)?.message || 'Failed to save payment reconciliation session';
     console.error('Error in savePaymentReconciliationSession:', error);
     return { success: false as const, error: message };
   }
 }
 
 export async function fetchPaymentReconciliationSessions() {
-  await requireSession();
+  await requireDebitTab('payment-reconciliation', 'payment-reconciliation-saved');
   try {
-    const { data: headers, error: headerError } = await bhs_supabase
+    const { data: headers, error: headerError } = await db()
       .from(PR_HEADER_TABLE)
       .select('SESSION_ID, PAYMENT_DATE, PAYMENT_AMOUNT, DISCOUNT_AMOUNT, RETURN_AMOUNT, PAYMENT_REFERENCE, CUSTOMERS_ID, SAVED_AT')
       .order('SAVED_AT', { ascending: false });
@@ -431,14 +533,14 @@ export async function fetchPaymentReconciliationSessions() {
 }
 
 export async function fetchPaymentReconciliationSession(sessionId: string) {
-  await requireSession();
+  await requireDebitTab('payment-reconciliation', 'payment-reconciliation-saved');
   try {
     const id = sessionId.trim();
     if (!id) {
       return { success: false as const, error: 'Session ID is required' };
     }
 
-    const { data: headerRows, error: headerError } = await bhs_supabase
+    const { data: headerRows, error: headerError } = await db()
       .from(PR_HEADER_TABLE)
       .select('SESSION_ID, PAYMENT_DATE, PAYMENT_AMOUNT, DISCOUNT_AMOUNT, RETURN_AMOUNT, PAYMENT_REFERENCE, CUSTOMERS_ID, REMAINDER_NOTE, SAVED_AT')
       .eq('SESSION_ID', id)
@@ -451,7 +553,7 @@ export async function fetchPaymentReconciliationSession(sessionId: string) {
       return { success: false as const, error: 'Payment reconciliation session not found' };
     }
 
-    const { data: lineRows, error: lineError } = await bhs_supabase
+    const { data: lineRows, error: lineError } = await db()
       .from(PR_LINES_TABLE)
       .select('LINE_NO, CUSTOMER_ID, INVOICE_NUMBER, OPEN_AMOUNT, APPLIED_AMOUNT, REMAINING_AMOUNT')
       .eq('SESSION_ID', id)
@@ -490,14 +592,17 @@ export async function fetchPaymentReconciliationSession(sessionId: string) {
 }
 
 export async function deletePaymentReconciliationSession(sessionId: string) {
-  await requireSession();
   try {
-    const id = sessionId.trim();
+    await requireDebitTab('payment-reconciliation-saved', 'payment-reconciliation');
+    const id = String(sessionId || '').trim();
     if (!id) {
       return { success: false as const, error: 'Session ID is required' };
     }
 
-    const { error } = await bhs_supabase.from(PR_HEADER_TABLE).delete().eq('SESSION_ID', id);
+    // Lines first, then the header — nothing is left behind
+    const { error: linesError } = await db().from(PR_LINES_TABLE).delete().eq('SESSION_ID', id);
+    if (linesError) throw linesError;
+    const { error } = await db().from(PR_HEADER_TABLE).delete().eq('SESSION_ID', id);
     if (error) throw error;
 
     return { success: true as const };

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowDownLeft, ArrowUpRight, CalendarDays, Hash, Loader2, Plus, Printer, RotateCcw, Save, Trash2, X } from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight, CalendarDays, Hash, Loader2, Plus, Printer, RotateCcw, Save, Trash2, X, Edit } from 'lucide-react';
 import { toast } from '@/app/Components/Notification';
 import {
   getNextVoucherNumber,
@@ -127,7 +127,34 @@ export default function VoucherEntry({ permissions, currentUserName, editVoucher
   const [invoiceInput, setInvoiceInput] = useState('');
   const [saving, setSaving] = useState<false | 'save' | 'print'>(false);
   const [suggestions, setSuggestions] = useState<{ parties: string[]; via: string[]; customers: string[] }>({ parties: [], via: [], customers: [] });
-  const invoiceRef = useRef<HTMLInputElement>(null);
+  
+  const [isLineModalOpen, setIsLineModalOpen] = useState(false);
+  const [editingLineIndex, setEditingLineIndex] = useState<number | null>(null);
+  const [lineForm, setLineForm] = useState<LineRow>({ ref: '', party: '', amount: '' });
+
+  const openLineModal = (index: number | null) => {
+    if (index !== null) {
+      setEditingLineIndex(index);
+      setLineForm(lines[index]);
+    } else {
+      setEditingLineIndex(null);
+      setLineForm({ ref: '', party: '', amount: '' });
+    }
+    setIsLineModalOpen(true);
+  };
+
+  const saveLineModal = () => {
+    if (!lineForm.ref.trim()) {
+      toast.error('Invoice No. is required');
+      return;
+    }
+    if (editingLineIndex !== null) {
+      updateLine(editingLineIndex, lineForm);
+    } else {
+      setLines(prev => [...prev, lineForm]);
+    }
+    setIsLineModalOpen(false);
+  };
 
   const isEditing = !!editVoucher;
   const L = VOUCHER_LABELS[type];
@@ -356,93 +383,61 @@ export default function VoucherEntry({ permissions, currentUserName, editVoucher
 
         {/* Invoices */}
         <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="mb-4 flex items-end justify-between gap-4">
+          <div className="flex items-center justify-between gap-4">
             <div>
               <h3 className="text-lg font-black tracking-tight text-slate-900">Invoices</h3>
-              <p className="text-xs font-medium text-slate-400">Type or paste invoice numbers (Enter, comma or new line). Customer and amount are optional.</p>
             </div>
-            {lines.length > 0 && (
-              <button type="button" onClick={() => setLines([])} className="text-xs font-bold text-slate-400 hover:text-rose-600">Clear all</button>
-            )}
-          </div>
-
-          <div className="flex gap-2">
-            <input
-              ref={invoiceRef}
-              value={invoiceInput}
-              onChange={(e) => setInvoiceInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ',') {
-                  e.preventDefault();
-                  addInvoices(invoiceInput);
-                }
-              }}
-              onPaste={(e) => {
-                const text = e.clipboardData.getData('text');
-                if (/[\n,;\t]/.test(text)) {
-                  e.preventDefault();
-                  addInvoices(text);
-                }
-              }}
-              placeholder="e.g. SAL-10234"
-              className={inputCls}
-            />
-            <button type="button" onClick={() => addInvoices(invoiceInput)} className="flex items-center gap-1.5 rounded-xl bg-[#0f0f0f] px-5 text-sm font-bold text-[#D4AF37] hover:bg-black">
-              <Plus className="h-4 w-4" /> Add
-            </button>
+            <div className="flex gap-2 items-center">
+              {lines.length > 0 && (
+                <button type="button" onClick={() => setLines([])} className="text-xs font-bold text-slate-400 hover:text-rose-600">Clear all</button>
+              )}
+              <button type="button" onClick={() => openLineModal(null)} className="flex items-center gap-1.5 rounded-xl bg-[#0f0f0f] px-5 py-2.5 text-sm font-bold text-[#D4AF37] hover:bg-black transition">
+                <Plus className="h-4 w-4" /> Add Invoice
+              </button>
+            </div>
           </div>
 
           {lines.length > 0 && (
-            <div className="mt-4 rounded-2xl border border-slate-200 bg-white" style={{ overflow: 'visible' }}>
-              <table className="w-full text-sm">
-                <thead className="bg-slate-50 text-[11px] font-black uppercase tracking-wider text-slate-500">
-                  <tr>
-                    <th className="w-10 px-3 py-2.5 text-center rounded-tl-2xl">#</th>
-                    <th className="px-3 py-2.5 text-center">Invoice No.</th>
-                    <th className="px-3 py-2.5 text-center">Customer</th>
-                    <th className="w-40 px-3 py-2.5 text-center">Amount</th>
-                    <th className="w-10 rounded-tr-2xl" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {lines.map((l, i) => (
-                    <tr key={`${l.ref}-${i}`} className="border-t border-slate-100">
-                      <td className="px-3 py-2 text-center text-xs font-bold text-slate-400">{i + 1}</td>
-                      <td className="px-3 py-2 text-center">
-                        <input value={l.ref} onChange={(e) => updateLine(i, { ref: e.target.value })} className="w-full bg-transparent font-bold text-slate-900 outline-none text-center" />
-                      </td>
-                      <td className="px-3 py-2 text-center">
-                        <ComboboxInput
-                          value={l.party}
-                          onChange={(v) => updateLine(i, { party: v })}
-                          options={suggestions.customers}
-                          placeholder="—"
-                          className="w-full bg-transparent font-medium text-slate-700 outline-none placeholder:text-slate-300 text-center"
-                          dir="auto"
-                        />
-                      </td>
-                      <td className="px-3 py-2 text-center">
-                        <input type="number" inputMode="decimal" step="0.01" min="0" value={l.amount} onChange={(e) => updateLine(i, { amount: e.target.value })} placeholder="—" className="w-full bg-transparent text-center font-bold tabular-nums text-slate-900 outline-none placeholder:text-slate-300" />
-                      </td>
-                      <td className="px-2 py-2 text-center">
-                        <button type="button" onClick={() => setLines((p) => p.filter((_, idx) => idx !== i))} className="rounded-lg p-1.5 text-slate-300 hover:bg-rose-50 hover:text-rose-600">
+            <div className="mt-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {lines.map((l, i) => (
+                  <div key={`${l.ref}-${i}`} className="group relative flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-[#D4AF37] hover:shadow-md">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">#{i + 1}</span>
+                        <h4 className="text-[15px] font-bold text-slate-900">{l.ref}</h4>
+                      </div>
+                      <div className="flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                        <button type="button" onClick={() => openLineModal(i)} className="rounded-lg p-1.5 text-slate-400 hover:bg-[#FBF8EE] hover:text-[#D4AF37]">
+                          <Edit className="h-4 w-4" />
+                        </button>
+                        <button type="button" onClick={() => setLines(p => p.filter((_, idx) => idx !== i))} className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600">
                           <Trash2 className="h-4 w-4" />
                         </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-                {amountFromLines && (
-                  <tfoot className="bg-[#FBF8EE]">
-                    <tr className="border-t border-[#E9D9A3]">
-                      <td colSpan={3} className="px-3 py-2.5 text-center text-xs font-black uppercase tracking-wider text-[#A8861E] rounded-bl-2xl">Total</td>
-                      <td className="px-3 py-2.5 text-center font-black tabular-nums text-slate-900">{sumLines.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
-                      <td className="rounded-br-2xl" />
-                    </tr>
-                  </tfoot>
-                )}
-              </table>
-
+                      </div>
+                    </div>
+                    {l.party && (
+                      <div className="truncate text-sm font-semibold text-slate-600">
+                        {l.party}
+                      </div>
+                    )}
+                    {l.amount && (
+                      <div className="mt-1 text-[15px] font-black tabular-nums text-slate-900">
+                        {formatAED(Number(l.amount))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+              
+              {amountFromLines && (
+                <div className="mt-6 flex items-center justify-between rounded-2xl bg-[#FBF8EE] p-4 border border-[#E9D9A3]">
+                  <span className="text-sm font-black uppercase tracking-wider text-[#A8861E]">Total Invoices</span>
+                  <span className="text-xl font-black tabular-nums text-slate-900">
+                    {formatAED(sumLines)}
+                  </span>
+                </div>
+              )}
             </div>
           )}
         </section>
@@ -452,6 +447,83 @@ export default function VoucherEntry({ permissions, currentUserName, editVoucher
           <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} placeholder="What is this payment for?" className={`${inputCls} resize-y`} dir="auto" />
         </section>
       </div>
+
+      {isLineModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md overflow-visible rounded-[2rem] bg-white p-8 shadow-2xl">
+            <div className="mb-6 flex items-center justify-between">
+              <h2 className="text-2xl font-black tracking-tight text-slate-900">
+                {editingLineIndex !== null ? 'Edit Invoice' : 'Add Invoice'}
+              </h2>
+              <button onClick={() => setIsLineModalOpen(false)} className="rounded-xl p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            
+            <div className="space-y-5">
+              <div>
+                <label className={labelCls}>Invoice No. *</label>
+                <input
+                  autoFocus
+                  value={lineForm.ref}
+                  onChange={(e) => setLineForm(p => ({ ...p, ref: e.target.value }))}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') saveLineModal();
+                  }}
+                  placeholder="e.g. SAL-10234"
+                  className={inputCls}
+                />
+              </div>
+              
+              <div className="relative z-50">
+                <label className={labelCls}>Customer (Optional)</label>
+                <ComboboxInput
+                  value={lineForm.party}
+                  onChange={(v) => setLineForm(p => ({ ...p, party: v }))}
+                  options={suggestions.customers}
+                  placeholder="Select or type..."
+                  className={inputCls}
+                  dir="auto"
+                />
+              </div>
+
+              <div>
+                <label className={labelCls}>Amount (Optional)</label>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  step="0.01"
+                  min="0"
+                  value={lineForm.amount}
+                  onChange={(e) => setLineForm(p => ({ ...p, amount: e.target.value }))}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') saveLineModal();
+                  }}
+                  placeholder="0.00"
+                  className={inputCls}
+                />
+              </div>
+            </div>
+
+            <div className="mt-8 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setIsLineModalOpen(false)}
+                className="rounded-xl px-5 py-3 text-[15px] font-bold text-slate-500 hover:bg-slate-100 transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={saveLineModal}
+                className="rounded-xl bg-[#0f0f0f] px-6 py-3 text-[15px] font-bold text-[#D4AF37] shadow-lg hover:bg-black transition"
+              >
+                {editingLineIndex !== null ? 'Save Changes' : 'Add Invoice'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

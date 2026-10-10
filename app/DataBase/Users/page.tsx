@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { parseBoolFlag, toTextBoolFlag } from '@/lib/supabase';
-import { adminListUsers, adminSaveUser, adminDeleteUser } from '@/app/DataBase/Service/database_service';
+import { adminListUsers, adminSaveUser, adminDeleteUser, adminRevealPassword } from '@/app/DataBase/Service/database_service';
 import {
   Users,
   Search,
@@ -16,7 +16,9 @@ import {
   Loader2,
   Check,
   FilePenLine,
-  MapPin
+  MapPin,
+  Eye,
+  Copy,
 } from 'lucide-react';
 import { ConfirmModal } from '../../LPOs/Components/ConfirmModal';
 import NoData from '@/app/Components/DataState/NoDataTab';
@@ -44,6 +46,7 @@ export default function UsersPage() {
   const [ROLE, setROLE] = useState('user');
   const [USER_TYPE, setUSER_TYPE] = useState('Creator');
   const [PASSWORD, setPASSWORD] = useState('');
+  const [isRevealing, setIsRevealing] = useState(false);
   const [IS_IN_OFFICE, setIS_IN_OFFICE] = useState(false);
   const [CANCEL_AUTHORITY, setCANCEL_AUTHORITY] = useState(false);
   const [CITY, setCITY] = useState('');
@@ -130,6 +133,25 @@ export default function UsersPage() {
       toast.error(err.message || 'Failed to save user');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleRevealPassword = async () => {
+    if (!editingUser) return;
+    setIsRevealing(true);
+    try {
+      const result = await adminRevealPassword(editingUser.ID);
+      if (result.ok) {
+        setPASSWORD(result.password);
+      } else if (result.reason === 'hashed') {
+        toast.error('This password is encrypted and cannot be shown. Type a new one instead.');
+      } else {
+        toast.error('This user has no password set.');
+      }
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to load password');
+    } finally {
+      setIsRevealing(false);
     }
   };
 
@@ -524,8 +546,36 @@ export default function UsersPage() {
                       placeholder={editingUser ? 'Leave empty to keep current password' : 'Access Code'}
                       required={!editingUser}
                       autoComplete="new-password"
-                      className="w-full pl-14 pr-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold"
+                      className="w-full pl-14 pr-28 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold"
                     />
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                      {editingUser && (
+                        <button
+                          type="button"
+                          title="Show current password (admin only)"
+                          disabled={isRevealing}
+                          onClick={handleRevealPassword}
+                          className="p-2 rounded-xl text-gray-400 hover:text-black hover:bg-gray-100 transition-all disabled:opacity-50"
+                        >
+                          {isRevealing ? <Loader2 className="w-5 h-5 animate-spin" /> : <Eye className="w-5 h-5" />}
+                        </button>
+                      )}
+                      {PASSWORD && (
+                        <button
+                          type="button"
+                          title="Copy password"
+                          onClick={() => {
+                            navigator.clipboard?.writeText(PASSWORD).then(
+                              () => toast.success('Password copied'),
+                              () => toast.error('Could not copy')
+                            );
+                          }}
+                          className="p-2 rounded-xl text-gray-400 hover:text-black hover:bg-gray-100 transition-all"
+                        >
+                          <Copy className="w-5 h-5" />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
 

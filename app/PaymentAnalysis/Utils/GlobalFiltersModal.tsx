@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { X, Filter, Tag, LayoutGrid, ChevronDown, Check, MapPin } from 'lucide-react';
+import { X, Filter, Tag, LayoutGrid, ChevronDown, Check, MapPin, RotateCcw } from 'lucide-react';
 import { usePaymentAnalysis } from '../Context/PaymentAnalysisContext';
-import { bhs_supabase } from '@/lib/supabase';
+import { bhs_supabase } from '@/lib/secureDb';
 
 interface GlobalFiltersModalProps {
   onClose: () => void;
@@ -52,7 +52,7 @@ function MultiSelectDropdown({
       <div className="relative">
         <div 
           onClick={() => setIsOpen(!isOpen)}
-          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus-within:ring-2 focus-within:ring-indigo-500 focus-within:border-indigo-500 transition-all cursor-pointer flex justify-between items-center min-h-[42px]"
+          className={`w-full appearance-none rounded-xl border transition-all duration-200 px-4 py-3 pr-10 text-[15px] font-semibold text-slate-900 shadow-sm outline-none flex items-center justify-between min-h-[50px] cursor-pointer ${isOpen ? 'border-[#D4AF37] bg-white ring-4 ring-[#D4AF37]/15' : 'border-slate-200 bg-white/50 hover:bg-white focus-within:border-[#D4AF37] focus-within:bg-white focus-within:ring-4 focus-within:ring-[#D4AF37]/15'}`}
         >
           <div className="flex flex-wrap gap-1 items-center">
             {selectedOptions.length === 0 ? (
@@ -71,29 +71,25 @@ function MultiSelectDropdown({
               ))
             )}
           </div>
-          <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+          <ChevronDown className={`w-5 h-5 text-slate-400 absolute right-4 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
         </div>
 
         {isOpen && (
-          <div className="absolute z-50 w-full mt-2 bg-white border border-slate-200 rounded-xl shadow-xl max-h-60 overflow-y-auto custom-scrollbar">
+          <div className="absolute z-50 w-full mt-2 bg-white rounded-xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.15)] border border-slate-100 animate-in fade-in zoom-in-95 duration-200 py-1.5 max-h-60 overflow-y-auto no-scrollbar">
             {options.length === 0 ? (
               <div className="p-3 text-sm text-slate-500 text-center">No options available</div>
             ) : (
-              <div className="p-1">
+              <div>
                 {options.map(option => {
                   const isSelected = selectedOptions.includes(option);
                   return (
                     <div 
                       key={option}
                       onClick={() => toggleOption(option)}
-                      className="flex items-center gap-2 px-3 py-2 hover:bg-slate-50 rounded-lg cursor-pointer transition-colors"
+                      className={`flex items-center justify-between px-4 py-2.5 text-[14px] transition-colors cursor-pointer ${isSelected ? 'bg-amber-50/50 text-amber-700 font-bold' : 'text-slate-600 hover:bg-slate-50 font-medium'}`}
                     >
-                      <div className={`w-4 h-4 rounded border flex items-center justify-center ${isSelected ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300'}`}>
-                        {isSelected && <Check className="w-3 h-3 text-white" />}
-                      </div>
-                      <span className={`text-sm font-medium ${isSelected ? 'text-slate-900' : 'text-slate-600'}`}>
-                        {option}
-                      </span>
+                      <span>{option}</span>
+                      {isSelected && <Check className="w-4 h-4 text-[#D4AF37]" />}
                     </div>
                   );
                 })}
@@ -185,13 +181,13 @@ export default function GlobalFiltersModal({ onClose }: GlobalFiltersModalProps)
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="bg-white rounded-3xl w-full max-w-2xl overflow-visible shadow-2xl animate-in fade-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
-        <div className="p-6 bg-slate-50 border-b border-slate-100 flex justify-between items-center shrink-0 rounded-t-3xl">
+      <div className="bg-white rounded-[2rem] w-full max-w-md overflow-visible shadow-2xl animate-in fade-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
+        <div className="p-6 bg-slate-50/50 border-b border-slate-100 flex justify-between items-center shrink-0 rounded-t-[2rem]">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-indigo-100 text-indigo-600 rounded-xl flex items-center justify-center">
+            <div className="w-10 h-10 bg-amber-100 text-amber-600 rounded-xl flex items-center justify-center">
               <Filter className="w-5 h-5" />
             </div>
-            <h3 className="font-black text-lg text-slate-800">Global Filters</h3>
+            <h3 className="text-xl font-black tracking-tight text-slate-900">Filters</h3>
           </div>
           <button 
             onClick={onClose}
@@ -201,53 +197,34 @@ export default function GlobalFiltersModal({ onClose }: GlobalFiltersModalProps)
           </button>
         </div>
         
-        <div className="p-6 space-y-8 overflow-visible min-h-[400px]">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="space-y-4">
-              <h4 className="text-sm font-bold text-slate-800 tracking-wide border-b border-slate-100 pb-2">Date Range</h4>
-              <div className="space-y-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">From Date</label>
-                  <input
-                    type="date"
-                    value={draftDateRange.start}
-                    onChange={(e) => setDraftDateRange({ ...draftDateRange, start: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">To Date</label>
-                  <input
-                    type="date"
-                    value={draftDateRange.end}
-                    onChange={(e) => setDraftDateRange({ ...draftDateRange, end: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none"
-                  />
-                </div>
+        <div className="p-6 space-y-5 relative z-10">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="mb-1.5 block text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">From Date</label>
+              <div className="relative group">
+                <input
+                  type="date"
+                  value={draftDateRange.start}
+                  onChange={(e) => setDraftDateRange({ ...draftDateRange, start: e.target.value })}
+                  className="w-full appearance-none rounded-xl border border-slate-200 bg-white/50 px-4 py-3 text-[15px] font-semibold text-slate-900 shadow-sm outline-none transition-all hover:bg-white focus:border-[#D4AF37] focus:bg-white focus:ring-4 focus:ring-[#D4AF37]/15"
+                />
               </div>
             </div>
+            <div>
+              <label className="mb-1.5 block text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">To Date</label>
+              <div className="relative group">
+                <input
+                  type="date"
+                  value={draftDateRange.end}
+                  onChange={(e) => setDraftDateRange({ ...draftDateRange, end: e.target.value })}
+                  className="w-full appearance-none rounded-xl border border-slate-200 bg-white/50 px-4 py-3 text-[15px] font-semibold text-slate-900 shadow-sm outline-none transition-all hover:bg-white focus:border-[#D4AF37] focus:bg-white focus:ring-4 focus:ring-[#D4AF37]/15"
+                />
+              </div>
+            </div>
+          </div>
 
-            <div className="space-y-6">
-              <h4 className="text-sm font-bold text-slate-800 tracking-wide border-b border-slate-100 pb-2">Customer Properties</h4>
-              
-              <MultiSelectDropdown 
-                label="Customer Tags"
-                icon={Tag}
-                options={availableTags}
-                selectedOptions={draftTags}
-                onChange={setDraftTags}
-                placeholder={loadingOptions ? "Loading tags..." : "Select tags"}
-              />
-
-              <MultiSelectDropdown 
-                label="Customer Class"
-                icon={LayoutGrid}
-                options={availableClasses}
-                selectedOptions={draftClasses}
-                onChange={setDraftClasses}
-                placeholder={loadingOptions ? "Loading classes..." : "Select classes"}
-              />
-
+          <div className="space-y-4">
+            <div className="relative z-30">
               <MultiSelectDropdown 
                 label="City"
                 icon={MapPin}
@@ -257,22 +234,47 @@ export default function GlobalFiltersModal({ onClose }: GlobalFiltersModalProps)
                 placeholder="Select cities"
               />
             </div>
+
+            <div className="relative z-20">
+              <MultiSelectDropdown 
+                label="Customer Tags"
+                icon={Tag}
+                options={availableTags}
+                selectedOptions={draftTags}
+                onChange={setDraftTags}
+                placeholder={loadingOptions ? "Loading tags..." : "Select tags"}
+              />
+            </div>
+
+            <div className="relative z-10">
+              <MultiSelectDropdown 
+                label="Customer Class"
+                icon={LayoutGrid}
+                options={availableClasses}
+                selectedOptions={draftClasses}
+                onChange={setDraftClasses}
+                placeholder={loadingOptions ? "Loading classes..." : "Select classes"}
+              />
+            </div>
           </div>
         </div>
 
-        <div className="p-4 bg-slate-50 border-t border-slate-100 flex gap-3 shrink-0 rounded-b-3xl">
+        <div className="flex items-center justify-between border-t border-slate-100 p-6 bg-slate-50/50 rounded-b-[2rem] relative z-0">
           <button
             onClick={handleClear}
-            className="flex-1 px-4 py-2.5 bg-white border border-slate-200 text-slate-600 font-bold rounded-xl hover:bg-slate-100 transition-colors"
+            className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold text-slate-500 transition hover:bg-slate-200 hover:text-slate-700"
           >
-            Clear All
+            <RotateCcw className="h-4 w-4" />
+            Reset
           </button>
-          <button
-            onClick={handleApply}
-            className="flex-1 px-4 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors shadow-md shadow-indigo-200"
-          >
-            Apply Filters
-          </button>
+          <div className="flex gap-3">
+            <button
+              onClick={handleApply}
+              className="rounded-xl bg-[#0f0f0f] px-6 py-2.5 text-sm font-bold text-[#D4AF37] shadow-lg transition hover:bg-black hover:shadow-xl hover:-translate-y-0.5"
+            >
+              Apply Filters
+            </button>
+          </div>
         </div>
       </div>
     </div>

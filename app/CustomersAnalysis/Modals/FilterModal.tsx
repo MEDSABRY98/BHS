@@ -549,17 +549,17 @@ const FilterModal: React.FC<FilterModalProps> = ({
                     </div>
                     <div className="mt-8 pt-6 border-t border-slate-200">
                       <h4 className="text-[11px] font-bold text-slate-400 mb-4 tracking-wider uppercase">Aging Calculation Mode</h4>
-                      <div className="flex bg-slate-100 p-1 rounded-xl shadow-sm border border-slate-200 w-fit">
+                      <div className="flex bg-slate-100 p-1 rounded-xl shadow-sm border border-slate-200 w-full sm:w-96">
                         <button
                           onClick={() => updateDraftFilter('agingMode', 'days')}
-                          className={`px-6 py-2.5 text-sm font-bold rounded-lg transition-colors ${draftFilters.agingMode === 'days' ? 'bg-white text-indigo-700 shadow' : 'text-slate-500 hover:text-slate-700'}`}
+                          className={`flex-1 px-4 py-2.5 text-sm font-bold rounded-lg transition-colors text-center ${draftFilters.agingMode === 'days' ? 'bg-white text-indigo-700 shadow' : 'text-slate-500 hover:text-slate-700'}`}
                           title="Calculate aging by exact days from invoice date"
                         >
                           Exact Days
                         </button>
                         <button
                           onClick={() => updateDraftFilter('agingMode', 'months')}
-                          className={`px-6 py-2.5 text-sm font-bold rounded-lg transition-colors ${draftFilters.agingMode === 'months' ? 'bg-white text-indigo-700 shadow' : 'text-slate-500 hover:text-slate-700'}`}
+                          className={`flex-1 px-4 py-2.5 text-sm font-bold rounded-lg transition-colors text-center ${draftFilters.agingMode === 'months' ? 'bg-white text-indigo-700 shadow' : 'text-slate-500 hover:text-slate-700'}`}
                           title="Calculate aging by payment terms in calendar months"
                         >
                           Calendar Months

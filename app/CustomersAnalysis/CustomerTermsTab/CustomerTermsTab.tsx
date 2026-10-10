@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
-import { bhs_supabase } from '@/lib/supabase';
+import { updateCustomerTerms } from '../Service/debit_service';
 import { toast } from '@/app/Components/Notification';
 import { useDebitData } from '../Context/DebitDataContext';
 import CustomerTermsDefaultView from './Views/CustomerTermsDefaultView';
@@ -269,35 +269,13 @@ export default function CustomerTermsTab({ data }: CustomerTermsTabProps) {
       const pTerm = Number(editPaymentTerm) || 90;
       const cLimit = Number(editCreditLimit) || 0;
 
-      const { data: custData, error: fetchErr } = await bhs_supabase
-        .from('bhs_CUSTOMERS')
-        .select('"CUSTOMER MAIN NAME", "CUSTOMER TAG"')
-        .eq('CUSTOMER ID', selectedCustomer.customerId)
-        .limit(1)
-        .single();
-
-      if (fetchErr && fetchErr.code !== 'PGRST116') {
-        throw fetchErr;
-      }
-
-      await bhs_supabase
-        .from('bhs_CUSTOMERS')
-        .update({ "PAYMENT TERM": pTerm, "CREDIT LIMIT": cLimit, "ACCOUNT STATUS": editAccountStatus })
-        .eq('CUSTOMER ID', selectedCustomer.customerId);
-
-      if (custData?.['CUSTOMER MAIN NAME']) {
-        await bhs_supabase
-          .from('bhs_CUSTOMERS')
-          .update({ "PAYMENT TERM": pTerm })
-          .eq('CUSTOMER MAIN NAME', custData['CUSTOMER MAIN NAME']);
-      }
-
-      if (custData?.['CUSTOMER TAG']) {
-        await bhs_supabase
-          .from('bhs_CUSTOMERS')
-          .update({ "PAYMENT TERM": pTerm })
-          .eq('CUSTOMER TAG', custData['CUSTOMER TAG']);
-      }
+      const result = await updateCustomerTerms({
+        customerId: selectedCustomer.customerId,
+        paymentTerm: pTerm,
+        creditLimit: cLimit,
+        accountStatus: editAccountStatus,
+      });
+      if (!result.success) throw new Error(result.error);
 
       setSelectedCustomer(null);
       toast.success('Updated successfully! Refreshing data in background...');

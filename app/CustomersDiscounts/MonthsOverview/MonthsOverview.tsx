@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { fetchAllData, bhs_supabase } from "@/lib/supabase";
+import { fetchAllData, bhs_supabase } from "@/lib/secureDb";
 import {
   Clock,
   CheckCircle,

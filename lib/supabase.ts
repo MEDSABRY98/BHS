@@ -3,17 +3,31 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
-export const bhs_supabas = createClient(supabaseUrl, supabaseAnonKey);
+// On the server (server actions / services) use the server-only key, so server code keeps
+// working after the public anon key is locked. In the browser this key is never available
+// (it is not NEXT_PUBLIC_), so browser code falls back to the anon key.
+const serverKey = typeof window === 'undefined' ? process.env.SUPABASE_SERVICE_ROLE_KEY : undefined;
+
+export const bhs_supabas = serverKey
+  ? createClient(supabaseUrl, serverKey, { auth: { persistSession: false, autoRefreshToken: false } })
+  : createClient(supabaseUrl, supabaseAnonKey);
 export const bhs_supabase = bhs_supabas;
 
-export async function fetchAllData(queryFactory: () => any) {
+/**
+ * Reads a whole table page by page (1000 rows each).
+ * Pass `orderBy` (a unique column) so pages don't overlap or skip rows —
+ * without a fixed order Postgres may return rows in a different order per page.
+ */
+export async function fetchAllData(queryFactory: () => any, orderBy?: string) {
   let allData: any[] = [];
   let from = 0;
   const pageSize = 1000;
   let hasMore = true;
 
   while (hasMore) {
-    const { data, error } = await queryFactory().range(from, from + pageSize - 1);
+    let query = queryFactory();
+    if (orderBy) query = query.order(orderBy, { ascending: true });
+    const { data, error } = await query.range(from, from + pageSize - 1);
     if (error) throw error;
     if (data && data.length > 0) {
       allData = allData.concat(data);
@@ -203,7 +217,7 @@ export async function resolveCustomerEmailTargets(customerId: string) {
       
     if (emailsError) throw emailsError;
 
-    const emails = emailsData ? emailsData.map((e: any) => e['EMAIL_NAME']).filter(Boolean) : [];
+    const emails = Array.from(new Set((emailsData || []).flatMap((e: any) => splitEmails(e['EMAIL_NAME']))));
     
     return { customers: [customerId], emails };
   } catch (error) {
@@ -212,43 +226,69 @@ export async function resolveCustomerEmailTargets(customerId: string) {
   }
 }
 
+/** Split "a@x.com, b@y.com; c@z.com" into clean unique addresses. */
+export function splitEmails(value: unknown): string[] {
+  return Array.from(
+    new Set(
+      String(value ?? '')
+        .split(/[,;\n]+/)
+        .map((e) => e.trim())
+        .filter(Boolean),
+    ),
+  );
+}
+
+/**
+ * All customer emails, one entry per customer.
+ * A customer has one row with comma-separated emails; if older data has more
+ * than one row for the same customer, their emails are combined.
+ * Throws on database errors (use getAllCustomerEmails for the old "empty on error" behaviour).
+ */
+export async function getAllCustomerEmailsStrict() {
+  const data = await fetchAllData(() => bhs_supabase.from('debit_EMILS').select('*'), 'CUSTOMER ID');
+  const byCustomer = new Map<string, { customerId: string; emails: string[] }>();
+  data.forEach((row: any) => {
+    const customerId = String(row['CUSTOMER ID'] ?? '').trim();
+    if (!customerId) return;
+    const key = normalizeCustomerKey(customerId);
+    const entry = byCustomer.get(key) || { customerId, emails: [] };
+    splitEmails(row['EMAIL_NAME']).forEach((e) => {
+      if (!entry.emails.includes(e)) entry.emails.push(e);
+    });
+    byCustomer.set(key, entry);
+  });
+  return Array.from(byCustomer.values())
+    .filter((e) => e.emails.length > 0)
+    .map((e) => ({ customerId: e.customerId, email: e.emails.join(', ') }));
+}
+
 export async function getAllCustomerEmails() {
-  let data: any[] = [];
-  let error: any = null;
   try {
-    data = await fetchAllData(() => bhs_supabase.from('debit_EMILS').select('*'));
-  } catch (err) {
-    error = err;
-  }
-  if (error) {
+    return await getAllCustomerEmailsStrict();
+  } catch (error) {
     console.error('Error fetching all customer emails:', error);
     return [];
   }
-  return data.map(row => ({
-    customerId: row['CUSTOMER ID'],
-    email: row['EMAIL_NAME']
-  }));
 }
 
 // --- DEBIT_EMAILS_LULU ---
-export async function getLuluEmails() {
-  let data: any[] = [];
-  let error: any = null;
-  try {
-    data = await fetchAllData(() => bhs_supabase.from('debit_EMILS_LULU').select('*'));
-  } catch (err) {
-    error = err;
-  }
-  if (error) {
-    console.error('Error fetching Lulu emails:', error);
-    return [];
-  }
-  return data.map(row => ({
+export async function getLuluEmailsStrict() {
+  const data = await fetchAllData(() => bhs_supabase.from('debit_EMILS_LULU').select('*'), 'CUSTOMER ID');
+  return data.map((row: any) => ({
     customerId: row['CUSTOMER ID'],
     customerCode: row['CUSTOMER CODE'],
     to: row['TO:'],
     cc: row['CC:']
   }));
+}
+
+export async function getLuluEmails() {
+  try {
+    return await getLuluEmailsStrict();
+  } catch (error) {
+    console.error('Error fetching Lulu emails:', error);
+    return [];
+  }
 }
 
 // --- MIX_DEBIT ---
@@ -260,7 +300,7 @@ export async function getMixDebit() {
   let debitData: any[] = [];
   let debitError = null;
   try {
-    debitData = await fetchAllData(() => bhs_supabase.from('mix_DEBIT').select(MIX_DEBIT_COLUMNS));
+    debitData = await fetchAllData(() => bhs_supabase.from('mix_DEBIT').select(MIX_DEBIT_COLUMNS), 'ID');
   } catch (err) {
     debitError = err;
   }
@@ -272,7 +312,7 @@ export async function getMixDebit() {
   let customersData: any[] = [];
   let customersError = null;
   try {
-    customersData = await fetchAllData(() => bhs_supabase.from('bhs_CUSTOMERS').select('"CUSTOMER ID", "CUSTOMER MAIN NAME", "CUSTOMER CITY", "CREDIT LIMIT", "PAYMENT TERM", "CUSTOMER TAG", "CUSTOMER CLASS", "ACCOUNT STATUS", "IS CUSTOMER VENDOR"'));
+    customersData = await fetchAllData(() => bhs_supabase.from('bhs_CUSTOMERS').select('"CUSTOMER ID", "CUSTOMER MAIN NAME", "CUSTOMER CITY", "CREDIT LIMIT", "PAYMENT TERM", "CUSTOMER TAG", "CUSTOMER CLASS", "ACCOUNT STATUS", "IS CUSTOMER VENDOR"'), 'CUSTOMER ID');
   } catch (err) {
     customersError = err;
   }

@@ -5,6 +5,7 @@ import { getCustomerEmails, getLuluCustomerEmails } from '@/app/Emails/Service/e
 import { getDebitData, getDebitMetadata } from '../Service/debit_service';
 import { buildInvoicesByCustomer } from '../Utils/DebitIndexes';
 import { InvoiceRow } from '@/types';
+import { toast } from '@/app/Components/Notification';
 
 export type LuluEmailRecord = {
   customerId: string;
@@ -135,6 +136,7 @@ export function DebitDataProvider({
     } catch (err) {
       console.error('Error loading debit email maps:', err);
       emailsLoadedRef.current = false;
+      toast.error('Could not load customer emails — email filters and statement emails will be empty. Refresh to try again.');
     } finally {
       setEmailsReady(true);
     }

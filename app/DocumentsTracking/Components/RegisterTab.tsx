@@ -7,10 +7,9 @@ import * as XLSX from 'xlsx';
 import {
     toDisplayDate,
     applyDateMask,
-    normalizeDate,
-    getNextDocIds
+    normalizeDate
 } from './types';
-import { getDocumentsTracking, addDocumentsTrackingRecords, getCustomers, getDeliveryPersonnel } from '../Service/documents_tracking_service';
+import { addDocumentsTrackingRecords, getCustomers, getDeliveryPersonnel } from '../Service/documents_tracking_service';
 import { exportDebitExcelTable } from '../../CustomersAnalysis/Utils/ExcelExport';
 
 interface RegisterTabProps {
@@ -194,13 +193,9 @@ export default function RegisterTab({
 
         setIsLoading(true);
         try {
-            // Get current count from database first to generate correct DOC IDs
-            const currentData = await getDocumentsTracking();
-            const existingRecords = currentData.records || [];
-            const nextDocIds = getNextDocIds(existingRecords, validDrafts.length);
-
-            const recordsToSave = validDrafts.map((draft, idx) => ({
-                documentId: nextDocIds[idx],
+            // DOC numbers are assigned on the server (from the real last number)
+            const recordsToSave = validDrafts.map((draft) => ({
+                documentId: '',
                 receivedDate: normalizeDate(draft.date) || draft.date,
                 documentDate: normalizeDate(draft.checkDate) || draft.checkDate,
                 documentNumber: draft.num,

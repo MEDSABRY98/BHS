@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { X, Search } from 'lucide-react';
 import { usePaymentAnalysis } from '../../Context/PaymentAnalysisContext';
-import { getInvoiceType } from '@/app/CustomersAnalysis/Utils/InvoiceType';
+import { getPaymentCategory } from '../../Utils/PaymentType';
 import { 
   useReactTable, 
   getCoreRowModel, 
@@ -24,10 +24,10 @@ export default function CustomerDetailsModal({ customerId, customerName, onClose
 
   const tableData = useMemo(() => {
     return paymentsData
-      .filter(row => row.customerId === customerId)
+      .filter(row => row.customerId === customerId && getPaymentCategory(row) !== 'Other')
       .map(row => {
-        const type = getInvoiceType(row);
-        const isRefund = type === 'R-Payment';
+        // Same rule as the Collections table (customer-vendor refunds are excluded)
+        const isRefund = getPaymentCategory(row) === 'Refund';
         const amount = isRefund ? (Number(row.debit) || 0) : (Number(row.credit) || 0);
 
         return {

@@ -277,8 +277,24 @@ export function DataEntryTab() {
         const workbook = XLSX.read(data, { type: 'binary' });
         
         const year = Number(selectedYear);
-        const { fetchEntriesByYear } = await import('../../Service/FinancialService');
-        const existingEntries = await fetchEntriesByYear(year, 'PL');
+        const { fetchEntriesByYears } = await import('../../Service/FinancialService');
+
+        // Read the current numbers for EVERY year that appears in the file's month columns
+        // (e.g. "Dec-2025"), so a file with only Actual or only Forecast keeps the other side.
+        const fileYears = new Set<number>([year]);
+        ['Actual', 'Forecast'].forEach((sheetName) => {
+          const sheet = workbook.Sheets[sheetName];
+          if (!sheet) return;
+          const headerRows = XLSX.utils.sheet_to_json<any[]>(sheet, { header: 1 });
+          (headerRows[0] || []).forEach((h: any) => {
+            const parts = String(h ?? '').trim().split('-');
+            if (parts.length === 2) {
+              const y = parseInt(parts[1].trim(), 10);
+              if (!isNaN(y) && y > 1900 && y < 3000) fileYears.add(y);
+            }
+          });
+        });
+        const existingEntries = await fetchEntriesByYears(Array.from(fileYears), 'PL');
         
         const bulkDataMap = new Map<string, any>();
         let updatedAccounts = [...accounts];

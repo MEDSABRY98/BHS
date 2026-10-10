@@ -163,30 +163,29 @@ export default function SalesSidebar({
 
       {/* Actions and Toggle */}
       <div className="p-4 border-t border-white/5 mt-auto flex flex-col gap-2 shrink-0 items-center justify-center">
-        <div className={`flex gap-2 ${isCollapsed ? 'flex-col' : 'flex-row items-center'}`}>
-          {FilterNode}
-          
+                  <div className={`flex gap-2 ${isCollapsed ? 'flex-col' : 'flex-row items-center'}`}>
+                    {onRefresh && (
+                      <button
+                        onClick={onRefresh}
+                        className="flex items-center justify-center w-10 h-10 hover:bg-white/10 rounded-xl transition-all duration-200 text-emerald-400 group relative"
+                        title="Refresh Data"
+                      >
+                        <RefreshCw className="w-5 h-5 group-hover:rotate-180 transition-transform duration-500" />
+                        {isCollapsed && <span className="absolute left-14 opacity-0 group-hover:opacity-100 whitespace-nowrap bg-black/80 px-2 py-1 rounded text-xs pointer-events-none transition-opacity z-50">Refresh</span>}
+                      </button>
+                    )}
 
-          {onRefresh && (
-            <button
-              onClick={onRefresh}
-              className="flex items-center justify-center w-10 h-10 hover:bg-white/10 rounded-xl transition-all duration-200 text-emerald-400 group relative"
-              title="Refresh Data"
-            >
-              <RefreshCw className="w-5 h-5 group-hover:rotate-180 transition-transform duration-500" />
-              {isCollapsed && <span className="absolute left-14 opacity-0 group-hover:opacity-100 whitespace-nowrap bg-black/80 px-2 py-1 rounded text-xs pointer-events-none transition-opacity z-50">Refresh</span>}
-            </button>
-          )}
+                    {FilterNode}
 
-          <button 
-            onClick={onToggleCollapse} 
-            className="flex items-center justify-center w-10 h-10 hover:bg-white/10 rounded-xl transition-all duration-200 text-emerald-400"
-            title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
-          >
-            {isCollapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
-          </button>
-        </div>
-      </div>
+                    <button 
+                      onClick={onToggleCollapse} 
+                      className="flex items-center justify-center w-10 h-10 hover:bg-white/10 rounded-xl transition-all duration-200 text-emerald-400"
+                      title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+                    >
+                      {isCollapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
+                    </button>
+                  </div>
+                </div>
 
       {/* Portal-like Tooltip for Collapsed Sidebar */}
       {hoveredTab && isCollapsed && (

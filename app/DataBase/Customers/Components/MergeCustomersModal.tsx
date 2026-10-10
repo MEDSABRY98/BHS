@@ -6,13 +6,8 @@ import SearchSelect from '@/app/LPOs/Components/DropDownList';
 import type { CustomerRecord } from '../Hooks/UseMergeCustomers';
 
 const AFFECTED_TABLES = [
-  'web_Sales_DB',
-  'web_Sales_DB_INACTIVECUSTOMERS',
-  'mix_DEBIT',
-  'debit_EMILS',
-  'debit_EMILS_LULU',
-  'debit_NOTES',
-  'app_lpos_ORDERS',
+  'Every table that uses the Customer ID (sales, debit, emails, notes, LPOs, discounts, documents, reconciliations…)',
+  'All changes happen together — if anything fails, nothing is changed',
 ];
 
 type MergeCustomersModalProps = {

@@ -21,6 +21,8 @@ interface AddDiscountProps {
   setDiscountType: (t: "percentage" | "fixed_amount") => void;
   discountValue: string;
   setDiscountValue: (v: string) => void;
+  startMonth: string; // "YYYY-MM"
+  setStartMonth: (v: string) => void;
   isSubmitting: boolean;
 }
 
@@ -39,6 +41,8 @@ export default function AddDiscount({
   setDiscountType,
   discountValue,
   setDiscountValue,
+  startMonth,
+  setStartMonth,
   isSubmitting
 }: AddDiscountProps) {
   return (
@@ -105,7 +109,7 @@ export default function AddDiscount({
             )}
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
             {/* Name */}
             <div className="space-y-3">
               <label className="block text-base font-bold text-gray-900">Name / Description</label>
@@ -166,6 +170,17 @@ export default function AddDiscount({
                   {discountType === "percentage" ? "%" : "AED"}
                 </span>
               </div>
+            </div>
+            {/* Start month */}
+            <div className="space-y-3">
+              <label className="block text-base font-bold text-gray-900">Starts From</label>
+              <input
+                type="month"
+                value={startMonth}
+                onChange={(e) => setStartMonth(e.target.value)}
+                className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#D4AF37] focus:bg-white transition-all text-gray-900 font-bold text-sm h-[52px]"
+                required
+              />
             </div>
           </div>
 

@@ -140,7 +140,8 @@ export function invalidateMemoryCache() {
 //  PRIVATE: Pull everything from DB and merge
 // ─────────────────────────────────────────────────────────────
 async function buildFromDB(): Promise<any[]> {
-  const fetchAllFromTable = async (table: string, selectFields: string) => {
+  // orderBy: a unique column, so the parallel pages never overlap or skip rows
+  const fetchAllFromTable = async (table: string, selectFields: string, orderBy: string) => {
     const { count, error: countErr } = await bhs_supabas
       .from(table)
       .select('*', { count: 'exact', head: true });
@@ -164,6 +165,7 @@ async function buildFromDB(): Promise<any[]> {
           bhs_supabas
             .from(table)
             .select(selectFields)
+            .order(orderBy, { ascending: true })
             .range(r.from, r.to)
         )
       );
@@ -177,9 +179,9 @@ async function buildFromDB(): Promise<any[]> {
   };
 
   const [salesData, customersData, productsData] = await Promise.all([
-    fetchAllFromTable('web_Sales_DB', 'ID, "INVOICE DATE", "INVOICE NUMBER", "CUSTOMER ID", "PRODUCT ID", "PRODUCT PRICE", AMOUNT, QTY, "PRODUCT COST"'),
-    fetchAllFromTable('bhs_CUSTOMERS', '"CUSTOMER ID", "CUSTOMER MAIN NAME", "CUSTOMER SUB NAME", "CUSTOMER TAG", "CUSTOMER CLASS"'),
-    fetchAllFromTable('bhs_PRODUCTS', '"PRODUCT ID", "PRODUCT NAME", "PRODUCT BARCODE", "PRODUCT CATEGORY", "PRODUCT COST"'),
+    fetchAllFromTable('web_Sales_DB', 'ID, "INVOICE DATE", "INVOICE NUMBER", "CUSTOMER ID", "PRODUCT ID", "PRODUCT PRICE", AMOUNT, QTY, "PRODUCT COST"', 'ID'),
+    fetchAllFromTable('bhs_CUSTOMERS', '"CUSTOMER ID", "CUSTOMER MAIN NAME", "CUSTOMER SUB NAME", "CUSTOMER TAG", "CUSTOMER CLASS"', 'CUSTOMER ID'),
+    fetchAllFromTable('bhs_PRODUCTS', '"PRODUCT ID", "PRODUCT NAME", "PRODUCT BARCODE", "PRODUCT CATEGORY", "PRODUCT COST"', 'PRODUCT ID'),
   ]);
 
   const norm = (v: any) => (v ? String(v).trim().toUpperCase() : '');
@@ -265,6 +267,7 @@ export async function getSalesDelta(watermark: string): Promise<any[]> {
             .from('web_Sales_DB')
             .select('ID, "INVOICE DATE", "INVOICE NUMBER", "CUSTOMER ID", "PRODUCT ID", "PRODUCT PRICE", AMOUNT, QTY, "PRODUCT COST"')
             .gt('CREATED_AT', watermark)
+            .order('ID', { ascending: true })
             .range(r.from, r.to)
         )
       );

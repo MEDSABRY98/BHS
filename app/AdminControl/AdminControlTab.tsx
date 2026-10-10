@@ -183,12 +183,11 @@ function migrateInventoryScrapTabs(tabs: string[]): string[] {
 }
 
 const SYSTEMS = [
-    { id: 'cash-receipt', label: 'Cash Receipt' },
-    { id: 'cash-handover', label: 'Cash Handover' },
+    { id: 'cash-receipt', label: 'Receipt Vouchers (IN)' },
+    { id: 'cash-handover', label: 'Payment Vouchers (OUT)' },
     { id: 'documents-tracking', label: 'Documents Tracking' },
-    { id: 'debit', label: 'Debit Analysis' },
+    { id: 'debit', label: 'Customers Analysis' },
     { id: 'customers-documents', label: 'Customers Documents' },
-    { id: 'inventory', label: 'Inventory Analysis' },
     { id: 'inventory-item-code', label: 'Inventory Item Code' },
     { id: 'inventory-counting', label: 'Inventory Counting' },
     { id: 'inventory-scrap', label: 'Inventory Scrap' },
@@ -240,9 +239,7 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
         { id: 'periods', label: 'Periods Analysis' },
     ],
 
-    'inventory': [
-        { id: 'categories', label: 'Categories Analysis' },
-    ],
+
     'inventory-counting': [
         { id: 'total_count', label: 'Total Count' },
         { id: 'reconciliation', label: 'Count Reconciliation' },
@@ -267,13 +264,13 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
         { id: 'expected', label: 'Expected Payments' },
     ],
     'cash-receipt': [
-        { id: 'new', label: 'New Receipt' },
+        { id: 'new', label: 'Create Receipt' },
         { id: 'saved', label: 'Saved Receipts' },
         { id: 'stats', label: 'Statistics' },
     ],
     'cash-handover': [
-        { id: 'new', label: 'New Handover' },
-        { id: 'saved', label: 'Saved Handovers' }
+        { id: 'new', label: 'Create Payment' },
+        { id: 'saved', label: 'Saved Payments' }
     ],
     'documents-tracking': [
         { id: 'register', label: 'تسجيل شيك جديد' },
@@ -294,10 +291,9 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
         { id: 'db-lulu-emails', label: 'Lulu Emails DB' },
         { id: 'db-products', label: 'Products DB' },
         { id: 'db-inv-itemcode', label: 'Inventory Item Code' },
-        { id: 'db-inv-locations', label: 'Inventory Locations' },
-        { id: 'db-inv-moves', label: 'Inventory Moves' },
         { id: 'db-sales', label: 'Sales DB' },
         { id: 'db-suppliers', label: 'Suppliers DB' },
+        { id: 'db-suppliers-analysis', label: 'Suppliers Analysis DB' },
         { id: 'db-purchase-price-tracking', label: 'Purchase Price Tracking DB' },
         { id: 'db-users', label: 'Users DB' },
     ],
@@ -340,19 +336,18 @@ const SYSTEM_ACTIONS: Record<string, { id: string; label: string; icon: string }
 
 const getSystemIcon = (id: string) => {
     switch (id) {
-        case 'cash-receipt': return <CreditCard className="w-5 h-5 text-indigo-500" />;
+        case 'cash-receipt': return <CreditCard className="w-5 h-5 text-amber-500" />;
         case 'petty-cash': return <Wallet className="w-5 h-5 text-emerald-500" />;
         case 'debit': return <BarChart3 className="w-5 h-5 text-rose-500" />;
         case 'sales': return <TrendingUp className="w-5 h-5 text-blue-500" />;
         case 'sales-reports-tables': return <FileSpreadsheet className="w-5 h-5 text-emerald-600" />;
-        case 'inventory': return <Package className="w-5 h-5 text-amber-500" />;
         case 'inventory-item-code': return <Hash className="w-5 h-5 text-blue-500" />;
         case 'inventory-counting': return <ListChecks className="w-5 h-5 text-blue-500" />;
         case 'inventory-scrap': return <Trash2 className="w-5 h-5 text-orange-500" />;
         case 'customers-documents': return <FileCheck className="w-5 h-5 text-pink-500" />;
         case 'documents-tracking': return <ClipboardList className="w-5 h-5 text-violet-500" />;
         case 'lpo-management': return <ShoppingCart className="w-5 h-5 text-fuchsia-500" />;
-        case 'cash-handover': return <ClipboardList className="w-5 h-5 text-purple-600" />;
+        case 'cash-handover': return <CreditCard className="w-5 h-5 text-amber-600" />;
         case 'purchase-price-tracking': return <Layers className="w-5 h-5 text-blue-600" />;
         case 'customers-discounts': return <Shield className="w-5 h-5 text-amber-500" />;
         case 'financial-model': return <BarChart3 className="w-5 h-5 text-emerald-500" />;

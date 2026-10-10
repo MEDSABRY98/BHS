@@ -7,6 +7,7 @@ import {
   createSession,
   getSessionUser,
   hashPassword,
+  isHashedPassword,
   requireAdmin,
   requireSession,
   toSessionUser,
@@ -19,16 +20,6 @@ import { invalidateMappingCache } from '@/app/Sales/Cache/SalesMappingCache';
 // CUSTOMER MERGE ACTIONS
 // ------------------------------------------------------------------------------------------------
 
-const CUSTOMER_ID_TABLES = [
-  { table: 'web_Sales_DB', column: 'CUSTOMER ID' },
-  { table: 'web_Sales_DB_INACTIVECUSTOMERS', column: 'CUSTOMER ID' },
-  { table: 'mix_DEBIT', column: 'CUSTOMER ID' },
-  { table: 'debit_EMILS', column: 'CUSTOMER ID' },
-  { table: 'debit_EMILS_LULU', column: 'CUSTOMER ID' },
-  { table: 'debit_NOTES', column: 'CUSTOMER ID' },
-  { table: 'app_lpos_ORDERS', column: 'CUSTOMER_ID' },
-] as const;
-
 type MergeCustomerBody = {
   survivorCustomerId?: string;
   sourceCustomerIds?: string[];
@@ -37,119 +28,72 @@ type MergeCustomerBody = {
   targetCity?: string;
 };
 
-type CustomerRow = {
-  ID: string;
-  'CUSTOMER ID': string;
-};
-
 function normalizeId(value: unknown): string {
   if (value === null || value === undefined) return '';
   return String(value).trim();
 }
 
-async function updateCustomerIdReferences(
-  entry: (typeof CUSTOMER_ID_TABLES)[number],
-  survivorCustomerId: string,
-  sourceCustomerId: string
-): Promise<number> {
-  const { data, error } = await bhs_supabase
-    .from(entry.table)
-    .update({ [entry.column]: survivorCustomerId })
-    .eq(entry.column, sourceCustomerId)
-    .select('ID');
+const MERGE_SQL_MISSING =
+  'The merge database function is not installed yet. Run sql/merge_functions.sql in Supabase (SQL Editor) once, then try again.';
 
-  if (error) throw new Error(`${entry.table}: ${error.message}`);
-  return data?.length ?? 0;
+function isMissingFunction(error: { code?: string; message?: string } | null): boolean {
+  if (!error) return false;
+  return error.code === 'PGRST202' || /could not find the function/i.test(error.message || '');
 }
 
+function mergeErrorMessage(error: { code?: string; message?: string }): string {
+  if (isMissingFunction(error)) return MERGE_SQL_MISSING;
+  if (error.code === '42501' || /permission denied for function/i.test(error.message || '')) {
+    return 'The server is missing SUPABASE_SERVICE_ROLE_KEY (needed to run merges). Add it in Vercel and redeploy.';
+  }
+  return error.message || 'Merge failed';
+}
+
+async function rebuildSalesCacheSafe(label: string) {
+  invalidateMemoryCache();
+  invalidateMappingCache();
+  try {
+    await buildAndSaveCache();
+  } catch (cacheError) {
+    console.error(`${label} succeeded but sales cache rebuild failed:`, cacheError);
+  }
+}
+
+/**
+ * Merges customers in ONE database transaction (bhs_merge_customers):
+ * every table with a CUSTOMER ID / CUSTOMER_ID column is moved to the survivor,
+ * then the source customers are deleted. Any error -> nothing is changed.
+ */
 export async function mergeCustomersAction(body: MergeCustomerBody) {
   await requireSession();
   try {
     const survivorCustomerId = normalizeId(body.survivorCustomerId);
-    const sourceCustomerIds = (body.sourceCustomerIds || [])
-      .map(normalizeId)
-      .filter(Boolean);
+    const sourceCustomerIds = Array.from(new Set((body.sourceCustomerIds || []).map(normalizeId).filter(Boolean)));
     const targetMainName = String(body.targetMainName ?? '').trim();
     const targetSubName = String(body.targetSubName ?? '').trim();
     const targetCity = String(body.targetCity ?? '').trim();
 
-    if (!survivorCustomerId) {
-      throw new Error('survivorCustomerId is required');
-    }
-    if (sourceCustomerIds.length < 1) {
-      throw new Error('At least one source customer ID is required');
-    }
-    if (!targetSubName) {
-      throw new Error('targetSubName is required');
-    }
-    if (sourceCustomerIds.includes(survivorCustomerId)) {
-      throw new Error('Source IDs must not include the survivor ID');
-    }
+    if (!survivorCustomerId) throw new Error('survivorCustomerId is required');
+    if (sourceCustomerIds.length < 1) throw new Error('At least one source customer ID is required');
+    if (!targetSubName) throw new Error('targetSubName is required');
+    if (sourceCustomerIds.includes(survivorCustomerId)) throw new Error('Source IDs must not include the survivor ID');
 
-    const allCustomerIds = [survivorCustomerId, ...sourceCustomerIds];
-    const { data: customerRows, error: fetchError } = await bhs_supabase
-      .from('bhs_CUSTOMERS')
-      .select('ID, "CUSTOMER ID"')
-      .in('CUSTOMER ID', allCustomerIds);
-
-    if (fetchError) throw fetchError;
-
-    const byCustomerId = new Map<string, CustomerRow>();
-    (customerRows || []).forEach((row) => {
-      const id = normalizeId(row['CUSTOMER ID']);
-      if (id) byCustomerId.set(id, row as CustomerRow);
+    const { data, error } = await getSupabaseAdmin().rpc('bhs_merge_customers', {
+      p_survivor: survivorCustomerId,
+      p_sources: sourceCustomerIds,
+      p_main_name: targetMainName,
+      p_sub_name: targetSubName,
+      p_city: targetCity,
     });
+    if (error) throw new Error(mergeErrorMessage(error));
 
-    if (!byCustomerId.has(survivorCustomerId)) {
-      throw new Error('Survivor customer not found');
-    }
-
-    const missingSources = sourceCustomerIds.filter((id) => !byCustomerId.has(id));
-    if (missingSources.length > 0) {
-      throw new Error(`Source customer(s) not found: ${missingSources.join(', ')}`);
-    }
-
-    const updateSummary: Record<string, number> = {};
-
-    for (const sourceCustomerId of sourceCustomerIds) {
-      for (const entry of CUSTOMER_ID_TABLES) {
-        const count = await updateCustomerIdReferences(entry, survivorCustomerId, sourceCustomerId);
-        updateSummary[entry.table] = (updateSummary[entry.table] || 0) + count;
-      }
-    }
-
-    const { error: survivorUpdateError } = await bhs_supabase
-      .from('bhs_CUSTOMERS')
-      .update({
-        'CUSTOMER MAIN NAME': targetMainName,
-        'CUSTOMER SUB NAME': targetSubName,
-        'CUSTOMER CITY': targetCity,
-      })
-      .eq('CUSTOMER ID', survivorCustomerId);
-
-    if (survivorUpdateError) throw survivorUpdateError;
-
-    const sourceInternalIds = sourceCustomerIds.map((id) => byCustomerId.get(id)!.ID);
-    const { error: deleteError } = await bhs_supabase
-      .from('bhs_CUSTOMERS')
-      .delete()
-      .in('ID', sourceInternalIds);
-
-    if (deleteError) throw deleteError;
-
-    invalidateMemoryCache();
-    invalidateMappingCache();
-    try {
-      await buildAndSaveCache();
-    } catch (cacheError) {
-      console.error('Merge succeeded but sales cache rebuild failed:', cacheError);
-    }
+    await rebuildSalesCacheSafe('Customer merge');
 
     return {
       success: true,
       survivorCustomerId,
       mergedCount: sourceCustomerIds.length,
-      updateSummary,
+      updateSummary: (data || {}) as Record<string, number>,
     };
   } catch (error: any) {
     console.error('mergeCustomersAction error:', error);
@@ -161,6 +105,7 @@ export async function mergeCustomersAction(body: MergeCustomerBody) {
 // PRODUCT MERGE ACTIONS
 // ------------------------------------------------------------------------------------------------
 
+// Fallback list for updateProductIdCascade when the SQL function isn't installed yet
 const PRODUCT_ID_TABLES = [
   { table: 'web_Sales_DB', column: 'PRODUCT ID' },
   { table: 'web_INVENTORY_SCRAB', column: 'PRODUCT ID' },
@@ -168,8 +113,6 @@ const PRODUCT_ID_TABLES = [
   { table: 'mix_INVENTORY_COUNT_TOTALS', column: 'PRODUCT ID' },
   { table: 'web_INVENTORY_SCRAB_REPORT', column: 'PRODUCT_ID' },
 ] as const;
-
-const REGISTRY_TABLES: string[] = [];
 
 type MergeProductBody = {
   survivorProductId?: string;
@@ -179,11 +122,6 @@ type MergeProductBody = {
   targetCategory?: string;
   targetItemCode?: string | number | null;
   targetUnit?: string;
-};
-
-type ProductRow = {
-  ID: string;
-  'PRODUCT ID': string;
 };
 
 async function updateProductIdReferences(
@@ -201,45 +139,16 @@ async function updateProductIdReferences(
   return data?.length ?? 0;
 }
 
-async function reconcileRegistryTable(
-  table: (typeof REGISTRY_TABLES)[number],
-  survivorProductId: string,
-  sourceProductId: string
-): Promise<number> {
-  const { data: survivorRow, error: survivorError } = await bhs_supabase
-    .from(table)
-    .select('ID')
-    .eq('PRODUCT ID', survivorProductId)
-    .maybeSingle();
-
-  if (survivorError) throw new Error(`${table}: ${survivorError.message}`);
-
-  if (survivorRow) {
-    const { data, error } = await bhs_supabase
-      .from(table)
-      .delete()
-      .eq('PRODUCT ID', sourceProductId)
-      .select('ID');
-
-    if (error) throw new Error(`${table}: ${error.message}`);
-    return data?.length ?? 0;
-  }
-
-  const { data, error } = await bhs_supabase
-    .from(table)
-    .update({ 'PRODUCT ID': survivorProductId })
-    .eq('PRODUCT ID', sourceProductId)
-    .select('ID');
-
-  if (error) throw new Error(`${table}: ${error.message}`);
-  return data?.length ?? 0;
-}
-
+/**
+ * Merges products in ONE database transaction (bhs_merge_products):
+ * every table with a PRODUCT ID / PRODUCT_ID column is moved to the survivor,
+ * then the source products are deleted. Any error -> nothing is changed.
+ */
 export async function mergeProductsAction(body: MergeProductBody) {
   await requireSession();
   try {
     const survivorProductId = normalizeId(body.survivorProductId);
-    const sourceProductIds = (body.sourceProductIds || []).map(normalizeId).filter(Boolean);
+    const sourceProductIds = Array.from(new Set((body.sourceProductIds || []).map(normalizeId).filter(Boolean)));
     const targetName = String(body.targetName ?? '').trim();
     const targetBarcode = String(body.targetBarcode ?? '').trim();
     const targetCategory = String(body.targetCategory ?? '').trim();
@@ -250,93 +159,30 @@ export async function mergeProductsAction(body: MergeProductBody) {
         ? null
         : Number(targetItemCodeRaw);
 
-    if (!survivorProductId) {
-      throw new Error('survivorProductId is required');
-    }
-    if (sourceProductIds.length < 1) {
-      throw new Error('At least one source product ID is required');
-    }
-    if (!targetName) {
-      throw new Error('targetName is required');
-    }
-    if (sourceProductIds.includes(survivorProductId)) {
-      throw new Error('Source IDs must not include the survivor ID');
-    }
-    if (targetItemCode !== null && Number.isNaN(targetItemCode)) {
-      throw new Error('targetItemCode must be a valid number');
-    }
+    if (!survivorProductId) throw new Error('survivorProductId is required');
+    if (sourceProductIds.length < 1) throw new Error('At least one source product ID is required');
+    if (!targetName) throw new Error('targetName is required');
+    if (sourceProductIds.includes(survivorProductId)) throw new Error('Source IDs must not include the survivor ID');
+    if (targetItemCode !== null && Number.isNaN(targetItemCode)) throw new Error('targetItemCode must be a valid number');
 
-    const allProductIds = [survivorProductId, ...sourceProductIds];
-    const { data: productRows, error: fetchError } = await bhs_supabase
-      .from('bhs_PRODUCTS')
-      .select('ID, "PRODUCT ID"')
-      .in('PRODUCT ID', allProductIds);
-
-    if (fetchError) throw fetchError;
-
-    const byProductId = new Map<string, ProductRow>();
-    (productRows || []).forEach((row) => {
-      const id = normalizeId(row['PRODUCT ID']);
-      if (id) byProductId.set(id, row as ProductRow);
+    const { data, error } = await getSupabaseAdmin().rpc('bhs_merge_products', {
+      p_survivor: survivorProductId,
+      p_sources: sourceProductIds,
+      p_name: targetName,
+      p_barcode: targetBarcode,
+      p_category: targetCategory,
+      p_item_code: targetItemCode,
+      p_unit: targetUnit,
     });
+    if (error) throw new Error(mergeErrorMessage(error));
 
-    if (!byProductId.has(survivorProductId)) {
-      throw new Error('Survivor product not found');
-    }
-
-    const missingSources = sourceProductIds.filter((id) => !byProductId.has(id));
-    if (missingSources.length > 0) {
-      throw new Error(`Source product(s) not found: ${missingSources.join(', ')}`);
-    }
-
-    const updateSummary: Record<string, number> = {};
-
-    for (const sourceProductId of sourceProductIds) {
-      for (const entry of PRODUCT_ID_TABLES) {
-        const count = await updateProductIdReferences(entry, survivorProductId, sourceProductId);
-        updateSummary[entry.table] = (updateSummary[entry.table] || 0) + count;
-      }
-
-      for (const table of REGISTRY_TABLES) {
-        const count = await reconcileRegistryTable(table, survivorProductId, sourceProductId);
-        updateSummary[table] = (updateSummary[table] || 0) + count;
-      }
-    }
-
-    const { error: survivorUpdateError } = await bhs_supabase
-      .from('bhs_PRODUCTS')
-      .update({
-        'PRODUCT NAME': targetName,
-        'PRODUCT BARCODE': targetBarcode,
-        'PRODUCT CATEGORY': targetCategory,
-        'ITEM CODE': targetItemCode,
-        'UNIT': targetUnit,
-      })
-      .eq('PRODUCT ID', survivorProductId);
-
-    if (survivorUpdateError) throw survivorUpdateError;
-
-    const sourceInternalIds = sourceProductIds.map((id) => byProductId.get(id)!.ID);
-    const { error: deleteError } = await bhs_supabase
-      .from('bhs_PRODUCTS')
-      .delete()
-      .in('ID', sourceInternalIds);
-
-    if (deleteError) throw deleteError;
-
-    invalidateMemoryCache();
-    invalidateMappingCache();
-    try {
-      await buildAndSaveCache();
-    } catch (cacheError) {
-      console.error('Product merge succeeded but sales cache rebuild failed:', cacheError);
-    }
+    await rebuildSalesCacheSafe('Product merge');
 
     return {
       success: true,
       survivorProductId,
       mergedCount: sourceProductIds.length,
-      updateSummary,
+      updateSummary: (data || {}) as Record<string, number>,
     };
   } catch (error: any) {
     console.error('mergeProductsAction error:', error);
@@ -352,26 +198,22 @@ export async function updateProductIdCascade(oldId: string, newId: string) {
     const oldIdNormalized = normalizeId(oldId);
     const newIdNormalized = normalizeId(newId);
 
-    for (const entry of PRODUCT_ID_TABLES) {
-      await updateProductIdReferences(entry, newIdNormalized, oldIdNormalized);
+    // Preferred: one transaction over every table with a PRODUCT ID column
+    const { error: rpcError } = await getSupabaseAdmin().rpc('bhs_merge_ids', {
+      p_kind: 'product',
+      p_survivor: newIdNormalized,
+      p_sources: [oldIdNormalized],
+    });
+
+    if (rpcError) {
+      if (!isMissingFunction(rpcError) && rpcError.code !== '42501') throw new Error(rpcError.message);
+      // Fallback (SQL not installed yet): previous table list
+      for (const entry of PRODUCT_ID_TABLES) {
+        await updateProductIdReferences(entry, newIdNormalized, oldIdNormalized);
+      }
     }
 
-    for (const table of REGISTRY_TABLES) {
-      // For simple ID updates, we don't merge/reconcile, we just update.
-      await bhs_supabase
-        .from(table)
-        .update({ 'PRODUCT ID': newIdNormalized })
-        .eq('PRODUCT ID', oldIdNormalized);
-    }
-
-    invalidateMemoryCache();
-    invalidateMappingCache();
-    try {
-      await buildAndSaveCache();
-    } catch (cacheError) {
-      console.error('Product ID update succeeded but sales cache rebuild failed:', cacheError);
-    }
-
+    await rebuildSalesCacheSafe('Product ID update');
     return { success: true };
   } catch (error: any) {
     console.error('updateProductIdCascade error:', error);
@@ -420,14 +262,52 @@ export async function fetchNormalEmails() {
   }
 }
 
+/**
+ * One row per customer: emails are stored comma-separated in that row.
+ * Adding an email for a customer that already has a row adds it to that row.
+ */
 export async function addNormalEmail(customerId: string, email: string) {
   await requireSession();
   try {
+    const id = String(customerId || '').trim();
+    const newEmails = String(email || '').split(/[,;\n]+/).map((e) => e.trim()).filter(Boolean);
+    if (!id) throw new Error('Customer is required');
+    if (newEmails.length === 0) throw new Error('Email is required');
+
+    const { data: existing, error: findErr } = await bhs_supabase
+      .from('debit_EMILS')
+      .select('*')
+      .eq('CUSTOMER ID', id);
+    if (findErr) throw findErr;
+
+    if (existing && existing.length > 0) {
+      const merged: string[] = [];
+      [...existing.map((r: any) => r['EMAIL_NAME']), ...newEmails].forEach((v) => {
+        String(v || '').split(/[,;\n]+/).map((e) => e.trim()).filter(Boolean).forEach((e) => {
+          if (!merged.some((m) => m.toLowerCase() === e.toLowerCase())) merged.push(e);
+        });
+      });
+      const keep = existing[0];
+      const { data, error } = await bhs_supabase
+        .from('debit_EMILS')
+        .update({ 'EMAIL_NAME': merged.join(', ') })
+        .eq('ID', keep.ID)
+        .select();
+      if (error) throw error;
+      // Old duplicate rows for the same customer are folded into the kept row
+      const extraIds = existing.slice(1).map((r: any) => r.ID).filter(Boolean);
+      if (extraIds.length > 0) {
+        const { error: delErr } = await bhs_supabase.from('debit_EMILS').delete().in('ID', extraIds);
+        if (delErr) throw delErr;
+      }
+      return { success: true, data, mergedIntoExisting: true };
+    }
+
     const { data, error } = await bhs_supabase.from('debit_EMILS').insert({
-      'CUSTOMER ID': customerId,
-      'EMAIL_NAME': email
+      'CUSTOMER ID': id,
+      'EMAIL_NAME': newEmails.join(', ')
     }).select();
-    
+
     if (error) throw error;
     return { success: true, data };
   } catch (error: any) {
@@ -520,6 +400,16 @@ export async function fetchLuluEmails() {
 export async function addLuluEmail(customerId: string, customerCode: string, to: string, cc: string) {
   await requireSession();
   try {
+    const { data: existing, error: findErr } = await bhs_supabase
+      .from('debit_EMILS_LULU')
+      .select('ID')
+      .eq('CUSTOMER ID', String(customerId || '').trim())
+      .limit(1);
+    if (findErr) throw findErr;
+    if (existing && existing.length > 0) {
+      throw new Error('This customer already has a Lulu email row — edit that row and add the emails separated by commas.');
+    }
+
     const { data, error } = await bhs_supabase.from('debit_EMILS_LULU').insert({
       'CUSTOMER ID': customerId,
       'CUSTOMER CODE': customerCode,
@@ -839,6 +729,19 @@ async function writePasswordHash(userId: string, hash: string, secretsAvailable?
     const { error } = await db.from('bhs_USERS').update({ PASSWORD: hash }).eq('ID', userId);
     if (error) throw new Error(error.message);
   }
+}
+
+/**
+ * Admin only: returns a user's current password so it can be given back to them.
+ * Only possible while passwords are stored as plain text (PASSWORD_HASHING off).
+ * Reads one user at a time — passwords are never included in user lists.
+ */
+export async function adminRevealPassword(id: string): Promise<{ ok: true; password: string } | { ok: false; reason: 'none' | 'hashed' }> {
+  await requireAdmin();
+  const stored = await readStoredPassword(id);
+  if (!stored.value) return { ok: false, reason: 'none' };
+  if (isHashedPassword(stored.value)) return { ok: false, reason: 'hashed' };
+  return { ok: true, password: stored.value };
 }
 
 function storableNewPassword(plain: string) {

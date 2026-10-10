@@ -122,23 +122,23 @@ export default function VouchersSidebar({
 
       {/* Toggle Collapse & Refresh Buttons */}
       <div className={`p-4 border-t border-white/5 mt-auto flex ${isCollapsed ? 'flex-col items-center gap-3' : 'justify-center gap-3'} shrink-0`}>
-        {onRefresh && (
-          <button
-            onClick={onRefresh}
-            className="flex items-center justify-center w-10 h-10 hover:bg-white/10 rounded-xl transition-all duration-200 text-emerald-400"
-            title="Refresh Vouchers Data"
-          >
-            <RefreshCw className="w-5 h-5" />
-          </button>
-        )}
-        <button
-          onClick={onToggleCollapse}
-          className="flex items-center justify-center w-10 h-10 hover:bg-white/10 rounded-xl transition-all duration-200 text-amber-400"
-          title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
-        >
-          {isCollapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
-        </button>
-      </div>
+                  <button
+                    onClick={onToggleCollapse}
+                    className="flex items-center justify-center w-10 h-10 hover:bg-white/10 rounded-xl transition-all duration-200 text-amber-400"
+                    title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+                  >
+                    {isCollapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
+                  </button>
+                  {onRefresh && (
+                    <button
+                      onClick={onRefresh}
+                      className="flex items-center justify-center w-10 h-10 hover:bg-white/10 rounded-xl transition-all duration-200 text-emerald-400"
+                      title="Refresh Vouchers Data"
+                    >
+                      <RefreshCw className="w-5 h-5" />
+                    </button>
+                  )}
+                </div>
 
       {/* Portal-like Tooltip for Collapsed Sidebar */}
       {hoveredTab && isCollapsed && (

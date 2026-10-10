@@ -34,6 +34,30 @@ type ProductLookup = {
   'PRODUCT COST'?: number | null;
 };
 
+const REPORT_TABLE = 'web_INVENTORY_SCRAB_REPORT';
+
+/** Reads every row (Supabase returns max 1000 per request) with a fixed order. */
+async function fetchAllRows<T = any>(table: string, select: string, orderBy: string): Promise<T[]> {
+  const out: T[] = [];
+  const size = 1000;
+  for (let from = 0; ; from += size) {
+    const { data, error } = await bhs_supabas
+      .from(table)
+      .select(select)
+      .order(orderBy, { ascending: true })
+      .range(from, from + size - 1);
+    if (error) throw error;
+    out.push(...((data || []) as T[]));
+    if (!data || data.length < size) break;
+  }
+  return out;
+}
+
+const rowNum = (id: unknown) => {
+  const m = String(id ?? '').match(/^R-(\d+)$/i);
+  return m ? parseInt(m[1], 10) : 0;
+};
+
 /** Full product catalog keyed by PRODUCT ID (paginated — Supabase caps at 1000/page). */
 async function fetchProductLookupMap(): Promise<Map<string, ProductLookup>> {
   const productMap = new Map<string, ProductLookup>();
@@ -275,14 +299,11 @@ export async function updateProductCosts(costs: { productId: string; cost: numbe
 export async function fetchSavedScrapReports() {
   await requireSession();
   try {
-    const { data: scrapData, error: scrapError } = await bhs_supabas
-      .from('web_INVENTORY_SCRAB_REPORT')
-      .select('*')
-      .order('ID', { ascending: false });
+    // All report lines (no 1000-row cap), newest first by the real row number
+    const scrapData = (await fetchAllRows<any>(REPORT_TABLE, '*', 'ID'))
+      .sort((a, b) => rowNum(b.ID) - rowNum(a.ID));
 
-    if (scrapError) throw scrapError;
-
-    if (!scrapData || scrapData.length === 0) {
+    if (scrapData.length === 0) {
       return [];
     }
 
@@ -320,46 +341,40 @@ export async function saveDirectScrapReport(items: { productId: string; qty: num
     }
 
     const currentYear = new Date().getFullYear();
-    const [maxIdData, maxReportData] = await Promise.all([
-      fetchMaxScrapReportRowId(),
-      fetchMaxScrapReportId(),
-    ]);
+    const reportPattern = new RegExp(`^SCR-${currentYear}-(\\d+)$`);
 
-    let maxIdNum = 0;
-    if (maxIdData?.ID) {
-      const match = String(maxIdData.ID).match(/^R-(\d+)$/);
-      if (match) maxIdNum = parseInt(match[1], 10);
-    }
+    // Numbers are worked out from every existing line (as numbers, not text).
+    // If another save took the same line numbers at the same moment (duplicate ID),
+    // everything is recalculated and tried again — so the report number moves on too.
+    let nextReportId = '';
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const existing = await fetchAllRows<{ ID: string; REPORT_ID: string | null }>(REPORT_TABLE, 'ID, REPORT_ID', 'ID');
+      const maxIdNum = existing.reduce((max, r) => Math.max(max, rowNum(r.ID)), 0);
+      const maxReportNum = existing.reduce((max, r) => {
+        const m = String(r.REPORT_ID || '').match(reportPattern);
+        return m ? Math.max(max, parseInt(m[1], 10)) : max;
+      }, 0);
 
-    let maxReportNum = 0;
-    if (maxReportData && maxReportData.length > 0) {
-      for (const row of maxReportData) {
-        const reportId = String(row.REPORT_ID || '');
-        const match = reportId.match(new RegExp(`^SCR-${currentYear}-(\\d+)$`));
-        if (match) {
-          const num = parseInt(match[1], 10);
-          if (num > maxReportNum) maxReportNum = num;
-        }
-      }
-    }
+      nextReportId = `SCR-${currentYear}-${String(maxReportNum + 1).padStart(4, '0')}`;
 
-    const nextReportId = `SCR-${currentYear}-${String(maxReportNum + 1).padStart(4, '0')}`;
-
-    const insertPayload = items.map((item, index) => {
-      const rowId = `R-${String(maxIdNum + 1 + index).padStart(4, '0')}`;
-      return {
-        ID: rowId,
+      const insertPayload = items.map((item, index) => ({
+        ID: `R-${String(maxIdNum + 1 + index).padStart(4, '0')}`,
         REPORT_ID: nextReportId,
         PRODUCT_ID: item.productId,
         UNIT: item.unit,
         QTY: item.qty,
         REASON: item.reason,
-      };
-    });
+      }));
 
-    await insertScrapReport(insertPayload);
+      const { error } = await bhs_supabas.from(REPORT_TABLE).insert(insertPayload);
+      if (error) {
+        if (error.code === '23505') continue; // row number taken meanwhile
+        throw error;
+      }
 
-    return { reportId: nextReportId };
+      return { reportId: nextReportId };
+    }
+    throw new Error('Could not reserve a report number, please try again.');
   } catch (error: any) {
     console.error('Error saving direct scrap report:', error);
     throw new Error(error.message || 'Failed to save direct scrap report');

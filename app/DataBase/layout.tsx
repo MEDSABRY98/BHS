@@ -182,14 +182,14 @@ export default function DatabaseLayout({ children }: { children: React.ReactNode
         </nav>
 
         <div className="p-4 border-t border-white/5 mt-auto flex justify-center shrink-0">
-          <button
-            onClick={toggleSidebar}
-            className="flex items-center justify-center w-10 h-10 hover:bg-white/10 rounded-xl transition-all duration-200 text-slate-400"
-            title={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
-          >
-            {isCollapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
-          </button>
-        </div>
+                      <button
+                          onClick={toggleSidebar}
+                          className="flex items-center justify-center w-10 h-10 hover:bg-white/10 rounded-xl transition-all duration-200 text-slate-400"
+                          title={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
+                        >
+                          {isCollapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
+                        </button>
+                    </div>
       </aside>
 
       {/* Main Content Area - Shifted by Sidebar Width on Desktop */}

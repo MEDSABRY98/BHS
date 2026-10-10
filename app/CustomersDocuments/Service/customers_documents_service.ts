@@ -1,113 +1,131 @@
 'use server';
-import { requireSession } from '@/lib/session';
 
-import { bhs_supabas } from '@/lib/supabase';
+import { getSessionUser, isAdminUser, requireSession, UnauthorizedError } from '@/lib/session';
+import { getSupabaseAdmin } from '@/lib/supabaseAdmin';
 
-// Helper to sync new customers from bhs_CUSTOMERS to web_CUSTOMERSDOCUMENTS
-async function syncCustomersFromBhs() {
+const DOCS = 'web_CUSTOMERSDOCUMENTS';
+const CUSTOMERS = 'bhs_CUSTOMERS';
+const SYSTEM_ID = 'customers-documents';
+const SYNC_EVERY_MS = 10 * 60 * 1000; // new customers are added at most every 10 minutes
+
+const db = () => getSupabaseAdmin();
+const key = (v: unknown) => String(v ?? '').trim().toLowerCase();
+
+/** Reads the whole table page by page (Supabase returns max 1000 rows per request). */
+async function fetchAll(table: string, columns: string, orderBy: string): Promise<any[]> {
+  const out: any[] = [];
+  const size = 1000;
+  for (let from = 0; ; from += size) {
+    const { data, error } = await db()
+      .from(table)
+      .select(columns)
+      .order(orderBy, { ascending: true })
+      .range(from, from + size - 1);
+    if (error) throw error;
+    out.push(...(data || []));
+    if (!data || data.length < size) break;
+  }
+  return out;
+}
+
+async function requireDocumentsAccess() {
+  const user = await getSessionUser();
+  if (!user) throw new UnauthorizedError('Your session has expired. Please log in again.');
+  if (isAdminUser(user)) return user;
   try {
-    const { data: bhsCustomers, error: bhsError } = await bhs_supabas
-      .from('bhs_CUSTOMERS')
-      .select('"CUSTOMER ID", "CUSTOMER MAIN NAME"');
-
-    if (bhsError) {
-      console.error('Error fetching bhs_CUSTOMERS for sync:', bhsError);
-      return;
-    }
-
-    const { data: existingDocs, error: docError } = await bhs_supabas
-      .from('web_CUSTOMERSDOCUMENTS')
-      .select('CUSTOMER_ID');
-
-    if (docError) {
-      // Ignore if table doesn't exist yet, it'll be caught in getCustomersDocuments
-      return;
-    }
-
-    const existingIds = new Set(existingDocs.map(d => d.CUSTOMER_ID?.toString().trim().toLowerCase()));
-    
-    // Get unique valid customers from BHS based on ID
-    const uniqueBhsCustomers = new Map();
-    bhsCustomers.forEach(c => {
-      const id = c['CUSTOMER ID']?.toString().trim();
-      if (id) {
-        uniqueBhsCustomers.set(id.toLowerCase(), id);
-      }
-    });
-
-    const newCustomersToInsert = Array.from(uniqueBhsCustomers.values())
-      .filter(id => !existingIds.has(id.toLowerCase()))
-      .map(id => ({
-        CUSTOMER_ID: id,
-        CREDIT_APP: 'No',
-        LICENCE: 'No',
-        LICENCE_DATE: '',
-        TRN: 'No',
-        PASSPORT: 'No',
-        ID_CARD: 'No',
-        CREDIT_APP_DATE: '',
-      }));
-
-    if (newCustomersToInsert.length > 0) {
-      const { error: insertError } = await bhs_supabas
-        .from('web_CUSTOMERSDOCUMENTS')
-        .insert(newCustomersToInsert);
-
-      if (insertError) {
-        console.error('Error inserting synced customers:', insertError);
-      } else {
-        console.log(`Successfully synced and inserted ${newCustomersToInsert.length} new customers.`);
-      }
+    const perms = JSON.parse(String(user.role || '').trim() || '{}');
+    if (Array.isArray(perms?.systems) && !perms.systems.includes(SYSTEM_ID)) {
+      throw new UnauthorizedError("You don't have access to Customers Documents.");
     }
   } catch (err) {
-    console.error('Failed to run syncCustomersFromBhs:', err);
+    if (err instanceof UnauthorizedError) throw err;
   }
+  return user;
+}
+
+/** When a customer has more than one row, show the most recently updated one (then the oldest ID). */
+function pickRow(a: any, b: any) {
+  const ta = a.UPDATED_AT ? new Date(a.UPDATED_AT).getTime() : 0;
+  const tb = b.UPDATED_AT ? new Date(b.UPDATED_AT).getTime() : 0;
+  if (ta !== tb) return ta > tb ? a : b;
+  return Number(a.ID) <= Number(b.ID) ? a : b;
+}
+
+let lastSyncAt = 0;
+let syncing: Promise<void> | null = null;
+
+/** Adds customers that exist in bhs_CUSTOMERS but have no documents row yet. */
+async function syncCustomersFromBhs(customers: any[], docs: any[]) {
+  const existing = new Set(docs.map((d) => key(d.CUSTOMER_ID)));
+  const toInsert = new Map<string, any>();
+  customers.forEach((c) => {
+    const id = String(c['CUSTOMER ID'] ?? '').trim();
+    if (!id || existing.has(key(id)) || toInsert.has(key(id))) return;
+    toInsert.set(key(id), {
+      CUSTOMER_ID: id,
+      CREDIT_APP: 'No',
+      LICENCE: 'No',
+      LICENCE_DATE: '',
+      TRN: 'No',
+      PASSPORT: 'No',
+      ID_CARD: 'No',
+      CREDIT_APP_DATE: '',
+    });
+  });
+  const rows = Array.from(toInsert.values());
+  for (let i = 0; i < rows.length; i += 500) {
+    const { error } = await db().from(DOCS).insert(rows.slice(i, i + 500));
+    if (error) throw error;
+  }
+  return rows.length;
 }
 
 export async function getCustomersDocuments() {
-  await requireSession();
+  await requireDocumentsAccess();
   try {
-    // 1. Perform auto-sync from bhs_CUSTOMERS before listing
-    await syncCustomersFromBhs();
+    const [customers, firstDocs] = await Promise.all([
+      fetchAll(CUSTOMERS, '"CUSTOMER ID", "CUSTOMER MAIN NAME"', 'CUSTOMER ID'),
+      fetchAll(DOCS, '*', 'ID'),
+    ]);
+    let docs = firstDocs;
 
-    // 2. Fetch all customers from bhs_CUSTOMERS to get names
-    const { data: bhsCustomers, error: custError } = await bhs_supabas
-      .from('bhs_CUSTOMERS')
-      .select('"CUSTOMER ID", "CUSTOMER MAIN NAME"');
-
-    if (custError) throw custError;
-
-    const customerMap = new Map();
-    bhsCustomers.forEach((c: any) => {
-      const id = c['CUSTOMER ID']?.toString().trim();
-      if (id) {
-        customerMap.set(id.toLowerCase(), c['CUSTOMER MAIN NAME'] || 'Unknown Customer');
-      }
-    });
-
-    // 3. Normal fetch from web_CUSTOMERSDOCUMENTS
-    const { data, error } = await bhs_supabas
-      .from('web_CUSTOMERSDOCUMENTS')
-      .select('*')
-      .order('CUSTOMER_ID', { ascending: true });
-
-    if (error) {
-      if (error.message?.includes('does not exist')) {
-        return {
-          success: false,
-          error: 'Table web_CUSTOMERSDOCUMENTS does not exist. Please create the table in Supabase first.',
-          needsTableCreation: true
-        };
-      }
-      throw error;
+    // Sync new customers (throttled, and only one sync at a time on this server)
+    if (Date.now() - lastSyncAt > SYNC_EVERY_MS && !syncing) {
+      syncing = (async () => {
+        try {
+          const added = await syncCustomersFromBhs(customers, docs);
+          lastSyncAt = Date.now();
+          if (added > 0) docs = await fetchAll(DOCS, '*', 'ID');
+        } catch (err) {
+          console.error('Customers documents sync failed:', err);
+        }
+      })().finally(() => {
+        syncing = null;
+      });
+      await syncing;
     }
 
-    const mapped = data.map((r: any) => {
-      const idStr = r.CUSTOMER_ID?.toString().trim();
+    const nameById = new Map<string, string>();
+    customers.forEach((c) => {
+      const id = String(c['CUSTOMER ID'] ?? '').trim();
+      if (id) nameById.set(key(id), c['CUSTOMER MAIN NAME'] || 'Unknown Customer');
+    });
+
+    // One row per customer (hides duplicates if any exist in the table)
+    const byCustomer = new Map<string, any>();
+    docs.forEach((r) => {
+      const k = key(r.CUSTOMER_ID);
+      if (!k) return;
+      const prev = byCustomer.get(k);
+      byCustomer.set(k, prev ? pickRow(prev, r) : r);
+    });
+
+    const mapped = Array.from(byCustomer.values()).map((r: any) => {
+      const idStr = String(r.CUSTOMER_ID ?? '').trim();
       return {
         rowIndex: r.ID,
         customerId: idStr,
-        customerName: idStr ? (customerMap.get(idStr.toLowerCase()) || idStr) : 'Unknown',
+        customerName: nameById.get(key(idStr)) || idStr || 'Unknown',
         creditApp: r.CREDIT_APP || 'No',
         creditAppDate: r.CREDIT_APP_DATE || '',
         licence: r.LICENCE || 'No',
@@ -118,24 +136,30 @@ export async function getCustomersDocuments() {
       };
     });
 
-    // Sort by name for better UI display
-    mapped.sort((a: any, b: any) => a.customerName.localeCompare(b.customerName));
-
+    mapped.sort((a, b) => a.customerName.localeCompare(b.customerName));
     return { success: true, data: mapped };
   } catch (error: any) {
     console.error('Error in customers-documents GET Service:', error);
-    return { success: false, error: error.message };
+    if (String(error?.message || '').includes('does not exist')) {
+      return {
+        success: false,
+        error: 'Table web_CUSTOMERSDOCUMENTS does not exist. Please create the table in Supabase first.',
+        needsTableCreation: true,
+      };
+    }
+    return { success: false, error: error?.message || 'Failed to load customer documents' };
   }
 }
 
 export async function updateCustomerDocument(rowIndex: number | string, data: any) {
   await requireSession();
   try {
+    await requireDocumentsAccess();
     if (!rowIndex) {
       return { success: false, error: 'rowIndex (ID) is required' };
     }
 
-    const updateFields: any = {};
+    const updateFields: Record<string, unknown> = {};
     if (data.creditApp !== undefined) updateFields.CREDIT_APP = data.creditApp;
     if (data.creditAppDate !== undefined) updateFields.CREDIT_APP_DATE = data.creditAppDate;
     if (data.licence !== undefined) updateFields.LICENCE = data.licence;
@@ -143,20 +167,17 @@ export async function updateCustomerDocument(rowIndex: number | string, data: an
     if (data.trn !== undefined) updateFields.TRN = data.trn;
     if (data.passport !== undefined) updateFields.PASSPORT = data.passport;
     if (data.id !== undefined) updateFields.ID_CARD = data.id;
+    if (Object.keys(updateFields).length === 0) return { success: false, error: 'Nothing to update' };
 
     updateFields.UPDATED_AT = new Date().toISOString();
 
-    const { data: result, error } = await bhs_supabas
-      .from('web_CUSTOMERSDOCUMENTS')
-      .update(updateFields)
-      .eq('ID', rowIndex)
-      .select();
-
+    const { data: result, error } = await db().from(DOCS).update(updateFields).eq('ID', rowIndex).select();
     if (error) throw error;
+    if (!result || result.length === 0) return { success: false, error: 'Record not found — refresh and try again.' };
 
     return { success: true, data: result };
   } catch (error: any) {
     console.error('Error in customers-documents update Service:', error);
-    return { success: false, error: error.message };
+    return { success: false, error: error?.message || 'Failed to save' };
   }
 }

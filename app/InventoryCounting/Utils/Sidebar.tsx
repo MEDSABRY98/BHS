@@ -229,53 +229,51 @@ export default function Sidebar({
       </nav>
 
       <div className="p-4 border-t border-white/5 mt-auto flex flex-col items-center gap-3 shrink-0">
-        <button
-          type="button"
-          onClick={() => {
-            handleTriggerRefresh();
-            onCloseMobile?.();
-          }}
-          disabled={isCurrentTabRefreshing}
-          className={`relative flex items-center justify-center w-12 h-12 rounded-2xl transition-all duration-200 ${
-            isCurrentTabRefreshing
-              ? 'bg-blue-600 text-white shadow-lg shadow-blue-950/40'
-              : 'bg-white/5 text-slate-300 hover:text-white hover:bg-white/10 border border-white/10'
-          } disabled:opacity-50`}
-          title="Refresh Tab"
-        >
-          <RefreshCw className={`w-5 h-5 ${isCurrentTabRefreshing ? 'animate-spin' : ''}`} />
-        </button>
-
-        <button
-          type="button"
-          onClick={() => {
-            onOpenFilters();
-            onCloseMobile?.();
-          }}
-          className={`relative flex items-center justify-center w-12 h-12 rounded-2xl transition-all duration-200 ${
-            hasActiveFilters
-              ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-950/40'
-              : 'bg-white/5 text-slate-300 hover:text-white hover:bg-white/10 border border-white/10'
-          }`}
-          title="Filters"
-        >
-          <Filter className="w-5 h-5" />
-          {hasActiveFilters && (
-            <span className="absolute -top-1.5 -right-1.5 min-w-[1.25rem] h-5 px-1 rounded-full bg-amber-400 text-slate-900 text-[10px] font-black flex items-center justify-center shadow">
-              {activeFilterCount}
-            </span>
-          )}
-        </button>
-
-        <button
-          type="button"
-          onClick={onToggleCollapse}
-          className="flex items-center justify-center w-10 h-10 hover:bg-white/10 rounded-xl transition-all duration-200 text-slate-400 group"
-          title={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
-        >
-          {isCollapsed ? <ChevronRight className="w-5 h-5 shrink-0" /> : <ChevronLeft className="w-5 h-5 shrink-0" />}
-        </button>
-      </div>
+                  <button
+                    type="button"
+                    onClick={onToggleCollapse}
+                    className="flex items-center justify-center w-10 h-10 hover:bg-white/10 rounded-xl transition-all duration-200 text-slate-400 group"
+                    title={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
+                  >
+                    {isCollapsed ? <ChevronRight className="w-5 h-5 shrink-0" /> : <ChevronLeft className="w-5 h-5 shrink-0" />}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onOpenFilters();
+                      onCloseMobile?.();
+                    }}
+                    className={`relative flex items-center justify-center w-12 h-12 rounded-2xl transition-all duration-200 ${
+                      hasActiveFilters
+                        ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-950/40'
+                        : 'bg-white/5 text-slate-300 hover:text-white hover:bg-white/10 border border-white/10'
+                    }`}
+                    title="Filters"
+                  >
+                    <Filter className="w-5 h-5" />
+                    {hasActiveFilters && (
+                      <span className="absolute -top-1.5 -right-1.5 min-w-[1.25rem] h-5 px-1 rounded-full bg-amber-400 text-slate-900 text-[10px] font-black flex items-center justify-center shadow">
+                        {activeFilterCount}
+                      </span>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleTriggerRefresh();
+                      onCloseMobile?.();
+                    }}
+                    disabled={isCurrentTabRefreshing}
+                    className={`relative flex items-center justify-center w-12 h-12 rounded-2xl transition-all duration-200 ${
+                      isCurrentTabRefreshing
+                        ? 'bg-blue-600 text-white shadow-lg shadow-blue-950/40'
+                        : 'bg-white/5 text-slate-300 hover:text-white hover:bg-white/10 border border-white/10'
+                    } disabled:opacity-50`}
+                    title="Refresh Tab"
+                  >
+                    <RefreshCw className={`w-5 h-5 ${isCurrentTabRefreshing ? 'animate-spin' : ''}`} />
+                  </button>
+                </div>
 
       {/* Portal-like Tooltip for Collapsed Sidebar */}
       {hoveredTab && isCollapsed && (

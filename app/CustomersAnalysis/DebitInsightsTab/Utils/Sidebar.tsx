@@ -102,54 +102,52 @@ export default function DebitInsightsSidebar({
       )}
 
       <div className="p-4 border-t border-white/5 mt-auto flex flex-col gap-3 shrink-0">
-        <div className={`flex ${isCollapsed ? 'flex-col' : 'flex-row'} items-center justify-center gap-3`}>
-          <button
-            type="button"
-            onClick={() => {
-              onOpenFilters();
-              onCloseMobile?.();
-            }}
-            className="flex items-center justify-center w-10 h-10 hover:bg-white/10 rounded-xl transition-all duration-200 text-slate-400 group relative"
-            title="Filters"
-          >
-            <Filter className="w-5 h-5 shrink-0 group-hover:text-white transition-colors" />
-            {(filtersActive || filtersPending) && (
-              <span
-                className={`absolute top-2 right-2 w-2 h-2 rounded-full ${
-                  filtersPending ? 'bg-amber-400' : 'bg-blue-400'
-                }`}
-              />
-            )}
-          </button>
+                  <button
+                    type="button"
+                    onClick={onToggleCollapse}
+                    className="flex items-center justify-center w-10 h-10 mx-auto hover:bg-white/10 rounded-xl transition-all duration-200 text-slate-400 group"
+                    title={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
+                  >
+                    {isCollapsed ? (
+                      <ChevronRight className="w-5 h-5 shrink-0" />
+                    ) : (
+                      <ChevronLeft className="w-5 h-5 shrink-0" />
+                    )}
+                  </button>
+                  <div className={`flex ${isCollapsed ? 'flex-col' : 'flex-row'} items-center justify-center gap-3`}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onOpenFilters();
+                        onCloseMobile?.();
+                      }}
+                      className="flex items-center justify-center w-10 h-10 hover:bg-white/10 rounded-xl transition-all duration-200 text-slate-400 group relative"
+                      title="Filters"
+                    >
+                      <Filter className="w-5 h-5 shrink-0 group-hover:text-white transition-colors" />
+                      {(filtersActive || filtersPending) && (
+                        <span
+                          className={`absolute top-2 right-2 w-2 h-2 rounded-full ${
+                            filtersPending ? 'bg-amber-400' : 'bg-blue-400'
+                          }`}
+                        />
+                      )}
+                    </button>
 
-          {onRefresh && (
-            <button
-              type="button"
-              onClick={onRefresh}
-              disabled={isRefreshing}
-              className="flex items-center justify-center w-10 h-10 hover:bg-white/10 rounded-xl transition-all duration-200 text-blue-400 disabled:opacity-50 group"
-              title="Refresh Data"
-            >
-              <RefreshCcw className={`w-5 h-5 shrink-0 group-hover:text-blue-300 transition-colors ${isRefreshing ? 'animate-spin' : ''}`} />
-            </button>
-          )}
-        </div>
-
-        <div className="w-full h-[1px] bg-white/5 my-1" />
-
-        <button
-          type="button"
-          onClick={onToggleCollapse}
-          className="flex items-center justify-center w-10 h-10 mx-auto hover:bg-white/10 rounded-xl transition-all duration-200 text-slate-400 group"
-          title={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
-        >
-          {isCollapsed ? (
-            <ChevronRight className="w-5 h-5 shrink-0" />
-          ) : (
-            <ChevronLeft className="w-5 h-5 shrink-0" />
-          )}
-        </button>
-      </div>
+                    {onRefresh && (
+                      <button
+                        type="button"
+                        onClick={onRefresh}
+                        disabled={isRefreshing}
+                        className="flex items-center justify-center w-10 h-10 hover:bg-white/10 rounded-xl transition-all duration-200 text-blue-400 disabled:opacity-50 group"
+                        title="Refresh Data"
+                      >
+                        <RefreshCcw className={`w-5 h-5 shrink-0 group-hover:text-blue-300 transition-colors ${isRefreshing ? 'animate-spin' : ''}`} />
+                      </button>
+                    )}
+                  </div>
+                  <div className="w-full h-[1px] bg-white/5 my-1" />
+                </div>
 
       {/* Portal-like Tooltip for Collapsed Sidebar */}
       {hoveredTab && isCollapsed && (

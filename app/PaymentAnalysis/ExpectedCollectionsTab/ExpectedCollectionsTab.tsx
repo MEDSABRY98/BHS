@@ -3,10 +3,10 @@
 import React, { useMemo, useState } from 'react';
 import NoData from '../../Components/DataState/NoDataTab';
 import { usePaymentAnalysis } from '../Context/PaymentAnalysisContext';
-import { Search, FileSpreadsheet } from 'lucide-react';
-import { exportStyledExcel } from '../../Components/Export/ExcelExport';
+import { Search } from 'lucide-react';
 import { parseDate } from '@/app/CustomersAnalysis/DebitInsightsTab/Utils/DateUtils';
 import MonthDetailsView from './MonthDetailsView';
+import { ExportExcelButton, exportExpectedCollectionsExcel } from '../Export/ExportExcel';
 
 export default function ExpectedCollectionsTab() {
   const { data, loading, error, selectedTags, selectedClasses, selectedCities } = usePaymentAnalysis();
@@ -85,7 +85,9 @@ export default function ExpectedCollectionsTab() {
         }
       });
 
-      const openInvoices: { amount: number; dueDate: Date; invoiceDate: string | null }[] = [];
+      const openInvoices: { amount: number; dueDate: Date; invoiceDate: string | null; include: boolean }[] = [];
+      // Payments/credits not matched to an invoice yet — they reduce what is still to be collected
+      let unappliedCredit = 0;
 
       invoices.forEach((inv, idx) => {
         let amountToUse = 0;
@@ -107,18 +109,27 @@ export default function ExpectedCollectionsTab() {
           }
         }
 
-        if (shouldProcess && amountToUse > 0) {
-          // Calculate due date (Using Months logic by default for projections)
-          let parsedTarget = inv.dueDate ? parseDate(inv.dueDate) : inv.date ? parseDate(inv.date) : null;
-          let dueDate = parsedTarget ? new Date(parsedTarget) : new Date();
+        if (shouldProcess && amountToUse < 0) {
+          unappliedCredit += -amountToUse;
+          return;
+        }
 
-          if (parsedTarget) {
-            const pt = Number(inv.paymentTerm) || 0;
-            if (pt > 0) {
-              const monthsToAdd = Math.round(pt / 30);
-              dueDate.setMonth(dueDate.getMonth() + monthsToAdd + 1);
-              dueDate.setDate(1);
-            }
+        if (shouldProcess && amountToUse > 0) {
+          // Expected month = invoice month + payment term (in months), collected from the 1st of the next month.
+          // The term is counted from the INVOICE date; the due date already includes the term,
+          // so it is only used when there is no invoice date or no payment term.
+          const pt = Number(inv.paymentTerm) || 0;
+          const invoiceDate = inv.date ? parseDate(inv.date) : null;
+          const dueDateField = inv.dueDate ? parseDate(inv.dueDate) : null;
+          let dueDate: Date;
+          if (invoiceDate && pt > 0) {
+            dueDate = new Date(invoiceDate.getFullYear(), invoiceDate.getMonth() + Math.round(pt / 30) + 1, 1);
+          } else if (dueDateField) {
+            dueDate = new Date(dueDateField);
+          } else if (invoiceDate) {
+            dueDate = new Date(invoiceDate);
+          } else {
+            dueDate = new Date();
           }
           dueDate.setHours(0, 0, 0, 0);
 
@@ -143,15 +154,30 @@ export default function ExpectedCollectionsTab() {
             }
           }
           
-          if (shouldInclude) {
-            openInvoices.push({ amount: amountToUse, dueDate, invoiceDate: inv.date || null });
-          }
+          // Keep every open invoice so credits are used oldest-first across ALL of them;
+          // the invoice-date filter only decides what is shown.
+          openInvoices.push({ amount: amountToUse, dueDate, invoiceDate: inv.date || null, include: shouldInclude });
         }
       });
 
+      // Use unapplied credits against the oldest invoices first (same as how they will be matched)
+      if (unappliedCredit > 0.01) {
+        openInvoices.sort((a, b) => {
+          const da = a.invoiceDate ? parseDate(a.invoiceDate)?.getTime() ?? 0 : 0;
+          const db = b.invoiceDate ? parseDate(b.invoiceDate)?.getTime() ?? 0 : 0;
+          return da - db;
+        });
+        for (const inv of openInvoices) {
+          if (unappliedCredit <= 0.01) break;
+          const used = Math.min(inv.amount, unappliedCredit);
+          inv.amount -= used;
+          unappliedCredit -= used;
+        }
+      }
+
       const monthAmounts: Record<string, { amount: number, sourceMonthsAmounts: Record<string, number> }> = {};
       openInvoices.forEach(inv => {
-        if (inv.amount <= 0) return;
+        if (!inv.include || inv.amount <= 0.001) return;
         const y = inv.dueDate.getFullYear();
         const m = String(inv.dueDate.getMonth() + 1).padStart(2, '0');
         const key = `${y}-${m}`;
@@ -221,33 +247,7 @@ export default function ExpectedCollectionsTab() {
     return filteredData.reduce((sum, item) => sum + item.totalAmount, 0);
   }, [filteredData]);
 
-  const exportToExcel = async () => {
-    const round2 = (n: number) => Math.round(n * 100) / 100;
-    const rows: Record<string, unknown>[] = [];
-    
-    projectedData.forEach(month => {
-       month.customers.forEach(c => {
-          rows.push({
-             'Month': month.monthName,
-             'Customer ID': c.customer['CUSTOMER ID'],
-             'Customer Name': c.customer['CUSTOMER NAME'],
-             'City': c.customer['CITY'],
-             'Tag': c.customer['TAG'],
-             'Payment Term': `${Number(c.customer['PAYMENT TERM']) || 0} Days`,
-             'Expected Amount': round2(c.amount),
-          });
-       });
-    });
-
-    if (rows.length === 0) return;
-    
-    const date = new Date().toISOString().split('T')[0];
-    await exportStyledExcel(rows, `Expected_Collections_${date}`, {
-      sheetName: 'Expected Collections',
-      columnWidth: 20,
-      numericColumns: ['Expected Amount'],
-    });
-  };
+  const exportToExcel = () => exportExpectedCollectionsExcel(projectedData);
 
   if (error) {
     return (
@@ -298,15 +298,14 @@ export default function ExpectedCollectionsTab() {
               </button>
             )}
           </div>
-
-          <button
-            type="button"
-            onClick={exportToExcel}
-            title="Export Detailed Excel"
-            className="flex items-center justify-center w-9 h-9 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition-colors shadow-sm cursor-pointer"
-          >
-            <FileSpreadsheet className="w-4 h-4" />
-          </button>
+          
+          <ExportExcelButton
+            onExport={exportToExcel}
+            disabled={projectedData.length === 0}
+            title="Export Expected Collections to Excel"
+            className="w-9 h-9 !p-0 justify-center rounded-xl"
+            label=""
+          />
         </div>
 
         <div className="flex items-center gap-3">

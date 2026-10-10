@@ -135,31 +135,31 @@ export default function SuppliersSidebar({
 
       {/* Footer controls */}
       <div className={`p-4 border-t border-slate-100 mt-auto flex ${isCollapsed ? 'flex-col items-center mx-auto' : 'flex-row justify-center'} gap-2 shrink-0`}>
-        {onRefresh && (
-          <button
-            onClick={onRefresh}
-            title="Refresh Data"
-            disabled={isRefreshing}
-            className="flex items-center justify-center w-10 h-10 hover:bg-slate-100 rounded-xl transition-all duration-200 text-slate-500 disabled:opacity-50 group border border-slate-200 shrink-0"
-          >
-            <RefreshCcw className={`w-5 h-5 shrink-0 ${isRefreshing ? 'animate-spin text-[#D4AF37]' : ''}`} />
-          </button>
-        )}
-        <button
-          onClick={() => setIsFilterModalOpen(true)}
-          className={`flex items-center justify-center w-10 h-10 hover:bg-slate-100 rounded-xl transition-all duration-200 text-slate-500 group border border-slate-200 shrink-0 ${dateRange.start || dateRange.end ? 'bg-indigo-50 border-indigo-200 text-indigo-600' : ''}`}
-          title="Global Filters"
-        >
-          <Filter className="w-5 h-5 shrink-0" />
-        </button>
-        <button
-          onClick={onToggleCollapse}
-          className="flex items-center justify-center w-10 h-10 hover:bg-slate-100 rounded-xl transition-all duration-200 text-slate-500 group border border-slate-200 shrink-0"
-          title={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
-        >
-          {isCollapsed ? <ChevronRight className="w-5 h-5 shrink-0" /> : <ChevronLeft className="w-5 h-5 shrink-0" />}
-        </button>
-      </div>
+                  <button
+                    onClick={onToggleCollapse}
+                    className="flex items-center justify-center w-10 h-10 hover:bg-slate-100 rounded-xl transition-all duration-200 text-slate-500 group border border-slate-200 shrink-0"
+                    title={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
+                  >
+                    {isCollapsed ? <ChevronRight className="w-5 h-5 shrink-0" /> : <ChevronLeft className="w-5 h-5 shrink-0" />}
+                  </button>
+                  <button
+                    onClick={() => setIsFilterModalOpen(true)}
+                    className={`flex items-center justify-center w-10 h-10 hover:bg-slate-100 rounded-xl transition-all duration-200 text-slate-500 group border border-slate-200 shrink-0 ${dateRange.start || dateRange.end ? 'bg-indigo-50 border-indigo-200 text-indigo-600' : ''}`}
+                    title="Global Filters"
+                  >
+                    <Filter className="w-5 h-5 shrink-0" />
+                  </button>
+                  {onRefresh && (
+                    <button
+                      onClick={onRefresh}
+                      title="Refresh Data"
+                      disabled={isRefreshing}
+                      className="flex items-center justify-center w-10 h-10 hover:bg-slate-100 rounded-xl transition-all duration-200 text-slate-500 disabled:opacity-50 group border border-slate-200 shrink-0"
+                    >
+                      <RefreshCcw className={`w-5 h-5 shrink-0 ${isRefreshing ? 'animate-spin text-[#D4AF37]' : ''}`} />
+                    </button>
+                  )}
+                </div>
 
       {/* Portal-like Tooltip for Collapsed Sidebar */}
       {hoveredTab && isCollapsed && (

@@ -37,7 +37,19 @@ export type CustomerMonthStats = {
 
 export type CustomerMonthBucket = "pending" | "semi" | "settled";
 
-export function parseSettlementId(id: string): { discountId: string; month: number } | null {
+/**
+ * Settlement IDs:
+ *  - old (2026, created before the fix): S-<discountId>-<month>          e.g. S-R-0001-5
+ *  - new (any year):                     S-<discountId>-<month>-Y<year>  e.g. S-R-0001-5-Y2027
+ * The "-Y" marker keeps it unambiguous (discount IDs themselves end with digits).
+ */
+export function buildSettlementId(discountId: string, year: number, month: number): string {
+  return `S-${discountId}-${month}-Y${year}`;
+}
+
+export function parseSettlementId(id: string): { discountId: string; month: number; year?: number } | null {
+  const withYear = id.match(/^S-(.+)-(\d{1,2})-Y(\d{4})$/);
+  if (withYear) return { discountId: withYear[1], month: Number(withYear[2]), year: Number(withYear[3]) };
   const match = id.match(/^S-(.+)-(\d+)$/);
   if (!match) return null;
   return { discountId: match[1], month: Number(match[2]) };

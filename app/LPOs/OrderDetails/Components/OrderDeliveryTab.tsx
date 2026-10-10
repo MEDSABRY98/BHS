@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { bhs_supabas, fetchAllData } from '@/lib/supabase';
+import { listLpoUsers } from '../../Service/lpo_users_service';
+import { bhs_supabas } from '@/lib/secureDb';
 import { Truck, Navigation, CheckCircle2, Clock, Save, MapPin, Trash2 } from 'lucide-react';
 import SearchSelect from '../../Components/DropDownList';
 import TabLoader from '@/app/Components/Loading/TabLoader';
@@ -54,9 +55,7 @@ export default function OrderDeliveryTab({ orderId }: OrderDeliveryTabProps) {
     setIsLoading(true);
     try {
       // Fetch all staff for dropdowns
-      const staffData = await fetchAllData(() =>
-        bhs_supabas.from('bhs_USERS').select('*').order('NAME')
-      );
+      const staffData = await listLpoUsers();
       setAllStaff(staffData);
 
       // Fetch delivery tracking for this order
@@ -88,18 +87,24 @@ export default function OrderDeliveryTab({ orderId }: OrderDeliveryTabProps) {
     }
   };
 
+  // Next R-number read as numbers (text order would put R-9999 above R-10000)
   const generateNextId = async () => {
-    const { data } = await bhs_supabas
-      .from('app_lpos_DRIVERS')
-      .select('ID')
-      .order('ID', { ascending: false })
-      .limit(1);
-
-    if (!data || data.length === 0) return 'R-0001';
-
-    const lastId = data[0].ID;
-    const lastNum = parseInt(lastId.split('-')[1]);
-    return `R-${(lastNum + 1).toString().padStart(4, '0')}`;
+    const rows: any[] = [];
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await bhs_supabas
+        .from('app_lpos_DRIVERS')
+        .select('ID')
+        .order('ID')
+        .range(from, from + 999);
+      if (error) throw error;
+      rows.push(...(data || []));
+      if (!data || data.length < 1000) break;
+    }
+    const max = rows.reduce((m: number, r: any) => {
+      const n = String(r.ID || '').match(/(\d+)\s*$/);
+      return n ? Math.max(m, parseInt(n[1], 10)) : m;
+    }, 0);
+    return `R-${(max + 1).toString().padStart(4, '0')}`;
   };
 
   const handleSave = async (updatedFields: any = {}) => {

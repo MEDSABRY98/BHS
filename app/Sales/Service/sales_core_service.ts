@@ -1,5 +1,23 @@
 'use server';
-import { requireSession } from '@/lib/session';
+import { requireSession, getSessionUser, isAdminUser, UnauthorizedError } from '@/lib/session';
+
+/** Deleting sales needs the same right as the Delete button in DataBase (database-actions: delete). */
+async function requireSalesDeleteRight() {
+  const user = await getSessionUser();
+  if (!user) throw new UnauthorizedError('Your session has expired. Please log in again.');
+  if (isAdminUser(user)) return user;
+  let perms: any = null;
+  try {
+    perms = JSON.parse(String(user.role || '').trim() || 'null');
+  } catch {
+    perms = null;
+  }
+  const actions = perms?.['database-actions'];
+  if (!perms || !Array.isArray(actions) || !actions.includes('delete')) {
+    throw new UnauthorizedError("You don't have permission to delete sales data.");
+  }
+  return user;
+}
 
 import { 
   getMappingServer,
@@ -81,7 +99,7 @@ export async function getSalesDataCache(refresh: boolean = false) {
 }
 
 export async function deleteSalesMonth(year: number, month: number) {
-  await requireSession();
+  await requireSalesDeleteRight();
   const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
   const endDate = month === 12
     ? `${year + 1}-01-01`
@@ -97,12 +115,23 @@ export async function deleteSalesMonth(year: number, month: number) {
 
   await bhs_supabas.from('web_Sales_DB_Cache').update({ DATA: null }).eq('KEY', 'sales_data');
   await bhs_supabas.from('web_Sales_DB_Cache').update({ DATA: null }).eq('KEY', 'months_data');
+  await rebuildCacheAfterDelete();
 
   return { success: true };
 }
 
+/** The Sales tabs read the saved cache file — rebuild it so deleted rows disappear there too. */
+async function rebuildCacheAfterDelete() {
+  try {
+    await buildAndSaveCache();
+  } catch (e) {
+    console.error('Sales deleted but cache rebuild failed (press Refresh in Sales):', e);
+    invalidateMemoryCache();
+  }
+}
+
 export async function deleteAllSalesData() {
-  await requireSession();
+  await requireSalesDeleteRight();
   const { error } = await bhs_supabas
     .from('web_Sales_DB')
     .delete()
@@ -112,6 +141,8 @@ export async function deleteAllSalesData() {
 
   await bhs_supabas.from('web_Sales_DB_Cache').update({ DATA: null }).eq('KEY', 'sales_data');
   await bhs_supabas.from('web_Sales_DB_Cache').update({ DATA: null }).eq('KEY', 'months_data');
+
+  await rebuildCacheAfterDelete();
 
   return { success: true };
 }

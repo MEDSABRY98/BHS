@@ -46,12 +46,18 @@ function computeDaysOverdue(
   paymentTerm: number | undefined,
   agingMode: 'days' | 'months'
 ): number {
-  const parsedTarget = dueDate ? parseDate(dueDate) : invoiceDate ? parseDate(invoiceDate) : null;
+  // Days: from the due date (already includes the payment term).
+  // Months: invoice month + payment term (months), from the 1st of the next month —
+  //         counted from the INVOICE date, same as Expected Collections.
+  const useInvoiceDate = agingMode === 'months' && paymentTerm !== undefined;
+  const parsedTarget = useInvoiceDate
+    ? (invoiceDate ? parseDate(invoiceDate) : null) || (dueDate ? parseDate(dueDate) : null)
+    : (dueDate ? parseDate(dueDate) : null) || (invoiceDate ? parseDate(invoiceDate) : null);
   if (!parsedTarget) return 0;
   
   // Clone to avoid mutating the potentially cached Date object from parseDate
   const targetDate = new Date(parsedTarget);
-  if (agingMode === 'months' && paymentTerm !== undefined) {
+  if (useInvoiceDate) {
     const monthsToAdd = Math.round((paymentTerm || 0) / 30);
     targetDate.setMonth(targetDate.getMonth() + monthsToAdd + 1);
     targetDate.setDate(1);

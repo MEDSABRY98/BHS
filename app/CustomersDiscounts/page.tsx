@@ -1,7 +1,8 @@
 "use client";
 import React, { useEffect, useState } from "react";
 import { CheckCircle } from "lucide-react";
-import { bhs_supabase, fetchAllData, getAllCustomerEmails, getLuluEmails, buildCustomerEmailMap, getCustomerEmail } from "@/lib/supabase";
+import { buildCustomerEmailMap, getCustomerEmail } from "@/lib/supabase";
+import { bhs_supabase, fetchAllData, getAllCustomerEmails, getLuluEmails } from "@/lib/secureDb";
 import Sidebar, { CUSTOMERS_DISCOUNTS_TAB_IDS } from "./Utils/Sidebar";
 import { getAllowedModuleTabIds, getCurrentUserFromStorage } from '@/app/AdminControl/AdminControlTab';
 import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
@@ -18,7 +19,15 @@ import {
   splitMonthGroups,
   type MonthGroup,
 } from "./Utils/settlementUtils";
-import { autoSettleClearedMonths } from "./Utils/AutoSettleClearedMonths";
+import {
+  addDiscount,
+  autoSettleClearedMonths,
+  deleteDiscount,
+  ensureCurrentYearSettlements,
+  setSettlementStatus,
+  updateDiscount,
+  updateSettlementType,
+} from "./Service/discounts_service";
 import { useCustomersDiscountsTabAudit } from '@/app/Audit/Model/CustomersDiscountsTabAudit';
 
 export type { MonthGroup } from "./Utils/settlementUtils";
@@ -208,6 +217,10 @@ export default function CustomerDiscountsPage() {
   const [discountName, setDiscountName] = useState("");
   const [discountType, setDiscountType] = useState<"percentage" | "fixed_amount">("fixed_amount");
   const [discountValue, setDiscountValue] = useState<string>("");
+  const [startMonth, setStartMonth] = useState<string>(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [addError, setAddError] = useState("");
@@ -537,6 +550,10 @@ export default function CustomerDiscountsPage() {
     try {
       setLoading(true);
 
+      // New year -> make sure every discount has this year's months
+      const ensured = await ensureCurrentYearSettlements().catch(() => null);
+      if (ensured && !ensured.success) console.warn("ensureCurrentYearSettlements:", ensured.error);
+
       const [emailsData, luluEmailsData, discountsData, customersData] = await Promise.all([
         getAllCustomerEmails().catch((err) => {
           console.error("Error loading customer emails:", err);
@@ -685,22 +702,14 @@ export default function CustomerDiscountsPage() {
   };
 
   const handleSettle = async (settlementIds: string[]) => {
-    try {
-      const { error } = await bhs_supabase
-        .from("web_CUSTOMERS_DISCOUNTS_SETTLEMENTS")
-        .update({ STATUS: "Settled" })
-        .in("ID", settlementIds);
-
-      if (error) throw error;
-
-      // Optimistic update
-      setSettlements((prev) =>
-        prev.map((s) => (settlementIds.includes(s.id) ? { ...s, status: "Settled" } : s))
-      );
-    } catch (error) {
-      console.error("Error settling month:", error);
-      alert("An error occurred during settlement.");
+    const res = await setSettlementStatus(settlementIds, "Settled");
+    if (!res.success) {
+      toast.error(res.error);
+      return;
     }
+    setSettlements((prev) =>
+      prev.map((s) => (settlementIds.includes(s.id) ? { ...s, status: "Settled" } : s))
+    );
   };
 
   const handleAutoSettleClearedMonths = async () => {
@@ -708,23 +717,41 @@ export default function CustomerDiscountsPage() {
     try {
       setAutoSettling(true);
       toast.info("Checking past pending months against open balances...");
-      const result = await autoSettleClearedMonths();
-
-      if (result.settledCount === 0) {
-        toast.info(
-          `No cleared months to settle (${result.scannedPending} past pending checked).`,
-        );
+      const preview = await autoSettleClearedMonths(false);
+      if (!preview.success) {
+        toast.error(preview.error);
         return;
       }
-
-      const settledSet = new Set(result.settledIds);
-      setSettlements((prev) =>
-        prev.map((s) => (settledSet.has(s.id) ? { ...s, status: "Settled" } : s)),
-      );
-      setMonthsOverviewRefreshKey((key) => key + 1);
-      toast.success(
-        `Auto-settled ${result.settledCount} settlement(s) across cleared past months.`,
-      );
+      if (preview.settledCount === 0) {
+        toast.info(`No cleared months to settle (${preview.scannedPending} past pending checked).`);
+        return;
+      }
+      const skippedNote = preview.skippedNoLedger > 0
+        ? ` ${preview.skippedNoLedger} month(s) were skipped because their customer has no transactions in the Debit ledger.`
+        : "";
+      openConfirm({
+        title: "Auto-Settle Cleared Months",
+        message: `${preview.settledCount} of ${preview.scannedPending} past pending month(s) have no open balance and will be marked as Settled.${skippedNote} Continue?`,
+        confirmText: "Settle",
+        onConfirm: async () => {
+          setAutoSettling(true);
+          try {
+            const result = await autoSettleClearedMonths(true);
+            if (!result.success) {
+              toast.error(result.error);
+              return;
+            }
+            const settledSet = new Set(result.settledIds);
+            setSettlements((prev) =>
+              prev.map((s) => (settledSet.has(s.id) ? { ...s, status: "Settled" } : s)),
+            );
+            setMonthsOverviewRefreshKey((key) => key + 1);
+            toast.success(`Auto-settled ${result.settledCount} settlement(s) across cleared past months.`);
+          } finally {
+            setAutoSettling(false);
+          }
+        },
+      });
     } catch (error) {
       console.error("Auto-settle cleared months failed:", error);
       toast.error("Failed to auto-settle cleared months.");
@@ -734,22 +761,14 @@ export default function CustomerDiscountsPage() {
   };
 
   const handleUnsettle = async (settlementIds: string[]) => {
-    try {
-      const { error } = await bhs_supabase
-        .from("web_CUSTOMERS_DISCOUNTS_SETTLEMENTS")
-        .update({ STATUS: "Pending" })
-        .in("ID", settlementIds);
-
-      if (error) throw error;
-
-      // Optimistic update
-      setSettlements((prev) =>
-        prev.map((s) => (settlementIds.includes(s.id) ? { ...s, status: "Pending" } : s))
-      );
-    } catch (error) {
-      console.error("Error unsettling month:", error);
-      alert("An error occurred during unsettle action.");
+    const res = await setSettlementStatus(settlementIds, "Pending");
+    if (!res.success) {
+      toast.error(res.error);
+      return;
     }
+    setSettlements((prev) =>
+      prev.map((s) => (settlementIds.includes(s.id) ? { ...s, status: "Pending" } : s))
+    );
   };
 
   const handleAddSubmit = async (e: React.FormEvent) => {
@@ -769,67 +788,33 @@ export default function CustomerDiscountsPage() {
       return;
     }
 
+    const [startYearStr, startMonthStr] = (startMonth || "").split("-");
+    const startYear = Number(startYearStr);
+    const startMonthNum = Number(startMonthStr);
+    if (!startYear || !startMonthNum) {
+      setAddError("Please choose the month the discount starts from.");
+      return;
+    }
+
     try {
       setIsSubmitting(true);
 
-      // Fetch the maximum discount ID to generate the next sequential R-XXXX ID
-      const { data: maxIdData, error: maxIdError } = await bhs_supabase
-        .from("web_CUSTOMERS_DISCOUNTS")
-        .select("ID")
-        .order("ID", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (maxIdError) throw maxIdError;
-
-      let nextNum = 1;
-      if (maxIdData && maxIdData.ID) {
-        const match = maxIdData.ID.match(/^R-(\d+)$/i);
-        if (match) {
-          nextNum = parseInt(match[1], 10) + 1;
-        }
-      }
-      const discountId = `R-${String(nextNum).padStart(4, '0')}`;
-
-      // Determine the default settlement type based on existing discounts for this customer
+      // Same settlement mode as the customer's existing discounts
       const customerObj = customers.find(c => c.customerId === selectedAddCustomerId);
       const defaultSettlementType = customerObj && customerObj.discounts.length > 0
         ? (customerObj.discounts[0].settlementType || "monthly")
         : "monthly";
 
-      // Insert discount
-      const { error: discountError } = await bhs_supabase
-        .from("web_CUSTOMERS_DISCOUNTS")
-        .insert({
-          ID: discountId,
-          CUSTOMER_ID: selectedAddCustomerId,
-          DISCOUNT_NAME: discountName,
-          DISCOUNT_TYPE: discountType,
-          DISCOUNT_VALUE: Number(discountValue),
-          SETTLEMENT_TYPE: defaultSettlementType,
-        });
-
-      if (discountError) throw discountError;
-
-      // Generate 12 months for 2026
-      const year = 2026;
-      const newSettlements = [];
-      for (let month = 1; month <= 12; month++) {
-        newSettlements.push({
-          ID: `S-${discountId}-${month}`,
-          CUSTOMER_ID: selectedAddCustomerId,
-          MONTH: month,
-          YEAR: year,
-          STATUS: "Pending",
-          NOTES: "",
-        });
-      }
-
-      const { error: settlementsError } = await bhs_supabase
-        .from("web_CUSTOMERS_DISCOUNTS_SETTLEMENTS")
-        .insert(newSettlements);
-
-      if (settlementsError) throw settlementsError;
+      const res = await addDiscount({
+        customerId: selectedAddCustomerId,
+        name: discountName,
+        type: discountType,
+        value: Number(discountValue),
+        startYear,
+        startMonth: startMonthNum,
+        settlementType: defaultSettlementType,
+      });
+      if (!res.success) throw new Error(res.error);
 
       // Success
       setDiscountName("");
@@ -857,24 +842,12 @@ export default function CustomerDiscountsPage() {
       confirmText: "Delete",
       isDestructive: true,
       onConfirm: async () => {
-        try {
-          // Delete settlements first
-          await bhs_supabase
-            .from("web_CUSTOMERS_DISCOUNTS_SETTLEMENTS")
-            .delete()
-            .like("ID", `S-${discountId}-%`);
-
-          // Delete discount
-          await bhs_supabase
-            .from("web_CUSTOMERS_DISCOUNTS")
-            .delete()
-            .eq("ID", discountId);
-
-          await fetchCustomersAndDiscounts();
-        } catch (err) {
-          console.error("Error deleting discount:", err);
-          alert("An error occurred while deleting.");
+        const res = await deleteDiscount(discountId);
+        if (!res.success) {
+          toast.error(res.error);
+          return;
         }
+        await fetchCustomersAndDiscounts();
       }
     });
   };
@@ -893,14 +866,8 @@ export default function CustomerDiscountsPage() {
   const handleUpdateSettlementType = async (customerId: string, newType: "monthly" | "with_payment") => {
     try {
       setIsSubmitting(true);
-      const { error } = await bhs_supabase
-        .from("web_CUSTOMERS_DISCOUNTS")
-        .update({
-          SETTLEMENT_TYPE: newType
-        })
-        .eq("CUSTOMER_ID", customerId);
-
-      if (error) throw error;
+      const res = await updateSettlementType(customerId, newType);
+      if (!res.success) throw new Error(res.error);
 
       toast.success("Settlement mode updated successfully!");
       await fetchCustomersAndDiscounts();
@@ -921,16 +888,13 @@ export default function CustomerDiscountsPage() {
 
     try {
       setIsSubmitting(true);
-      const { error } = await bhs_supabase
-        .from("web_CUSTOMERS_DISCOUNTS")
-        .update({
-          DISCOUNT_NAME: editDiscountName,
-          DISCOUNT_TYPE: editDiscountType,
-          DISCOUNT_VALUE: Number(editDiscountValue),
-        })
-        .eq("ID", editingDiscountId);
-
-      if (error) throw error;
+      const res = await updateDiscount({
+        id: editingDiscountId,
+        name: editDiscountName,
+        type: editDiscountType as "percentage" | "fixed_amount",
+        value: Number(editDiscountValue),
+      });
+      if (!res.success) throw new Error(res.error);
 
       setEditingDiscountId(null);
       await fetchCustomersAndDiscounts();
@@ -1022,6 +986,8 @@ export default function CustomerDiscountsPage() {
             setDiscountType={setDiscountType}
             discountValue={discountValue}
             setDiscountValue={setDiscountValue}
+            startMonth={startMonth}
+            setStartMonth={setStartMonth}
             isSubmitting={isSubmitting}
           />
         )}
