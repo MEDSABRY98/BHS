@@ -9,7 +9,6 @@
   pointer-events: none;
 }
 
-.login-aurora::before,
 .login-aurora::after {
   content: '';
   position: absolute;
@@ -17,14 +16,6 @@
   filter: blur(100px);
   opacity: 0.5;
   animation: login-drift 18s ease-in-out infinite alternate;
-}
-
-.login-aurora::before {
-  width: 50vw;
-  height: 50vw;
-  top: -15%;
-  left: -8%;
-  background: radial-gradient(circle, rgba(212, 175, 55, 0.18) 0%, transparent 70%);
 }
 
 .login-aurora::after {
@@ -38,15 +29,7 @@
 }
 
 .login-grid {
-  position: absolute;
-  inset: 0;
-  opacity: 0.035;
-  background-image:
-    linear-gradient(rgba(15, 23, 42, 0.6) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(15, 23, 42, 0.6) 1px, transparent 1px);
-  background-size: 48px 48px;
-  mask-image: radial-gradient(ellipse 80% 70% at 50% 50%, black 20%, transparent 75%);
-  pointer-events: none;
+  display: none;
 }
 
 .login-card {

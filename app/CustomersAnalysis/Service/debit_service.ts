@@ -4,6 +4,7 @@ import { getSupabaseAdmin } from '@/lib/supabaseAdmin';
 
 import { bhs_supabase, getSheetData } from '@/lib/supabase';
 import { InvoiceRow } from '@/types';
+import { applyDebitScope, buildDebitScope, hasFullDebitAccess, type DebitScope } from './debit_scope';
 
 export interface DebitMetadata {
   success: boolean;
@@ -52,6 +53,14 @@ async function requireDebitTab(...tabIds: string[]) {
 }
 
 const db = () => getSupabaseAdmin();
+
+/** null = full access; otherwise the rules that give the user's share of the ledger. */
+async function getDebitScope(): Promise<DebitScope | null> {
+  const user = await getSessionUser();
+  if (!user) throw new UnauthorizedError('Your session has expired. Please log in again.');
+  if (hasFullDebitAccess(user)) return null;
+  return buildDebitScope(user);
+}
 
 /** Customer Terms: save payment term / credit limit / status (+ same payment term for the customer's main name and tag). */
 export async function updateCustomerTerms(input: {
@@ -126,9 +135,10 @@ function mapDebitRpcRow(row: Record<string, unknown>): InvoiceRow {
 }
 
 export async function getDebitData() {
-  await requireSession();
+  const scope = await getDebitScope();
   try {
-    const data = await getSheetData();
+    const all = await getSheetData();
+    const data = scope ? applyDebitScope(all as InvoiceRow[], scope) : all;
     return { data };
   } catch (error) {
     console.error('Service Error getDebitData:', error);
@@ -180,8 +190,9 @@ export async function getDebitTransactionsPaginated(options?: {
   limit?: number;
   offset?: number;
 }) {
-  await requireSession();
+  const scope = await getDebitScope();
   try {
+    if (scope) throw new Error('scoped user: use filtered data');
     const { data, error } = await bhs_supabase.rpc('get_debit_transactions', {
       p_search: options?.search?.trim() || null,
       p_date_from: options?.dateFrom || null,
@@ -245,13 +256,16 @@ export async function getDebitCustomersSummary(): Promise<{
   success: boolean;
   data: DebitCustomersSummaryRow[];
 }> {
-  await requireSession();
+  const scope = await getDebitScope();
   try {
     const { data, error } = await bhs_supabase.rpc('get_debit_customers_aggregated');
     if (!error && Array.isArray(data)) {
+      const visible = scope
+        ? data.filter((row: Record<string, unknown>) => scope.ownShare({ customerId: String(row.customerId || ''), date: '', number: '', debit: 0 } as InvoiceRow) > 0)
+        : data;
       return {
         success: true,
-        data: data.map((row: Record<string, unknown>) => ({
+        data: visible.map((row: Record<string, unknown>) => ({
           customerId: String(row.customerId || ''),
           customerName: String(row.customerName || ''),
           city: String(row.city || ''),
@@ -272,7 +286,8 @@ export async function getDebitCustomersSummary(): Promise<{
 }
 
 export async function getDebitPaymentsSummary(options?: { dateFrom?: string; dateTo?: string }) {
-  await requireSession();
+  const scope = await getDebitScope();
+  if (scope) return { success: false, totalPayments: 0, totalAmount: 0, data: [] };
   try {
     const { data, error } = await bhs_supabase.rpc('get_debit_payments_summary', {
       p_date_from: options?.dateFrom || null,

@@ -2,7 +2,7 @@
 //  Browser-side database client.
 //  Same API the screens already use (bhs_supabase.from(...).select(...)...),
 //  but nothing talks to Supabase from the browser: each query is sent to
-//  /Api/SecureDb, which checks the login and permissions and runs it on the
+//  /api/SecureDb, which checks the login and permissions and runs it on the
 //  server with the server-only key (rules: lib/secureDbGateway.ts).
 // ════════════════════════════════════════════════════════════════
 
@@ -17,7 +17,7 @@ export type SecureResult = {
   status: number;
 };
 
-const ENDPOINT = '/Api/SecureDb';
+const ENDPOINT = '/api/SecureDb';
 // Keep each request well under the hosting body limit (~4.5 MB)
 const MAX_BODY_CHARS = 2_500_000;
 

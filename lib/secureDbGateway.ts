@@ -11,6 +11,7 @@
 
 import { getSessionUser, isAdminUser, type SessionUserRecord } from '@/lib/session';
 import { getSupabaseAdmin } from '@/lib/supabaseAdmin';
+import { hasSalesDataAccess } from '@/lib/supabase';
 
 export type SecureStep = [string, unknown[]];
 export type SecureRequest = { table: string; steps: SecureStep[] };
@@ -92,6 +93,15 @@ function canWriteDatabase(user: SessionUserRecord, action: 'edit' | 'delete'): b
   return actions.includes('edit') || actions.includes('delete');
 }
 
+/** Full data access flag, or access to the Database module. */
+function canSeeAllDebit(user: SessionUserRecord): boolean {
+  if (isAdminUser(user) || hasSalesDataAccess({ name: user.name, userAdmin: user.userAdmin, salesDataAccess: user.salesDataAccess })) {
+    return true;
+  }
+  const systems = parsePerms(user)?.systems;
+  return Array.isArray(systems) && systems.includes('database');
+}
+
 function stripSecrets(value: any): any {
   if (Array.isArray(value)) return value.map(stripSecrets);
   if (value && typeof value === 'object') {
@@ -124,6 +134,11 @@ export async function runSecureRequest(user: SessionUserRecord, req: SecureReque
         return fail(`You don't have permission to ${action === 'delete' ? 'delete' : 'change'} this data.`, 403, '42501');
       }
     }
+  }
+
+  // Customer debts: only users with full data access or the Database screens
+  if (table === 'mix_DEBIT' && !canSeeAllDebit(user)) {
+    return fail("You don't have permission to see all customers' balances.", 403, '42501');
   }
 
   const touchesUsers = table === 'bhs_USERS' || JSON.stringify(steps).includes('bhs_USERS');

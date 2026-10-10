@@ -51,7 +51,7 @@ export function parseBoolFlag(value: unknown): boolean {
   return normalized === 'true' || normalized === 't' || normalized === 'yes' || normalized === '1';
 }
 
-/** Serialize a flag for bhs_USERS.SALES_DATA_ACCESS (text column). */
+/** Serialize a flag for bhs_USERS.FULL_DATA_ACCESS (text column). */
 export function toTextBoolFlag(value: unknown): 'true' | 'false' {
   return parseBoolFlag(value) ? 'true' : 'false';
 }
@@ -64,7 +64,7 @@ export type SessionUserLike = {
   isSalesManager?: unknown;
 };
 
-/** Full sales data visibility (admin, MED Sabry, or SALES_DATA_ACCESS flag). */
+/** Full data visibility — Sales, Customers Analysis, Payment Analysis (admin, MED Sabry, or FULL_DATA_ACCESS flag). */
 export function hasSalesDataAccess(user: SessionUserLike | null | undefined): boolean {
   if (!user) return false;
   if (String(user.name || '').trim().toLowerCase() === 'med sabry') return true;
@@ -75,6 +75,8 @@ export function hasSalesDataAccess(user: SessionUserLike | null | undefined): bo
 export type BhsUserAccessRow = {
   NAME?: string | null;
   ROLE?: string | null;
+  FULL_DATA_ACCESS?: unknown;
+  /** old column name (before the rename) */
   SALES_DATA_ACCESS?: unknown;
 };
 
@@ -83,7 +85,7 @@ export function hasSalesDataAccessFromDb(user: BhsUserAccessRow | null | undefin
   if (!user) return false;
   if (String(user.NAME || '').trim().toLowerCase() === 'med sabry') return true;
   if (String(user.ROLE || '').trim().toLowerCase() === 'admin') return true;
-  return parseBoolFlag(user.SALES_DATA_ACCESS);
+  return parseBoolFlag(user.FULL_DATA_ACCESS ?? user.SALES_DATA_ACCESS);
 }
 
 /** Users assigned on LPO invoices (any USER_TYPE), resolved from app_lpos_DRIVERS. */

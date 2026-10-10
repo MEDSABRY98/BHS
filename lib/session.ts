@@ -115,7 +115,7 @@ export function toSessionUser(row: any): SessionUserRecord {
     name: row.NAME,
     role: row.AUTHORITY || '',
     userAdmin: row.ROLE,
-    salesDataAccess: parseBool(row.SALES_DATA_ACCESS),
+    salesDataAccess: parseBool(row.FULL_DATA_ACCESS ?? row.SALES_DATA_ACCESS),
   };
 }
 
@@ -124,7 +124,7 @@ export async function getSessionUser(): Promise<SessionUserRecord | null> {
   if (!session) return null;
   const { data, error } = await getSupabaseAdmin()
     .from('bhs_USERS')
-    .select('ID, NAME, ROLE, AUTHORITY, SALES_DATA_ACCESS')
+    .select('*') // '*' so it works before and after renaming SALES_DATA_ACCESS -> FULL_DATA_ACCESS
     .eq('ID', session.uid)
     .maybeSingle();
   if (error || !data) return null;

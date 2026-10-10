@@ -122,7 +122,7 @@ async function resolveSalesUserContext(_userIdFromClient: string): Promise<Sales
 async function fetchSalesUserContext(cleanUserId: string): Promise<SalesUserContext | null> {
   const { data: user } = await bhs_supabas
     .from('bhs_USERS')
-    .select('NAME, ROLE, SALES_DATA_ACCESS')
+    .select('*') // works before and after renaming SALES_DATA_ACCESS -> FULL_DATA_ACCESS
     .eq('ID', cleanUserId)
     .maybeSingle();
 

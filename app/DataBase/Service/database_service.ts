@@ -615,7 +615,7 @@ export async function uploadDebitData(payload: any[] | string) {
 // identify the caller from the signed session cookie (lib/session.ts).
 // Passwords are never returned to the browser.
 
-const USER_PUBLIC_FIELDS = 'ID, NAME, ROLE, AUTHORITY, SALES_DATA_ACCESS';
+const USER_PUBLIC_FIELDS = 'ID, NAME, ROLE, AUTHORITY, FULL_DATA_ACCESS';
 
 function stripPassword<T extends Record<string, any>>(row: T): Omit<T, 'PASSWORD'> {
   if (!row) return row;
@@ -808,7 +808,7 @@ export async function adminSaveUser(
     IS_IN_OFFICE: boolean;
     CANCEL_AUTHORITY: boolean;
     CITY: string;
-    SALES_DATA_ACCESS: string;
+    FULL_DATA_ACCESS: string;
   },
   editingId?: string | null
 ) {
