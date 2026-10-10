@@ -15,10 +15,13 @@ import {
   Filter,
   MapPin,
   UserX,
-  CalendarClock
+  CalendarClock,
+  FileDown,
+  Loader2
 } from 'lucide-react';
 import { usePaymentAnalysis } from '../Context/PaymentAnalysisContext';
 import GlobalFiltersModal from './GlobalFiltersModal';
+import { toast } from '@/app/Components/Notification';
 
 interface SidebarProps {
   activeTab: string;
@@ -50,7 +53,29 @@ export default function PaymentSidebar({
 }: SidebarProps) {
   const [hoveredTab, setHoveredTab] = useState<{ label: string; top: number } | null>(null);
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
-  const { dateRange, setDateRange } = usePaymentAnalysis();
+  const { data, dateRange, selectedTags, selectedClasses, selectedCities, refresh, isRefreshing: ctxRefreshing } = usePaymentAnalysis();
+  const [isExportingReport, setIsExportingReport] = useState(false);
+
+  // PDF report for the current filters (Pdf/ExportReport.ts)
+  const handleExportReport = async () => {
+    if (isExportingReport) return;
+    if (!data || data.length === 0) {
+      toast.error('No payment data to export');
+      return;
+    }
+    setIsExportingReport(true);
+    try {
+      const { exportPaymentsReport } = await import('../Pdf/ExportReport');
+      await exportPaymentsReport({ data, dateRange, selectedTags, selectedClasses, selectedCities });
+    } catch (err) {
+      console.error('Payments report failed:', err);
+      toast.error('Could not create the PDF report');
+    } finally {
+      setIsExportingReport(false);
+    }
+  };
+  const handleRefresh = onRefresh ?? (() => { void refresh(); });
+  const refreshing = isRefreshing ?? ctxRefreshing;
 
   return (
     <div className="flex flex-col h-full bg-white text-slate-800 border-r border-slate-200">
@@ -155,16 +180,24 @@ export default function PaymentSidebar({
                   >
                     <Filter className="w-5 h-5 shrink-0" />
                   </button>
-                  {onRefresh && (
-                    <button
-                      onClick={onRefresh}
-                      title="Refresh Data"
-                      disabled={isRefreshing}
-                      className="flex items-center justify-center w-10 h-10 hover:bg-slate-100 rounded-xl transition-all duration-200 text-slate-500 disabled:opacity-50 group border border-slate-200 shrink-0"
-                    >
-                      <RefreshCcw className={`w-5 h-5 shrink-0 ${isRefreshing ? 'animate-spin text-[#D4AF37]' : ''}`} />
-                    </button>
-                  )}
+                  <button
+                    onClick={handleRefresh}
+                    title={refreshing ? 'Refreshing...' : 'Refresh Data'}
+                    disabled={refreshing}
+                    className="flex items-center justify-center w-10 h-10 hover:bg-slate-100 rounded-xl transition-all duration-200 text-slate-500 disabled:cursor-not-allowed group border border-slate-200 shrink-0"
+                  >
+                    <RefreshCcw className={`w-5 h-5 shrink-0 ${refreshing ? 'animate-spin text-[#D4AF37]' : ''}`} />
+                  </button>
+                  <button
+                    onClick={handleExportReport}
+                    disabled={isExportingReport}
+                    className="flex items-center justify-center w-10 h-10 hover:bg-slate-100 rounded-xl transition-all duration-200 text-slate-500 disabled:opacity-50 group border border-slate-200 shrink-0"
+                    title="Export PDF Report"
+                  >
+                    {isExportingReport
+                      ? <Loader2 className="w-5 h-5 shrink-0 animate-spin text-[#D4AF37]" />
+                      : <FileDown className="w-5 h-5 shrink-0" />}
+                  </button>
                 </div>
 
       {/* Portal-like Tooltip for Collapsed Sidebar */}

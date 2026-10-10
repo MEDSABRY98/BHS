@@ -9,6 +9,7 @@ interface PaymentAnalysisContextType {
   data: InvoiceRow[];
   paymentsData: InvoiceRow[]; // ONLY payments and r-payments
   loading: boolean;
+  isRefreshing: boolean;
   error: string | null;
   refresh: () => Promise<void>;
   dateRange: { start: string; end: string };
@@ -26,25 +27,44 @@ const PaymentAnalysisContext = createContext<PaymentAnalysisContextType | undefi
 export function PaymentAnalysisProvider({ children, enabled = true }: { children: ReactNode; enabled?: boolean }) {
   const [data, setData] = useState<InvoiceRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dateRange, setDateRange] = useState<{ start: string; end: string }>({ start: '', end: '' });
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [selectedClasses, setSelectedClasses] = useState<string[]>([]);
   const [selectedCities, setSelectedCities] = useState<string[]>([]);
 
-  const loadData = async () => {
+  const loadData = async (silent = false) => {
     try {
-      setLoading(true);
-      setError(null);
+      if (silent) {
+        setIsRefreshing(true);
+      } else {
+        setLoading(true);
+        setError(null);
+      }
       const res = await getDebitData();
       if (res && res.data) {
         setData(res.data);
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to load payment data');
+      if (silent) {
+        // Silent refresh: keep current data on screen, just log the failure
+        console.error('Silent refresh failed:', err);
+      } else {
+        setError(err.message || 'Failed to load payment data');
+      }
     } finally {
-      setLoading(false);
+      if (silent) {
+        setIsRefreshing(false);
+      } else {
+        setLoading(false);
+      }
     }
+  };
+
+  const silentRefresh = async () => {
+    if (isRefreshing) return;
+    await loadData(true);
   };
 
   useEffect(() => {
@@ -94,8 +114,9 @@ export function PaymentAnalysisProvider({ children, enabled = true }: { children
       data,
       paymentsData,
       loading, 
+      isRefreshing,
       error, 
-      refresh: loadData,
+      refresh: silentRefresh,
       dateRange,
       setDateRange,
       selectedTags,

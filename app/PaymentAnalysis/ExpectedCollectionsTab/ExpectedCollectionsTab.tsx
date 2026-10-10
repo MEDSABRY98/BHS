@@ -303,8 +303,6 @@ export default function ExpectedCollectionsTab() {
             onExport={exportToExcel}
             disabled={projectedData.length === 0}
             title="Export Expected Collections to Excel"
-            className="w-9 h-9 !p-0 justify-center rounded-xl"
-            label=""
           />
         </div>
 

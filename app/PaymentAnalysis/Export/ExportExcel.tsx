@@ -1,7 +1,7 @@
 'use client';
 
 // Payments Analysis — every Excel export of the module lives here:
-//  • ExportExcelButton  — the green Export button used by the tabs
+//  • ExportExcelButton  — the green icon-only Export button used by the tabs
 //  • exportCitiesExcel / exportCollectionsExcel / exportExpectedCollectionsExcel — the sheets
 
 import React, { useState } from 'react';
@@ -166,7 +166,6 @@ interface ExportExcelButtonProps {
   onExport: () => Promise<void> | void;
   disabled?: boolean;
   className?: string;
-  label?: string;
   title?: string;
 }
 
@@ -174,7 +173,6 @@ export function ExportExcelButton({
   onExport,
   disabled = false,
   className = '',
-  label = 'Export',
   title = 'Export to Excel',
 }: ExportExcelButtonProps) {
   const [busy, setBusy] = useState(false);
@@ -197,15 +195,15 @@ export function ExportExcelButton({
       onClick={handleClick}
       disabled={disabled || busy}
       className={`
-        flex items-center gap-2 px-4 py-2 text-sm font-semibold text-[#166534] bg-[#dcfce7]
+        flex items-center justify-center w-10 h-10 shrink-0 text-[#166534] bg-[#dcfce7]
         hover:bg-[#bbf7d0] border border-[#86efac] rounded-xl transition-all duration-200
         shadow-sm hover:shadow active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed
         ${className}
       `}
       title={title}
+      aria-label={title}
     >
-      {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4" />}
-      {label}
+      {busy ? <Loader2 className="w-5 h-5 animate-spin" /> : <FileSpreadsheet className="w-5 h-5" />}
     </button>
   );
 }
