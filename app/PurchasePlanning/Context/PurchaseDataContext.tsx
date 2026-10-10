@@ -61,6 +61,7 @@ export type PurchaseFilters = {
 
 interface PurchaseDataContextValue {
   loading: boolean;
+  error: string | null;
   products: ProductPurchaseRow[];
   months: PlanningMonth[];
   orderQuantities: Map<string, number>; // productId -> quantity
@@ -75,6 +76,7 @@ const PurchaseDataContext = createContext<PurchaseDataContextValue | null>(null)
 
 export function PurchaseDataProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [products, setProducts] = useState<ProductPurchaseRow[]>([]);
   const [orderQuantities, setOrderQuantities] = useState<Map<string, number>>(new Map());
   const [globalFilters, setGlobalFilters] = useState<PurchaseFilters>({ categories: [] });
@@ -100,6 +102,7 @@ export function PurchaseDataProvider({ children }: { children: React.ReactNode }
     if (fetchPromiseRef.current) return fetchPromiseRef.current;
     
     setLoading(true);
+    setError(null);
     
     const promise = (async () => {
       try {
@@ -213,8 +216,9 @@ export function PurchaseDataProvider({ children }: { children: React.ReactNode }
       setUniqueCategories(Array.from(categories).sort());
 
       setProducts(processedProducts);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error fetching purchase planning data:', err);
+      setError(err?.message || 'Failed to load data');
       } finally {
         setLoading(false);
         fetchPromiseRef.current = null;
@@ -232,6 +236,7 @@ export function PurchaseDataProvider({ children }: { children: React.ReactNode }
   return (
     <PurchaseDataContext.Provider value={{
       loading,
+      error,
       products,
       months,
       orderQuantities,
