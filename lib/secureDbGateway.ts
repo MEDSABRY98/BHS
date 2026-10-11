@@ -24,6 +24,7 @@ export type SecureResult = {
 
 // Tables the browser screens may use through this gateway
 const ALLOWED_TABLES = new Set([
+  'app_VERSIONS',
   'app_lpos_DRIVERS',
   'app_lpos_ORDERS',
   'bhs_CUSTOMERS',
@@ -48,6 +49,7 @@ const ALLOWED_TABLES = new Set([
 
 // Master data managed from the Database screens: writes need Database permissions
 const DATABASE_TABLES = new Set([
+  'app_VERSIONS',
   'bhs_CUSTOMERS',
   'bhs_PRODUCTS',
   'bhs_SUPPLIERS',

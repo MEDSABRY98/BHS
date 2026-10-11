@@ -10,6 +10,7 @@ import {
   Receipt,
   LayoutDashboard,
   MapPin,
+  Smartphone,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -102,7 +103,7 @@ export const DATABASE_CATEGORIES: DatabaseCategory[] = [
     href: '/DataBase/Personnel',
     icon: Users,
     color: 'from-gray-700 to-gray-900',
-    tables: ['Users DB'],
+    tables: ['Users DB', 'App Versions DB'],
   },
 ];
 
@@ -196,6 +197,14 @@ export const DATABASE_NAV_ITEMS: DatabaseNavItem[] = [
     label: 'Users DB',
     category: 'SYSTEM_ADMIN',
     source: { table: 'bhs_USERS', kind: 'reference' },
+  },
+  {
+    id: 'db-app-versions',
+    href: '/DataBase/AppVersions',
+    icon: Smartphone,
+    label: 'App Versions DB',
+    category: 'SYSTEM_ADMIN',
+    source: { table: 'app_VERSIONS', kind: 'reference' },
   },
 ];
 

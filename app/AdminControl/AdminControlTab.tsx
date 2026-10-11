@@ -302,6 +302,7 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
         { id: 'db-suppliers-analysis', label: 'Suppliers Analysis DB' },
         { id: 'db-purchase-price-tracking', label: 'Purchase Price Tracking DB' },
         { id: 'db-users', label: 'Users DB' },
+        { id: 'db-app-versions', label: 'App Versions DB' },
     ],
     'purchase-price-tracking': [
         { id: 'product-history', label: 'Product History' },
