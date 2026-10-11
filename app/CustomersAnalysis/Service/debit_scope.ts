@@ -83,10 +83,22 @@ async function loadCustomers(): Promise<Map<string, Customer>> {
 }
 
 export async function buildDebitScope(user: SessionUserRecord): Promise<DebitScope> {
+  return buildDebitScopeFor({ id: user.id, name: user.name }, { includeMerchandiser: true });
+}
+
+/**
+ * Same rules for any person (e.g. Salesperson Analysis picks a salesperson).
+ * includeMerchandiser=false → only the SALES_REP role counts.
+ */
+export async function buildDebitScopeFor(
+  target: { id: string; name: string },
+  options: { includeMerchandiser: boolean },
+): Promise<DebitScope> {
   const [userIds, customers, sales] = await Promise.all([loadUserIds(), loadCustomers(), getSalesDataServer()]);
   const person = (v: string) => (v ? userIds.get(v) || v : '');
-  const meId = person(norm(user.id)) || person(norm(user.name));
+  const meId = person(norm(target.id)) || person(norm(target.name));
   const isMe = (p: string) => !!p && person(p) === meId;
+  const withMerch = options.includeMerchandiser;
 
   // People per main customer (deduplicated by user)
   const groups = new Map<string, MainGroup>();
@@ -103,7 +115,7 @@ export async function buildDebitScope(user: SessionUserRecord): Promise<DebitSco
     const inv = invoiceKey(s.invoiceNumber);
     if (!inv) continue;
     const cust = customers.get(norm(s.customerId));
-    const mine = !!cust && (isMe(cust.rep) || isMe(cust.merch));
+    const mine = !!cust && (isMe(cust.rep) || (withMerch && isMe(cust.merch)));
     invoiceMine.set(inv, (invoiceMine.get(inv) || false) || mine);
   }
 
@@ -113,7 +125,7 @@ export async function buildDebitScope(user: SessionUserRecord): Promise<DebitSco
     const g = cust ? groups.get(cust.main) : undefined;
     if (!g) return 0;
     const asRep = g.reps.has(meId) ? 1 / g.reps.size : 0;
-    const asMerch = g.merchs.has(meId) ? 1 / g.merchs.size : 0;
+    const asMerch = withMerch && g.merchs.has(meId) ? 1 / g.merchs.size : 0;
     return Math.max(asRep, asMerch);
   };
 

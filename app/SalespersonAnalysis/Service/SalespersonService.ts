@@ -1,0 +1,258 @@
+'use server';
+
+// ════════════════════════════════════════════════════════════════
+//  Salesperson Analysis — server side
+//  • listSalespersons: who can be picked (admins / full data access: everyone;
+//    other users: only themselves)
+//  • getSalespersonData: the salesperson's sales lines + his share of the
+//    customers' ledger (same rules as everywhere else: sales invoice → sub
+//    customer's SALES_REP, payments follow MATCHING, the rest split equally)
+// ════════════════════════════════════════════════════════════════
+
+import { getSessionUser, UnauthorizedError, type SessionUserRecord } from '@/lib/session';
+import { getSupabaseAdmin } from '@/lib/supabaseAdmin';
+import { getSheetData } from '@/lib/supabase';
+import { getSalesDataServer } from '@/app/Sales/Cache/SalesCache';
+import {
+  applyDebitScope,
+  buildDebitScopeFor,
+  hasFullDebitAccess,
+} from '@/app/CustomersAnalysis/Service/debit_scope';
+import { getInvoiceType } from '@/app/CustomersAnalysis/Utils/InvoiceType';
+import type { InvoiceRow } from '@/types';
+import type {
+  LedgerRow,
+  Period,
+  SalesCustomerInfo,
+  SalesLine,
+  SalesProductInfo,
+  SalespersonData,
+  SalespersonOption,
+} from '../Utils/Types';
+
+const norm = (v: unknown) => String(v ?? '').trim().toUpperCase();
+const dayOf = (v: unknown) => String(v ?? '').split('T')[0].trim();
+const pad = (n: number) => String(n).padStart(2, '0');
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+
+function shiftYear(iso: string, years: number): string {
+  const [y, m, d] = iso.split('-').map(Number);
+  const last = new Date(y + years, m, 0).getDate();
+  return `${y + years}-${pad(m)}-${pad(Math.min(d, last))}`;
+}
+
+async function requireUser(): Promise<SessionUserRecord> {
+  const user = await getSessionUser();
+  if (!user) throw new UnauthorizedError('Your session has expired. Please log in again.');
+  return user;
+}
+
+/** Same rule as the Sales module: costs hidden only when 'sales-actions' exists without 'view-costs'. */
+function canSeeCosts(user: SessionUserRecord): boolean {
+  if (hasFullDebitAccess(user)) return true;
+  try {
+    const roleStr = String(user.role || '').trim();
+    if (!roleStr || roleStr === 'Admin') return true;
+    const perms = JSON.parse(roleStr);
+    if (perms['sales-actions'] !== undefined) {
+      return Array.isArray(perms['sales-actions']) && perms['sales-actions'].includes('view-costs');
+    }
+  } catch {
+    // default: visible
+  }
+  return true;
+}
+
+async function loadUsers() {
+  const { data, error } = await getSupabaseAdmin().from('bhs_USERS').select('ID, NAME');
+  if (error) throw error;
+  const idByKey = new Map<string, string>(); // ID or NAME → ID
+  const nameById = new Map<string, string>();
+  for (const u of (data || []) as any[]) {
+    const id = norm(u.ID);
+    if (!id) continue;
+    const name = String(u.NAME || '').trim();
+    idByKey.set(id, id);
+    if (name) idByKey.set(norm(name), id);
+    nameById.set(id, name || id);
+  }
+  return { idByKey, nameById };
+}
+
+type CustomerRow = { id: string; subName: string; mainName: string; city: string; rep: string };
+
+async function loadCustomers(): Promise<Map<string, CustomerRow>> {
+  const map = new Map<string, CustomerRow>();
+  const pageSize = 1000;
+  let from = 0;
+  while (true) {
+    const { data, error } = await getSupabaseAdmin()
+      .from('bhs_CUSTOMERS')
+      .select('"CUSTOMER ID", "CUSTOMER SUB NAME", "CUSTOMER MAIN NAME", "CUSTOMER CITY", "SALES_REP"')
+      .order('CUSTOMER ID', { ascending: true })
+      .range(from, from + pageSize - 1);
+    if (error) throw error;
+    const rows = data || [];
+    for (const r of rows as any[]) {
+      const id = String(r['CUSTOMER ID'] ?? '').trim();
+      if (!id) continue;
+      map.set(norm(id), {
+        id,
+        subName: String(r['CUSTOMER SUB NAME'] || r['CUSTOMER MAIN NAME'] || id).trim(),
+        mainName: String(r['CUSTOMER MAIN NAME'] || r['CUSTOMER SUB NAME'] || id).trim(),
+        city: String(r['CUSTOMER CITY'] || '').trim(),
+        rep: norm(r['SALES_REP']),
+      });
+    }
+    if (rows.length < pageSize) break;
+    from += pageSize;
+  }
+  return map;
+}
+
+/** Salespersons that can be picked by the logged-in user. */
+export async function ListSalespersons(): Promise<{ canChoose: boolean; salespersons: SalespersonOption[] }> {
+  const user = await requireUser();
+  const [{ idByKey, nameById }, customers] = await Promise.all([loadUsers(), loadCustomers()]);
+
+  if (!hasFullDebitAccess(user)) {
+    const id = idByKey.get(norm(user.id)) || norm(user.id);
+    return { canChoose: false, salespersons: [{ id, name: nameById.get(id) || user.name }] };
+  }
+
+  const options = new Map<string, SalespersonOption>();
+  customers.forEach((c) => {
+    if (!c.rep) return;
+    const id = idByKey.get(c.rep) || c.rep;
+    if (!options.has(id)) options.set(id, { id, name: nameById.get(id) || c.rep });
+  });
+  return {
+    canChoose: true,
+    salespersons: Array.from(options.values()).sort((a, b) => a.name.localeCompare(b.name)),
+  };
+}
+
+/** Everything the module needs for one salesperson and one period. */
+export async function GetSalespersonData(input: { salespersonId: string; period: Period }): Promise<SalespersonData> {
+  const user = await requireUser();
+  const { start, end } = input.period || ({} as Period);
+  if (!ISO_DAY.test(String(start)) || !ISO_DAY.test(String(end)) || start > end) {
+    throw new Error('Invalid period');
+  }
+
+  const [{ idByKey, nameById }, customers] = await Promise.all([loadUsers(), loadCustomers()]);
+  const ownId = idByKey.get(norm(user.id)) || norm(user.id);
+  const targetId = idByKey.get(norm(input.salespersonId)) || norm(input.salespersonId);
+  if (!hasFullDebitAccess(user) && targetId !== ownId) {
+    throw new UnauthorizedError("You can only see your own analysis.");
+  }
+  const salesperson: SalespersonOption = { id: targetId, name: nameById.get(targetId) || input.salespersonId };
+  const isTarget = (rep: string) => !!rep && (idByKey.get(rep) || rep) === targetId;
+
+  const windowStart = shiftYear(start, -1);
+  const showCosts = canSeeCosts(user);
+
+  // ── sales lines of his customers (sub customer's SALES_REP) ──
+  const salesAll = (await getSalesDataServer()) as any[];
+  const sales: SalesLine[] = [];
+  const customerInfo: Record<string, SalesCustomerInfo> = {};
+  const productInfo: Record<string, SalesProductInfo> = {};
+  for (const s of salesAll) {
+    const cust = customers.get(norm(s.customerId));
+    if (!cust || !isTarget(cust.rep)) continue;
+    const date = dayOf(s.invoiceDate);
+    if (!date) continue;
+
+    const info =
+      customerInfo[cust.id] ||
+      (customerInfo[cust.id] = {
+        id: cust.id,
+        name: cust.subName,
+        mainName: cust.mainName,
+        city: cust.city,
+        firstPurchase: date,
+        lastPurchase: date,
+      });
+    const amount = Number(s.amount) || 0;
+    if (amount > 0) {
+      if (date < info.firstPurchase) info.firstPurchase = date;
+      if (date > info.lastPurchase) info.lastPurchase = date;
+    }
+
+    if (date < windowStart || date > end) continue;
+    const productId = String(s.productId ?? '').trim();
+    if (productId && !productInfo[productId]) {
+      productInfo[productId] = {
+        id: productId,
+        barcode: String(s.barcode || '').trim(),
+        name: String(s.product || productId).trim(),
+        category: String(s.productTag || 'Uncategorized').trim() || 'Uncategorized',
+      };
+    }
+    sales.push({
+      date,
+      invoice: String(s.invoiceNumber ?? '').trim(),
+      customerId: cust.id,
+      productId,
+      amount,
+      qty: Number(s.qty) || 0,
+      cost: showCosts ? Number(s.productCost) || 0 : 0,
+    });
+  }
+
+  // ── his share of the ledger ──
+  const sheet = (await getSheetData()) as InvoiceRow[];
+  const scope = await buildDebitScopeFor(
+    { id: salesperson.id, name: salesperson.name },
+    { includeMerchandiser: false },
+  );
+  const mine = applyDebitScope(sheet, scope);
+
+  // last payment per main customer (all history)
+  const lastPaymentByCustomer: Record<string, string> = {};
+  // matching groups still open (closed ones before the window don't change balances / aging)
+  const groupNet = new Map<string, number>();
+  for (const r of mine) {
+    const key = String(r.matching || '').trim();
+    if (key) groupNet.set(key, (groupNet.get(key) || 0) + (Number(r.debit) || 0) - (Number(r.credit) || 0));
+    if (getInvoiceType(r) === 'Payment') {
+      const d = dayOf(r.date);
+      const name = r.customerName || '';
+      if (d && (!lastPaymentByCustomer[name] || d > lastPaymentByCustomer[name])) lastPaymentByCustomer[name] = d;
+    }
+  }
+
+  const ledger: LedgerRow[] = [];
+  for (const r of mine) {
+    const date = dayOf(r.date);
+    const key = String(r.matching || '').trim();
+    const closedOldGroup = key && Math.abs(groupNet.get(key) || 0) < 0.01 && date < windowStart;
+    if (closedOldGroup) continue;
+    ledger.push({
+      id: String(r.id),
+      date,
+      dueDate: dayOf(r.dueDate),
+      number: r.number || '',
+      customerId: r.customerId || '',
+      customerName: r.customerName || '',
+      city: r.city || '',
+      debit: Number(r.debit) || 0,
+      credit: Number(r.credit) || 0,
+      matching: key,
+      paymentTerm: r.paymentTerm,
+      isCustomerVendor: r.isCustomerVendor,
+    });
+  }
+
+  return {
+    salesperson,
+    period: { start, end },
+    windowStart,
+    showCosts,
+    sales,
+    customers: customerInfo,
+    products: productInfo,
+    ledger,
+    lastPaymentByCustomer,
+  };
+}

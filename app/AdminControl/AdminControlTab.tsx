@@ -197,6 +197,7 @@ const SYSTEMS = [
     { id: 'lpo-management', label: "LPO's" },
     { id: 'customers-discounts', label: 'Customers Discounts' },
     { id: 'payment-analysis', label: 'Payment Analysis' },
+    { id: 'salesperson-analysis', label: 'Salesperson Analysis' },
     { id: 'financial-model', label: 'Financial Model' },
     { id: 'suppliers-analysis', label: 'Suppliers Analysis' },
     { id: 'database', label: 'Database' },
@@ -230,6 +231,11 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
         { id: 'sales-products', label: 'Products' },
         { id: 'sales-new-listings', label: 'New Listings' },
         { id: 'sales-download-form', label: 'Stock Report' },
+    ],
+    'salesperson-analysis': [
+        { id: 'sales', label: 'Sales' },
+        { id: 'debit', label: 'Debit' },
+        { id: 'collections', label: 'Collections' },
     ],
     'payment-analysis': [
         { id: 'dashboard', label: 'Collections Overview' },

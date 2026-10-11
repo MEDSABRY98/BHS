@@ -107,6 +107,8 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
   const isSystemAllowed = (systemId: string) => {
     const userName = currentUser?.name?.toLowerCase() || '';
     if (userName === 'med sabry') return true;
+    // Open to everyone: each salesperson sees only his own data, full data access sees all
+    if (systemId === 'salesperson-analysis') return true;
 
     try {
       const roleStr = currentUser?.role || '';
@@ -138,6 +140,7 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
     { id: 'customers-analysis', title: 'Customers Analysis', path: '/CustomersAnalysis', color: 'red' },
     { id: 'suppliers-analysis', title: 'Suppliers Analysis', path: '/SuppliersAnalysis', color: 'orange' },
     { id: 'payment-analysis', title: 'Payments Analysis', path: '/PaymentAnalysis', color: 'emerald' },
+    { id: 'salesperson-analysis', title: 'Salesperson Analysis', path: '/SalespersonAnalysis', color: 'violet' },
     { id: 'customers-documents', title: 'Customers Documents', path: '/CustomersDocuments', color: 'indigo' },
 
     { id: 'inventory-item-code', title: 'Inventory Item Code', path: '/InventoryItemCode', color: 'blue' },
