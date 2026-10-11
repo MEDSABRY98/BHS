@@ -189,3 +189,111 @@ export function applyDebitScope(rows: InvoiceRow[], scope: DebitScope): InvoiceR
   }
   return out;
 }
+
+// ════════════════════════════════════════════════════════════════
+//  Payments per sales rep (all reps) — same rules as the rep scope:
+//   • sales invoice → rep of its sub customer (Sales DB → bhs_CUSTOMERS)
+//   • other entries → split equally between the main customer's reps
+//   • payments matched to invoices follow those invoices;
+//     the unapplied part follows the main customer rule
+//  Returns, for each payment / refund row id, the reps and their share (0..1).
+// ════════════════════════════════════════════════════════════════
+export const UNASSIGNED_REP = 'Unassigned';
+
+export async function buildRepAllocation(
+  rows: InvoiceRow[],
+): Promise<Record<string, { rep: string; share: number }[]>> {
+  const [userIds, customers, sales, usersRes] = await Promise.all([
+    loadUserIds(),
+    loadCustomers(),
+    getSalesDataServer(),
+    getSupabaseAdmin().from('bhs_USERS').select('ID, NAME'),
+  ]);
+  const displayName = new Map<string, string>();
+  for (const u of (usersRes.data || []) as any[]) {
+    const id = norm(u.ID);
+    if (id) displayName.set(id, String(u.NAME || '').trim() || id);
+  }
+  /** rep value (ID or name) → shown name */
+  const repName = (raw: string) => {
+    if (!raw) return '';
+    const id = userIds.get(raw) || raw;
+    return displayName.get(id) || raw;
+  };
+
+  // reps per main customer
+  const mainReps = new Map<string, Set<string>>();
+  customers.forEach((c) => {
+    const set = mainReps.get(c.main) || new Set<string>();
+    const name = repName(c.rep);
+    if (name) set.add(name);
+    mainReps.set(c.main, set);
+  });
+
+  // sales invoice → rep
+  const invoiceRep = new Map<string, string>();
+  for (const s of sales as any[]) {
+    const inv = invoiceKey(s.invoiceNumber);
+    if (!inv || invoiceRep.has(inv)) continue;
+    const cust = customers.get(norm(s.customerId));
+    invoiceRep.set(inv, (cust && repName(cust.rep)) || UNASSIGNED_REP);
+  }
+
+  type Dist = Map<string, number>;
+  const mainDist = (row: InvoiceRow): Dist => {
+    const cust = customers.get(norm(row.customerId));
+    const reps = cust ? mainReps.get(cust.main) : undefined;
+    if (!reps || reps.size === 0) return new Map([[UNASSIGNED_REP, 1]]);
+    const share = 1 / reps.size;
+    return new Map(Array.from(reps).map((r) => [r, share]));
+  };
+  const debitDist = (row: InvoiceRow): Dist => {
+    const rep = invoiceRep.get(invoiceKey(row.number));
+    return rep ? new Map([[rep, 1]]) : mainDist(row);
+  };
+  const addInto = (target: Dist, src: Dist, factor: number) => {
+    src.forEach((v, k) => target.set(k, (target.get(k) || 0) + v * factor));
+  };
+
+  // matching groups: invoice debit per rep
+  type Group = { debit: number; credit: number; byRep: Dist };
+  const groups = new Map<string, Group>();
+  for (const r of rows) {
+    const key = String(r.matching || '').trim();
+    if (!key) continue;
+    const g = groups.get(key) || { debit: 0, credit: 0, byRep: new Map() };
+    const debit = Number(r.debit) || 0;
+    const credit = Number(r.credit) || 0;
+    if (debit > 0) {
+      g.debit += debit;
+      addInto(g.byRep, debitDist(r), debit);
+    }
+    if (credit > 0) g.credit += credit;
+    groups.set(key, g);
+  }
+
+  const out: Record<string, { rep: string; share: number }[]> = {};
+  for (const r of rows) {
+    const credit = Number(r.credit) || 0;
+    const isBank = norm(r.number).startsWith('BNK');
+    if (credit <= 0 && !isBank) continue; // only payments / refunds are needed
+    let dist: Dist;
+    if (credit > 0) {
+      const g = groups.get(String(r.matching || '').trim());
+      if (g && g.debit > 0) {
+        const applied = Math.min(1, g.debit / g.credit);
+        dist = new Map();
+        addInto(dist, g.byRep, applied / g.debit);
+        addInto(dist, mainDist(r), 1 - applied);
+      } else {
+        dist = mainDist(r);
+      }
+    } else {
+      dist = mainDist(r); // refund / bounced payment
+    }
+    out[String(r.id)] = Array.from(dist.entries())
+      .filter(([, v]) => v > 0.0001)
+      .map(([rep, share]) => ({ rep, share }));
+  }
+  return out;
+}

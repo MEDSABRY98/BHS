@@ -4,7 +4,7 @@ import { getSupabaseAdmin } from '@/lib/supabaseAdmin';
 
 import { bhs_supabase, getSheetData } from '@/lib/supabase';
 import { InvoiceRow } from '@/types';
-import { applyDebitScope, buildDebitScope, hasFullDebitAccess, type DebitScope } from './debit_scope';
+import { applyDebitScope, buildDebitScope, buildRepAllocation, hasFullDebitAccess, type DebitScope } from './debit_scope';
 
 export interface DebitMetadata {
   success: boolean;
@@ -144,6 +144,22 @@ export async function getDebitData() {
     console.error('Service Error getDebitData:', error);
     throw new Error(error instanceof Error ? error.message : 'Failed to fetch debit data');
   }
+}
+
+/**
+ * Payments Analysis PDF: how each payment / refund row is split between sales reps
+ * (row id → [{ rep, share }]). Users without full access see only their own share,
+ * so their report puts everything under their own name (mode 'self').
+ */
+export async function getPaymentRepAllocation(): Promise<
+  | { mode: 'full'; allocation: Record<string, { rep: string; share: number }[]> }
+  | { mode: 'self'; rep: string }
+> {
+  const user = await getSessionUser();
+  if (!user) throw new UnauthorizedError('Your session has expired. Please log in again.');
+  if (!hasFullDebitAccess(user)) return { mode: 'self', rep: user.name };
+  const rows = (await getSheetData()) as InvoiceRow[];
+  return { mode: 'full', allocation: await buildRepAllocation(rows) };
 }
 
 export async function getDebitMetadata(): Promise<DebitMetadata> {

@@ -4,7 +4,7 @@
 //  Payments Analysis — PDF report
 //   Page 1 : KPI cards (net collected vs last year, paying customers,
 //            number of payments) + monthly chart (this period vs last year)
-//   Page 2 : Cities collections table
+//   Page 2 : Sales reps collections — each rep with his cities under him
 //   Next   : Customers collections table
 //   Last   : Customers who did not pay in the period (with balance)
 //  Period  : the global filter dates (no filter → 1 Jan this year … today),
@@ -23,6 +23,10 @@ export type PaymentsReportInput = {
   selectedTags: string[];
   selectedClasses: string[];
   selectedCities: string[];
+  /** How payments are split between sales reps (server: getPaymentRepAllocation). */
+  repAllocation:
+    | { mode: 'full'; allocation: Record<string, { rep: string; share: number }[]> }
+    | { mode: 'self'; rep: string };
 };
 
 type RGB = [number, number, number];
@@ -158,21 +162,46 @@ function buildReport(input: PaymentsReportInput) {
     }
   }
 
-  // cities
-  const cityMap = new Map<string, { city: string; net: number; payments: number; customers: Set<string> }>();
-  for (const r of current) {
+  // sales reps → their cities (a payment split between reps counts for each of them)
+  type Bucket = { net: number; payments: Set<string>; customers: Set<string> };
+  const newBucket = (): Bucket => ({ net: 0, payments: new Set(), customers: new Set() });
+  const repMap = new Map<string, Bucket & { cities: Map<string, Bucket> }>();
+  const sharesOf = (r: InvoiceRow) => {
+    if (input.repAllocation.mode === 'self') return [{ rep: input.repAllocation.rep || 'Me', share: 1 }];
+    const list = input.repAllocation.allocation[String(r.id)];
+    return list && list.length ? list : [{ rep: 'Unassigned', share: 1 }];
+  };
+  current.forEach((r, idx) => {
     const cat = getPaymentCategory(r);
-    if (cat === 'Other') continue;
+    if (cat === 'Other') return;
+    const amount = netAmount(r);
     const city = (r.city || 'UNKNOWN').trim() || 'UNKNOWN';
-    const e = cityMap.get(city) || { city, net: 0, payments: 0, customers: new Set<string>() };
-    e.net += netAmount(r);
-    if (cat === 'Payment') {
-      e.payments += 1;
-      if (r.customerId) e.customers.add(r.customerId);
+    const rowKey = String(r.id ?? `row-${idx}`);
+    for (const { rep, share } of sharesOf(r)) {
+      const e = repMap.get(rep) || { ...newBucket(), cities: new Map<string, Bucket>() };
+      const c = e.cities.get(city) || newBucket();
+      for (const target of [e, c]) {
+        target.net += amount * share;
+        if (cat === 'Payment') {
+          target.payments.add(rowKey);
+          if (r.customerId) target.customers.add(r.customerId);
+        }
+      }
+      e.cities.set(city, c);
+      repMap.set(rep, e);
     }
-    cityMap.set(city, e);
-  }
-  const cities = Array.from(cityMap.values()).sort((a, b) => b.net - a.net);
+  });
+  const reps = Array.from(repMap.entries())
+    .map(([rep, e]) => ({
+      rep,
+      net: e.net,
+      payments: e.payments.size,
+      customers: e.customers.size,
+      cities: Array.from(e.cities.entries())
+        .map(([city, c]) => ({ city, net: c.net, payments: c.payments.size, customers: c.customers.size }))
+        .sort((x, y) => y.net - x.net),
+    }))
+    .sort((x, y) => y.net - x.net);
 
   // customers
   const custMap = new Map<
@@ -229,7 +258,7 @@ function buildReport(input: PaymentsReportInput) {
     .filter((c) => c.balance > 1 && !payingIds.has(c.id))
     .sort((a, b) => b.balance - a.balance);
 
-  return { period, cur, prev, months, cities, customers, unpaid };
+  return { period, cur, prev, months, reps, customers, unpaid };
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -261,7 +290,7 @@ const daysSince = (iso: string) => {
 // ─────────────────────────────────────────────────────────────
 export async function exportPaymentsReport(input: PaymentsReportInput): Promise<void> {
   const report = buildReport(input);
-  const { period, cur, prev, months, cities, customers, unpaid } = report;
+  const { period, cur, prev, months, reps, customers, unpaid } = report;
 
   const jsPDF = (await import('jspdf')).default;
   const autoTableModule: any = await import('jspdf-autotable');
@@ -489,14 +518,16 @@ export async function exportPaymentsReport(input: PaymentsReportInput): Promise<
     }
   });
 
-  // top cities preview under the chart
+  // top sales reps preview under the chart
   const prevY = plotY + plotH + 16;
-  sectionTitle('Top Cities', prevY);
-  const topCities = cities.slice(0, 5);
-  const maxCity = Math.max(1, ...topCities.map((c) => Math.abs(c.net)));
-  topCities.forEach((c, i) => {
+  sectionTitle('Top Sales Reps', prevY);
+  const topReps = reps.slice(0, 5).map((r) => ({ city: r.rep, net: r.net }));
+  const maxCity = Math.max(1, ...topReps.map((c) => Math.abs(c.net)));
+  topReps.forEach((c, i) => {
     const ry = prevY + 8 + i * 8;
-    font('bold', 8.5);
+    // rep names can be Arabic → Arabic-capable font (no bold variant)
+    doc.setFont(nameFont, 'normal');
+    doc.setFontSize(9);
     setText(C.ink);
     doc.text(c.city, M + 4, ry);
     const bx = M + 48;
@@ -532,47 +563,85 @@ export async function exportPaymentsReport(input: PaymentsReportInput): Promise<
     },
   };
 
-  // ════════════ PAGE 2 — cities ════════════
+  // ════════════ PAGE 2 — sales reps and their cities ════════════
   doc.addPage();
-  const cityHeader = () => header('Cities Collections', `${cities.length} cities  •  net collected ${money(cur.net)}`);
-  cityHeader();
-  const cityStart = doc.internal.getCurrentPageInfo().pageNumber;
-  const cityTotal = cities.reduce((s, c) => s + c.net, 0);
+  const repHeader = () =>
+    header('Sales Reps Collections', `${reps.length} sales reps  •  net collected ${money(cur.net)}`);
+  repHeader();
+  const repStart = doc.internal.getCurrentPageInfo().pageNumber;
+  const repTotal = reps.reduce((s, r) => s + r.net, 0);
+  const pct = (v: number) => (repTotal ? `${((v / repTotal) * 100).toFixed(1)}%` : '-');
+  const repBody: any[] = [];
+  const repRowIdx = new Set<number>();
+  reps.forEach((r, i) => {
+    repRowIdx.add(repBody.length);
+    repBody.push([
+      i + 1,
+      r.rep,
+      money(r.net),
+      pct(r.net),
+      whole(r.payments),
+      whole(r.customers),
+      money(r.payments ? r.net / r.payments : 0),
+    ]);
+    r.cities.forEach((c) => {
+      repBody.push([
+        '',
+        c.city,
+        money(c.net),
+        pct(c.net),
+        whole(c.payments),
+        whole(c.customers),
+        money(c.payments ? c.net / c.payments : 0),
+      ]);
+    });
+  });
   autoTable(doc, {
     ...tableBase,
     startY: 40,
-    head: [['#', 'City', 'Net Collected', 'Share', 'Payments', 'Customers', 'Avg Payment']],
-    body: cities.map((c, i) => [
-      i + 1,
-      c.city,
-      money(c.net),
-      cityTotal ? `${((c.net / cityTotal) * 100).toFixed(1)}%` : '-',
-      whole(c.payments),
-      whole(c.customers.size),
-      money(c.payments ? c.net / c.payments : 0),
-    ]),
+    head: [['#', 'Sales Rep / City', 'Net Collection', 'Share', 'Payments', 'Customers', 'Avg Payment']],
+    body: repBody,
     foot: [
       [
         '',
         'TOTAL',
-        money(cityTotal),
+        money(repTotal),
         '100%',
-        whole(cities.reduce((s, c) => s + c.payments, 0)),
+        whole(cur.payments),
         whole(cur.customers.size),
-        money(cur.payments ? cityTotal / cur.payments : 0),
+        money(cur.payments ? repTotal / cur.payments : 0),
       ],
     ],
+    alternateRowStyles: {},
     columnStyles: {
       0: { halign: 'center', cellWidth: 10, textColor: C.muted },
-      1: { halign: 'center', fontStyle: 'bold', textColor: C.ink },
-      2: { halign: 'center', fontStyle: 'bold', textColor: C.ink },
+      1: { halign: 'center', font: nameFont, cellWidth: 56 },
+      2: { halign: 'center' },
       3: { halign: 'center' },
       4: { halign: 'center' },
       5: { halign: 'center' },
       6: { halign: 'center' },
     },
+    didParseCell: (d: any) => {
+      tableBase.didParseCell(d);
+      if (d.section !== 'body') return;
+      if (repRowIdx.has(d.row.index)) {
+        // sales rep row
+        d.cell.styles.fillColor = C.goldSoft;
+        d.cell.styles.textColor = C.ink;
+        if (d.column.index !== 1) d.cell.styles.fontStyle = 'bold';
+        d.cell.styles.fontSize = 8.5;
+      } else {
+        // city row under the rep
+        d.cell.styles.lineWidth = 0;
+        d.cell.styles.fillColor = C.white;
+        d.cell.styles.textColor = C.text;
+        d.cell.styles.fontSize = 7.5;
+        if (d.column.index === 1) d.cell.styles.font = 'helvetica';
+      }
+    },
     didDrawPage: () => {
-      if (doc.internal.getCurrentPageInfo().pageNumber !== cityStart) cityHeader();
+      if (doc.internal.getCurrentPageInfo().pageNumber !== repStart) repHeader();
     },
   });
 

@@ -65,8 +65,13 @@ export default function PaymentSidebar({
     }
     setIsExportingReport(true);
     try {
-      const { exportPaymentsReport } = await import('../Pdf/ExportReport');
-      await exportPaymentsReport({ data, dateRange, selectedTags, selectedClasses, selectedCities });
+      const [{ exportPaymentsReport }, { getPaymentRepAllocation }] = await Promise.all([
+        import('../Pdf/ExportReport'),
+        import('@/app/CustomersAnalysis/Service/debit_service'),
+      ]);
+      // how each payment is split between sales reps (same rules the reps see)
+      const repAllocation = await getPaymentRepAllocation();
+      await exportPaymentsReport({ data, dateRange, selectedTags, selectedClasses, selectedCities, repAllocation });
     } catch (err) {
       console.error('Payments report failed:', err);
       toast.error('Could not create the PDF report');
