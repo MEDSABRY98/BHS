@@ -12,11 +12,12 @@ import { saveTrackedAs } from '@/app/Audit/Utils/TrackedDownload';
 import { toast } from '@/app/Components/Notification';
 
 export default function PendingDriverInvoices() {
-  const { assignedDrivers: drivers, orders, loading: isLoading } = useLpoData();
+  const { assignedDrivers: drivers, orders, loading: isLoading, filters } = useLpoData();
   const [generatingDriverId, setGeneratingDriverId] = useState<string | null>(null);
   const [isGeneratingZip, setIsGeneratingZip] = useState(false);
-  const [fromDate, setFromDate] = useState('');
-  const [toDate, setToDate] = useState('');
+  // dates come from the LPO filter (applies to every tab)
+  const fromDate = filters.dateFrom;
+  const toDate = filters.dateTo;
   const [customerSearch, setCustomerSearch] = useState('');
   const [currentAdmin, setCurrentAdmin] = useState<any>(null);
 
@@ -266,50 +267,7 @@ export default function PendingDriverInvoices() {
             </div>
           </div>
 
-          {/* Date Filters */}
-          <div className="w-full lg:w-48 shrink-0">
-            <div className="flex items-center justify-between ml-1 mb-2">
-              <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] block">
-                From Date
-              </label>
-              {fromDate && (
-                <button
-                  onClick={() => setFromDate('')}
-                  className="text-[9px] font-black text-red-500 hover:text-red-700 uppercase tracking-widest transition-colors"
-                >
-                  Clear
-                </button>
-              )}
-            </div>
-            <input
-              type="date"
-              value={fromDate}
-              onChange={(e) => setFromDate(e.target.value)}
-              className="w-full px-5 py-3.5 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-bold text-black focus:outline-none focus:border-black transition-all hover:bg-gray-100/50 cursor-pointer h-[56px] focus:ring-4 focus:ring-black/5"
-            />
-          </div>
 
-          <div className="w-full lg:w-48 shrink-0">
-            <div className="flex items-center justify-between ml-1 mb-2">
-              <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] block">
-                To Date
-              </label>
-              {toDate && (
-                <button
-                  onClick={() => setToDate('')}
-                  className="text-[9px] font-black text-red-500 hover:text-red-700 uppercase tracking-widest transition-colors"
-                >
-                  Clear
-                </button>
-              )}
-            </div>
-            <input
-              type="date"
-              value={toDate}
-              onChange={(e) => setToDate(e.target.value)}
-              className="w-full px-5 py-3.5 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-bold text-black focus:outline-none focus:border-black transition-all hover:bg-gray-100/50 cursor-pointer h-[56px] focus:ring-4 focus:ring-black/5"
-            />
-          </div>
 
         </div>
       </div>

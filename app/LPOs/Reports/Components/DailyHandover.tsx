@@ -19,11 +19,12 @@ interface HandoverGroup {
 }
 
 export default function HandoverReports() {
-  const { assignedDrivers: drivers, orders, loading } = useLpoData();
+  const { assignedDrivers: drivers, orders, loading, filters } = useLpoData();
   const [selectedDriverId, setSelectedDriverId] = useState('');
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
-  const [fromDate, setFromDate] = useState('');
-  const [toDate, setToDate] = useState('');
+  // dates come from the LPO filter (applies to every tab)
+  const fromDate = filters.dateFrom;
+  const toDate = filters.dateTo;
   const [currentAdmin, setCurrentAdmin] = useState<any>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 50;
@@ -213,54 +214,6 @@ export default function HandoverReports() {
               onChange={setSelectedDriverId}
               isLoading={isDriversLoading}
               heightClass="h-[56px]"
-            />
-          </div>
-
-
-
-          {/* From Date Filter */}
-          <div className="w-full lg:w-48 shrink-0">
-            <div className="flex items-center justify-between ml-1 mb-2">
-              <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] block">
-                From Date
-              </label>
-              {fromDate && (
-                <button
-                  onClick={() => setFromDate('')}
-                  className="text-[9px] font-black text-red-500 hover:text-red-700 uppercase tracking-widest transition-colors"
-                >
-                  Clear
-                </button>
-              )}
-            </div>
-            <input
-              type="date"
-              value={fromDate}
-              onChange={(e) => setFromDate(e.target.value)}
-              className="w-full px-5 py-3.5 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-bold text-black focus:outline-none focus:border-black transition-all hover:bg-gray-100/50 cursor-pointer h-[56px] focus:ring-4 focus:ring-black/5"
-            />
-          </div>
-
-          {/* To Date Filter */}
-          <div className="w-full lg:w-48 shrink-0">
-            <div className="flex items-center justify-between ml-1 mb-2">
-              <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] block">
-                To Date
-              </label>
-              {toDate && (
-                <button
-                  onClick={() => setToDate('')}
-                  className="text-[9px] font-black text-red-500 hover:text-red-700 uppercase tracking-widest transition-colors"
-                >
-                  Clear
-                </button>
-              )}
-            </div>
-            <input
-              type="date"
-              value={toDate}
-              onChange={(e) => setToDate(e.target.value)}
-              className="w-full px-5 py-3.5 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-bold text-black focus:outline-none focus:border-black transition-all hover:bg-gray-100/50 cursor-pointer h-[56px] focus:ring-4 focus:ring-black/5"
             />
           </div>
 

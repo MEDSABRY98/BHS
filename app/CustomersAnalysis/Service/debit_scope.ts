@@ -11,7 +11,9 @@
 //       - shared main customer → split equally between its reps
 //         (or merchandisers): 2 reps = 50/50, 3 reps = a third each…
 //  Invoice numbers are compared up to the first space
-//  (e.g. "INV/2026/10205 20" → "INV/2026/10205").
+//  (e.g. "INV/2026/10205 20" → "INV/2026/10205"), and only inside the same
+//  main customer — the same number on another customer (another company's
+//  sequence) never counts for this salesperson.
 // ════════════════════════════════════════════════════════════════
 
 import { getSupabaseAdmin } from '@/lib/supabaseAdmin';
@@ -110,13 +112,15 @@ export async function buildDebitScopeFor(
   });
 
   // Sales invoices → is it the user's (its sub customer's rep / merchandiser)?
+  // Keyed by main customer + invoice number (see header).
   const invoiceMine = new Map<string, boolean>();
   for (const s of sales as any[]) {
     const inv = invoiceKey(s.invoiceNumber);
-    if (!inv) continue;
     const cust = customers.get(norm(s.customerId));
-    const mine = !!cust && (isMe(cust.rep) || (withMerch && isMe(cust.merch)));
-    invoiceMine.set(inv, (invoiceMine.get(inv) || false) || mine);
+    if (!inv || !cust) continue;
+    const mine = isMe(cust.rep) || (withMerch && isMe(cust.merch));
+    const key = `${cust.main}|${inv}`;
+    invoiceMine.set(key, (invoiceMine.get(key) || false) || mine);
   }
 
   // Equal split between the main customer's reps (or merchandisers)
@@ -132,7 +136,9 @@ export async function buildDebitScopeFor(
   return {
     ownShare: (row) => {
       const inv = invoiceKey(row.number);
-      if ((Number(row.debit) || 0) > 0 && inv && invoiceMine.has(inv)) return invoiceMine.get(inv) ? 1 : 0;
+      const cust = customers.get(norm(row.customerId));
+      const key = cust && inv ? `${cust.main}|${inv}` : '';
+      if ((Number(row.debit) || 0) > 0 && key && invoiceMine.has(key)) return invoiceMine.get(key) ? 1 : 0;
       return mainShare(row);
     },
   };
@@ -242,13 +248,15 @@ export async function buildRepAllocation(
     mainReps.set(c.main, set);
   });
 
-  // sales invoice → rep
+  // sales invoice → rep (keyed by main customer + invoice number, same as the rep scope)
   const invoiceRep = new Map<string, string>();
   for (const s of sales as any[]) {
     const inv = invoiceKey(s.invoiceNumber);
-    if (!inv || invoiceRep.has(inv)) continue;
     const cust = customers.get(norm(s.customerId));
-    invoiceRep.set(inv, (cust && repName(cust.rep)) || UNASSIGNED_REP);
+    if (!inv || !cust) continue;
+    const key = `${cust.main}|${inv}`;
+    if (invoiceRep.has(key)) continue;
+    invoiceRep.set(key, repName(cust.rep) || UNASSIGNED_REP);
   }
 
   type Dist = Map<string, number>;
@@ -260,7 +268,9 @@ export async function buildRepAllocation(
     return new Map(Array.from(reps).map((r) => [r, share]));
   };
   const debitDist = (row: InvoiceRow): Dist => {
-    const rep = invoiceRep.get(invoiceKey(row.number));
+    const cust = customers.get(norm(row.customerId));
+    const inv = invoiceKey(row.number);
+    const rep = cust && inv ? invoiceRep.get(`${cust.main}|${inv}`) : undefined;
     return rep ? new Map([[rep, 1]]) : mainDist(row);
   };
   const addInto = (target: Dist, src: Dist, factor: number) => {
