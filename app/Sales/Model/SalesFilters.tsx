@@ -18,7 +18,7 @@ import {
   SlidersHorizontal,
   BarChart3,
 } from 'lucide-react';
-import MainLoader from '@/app/Components/Loading/MainLoader';
+import TabLoader from '@/app/Components/Loading/TabLoader';
 
 export type InvoiceTypeFilter = 'all' | 'sales' | 'returns';
 export type SalesFilterTab = 'mode' | 'timing' | 'product' | 'customer' | 'outreach' | 'advanced' | 'reporting';
@@ -771,12 +771,8 @@ export function SalesFilterModal({
                   </div>
 
                   {isFiltering && (
-                    <div className="absolute inset-0 z-[50] rounded-[40px] overflow-hidden">
-                      <MainLoader
-                        fullScreen={false}
-                        message="Applying Mode..."
-                        className="!absolute !inset-0 !min-h-0"
-                      />
+                    <div className="absolute inset-0 z-[50] rounded-[40px] overflow-hidden bg-white flex">
+                      <TabLoader className="!min-h-0 h-full" />
                     </div>
                   )}
                 </div>

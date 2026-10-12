@@ -342,6 +342,13 @@ export default function UserActivityTab({ adminName }: UserActivityTabProps) {
     }
   };
 
+  // Loader only (no filters) until the first load finishes
+  const [firstLoad, setFirstLoad] = useState(true);
+  useEffect(() => {
+    if (!loading) setFirstLoad(false);
+  }, [loading]);
+  if (firstLoad) return <TabLoader />;
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <SessionFilesModal modal={filesModal} onClose={() => setFilesModal(null)} />

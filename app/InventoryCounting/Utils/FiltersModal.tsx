@@ -9,6 +9,7 @@ import {
 } from '../Archives/InventoryCountingArchiveContext';
 import { useInventoryCountingFilters } from '../Model/InventoryCountingFiltersContext';
 import CloseSessionButton from './CloseSessionButton';
+import TabLoader from '@/app/Components/Loading/TabLoader';
 
 function CheckboxFilterDropdown({
   items,
@@ -216,10 +217,7 @@ export default function FiltersModal({ open, onClose }: FiltersModalProps) {
 
         <div className="p-6 md:p-8 min-h-[280px]">
           {loadingOptions ? (
-            <div className="flex flex-col items-center justify-center gap-3 py-16 text-slate-400">
-              <Loader2 className="w-7 h-7 animate-spin text-indigo-500" />
-              <p className="text-sm font-bold">Loading filters...</p>
-            </div>
+            <TabLoader className="!min-h-[280px]" />
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
               <CheckboxFilterDropdown

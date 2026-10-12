@@ -4,6 +4,7 @@ import { exportCustomersExcel } from "./ExportExcel";
 import ExportExcelModal, { type ExportExcelOptions } from "./ExportExcelModal";
 import { hasCustomerEmail } from "@/lib/supabase";
 import type { CustomerView } from "../page";
+import TabLoader from '@/app/Components/Loading/TabLoader';
 
 interface CustomersListProps {
   searchQuery: string;
@@ -88,6 +89,9 @@ export default function CustomersList({
     }
   };
 
+  // Loader only (no header / search) until the customers are loaded
+  if (loading && safeCustomers.length === 0) return <TabLoader className="flex-1 !min-h-0" />;
+
   return (
     <div className="flex-1 overflow-y-auto p-8 animate-in fade-in duration-300">
       <div className="max-w-[1450px] mx-auto">
@@ -160,23 +164,7 @@ export default function CustomersList({
         </div>
 
         {loading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-            {[...Array(12)].map((_, i) => (
-              <div key={i} className="bg-white border border-gray-100 rounded-3xl p-5 shadow-sm flex flex-col gap-5 animate-pulse min-h-[180px]">
-                <div className="flex items-center gap-4">
-                  <div className="bg-gray-200 w-14 h-14 rounded-2xl" />
-                  <div className="flex-1 space-y-3">
-                    <div className="bg-gray-200 w-3/4 h-6 rounded-lg" />
-                    <div className="bg-gray-200 w-1/2 h-4 rounded-lg" />
-                  </div>
-                </div>
-                <div className="mt-auto space-y-2">
-                  <div className="bg-gray-100 w-full h-12 rounded-xl" />
-                  <div className="bg-gray-100 w-full h-12 rounded-xl" />
-                </div>
-              </div>
-            ))}
-          </div>
+          <TabLoader className="!min-h-[60vh]" />
         ) : finalFilteredCustomers.length === 0 ? (
           <div className="text-center py-20 bg-white rounded-3xl shadow-sm border border-gray-100">
             <User className="mx-auto h-16 w-16 text-gray-300 mb-4" />

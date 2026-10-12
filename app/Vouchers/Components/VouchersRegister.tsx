@@ -8,6 +8,7 @@ import { formatAED, type CashVoucher, type VoucherType } from '../Utils/voucherT
 import { generateVoucherPdf } from '../Utils/VoucherPdf';
 import { exportStyledExcel } from '@/app/Components/Export/ExcelExport';
 import NoData from '@/app/Components/DataState/NoDataTab';
+import TabLoader from '@/app/Components/Loading/TabLoader';
 
 type Props = {
   canEdit: { IN: boolean; OUT: boolean };
@@ -131,6 +132,13 @@ export default function VouchersRegister({ canEdit, currentUserName, onEdit, ref
     </div>
   );
 
+  // Loader only (no filters) until the first load finishes
+  const [firstLoad, setFirstLoad] = useState(true);
+  useEffect(() => {
+    if (!loading) setFirstLoad(false);
+  }, [loading]);
+  if (firstLoad) return <TabLoader />;
+
   return (
     <div className="space-y-6">
       {/* ── Header ─────────────────────────────────────────── */}
@@ -187,7 +195,7 @@ export default function VouchersRegister({ canEdit, currentUserName, onEdit, ref
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={6} className="py-16 text-center text-slate-400"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></td></tr>
+              <tr><td colSpan={6} className="p-0"><TabLoader className="!min-h-[50vh]" /></td></tr>
             ) : filtered.length === 0 ? (
               <NoData isTable={true} colSpan={6} title="NO VOUCHERS FOUND" message="There are no cash vouchers matching your filters in this period." />
             ) : (

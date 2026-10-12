@@ -7,9 +7,9 @@ import {
   Loader2,
   User
 } from 'lucide-react';
-import MainLoader from '@/app/Components/Loading/MainLoader';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import { updateCustomerDocument } from '../Service/customers_documents_service';
+import TabLoader from '@/app/Components/Loading/TabLoader';
 
 interface CustomerDoc {
   rowIndex: string;
@@ -106,7 +106,7 @@ export default function CustomersDocumentsTab({
     return 'text-emerald-600 font-bold';
   };
 
-  if (loading && data.length === 0) return <MainLoader message="Syncing with Intelligence Database..." />;
+  if (loading && data.length === 0) return <TabLoader className="!min-h-[60vh]" />;
 
   return (
     <div className="w-full space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20">

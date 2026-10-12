@@ -22,6 +22,7 @@ import {
 } from '../Utils/settlementUtils';
 import { exportDiscountValuesExcel } from './ExportExcel';
 import { toast } from '@/app/Components/Notification';
+import TabLoader from '@/app/Components/Loading/TabLoader';
 
 interface DiscountValuesProps {
   customers: CustomerView[];
@@ -267,6 +268,13 @@ export default function DiscountValues({ customers }: DiscountValuesProps) {
     }
   };
 
+  // Loader only (no header / filters) until the first load finishes
+  const [firstLoad, setFirstLoad] = useState(true);
+  useEffect(() => {
+    if (!loading) setFirstLoad(false);
+  }, [loading]);
+  if (firstLoad) return <TabLoader className="flex-1 !min-h-0" />;
+
   return (
     <div className="flex-1 overflow-y-auto p-8 animate-in fade-in duration-300">
       <div className="max-w-[1450px] mx-auto space-y-6">
@@ -323,10 +331,7 @@ export default function DiscountValues({ customers }: DiscountValuesProps) {
         )}
 
         {loading ? (
-          <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-16 flex flex-col items-center justify-center gap-3 text-gray-400">
-            <Loader2 className="w-8 h-8 animate-spin text-[#D4AF37]" />
-            <p className="text-sm font-bold uppercase tracking-wider">Loading Debit invoices…</p>
-          </div>
+          <TabLoader className="!min-h-[60vh]" />
         ) : rows.length === 0 ? (
           <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-16 text-center">
             <Users className="mx-auto h-14 w-14 text-gray-300 mb-4" />

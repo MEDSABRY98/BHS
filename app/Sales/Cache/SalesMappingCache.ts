@@ -88,7 +88,34 @@ type SalesUserContext = {
   cleanUserId: string;
   cleanUserName: string;
   hasSalesDataAccess: boolean;
+  /** false -> product costs are never sent to this user (they are set to 0 on the server) */
+  canSeeCosts: boolean;
 };
+
+/**
+ * Same rule as the Sales screen: admins always see costs; anyone else (FULL DATA ACCESS included)
+ * loses them when 'sales-actions' exists without 'view-costs'.
+ */
+function canSeeCostsFromDb(user: any): boolean {
+  if (String(user?.NAME || '').trim().toLowerCase() === 'med sabry') return true;
+  if (String(user?.ROLE || '').trim().toLowerCase() === 'admin') return true;
+  const roleStr = String(user?.AUTHORITY || '').trim();
+  if (!roleStr || roleStr === 'Admin') return true;
+  try {
+    const perms = JSON.parse(roleStr);
+    if (perms?.['sales-actions'] !== undefined) {
+      return Array.isArray(perms['sales-actions']) && perms['sales-actions'].includes('view-costs');
+    }
+  } catch {
+    // not JSON -> default: visible
+  }
+  return true;
+}
+
+/** Removes the cost from a sales row (users without the 'view-costs' permission). */
+function hideCost(item: any): any {
+  return { ...item, productCost: 0 };
+}
 
 function isMappingAssignedToUser(
   mapping: { userId?: string; salesRep?: string } | undefined,
@@ -132,6 +159,7 @@ async function fetchSalesUserContext(cleanUserId: string): Promise<SalesUserCont
     cleanUserId,
     cleanUserName: String(user.NAME || '').trim().toUpperCase(),
     hasSalesDataAccess: hasSalesDataAccessFromDb(user),
+    canSeeCosts: canSeeCostsFromDb(user),
   };
 }
 
@@ -193,10 +221,10 @@ export async function getFilteredSalesData(userId: string): Promise<any[]> {
 
   const rawSales = await getSalesDataServer();
   const allMappings = await getGlobalMappings();
-  const { cleanUserId, cleanUserName, hasSalesDataAccess } = userContext;
+  const { cleanUserId, cleanUserName, hasSalesDataAccess, canSeeCosts } = userContext;
 
   // Same sales cache + same mappings -> same result: reuse it.
-  const cacheKey = hasSalesDataAccess ? '__ALL__' : `${cleanUserId}|${cleanUserName}`;
+  const cacheKey = (hasSalesDataAccess ? '__ALL__' : `${cleanUserId}|${cleanUserName}`) + (canSeeCosts ? '' : '|NO_COST');
   const hit = userDataCache.get(cacheKey);
   if (hit && hit.raw === rawSales && hit.mappings === allMappings) {
     userDataCache.delete(cacheKey);
@@ -224,6 +252,7 @@ export async function getFilteredSalesData(userId: string): Promise<any[]> {
         salesRepId: mapping?.userId || '',
         customerTag: mapping?.customerTag || globalCustomerTagCache?.get(cId) || item.customerTag || '',
         customerClass: mapping?.customerClass || globalCustomerClassCache?.get(cId) || item.customerClass || '',
+        ...(canSeeCosts ? {} : { productCost: 0 }),
       });
     }
   });
@@ -243,7 +272,7 @@ async function checkHasSalesDataAccess(userId: string): Promise<boolean> {
   return userContext?.hasSalesDataAccess ?? false;
 }
 
-export { checkHasSalesDataAccess, isMappingAssignedToUser, resolveSalesUserContext };
+export { checkHasSalesDataAccess, isMappingAssignedToUser, resolveSalesUserContext, hideCost };
 
 export function isLegacyMappingRowId(value: string): boolean {
   return /^R-\d+$/i.test(String(value || '').trim());

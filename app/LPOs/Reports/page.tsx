@@ -7,12 +7,18 @@ import DeliveredDriverInvoices from './Components/DeliveredDriverInvoices';
 import PendingCustomerInvoices from './Components/PendingCustomerInvoices';
 import HandoverReports from './Components/DailyHandover';
 import { useLposReportsTabAudit } from '@/app/Audit/Model/LPOsTabAudit';
+import TabLoader from '@/app/Components/Loading/TabLoader';
+import { useLpoData } from '../Context/LpoDataContext';
 
 type ReportTab = 'pending' | 'pending-customer' | 'delivered' | 'handover';
 
 export default function ReportsPage() {
   const [activeTab, setActiveTab] = useState<ReportTab>('pending');
   useLposReportsTabAudit(activeTab);
+  const { loading } = useLpoData();
+
+  // Loader only (no header / report buttons) until the LPO data is loaded
+  if (loading) return <TabLoader />;
 
   return (
     <div className="space-y-10">

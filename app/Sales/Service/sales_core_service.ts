@@ -613,7 +613,7 @@ export async function getSalesDeltaServer(watermark: string): Promise<any[]> {
 }
 
 
-import { resolveSalesUserContext, isMappingAssignedToUser, getGlobalMappings } from '@/app/Sales/Cache/SalesMappingCache';
+import { resolveSalesUserContext, isMappingAssignedToUser, getGlobalMappings, hideCost } from '@/app/Sales/Cache/SalesMappingCache';
 
 // -------------------------------------------------------------
 // SECURE CLIENT DATA FETCH (Delta or Full)
@@ -633,7 +633,7 @@ export async function getClientSalesData(userId: string, watermark?: string): Pr
   }
 
   const allMappings = await getGlobalMappings();
-  const { cleanUserId, cleanUserName, hasSalesDataAccess } = userContext;
+  const { cleanUserId, cleanUserName, hasSalesDataAccess, canSeeCosts } = userContext;
 
   const processed: any[] = [];
   rawSales.forEach((item: any) => {
@@ -659,5 +659,6 @@ export async function getClientSalesData(userId: string, watermark?: string): Pr
     }
   });
 
-  return processed;
+  // users without 'view-costs' never receive the cost
+  return canSeeCosts ? processed : processed.map(hideCost);
 }

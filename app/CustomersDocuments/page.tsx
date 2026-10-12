@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { ArrowLeft, Search, RefreshCw, FileCheck, FileSpreadsheet, AlertCircle, Filter, X } from 'lucide-react';
 import { exportDebitExcelTable } from '@/app/CustomersAnalysis/Utils/ExcelExport';
 import TabLoader from '@/app/Components/Loading/TabLoader';
+import MainLoader from '@/app/Components/Loading/MainLoader';
 import Login from '@/app/Components/Auth/Login';
 import FilterModal, { FilterState } from './Modals/FilterModal';
 import CustomersDocumentsGrid from './Components/CustomersDocumentsGrid';
@@ -184,8 +185,10 @@ export default function CustomersDocumentsPage() {
     );
   };
 
-  if (isChecking) return <TabLoader />;
+  if (isChecking) return <MainLoader />;
   if (!isAuthenticated) return <Login onLogin={handleLogin} />;
+  // Loader only (no header / search) until the documents are loaded
+  if (loading && data.length === 0) return <TabLoader />;
 
   // (Old toggleFilter removed)
 

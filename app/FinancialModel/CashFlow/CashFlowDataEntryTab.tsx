@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Save, Loader2, Calendar, Plus, Edit2, Trash2, Download, Upload, ArrowUp, ArrowDown, Search, X } from 'lucide-react';
-import DataLoader from '@/app/Components/Loading/DataLoader';
+import TabLoader from '@/app/Components/Loading/TabLoader';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import { toast } from '@/app/Components/Notification';
 import AddAccountModal from '../PL/Modals/AddAccountModal';
@@ -616,6 +616,13 @@ export function CashFlowDataEntryTab() {
     });
   };
 
+  // Loader only (no header / filters) until the first load finishes
+  const [firstLoad, setFirstLoad] = useState(true);
+  useEffect(() => {
+    if (!isLoading) setFirstLoad(false);
+  }, [isLoading]);
+  if (firstLoad) return <TabLoader className="flex-1" />;
+
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-12">
       {/* Dark Header */}
@@ -740,7 +747,7 @@ export function CashFlowDataEntryTab() {
 
       {/* Main Form Area */}
       {isLoading ? (
-        <DataLoader message="" className="min-h-[400px]" />
+        <TabLoader className="!min-h-[60vh]" />
       ) : accounts.length === 0 ? (
         <NoData />
       ) : (

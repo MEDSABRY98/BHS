@@ -6,6 +6,12 @@ import { bhs_supabas } from '@/lib/supabase';
 const STORAGE_BUCKET = 'sales-cache';
 const STORAGE_FILE = 'sales_cache.json';
 
+/** Cost as a positive number; empty, 0, text or invalid -> 0 (commas allowed). */
+function CostValue(value: unknown): number {
+  const n = Number(String(value ?? '').replace(/,/g, '').trim());
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
 // ─────────────────────────────────────────────────────────────
 //  MEMORY LAYER (warm Vercel instances)
 //  Each warm instance keeps its own copy. To stop instances from serving
@@ -212,7 +218,8 @@ async function buildFromDB(): Promise<any[]> {
       productTag: p['PRODUCT CATEGORY'] || 'Uncategorized',
       customerTag: c['CUSTOMER TAG'] || '',
       customerClass: c['CUSTOMER CLASS'] || '',
-      productCost: (s['PRODUCT COST'] !== undefined && s['PRODUCT COST'] !== null) ? s['PRODUCT COST'] : (p['PRODUCT COST'] || 0),
+      // Sales DB cost first; 0 / empty means "not available" -> product cost (Products DB)
+      productCost: CostValue(s['PRODUCT COST']) || CostValue(p['PRODUCT COST']),
       productPrice: s['PRODUCT PRICE'],
       amount: s['AMOUNT'],
       qty: s['QTY'],
@@ -322,7 +329,8 @@ export async function getSalesDelta(watermark: string): Promise<any[]> {
       productTag: p['PRODUCT CATEGORY'] || 'Uncategorized',
       customerTag: c['CUSTOMER TAG'] || '',
       customerClass: c['CUSTOMER CLASS'] || '',
-      productCost: (s['PRODUCT COST'] !== undefined && s['PRODUCT COST'] !== null) ? s['PRODUCT COST'] : (p['PRODUCT COST'] || 0),
+      // Sales DB cost first; 0 / empty means "not available" -> product cost (Products DB)
+      productCost: CostValue(s['PRODUCT COST']) || CostValue(p['PRODUCT COST']),
       productPrice: s['PRODUCT PRICE'],
       amount: s['AMOUNT'],
       qty: s['QTY'],

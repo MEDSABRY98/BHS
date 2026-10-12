@@ -3,7 +3,7 @@ import { Target, Download, Loader2, FileSpreadsheet, X } from 'lucide-react';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import { toast } from '@/app/Components/Notification';
-import DataLoader from '@/app/Components/Loading/DataLoader';
+import TabLoader from '@/app/Components/Loading/TabLoader';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import { fetchAccounts, fetchEntriesByYear, FinancialAccount, FinancialEntry } from '../Service/FinancialService';
 import { useFinancialModel } from '../Context/FinancialModelContext';
@@ -526,6 +526,13 @@ export function BreakEvenPointTab() {
     }
   };
 
+  // Loader only (no header / filters) until the first load finishes
+  const [firstLoad, setFirstLoad] = useState(true);
+  useEffect(() => {
+    if (!isLoading) setFirstLoad(false);
+  }, [isLoading]);
+  if (firstLoad) return <TabLoader className="flex-1" />;
+
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-12">
       {/* Dark Header */}
@@ -592,7 +599,7 @@ export function BreakEvenPointTab() {
       </div>
       
       {isLoading ? (
-        <DataLoader message="" className="min-h-[500px]" />
+        <TabLoader className="!min-h-[60vh]" />
       ) : accounts.length === 0 ? (
         <NoData />
       ) : (

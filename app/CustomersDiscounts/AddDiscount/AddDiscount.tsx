@@ -1,5 +1,6 @@
 import React from "react";
 import { Info, Loader2, Search, CheckCircle, PlusCircle } from "lucide-react";
+import TabLoader from '@/app/Components/Loading/TabLoader';
 
 type AllCustomerItem = {
   id: string;
@@ -45,6 +46,9 @@ export default function AddDiscount({
   setStartMonth,
   isSubmitting
 }: AddDiscountProps) {
+  // Loader only until the customers list is loaded
+  if (loadingAllCustomers) return <TabLoader className="flex-1 !min-h-0" />;
+
   return (
     <div className="flex-1 overflow-y-auto p-8 animate-in fade-in duration-300 bg-gray-50">
       <div className="max-w-[1450px] mx-auto">
@@ -66,10 +70,7 @@ export default function AddDiscount({
           <div className="space-y-3 mb-8">
             <label className="block text-base font-bold text-gray-900">Select Customer</label>
             {loadingAllCustomers ? (
-              <div className="flex items-center gap-3 text-gray-500 bg-gray-50 p-4 rounded-2xl border border-gray-200">
-                <Loader2 className="w-5 h-5 animate-spin text-[#D4AF37]" />
-                Loading customers directory...
-              </div>
+              <TabLoader className="!min-h-[240px]" />
             ) : (
               <div className="space-y-3">
                 <div className="relative">

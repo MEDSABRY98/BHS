@@ -9,7 +9,7 @@
 //    customer's SALES_REP, payments follow MATCHING, the rest split equally)
 // ════════════════════════════════════════════════════════════════
 
-import { getSessionUser, UnauthorizedError, type SessionUserRecord } from '@/lib/session';
+import { getSessionUser, isAdminUser, UnauthorizedError, type SessionUserRecord } from '@/lib/session';
 import { getSupabaseAdmin } from '@/lib/supabaseAdmin';
 import { getSheetData } from '@/lib/supabase';
 import { getSalesDataServer } from '@/app/Sales/Cache/SalesCache';
@@ -47,9 +47,9 @@ async function requireUser(): Promise<SessionUserRecord> {
   return user;
 }
 
-/** Same rule as the Sales module: costs hidden only when 'sales-actions' exists without 'view-costs'. */
+/** Same rule as the Sales module: admins always; FULL DATA ACCESS alone does not unlock costs. */
 function canSeeCosts(user: SessionUserRecord): boolean {
-  if (hasFullDebitAccess(user)) return true;
+  if (isAdminUser(user)) return true;
   try {
     const roleStr = String(user.role || '').trim();
     if (!roleStr || roleStr === 'Admin') return true;

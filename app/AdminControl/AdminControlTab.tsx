@@ -602,7 +602,7 @@ export default function AdminControlTab() {
         setModalInnerTab('tabs');
     };
 
-    if (loading) return <TabLoader className="min-h-[40vh]" />;
+    if (loading) return <TabLoader />;
 
     const renderSubTabModal = () => {
         if (!modalSystem || !selectedUser) return null;

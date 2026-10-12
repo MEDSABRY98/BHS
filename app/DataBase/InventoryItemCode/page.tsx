@@ -9,6 +9,7 @@ import { toast } from '@/app/Components/Notification';
 import { getNextInventoryRecordId } from '@/app/DataBase/Utils/InventoryRecordIds';
 import InventoryItemCodeTable, { InventoryItemCodeRow } from './Components/InventoryItemCodeTable';
 import InventoryItemCodeModal, { InventoryItemCodeFormValues } from './Components/InventoryItemCodeModal';
+import TabLoader from '@/app/Components/Loading/TabLoader';
 
 const emptyForm = (): InventoryItemCodeFormValues => ({
   tags: '',
@@ -145,6 +146,13 @@ export default function InventoryItemCodePage() {
 
   const totalPages = Math.max(1, Math.ceil(totalCount / itemsPerPage));
   const startIndex = (currentPage - 1) * itemsPerPage;
+
+  // Loader only (no header / search) until the first load finishes
+  const [firstLoad, setFirstLoad] = useState(true);
+  useEffect(() => {
+    if (!isLoading) setFirstLoad(false);
+  }, [isLoading]);
+  if (firstLoad) return <TabLoader />;
 
   return (
     <div className="space-y-8">

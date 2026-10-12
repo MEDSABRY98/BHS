@@ -11,6 +11,7 @@ import { usePermissions } from '@/app/LPOs/Hooks/usePermissions';
 import { toast } from '@/app/Components/Notification';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import AppVersionModal, { type AppVersionFormValues, type AppVersionRow } from './Components/AppVersionModal';
+import TabLoader from '@/app/Components/Loading/TabLoader';
 
 const TABLE = 'app_VERSIONS';
 const VERSION_PATTERN = /^\d+(\.\d+)*\+\d+$/;
@@ -107,6 +108,13 @@ export default function AppVersionsPage() {
     }
   };
 
+  // Loader only (no header / search) until the first load finishes
+  const [firstLoad, setFirstLoad] = useState(true);
+  useEffect(() => {
+    if (!isLoading) setFirstLoad(false);
+  }, [isLoading]);
+  if (firstLoad) return <TabLoader />;
+
   return (
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -122,11 +130,7 @@ export default function AppVersionsPage() {
       </div>
 
       {isLoading ? (
-        <div className="bg-white rounded-3xl border border-gray-100 p-6 space-y-3">
-          {Array(4).fill(0).map((_, i) => (
-            <div key={i} className="h-12 bg-gray-100 rounded-xl animate-pulse" />
-          ))}
-        </div>
+        <TabLoader className="!min-h-[60vh]" />
       ) : rows.length === 0 ? (
         <NoData title="NO APPS FOUND" />
       ) : (

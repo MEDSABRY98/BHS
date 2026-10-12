@@ -51,7 +51,6 @@ function SalespersonShell() {
     if (error && !data) {
       return <TabFetchError message={error} onRetry={() => void refresh()} />;
     }
-    if (listLoading || loading) return <TabLoader className="!min-h-[60vh] flex-1" />;
     if (!selectedId) {
       return (
         <div className="flex items-center justify-center min-h-[55vh]">
@@ -107,15 +106,19 @@ function SalespersonShell() {
           <span className="ml-3 font-bold text-slate-900 tracking-wide">Salesperson Analysis</span>
         </div>
 
-        <div className="max-w-[92%] 2xl:max-w-[1600px] w-full mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-12 flex-1 space-y-6">
-          <div className="flex items-end justify-between gap-4">
-            <h2 className="text-2xl font-black text-slate-900 tracking-tight">
-              {SALESPERSON_TABS.find((t) => t.id === activeTab)?.label}
-            </h2>
+        {(listLoading || loading) && !(error && !data) ? (
+          <TabLoader className="!min-h-full flex-1" />
+        ) : (
+          <div className="max-w-[92%] 2xl:max-w-[1600px] w-full mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-12 flex-1 space-y-6">
+            <div className="flex items-end justify-between gap-4">
+              <h2 className="text-2xl font-black text-slate-900 tracking-tight">
+                {SALESPERSON_TABS.find((t) => t.id === activeTab)?.label}
+              </h2>
+            </div>
+            <SalespersonPicker />
+            {renderBody()}
           </div>
-          <SalespersonPicker />
-          {renderBody()}
-        </div>
+        )}
       </div>
     </div>
   );

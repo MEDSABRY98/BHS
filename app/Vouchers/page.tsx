@@ -15,6 +15,7 @@ import VoucherEntry from './Components/VoucherEntry';
 import VouchersRegister from './Components/VouchersRegister';
 import { getVoucherPermissions } from './Service/cash_voucher_service';
 import type { CashVoucher } from './Utils/voucherTypes';
+import TabLoader from '@/app/Components/Loading/TabLoader';
 
 type VoucherPermissions = Awaited<ReturnType<typeof getVoucherPermissions>>;
 
@@ -166,7 +167,7 @@ export default function VouchersPage() {
         {/* Main Content */}
         <div className="max-w-[1500px] mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-12 flex-1 w-full">
           {!permissions ? (
-            <MainLoader fullScreen={false} message="Loading..." />
+            <TabLoader />
           ) : visibleTabs.length === 0 ? (
             <div className="p-20 text-center font-bold text-slate-400">You don&apos;t have permission to use Vouchers.</div>
           ) : (

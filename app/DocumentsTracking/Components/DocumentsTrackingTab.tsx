@@ -39,6 +39,7 @@ import ReceiverExcelModal from './Modals/ReceiverExcelModal';
 import { exportDebitExcelTable } from '../../CustomersAnalysis/Utils/ExcelExport';
 import { getDocumentsTracking, updateDocumentTrackingRecord, deleteDocumentTrackingRecord, bulkUpdateDocumentsTrackingRecords } from '../Service/documents_tracking_service';
 import { getAllowedModuleTabIds } from '@/app/AdminControl/AdminControlTab';
+import TabLoader from '@/app/Components/Loading/TabLoader';
 
 const DOCUMENTS_TRACKING_TAB_IDS = ['register', 'list', 'receivers'] as const;
 
@@ -551,11 +552,8 @@ export default function DocumentsTrackingTab({ currentUser }: { currentUser?: an
     return (
         <div className={`doc-tracking-container ${isLoading ? 'loading-state' : ''}`}>
             {isLoading && (
-                <div className="fixed inset-0 z-[5000] flex items-center justify-center bg-white/60 backdrop-blur-sm">
-                    <div className="flex flex-col items-center gap-4">
-                        <div className="w-12 h-12 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin"></div>
-                        <p className="text-indigo-900 font-bold">جاري تحديث البيانات...</p>
-                    </div>
+                <div className="fixed inset-0 z-[5000] flex items-center justify-center bg-white">
+                    <TabLoader className="!min-h-0" />
                 </div>
             )}
             <link

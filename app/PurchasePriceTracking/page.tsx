@@ -16,6 +16,7 @@ import {
 } from './Model/PurchaseFilters';
 import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import { usePurchasePriceTrackingTabAudit } from '@/app/Audit/Model/PurchasePriceTrackingTabAudit';
+import TabLoader from '@/app/Components/Loading/TabLoader';
 
 export type PurchaseRecord = {
   id: string;
@@ -38,31 +39,6 @@ export type Product = {
   barcode?: string;
   category?: string;
 };
-
-function LoadingSkeleton() {
-  return (
-    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8 animate-in fade-in duration-300">
-      {[...Array(6)].map((_, i) => (
-        <div
-          key={i}
-          className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm flex flex-col gap-6 animate-pulse min-h-[200px]"
-        >
-          <div className="flex items-center gap-4">
-            <div className="bg-slate-200 w-14 h-14 rounded-2xl" />
-            <div className="flex-1 space-y-3">
-              <div className="bg-slate-200 w-3/4 h-6 rounded-lg" />
-              <div className="bg-slate-200 w-1/2 h-4 rounded-lg" />
-            </div>
-          </div>
-          <div className="mt-auto space-y-2">
-            <div className="bg-slate-100 w-full h-12 rounded-xl" />
-            <div className="bg-slate-100 w-full h-12 rounded-xl" />
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
 
 function PurchasePriceTrackingContent({
   activeTab,
@@ -286,11 +262,7 @@ export default function PurchasePriceTrackingPage() {
         />
 
         <main className="flex-1 flex flex-col h-full overflow-hidden relative">
-          <div className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar">
-            <div className="max-w-[90%] mx-auto">
-              <LoadingSkeleton />
-            </div>
-          </div>
+          <TabLoader className="!min-h-full flex-1" />
         </main>
       </div>
     );

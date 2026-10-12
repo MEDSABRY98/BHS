@@ -2,6 +2,7 @@ import React from 'react';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import { SharedTabProps } from '../Types';
 import { renderNoteWithLinks, autoResizeTextarea } from '../Utils';
+import TabLoader from '@/app/Components/Loading/TabLoader';
 
 export default function NotesTab(props: SharedTabProps) {
   const {
@@ -46,9 +47,7 @@ export default function NotesTab(props: SharedTabProps) {
       </div>
 
       {loadingNotes ? (
-        <div className="flex justify-center py-8">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-        </div>
+        <TabLoader className="!min-h-[40vh]" />
       ) : (
         <div className="space-y-4">
           {notes.length === 0 ? (

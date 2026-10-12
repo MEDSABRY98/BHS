@@ -139,8 +139,10 @@ export default function SalesPage() {
   );
 
 
+  // Admins always; FULL DATA ACCESS alone does not unlock costs ('view-costs' decides)
   const showCosts = useMemo(() => {
-    if (userHasSalesDataAccess) return true;
+    const name = String(currentUser?.name || '').trim().toLowerCase();
+    if (name === 'med sabry' || String(currentUser?.userAdmin || '').trim().toLowerCase() === 'admin') return true;
     try {
       const roleStr = currentUser?.role || '';
       if (!roleStr) return true;
@@ -151,7 +153,7 @@ export default function SalesPage() {
       }
     } catch (e) { }
     return true; // default to true
-  }, [currentUser, userHasSalesDataAccess]);
+  }, [currentUser]);
 
   // Reset scroll position and track visited tabs when tab changes
   useEffect(() => {

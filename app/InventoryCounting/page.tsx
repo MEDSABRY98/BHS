@@ -351,16 +351,18 @@ function InventoryCountingPageContent({
         </div>
 
         <div className="max-w-[95%] 2xl:max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-12 flex-1 w-full">
-          <div className="hidden lg:flex items-center gap-2 pb-4 min-w-0">
-            <h1 className="text-2xl font-black text-slate-900 tracking-tight shrink-0">
-              {pageTitle}
-            </h1>
-            {isArchiveView && archiveMeta && (
-              <ArchiveInfoButton archiveMeta={archiveMeta} onExit={() => setArchiveId(null)} />
-            )}
-          </div>
-
-          <ICDataBootstrap onReady={handleBootstrapReady}>{countingContent}</ICDataBootstrap>
+          {/* the title shows only after the data is loaded (loader alone while loading) */}
+          <ICDataBootstrap onReady={handleBootstrapReady}>
+            <div className="hidden lg:flex items-center gap-2 pb-4 min-w-0">
+              <h1 className="text-2xl font-black text-slate-900 tracking-tight shrink-0">
+                {pageTitle}
+              </h1>
+              {isArchiveView && archiveMeta && (
+                <ArchiveInfoButton archiveMeta={archiveMeta} onExit={() => setArchiveId(null)} />
+              )}
+            </div>
+            {countingContent}
+          </ICDataBootstrap>
         </div>
       </div>
     </div>

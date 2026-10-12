@@ -5,6 +5,7 @@ import { adminListUsers, adminGetUserSignature, adminSaveUserSignature } from '@
 import { X, Loader2, Save, FilePenLine } from 'lucide-react';
 import SignaturePad from '@/app/DataBase/Users/components/SignaturePad';
 import SearchSelect from '../../../LPOs/Components/DropDownList';
+import TabLoader from '@/app/Components/Loading/TabLoader';
 
 interface SignatureModalProps {
   isOpen: boolean;
@@ -124,10 +125,7 @@ export default function SignatureModal({
 
         {/* Form Body */}
         {isLoading ? (
-          <div className="py-12 flex flex-col items-center justify-center gap-3">
-            <Loader2 className="w-8 h-8 animate-spin text-[#D4AF37]" />
-            <span className="text-xs font-black text-gray-400 uppercase tracking-widest">Loading...</span>
-          </div>
+          <TabLoader className="!min-h-[300px]" />
         ) : (
           <div className="space-y-6">
 

@@ -2,11 +2,11 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Search, Package, AlertCircle, ChevronDown, Filter, Check } from 'lucide-react';
-import MainLoader from '@/app/Components/Loading/MainLoader';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import * as XLSX from 'xlsx';
 import { getItemCodesData } from './Service/InventoryItemCodeService';
+import TabLoader from '@/app/Components/Loading/TabLoader';
 
 interface ItemCodeEntry {
     tags: string;
@@ -83,7 +83,12 @@ export default function InventoryItemCodeTab() {
     });
 
     if (loading) {
-        return <MainLoader message="Loading Item Codes..." />;
+        // full screen: loader only, the top bar is hidden while loading
+        return (
+            <div className="fixed inset-0 z-50 bg-slate-50 flex">
+                <TabLoader className="!min-h-full flex-1" />
+            </div>
+        );
     }
 
     if (error) {

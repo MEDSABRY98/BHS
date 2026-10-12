@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, TrendingUp, TrendingDown, Activity, ArrowUpRight, ArrowDownRight, DollarSign, Percent, Briefcase, Target, PieChart, ShoppingCart, Award, Maximize2, X, BarChart2, LineChart as LineChartIcon } from 'lucide-react';
-import DataLoader from '@/app/Components/Loading/DataLoader';
+import TabLoader from '@/app/Components/Loading/TabLoader';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import { fetchAccounts, fetchEntriesByYear, FinancialAccount, FinancialEntry } from '../../Service/FinancialService';
 import { useFinancialModel } from '../../Context/FinancialModelContext';
@@ -551,6 +551,13 @@ export function DashboardTab() {
     );
   };
 
+  // Loader only (no header / filters) until the first load finishes
+  const [firstLoad, setFirstLoad] = useState(true);
+  useEffect(() => {
+    if (!isLoading) setFirstLoad(false);
+  }, [isLoading]);
+  if (firstLoad) return <TabLoader className="flex-1" />;
+
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       {/* Dark Header */}
@@ -587,7 +594,7 @@ export function DashboardTab() {
       </div>
 
       {isLoading ? (
-        <DataLoader message="" className="min-h-[500px]" />
+        <TabLoader className="!min-h-[60vh]" />
       ) : accounts.length === 0 ? (
         <NoData />
       ) : (

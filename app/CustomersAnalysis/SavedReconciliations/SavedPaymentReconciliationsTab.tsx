@@ -28,6 +28,7 @@ import {
 } from '../Service/debit_service';
 import { generatePaymentReconciliationPDF } from '../PaymentReconciliationTab/Pdf/PaymentReconciliationUtils';
 import DeletePaymentReconciliationSessionModal from './DeletePaymentReconciliationSessionModal';
+import TabLoader from '@/app/Components/Loading/TabLoader';
 
 interface SavedPaymentReconciliationsTabProps {
   data?: InvoiceRow[];
@@ -122,7 +123,7 @@ export default function SavedPaymentReconciliationsTab({
 }: SavedPaymentReconciliationsTabProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('customers');
   const [sessions, setSessions] = useState<PaymentReconciliationSessionSummary[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [namesLoading, setNamesLoading] = useState(false);
   const [nameById, setNameById] = useState<Map<string, string>>(new Map());
   const [searchQuery, setSearchQuery] = useState('');
@@ -395,6 +396,13 @@ export default function SavedPaymentReconciliationsTab({
     ? selectedSession.paymentAmount - detailSelectedOpenTotal
     : 0;
 
+  // Loader only (no header / search) until the first load finishes
+  const [firstLoad, setFirstLoad] = useState(true);
+  useEffect(() => {
+    if (!loading) setFirstLoad(false);
+  }, [loading]);
+  if (firstLoad && viewMode === 'customers') return <TabLoader />;
+
   return (
     <div className="space-y-6">
       <div className="bg-gradient-to-r from-indigo-50 to-blue-50 border border-indigo-100 rounded-2xl p-6 shadow-sm">
@@ -488,10 +496,7 @@ export default function SavedPaymentReconciliationsTab({
       </div>
 
       {loading && viewMode === 'customers' && (
-        <div className="flex items-center justify-center gap-2 py-16 text-slate-400 font-semibold">
-          <Loader2 className="w-5 h-5 animate-spin" />
-          Loading saved reconciliations...
-        </div>
+        <TabLoader className="!min-h-[60vh]" />
       )}
 
       {namesLoading && !loading && viewMode === 'customers' && customerGroups.length > 0 && (
@@ -558,10 +563,7 @@ export default function SavedPaymentReconciliationsTab({
       {viewMode === 'detail' && selectedSession && (
         <div className="space-y-4">
           {detailLoading ? (
-            <div className="flex items-center justify-center gap-2 py-16 text-slate-400 font-semibold">
-              <Loader2 className="w-5 h-5 animate-spin" />
-              Loading session details...
-            </div>
+            <TabLoader className="!min-h-[60vh]" />
           ) : (
             <>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">

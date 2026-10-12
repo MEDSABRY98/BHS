@@ -10,6 +10,7 @@ import { toast } from '@/app/Components/Notification';
 import { getPurchaseDetailsMonthsSummary, deletePurchaseDetailsMonth, uploadPurchaseDetails } from './PurchaseDetailsService';
 import { exportDatabaseExcelTable } from '../Utils/ExcelExport';
 import { downloadUploadIssuesReport } from '../Utils/ExcelUploadUtils';
+import TabLoader from '@/app/Components/Loading/TabLoader';
 
 const englishMonths: Record<number, string> = {
   1: 'January',
@@ -174,6 +175,13 @@ export default function PurchaseDetailsPage() {
     }
   };
 
+  // Loader only (no header / search) until the first load finishes
+  const [firstLoad, setFirstLoad] = useState(true);
+  useEffect(() => {
+    if (!isLoading) setFirstLoad(false);
+  }, [isLoading]);
+  if (firstLoad) return <TabLoader />;
+
   return (
     <div className="space-y-8">
       <div className="flex items-center gap-3">
@@ -190,23 +198,7 @@ export default function PurchaseDetailsPage() {
       </div>
 
       {isLoading && months.length === 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-          {Array(8)
-            .fill(0)
-            .map((_, i) => (
-               <div
-                key={i}
-                className="animate-pulse bg-white rounded-3xl p-6 border border-gray-100 h-[180px] flex flex-col justify-between"
-              >
-                <div className="space-y-3">
-                  <div className="h-4 bg-gray-100 rounded w-1/4" />
-                  <div className="h-6 bg-gray-100 rounded w-3/4" />
-                  <div className="h-4 bg-gray-100 rounded w-1/2" />
-                </div>
-                <div className="h-10 bg-gray-100 rounded-xl w-full" />
-              </div>
-            ))}
-        </div>
+        <TabLoader className="!min-h-[60vh]" />
       ) : months.length === 0 ? (
         <NoData title={`NO PURCHASE DETAILS DATA FOUND`} />
       ) : (

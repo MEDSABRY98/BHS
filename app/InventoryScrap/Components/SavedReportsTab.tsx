@@ -8,6 +8,7 @@ import { exportInventoryScrapExcel } from '../Export/ExcelExport';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import { toast } from '@/app/Components/Notification';
 import { getCurrentUserFromStorage, parseUserPermissions, isUnrestrictedAdminUser } from '@/app/AdminControl/AdminControlTab';
+import TabLoader from '@/app/Components/Loading/TabLoader';
 
 interface ReportItem {
   productId: string;
@@ -262,6 +263,13 @@ export default function SavedReportsTab({ refreshTrigger = 0 }: SavedReportsTabP
     }
   };
 
+  // Loader only (no search) until the first load finishes
+  const [firstLoad, setFirstLoad] = useState(true);
+  useEffect(() => {
+    if (!isLoading) setFirstLoad(false);
+  }, [isLoading]);
+  if (firstLoad) return <TabLoader />;
+
   return (
     <div className="space-y-8 select-none font-sans text-black">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-100 pb-4">
@@ -282,10 +290,7 @@ export default function SavedReportsTab({ refreshTrigger = 0 }: SavedReportsTabP
       </div>
 
       {isLoading ? (
-        <div className="flex flex-col items-center justify-center py-20 gap-4">
-          <Loader2 className="w-10 h-10 animate-spin text-black" />
-          <p className="text-sm text-slate-500 font-medium">Loading saved reports...</p>
-        </div>
+        <TabLoader className="!min-h-[60vh]" />
       ) : filteredReports.length === 0 ? (
         <NoData title="No Saved Reports" />
       ) : (

@@ -6,6 +6,7 @@ import { exportStyledExcel } from '@/app/Components/Export/ExcelExport';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import { toast } from '@/app/Components/Notification';
 import { fetchNormalEmails, addNormalEmail, updateNormalEmail, deleteNormalEmail } from '../Service/database_service';
+import TabLoader from '@/app/Components/Loading/TabLoader';
 
 export default function EmailsDatabasePage() {
   const [data, setData] = useState<any[]>([]);
@@ -113,6 +114,13 @@ export default function EmailsDatabasePage() {
     setItemToDelete(item);
   };
 
+  // Loader only (no header / search) until the first load finishes
+  const [firstLoad, setFirstLoad] = useState(true);
+  useEffect(() => {
+    if (!loading) setFirstLoad(false);
+  }, [loading]);
+  if (firstLoad) return <TabLoader />;
+
   return (
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -163,13 +171,11 @@ export default function EmailsDatabasePage() {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {loading ? (
-                Array(5).fill(0).map((_, i) => (
-                  <tr key={i} className="animate-pulse">
-                    <td colSpan={4} className="px-6 py-6">
-                      <div className="h-6 bg-gray-50 rounded-xl w-full"></div>
-                    </td>
-                  </tr>
-                ))
+                <tr>
+                  <td colSpan={4} className="p-0">
+                    <TabLoader className="!min-h-[50vh]" />
+                  </td>
+                </tr>
               ) : filteredData.length === 0 ? (
                 <tr>
                   <td colSpan={4} className="p-0">

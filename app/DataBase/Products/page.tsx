@@ -30,6 +30,7 @@ import MergeProductsModal from './Components/MergeProductsModal';
 import { exportDatabaseExcel } from '../Utils/ExcelExport';
 import { downloadUploadIssuesReport, normalizeExcelId } from '../Utils/ExcelUploadUtils';
 import { updateProductIdCascade } from '../Service/database_service';
+import TabLoader from '@/app/Components/Loading/TabLoader';
 
 function roundProductCost(value: unknown): number {
   const n = typeof value === 'number' ? value : Number(String(value ?? '').replace(/,/g, ''));
@@ -583,6 +584,13 @@ export default function ProductsPage() {
     merge.setSelectedInternalIds([]);
   }, [searchTerm, currentPage]);
 
+  // Loader only (no header / search) until the first load finishes
+  const [firstLoad, setFirstLoad] = useState(true);
+  useEffect(() => {
+    if (!isLoading) setFirstLoad(false);
+  }, [isLoading]);
+  if (firstLoad) return <TabLoader />;
+
   return (
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -685,18 +693,7 @@ export default function ProductsPage() {
       </div>
 
       {isLoading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-          {Array(8).fill(0).map((_, i) => (
-            <div key={i} className="animate-pulse bg-white border border-gray-100 rounded-[2.5rem] p-6 h-[220px] flex flex-col justify-between">
-              <div className="space-y-4">
-                <div className="w-12 h-12 bg-gray-50 rounded-2xl" />
-                <div className="h-6 bg-gray-50 rounded-xl w-3/4" />
-                <div className="h-4 bg-gray-50 rounded-xl w-1/2" />
-              </div>
-              <div className="h-10 bg-gray-50 rounded-2xl w-full" />
-            </div>
-          ))}
-        </div>
+        <TabLoader className="!min-h-[60vh]" />
       ) : paginatedProducts.length === 0 ? (
         <NoData title="NO PRODUCTS FOUND" />
       ) : (
@@ -876,20 +873,7 @@ export default function ProductsPage() {
       ) : (
         <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
           {isCategoriesLoading ? (
-            <div className="p-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                {Array(8).fill(0).map((_, i) => (
-                  <div key={i} className="animate-pulse bg-white border border-gray-100 rounded-[2.5rem] p-6 h-[220px] flex flex-col justify-between">
-                    <div className="space-y-4">
-                      <div className="w-12 h-12 bg-gray-50 rounded-2xl" />
-                      <div className="h-6 bg-gray-50 rounded-xl w-3/4" />
-                      <div className="h-4 bg-gray-50 rounded-xl w-1/2" />
-                    </div>
-                    <div className="h-10 bg-gray-50 rounded-2xl w-full" />
-                  </div>
-                ))}
-              </div>
-            </div>
+            <TabLoader className="!min-h-[50vh]" />
           ) : categories.length === 0 ? (
             <div className="p-12 text-center text-gray-500 font-bold uppercase tracking-widest">
               No Categories Found

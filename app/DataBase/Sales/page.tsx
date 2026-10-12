@@ -11,6 +11,7 @@ import * as XLSX from 'xlsx';
 import { getSalesMonthsCache, deleteSalesMonth, buildSalesCache, deleteAllSalesData } from '@/app/Sales/Service/sales_core_service';
 import { exportDatabaseExcelTable } from '../Utils/ExcelExport';
 import { downloadUploadIssuesReport, normalizeExcelId } from '../Utils/ExcelUploadUtils';
+import TabLoader from '@/app/Components/Loading/TabLoader';
 
 const englishMonths: Record<number, string> = {
   1: "January", 2: "February", 3: "March", 4: "April", 5: "May", 6: "June",
@@ -611,6 +612,13 @@ export default function SalesDBPage() {
     else toast.error(text);
   };
 
+  // Loader only (no header / search) until the first load finishes
+  const [firstLoad, setFirstLoad] = useState(true);
+  useEffect(() => {
+    if (!isLoading) setFirstLoad(false);
+  }, [isLoading]);
+  if (firstLoad) return <TabLoader />;
+
   return (
     <div className="space-y-8">
       {/* Header */}
@@ -655,18 +663,7 @@ export default function SalesDBPage() {
 
       {/* Grid of Months */}
       {isLoading && salesMonths.length === 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-          {Array(8).fill(0).map((_, i) => (
-            <div key={i} className="animate-pulse bg-white rounded-3xl p-6 border border-gray-100 h-[180px] flex flex-col justify-between">
-              <div className="space-y-3">
-                <div className="h-4 bg-gray-100 rounded w-1/4"></div>
-                <div className="h-6 bg-gray-100 rounded w-3/4"></div>
-                <div className="h-4 bg-gray-100 rounded w-1/2"></div>
-              </div>
-              <div className="h-10 bg-gray-100 rounded-xl w-full"></div>
-            </div>
-          ))}
-        </div>
+        <TabLoader className="!min-h-[60vh]" />
       ) : salesMonths.length === 0 ? (
         <NoData title="NO SALES DATA FOUND" />
       ) : (
