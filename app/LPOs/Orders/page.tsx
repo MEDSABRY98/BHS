@@ -159,7 +159,6 @@ export default function OrdersPage() {
             updatePayload = {
               STATUS: 'Assigned',
               DELIVERY_TIME: null,
-              IS_CUSTOMER_SIGNED: false,
               OFFICE_HANDOVER_ID: null,
               OFFICE_HANDOVER_STATUS: null,
               OFFICE_HANDOVER_TIME: null,
@@ -168,7 +167,6 @@ export default function OrdersPage() {
           } else {
             updatePayload = {
               STATUS: 'Delivered',
-              IS_CUSTOMER_SIGNED: false,
               OFFICE_HANDOVER_ID: null,
               OFFICE_HANDOVER_STATUS: null,
               OFFICE_HANDOVER_TIME: null,
@@ -181,7 +179,6 @@ export default function OrdersPage() {
           updatePayload = {
             STATUS: 'Delivered',
             DELIVERY_TIME: new Date().toISOString(),
-            IS_CUSTOMER_SIGNED: true,
             OFFICE_HANDOVER_ID: userProfile.ID || 'R-0001',
             OFFICE_HANDOVER_STATUS: 'Confirmed',
             OFFICE_HANDOVER_TIME: new Date().toISOString(),
@@ -191,7 +188,6 @@ export default function OrdersPage() {
           updatePayload = {
             STATUS: 'Delivered',
             DELIVERY_TIME: new Date().toISOString(),
-            IS_CUSTOMER_SIGNED: false,
             OFFICE_HANDOVER_ID: userProfile.ID || 'R-0001',
             OFFICE_HANDOVER_STATUS: 'Confirmed',
             OFFICE_HANDOVER_TIME: new Date().toISOString(),

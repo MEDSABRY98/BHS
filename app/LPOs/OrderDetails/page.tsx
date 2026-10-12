@@ -7,26 +7,17 @@ import {
   ArrowLeft,
   CheckCircle2,
   XCircle,
-  Package,
   Loader2,
   Trash2,
-  FileText,
-  Printer,
   FileSpreadsheet,
   Edit2,
-  Info,
   Save,
   X,
 } from 'lucide-react';
 import { ConfirmModal } from '../Components/ConfirmModal';
 import TabLoader from '@/app/Components/Loading/TabLoader';
 import { usePermissions } from '../Hooks/usePermissions';
-import OrderItemsTab from './Components/OrderItemsTab';
-import OrderInfoTab, { OrderInfoTabHandle } from './Components/OrderInfoTab';
-
-import OrderDeliveryTab from './Components/OrderDeliveryTab';
-import InvoicesStatusTab from './Components/InvoicesStatusTab';
-import NoData from '@/app/Components/DataState/NoDataTab';
+import OrderDetailsTab, { OrderDetailsTabHandle } from './Components/OrderDetailsTab';
 import { exportLPOsExcel } from '../Export/ExcelExport';
 import { useLposOrderDetailsTabAudit } from '@/app/Audit/Model/LPOsTabAudit';
 
@@ -47,10 +38,10 @@ function OrderDetailsPageContent() {
   const [isEditingOrderInfo, setIsEditingOrderInfo] = useState(false);
   const [orderInfoSaving, setOrderInfoSaving] = useState(false);
   const [orderInfoLoadingOptions, setOrderInfoLoadingOptions] = useState(false);
-  const orderInfoRef = useRef<OrderInfoTabHandle>(null);
+  const orderInfoRef = useRef<OrderDetailsTabHandle>(null);
   const [pendingStatus, setPendingStatus] = useState('');
-  const [activeTab, setActiveTab] = useState('INFO');
-  useLposOrderDetailsTabAudit(activeTab);
+  // one tab only (order details + driver + invoice status)
+  useLposOrderDetailsTabAudit('INFO');
 
   const handleOrderInfoActionState = useCallback((state: { isSaving: boolean; isLoadingOptions: boolean }) => {
     setOrderInfoSaving(state.isSaving);
@@ -212,7 +203,6 @@ function OrderDetailsPageContent() {
   const isTabsEnabled = isNoItemsOrder || order?.STATUS === 'Approved' || order?.STATUS === 'Partially Approved';
 
   const handleStartEditOrderInfo = () => {
-    setActiveTab('INFO');
     setIsEditingOrderInfo(true);
   };
 
@@ -309,93 +299,16 @@ function OrderDetailsPageContent() {
 
 
 
-      {/* Tab Switcher */}
-      <div className="flex items-center gap-4 bg-[#D4AF37]/5 backdrop-blur-md p-2 rounded-[2rem] border-2 border-[#D4AF37]/30 w-full max-w-5xl mx-auto shadow-lg shadow-[#D4AF37]/5">
-        <button
-          onClick={() => setActiveTab('INFO')}
-          className={`flex-1 px-6 py-4 rounded-3xl font-black text-xs uppercase tracking-[0.1em] transition-all flex items-center justify-center gap-2 border ${activeTab === 'INFO'
-            ? 'bg-black text-[#D4AF37] border-[#D4AF37]/40 shadow-xl shadow-black/10'
-            : 'text-gray-400 border-transparent hover:text-black hover:bg-white'
-            }`}
-        >
-          <Info className="w-4 h-4" />
-          Order Info
-        </button>
-        {!isNoItemsOrder && (
-          <button
-            onClick={() => setActiveTab('ITEMS')}
-            className={`flex-1 px-6 py-4 rounded-3xl font-black text-xs uppercase tracking-[0.1em] transition-all flex items-center justify-center gap-2 border ${activeTab === 'ITEMS'
-              ? 'bg-black text-[#D4AF37] border-[#D4AF37]/40 shadow-xl shadow-black/10'
-              : 'text-gray-400 border-transparent hover:text-black hover:bg-white'
-              }`}
-          >
-            <Package className="w-4 h-4" />
-            Order Items
-          </button>
-        )}
-
-        <button
-          onClick={() => setActiveTab('DELIVERY')}
-          className={`flex-1 px-6 py-4 rounded-3xl font-black text-xs uppercase tracking-[0.1em] transition-all flex items-center justify-center gap-2 border ${activeTab === 'DELIVERY'
-            ? 'bg-black text-[#D4AF37] border-[#D4AF37]/40 shadow-xl shadow-black/10'
-            : 'text-gray-400 border-transparent hover:text-black hover:bg-white'
-            }`}
-        >
-          <Printer className="w-4 h-4" />
-          Logistics / Delivery
-        </button>
-        <button
-          onClick={() => setActiveTab('INVOICES')}
-          className={`flex-1 px-6 py-4 rounded-3xl font-black text-xs uppercase tracking-[0.1em] transition-all flex items-center justify-center gap-2 border ${activeTab === 'INVOICES'
-            ? 'bg-black text-[#D4AF37] border-[#D4AF37]/40 shadow-xl shadow-black/10'
-            : 'text-gray-400 border-transparent hover:text-black hover:bg-white'
-            }`}
-        >
-          <FileText className="w-4 h-4" />
-          Invoices Status
-        </button>
-      </div>
-
-      {/* Active Tab Content */}
-      <div className="min-h-[400px]">
-        {activeTab === 'INFO' && (
-          <OrderInfoTab
-            ref={orderInfoRef}
-            order={order}
-            isEditing={isEditingOrderInfo}
-            onEditingChange={setIsEditingOrderInfo}
-            onOrderUpdated={fetchOrderDetails}
-            onActionStateChange={handleOrderInfoActionState}
-          />
-        )}
-        {activeTab === 'ITEMS' && !isNoItemsOrder && (
-          <OrderItemsTab
-            items={items}
-            canEdit={canEdit && (order?.STATUS === 'Pending' || isEditingStatus)}
-            totalAmount={totalAmount}
-            toggleItemStatus={toggleItemStatus}
-            handleQtyChange={handleQtyChange}
-          />
-        )}
-
-
-
-        {activeTab === 'DELIVERY' && (
-          !isTabsEnabled ? (
-            <NoData title="ORDER NOT APPROVED" />
-          ) : (
-            <OrderDeliveryTab orderId={order.ORDER_ID} />
-          )
-        )}
-
-        {activeTab === 'INVOICES' && (
-          !isTabsEnabled ? (
-            <NoData title="ORDER NOT APPROVED" />
-          ) : (
-            <InvoicesStatusTab orderId={order.ORDER_ID} order={order} />
-          )
-        )}
-      </div>
+      <OrderDetailsTab
+        ref={orderInfoRef}
+        order={order}
+        isApproved={isTabsEnabled}
+        canEdit={canEdit}
+        isEditing={isEditingOrderInfo}
+        onEditingChange={setIsEditingOrderInfo}
+        onOrderUpdated={fetchOrderDetails}
+        onActionStateChange={handleOrderInfoActionState}
+      />
 
       <ConfirmModal
         isOpen={isConfirmOpen}
