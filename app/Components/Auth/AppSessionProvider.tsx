@@ -32,6 +32,7 @@ const PATH_SYSTEMS: { prefix: string; ids: string[] }[] = [
   // unless he has full data access), so it has no entry here.
   { prefix: '/CustomersDocuments', ids: ['customers-documents'] },
   { prefix: '/FinancialModel', ids: ['financial-model'] },
+  { prefix: '/IntercompanyReconciliation', ids: ['intercompany-reconciliation'] },
   { prefix: '/PurchasePlanning', ids: ['purchase-planning'] },
 
   { prefix: '/InventoryItemCode', ids: ['inventory-item-code'] },

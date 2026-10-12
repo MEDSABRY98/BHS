@@ -200,6 +200,7 @@ const SYSTEMS = [
     { id: 'salesperson-analysis', label: 'Salesperson Analysis' },
     { id: 'financial-model', label: 'Financial Model' },
     { id: 'suppliers-analysis', label: 'Suppliers Analysis' },
+    { id: 'intercompany-reconciliation', label: 'Intercompany Reconciliation' },
     { id: 'database', label: 'Database' },
 ];
 
@@ -263,6 +264,10 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
         { id: 'dashboard', label: 'Dashboard' },
         { id: 'income_statement', label: 'Income Statement' },
         { id: 'data_entry', label: 'Data Entry' },
+    ],
+    'intercompany-reconciliation': [
+        { id: 'entries', label: 'Entries' },
+        { id: 'summary', label: 'Monthly Summary' },
     ],
     'suppliers-analysis': [
         { id: 'suppliers', label: 'Suppliers Analysis' },
@@ -339,6 +344,10 @@ const SYSTEM_ACTIONS: Record<string, { id: string; label: string; icon: string }
     'inventory-scrap': [
         { id: 'delete', label: 'Delete Reports', icon: '🗑️' }
     ],
+    'intercompany-reconciliation': [
+        { id: 'edit', label: 'Upload Excel / Dubai No / Attachments', icon: '✏️' },
+        { id: 'delete', label: 'Delete Lines & Attachments', icon: '🗑️' }
+    ],
 };
 
 const getSystemIcon = (id: string) => {
@@ -359,6 +368,7 @@ const getSystemIcon = (id: string) => {
         case 'customers-discounts': return <Shield className="w-5 h-5 text-amber-500" />;
         case 'financial-model': return <BarChart3 className="w-5 h-5 text-emerald-500" />;
         case 'suppliers-analysis': return <Truck className="w-5 h-5 text-indigo-400" />;
+        case 'intercompany-reconciliation': return <Layers className="w-5 h-5 text-cyan-500" />;
         case 'database': return <Database className="w-5 h-5 text-slate-500" />;
         default: return <Settings className="w-5 h-5 text-slate-500" />;
     }
