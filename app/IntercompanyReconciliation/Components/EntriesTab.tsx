@@ -21,7 +21,7 @@ import ConfirmDialog from './ConfirmDialog';
 import EditEntryModal from './EditEntryModal';
 import LabelModal from './LabelModal';
 import StatusDropdown, { type StatusOption } from './StatusDropdown';
-import { deleteIntercompanyEntry } from '../Service/IntercompanyService';
+import { deleteIntercompanyEntries, deleteIntercompanyEntry } from '../Service/IntercompanyService';
 import { exportIntercompanyPdf } from '../Utils/IntercompanyPdf';
 import {
   formatAmount,
@@ -63,10 +63,11 @@ interface EntriesTabProps {
   onEntryChanged: (entry: IntercompanyEntry) => void;
   onEntryAdded: (entry: IntercompanyEntry) => void;
   onEntryDeleted: (id: string) => void;
+  onEntriesDeleted: (ids: string[]) => void;
   onAttachmentsCountChanged: (id: string, count: number) => void;
 }
 
-export default function EntriesTab({ entries, permissions, onReload, onEntryChanged, onEntryAdded, onEntryDeleted, onAttachmentsCountChanged }: EntriesTabProps) {
+export default function EntriesTab({ entries, permissions, onReload, onEntryChanged, onEntryAdded, onEntryDeleted, onEntriesDeleted, onAttachmentsCountChanged }: EntriesTabProps) {
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<StatusFilter>('all');
   const [dateFrom, setDateFrom] = useState('');
@@ -76,6 +77,9 @@ export default function EntriesTab({ entries, permissions, onReload, onEntryChan
   const [editEntry, setEditEntry] = useState<IntercompanyEntry | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   const [labelEntry, setLabelEntry] = useState<IntercompanyEntry | null>(null);
 
   const [excelOpen, setExcelOpen] = useState(false);
@@ -168,7 +172,57 @@ export default function EntriesTab({ entries, permissions, onReload, onEntryChan
   };
 
   const hasActions = permissions.edit || permissions.delete;
-  const colCount = 8 + (hasActions ? 1 : 0);
+  const canSelect = permissions.delete;
+  const colCount = 8 + (hasActions ? 1 : 0) + (canSelect ? 1 : 0);
+
+  // Keep only lines that still exist
+  useEffect(() => {
+    setSelected((prev) => {
+      if (prev.size === 0) return prev;
+      const ids = new Set(entries.map((e) => e.ID));
+      const next = new Set(Array.from(prev).filter((id) => ids.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [entries]);
+
+  const selectedRows = useMemo(() => entries.filter((e) => selected.has(e.ID)), [entries, selected]);
+  const allShownSelected = filtered.length > 0 && filtered.every((e) => selected.has(e.ID));
+  const someShownSelected = !allShownSelected && filtered.some((e) => selected.has(e.ID));
+
+  const toggleRow = (id: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  const toggleAllShown = () =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (allShownSelected) filtered.forEach((e) => next.delete(e.ID));
+      else filtered.forEach((e) => next.add(e.ID));
+      return next;
+    });
+
+  const confirmBulkDelete = async () => {
+    const ids = selectedRows.map((e) => e.ID);
+    if (!ids.length) return;
+    setBulkDeleting(true);
+    try {
+      let done = 0;
+      for (let i = 0; i < ids.length; i += 500) done += await deleteIntercompanyEntries(ids.slice(i, i + 500));
+      onEntriesDeleted(ids);
+      setSelected(new Set());
+      setBulkOpen(false);
+      toast.success(`${done} line(s) deleted`);
+    } catch (err: any) {
+      toast.error(err?.message || 'Could not delete the lines');
+      await onReload();
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -262,12 +316,34 @@ export default function EntriesTab({ entries, permissions, onReload, onEntryChan
         )}
       </div>
 
+      {/* Selection bar */}
+      {canSelect && selected.size > 0 && (
+        <div className="flex items-center justify-between gap-3 px-5 py-3 rounded-2xl bg-[#0a0f1d] text-white shadow-lg animate-in fade-in slide-in-from-top-1 duration-150">
+          <span className="text-sm font-bold">
+            <span className="text-[#D4AF37]">{selected.size.toLocaleString('en-US')}</span> line(s) selected
+          </span>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setSelected(new Set())} className="px-4 py-2 rounded-xl text-sm font-bold text-slate-300 hover:text-white hover:bg-white/10">
+              Clear
+            </button>
+            <button onClick={() => setBulkOpen(true)} className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-sm font-bold flex items-center gap-2">
+              <Trash2 className="w-4 h-4" /> Delete Selected
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Table */}
       <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-[#0a0f1d] text-[11px] font-black uppercase tracking-[0.15em] text-[#D4AF37] text-center">
+                {canSelect && (
+                  <th className="py-4 pl-4 pr-1 w-10">
+                    <Checkbox checked={allShownSelected} indeterminate={someShownSelected} onChange={toggleAllShown} title="Select all shown lines" />
+                  </th>
+                )}
                 <th className="py-4 px-3">#</th>
                 <th className="py-4 px-3">Date</th>
                 <th className="py-4 px-3">Al Ain Entry</th>
@@ -286,7 +362,17 @@ export default function EntriesTab({ entries, permissions, onReload, onEntryChan
                 pageRows.map((e, i) => {
                   const missing = !e.DUBAI_ENTRY_NUMBER || !e.AIN_ENTRY_NUMBER;
                   return (
-                    <tr key={e.ID} className={`text-center transition-colors ${missing ? 'bg-amber-50/50 hover:bg-amber-50' : 'hover:bg-slate-50/70'}`}>
+                    <tr
+                      key={e.ID}
+                      className={`text-center transition-colors ${
+                        selected.has(e.ID) ? 'bg-blue-50/70 hover:bg-blue-50' : missing ? 'bg-amber-50/50 hover:bg-amber-50' : 'hover:bg-slate-50/70'
+                      }`}
+                    >
+                      {canSelect && (
+                        <td className="py-3 pl-4 pr-1">
+                          <Checkbox checked={selected.has(e.ID)} onChange={() => toggleRow(e.ID)} />
+                        </td>
+                      )}
                       <td className="py-3 px-3 text-xs font-bold text-slate-400">{(page - 1) * PAGE_SIZE + i + 1}</td>
                       <td className="py-3 px-3 font-semibold text-slate-700 whitespace-nowrap">{formatDate(e.ENTRY_DATE)}</td>
                       <td className="py-3 px-3 whitespace-nowrap">
@@ -346,7 +432,7 @@ export default function EntriesTab({ entries, permissions, onReload, onEntryChan
             {filtered.length > 0 && (
               <tfoot>
                 <tr className="bg-slate-50 border-t-2 border-slate-200 text-center font-black">
-                  <td colSpan={5} />
+                  <td colSpan={canSelect ? 6 : 5} />
                   <td className="py-3.5 px-3 text-emerald-700 whitespace-nowrap">{formatAmount(totals.debit)}</td>
                   <td className="py-3.5 px-3 text-rose-700 whitespace-nowrap">{formatAmount(totals.credit)}</td>
                   <td colSpan={hasActions ? 2 : 1} className="py-3.5 px-3 text-xs text-slate-500 whitespace-nowrap">
@@ -386,6 +472,25 @@ export default function EntriesTab({ entries, permissions, onReload, onEntryChan
       {labelEntry && <LabelModal entry={labelEntry} onClose={() => setLabelEntry(null)} />}
 
       <ConfirmDialog
+        open={bulkOpen}
+        title={`Delete ${selectedRows.length} line(s)?`}
+        message={
+          <>
+            Total debit {formatAmount(round2(selectedRows.reduce((s, e) => s + e.DEBIT, 0)))} · credit{' '}
+            {formatAmount(round2(selectedRows.reduce((s, e) => s + e.CREDIT, 0)))}
+            {selectedRows.some((e) => e.ATTACHMENTS_COUNT > 0) && (
+              <span className="block mt-2 font-bold text-red-600">
+                Their {selectedRows.reduce((s, e) => s + e.ATTACHMENTS_COUNT, 0)} attachment(s) will be deleted too.
+              </span>
+            )}
+          </>
+        }
+        busy={bulkDeleting}
+        onConfirm={() => void confirmBulkDelete()}
+        onCancel={() => setBulkOpen(false)}
+      />
+
+      <ConfirmDialog
         open={!!deleteTarget}
         title="Delete this line?"
         message={
@@ -418,5 +523,27 @@ function Card({ title, value, tone = 'text-slate-900', onClick, active }: { titl
       <p className="text-[10px] font-black text-slate-400 tracking-[0.2em] uppercase mb-1.5">{title}</p>
       <p className={`text-2xl font-black tracking-tight ${tone}`}>{value}</p>
     </Tag>
+  );
+}
+
+function Checkbox({ checked, indeterminate = false, onChange, title }: { checked: boolean; indeterminate?: boolean; onChange: () => void; title?: string }) {
+  return (
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={indeterminate ? 'mixed' : checked}
+      onClick={onChange}
+      title={title}
+      className={`w-[18px] h-[18px] rounded-md border-2 flex items-center justify-center transition-colors ${
+        checked || indeterminate ? 'bg-[#D4AF37] border-[#D4AF37]' : 'bg-white border-slate-300 hover:border-[#D4AF37]'
+      }`}
+    >
+      {checked && (
+        <svg viewBox="0 0 12 12" className="w-2.5 h-2.5 text-[#0a0f1d]" fill="none" stroke="currentColor" strokeWidth={2.5}>
+          <path d="M2 6.5l2.5 2.5L10 3.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      )}
+      {!checked && indeterminate && <span className="w-2 h-0.5 rounded bg-[#0a0f1d]" />}
+    </button>
   );
 }

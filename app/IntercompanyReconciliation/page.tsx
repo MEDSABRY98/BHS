@@ -119,6 +119,10 @@ export default function IntercompanyReconciliationPage() {
   const removeEntry = useCallback((id: string) => {
     setEntries((prev) => prev.filter((e) => e.ID !== id));
   }, []);
+  const removeEntries = useCallback((ids: string[]) => {
+    const gone = new Set(ids);
+    setEntries((prev) => prev.filter((e) => !gone.has(e.ID)));
+  }, []);
   const setAttachmentsCount = useCallback((id: string, count: number) => {
     setEntries((prev) => prev.map((e) => (e.ID === id ? { ...e, ATTACHMENTS_COUNT: count } : e)));
   }, []);
@@ -181,6 +185,7 @@ export default function IntercompanyReconciliationPage() {
                   onEntryChanged={patchEntry}
                   onEntryAdded={addEntry}
                   onEntryDeleted={removeEntry}
+                  onEntriesDeleted={removeEntries}
                   onAttachmentsCountChanged={setAttachmentsCount}
                 />
               )}

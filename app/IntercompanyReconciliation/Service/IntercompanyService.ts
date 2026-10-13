@@ -225,6 +225,33 @@ export async function updateIntercompanyEntry(id: string, input: ImportLine): Pr
   return normalizeEntry(data);
 }
 
+/** Bulk delete: several lines, their attachment rows (cascade) and their files. */
+export async function deleteIntercompanyEntries(ids: string[]): Promise<number> {
+  await requireAccess('delete');
+  if (!Array.isArray(ids) || ids.length === 0) return 0;
+  if (ids.length > MAX_IMPORT_CHUNK) throw new Error(`Delete at most ${MAX_IMPORT_CHUNK} lines at a time`);
+  const entryIds = Array.from(new Set(ids.map((id) => requireUuid(id))));
+  const db = getSupabaseAdmin();
+
+  const paths: string[] = [];
+  for (let i = 0; i < entryIds.length; i += 200) {
+    const { data, error } = await db.from(ATTACHMENTS).select('FILE_PATH').in('ENTRY_ID', entryIds.slice(i, i + 200));
+    if (error) throw new Error(error.message);
+    paths.push(...(data || []).map((f: any) => f.FILE_PATH).filter(Boolean));
+  }
+
+  for (let i = 0; i < entryIds.length; i += 200) {
+    const { error } = await db.from(ENTRIES).delete().in('ID', entryIds.slice(i, i + 200));
+    if (error) throw new Error(error.message);
+  }
+
+  for (let i = 0; i < paths.length; i += 500) {
+    const { error } = await db.storage.from(INTERCOMPANY_BUCKET).remove(paths.slice(i, i + 500));
+    if (error) console.error('[Intercompany] could not remove files of deleted lines:', error.message);
+  }
+  return entryIds.length;
+}
+
 /** Deletes a line, its attachment rows (cascade) and their files. */
 export async function deleteIntercompanyEntry(id: string): Promise<{ success: true }> {
   await requireAccess('delete');
