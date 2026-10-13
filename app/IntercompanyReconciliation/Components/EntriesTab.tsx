@@ -6,6 +6,7 @@ import {
   ChevronLeft,
   ChevronRight,
   FileSpreadsheet,
+  FileText,
   Plus,
   Pencil,
   Search,
@@ -21,6 +22,7 @@ import EditEntryModal from './EditEntryModal';
 import LabelModal from './LabelModal';
 import StatusDropdown, { type StatusOption } from './StatusDropdown';
 import { deleteIntercompanyEntry } from '../Service/IntercompanyService';
+import { exportIntercompanyPdf } from '../Utils/IntercompanyPdf';
 import {
   formatAmount,
   entryRef,
@@ -73,6 +75,7 @@ export default function EntriesTab({ entries, permissions, onReload, onEntryChan
 
   const [editEntry, setEditEntry] = useState<IntercompanyEntry | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  const [pdfBusy, setPdfBusy] = useState(false);
   const [labelEntry, setLabelEntry] = useState<IntercompanyEntry | null>(null);
 
   const [excelOpen, setExcelOpen] = useState(false);
@@ -131,6 +134,24 @@ export default function EntriesTab({ entries, permissions, onReload, onEntryChan
 
   const filtersActive = !!(search || dateFrom || dateTo || status !== 'all');
 
+  const exportPdf = async () => {
+    if (!filtered.length) return;
+    setPdfBusy(true);
+    try {
+      await exportIntercompanyPdf(filtered, {
+        dateFrom: dateFrom || undefined,
+        dateTo: dateTo || undefined,
+        filterLabel: [status !== 'all' ? STATUS_OPTIONS.find((o) => o.value === status)?.label : '', search.trim() ? `Search: ${search.trim()}` : '']
+          .filter(Boolean)
+          .join(' | ') || undefined,
+      });
+    } catch (err: any) {
+      toast.error(err?.message || 'Could not create the PDF');
+    } finally {
+      setPdfBusy(false);
+    }
+  };
+
   const confirmDelete = async () => {
     if (!deleteTarget) return;
     setDeleting(true);
@@ -161,6 +182,18 @@ export default function EntriesTab({ entries, permissions, onReload, onEntryChan
             title="Excel template / upload"
           >
             <FileSpreadsheet className="w-5 h-5" />
+          </button>
+          <button
+            onClick={() => void exportPdf()}
+            disabled={pdfBusy || filtered.length === 0}
+            className="flex items-center justify-center w-10 h-10 rounded-xl bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-900/10 transition-all disabled:opacity-50"
+            title="Export PDF"
+          >
+            {pdfBusy ? (
+              <span className="block w-5 h-5 rounded-full border-2 border-white border-b-transparent border-l-transparent animate-spin" />
+            ) : (
+              <FileText className="w-5 h-5" />
+            )}
           </button>
           {permissions.edit && (
             <button
