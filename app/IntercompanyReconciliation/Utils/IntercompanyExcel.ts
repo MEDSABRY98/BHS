@@ -85,24 +85,6 @@ export async function downloadIntercompanyExcel(entries: IntercompanyEntry[] = [
   }
   ws.autoFilter = { from: 'A1', to: 'F1' };
 
-  const notes = wb.addWorksheet('Notes');
-  notes.columns = [{ width: 110 }];
-  [
-    'How to fill the Entries sheet',
-    '• Date: the entry date in Al Ain (a real Excel date, or dd/mm/yyyy).',
-    '• Al Ain Entry No / Dubai Entry No: at least one of them is required.',
-    '• Label, Debit, Credit: as in the Al Ain journal items.',
-    '',
-    'When uploading:',
-    '• A line with the same Date, Label, Debit and Credit and the same Al Ain or Dubai Entry No is the same line: its missing / new numbers are updated.',
-    '• Any other line is added as a new line. Nothing is deleted, so the attachments stay safe.',
-    '• An empty entry number never clears a number already saved.',
-  ].forEach((text, i) => {
-    const cell = notes.getCell(`A${i + 1}`);
-    cell.value = text;
-    if (i === 0 || text === 'When uploading:') cell.font = { bold: true, size: 12 };
-  });
-
   const buffer = await wb.xlsx.writeBuffer();
   saveAs(new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), fileName);
 }
