@@ -169,3 +169,15 @@ export async function getPettyCashSuggestions(): Promise<{ beneficiaries: string
     descriptions: uniq(rows.map((r: any) => r.DESCRIPTION)),
   };
 }
+
+/** Admin only: deletes a petty cash and all its rows. */
+export async function deletePettyCash(id: string): Promise<{ success: true }> {
+  const user = await requireUser();
+  if (!isAdminUser(user)) throw new UnauthorizedError('Only the admin can delete a petty cash.');
+  const pcId = String(id || '').trim();
+  if (!/^PC-\d{4,}$/.test(pcId)) throw new Error('Invalid petty cash number');
+
+  const { error } = await getSupabaseAdmin().from(HEADERS).delete().eq('ID', pcId); // rows go with it (on delete cascade)
+  if (error) throw new Error(error.message);
+  return { success: true };
+}

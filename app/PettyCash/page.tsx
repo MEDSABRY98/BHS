@@ -173,7 +173,13 @@ export default function PettyCashPage() {
                     </button>
                   </div>
                 ) : (
-                  <PettyCashCards items={items} viewAll={permissions.viewAll} currentUserName={currentUser?.name || ''} />
+                  <PettyCashCards
+                    items={items}
+                    viewAll={permissions.viewAll}
+                    canDelete={permissions.viewAll} // delete: admin only
+                    currentUserName={currentUser?.name || ''}
+                    onDeleted={(id) => setItems((prev) => prev.filter((p) => p.ID !== id))}
+                  />
                 )
               )}
             </>
