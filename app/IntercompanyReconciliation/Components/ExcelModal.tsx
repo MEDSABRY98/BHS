@@ -4,7 +4,7 @@ import { useRef, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Download, FileSpreadsheet, FileUp, Loader2, RefreshCw, Upload, X } from 'lucide-react';
 import { toast } from '@/app/Components/Notification';
 import { downloadIntercompanyExcel, planIntercompanyImport, readIntercompanyExcel, type ImportPlan, type ParsedExcel } from '../Utils/IntercompanyExcel';
-import { insertIntercompanyEntries, listIntercompanyEntries, updateIntercompanyNumbers } from '../Service/IntercompanyService';
+import { insertIntercompanyEntries, listIntercompanyEntries, updateIntercompanyEntries, updateIntercompanyNumbers } from '../Service/IntercompanyService';
 import type { IntercompanyEntry } from '../Utils/IntercompanyTypes';
 
 const CHUNK = 500;
@@ -78,6 +78,11 @@ export default function ExcelModal({ open, onClose, entries, filtered, canEdit, 
         added += await insertIntercompanyEntries(plan.inserts.slice(i, i + CHUNK));
       }
       let updated = 0;
+      const edits = plan.edits.map(({ ROW: _row, ...u }) => u);
+      for (let i = 0; i < edits.length; i += CHUNK) {
+        setProgress(`Updating edited lines ${i + 1}–${Math.min(i + CHUNK, edits.length)} of ${edits.length}`);
+        updated += await updateIntercompanyEntries(edits.slice(i, i + CHUNK));
+      }
       const updates = plan.updates.map(({ ROW: _row, ...u }) => u);
       for (let i = 0; i < updates.length; i += CHUNK) {
         setProgress(`Updating lines ${i + 1}–${Math.min(i + CHUNK, updates.length)} of ${updates.length}`);
@@ -97,7 +102,9 @@ export default function ExcelModal({ open, onClose, entries, filtered, canEdit, 
     }
   };
 
-  const nothingToDo = !!plan && plan.inserts.length === 0 && plan.updates.length === 0;
+  const changes = plan ? plan.inserts.length + plan.updates.length + plan.edits.length : 0;
+  const nothingToDo = !!plan && changes === 0;
+  const skipped = parsed && plan ? [...parsed.errors, ...plan.missing].sort((a, b) => a.row - b.row) : [];
 
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={close}>
@@ -140,7 +147,7 @@ export default function ExcelModal({ open, onClose, entries, filtered, canEdit, 
               <div>
                 <p className="text-sm font-black text-slate-900">Export Lines ({filtered.length.toLocaleString('en-US')})</p>
                 <p className="text-xs text-slate-400 font-medium">
-                  {filtered.length === entries.length ? 'All saved lines' : 'Lines shown with the current filters'} — same layout, re-uploadable
+                  {filtered.length === entries.length ? 'All saved lines' : 'Lines shown with the current filters'} — edit and upload it back to update them
                 </p>
               </div>
             </button>
@@ -177,17 +184,17 @@ export default function ExcelModal({ open, onClose, entries, filtered, canEdit, 
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     <Stat label="Lines in file" value={parsed.lines.length} tone="text-slate-900" />
                     <Stat label="New lines" value={plan.inserts.length} tone="text-emerald-600" />
-                    <Stat label="Line updates" value={plan.updates.length} tone="text-blue-600" />
+                    <Stat label="Line updates" value={plan.updates.length + plan.edits.length} tone="text-blue-600" />
                     <Stat label="Already saved" value={plan.unchanged} tone="text-slate-400" />
                   </div>
 
-                  {parsed.errors.length > 0 && (
+                  {skipped.length > 0 && (
                     <div className="rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
                       <p className="flex items-center gap-2 text-sm font-black text-amber-700 mb-2">
-                        <AlertTriangle className="w-4 h-4" /> {parsed.errors.length} row(s) skipped
+                        <AlertTriangle className="w-4 h-4" /> {skipped.length} row(s) skipped
                       </p>
                       <div className="max-h-32 overflow-y-auto text-xs text-amber-800 space-y-0.5 font-medium">
-                        {parsed.errors.slice(0, 100).map((e) => (
+                        {skipped.slice(0, 100).map((e) => (
                           <p key={e.row}>
                             Row {e.row}: {e.message}
                           </p>
@@ -223,7 +230,7 @@ export default function ExcelModal({ open, onClose, entries, filtered, canEdit, 
                 className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold flex items-center gap-2 disabled:opacity-50"
               >
                 {importing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-                Upload {plan.inserts.length + plan.updates.length} change(s)
+                Upload {changes} change(s)
               </button>
             </div>
           </div>

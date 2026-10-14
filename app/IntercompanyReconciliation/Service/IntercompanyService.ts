@@ -198,6 +198,32 @@ export async function updateIntercompanyNumbers(
   return done;
 }
 
+/**
+ * Excel re-upload of exported lines (matched by their Line ID): every field of the line is replaced
+ * with the file's values. Attachments stay. Lines missing from the file are not touched.
+ */
+export async function updateIntercompanyEntries(updates: (ImportLine & { ID: string })[]): Promise<number> {
+  await requireAccess('edit');
+  if (!Array.isArray(updates) || updates.length === 0) return 0;
+  if (updates.length > MAX_IMPORT_CHUNK) throw new Error(`Send at most ${MAX_IMPORT_CHUNK} lines at a time`);
+  const db = getSupabaseAdmin();
+
+  const jobs = updates.map((u, i) => {
+    const line = cleanImportLine(u, i);
+    if (line.DEBIT === 0 && line.CREDIT === 0) throw new Error(`Line ${i + 1}: enter a debit or a credit amount`);
+    return { id: requireUuid(u?.ID), line };
+  });
+
+  let done = 0;
+  for (let i = 0; i < jobs.length; i += 25) {
+    const results = await Promise.all(jobs.slice(i, i + 25).map((j) => db.from(ENTRIES).update(j.line).eq('ID', j.id)));
+    const failed = results.find((r) => r.error);
+    if (failed?.error) throw new Error(failed.error.message);
+    done += results.length;
+  }
+  return done;
+}
+
 /** Add one line by hand (from the Add popup). */
 export async function createIntercompanyEntry(input: ImportLine): Promise<IntercompanyEntry> {
   await requireAccess('edit');
