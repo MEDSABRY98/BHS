@@ -9,6 +9,7 @@ import { getSupabaseAdmin } from '@/lib/supabaseAdmin';
 import { getSessionUser, isAdminUser, UnauthorizedError, type SessionUserRecord } from '@/lib/session';
 import {
   MAX_LINES,
+  compareLines,
   PETTY_CASH_SYSTEM_ID,
   round2,
   uaeToday,
@@ -59,15 +60,24 @@ async function requireTab(tab: PettyCashTabId): Promise<{ user: SessionUserRecor
   return { user, perms };
 }
 
-function normalize(row: any): PettyCash {
+/** admin = false → the ACCOUNT (and who edited) never leaves the server. */
+function normalize(row: any, admin: boolean): PettyCash {
   const lines: PettyCashLine[] = (Array.isArray(row.LINES) ? row.LINES : [])
-    .map((l: any) => ({
-      ...l,
-      AMOUNT: Number(l.AMOUNT) || 0,
-      IS_TAX_INVOICE: !!l.IS_TAX_INVOICE,
-      HAS_INVOICE: !!l.HAS_INVOICE,
-    }))
-    .sort((a: PettyCashLine, b: PettyCashLine) => a.LINE_NO - b.LINE_NO);
+    .map((l: any) => {
+      const line: any = {
+        ...l,
+        AMOUNT: Number(l.AMOUNT) || 0,
+        IS_TAX_INVOICE: !!l.IS_TAX_INVOICE,
+        HAS_INVOICE: !!l.HAS_INVOICE,
+      };
+      if (!admin) {
+        delete line.ACCOUNT;
+        delete line.UPDATED_BY;
+        delete line.UPDATED_AT;
+      }
+      return line as PettyCashLine;
+    })
+    .sort(compareLines); // beneficiary, then invoice date (oldest first)
   return {
     ...row,
     LINES_COUNT: Number(row.LINES_COUNT) || lines.length,
@@ -77,7 +87,7 @@ function normalize(row: any): PettyCash {
   };
 }
 
-function cleanLines(input: unknown): PettyCashLineInput[] {
+function cleanLines(input: unknown, opts: { allowFuture?: boolean; withAccount?: boolean } = {}): PettyCashLineInput[] {
   if (!Array.isArray(input) || input.length === 0) throw new Error('Add at least one row');
   if (input.length > MAX_LINES) throw new Error(`Maximum ${MAX_LINES} rows per save`);
   const today = uaeToday();
@@ -90,7 +100,7 @@ function cleanLines(input: unknown): PettyCashLineInput[] {
     const amount = round2(Number(String(l?.AMOUNT ?? '').replace(/,/g, '')));
 
     if (!DATE_RE.test(date)) throw new Error(`Row ${row}: invoice date is required`);
-    if (date > today) throw new Error(`Row ${row}: invoice date can't be in the future`);
+    if (!opts.allowFuture && date > today) throw new Error(`Row ${row}: invoice date can't be in the future`);
     if (!description) throw new Error(`Row ${row}: description is required`);
     if (!beneficiary) throw new Error(`Row ${row}: beneficiary is required`);
     if (!(amount > 0)) throw new Error(`Row ${row}: amount must be greater than zero`);
@@ -102,6 +112,7 @@ function cleanLines(input: unknown): PettyCashLineInput[] {
       AMOUNT: amount,
       IS_TAX_INVOICE: !!l?.IS_TAX_INVOICE,
       HAS_INVOICE: !!l?.HAS_INVOICE,
+      ...(opts.withAccount ? { ACCOUNT: String(l?.ACCOUNT || '').trim().slice(0, 200) } : {}),
     };
   });
 }
@@ -126,7 +137,7 @@ export async function listPettyCash(): Promise<PettyCash[]> {
     if (!perms.viewAll) query = query.eq('CREATED_BY_ID', String(user.id));
     const { data, error } = await query.order('CREATED_AT', { ascending: false }).range(from, from + pageSize - 1);
     if (error) throw new Error(error.message);
-    out.push(...(data || []).map(normalize));
+    out.push(...(data || []).map((r: any) => normalize(r, perms.viewAll)));
     if (!data || data.length < pageSize) break;
   }
   return out;
@@ -134,7 +145,7 @@ export async function listPettyCash(): Promise<PettyCash[]> {
 
 /** Saves all rows at once (all or nothing) and returns the new petty cash with its number. */
 export async function savePettyCash(input: PettyCashInput): Promise<PettyCash> {
-  const { user } = await requireTab('new');
+  const { user, perms } = await requireTab('new');
   const lines = cleanLines(input?.LINES);
   const notes = String(input?.NOTES || '').trim().slice(0, 1000);
   const db = getSupabaseAdmin();
@@ -149,7 +160,7 @@ export async function savePettyCash(input: PettyCashInput): Promise<PettyCash> {
 
   const { data, error: readErr } = await db.from(HEADERS).select(SELECT).eq('ID', String(id)).single();
   if (readErr) throw new Error(readErr.message);
-  return normalize(data);
+  return normalize(data, perms.viewAll);
 }
 
 /** Beneficiary / description suggestions from the user's previous rows. */
@@ -180,4 +191,37 @@ export async function deletePettyCash(id: string): Promise<{ success: true }> {
   const { error } = await getSupabaseAdmin().from(HEADERS).delete().eq('ID', pcId); // rows go with it (on delete cascade)
   if (error) throw new Error(error.message);
   return { success: true };
+}
+
+/** Admin only: replace the rows of a petty cash (edit anything, set accounts, add / remove rows). */
+export async function updatePettyCash(id: string, input: PettyCashInput): Promise<PettyCash> {
+  const user = await requireUser();
+  if (!isAdminUser(user)) throw new UnauthorizedError('Only the admin can edit a petty cash.');
+  const pcId = String(id || '').trim();
+  if (!/^PC-\d{4,}$/.test(pcId)) throw new Error('Invalid petty cash number');
+
+  const lines = cleanLines(input?.LINES, { allowFuture: true, withAccount: true });
+  const notes = String(input?.NOTES || '').trim().slice(0, 1000);
+  const db = getSupabaseAdmin();
+
+  const { error } = await db.rpc('web_update_petty_cash', {
+    p_id: pcId,
+    p_user_name: String(user.name || '').trim() || 'Admin',
+    p_notes: notes || null,
+    p_lines: lines,
+  });
+  if (error) throw new Error(error.message);
+
+  const { data, error: readErr } = await db.from(HEADERS).select(SELECT).eq('ID', pcId).single();
+  if (readErr) throw new Error(readErr.message);
+  return normalize(data, true);
+}
+
+/** Admin only: accounts used before (for the Account column suggestions). */
+export async function getAccountSuggestions(): Promise<string[]> {
+  const user = await requireUser();
+  if (!isAdminUser(user)) return [];
+  const { data, error } = await getSupabaseAdmin().from('web_PETTY_CASH_LINES').select('ACCOUNT').not('ACCOUNT', 'is', null).limit(5000);
+  if (error) return [];
+  return Array.from(new Set((data || []).map((r: any) => String(r.ACCOUNT || '').trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b));
 }

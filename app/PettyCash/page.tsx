@@ -33,6 +33,8 @@ export default function PettyCashPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [editItem, setEditItem] = useState<PettyCash | null>(null); // admin edit
+  const [formKey, setFormKey] = useState(0);
 
   usePettyCashTabAudit(activeTab);
 
@@ -120,7 +122,11 @@ export default function PettyCashPage() {
 
   const sidebarProps = {
     activeTab,
-    onTabChange: setActiveTab,
+    onTabChange: (tab: PettyCashTabId) => {
+      if (editItem) setEditItem(null);
+      if (tab === 'new' && activeTab === 'new') setFormKey((k) => k + 1); // fresh form
+      setActiveTab(tab);
+    },
     visibleTabs,
     onRefresh: canSeeRecords ? () => void loadData(true) : undefined,
     refreshing,
@@ -156,8 +162,15 @@ export default function PettyCashPage() {
             <>
               {activeTab === 'new' && visibleTabs.includes('new') && (
                 <PettyCashForm
-                  onSaved={(p) => {
-                    setItems((prev) => [p, ...prev.filter((x) => x.ID !== p.ID)]);
+                  key={editItem ? `edit-${editItem.ID}` : `new-${formKey}`}
+                  editItem={editItem}
+                  onCancelEdit={() => {
+                    setEditItem(null);
+                    setActiveTab('records');
+                  }}
+                  onSaved={(p, isEdit) => {
+                    setItems((prev) => (isEdit ? prev.map((x) => (x.ID === p.ID ? p : x)) : [p, ...prev.filter((x) => x.ID !== p.ID)]));
+                    setEditItem(null);
                     if (canSeeRecords) setActiveTab('records');
                   }}
                 />
@@ -177,6 +190,11 @@ export default function PettyCashPage() {
                     items={items}
                     viewAll={permissions.viewAll}
                     canDelete={permissions.viewAll} // delete: admin only
+                    canEdit={permissions.viewAll && visibleTabs.includes('new')} // edit rows & accounts: admin only
+                    onEdit={(p) => {
+                      setEditItem(p);
+                      setActiveTab('new');
+                    }}
                     currentUserName={currentUser?.name || ''}
                     onDeleted={(id) => setItems((prev) => prev.filter((p) => p.ID !== id))}
                   />

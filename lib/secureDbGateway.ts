@@ -104,6 +104,81 @@ function canSeeAllDebit(user: SessionUserRecord): boolean {
   return Array.isArray(systems) && systems.includes('database');
 }
 
+// ─────────────────────────────────────────────────────────────
+//  LPOs: each user sees / changes only the orders he created; the admin sees all.
+//  Orders are owned by CREATED_BY (set here on insert, never from the browser).
+//  Delivery rows (app_lpos_DRIVERS) follow their order.
+//  Identifier-only lookups (numbering, duplicate invoice / LPO checks) stay global.
+// ─────────────────────────────────────────────────────────────
+const LPO_ORDERS = 'app_lpos_ORDERS';
+const LPO_DRIVERS = 'app_lpos_DRIVERS';
+const LOOKUP_COLUMNS = new Set(['ID', 'ORDER_ID', 'INVOICE_ID', 'LPO_ID', 'DRIVERS_NAME']);
+const MAIN_METHODS = new Set(['select', 'insert', 'update', 'upsert', 'delete']);
+
+function isLookupOnly(steps: SecureStep[]): boolean {
+  if (steps.some(([m]) => WRITE_METHODS.has(m))) return false;
+  const sel = steps.find(([m]) => m === 'select');
+  const cols = String(sel?.[1]?.[0] ?? '*')
+    .split(',')
+    .map((c) => c.trim().replace(/^"|"$/g, ''))
+    .filter(Boolean);
+  return cols.length > 0 && cols.every((c) => LOOKUP_COLUMNS.has(c));
+}
+
+/** Adds a filter step right after the main method (select / update / delete). */
+function withFilter(steps: SecureStep[], filter: SecureStep): SecureStep[] {
+  const i = steps.findIndex(([m]) => MAIN_METHODS.has(m));
+  if (i < 0) return steps;
+  return [...steps.slice(0, i + 1), filter, ...steps.slice(i + 1)];
+}
+
+function stampRows(rows: unknown, user: SessionUserRecord): unknown {
+  const stamp = (r: any) => ({ ...(r || {}), CREATED_BY: String(user.id) }); // name is looked up from bhs_USERS when needed
+  return Array.isArray(rows) ? rows.map(stamp) : stamp(rows);
+}
+
+async function myOrderIds(user: SessionUserRecord): Promise<string[]> {
+  const ids: string[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await getSupabaseAdmin()
+      .from(LPO_ORDERS)
+      .select('ORDER_ID')
+      .eq('CREATED_BY', String(user.id))
+      .order('ORDER_ID')
+      .range(from, from + 999);
+    if (error) throw new Error(error.message);
+    ids.push(...(data || []).map((r: any) => String(r.ORDER_ID)).filter(Boolean));
+    if (!data || data.length < 1000) break;
+  }
+  return ids;
+}
+
+/** Returns the steps limited to the user's own LPO data, or an error message. */
+async function scopeLpo(user: SessionUserRecord, table: string, steps: SecureStep[]): Promise<SecureStep[] | string> {
+  if (table !== LPO_ORDERS && table !== LPO_DRIVERS) return steps;
+  if (isAdminUser(user)) return steps;
+  if (isLookupOnly(steps)) return steps;
+
+  const main = steps.find(([m]) => MAIN_METHODS.has(m))?.[0];
+
+  if (table === LPO_ORDERS) {
+    if (main === 'insert') return steps.map(([m, a]) => (m === 'insert' ? [m, [stampRows(a?.[0], user), ...(a || []).slice(1)]] : [m, a])) as SecureStep[];
+    if (main === 'upsert') return 'Not allowed.';
+    return withFilter(steps, ['eq', ['CREATED_BY', String(user.id)]]);
+  }
+
+  // app_lpos_DRIVERS: only rows of the user's own orders
+  const mine = await myOrderIds(user);
+  if (main === 'insert' || main === 'upsert') {
+    const a = steps.find(([m]) => m === main)?.[1];
+    const rows = Array.isArray(a?.[0]) ? (a![0] as any[]) : [a?.[0]];
+    const own = new Set(mine);
+    if (rows.some((r) => !own.has(String(r?.ORDER_ID || '')))) return "You can't change deliveries of another user's orders.";
+    return steps;
+  }
+  return withFilter(steps, ['in', ['ORDER_ID', mine.length ? mine : ['__none__']]]);
+}
+
 function stripSecrets(value: any): any {
   if (Array.isArray(value)) return value.map(stripSecrets);
   if (value && typeof value === 'object') {
@@ -143,13 +218,17 @@ export async function runSecureRequest(user: SessionUserRecord, req: SecureReque
     return fail("You don't have permission to see all customers' balances.", 403, '42501');
   }
 
+  // LPOs: own orders only (admin: all)
+  const scoped = await scopeLpo(user, table, steps);
+  if (typeof scoped === 'string') return fail(scoped, 403, '42501');
+
   const touchesUsers = table === 'bhs_USERS' || JSON.stringify(steps).includes('bhs_USERS');
   if (touchesUsers && mentionsSecret(steps)) {
     return fail('Not allowed.', 403, '42501');
   }
 
   let query: any = getSupabaseAdmin().from(table);
-  for (const [method, args] of steps) {
+  for (const [method, args] of scoped) {
     if (typeof query?.[method] !== 'function') return fail(`Query method "${method}" is not available here.`, 400);
     query = query[method](...(Array.isArray(args) ? args : []));
   }

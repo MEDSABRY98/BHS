@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Check, CheckCheck, FileSpreadsheet, FileText, Loader2, Search, Trash2, X } from 'lucide-react';
+import { BarChart3, Check, CheckCheck, FileSpreadsheet, FileText, Loader2, Pencil, Search, Trash2, X } from 'lucide-react';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import { toast } from '@/app/Components/Notification';
 import EmployeeSelect, { type EmployeeOption } from './EmployeeSelect';
@@ -9,6 +9,7 @@ import ConfirmDialog from './ConfirmDialog';
 import { deletePettyCash } from '../Service/PettyCashService';
 import { generatePettyCashPdf } from '../Utils/PettyCashPdf';
 import { exportPettyCashExcel } from '../Utils/PettyCashExcel';
+import { generatePettyCashAnalysisPdf } from '../Utils/PettyCashAnalysisPdf';
 import {
   formatAmount,
   formatDate,
@@ -24,13 +25,16 @@ interface PettyCashCardsProps {
   items: PettyCash[];
   viewAll: boolean;
   canDelete: boolean; // admin only
+  canEdit: boolean;   // admin only
+  onEdit: (p: PettyCash) => void;
   currentUserName: string;
   onDeleted: (id: string) => void;
 }
 
-type Busy = { id: string; kind: 'pdf' | 'xlsx' } | null;
+type Kind = 'pdf' | 'xlsx' | 'analysis';
+type Busy = { id: string; kind: Kind } | null;
 
-export default function PettyCashCards({ items, viewAll, canDelete, currentUserName, onDeleted }: PettyCashCardsProps) {
+export default function PettyCashCards({ items, viewAll, canDelete, canEdit, onEdit, currentUserName, onDeleted }: PettyCashCardsProps) {
   const [search, setSearch] = useState('');
   const [employee, setEmployee] = useState('');
   const [dateFrom, setDateFrom] = useState('');
@@ -109,11 +113,12 @@ export default function PettyCashCards({ items, viewAll, canDelete, currentUserN
   const filtersActive = !!(search || employee || dateFrom || dateTo);
   const period = dateFrom || dateTo ? `${dateFrom ? formatDate(dateFrom) : '…'} – ${dateTo ? formatDate(dateTo) : '…'}` : 'All';
 
-  const run = async (id: string, kind: 'pdf' | 'xlsx', list: PettyCash[]) => {
+  const run = async (id: string, kind: Kind, list: PettyCash[]) => {
     setBusy({ id, kind });
     try {
-      if (kind === 'pdf') await generatePettyCashPdf(list, { printedBy: currentUserName, period });
-      else await exportPettyCashExcel(list, { period });
+      if (kind === 'analysis') await generatePettyCashAnalysisPdf(list);
+      else if (kind === 'pdf') await generatePettyCashPdf(list, { printedBy: currentUserName, period, showAccount: viewAll });
+      else await exportPettyCashExcel(list, { period, showAccount: viewAll });
     } catch (err: any) {
       toast.error(err?.message || 'Could not create the file');
     } finally {
@@ -121,7 +126,7 @@ export default function PettyCashCards({ items, viewAll, canDelete, currentUserN
     }
   };
 
-  const isBusy = (id: string, kind: 'pdf' | 'xlsx') => busy?.id === id && busy.kind === kind;
+  const isBusy = (id: string, kind: Kind) => busy?.id === id && busy.kind === kind;
 
   // selected cards, oldest first so the combined file reads in order
   const selectedList = useMemo(
@@ -135,11 +140,12 @@ export default function PettyCashCards({ items, viewAll, canDelete, currentUserN
   }, [selectedList]);
   const allFilteredSelected = filtered.length > 0 && filtered.every((p) => selected.has(p.ID));
 
-  const runSelected = async (kind: 'pdf' | 'xlsx') => {
+  const runSelected = async (kind: Kind) => {
     setBusy({ id: 'SELECTED', kind });
     try {
-      if (kind === 'pdf') await generatePettyCashPdf(selectedList, { printedBy: currentUserName, period: selectedPeriod });
-      else await exportPettyCashExcel(selectedList, { period: selectedPeriod });
+      if (kind === 'analysis') await generatePettyCashAnalysisPdf(selectedList);
+      else if (kind === 'pdf') await generatePettyCashPdf(selectedList, { printedBy: currentUserName, period: selectedPeriod, showAccount: viewAll });
+      else await exportPettyCashExcel(selectedList, { period: selectedPeriod, showAccount: viewAll });
     } catch (err: any) {
       toast.error(err?.message || 'Could not create the file');
     } finally {
@@ -185,6 +191,16 @@ export default function PettyCashCards({ items, viewAll, canDelete, currentUserN
           >
             {isBusy('ALL', 'xlsx') ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4" />} Excel All
           </button>
+          {viewAll && (
+            <button
+              onClick={() => void run('ALL', 'analysis', filtered)}
+              disabled={!filtered.length || !!busy}
+              className="h-10 px-4 rounded-xl bg-[#0a0f1d] border border-[#0a0f1d] text-sm font-bold text-[#D4AF37] hover:brightness-125 flex items-center gap-1.5 disabled:opacity-40"
+              title="Analysis report for the cards shown"
+            >
+              {isBusy('ALL', 'analysis') ? <Loader2 className="w-4 h-4 animate-spin" /> : <BarChart3 className="w-4 h-4" />} Analysis
+            </button>
+          )}
         </div>
       </div>
 
@@ -289,7 +305,7 @@ export default function PettyCashCards({ items, viewAll, canDelete, currentUserN
                   </p>
                 )}
 
-                <div className={`mt-auto px-3 py-3 border-t border-slate-100 grid gap-2 ${canDelete ? 'grid-cols-[1fr_1fr_auto]' : 'grid-cols-2'}`}>
+                <div className={`mt-auto px-3 py-3 border-t border-slate-100 grid gap-2 ${['grid-cols-2', 'grid-cols-[1fr_1fr_auto]', 'grid-cols-[1fr_1fr_auto_auto]', 'grid-cols-[1fr_1fr_auto_auto_auto]'][(viewAll ? 1 : 0) + (canEdit ? 1 : 0) + (canDelete ? 1 : 0)]}`}>
                   <button
                     onClick={() => void run(p.ID, 'pdf', [p])}
                     disabled={!!busy}
@@ -306,6 +322,26 @@ export default function PettyCashCards({ items, viewAll, canDelete, currentUserN
                   >
                     {isBusy(p.ID, 'xlsx') ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4" />} Excel
                   </button>
+                  {viewAll && (
+                    <button
+                      onClick={() => void run(p.ID, 'analysis', [p])}
+                      disabled={!!busy}
+                      className="w-9 h-9 rounded-xl text-slate-400 hover:text-[#0a0f1d] hover:bg-amber-50 flex items-center justify-center disabled:opacity-40"
+                      title="Analysis report"
+                    >
+                      {isBusy(p.ID, 'analysis') ? <Loader2 className="w-4 h-4 animate-spin" /> : <BarChart3 className="w-4 h-4" />}
+                    </button>
+                  )}
+                  {canEdit && (
+                    <button
+                      onClick={() => onEdit(p)}
+                      disabled={!!busy || deleting}
+                      className="w-9 h-9 rounded-xl text-slate-400 hover:text-amber-700 hover:bg-amber-50 flex items-center justify-center disabled:opacity-40"
+                      title="Edit rows & accounts"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                  )}
                   {canDelete && (
                     <button
                       onClick={() => setDeleteTarget(p)}
@@ -356,6 +392,15 @@ export default function PettyCashCards({ items, viewAll, canDelete, currentUserN
             >
               {isBusy('SELECTED', 'xlsx') ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4 text-emerald-400" />} One Excel
             </button>
+            {viewAll && (
+              <button
+                onClick={() => void runSelected('analysis')}
+                disabled={!!busy}
+                className="h-10 px-4 rounded-xl bg-[#D4AF37] text-[#0a0f1d] hover:brightness-110 text-sm font-black flex items-center gap-1.5 disabled:opacity-40"
+              >
+                {isBusy('SELECTED', 'analysis') ? <Loader2 className="w-4 h-4 animate-spin" /> : <BarChart3 className="w-4 h-4" />} Analysis
+              </button>
+            )}
             <button onClick={() => setSelected(new Set())} className="w-10 h-10 rounded-xl hover:bg-white/10 text-slate-400 hover:text-white flex items-center justify-center" title="Clear selection">
               <X className="w-4 h-4" />
             </button>

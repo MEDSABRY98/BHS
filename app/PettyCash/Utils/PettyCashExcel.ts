@@ -1,7 +1,7 @@
 'use client';
 
 import { saveTrackedAs } from '@/app/Audit/Utils/TrackedDownload';
-import { COMPANY_NAME, formatDate, uaeDateOf, type PettyCash } from './PettyCashTypes';
+import { COMPANY_NAME, compareLines, formatDate, uaeDateOf, type PettyCash } from './PettyCashTypes';
 
 const BLACK = 'FF000000';
 const GOLD = 'FFD4AF37';
@@ -18,7 +18,7 @@ const safe = (s: string) => (s || '').replace(/[^\w؀-ۿ -]+/g, '').trim().slice
  * One petty cash → its rows. Several → all rows with the claim number and employee.
  * Title rows + table + total row with SUM formulas.
  */
-export async function exportPettyCashExcel(items: PettyCash[], opts: { period?: string } = {}) {
+export async function exportPettyCashExcel(items: PettyCash[], opts: { period?: string; showAccount?: boolean } = {}) {
   if (!items.length) throw new Error('Nothing to export');
   const single = items.length === 1 ? items[0] : null;
   const employees = Array.from(new Set(items.map((p) => p.CREATED_BY).filter(Boolean)));
@@ -27,17 +27,20 @@ export async function exportPettyCashExcel(items: PettyCash[], opts: { period?: 
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet('Petty Cash', { views: [{ showGridLines: false, rightToLeft: false }] });
 
+  // Account column: admin exports only
+  const withAccount = !!opts.showAccount && items.some((p) => p.LINES.some((l) => String(l.ACCOUNT || '').trim()));
   const headers = [
     '#',
     ...(single ? [] : ['Claim No.', 'Employee', 'Submitted On']),
     'Invoice Date',
     'Description',
+    ...(withAccount ? ['Account'] : []),
     'Beneficiary',
     'Tax Invoice',
     'Has Invoice',
     'Amount (AED)',
   ];
-  const widths = [6, ...(single ? [] : [12, 20, 14]), 14, 42, 28, 13, 13, 16];
+  const widths = [6, ...(single ? [] : [12, 20, 14]), 14, 42, ...(withAccount ? [28] : []), 28, 13, 13, 16];
   ws.columns = widths.map((w) => ({ width: w }));
   const lastCol = headers.length;
   const amountCol = lastCol;
@@ -75,14 +78,17 @@ export async function exportPettyCashExcel(items: PettyCash[], opts: { period?: 
 
   // ── Rows ────────────────────────────────────────────────
   let n = 0;
-  for (const p of items) {
-    for (const l of p.LINES) {
+  // all rows together: beneficiary, then invoice date (oldest first)
+  const allRows = items.flatMap((p) => p.LINES.map((l) => ({ p, l }))).sort((a, b) => compareLines(a.l, b.l));
+  {
+    for (const { p, l } of allRows) {
       n++;
       const r = ws.addRow([
         n,
         ...(single ? [] : [p.ID, p.CREATED_BY, formatDate(uaeDateOf(p.CREATED_AT))]),
         formatDate(l.INVOICE_DATE),
         l.DESCRIPTION,
+        ...(withAccount ? [String(l.ACCOUNT || '').trim()] : []),
         l.BENEFICIARY,
         l.IS_TAX_INVOICE ? 'Yes' : 'No',
         l.HAS_INVOICE ? 'Yes' : 'No',

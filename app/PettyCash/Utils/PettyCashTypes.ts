@@ -20,6 +20,9 @@ export interface PettyCashLine {
   AMOUNT: number;
   IS_TAX_INVOICE: boolean;  // فاتورة ضريبية
   HAS_INVOICE: boolean;     // معاه فاتورة أصلية
+  ACCOUNT?: string | null;  // admin only — never sent to employees
+  UPDATED_BY?: string | null;
+  UPDATED_AT?: string | null;
 }
 
 export interface PettyCash {
@@ -31,6 +34,8 @@ export interface PettyCash {
   CREATED_BY: string;
   CREATED_BY_ID: string;
   CREATED_AT: string;
+  UPDATED_BY?: string | null;
+  UPDATED_AT?: string | null;
   LINES: PettyCashLine[];
 }
 
@@ -41,6 +46,7 @@ export type PettyCashLineInput = {
   AMOUNT: number;
   IS_TAX_INVOICE: boolean;
   HAS_INVOICE: boolean;
+  ACCOUNT?: string;         // admin edit only
 };
 
 export type PettyCashInput = {
@@ -87,4 +93,21 @@ export function taxTotal(lines: { AMOUNT: number; IS_TAX_INVOICE: boolean }[]): 
 
 export function missingInvoices(lines: { HAS_INVOICE: boolean }[]): number {
   return lines.filter((l) => !l.HAS_INVOICE).length;
+}
+
+/** Rows with an account set / all rows. */
+export function accountsSet(lines: { ACCOUNT?: string | null }[]): number {
+  return lines.filter((l) => String(l.ACCOUNT || '').trim()).length;
+}
+
+/** Display / export order: beneficiary (A→Z), then invoice date (oldest first), then entry order. */
+export function compareLines(
+  a: { BENEFICIARY: string; INVOICE_DATE: string; LINE_NO?: number },
+  b: { BENEFICIARY: string; INVOICE_DATE: string; LINE_NO?: number },
+): number {
+  return (
+    a.BENEFICIARY.trim().localeCompare(b.BENEFICIARY.trim(), undefined, { sensitivity: 'base' }) ||
+    (a.INVOICE_DATE < b.INVOICE_DATE ? -1 : a.INVOICE_DATE > b.INVOICE_DATE ? 1 : 0) ||
+    (a.LINE_NO ?? 0) - (b.LINE_NO ?? 0)
+  );
 }

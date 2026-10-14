@@ -1,13 +1,16 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Copy, Loader2, Plus, RotateCcw, Save, Trash2 } from 'lucide-react';
+import { Copy, Loader2, Pencil, Plus, RotateCcw, Save, Trash2, X } from 'lucide-react';
 import { toast } from '@/app/Components/Notification';
-import { getPettyCashSuggestions, savePettyCash } from '../Service/PettyCashService';
+import SuggestInput from './SuggestInput';
+import { getAccountSuggestions, getPettyCashSuggestions, savePettyCash, updatePettyCash } from '../Service/PettyCashService';
 import {
   MAX_LINES,
   formatAmount,
+  formatDate,
   round2,
+  uaeDateOf,
   uaeToday,
   type PettyCash,
   type PettyCashLineInput,
@@ -21,12 +24,15 @@ type FormRow = {
   AMOUNT: string;
   IS_TAX_INVOICE: boolean;
   HAS_INVOICE: boolean;
+  ACCOUNT: string;
 };
 
 type RowErrors = Partial<Record<'INVOICE_DATE' | 'DESCRIPTION' | 'BENEFICIARY' | 'AMOUNT', true>>;
 
 interface PettyCashFormProps {
-  onSaved: (p: PettyCash) => void;
+  onSaved: (p: PettyCash, isEdit: boolean) => void;
+  editItem?: PettyCash | null;   // admin edit mode
+  onCancelEdit?: () => void;
 }
 
 let nextKey = 1;
@@ -38,9 +44,59 @@ const emptyRow = (base?: Partial<FormRow>): FormRow => ({
   AMOUNT: base?.AMOUNT ?? '',
   IS_TAX_INVOICE: base?.IS_TAX_INVOICE ?? false,
   HAS_INVOICE: base?.HAS_INVOICE ?? true,
+  ACCOUNT: base?.ACCOUNT ?? '',
 });
 
+const rowsFrom = (p: PettyCash): FormRow[] =>
+  p.LINES.map((l) =>
+    emptyRow({
+      INVOICE_DATE: l.INVOICE_DATE,
+      DESCRIPTION: l.DESCRIPTION,
+      BENEFICIARY: l.BENEFICIARY,
+      AMOUNT: formatAmount(l.AMOUNT),
+      IS_TAX_INVOICE: l.IS_TAX_INVOICE,
+      HAS_INVOICE: l.HAS_INVOICE,
+      ACCOUNT: l.ACCOUNT || '',
+    }),
+  );
+
 const parseAmount = (v: string) => round2(Number(String(v).replace(/,/g, '')) || 0);
+
+/** Live thousands separators while typing: "5305.5" → "5,305.5" (max 2 decimals). */
+function formatTyping(raw: string): string {
+  let v = raw.replace(/[^\d.]/g, '');
+  const dot = v.indexOf('.');
+  if (dot >= 0) v = v.slice(0, dot + 1) + v.slice(dot + 1).replace(/\./g, '').slice(0, 2);
+  const [int, dec] = v.split('.');
+  const intFmt = (int.replace(/^0+(?=\d)/, '') || (dec !== undefined ? '0' : '')).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return dec !== undefined ? `${intFmt}.${dec}` : intFmt;
+}
+
+/** Keeps the caret after the same digit once commas are added / removed. */
+function onAmountInput(e: React.ChangeEvent<HTMLInputElement>, set: (v: string) => void) {
+  const el = e.target;
+  const caret = el.selectionStart ?? el.value.length;
+  const digitsBefore = el.value.slice(0, caret).replace(/[^\d.]/g, '').length;
+  const next = formatTyping(el.value);
+  set(next);
+  requestAnimationFrame(() => {
+    let seen = 0;
+    let pos = next.length;
+    for (let i = 0; i < next.length; i++) {
+      if (seen === digitsBefore) {
+        pos = i;
+        break;
+      }
+      if (/[\d.]/.test(next[i])) seen++;
+    }
+    if (digitsBefore === 0) pos = 0;
+    try {
+      el.setSelectionRange(pos, pos);
+    } catch {
+      // ignore
+    }
+  });
+}
 const isBlank = (r: FormRow) => !r.DESCRIPTION.trim() && !r.BENEFICIARY.trim() && !r.AMOUNT.trim();
 
 const cellInput =
@@ -59,9 +115,11 @@ function Toggle({ checked, onChange, onLabel, offLabel, tone }: { checked: boole
   );
 }
 
-export default function PettyCashForm({ onSaved }: PettyCashFormProps) {
-  const [rows, setRows] = useState<FormRow[]>(() => [emptyRow()]);
-  const [notes, setNotes] = useState('');
+export default function PettyCashForm({ onSaved, editItem = null, onCancelEdit }: PettyCashFormProps) {
+  const isEdit = !!editItem;
+  const [rows, setRows] = useState<FormRow[]>(() => (editItem && editItem.LINES.length ? rowsFrom(editItem) : [emptyRow()]));
+  const [notes, setNotes] = useState(editItem?.NOTES || '');
+  const [accounts, setAccounts] = useState<string[]>([]);
   const [errors, setErrors] = useState<Record<number, RowErrors>>({});
   const [saving, setSaving] = useState(false);
   const [suggestions, setSuggestions] = useState<{ beneficiaries: string[]; descriptions: string[] }>({ beneficiaries: [], descriptions: [] });
@@ -70,7 +128,8 @@ export default function PettyCashForm({ onSaved }: PettyCashFormProps) {
 
   useEffect(() => {
     getPettyCashSuggestions().then(setSuggestions).catch(() => {});
-  }, []);
+    if (isEdit) getAccountSuggestions().then(setAccounts).catch(() => {});
+  }, [isEdit]);
 
   // focus the description of a newly added row
   useEffect(() => {
@@ -82,7 +141,6 @@ export default function PettyCashForm({ onSaved }: PettyCashFormProps) {
 
   const filled = rows.filter((r) => !isBlank(r));
   const total = useMemo(() => round2(filled.reduce((s, r) => s + parseAmount(r.AMOUNT), 0)), [filled]);
-  const taxTotal = useMemo(() => round2(filled.reduce((s, r) => s + (r.IS_TAX_INVOICE ? parseAmount(r.AMOUNT) : 0), 0)), [filled]);
   const noInvoice = filled.filter((r) => !r.HAS_INVOICE).length;
 
   const update = (key: number, patch: Partial<FormRow>) => {
@@ -106,7 +164,7 @@ export default function PettyCashForm({ onSaved }: PettyCashFormProps) {
     setRows((prev) => [...prev, row]);
   };
 
-  const duplicate = (r: FormRow) => addRow({ ...r, AMOUNT: '', DESCRIPTION: r.DESCRIPTION });
+  const duplicate = (r: FormRow) => addRow({ ...r, AMOUNT: '' });
 
   const remove = (key: number) => {
     setRows((prev) => (prev.length === 1 ? [emptyRow()] : prev.filter((r) => r.key !== key)));
@@ -118,8 +176,8 @@ export default function PettyCashForm({ onSaved }: PettyCashFormProps) {
   };
 
   const reset = () => {
-    setRows([emptyRow()]);
-    setNotes('');
+    setRows(editItem && editItem.LINES.length ? rowsFrom(editItem) : [emptyRow()]);
+    setNotes(editItem?.NOTES || '');
     setErrors({});
   };
 
@@ -127,7 +185,7 @@ export default function PettyCashForm({ onSaved }: PettyCashFormProps) {
     const errs: Record<number, RowErrors> = {};
     for (const r of list) {
       const e: RowErrors = {};
-      if (!r.INVOICE_DATE || r.INVOICE_DATE > today) e.INVOICE_DATE = true;
+      if (!r.INVOICE_DATE || (!isEdit && r.INVOICE_DATE > today)) e.INVOICE_DATE = true;
       if (!r.DESCRIPTION.trim()) e.DESCRIPTION = true;
       if (!r.BENEFICIARY.trim()) e.BENEFICIARY = true;
       if (!(parseAmount(r.AMOUNT) > 0)) e.AMOUNT = true;
@@ -157,14 +215,21 @@ export default function PettyCashForm({ onSaved }: PettyCashFormProps) {
       AMOUNT: parseAmount(r.AMOUNT),
       IS_TAX_INVOICE: r.IS_TAX_INVOICE,
       HAS_INVOICE: r.HAS_INVOICE,
+      ...(isEdit ? { ACCOUNT: r.ACCOUNT.trim() } : {}),
     }));
 
     setSaving(true);
     try {
+      if (editItem) {
+        const saved = await updatePettyCash(editItem.ID, { NOTES: notes, LINES: lines });
+        toast.success(`${saved.ID} updated — AED ${formatAmount(saved.TOTAL_AMOUNT)}`);
+        onSaved(saved, true);
+        return;
+      }
       const saved = await savePettyCash({ NOTES: notes, LINES: lines });
       toast.success(`${saved.ID} saved — ${saved.LINES_COUNT} row${saved.LINES_COUNT === 1 ? '' : 's'} · AED ${formatAmount(saved.TOTAL_AMOUNT)}`);
       reset();
-      onSaved(saved);
+      onSaved(saved, false);
     } catch (err: any) {
       toast.error(err?.message || 'Could not save');
     } finally {
@@ -173,19 +238,30 @@ export default function PettyCashForm({ onSaved }: PettyCashFormProps) {
   };
 
   const err = (key: number, field: keyof RowErrors) => (errors[key]?.[field] ? 'border-red-400 bg-red-50/40' : 'border-slate-200');
+  const align = isEdit ? 'text-center' : ''; // edit mode: centered cells
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <h1 className="text-3xl sm:text-4xl font-normal text-black tracking-tighter">New Petty Cash</h1>
+        {editItem ? (
+          <div className="flex items-center gap-3 min-w-0">
+            <span className="w-11 h-11 rounded-2xl bg-[#0a0f1d] text-[#D4AF37] flex items-center justify-center shrink-0">
+              <Pencil className="w-5 h-5" />
+            </span>
+            <div className="min-w-0">
+              <h1 className="text-3xl sm:text-4xl font-normal text-black tracking-tighter">Edit {editItem.ID}</h1>
+              <p className="text-sm font-semibold text-slate-400 truncate">
+                {editItem.CREATED_BY} · {formatDate(uaeDateOf(editItem.CREATED_AT))}
+              </p>
+            </div>
+          </div>
+        ) : (
+          <h1 className="text-3xl sm:text-4xl font-normal text-black tracking-tighter">New Petty Cash</h1>
+        )}
         <div className="flex flex-wrap gap-2">
           <span className="px-3.5 py-2 rounded-xl bg-white border border-slate-100 shadow-sm text-sm font-bold text-slate-700">
             <span className="text-slate-400 mr-1">Rows</span>
             {filled.length}
-          </span>
-          <span className="px-3.5 py-2 rounded-xl bg-white border border-slate-100 shadow-sm text-sm font-bold text-slate-700">
-            <span className="text-slate-400 mr-1">Tax Inv.</span>
-            {formatAmount(taxTotal)}
           </span>
           <span className="px-3.5 py-2 rounded-xl bg-[#0a0f1d] text-sm font-black text-[#D4AF37] shadow-sm">AED {formatAmount(total)}</span>
           <button
@@ -193,37 +269,43 @@ export default function PettyCashForm({ onSaved }: PettyCashFormProps) {
             onClick={reset}
             disabled={saving}
             className="w-10 h-10 rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-800 flex items-center justify-center disabled:opacity-40"
-            title="Clear"
+            title={isEdit ? 'Undo changes' : 'Clear'}
           >
             <RotateCcw className="w-4 h-4" />
           </button>
+          {isEdit && (
+            <button
+              type="button"
+              onClick={onCancelEdit}
+              disabled={saving}
+              className="w-10 h-10 rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-red-50 hover:text-red-600 flex items-center justify-center disabled:opacity-40"
+              title="Cancel edit"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
           <button
             type="button"
             onClick={() => void save()}
             disabled={saving || filled.length === 0}
             className="w-10 h-10 rounded-xl bg-gradient-to-r from-amber-600 to-yellow-600 text-white shadow-lg shadow-amber-900/20 hover:brightness-105 flex items-center justify-center disabled:opacity-50"
-            title={filled.length ? `Save ${filled.length} row${filled.length === 1 ? '' : 's'}` : 'Save'}
+            title={isEdit ? 'Save changes' : filled.length ? `Save ${filled.length} row${filled.length === 1 ? '' : 's'}` : 'Save'}
           >
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
           </button>
         </div>
       </div>
 
-      <datalist id="pc-beneficiaries">
-        {suggestions.beneficiaries.map((s) => (
-          <option key={s} value={s} />
-        ))}
-      </datalist>
-
       {/* Rows */}
       <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm min-w-[980px]">
+          <table className={`w-full text-sm ${isEdit ? 'min-w-[1200px]' : 'min-w-[980px]'}`}>
             <thead>
               <tr className="bg-[#0a0f1d] text-[11px] font-black uppercase tracking-[0.15em] text-[#D4AF37] text-center">
                 <th className="py-4 px-2 w-10">#</th>
                 <th className="py-4 px-2 w-[150px]">Invoice Date</th>
                 <th className="py-4 px-2">Description</th>
+                {isEdit && <th className="py-4 px-2 w-[220px]">Account</th>}
                 <th className="py-4 px-2 w-[220px]">Beneficiary</th>
                 <th className="py-4 px-2 w-[130px]">Amount</th>
                 <th className="py-4 px-2 w-[100px]">Tax Invoice</th>
@@ -239,9 +321,9 @@ export default function PettyCashForm({ onSaved }: PettyCashFormProps) {
                     <input
                       type="date"
                       value={r.INVOICE_DATE}
-                      max={today}
+                      max={isEdit ? undefined : today}
                       onChange={(e) => update(r.key, { INVOICE_DATE: e.target.value })}
-                      className={`${cellInput} ${err(r.key, 'INVOICE_DATE')}`}
+                      className={`${cellInput} ${align} ${err(r.key, 'INVOICE_DATE')}`}
                     />
                   </td>
                   <td className="py-2 px-2">
@@ -251,25 +333,37 @@ export default function PettyCashForm({ onSaved }: PettyCashFormProps) {
                       onChange={(e) => update(r.key, { DESCRIPTION: e.target.value })}
                       dir="auto"
                       maxLength={500}
-                      className={`${cellInput} ${err(r.key, 'DESCRIPTION')}`}
+                      className={`${cellInput} ${align} ${err(r.key, 'DESCRIPTION')}`}
                     />
                   </td>
+                  {isEdit && (
+                    <td className="py-2 px-2">
+                      <SuggestInput
+                        value={r.ACCOUNT}
+                        onChange={(v) => update(r.key, { ACCOUNT: v })}
+                        suggestions={accounts}
+                        maxLength={200}
+                        placeholder="Account"
+                        emptyHint="Type a new account"
+                        className={`${cellInput} ${align} ${r.ACCOUNT.trim() ? 'border-[#D4AF37]/60 bg-[#FBF8EE]' : 'border-dashed border-slate-300'}`}
+                      />
+                    </td>
+                  )}
                   <td className="py-2 px-2">
-                    <input
+                    <SuggestInput
                       value={r.BENEFICIARY}
-                      onChange={(e) => update(r.key, { BENEFICIARY: e.target.value })}
-                      list="pc-beneficiaries"
-                      dir="auto"
+                      onChange={(v) => update(r.key, { BENEFICIARY: v })}
+                      suggestions={suggestions.beneficiaries}
                       maxLength={200}
                       placeholder="Paid to"
-                      className={`${cellInput} ${err(r.key, 'BENEFICIARY')}`}
+                      className={`${cellInput} ${align} ${err(r.key, 'BENEFICIARY')}`}
                     />
                   </td>
                   <td className="py-2 px-2">
                     <input
                       value={r.AMOUNT}
-                      onChange={(e) => update(r.key, { AMOUNT: e.target.value.replace(/[^\d.,]/g, '') })}
-                      onBlur={() => r.AMOUNT && update(r.key, { AMOUNT: parseAmount(r.AMOUNT) ? parseAmount(r.AMOUNT).toFixed(2) : '' })}
+                      onChange={(e) => onAmountInput(e, (v) => update(r.key, { AMOUNT: v }))}
+                      onBlur={() => r.AMOUNT && update(r.key, { AMOUNT: parseAmount(r.AMOUNT) ? formatAmount(parseAmount(r.AMOUNT)) : '' })}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' && i === rows.length - 1) {
                           e.preventDefault();
@@ -278,7 +372,7 @@ export default function PettyCashForm({ onSaved }: PettyCashFormProps) {
                       }}
                       inputMode="decimal"
                       placeholder="0.00"
-                      className={`${cellInput} text-right ${err(r.key, 'AMOUNT')}`}
+                      className={`${cellInput} ${isEdit ? 'text-center' : 'text-right'} ${err(r.key, 'AMOUNT')}`}
                     />
                   </td>
                   <td className="py-2 px-2">
@@ -302,7 +396,7 @@ export default function PettyCashForm({ onSaved }: PettyCashFormProps) {
             </tbody>
             <tfoot>
               <tr className="bg-[#FBF8EE] border-t-2 border-[#D4AF37]/40">
-                <td colSpan={4} className="py-3 px-4">
+                <td colSpan={isEdit ? 5 : 4} className="py-3 px-4">
                   <button
                     type="button"
                     onClick={() => addRow()}

@@ -6,6 +6,7 @@ import { addArabicFont } from '@/app/Components/Pdf/shared';
 import { saveTrackedPdf } from '@/app/Audit/Utils/TrackedDownload';
 import {
   COMPANY_NAME,
+  compareLines,
   formatAmount,
   formatDate,
   missingInvoices,
@@ -71,7 +72,7 @@ const safe = (s: string) => (s || '').replace(/[^\w؀-ۿ -]+/g, '').trim().slice
  * One petty cash → claim (PC-0001).
  * Several → statement with all their rows.
  */
-export async function generatePettyCashPdf(items: PettyCash[], opts: { printedBy?: string; period?: string } = {}) {
+export async function generatePettyCashPdf(items: PettyCash[], opts: { printedBy?: string; period?: string; showAccount?: boolean } = {}) {
   if (!items.length) throw new Error('Nothing to export');
   const single = items.length === 1 ? items[0] : null;
 
@@ -87,7 +88,8 @@ export async function generatePettyCashPdf(items: PettyCash[], opts: { printedBy
   const M = 14;
   const CW = W - M * 2;
 
-  const rows: (PettyCashLine & { NO: string })[] = items.flatMap((p) => p.LINES.map((l) => ({ ...l, NO: p.ID })));
+  // all rows together: beneficiary, then invoice date (oldest first)
+  const rows: (PettyCashLine & { NO: string })[] = items.flatMap((p) => p.LINES.map((l) => ({ ...l, NO: p.ID }))).sort(compareLines);
   const total = round2(rows.reduce((s, l) => s + l.AMOUNT, 0));
   const taxTotal = round2(rows.reduce((s, l) => s + (l.IS_TAX_INVOICE ? l.AMOUNT : 0), 0));
   const noInvoice = missingInvoices(rows);
@@ -168,7 +170,7 @@ export async function generatePettyCashPdf(items: PettyCash[], opts: { printedBy
   }
 
   // ── Rows table ───────────────────────────────────────────
-  const head = [['#', ...(single ? [] : ['Claim']), 'Invoice Date', 'Description', 'Beneficiary', 'Amount', 'Tax Inv.', 'Invoice']];
+  const head = [['#', ...(single ? [] : ['Claim']), 'Invoice Date', 'Description', 'Beneficiary', 'Amount', 'Invoice']];
   const body = rows.map((l, i) => [
     String(i + 1),
     ...(single ? [] : [l.NO]),
@@ -176,13 +178,11 @@ export async function generatePettyCashPdf(items: PettyCash[], opts: { printedBy
     l.DESCRIPTION,
     l.BENEFICIARY,
     formatAmount(l.AMOUNT),
-    l.IS_TAX_INVOICE ? 'Yes' : 'No',
     l.HAS_INVOICE ? 'Yes' : 'No',
   ]);
-  const amountCol = head[0].length - 3;
-  const taxCol = amountCol + 1;
-  const invoiceCol = amountCol + 2;
-  const foot = [[{ content: 'Total', colSpan: amountCol, styles: { halign: 'right' as const } }, formatAmount(total), '', '']];
+  const amountCol = head[0].length - 2;
+  const invoiceCol = amountCol + 1;
+  const foot = [[{ content: 'Total', colSpan: amountCol, styles: { halign: 'right' as const } }, formatAmount(total), '']];
   const descCol = single ? 2 : 3;
 
   autoTable(doc, {
@@ -208,7 +208,6 @@ export async function generatePettyCashPdf(items: PettyCash[], opts: { printedBy
     columnStyles: {
       0: { cellWidth: 8, textColor: C.slate500 },
       [descCol]: { cellWidth: 'auto' },
-      [taxCol]: { cellWidth: 15 },
       [invoiceCol]: { cellWidth: 15 },
       [amountCol]: { cellWidth: 24, halign: 'center', fontStyle: 'bold' },
     },
@@ -221,7 +220,6 @@ export async function generatePettyCashPdf(items: PettyCash[], opts: { printedBy
         data.cell.styles.fontSize = 9;
       }
       if (data.column.index === invoiceCol) data.cell.styles.textColor = raw === 'Yes' ? C.green : C.red;
-      if (data.column.index === taxCol && raw === 'Yes') data.cell.styles.textColor = C.goldDark;
     },
   });
   y = (doc as any).lastAutoTable.finalY + 12;
