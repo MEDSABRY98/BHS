@@ -2,6 +2,7 @@ const MODULE_ROUTES: { prefix: string; name: string }[] = [
   // AdminControl is intentionally excluded — no activity tracking for the admin panel.
   { prefix: '/Vouchers', name: 'Vouchers' },
   { prefix: '/PettyCash', name: 'Petty Cash' },
+  { prefix: '/DebitNotes', name: 'Debit Notes' },
   { prefix: '/DocumentsTracking', name: 'Documents Tracking' },
   { prefix: '/CustomersAnalysis', name: 'Customers Analysis' },
   { prefix: '/SuppliersAnalysis', name: 'Suppliers Analysis' },

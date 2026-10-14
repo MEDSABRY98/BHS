@@ -6,6 +6,7 @@ export * from './CustomersSummariesTabAudit';
 export * from './DataBaseTabAudit';
 export * from './DebitInsightsTabAudit';
 export * from './DebitTabAudit';
+export * from './DebitNotesTabAudit';
 export * from './DocumentsTrackingTabAudit';
 export * from './InventoryCountingTabAudit';
 export * from './InventoryItemCodeTabAudit';
