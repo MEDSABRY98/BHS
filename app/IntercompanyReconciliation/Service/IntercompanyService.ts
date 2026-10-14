@@ -87,6 +87,7 @@ function normalizeEntry(row: any, count = 0): IntercompanyEntry {
   return {
     ID: row.ID,
     ENTRY_DATE: String(row.ENTRY_DATE || '').slice(0, 10),
+    ACCOUNT_NAME: row.ACCOUNT_NAME ? String(row.ACCOUNT_NAME) : null,
     AIN_ENTRY_NUMBER: row.AIN_ENTRY_NUMBER ? String(row.AIN_ENTRY_NUMBER) : null,
     DUBAI_ENTRY_NUMBER: row.DUBAI_ENTRY_NUMBER ? String(row.DUBAI_ENTRY_NUMBER) : null,
     LABEL: row.LABEL ?? null,
@@ -123,6 +124,7 @@ function cleanImportLine(l: any, index: number): ImportLine {
   if (debit < 0 || credit < 0) throw new Error(`Line ${row}: debit and credit can't be negative`);
   return {
     ENTRY_DATE: date,
+    ACCOUNT_NAME: cleanText(l?.ACCOUNT_NAME) || null,
     AIN_ENTRY_NUMBER: ain,
     DUBAI_ENTRY_NUMBER: dubai,
     LABEL: cleanText(l?.LABEL) || null,
@@ -162,11 +164,11 @@ export async function insertIntercompanyEntries(lines: ImportLine[]): Promise<nu
 }
 
 /**
- * Entry numbers coming from the Excel upload for lines that already exist:
- * fills the Al Ain number when it is empty, and sets / changes the Dubai number.
+ * Excel upload for lines that already exist: fills the Al Ain number when it is empty,
+ * sets / changes the Dubai number and the account name.
  */
 export async function updateIntercompanyNumbers(
-  updates: { ID: string; AIN_ENTRY_NUMBER?: string | null; DUBAI_ENTRY_NUMBER?: string | null }[],
+  updates: { ID: string; AIN_ENTRY_NUMBER?: string | null; DUBAI_ENTRY_NUMBER?: string | null; ACCOUNT_NAME?: string | null }[],
 ): Promise<number> {
   await requireAccess('edit');
   if (!Array.isArray(updates) || updates.length === 0) return 0;
@@ -180,6 +182,8 @@ export async function updateIntercompanyNumbers(
       const dubai = cleanText(u?.DUBAI_ENTRY_NUMBER);
       if (ain) patch.AIN_ENTRY_NUMBER = ain;
       if (dubai) patch.DUBAI_ENTRY_NUMBER = dubai;
+      const account = cleanText(u?.ACCOUNT_NAME);
+      if (account) patch.ACCOUNT_NAME = account;
       return { id: requireUuid(u?.ID), patch };
     })
     .filter((j) => Object.keys(j.patch).length > 0);

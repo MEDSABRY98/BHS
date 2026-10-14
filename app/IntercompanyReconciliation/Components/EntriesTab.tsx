@@ -21,6 +21,7 @@ import ConfirmDialog from './ConfirmDialog';
 import EditEntryModal from './EditEntryModal';
 import LabelModal from './LabelModal';
 import StatusDropdown, { type StatusOption } from './StatusDropdown';
+import AccountDropdown, { ALL_ACCOUNTS, NO_ACCOUNT, type AccountOption } from './AccountDropdown';
 import { deleteIntercompanyEntries, deleteIntercompanyEntry } from '../Service/IntercompanyService';
 import { exportIntercompanyPdf } from '../Utils/IntercompanyPdf';
 import {
@@ -70,6 +71,7 @@ interface EntriesTabProps {
 export default function EntriesTab({ entries, permissions, onReload, onEntryChanged, onEntryAdded, onEntryDeleted, onEntriesDeleted, onAttachmentsCountChanged }: EntriesTabProps) {
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<StatusFilter>('all');
+  const [account, setAccount] = useState<string>(ALL_ACCOUNTS);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [page, setPage] = useState(1);
@@ -86,7 +88,7 @@ export default function EntriesTab({ entries, permissions, onReload, onEntryChan
   const [deleteTarget, setDeleteTarget] = useState<IntercompanyEntry | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  // Search + dates (the status dropdown counts are based on this)
+  // Search + dates
   const searched = useMemo(() => {
     const q = search.trim().toLowerCase();
     return entries.filter((e) => {
@@ -94,6 +96,7 @@ export default function EntriesTab({ entries, permissions, onReload, onEntryChan
       if (dateTo && e.ENTRY_DATE > dateTo) return false;
       if (!q) return true;
       return (
+        String(e.ACCOUNT_NAME || '').toLowerCase().includes(q) ||
         String(e.AIN_ENTRY_NUMBER || '').toLowerCase().includes(q) ||
         String(e.DUBAI_ENTRY_NUMBER || '').toLowerCase().includes(q) ||
         String(e.LABEL || '').toLowerCase().includes(q) ||
@@ -103,15 +106,37 @@ export default function EntriesTab({ entries, permissions, onReload, onEntryChan
     });
   }, [entries, search, dateFrom, dateTo]);
 
-  const filtered = useMemo(() => searched.filter((e) => matchesStatus(e, status)), [searched, status]);
+  // Account dropdown: counts based on search + dates
+  const accountOptions = useMemo<AccountOption[]>(() => {
+    const counts = new Map<string, number>();
+    let none = 0;
+    for (const e of searched) {
+      if (e.ACCOUNT_NAME) counts.set(e.ACCOUNT_NAME, (counts.get(e.ACCOUNT_NAME) || 0) + 1);
+      else none++;
+    }
+    const list: AccountOption[] = Array.from(counts, ([name, count]) => ({ value: name, label: name, count })).sort((a, b) =>
+      a.label.localeCompare(b.label, undefined, { numeric: true, sensitivity: 'base' }),
+    );
+    if (none) list.push({ value: NO_ACCOUNT, label: 'No account', count: none });
+    if (account && !list.some((o) => o.value === account)) list.push({ value: account, label: account === NO_ACCOUNT ? 'No account' : account, count: 0 });
+    return [{ value: ALL_ACCOUNTS, label: 'All accounts', count: searched.length }, ...list];
+  }, [searched, account]);
+
+  // Search + dates + account (the status dropdown counts are based on this)
+  const byAccount = useMemo(
+    () => (account ? searched.filter((e) => (account === NO_ACCOUNT ? !e.ACCOUNT_NAME : e.ACCOUNT_NAME === account)) : searched),
+    [searched, account],
+  );
+
+  const filtered = useMemo(() => byAccount.filter((e) => matchesStatus(e, status)), [byAccount, status]);
 
   const statusOptions = useMemo<StatusOption<StatusFilter>[]>(
     () =>
       STATUS_OPTIONS.map((o) => ({
         ...o,
-        count: o.value === 'all' ? searched.length : searched.filter((e) => matchesStatus(e, o.value)).length,
+        count: o.value === 'all' ? byAccount.length : byAccount.filter((e) => matchesStatus(e, o.value)).length,
       })),
-    [searched],
+    [byAccount],
   );
 
 
@@ -130,13 +155,13 @@ export default function EntriesTab({ entries, permissions, onReload, onEntryChan
   }, [filtered]);
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  useEffect(() => setPage(1), [search, status, dateFrom, dateTo]);
+  useEffect(() => setPage(1), [search, status, account, dateFrom, dateTo]);
   useEffect(() => {
     if (page > pageCount) setPage(pageCount);
   }, [page, pageCount]);
   const pageRows = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  const filtersActive = !!(search || dateFrom || dateTo || status !== 'all');
+  const filtersActive = !!(search || dateFrom || dateTo || account || status !== 'all');
 
   const exportPdf = async () => {
     if (!filtered.length) return;
@@ -145,7 +170,11 @@ export default function EntriesTab({ entries, permissions, onReload, onEntryChan
       await exportIntercompanyPdf(filtered, {
         dateFrom: dateFrom || undefined,
         dateTo: dateTo || undefined,
-        filterLabel: [status !== 'all' ? STATUS_OPTIONS.find((o) => o.value === status)?.label : '', search.trim() ? `Search: ${search.trim()}` : '']
+        filterLabel: [
+          account ? `Account: ${account === NO_ACCOUNT ? 'No account' : account}` : '',
+          status !== 'all' ? STATUS_OPTIONS.find((o) => o.value === status)?.label : '',
+          search.trim() ? `Search: ${search.trim()}` : '',
+        ]
           .filter(Boolean)
           .join(' | ') || undefined,
       });
@@ -173,7 +202,7 @@ export default function EntriesTab({ entries, permissions, onReload, onEntryChan
 
   const hasActions = permissions.edit || permissions.delete;
   const canSelect = permissions.delete;
-  const colCount = 8 + (hasActions ? 1 : 0) + (canSelect ? 1 : 0);
+  const colCount = 9 + (hasActions ? 1 : 0) + (canSelect ? 1 : 0);
 
   // Keep only lines that still exist
   useEffect(() => {
@@ -291,10 +320,11 @@ export default function EntriesTab({ entries, permissions, onReload, onEntryChan
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search entry number, Dubai number, label, amount..."
+            placeholder="Search account, entry number, label, amount..."
             className="w-full h-11 pl-10 pr-4 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400/40"
           />
         </div>
+        <AccountDropdown value={account} options={accountOptions} onChange={setAccount} />
         <StatusDropdown value={status} options={statusOptions} onChange={setStatus} />
         <div className="flex items-center gap-2">
           <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="h-11 px-3 rounded-xl border border-slate-200 text-sm" title="From date" />
@@ -306,6 +336,7 @@ export default function EntriesTab({ entries, permissions, onReload, onEntryChan
             onClick={() => {
               setSearch('');
               setStatus('all');
+              setAccount(ALL_ACCOUNTS);
               setDateFrom('');
               setDateTo('');
             }}
@@ -346,6 +377,7 @@ export default function EntriesTab({ entries, permissions, onReload, onEntryChan
                 )}
                 <th className="py-4 px-3">#</th>
                 <th className="py-4 px-3">Date</th>
+                <th className="py-4 px-3">Account</th>
                 <th className="py-4 px-3">Al Ain Entry</th>
                 <th className="py-4 px-3">Dubai Entry</th>
                 <th className="py-4 px-3">Label</th>
@@ -375,6 +407,13 @@ export default function EntriesTab({ entries, permissions, onReload, onEntryChan
                       )}
                       <td className="py-3 px-3 text-xs font-bold text-slate-400">{(page - 1) * PAGE_SIZE + i + 1}</td>
                       <td className="py-3 px-3 font-semibold text-slate-700 whitespace-nowrap">{formatDate(e.ENTRY_DATE)}</td>
+                      <td className="py-3 px-3 max-w-[220px]" dir="auto">
+                        {e.ACCOUNT_NAME ? (
+                          <span className="block truncate font-semibold text-slate-700" title={e.ACCOUNT_NAME}>{e.ACCOUNT_NAME}</span>
+                        ) : (
+                          <span className="text-slate-300">—</span>
+                        )}
+                      </td>
                       <td className="py-3 px-3 whitespace-nowrap">
                         {e.AIN_ENTRY_NUMBER ? (
                           <span className="font-bold text-slate-900">{e.AIN_ENTRY_NUMBER}</span>
@@ -432,7 +471,7 @@ export default function EntriesTab({ entries, permissions, onReload, onEntryChan
             {filtered.length > 0 && (
               <tfoot>
                 <tr className="bg-slate-50 border-t-2 border-slate-200 text-center font-black">
-                  <td colSpan={canSelect ? 6 : 5} />
+                  <td colSpan={canSelect ? 7 : 6} />
                   <td className="py-3.5 px-3 text-emerald-700 whitespace-nowrap">{formatAmount(totals.debit)}</td>
                   <td className="py-3.5 px-3 text-rose-700 whitespace-nowrap">{formatAmount(totals.credit)}</td>
                   <td colSpan={hasActions ? 2 : 1} className="py-3.5 px-3 text-xs text-slate-500 whitespace-nowrap">

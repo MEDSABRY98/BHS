@@ -132,6 +132,7 @@ export async function exportIntercompanyPdf(rows: IntercompanyEntry[], opts: Int
   const body = rows.map((r, i) => [
     String(i + 1),
     formatDate(r.ENTRY_DATE),
+    r.ACCOUNT_NAME || '-',
     r.AIN_ENTRY_NUMBER || MISSING,
     r.DUBAI_ENTRY_NUMBER || MISSING,
     r.LABEL || '-',
@@ -146,9 +147,9 @@ export async function exportIntercompanyPdf(rows: IntercompanyEntry[], opts: Int
   const tableOptions = {
     startY,
     margin: { left: margin, right: margin, bottom: 14 },
-    head: [['#', 'DATE', 'AL AIN ENTRY', 'DUBAI ENTRY', 'LABEL', 'DEBIT', 'CREDIT', 'FILES']],
+    head: [['#', 'DATE', 'ACCOUNT', 'AL AIN ENTRY', 'DUBAI ENTRY', 'LABEL', 'DEBIT', 'CREDIT', 'FILES']],
     body,
-    foot: [['', '', '', '', 'TOTAL', formatAmount(totalDebit), formatAmount(totalCredit), '']],
+    foot: [['', '', '', '', '', 'TOTAL', formatAmount(totalDebit), formatAmount(totalCredit), '']],
     showFoot: 'lastPage',
     theme: 'plain' as const,
     styles: {
@@ -166,17 +167,18 @@ export async function exportIntercompanyPdf(rows: IntercompanyEntry[], opts: Int
     columnStyles: {
       0: { cellWidth: 10, textColor: COLORS.gray },
       1: { cellWidth: 22 },
-      2: { cellWidth: 34, fontStyle: 'bold' },
-      3: { cellWidth: 34, fontStyle: 'bold' },
-      4: { font: 'Amiri' },
-      5: { cellWidth: 28, textColor: COLORS.green, fontStyle: 'bold' },
-      6: { cellWidth: 28, textColor: COLORS.red, fontStyle: 'bold' },
-      7: { cellWidth: 14 },
+      2: { cellWidth: 40, font: 'Amiri' },
+      3: { cellWidth: 30, fontStyle: 'bold' },
+      4: { cellWidth: 30, fontStyle: 'bold' },
+      5: { font: 'Amiri' },
+      6: { cellWidth: 28, textColor: COLORS.green, fontStyle: 'bold' },
+      7: { cellWidth: 28, textColor: COLORS.red, fontStyle: 'bold' },
+      8: { cellWidth: 14 },
     },
     didParseCell: (data: any) => {
       if (data.section !== 'body') return;
       data.cell.styles.fillColor = data.row.index % 2 === 1 ? COLORS.lightGray : COLORS.white;
-      if ((data.column.index === 2 || data.column.index === 3) && data.cell.raw === MISSING) {
+      if ((data.column.index === 3 || data.column.index === 4) && data.cell.raw === MISSING) {
         data.cell.styles.textColor = COLORS.amber;
         data.cell.styles.fontSize = 7;
       }

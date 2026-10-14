@@ -80,7 +80,7 @@ export default function ExcelModal({ open, onClose, entries, filtered, canEdit, 
       let updated = 0;
       const updates = plan.updates.map(({ ROW: _row, ...u }) => u);
       for (let i = 0; i < updates.length; i += CHUNK) {
-        setProgress(`Updating entry numbers ${i + 1}–${Math.min(i + CHUNK, updates.length)} of ${updates.length}`);
+        setProgress(`Updating lines ${i + 1}–${Math.min(i + CHUNK, updates.length)} of ${updates.length}`);
         updated += await updateIntercompanyNumbers(updates.slice(i, i + CHUNK));
       }
       setProgress('Refreshing...');
@@ -177,7 +177,7 @@ export default function ExcelModal({ open, onClose, entries, filtered, canEdit, 
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     <Stat label="Lines in file" value={parsed.lines.length} tone="text-slate-900" />
                     <Stat label="New lines" value={plan.inserts.length} tone="text-emerald-600" />
-                    <Stat label="Number updates" value={plan.updates.length} tone="text-blue-600" />
+                    <Stat label="Line updates" value={plan.updates.length} tone="text-blue-600" />
                     <Stat label="Already saved" value={plan.unchanged} tone="text-slate-400" />
                   </div>
 

@@ -10,6 +10,7 @@ export type IntercompanyTabId = 'entries' | 'summary';
 export interface IntercompanyEntry {
   ID: string;
   ENTRY_DATE: string; // YYYY-MM-DD
+  ACCOUNT_NAME: string | null;
   AIN_ENTRY_NUMBER: string | null;
   DUBAI_ENTRY_NUMBER: string | null;
   LABEL: string | null;
@@ -41,6 +42,7 @@ export interface IntercompanyPermissions {
 /** A line read from the Excel file (already cleaned). */
 export interface ImportLine {
   ENTRY_DATE: string;
+  ACCOUNT_NAME: string | null;
   AIN_ENTRY_NUMBER: string | null;
   DUBAI_ENTRY_NUMBER: string | null;
   LABEL: string | null;

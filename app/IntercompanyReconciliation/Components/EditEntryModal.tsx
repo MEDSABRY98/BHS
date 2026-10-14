@@ -27,6 +27,7 @@ function Field({ label, children, className = '' }: { label: string; children: R
 export default function EditEntryModal({ entry, onClose, onSaved }: EditEntryModalProps) {
   const isNew = !entry;
   const [date, setDate] = useState(entry?.ENTRY_DATE || new Date().toISOString().slice(0, 10));
+  const [account, setAccount] = useState(entry?.ACCOUNT_NAME || '');
   const [ain, setAin] = useState(entry?.AIN_ENTRY_NUMBER || '');
   const [dubai, setDubai] = useState(entry?.DUBAI_ENTRY_NUMBER || '');
   const [label, setLabel] = useState(entry?.LABEL || '');
@@ -46,6 +47,7 @@ export default function EditEntryModal({ entry, onClose, onSaved }: EditEntryMod
     try {
       const line = {
         ENTRY_DATE: date,
+        ACCOUNT_NAME: account || null,
         AIN_ENTRY_NUMBER: ain,
         DUBAI_ENTRY_NUMBER: dubai || null,
         LABEL: label || null,
@@ -91,10 +93,13 @@ export default function EditEntryModal({ entry, onClose, onSaved }: EditEntryMod
           <Field label="Date">
             <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inputClass} />
           </Field>
-          <Field label="Al Ain Entry No">
-            <input value={ain} onChange={(e) => setAin(e.target.value)} autoFocus={isNew} placeholder="Not booked in Al Ain yet" className={inputClass} />
+          <Field label="Account Name">
+            <input value={account} onChange={(e) => setAccount(e.target.value)} autoFocus={isNew} dir="auto" placeholder="Optional" className={inputClass} />
           </Field>
-          <Field label="Dubai Entry No" className="sm:col-span-2">
+          <Field label="Al Ain Entry No">
+            <input value={ain} onChange={(e) => setAin(e.target.value)} placeholder="Not booked in Al Ain yet" className={inputClass} />
+          </Field>
+          <Field label="Dubai Entry No">
             <input value={dubai} onChange={(e) => setDubai(e.target.value)} placeholder="Not booked in Dubai yet" className={inputClass} />
           </Field>
           <Field label="Label" className="sm:col-span-2">

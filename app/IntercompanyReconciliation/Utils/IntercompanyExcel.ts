@@ -15,7 +15,7 @@ import {
   type IntercompanyEntry,
 } from './IntercompanyTypes';
 
-export const TEMPLATE_HEADERS = ['Date', 'Al Ain Entry No', 'Dubai Entry No', 'Label', 'Debit', 'Credit'] as const;
+export const TEMPLATE_HEADERS = ['Date', 'Account Name', 'Al Ain Entry No', 'Dubai Entry No', 'Label', 'Debit', 'Credit'] as const;
 
 const NAVY = 'FF0A0F1D';
 const GOLD = 'FFD4AF37';
@@ -23,6 +23,7 @@ const GOLD = 'FFD4AF37';
 // Header names accepted when reading (the template's and Odoo's own export names)
 const HEADER_ALIASES: Record<keyof ImportLine, string[]> = {
   ENTRY_DATE: ['date', 'entrydate', 'accountingdate'],
+  ACCOUNT_NAME: ['accountname', 'account', 'accounttitle'],
   AIN_ENTRY_NUMBER: ['alainentryno', 'alainentrynumber', 'alainentry', 'ainentryno', 'ainentrynumber', 'entryno', 'entrynumber', 'number', 'journalentry', 'journalentrynumber'],
   DUBAI_ENTRY_NUMBER: ['dubaientryno', 'dubaientrynumber', 'dubaientry', 'dubaino'],
   LABEL: ['label', 'description', 'memo', 'narration'],
@@ -44,6 +45,7 @@ export async function downloadIntercompanyExcel(entries: IntercompanyEntry[] = [
 
   ws.columns = [
     { header: 'Date', key: 'date', width: 14 },
+    { header: 'Account Name', key: 'account', width: 30 },
     { header: 'Al Ain Entry No', key: 'ain', width: 22 },
     { header: 'Dubai Entry No', key: 'dubai', width: 22 },
     { header: 'Label', key: 'label', width: 55 },
@@ -64,6 +66,7 @@ export async function downloadIntercompanyExcel(entries: IntercompanyEntry[] = [
     const [y, m, d] = e.ENTRY_DATE.split('-').map(Number);
     ws.addRow({
       date: new Date(Date.UTC(y, m - 1, d)),
+      account: e.ACCOUNT_NAME || '',
       ain: e.AIN_ENTRY_NUMBER || '',
       dubai: e.DUBAI_ENTRY_NUMBER || '',
       label: e.LABEL || '',
@@ -78,12 +81,12 @@ export async function downloadIntercompanyExcel(entries: IntercompanyEntry[] = [
     const row = ws.getRow(r);
     row.getCell(1).numFmt = 'dd/mm/yyyy';
     row.getCell(1).alignment = { horizontal: 'center' };
-    row.getCell(2).alignment = { horizontal: 'center' };
     row.getCell(3).alignment = { horizontal: 'center' };
-    row.getCell(5).numFmt = '#,##0.00';
+    row.getCell(4).alignment = { horizontal: 'center' };
     row.getCell(6).numFmt = '#,##0.00';
+    row.getCell(7).numFmt = '#,##0.00';
   }
-  ws.autoFilter = { from: 'A1', to: 'F1' };
+  ws.autoFilter = { from: 'A1', to: 'G1' };
 
   const buffer = await wb.xlsx.writeBuffer();
   saveAs(new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), fileName);
@@ -193,6 +196,7 @@ export async function readIntercompanyExcel(file: File): Promise<ParsedExcel> {
       const ain = toText(get(row, 'AIN_ENTRY_NUMBER'));
       const dubai = toText(get(row, 'DUBAI_ENTRY_NUMBER'));
       const label = toText(get(row, 'LABEL'));
+      const account = toText(get(row, 'ACCOUNT_NAME'));
       const date = toIsoDate(rawDate);
       const debit = toAmount(get(row, 'DEBIT'));
       const credit = toAmount(get(row, 'CREDIT'));
@@ -209,6 +213,7 @@ export async function readIntercompanyExcel(file: File): Promise<ParsedExcel> {
       lines.push({
         ROW: r,
         ENTRY_DATE: date,
+        ACCOUNT_NAME: account || null,
         AIN_ENTRY_NUMBER: ain || null,
         DUBAI_ENTRY_NUMBER: dubai || null,
         LABEL: label || null,
@@ -227,12 +232,13 @@ export async function readIntercompanyExcel(file: File): Promise<ParsedExcel> {
 //  Same line = same date, label, debit and credit AND
 //    • same Al Ain no  → the Dubai no is set / changed if the file has a different one
 //    • or same Dubai no (and the saved line has no other Al Ain no) → the Al Ain no is filled
+//  The account name from the file is saved on the matched line when it is different.
 //  Identical lines repeated N times are matched one by one.
 //  Anything else → new line. Nothing is ever deleted.
 // ─────────────────────────────────────────────────────────────
 export interface ImportPlan {
   inserts: ImportLine[];
-  updates: { ID: string; AIN_ENTRY_NUMBER?: string; DUBAI_ENTRY_NUMBER?: string; ROW: number }[];
+  updates: { ID: string; AIN_ENTRY_NUMBER?: string; DUBAI_ENTRY_NUMBER?: string; ACCOUNT_NAME?: string; ROW: number }[];
   unchanged: number;
 }
 
@@ -247,6 +253,7 @@ export function planIntercompanyImport(lines: ParsedExcel['lines'], existing: In
   for (const l of lines) {
     const ain = cleanText(l.AIN_ENTRY_NUMBER);
     const dubai = cleanText(l.DUBAI_ENTRY_NUMBER);
+    const account = cleanText(l.ACCOUNT_NAME);
     const candidates = pool.get(baseKey(l)) || [];
 
     let idx = ain ? candidates.findIndex((c) => sameNumber(c.AIN_ENTRY_NUMBER, ain)) : -1;
@@ -262,7 +269,8 @@ export function planIntercompanyImport(lines: ParsedExcel['lines'], existing: In
     const update: ImportPlan['updates'][number] = { ID: match.ID, ROW: l.ROW };
     if (ain && !match.AIN_ENTRY_NUMBER) update.AIN_ENTRY_NUMBER = ain;
     if (dubai && !sameNumber(match.DUBAI_ENTRY_NUMBER, dubai)) update.DUBAI_ENTRY_NUMBER = dubai;
-    if (update.AIN_ENTRY_NUMBER || update.DUBAI_ENTRY_NUMBER) plan.updates.push(update);
+    if (account && !sameNumber(match.ACCOUNT_NAME, account)) update.ACCOUNT_NAME = account;
+    if (update.AIN_ENTRY_NUMBER || update.DUBAI_ENTRY_NUMBER || update.ACCOUNT_NAME) plan.updates.push(update);
     else plan.unchanged++;
   }
   return plan;
