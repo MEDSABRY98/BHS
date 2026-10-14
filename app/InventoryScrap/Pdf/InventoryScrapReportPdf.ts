@@ -62,12 +62,8 @@ export async function downloadInventoryScrapReportPDF(
   // company block
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(13);
-  doc.text('Al Marai Al Arabia', M + 22, 11, { charSpace: 0.4 });
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8.5);
-  doc.setTextColor(226, 232, 240);
-  doc.text('Trading Sole Proprietorship L.L.C', M + 22, 16.5);
+  doc.setFontSize(12.5);
+  doc.text('ALMARAI ALARABIA TRADING', M + 22, 15.6, { charSpace: 0.4 });
 
   // title, right aligned
   const rightText = (text: string, yy: number, size: number, color: [number, number, number], spacing: number) => {

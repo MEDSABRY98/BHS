@@ -35,7 +35,7 @@ export async function generateSalesAnalysisComparisonPDF(
   let yPosition = 25;
 
   doc.setFontSize(16); doc.setTextColor(0, 155, 77); doc.setFont('helvetica', 'bold');
-  doc.text('Al Marai Al Arabia Trading Sole Proprietorship L.L.C', pageWidth / 2, yPosition, { align: 'center' });
+  doc.text('ALMARAI ALARABIA TRADING', pageWidth / 2, yPosition, { align: 'center' });
   yPosition += 8;
   doc.setFontSize(12); doc.setTextColor(100, 100, 100); 
   doc.text('Pricing Analysis Report (Comparison & Margins)', pageWidth / 2, yPosition, { align: 'center' });

@@ -154,6 +154,7 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
     { id: 'customers-discounts', title: 'Customers Discounts', path: '/CustomersDiscounts', color: 'yellow' },
     { id: 'financial-model', title: 'Financial Model', path: '/FinancialModel', color: 'pink' },
     { id: 'intercompany-reconciliation', title: 'Intercompany Reconciliation', path: '/IntercompanyReconciliation', color: 'cyan' },
+    { id: 'transfer-requests', title: 'Transfer Requests', path: '/TransferRequests', color: 'emerald' },
   ];
 
   const allowedSystems = useMemo(

@@ -33,6 +33,7 @@ const PATH_SYSTEMS: { prefix: string; ids: string[] }[] = [
   { prefix: '/CustomersDocuments', ids: ['customers-documents'] },
   { prefix: '/FinancialModel', ids: ['financial-model'] },
   { prefix: '/IntercompanyReconciliation', ids: ['intercompany-reconciliation'] },
+  { prefix: '/TransferRequests', ids: ['transfer-requests'] },
   { prefix: '/PurchasePlanning', ids: ['purchase-planning'] },
 
   { prefix: '/InventoryItemCode', ids: ['inventory-item-code'] },

@@ -55,8 +55,8 @@ export const VOUCHER_LABELS: Record<VoucherType, { title: string; short: string;
 export const PAYMENT_METHODS = ['Cash', 'Cheque', 'Bank Transfer'] as const;
 
 export const COMPANY = {
-  name: 'Al Marai Al Arabia Trading Sole Proprietorship L.L.C',
-  shortName: 'AL MARAI AL ARABIA',
+  name: 'ALMARAI ALARABIA TRADING',
+  shortName: 'ALMARAI ALARABIA TRADING',
   location: 'Al Ain, United Arab Emirates',
   currency: 'AED',
 };

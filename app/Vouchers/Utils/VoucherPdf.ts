@@ -102,12 +102,8 @@ export async function generateVoucherPdf(v: CashVoucher, opts: VoucherPdfOptions
   // company block (two lines so it never runs into the title)
   doc.setTextColor(...C.white);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(13);
-  doc.text(COMPANY.shortName, M + 22, 11, { charSpace: 0.4 });
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8.5);
-  doc.setTextColor(...C.slate200);
-  doc.text('Trading Sole Proprietorship L.L.C', M + 22, 16.5);
+  doc.setFontSize(12.5);
+  doc.text(COMPANY.shortName, M + 22, 15.6, { charSpace: 0.4 });
 
   // title, right aligned (manual width so letter spacing doesn't overflow)
   const rightText = (text: string, yy: number, size: number, color: RGB, spacing: number) => {

@@ -35,11 +35,7 @@ function drawHeader(doc: any, supplierName: string, rows: SupplierStatementRow[]
   doc.setFontSize(11);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(COLORS.gold[0], COLORS.gold[1], COLORS.gold[2]);
-  doc.text('Al Marai Al Arabia Trading', margin, y);
-  const subW = doc.getTextWidth('Al Marai Al Arabia Trading');
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(COLORS.gray[0], COLORS.gray[1], COLORS.gray[2]);
-  doc.text('| Sole Proprietorship L.L.C', margin + subW + 1.5, y);
+  doc.text('ALMARAI ALARABIA TRADING', margin, y);
   y += 3;
 
   const panelHeight = 25;

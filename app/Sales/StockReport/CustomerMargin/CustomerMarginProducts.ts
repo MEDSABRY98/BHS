@@ -28,7 +28,7 @@ export async function generateCustomerMarginProducts(
   doc.setFontSize(16);
   doc.setTextColor(0, 155, 77);
   doc.setFont('helvetica', 'bold');
-  doc.text('Al Marai Al Arabia Trading Sole Proprietorship L.L.C', pageWidth / 2, yPosition, {
+  doc.text('ALMARAI ALARABIA TRADING', pageWidth / 2, yPosition, {
     align: 'center',
   });
   yPosition += 8;

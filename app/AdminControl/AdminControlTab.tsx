@@ -201,6 +201,7 @@ const SYSTEMS = [
     { id: 'financial-model', label: 'Financial Model' },
     { id: 'suppliers-analysis', label: 'Suppliers Analysis' },
     { id: 'intercompany-reconciliation', label: 'Intercompany Reconciliation' },
+    { id: 'transfer-requests', label: 'Transfer Requests' },
     { id: 'database', label: 'Database' },
 ];
 
@@ -264,6 +265,11 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
         { id: 'dashboard', label: 'Dashboard' },
         { id: 'income_statement', label: 'Income Statement' },
         { id: 'data_entry', label: 'Data Entry' },
+    ],
+    'transfer-requests': [
+        { id: 'new', label: 'New Request' },
+        { id: 'requests', label: 'Requests' },
+        { id: 'beneficiaries', label: 'Beneficiaries & Banks' },
     ],
     'intercompany-reconciliation': [
         { id: 'entries', label: 'Entries' },
@@ -369,6 +375,7 @@ const getSystemIcon = (id: string) => {
         case 'financial-model': return <BarChart3 className="w-5 h-5 text-emerald-500" />;
         case 'suppliers-analysis': return <Truck className="w-5 h-5 text-indigo-400" />;
         case 'intercompany-reconciliation': return <Layers className="w-5 h-5 text-cyan-500" />;
+        case 'transfer-requests': return <CreditCard className="w-5 h-5 text-emerald-500" />;
         case 'database': return <Database className="w-5 h-5 text-slate-500" />;
         default: return <Settings className="w-5 h-5 text-slate-500" />;
     }

@@ -47,7 +47,7 @@ function drawHeader(doc: any, rows: IntercompanyEntry[], opts: IntercompanyPdfOp
   const w = doc.getTextWidth('Al Ain  -  Dubai');
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(...COLORS.gray);
-  doc.text('| Al Marai Al Arabia Trading', margin + w + 2, y);
+  doc.text('| ALMARAI ALARABIA TRADING', margin + w + 2, y);
 
   // Same row, right side: CREATED AT … PERIOD …
   const dates = rows.map((r) => r.ENTRY_DATE).sort();
