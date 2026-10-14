@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Loader2, Pencil, Plus, RotateCcw, Save, Trash2, X } from 'lucide-react';
+import { ArrowRight, CalendarDays, Hash, Loader2, Plus, RotateCcw, Save, Trash2, X } from 'lucide-react';
 import { toast } from '@/app/Components/Notification';
 import { getNextDebitNoteNumber, saveDebitNote } from '../Service/DebitNoteService';
 import { generateDebitNotePdf } from '../Utils/DebitNotePdf';
@@ -64,20 +64,31 @@ function onAmountInput(e: React.ChangeEvent<HTMLInputElement>, set: (v: string) 
   });
 }
 
-const input =
-  'w-full h-11 px-3.5 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#1F3864]/25 focus:border-[#1F3864]/40 transition-all';
+const field =
+  'w-full rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-4 focus:ring-[#C4A052]/15 focus:border-[#C4A052] transition-all';
 
-function PartyBox({ title, p }: { title: string; p: typeof ISSUED_BY }) {
+function SectionTitle({ n, title, hint }: { n: number; title: string; hint?: string }) {
   return (
-    <div className="rounded-2xl border border-slate-200 overflow-hidden bg-white">
-      <div className="bg-[#1F3864] px-4 py-2 text-[11px] font-black uppercase tracking-[0.15em] text-white">{title}</div>
-      <div className="px-4 py-3">
-        <p className="text-sm font-black text-slate-900">{p.name}</p>
-        <p className="text-xs font-semibold text-slate-500 mt-1">
-          <span className="font-black text-slate-400">Branch:</span> {p.branch}
+    <div className="flex items-center gap-3 mb-4">
+      <span className="w-7 h-7 rounded-full bg-[#182E56] text-[#C4A052] text-xs font-black flex items-center justify-center shrink-0">{n}</span>
+      <h2 className="text-base font-black text-slate-900 tracking-tight">{title}</h2>
+      {hint && <span className="text-xs font-semibold text-slate-400">{hint}</span>}
+    </div>
+  );
+}
+
+function PartyCard({ tag, p }: { tag: string; p: typeof ISSUED_BY }) {
+  return (
+    <div className="relative flex-1 min-w-0 rounded-2xl border border-slate-200 bg-white pl-5 pr-4 py-4">
+      <span className="absolute left-0 top-4 bottom-4 w-1 rounded-r bg-[#182E56]" />
+      <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#C4A052]">{tag}</p>
+      <p className="text-sm font-black text-slate-900 mt-1.5 leading-snug">{p.name}</p>
+      <div className="mt-2 space-y-0.5 text-xs">
+        <p className="text-slate-400 font-semibold">
+          Branch: <span className="text-slate-700 font-bold">{p.branch}</span>
         </p>
-        <p className="text-xs font-semibold text-slate-500">
-          <span className="font-black text-slate-400">Trade License No.:</span> {p.license}
+        <p className="text-slate-400 font-semibold">
+          Trade License No.: <span className="text-slate-700 font-bold">{p.license}</span>
         </p>
       </div>
     </div>
@@ -179,16 +190,8 @@ export default function DebitNoteForm({ editNote = null, onSaved, onCancelEdit }
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-3 min-w-0">
-          {isEdit && (
-            <span className="w-11 h-11 rounded-2xl bg-[#1F3864] text-white flex items-center justify-center shrink-0">
-              <Pencil className="w-5 h-5" />
-            </span>
-          )}
-          <h1 className="text-3xl sm:text-4xl font-normal text-black tracking-tighter">{isEdit ? `Edit ${editNote!.ID}` : 'New Debit Note'}</h1>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="px-3.5 py-2 rounded-xl bg-[#1F3864] text-sm font-black text-white shadow-sm">AED {formatAmount(total)}</span>
+        <h1 className="text-3xl sm:text-4xl font-normal text-black tracking-tighter">{isEdit ? `Edit ${editNote!.ID}` : 'New Debit Note'}</h1>
+        <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={reset}
@@ -221,116 +224,137 @@ export default function DebitNoteForm({ editNote = null, onSaved, onCancelEdit }
         </div>
       </div>
 
-      {/* Number / Date + parties */}
-      <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-5 space-y-5">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-[11px] font-black uppercase tracking-[0.15em] text-slate-400 mb-2">Debit Note No.</label>
-            <div className="h-11 px-3.5 rounded-xl bg-slate-50 border border-slate-100 flex items-center text-sm font-black text-[#1F3864]">
-              {nextNo || '—'}
-              {!isEdit && <span className="ml-2 text-[11px] font-semibold text-slate-400">(given on save)</span>}
-            </div>
-          </div>
-          <div>
-            <label className="block text-[11px] font-black uppercase tracking-[0.15em] text-slate-400 mb-2">Date</label>
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={input} />
-          </div>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <PartyBox title="Issued By" p={ISSUED_BY} />
-          <PartyBox title="Issued To" p={ISSUED_TO} />
-        </div>
-        <div>
-          <label className="block text-[11px] font-black uppercase tracking-[0.15em] text-slate-400 mb-2">Text (after “Dear Sirs,”)</label>
-          <textarea
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            rows={3}
-            dir="auto"
-            maxLength={1500}
-            className="w-full px-4 py-3 rounded-2xl border border-slate-200 bg-white text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#1F3864]/25"
-          />
-        </div>
-      </div>
+      <div>
+        <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+          <div className="h-1.5 bg-[#182E56]" />
+          <div className="h-[2px] bg-[#C4A052]" />
 
-      {/* Lines */}
-      <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm min-w-[760px]">
-            <thead>
-              <tr className="bg-[#1F3864] text-[11px] font-black uppercase tracking-[0.15em] text-white text-center">
-                <th className="py-3.5 px-2 w-12">No.</th>
-                <th className="py-3.5 px-2">Description</th>
-                <th className="py-3.5 px-2 w-[190px]">Amount (AED)</th>
-                <th className="py-3.5 px-2 w-12"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {lines.map((l, i) => (
-                <tr key={l.key}>
-                  <td className="py-3 px-2 text-center font-black text-slate-400 align-top pt-5">{i + 1}</td>
-                  <td className="py-3 px-2">
-                    <textarea
-                      value={l.description}
-                      onChange={(e) => update(l.key, { description: e.target.value })}
-                      rows={2}
-                      dir="auto"
-                      maxLength={500}
-                      className={`w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-800 resize-y focus:outline-none focus:ring-2 focus:ring-[#1F3864]/25 focus:border-[#1F3864]/40 ${errors[l.key]?.description ? '!border-red-400 bg-red-50/40' : ''}`}
-                    />
-                  </td>
-                  <td className="py-3 px-2 align-top">
-                    <input
-                      value={l.amount}
-                      onChange={(e) => onAmountInput(e, (v) => update(l.key, { amount: v }))}
-                      onBlur={() => l.amount && update(l.key, { amount: parseAmount(l.amount) ? formatAmount(parseAmount(l.amount)) : '' })}
-                      inputMode="decimal"
-                      placeholder="0.00"
-                      className={`${input} text-right font-black ${errors[l.key]?.amount ? '!border-red-400 bg-red-50/40' : ''}`}
-                    />
-                  </td>
-                  <td className="py-3 px-2 align-top">
-                    <button
-                      type="button"
-                      onClick={() => setLines((prev) => (prev.length === 1 ? [emptyLine()] : prev.filter((x) => x.key !== l.key)))}
-                      className="w-9 h-11 flex items-center justify-center rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50"
-                      title="Remove line"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr className="bg-slate-50 border-t-2 border-slate-200">
-                <td colSpan={2} className="py-3 px-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setLines((prev) => (prev.length >= MAX_LINES ? prev : [...prev, emptyLine()]))}
-                      disabled={lines.length >= MAX_LINES}
-                      className="h-9 px-4 rounded-xl bg-white border border-[#1F3864]/30 text-[#1F3864] text-sm font-black hover:bg-[#1F3864]/5 flex items-center gap-1.5 disabled:opacity-40"
-                    >
-                      <Plus className="w-4 h-4" /> Add Line
-                    </button>
-                    <span className="text-xs font-black uppercase tracking-wider text-slate-500">Total Amount Debited</span>
-                  </div>
-                </td>
-                <td className="py-3 px-4 text-right font-black text-slate-900 whitespace-nowrap">{formatAmount(total)}</td>
-                <td />
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-      </div>
+          <div className="p-5 sm:p-7 space-y-8">
+            {/* 1. Details */}
+            <section>
+              <SectionTitle n={1} title="Details" />
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="rounded-2xl bg-[#F5F7FB] border border-slate-100 px-4 py-3">
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 flex items-center gap-1.5">
+                    <Hash className="w-3 h-3" /> Debit Note No.
+                  </p>
+                  <p className="mt-1.5 text-base font-black text-[#182E56]">{nextNo || '—'}</p>
+                  {!isEdit && <p className="text-[10px] font-semibold text-slate-400">Confirmed on save</p>}
+                </div>
+                <label className="rounded-2xl bg-[#F5F7FB] border border-slate-100 px-4 py-3 block cursor-pointer focus-within:border-[#C4A052] focus-within:ring-4 focus-within:ring-[#C4A052]/15 transition-all">
+                  <span className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 flex items-center gap-1.5">
+                    <CalendarDays className="w-3 h-3" /> Date
+                  </span>
+                  <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="mt-1 w-full bg-transparent text-base font-black text-slate-900 focus:outline-none" />
+                </label>
+                <div className="rounded-2xl bg-[#F5F7FB] border border-slate-100 px-4 py-3">
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Currency</p>
+                  <p className="mt-1.5 text-base font-black text-slate-900">UAE Dirham (AED)</p>
+                </div>
+              </div>
+            </section>
 
-      {words && (
-        <p className="text-sm text-slate-600">
-          <span className="font-black text-slate-800">Amount in words: </span>
-          <span className="italic">{words}</span>
-        </p>
-      )}
+            {/* 2. Parties */}
+            <section>
+              <SectionTitle n={2} title="Parties" hint="fixed" />
+              <div className="flex flex-col md:flex-row items-stretch gap-3">
+                <PartyCard tag="From (Issued By)" p={ISSUED_BY} />
+                <div className="hidden md:flex items-center">
+                  <span className="w-9 h-9 rounded-full bg-[#C4A052]/15 text-[#C4A052] flex items-center justify-center">
+                    <ArrowRight className="w-4 h-4" />
+                  </span>
+                </div>
+                <PartyCard tag="To (Debited Party)" p={ISSUED_TO} />
+              </div>
+            </section>
+
+            {/* 3. Letter */}
+            <section>
+              <SectionTitle n={3} title="Letter" hint="after “Dear,”" />
+              <textarea
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+                rows={3}
+                dir="auto"
+                maxLength={1500}
+                className={`${field} px-4 py-3 leading-relaxed resize-y`}
+              />
+            </section>
+
+            {/* 4. Lines */}
+            <section>
+              <SectionTitle n={4} title="Lines" hint={`${lines.length} / ${MAX_LINES}`} />
+              <div className="rounded-2xl border border-slate-200 overflow-hidden">
+                <div className="hidden sm:grid grid-cols-[52px_minmax(0,1fr)_190px_44px] bg-[#182E56] text-[10px] font-black uppercase tracking-[0.18em] text-white">
+                  <span className="py-3 text-center">No.</span>
+                  <span className="py-3 text-center">Description</span>
+                  <span className="py-3 text-center">Amount (AED)</span>
+                  <span />
+                </div>
+                <div className="divide-y divide-slate-100">
+                  {lines.map((l, i) => (
+                    <div key={l.key} className={`grid grid-cols-[40px_minmax(0,1fr)_44px] sm:grid-cols-[52px_minmax(0,1fr)_190px_44px] gap-y-2 items-start px-2 sm:px-0 py-3 ${i % 2 ? 'bg-[#FAFBFD]' : 'bg-white'}`}>
+                      <span className="pt-3 text-center text-sm font-black text-[#C4A052]">{String(i + 1).padStart(2, '0')}</span>
+                      <div className="sm:px-2">
+                        <textarea
+                          value={l.description}
+                          onChange={(e) => update(l.key, { description: e.target.value })}
+                          rows={1}
+                          dir="auto"
+                          maxLength={500}
+                          placeholder="Description"
+                          className={`${field} px-3.5 py-2.5 min-h-[44px] max-h-40 field-sizing-content resize-none ${errors[l.key]?.description ? '!border-red-400 !bg-red-50/40' : ''}`}
+                        />
+                      </div>
+                      <div className="col-start-2 sm:col-start-auto sm:px-2">
+                        <input
+                          value={l.amount}
+                          onChange={(e) => onAmountInput(e, (v) => update(l.key, { amount: v }))}
+                          onBlur={() => l.amount && update(l.key, { amount: parseAmount(l.amount) ? formatAmount(parseAmount(l.amount)) : '' })}
+                          inputMode="decimal"
+                          placeholder="0.00"
+                          className={`${field} h-11 px-3.5 text-center font-black ${errors[l.key]?.amount ? '!border-red-400 !bg-red-50/40' : ''}`}
+                        />
+                      </div>
+                      <div className="row-start-1 col-start-3 sm:row-start-auto sm:col-start-auto flex justify-center">
+                        <button
+                          type="button"
+                          onClick={() => setLines((prev) => (prev.length === 1 ? [emptyLine()] : prev.filter((x) => x.key !== l.key)))}
+                          className="w-9 h-11 flex items-center justify-center rounded-lg text-slate-300 hover:text-red-600 hover:bg-red-50"
+                          title="Remove line"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setLines((prev) => (prev.length >= MAX_LINES ? prev : [...prev, emptyLine()]))}
+                  disabled={lines.length >= MAX_LINES}
+                  className="w-full py-3 border-t border-dashed border-slate-200 text-sm font-black text-[#182E56] hover:bg-[#C4A052]/5 flex items-center justify-center gap-1.5 disabled:opacity-40"
+                >
+                  <Plus className="w-4 h-4 text-[#C4A052]" /> Add Line
+                </button>
+                <div className="grid grid-cols-[minmax(0,1fr)_auto] sm:grid-cols-[52px_minmax(0,1fr)_190px_44px] items-center bg-[#182E56] text-white">
+                  <span className="hidden sm:block" />
+                  <span className="px-4 py-3.5 text-[11px] font-black uppercase tracking-[0.18em] text-[#C4A052] sm:text-right">Total Amount Debited</span>
+                  <span className="px-4 sm:px-2 py-3.5 text-center text-base font-black whitespace-nowrap">{formatAmount(total)}</span>
+                  <span className="hidden sm:block" />
+                </div>
+              </div>
+              {words && (
+                <p className="mt-3 text-sm text-slate-500">
+                  <span className="text-[10px] font-black uppercase tracking-[0.18em] text-[#182E56] mr-2">Amount in words</span>
+                  <span className="italic text-slate-700">{words}</span>
+                </p>
+              )}
+            </section>
+          </div>
+        </div>
+
+      </div>
     </div>
   );
 }

@@ -145,7 +145,7 @@ export async function generateDebitNotePdf(note: DebitNote) {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9.5);
   doc.setTextColor(...C.ink);
-  doc.text('Dear Sirs,', M, y);
+  doc.text('Dear,', M, y);
   y += 5.5;
   if (hasArabic(note.BODY_TEXT)) doc.setFont('Amiri', 'normal');
   else doc.setFont('helvetica', 'normal');

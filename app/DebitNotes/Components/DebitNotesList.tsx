@@ -84,7 +84,7 @@ export default function DebitNotesList({ notes, admin, canEdit, onEdit, onDelete
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <h1 className="text-3xl sm:text-4xl font-normal text-black tracking-tighter">{admin ? 'All Debit Notes' : 'My Debit Notes'}</h1>
+        <h1 className="text-3xl sm:text-4xl font-normal text-black tracking-tighter">Debit Notes</h1>
         <span className="self-start sm:self-auto px-3.5 py-2 rounded-xl bg-white border border-slate-100 shadow-sm text-sm font-bold text-slate-700">
           <span className="text-slate-400 mr-1">{filtered.length} ·</span>AED {formatAmount(total)}
         </span>
