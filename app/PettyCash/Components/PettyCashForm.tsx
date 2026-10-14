@@ -1,12 +1,13 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Copy, Loader2, Pencil, Plus, RotateCcw, Save, Trash2, X } from 'lucide-react';
+import { Copy, FolderOpen, Loader2, Pencil, Plus, RotateCcw, Save, Trash2, X } from 'lucide-react';
 import { toast } from '@/app/Components/Notification';
 import SuggestInput from './SuggestInput';
-import { getAccountSuggestions, getPettyCashSuggestions, savePettyCash, updatePettyCash } from '../Service/PettyCashService';
+import { getAccountSuggestions, getMyOpenPettyCash, getPettyCashSuggestions, savePettyCash, updatePettyCash } from '../Service/PettyCashService';
 import {
   MAX_LINES,
+  MAX_OPEN_LINES,
   formatAmount,
   formatDate,
   round2,
@@ -25,14 +26,16 @@ type FormRow = {
   IS_TAX_INVOICE: boolean;
   HAS_INVOICE: boolean;
   ACCOUNT: string;
+  LINE_ID?: number;
 };
 
 type RowErrors = Partial<Record<'INVOICE_DATE' | 'DESCRIPTION' | 'BENEFICIARY' | 'AMOUNT', true>>;
 
 interface PettyCashFormProps {
   onSaved: (p: PettyCash, isEdit: boolean) => void;
-  editItem?: PettyCash | null;   // admin edit mode
+  editItem?: PettyCash | null;   // edit mode: admin (any) or the employee (his open one)
   onCancelEdit?: () => void;
+  admin: boolean;
 }
 
 let nextKey = 1;
@@ -45,6 +48,7 @@ const emptyRow = (base?: Partial<FormRow>): FormRow => ({
   IS_TAX_INVOICE: base?.IS_TAX_INVOICE ?? false,
   HAS_INVOICE: base?.HAS_INVOICE ?? true,
   ACCOUNT: base?.ACCOUNT ?? '',
+  LINE_ID: base?.LINE_ID,
 });
 
 const rowsFrom = (p: PettyCash): FormRow[] =>
@@ -57,6 +61,7 @@ const rowsFrom = (p: PettyCash): FormRow[] =>
       IS_TAX_INVOICE: l.IS_TAX_INVOICE,
       HAS_INVOICE: l.HAS_INVOICE,
       ACCOUNT: l.ACCOUNT || '',
+      LINE_ID: l.ID,
     }),
   );
 
@@ -115,8 +120,11 @@ function Toggle({ checked, onChange, onLabel, offLabel, tone }: { checked: boole
   );
 }
 
-export default function PettyCashForm({ onSaved, editItem = null, onCancelEdit }: PettyCashFormProps) {
+export default function PettyCashForm({ onSaved, editItem = null, onCancelEdit, admin }: PettyCashFormProps) {
   const isEdit = !!editItem;
+  const showAccount = isEdit && admin; // the account column is the admin's only
+  const maxRows = isEdit ? MAX_OPEN_LINES : MAX_LINES;
+  const [openPc, setOpenPc] = useState<{ ID: string; LINES_COUNT: number; TOTAL_AMOUNT: number } | null | undefined>(undefined);
   const [rows, setRows] = useState<FormRow[]>(() => (editItem && editItem.LINES.length ? rowsFrom(editItem) : [emptyRow()]));
   const [notes, setNotes] = useState(editItem?.NOTES || '');
   const [accounts, setAccounts] = useState<string[]>([]);
@@ -128,8 +136,9 @@ export default function PettyCashForm({ onSaved, editItem = null, onCancelEdit }
 
   useEffect(() => {
     getPettyCashSuggestions().then(setSuggestions).catch(() => {});
-    if (isEdit) getAccountSuggestions().then(setAccounts).catch(() => {});
-  }, [isEdit]);
+    if (showAccount) getAccountSuggestions().then(setAccounts).catch(() => {});
+    if (!isEdit) getMyOpenPettyCash().then(setOpenPc).catch(() => setOpenPc(null));
+  }, [isEdit, showAccount]);
 
   // focus the description of a newly added row
   useEffect(() => {
@@ -154,8 +163,8 @@ export default function PettyCashForm({ onSaved, editItem = null, onCancelEdit }
   };
 
   const addRow = (base?: Partial<FormRow>) => {
-    if (rows.length >= MAX_LINES) {
-      toast.warning(`Maximum ${MAX_LINES} rows per save`);
+    if (rows.length >= maxRows) {
+      toast.warning(`Maximum ${maxRows} rows${isEdit ? '' : ' per save'}`);
       return;
     }
     const last = rows[rows.length - 1];
@@ -185,7 +194,7 @@ export default function PettyCashForm({ onSaved, editItem = null, onCancelEdit }
     const errs: Record<number, RowErrors> = {};
     for (const r of list) {
       const e: RowErrors = {};
-      if (!r.INVOICE_DATE || (!isEdit && r.INVOICE_DATE > today)) e.INVOICE_DATE = true;
+      if (!r.INVOICE_DATE || (!admin && r.INVOICE_DATE > today)) e.INVOICE_DATE = true;
       if (!r.DESCRIPTION.trim()) e.DESCRIPTION = true;
       if (!r.BENEFICIARY.trim()) e.BENEFICIARY = true;
       if (!(parseAmount(r.AMOUNT) > 0)) e.AMOUNT = true;
@@ -215,7 +224,8 @@ export default function PettyCashForm({ onSaved, editItem = null, onCancelEdit }
       AMOUNT: parseAmount(r.AMOUNT),
       IS_TAX_INVOICE: r.IS_TAX_INVOICE,
       HAS_INVOICE: r.HAS_INVOICE,
-      ...(isEdit ? { ACCOUNT: r.ACCOUNT.trim() } : {}),
+      ...(showAccount ? { ACCOUNT: r.ACCOUNT.trim() } : {}),
+      ...(isEdit && r.LINE_ID ? { LINE_ID: r.LINE_ID } : {}),
     }));
 
     setSaving(true);
@@ -227,7 +237,8 @@ export default function PettyCashForm({ onSaved, editItem = null, onCancelEdit }
         return;
       }
       const saved = await savePettyCash({ NOTES: notes, LINES: lines });
-      toast.success(`${saved.ID} saved — ${saved.LINES_COUNT} row${saved.LINES_COUNT === 1 ? '' : 's'} · AED ${formatAmount(saved.TOTAL_AMOUNT)}`);
+      toast.success(`${lines.length} row${lines.length === 1 ? '' : 's'} added to ${saved.ID} — now ${saved.LINES_COUNT} rows · AED ${formatAmount(saved.TOTAL_AMOUNT)}`);
+      setOpenPc({ ID: saved.ID, LINES_COUNT: saved.LINES_COUNT, TOTAL_AMOUNT: saved.TOTAL_AMOUNT });
       reset();
       onSaved(saved, false);
     } catch (err: any) {
@@ -256,7 +267,21 @@ export default function PettyCashForm({ onSaved, editItem = null, onCancelEdit }
             </div>
           </div>
         ) : (
-          <h1 className="text-3xl sm:text-4xl font-normal text-black tracking-tighter">New Petty Cash</h1>
+          <div className="min-w-0">
+            <h1 className="text-3xl sm:text-4xl font-normal text-black tracking-tighter">New Petty Cash</h1>
+            {openPc !== undefined && (
+              <p className="mt-1 text-sm font-semibold text-slate-400 flex items-center gap-1.5">
+                <FolderOpen className="w-4 h-4 text-amber-500 shrink-0" />
+                {openPc ? (
+                  <span>
+                    Adding to your open <span className="font-black text-slate-700">{openPc.ID}</span> · {openPc.LINES_COUNT} row{openPc.LINES_COUNT === 1 ? '' : 's'} · AED {formatAmount(openPc.TOTAL_AMOUNT)}
+                  </span>
+                ) : (
+                  <span>A new open petty cash will start with these rows</span>
+                )}
+              </p>
+            )}
+          </div>
         )}
         <div className="flex flex-wrap gap-2">
           <span className="px-3.5 py-2 rounded-xl bg-white border border-slate-100 shadow-sm text-sm font-bold text-slate-700">
@@ -299,13 +324,13 @@ export default function PettyCashForm({ onSaved, editItem = null, onCancelEdit }
       {/* Rows */}
       <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className={`w-full text-sm ${isEdit ? 'min-w-[1200px]' : 'min-w-[980px]'}`}>
+          <table className={`w-full text-sm ${showAccount ? 'min-w-[1200px]' : 'min-w-[980px]'}`}>
             <thead>
               <tr className="bg-[#0a0f1d] text-[11px] font-black uppercase tracking-[0.15em] text-[#D4AF37] text-center">
                 <th className="py-4 px-2 w-10">#</th>
                 <th className="py-4 px-2 w-[150px]">Invoice Date</th>
                 <th className="py-4 px-2">Description</th>
-                {isEdit && <th className="py-4 px-2 w-[220px]">Account</th>}
+                {showAccount && <th className="py-4 px-2 w-[220px]">Account</th>}
                 <th className="py-4 px-2 w-[220px]">Beneficiary</th>
                 <th className="py-4 px-2 w-[130px]">Amount</th>
                 <th className="py-4 px-2 w-[100px]">Tax Invoice</th>
@@ -321,7 +346,7 @@ export default function PettyCashForm({ onSaved, editItem = null, onCancelEdit }
                     <input
                       type="date"
                       value={r.INVOICE_DATE}
-                      max={isEdit ? undefined : today}
+                      max={admin ? undefined : today}
                       onChange={(e) => update(r.key, { INVOICE_DATE: e.target.value })}
                       className={`${cellInput} ${align} ${err(r.key, 'INVOICE_DATE')}`}
                     />
@@ -336,7 +361,7 @@ export default function PettyCashForm({ onSaved, editItem = null, onCancelEdit }
                       className={`${cellInput} ${align} ${err(r.key, 'DESCRIPTION')}`}
                     />
                   </td>
-                  {isEdit && (
+                  {showAccount && (
                     <td className="py-2 px-2">
                       <SuggestInput
                         value={r.ACCOUNT}
@@ -396,11 +421,11 @@ export default function PettyCashForm({ onSaved, editItem = null, onCancelEdit }
             </tbody>
             <tfoot>
               <tr className="bg-[#FBF8EE] border-t-2 border-[#D4AF37]/40">
-                <td colSpan={isEdit ? 5 : 4} className="py-3 px-4">
+                <td colSpan={showAccount ? 5 : 4} className="py-3 px-4">
                   <button
                     type="button"
                     onClick={() => addRow()}
-                    disabled={rows.length >= MAX_LINES}
+                    disabled={rows.length >= maxRows}
                     className="h-9 px-4 rounded-xl bg-white border border-amber-300 text-amber-800 text-sm font-black hover:bg-amber-50 flex items-center gap-1.5 disabled:opacity-40"
                   >
                     <Plus className="w-4 h-4" /> Add Row

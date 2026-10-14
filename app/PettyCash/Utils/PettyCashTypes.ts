@@ -1,7 +1,17 @@
 // Shared (client + server safe) types and helpers for Petty Cash.
 
 export const PETTY_CASH_SYSTEM_ID = 'petty-cash';
-export const MAX_LINES = 50;
+export const MAX_LINES = 50;        // rows per save
+export const MAX_OPEN_LINES = 200;  // rows in one petty cash
+
+/** OPEN: employee still adding rows · SUBMITTED: handed for settlement · SETTLED: admin settled it */
+export type PettyCashStatus = 'OPEN' | 'SUBMITTED' | 'SETTLED';
+
+export const STATUS_META: Record<PettyCashStatus, { label: string; badge: string; dot: string }> = {
+  OPEN: { label: 'Open', badge: 'bg-amber-100 text-amber-800', dot: 'bg-amber-500' },
+  SUBMITTED: { label: 'Submitted', badge: 'bg-blue-100 text-blue-700', dot: 'bg-blue-500' },
+  SETTLED: { label: 'Settled', badge: 'bg-emerald-100 text-emerald-700', dot: 'bg-emerald-500' },
+};
 
 export type PettyCashTabId = 'new' | 'records';
 
@@ -36,6 +46,11 @@ export interface PettyCash {
   CREATED_AT: string;
   UPDATED_BY?: string | null;
   UPDATED_AT?: string | null;
+  STATUS: PettyCashStatus;
+  SUBMITTED_AT?: string | null;
+  SETTLED_BY?: string | null;
+  SETTLED_AT?: string | null;
+  MINE: boolean;            // created by the logged-in user (set by the server)
   LINES: PettyCashLine[];
 }
 
@@ -47,6 +62,7 @@ export type PettyCashLineInput = {
   IS_TAX_INVOICE: boolean;
   HAS_INVOICE: boolean;
   ACCOUNT?: string;         // admin edit only
+  LINE_ID?: number;         // edit: the saved row this came from (keeps its account)
 };
 
 export type PettyCashInput = {

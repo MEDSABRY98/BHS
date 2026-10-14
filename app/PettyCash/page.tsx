@@ -165,6 +165,7 @@ export default function PettyCashPage() {
                 <PettyCashForm
                   key={editItem ? `edit-${editItem.ID}` : `new-${formKey}`}
                   editItem={editItem}
+                  admin={permissions.viewAll}
                   onCancelEdit={() => {
                     setEditItem(null);
                     setActiveTab('records');
@@ -185,8 +186,8 @@ export default function PettyCashPage() {
                   <PettyCashCards
                     items={items}
                     viewAll={permissions.viewAll}
-                    canDelete={permissions.viewAll} // delete: admin only
-                    canEdit={permissions.viewAll && visibleTabs.includes('new')} // edit rows & accounts: admin only
+                    canEditTab={visibleTabs.includes('new')} // admin: any card · employee: his open one
+                    onChanged={(p) => setItems((prev) => prev.map((x) => (x.ID === p.ID ? p : x)))}
                     onEdit={(p) => {
                       setEditItem(p);
                       setActiveTab('new');

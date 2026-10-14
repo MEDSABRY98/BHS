@@ -2,13 +2,16 @@
 
 // Petty Cash (عهد الموظفين)
 // Tables: web_PETTY_CASH (header) + web_PETTY_CASH_LINES (rows) — RLS on, no public access.
-// Saved through the DB function web_save_petty_cash (number + header + all rows in one transaction).
-// Each employee sees only his own petty cash; the admin sees all. No edit / delete for employees.
+// Saved through the DB function web_save_petty_cash: rows are added to the employee's OPEN petty cash
+// (opened automatically). The employee edits / removes his rows while it is OPEN, then submits it for
+// settlement (SUBMITTED → locked for him). The admin settles it (SETTLED) and can edit / delete anything.
+// Each employee sees only his own petty cash; the admin sees all.
 
 import { getSupabaseAdmin } from '@/lib/supabaseAdmin';
 import { getSessionUser, isAdminUser, UnauthorizedError, type SessionUserRecord } from '@/lib/session';
 import {
   MAX_LINES,
+  MAX_OPEN_LINES,
   compareLines,
   PETTY_CASH_SYSTEM_ID,
   round2,
@@ -18,6 +21,7 @@ import {
   type PettyCashLine,
   type PettyCashLineInput,
   type PettyCashPermissions,
+  type PettyCashStatus,
   type PettyCashTabId,
 } from '../Utils/PettyCashTypes';
 
@@ -61,7 +65,7 @@ async function requireTab(tab: PettyCashTabId): Promise<{ user: SessionUserRecor
 }
 
 /** admin = false → the ACCOUNT (and who edited) never leaves the server. */
-function normalize(row: any, admin: boolean): PettyCash {
+function normalize(row: any, admin: boolean, userId: string): PettyCash {
   const lines: PettyCashLine[] = (Array.isArray(row.LINES) ? row.LINES : [])
     .map((l: any) => {
       const line: any = {
@@ -83,13 +87,16 @@ function normalize(row: any, admin: boolean): PettyCash {
     LINES_COUNT: Number(row.LINES_COUNT) || lines.length,
     TOTAL_AMOUNT: Number(row.TOTAL_AMOUNT) || 0,
     TAX_AMOUNT_TOTAL: Number(row.TAX_AMOUNT_TOTAL) || 0,
+    STATUS: (['OPEN', 'SUBMITTED', 'SETTLED'].includes(row.STATUS) ? row.STATUS : 'SUBMITTED') as PettyCashStatus,
+    MINE: String(row.CREATED_BY_ID) === String(userId),
     LINES: lines,
   };
 }
 
-function cleanLines(input: unknown, opts: { allowFuture?: boolean; withAccount?: boolean } = {}): PettyCashLineInput[] {
+function cleanLines(input: unknown, opts: { allowFuture?: boolean; withAccount?: boolean; max?: number } = {}): PettyCashLineInput[] {
+  const max = opts.max ?? MAX_LINES;
   if (!Array.isArray(input) || input.length === 0) throw new Error('Add at least one row');
-  if (input.length > MAX_LINES) throw new Error(`Maximum ${MAX_LINES} rows per save`);
+  if (input.length > max) throw new Error(`Maximum ${max} rows`);
   const today = uaeToday();
 
   return input.map((l: any, i: number) => {
@@ -113,6 +120,7 @@ function cleanLines(input: unknown, opts: { allowFuture?: boolean; withAccount?:
       IS_TAX_INVOICE: !!l?.IS_TAX_INVOICE,
       HAS_INVOICE: !!l?.HAS_INVOICE,
       ...(opts.withAccount ? { ACCOUNT: String(l?.ACCOUNT || '').trim().slice(0, 200) } : {}),
+      ...(Number.isInteger(Number(l?.LINE_ID)) && Number(l?.LINE_ID) > 0 ? { LINE_ID: Number(l.LINE_ID) } : {}),
     };
   });
 }
@@ -137,13 +145,13 @@ export async function listPettyCash(): Promise<PettyCash[]> {
     if (!perms.viewAll) query = query.eq('CREATED_BY_ID', String(user.id));
     const { data, error } = await query.order('CREATED_AT', { ascending: false }).range(from, from + pageSize - 1);
     if (error) throw new Error(error.message);
-    out.push(...(data || []).map((r: any) => normalize(r, perms.viewAll)));
+    out.push(...(data || []).map((r: any) => normalize(r, perms.viewAll, String(user.id))));
     if (!data || data.length < pageSize) break;
   }
   return out;
 }
 
-/** Saves all rows at once (all or nothing) and returns the new petty cash with its number. */
+/** Adds the rows (all or nothing) to the user's open petty cash — opens a new one if he has none. */
 export async function savePettyCash(input: PettyCashInput): Promise<PettyCash> {
   const { user, perms } = await requireTab('new');
   const lines = cleanLines(input?.LINES);
@@ -160,7 +168,74 @@ export async function savePettyCash(input: PettyCashInput): Promise<PettyCash> {
 
   const { data, error: readErr } = await db.from(HEADERS).select(SELECT).eq('ID', String(id)).single();
   if (readErr) throw new Error(readErr.message);
-  return normalize(data, perms.viewAll);
+  return normalize(data, perms.viewAll, String(user.id));
+}
+
+/** The user's open petty cash (number, rows, total) — shown on the New tab. */
+export async function getMyOpenPettyCash(): Promise<{ ID: string; LINES_COUNT: number; TOTAL_AMOUNT: number } | null> {
+  const { user } = await requireTab('new');
+  const { data, error } = await getSupabaseAdmin()
+    .from(HEADERS)
+    .select('ID, LINES_COUNT, TOTAL_AMOUNT')
+    .eq('CREATED_BY_ID', String(user.id))
+    .eq('STATUS', 'OPEN')
+    .maybeSingle();
+  if (error || !data) return null;
+  return { ID: String(data.ID), LINES_COUNT: Number(data.LINES_COUNT) || 0, TOTAL_AMOUNT: Number(data.TOTAL_AMOUNT) || 0 };
+}
+
+async function readHeader(id: string): Promise<{ ID: string; CREATED_BY_ID: string; STATUS: string }> {
+  const pcId = String(id || '').trim();
+  if (!/^PC-\d{4,}$/.test(pcId)) throw new Error('Invalid petty cash number');
+  const { data, error } = await getSupabaseAdmin().from(HEADERS).select('ID, CREATED_BY_ID, STATUS').eq('ID', pcId).maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) throw new Error(`${pcId} not found`);
+  return data as any;
+}
+
+/** Owner only: OPEN → SUBMITTED (locked for him from now on). */
+export async function submitPettyCash(id: string): Promise<PettyCash> {
+  const user = await requireUser();
+  const head = await readHeader(id);
+  if (String(head.CREATED_BY_ID) !== String(user.id)) throw new UnauthorizedError('You can only submit your own petty cash.');
+  if (head.STATUS !== 'OPEN') throw new Error(`${head.ID} is already submitted`);
+
+  const db = getSupabaseAdmin();
+  const { error } = await db
+    .from(HEADERS)
+    .update({ STATUS: 'SUBMITTED', SUBMITTED_AT: new Date().toISOString() })
+    .eq('ID', head.ID)
+    .eq('STATUS', 'OPEN');
+  if (error) throw new Error(error.message);
+
+  const { data, error: readErr } = await db.from(HEADERS).select(SELECT).eq('ID', head.ID).single();
+  if (readErr) throw new Error(readErr.message);
+  return normalize(data, isAdminUser(user), String(user.id));
+}
+
+/** Admin only: change the status (Settle, undo settle, reopen). */
+export async function setPettyCashStatus(id: string, status: PettyCashStatus): Promise<PettyCash> {
+  const user = await requireUser();
+  if (!isAdminUser(user)) throw new UnauthorizedError('Only the admin can settle a petty cash.');
+  if (!['OPEN', 'SUBMITTED', 'SETTLED'].includes(status)) throw new Error('Invalid status');
+  const head = await readHeader(id);
+
+  const now = new Date().toISOString();
+  const patch: Record<string, unknown> = { STATUS: status };
+  if (status === 'SETTLED') Object.assign(patch, { SETTLED_BY: String(user.name || '').trim() || 'Admin', SETTLED_AT: now });
+  else Object.assign(patch, { SETTLED_BY: null, SETTLED_AT: null });
+  if (status === 'OPEN') patch.SUBMITTED_AT = null;
+  if (status !== 'OPEN' && head.STATUS === 'OPEN') patch.SUBMITTED_AT = now;
+
+  const db = getSupabaseAdmin();
+  const { error } = await db.from(HEADERS).update(patch).eq('ID', head.ID);
+  if (error) {
+    if ((error as any).code === '23505') throw new Error('This employee already has an open petty cash');
+    throw new Error(error.message);
+  }
+  const { data, error: readErr } = await db.from(HEADERS).select(SELECT).eq('ID', head.ID).single();
+  if (readErr) throw new Error(readErr.message);
+  return normalize(data, true, String(user.id));
 }
 
 /** Beneficiary / description suggestions from the user's previous rows. */
@@ -181,32 +256,46 @@ export async function getPettyCashSuggestions(): Promise<{ beneficiaries: string
   };
 }
 
-/** Admin only: deletes a petty cash and all its rows. */
+/** Admin: any petty cash. Employee: only his own while it is OPEN. Rows go with it. */
 export async function deletePettyCash(id: string): Promise<{ success: true }> {
   const user = await requireUser();
-  if (!isAdminUser(user)) throw new UnauthorizedError('Only the admin can delete a petty cash.');
-  const pcId = String(id || '').trim();
-  if (!/^PC-\d{4,}$/.test(pcId)) throw new Error('Invalid petty cash number');
+  const head = await readHeader(id);
+  if (!isAdminUser(user) && !(String(head.CREATED_BY_ID) === String(user.id) && head.STATUS === 'OPEN')) {
+    throw new UnauthorizedError('Only the admin can delete a submitted petty cash.');
+  }
+  const pcId = head.ID;
 
   const { error } = await getSupabaseAdmin().from(HEADERS).delete().eq('ID', pcId); // rows go with it (on delete cascade)
   if (error) throw new Error(error.message);
   return { success: true };
 }
 
-/** Admin only: replace the rows of a petty cash (edit anything, set accounts, add / remove rows). */
+/**
+ * Replace the rows of a petty cash.
+ * Admin: anything (accounts too). Employee: only his own OPEN one — the accounts the admin set stay on the same rows.
+ */
 export async function updatePettyCash(id: string, input: PettyCashInput): Promise<PettyCash> {
   const user = await requireUser();
-  if (!isAdminUser(user)) throw new UnauthorizedError('Only the admin can edit a petty cash.');
-  const pcId = String(id || '').trim();
-  if (!/^PC-\d{4,}$/.test(pcId)) throw new Error('Invalid petty cash number');
-
-  const lines = cleanLines(input?.LINES, { allowFuture: true, withAccount: true });
-  const notes = String(input?.NOTES || '').trim().slice(0, 1000);
+  const admin = isAdminUser(user);
+  const head = await readHeader(id);
+  if (!admin && !(String(head.CREATED_BY_ID) === String(user.id) && head.STATUS === 'OPEN')) {
+    throw new UnauthorizedError('A submitted petty cash can only be edited by the admin.');
+  }
+  const pcId = head.ID;
   const db = getSupabaseAdmin();
+
+  let lines = cleanLines(input?.LINES, { allowFuture: admin, withAccount: admin, max: MAX_OPEN_LINES });
+  if (!admin) {
+    // keep the account of each saved row the employee didn't remove
+    const { data: old } = await db.from('web_PETTY_CASH_LINES').select('ID, ACCOUNT').eq('PETTY_CASH_ID', pcId);
+    const accounts = new Map((old || []).map((r: any) => [Number(r.ID), String(r.ACCOUNT || '')]));
+    lines = lines.map((l) => ({ ...l, ACCOUNT: (l.LINE_ID && accounts.get(l.LINE_ID)) || '' }));
+  }
+  const notes = String(input?.NOTES || '').trim().slice(0, 1000);
 
   const { error } = await db.rpc('web_update_petty_cash', {
     p_id: pcId,
-    p_user_name: String(user.name || '').trim() || 'Admin',
+    p_user_name: String(user.name || '').trim() || 'Unknown',
     p_notes: notes || null,
     p_lines: lines,
   });
@@ -214,7 +303,7 @@ export async function updatePettyCash(id: string, input: PettyCashInput): Promis
 
   const { data, error: readErr } = await db.from(HEADERS).select(SELECT).eq('ID', pcId).single();
   if (readErr) throw new Error(readErr.message);
-  return normalize(data, true);
+  return normalize(data, admin, String(user.id));
 }
 
 /** Admin only: accounts used before (for the Account column suggestions). */
