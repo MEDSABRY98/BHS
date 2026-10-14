@@ -97,7 +97,6 @@ type SalesUserContext = {
  * loses them when 'sales-actions' exists without 'view-costs'.
  */
 function canSeeCostsFromDb(user: any): boolean {
-  if (String(user?.NAME || '').trim().toLowerCase() === 'med sabry') return true;
   if (String(user?.ROLE || '').trim().toLowerCase() === 'admin') return true;
   const roleStr = String(user?.AUTHORITY || '').trim();
   if (!roleStr || roleStr === 'Admin') return true;

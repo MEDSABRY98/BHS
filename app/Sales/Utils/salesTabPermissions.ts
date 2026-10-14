@@ -29,7 +29,6 @@ type SalesUserLike = {
 export function isUnrestrictedSalesUser(user: SalesUserLike): boolean {
   if (!user) return false;
   if (String(user.userAdmin || '').trim().toLowerCase() === 'admin') return true;
-  if (String(user.name || '').trim().toLowerCase() === 'med sabry') return true;
   if (String(user.role || '').trim() === 'Admin') return true;
   return false;
 }

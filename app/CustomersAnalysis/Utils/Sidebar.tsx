@@ -1,4 +1,5 @@
 'use client';
+import { isAdminRole } from '@/lib/AdminRole';
 import { useState, useMemo } from 'react';
 
 import {
@@ -74,7 +75,7 @@ export default function DebitSidebar({
 
   const getFilteredTabs = () => {
     if (!currentUser) return [];
-    if (currentUser.name === 'MED Sabry') return allTabs;
+    if (isAdminRole(currentUser)) return allTabs;
 
     try {
       const perms = JSON.parse(currentUser.role || '{}');

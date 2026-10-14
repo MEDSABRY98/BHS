@@ -1,5 +1,6 @@
 'use client';
 
+import { isAdminRole } from '@/lib/AdminRole';
 import { useState, useEffect } from 'react';
 import InventoryScrapTab from '@/app/InventoryScrap/Components/InventoryScrapTab';
 import { useInventoryScrapTabAudit } from '@/app/Audit/Model/InventoryScrapTabAudit';
@@ -45,7 +46,7 @@ export default function InventoryScrapPage() {
     try {
       const perms = JSON.parse(currentUser.role || '{}');
       if (Array.isArray(perms.systems)) {
-        setIsAllowed(perms.systems.includes('inventory-scrap') || currentUser.name?.toLowerCase() === 'med sabry');
+        setIsAllowed(perms.systems.includes('inventory-scrap') || isAdminRole(currentUser));
       }
     } catch {
       // keep current allow state
@@ -69,8 +70,7 @@ export default function InventoryScrapPage() {
         }
 
         // Check permission for inventory-scrap
-        const userName = parsed.name?.toLowerCase() || '';
-        if (userName === 'med sabry') {
+        if (isAdminRole(parsed)) {
           setIsAllowed(true);
         } else {
           try {
@@ -125,8 +125,7 @@ export default function InventoryScrapPage() {
     localStorage.setItem('currentUser', JSON.stringify(user));
 
     // Check permission for inventory-scrap on login
-    const userName = user.name?.toLowerCase() || '';
-    if (userName === 'med sabry') {
+    if (isAdminRole(user)) {
       setIsAllowed(true);
     } else {
       try {

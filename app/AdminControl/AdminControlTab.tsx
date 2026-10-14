@@ -1,5 +1,6 @@
 'use client';
 
+import { isAdminRole } from '@/lib/AdminRole';
 import { useState, useEffect, useMemo } from 'react';
 import {
     Shield, Check, X, Search, Settings, Save, AlertCircle, ChevronRight, Layers,
@@ -13,6 +14,7 @@ import { fetchUsersList, updateUserRole } from '@/app/DataBase/Service/database_
 interface UserPermissions {
     name: string;
     role: string;
+    userAdmin?: string;
 }
 
 export type PermissionUser = {
@@ -34,8 +36,6 @@ export function getCurrentUserFromStorage(): PermissionUser {
 
 export function isUnrestrictedAdminUser(user: PermissionUser): boolean {
     if (!user) return false;
-    const name = String(user.name || user.NAME || '').trim().toLowerCase();
-    if (name === 'med sabry') return true;
     if (String(user.userAdmin || '').trim().toLowerCase() === 'admin') return true;
     if (String(user.role || '').trim() === 'Admin') return true;
     return false;
@@ -861,7 +861,7 @@ export default function AdminControlTab() {
                                     {user.name}
                                 </h3>
                                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-1">
-                                    {user.name === 'MED Sabry' ? 'Super Admin' : 'System User'}
+                                    {isAdminRole(user) ? 'Admin' : 'System User'}
                                 </p>
                                 <div className="mt-auto pt-4 flex items-center justify-between">
                                     <span className="text-[10px] font-black text-slate-500 bg-slate-100 px-2 py-1 rounded-md uppercase tracking-wider">

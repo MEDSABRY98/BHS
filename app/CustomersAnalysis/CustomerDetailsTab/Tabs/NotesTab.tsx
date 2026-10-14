@@ -1,3 +1,4 @@
+import { isAdminRole } from '@/lib/AdminRole';
 import React from 'react';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import { SharedTabProps } from '../Types';
@@ -56,8 +57,8 @@ export default function NotesTab(props: SharedTabProps) {
             notes.map((note, index) => {
               const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
               // Robust comparison: check if names exist and match (ignoring case/whitespace)
-              // Permission Check: ONLY "MED Sabry" can edit/delete/mark solved
-              const canManageNotes = currentUser?.name?.trim().toLowerCase() === 'med sabry';
+              // Permission Check: only the admin (ROLE column) can edit/delete/mark solved
+              const canManageNotes = isAdminRole(currentUser);
 
               return (
                 <div key={index} className="bg-white p-6 rounded-lg shadow hover:shadow-md transition-shadow">

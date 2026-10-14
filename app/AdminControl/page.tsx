@@ -1,5 +1,6 @@
 'use client';
 
+import { isAdminRole } from '@/lib/AdminRole';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Menu } from 'lucide-react';
@@ -35,7 +36,7 @@ export default function AdminControlPage() {
       if (user) {
         setCurrentUser(user);
         setIsAuthenticated(true);
-        if (user.name !== 'MED Sabry') {
+        if (!isAdminRole(user)) {
           router.push('/');
         }
       }
@@ -49,7 +50,7 @@ export default function AdminControlPage() {
     setIsAuthenticated(true);
     setCurrentUser(user);
     localStorage.setItem('currentUser', JSON.stringify(user));
-    if (user.name !== 'MED Sabry') {
+    if (!isAdminRole(user)) {
       router.push('/');
     }
   };
@@ -74,7 +75,7 @@ export default function AdminControlPage() {
     return <Login onLogin={handleLogin} />;
   }
 
-  if (currentUser?.name !== 'MED Sabry') {
+  if (!isAdminRole(currentUser)) {
     return null;
   }
 

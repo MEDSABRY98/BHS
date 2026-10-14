@@ -1,5 +1,6 @@
 'use client';
 
+import { isAdminRole } from '@/lib/AdminRole';
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import { Menu } from 'lucide-react';
 import { useLiveCurrentUser } from '../Components/Auth/AppSessionProvider';
@@ -19,8 +20,7 @@ const ALL_TABS = SALESPERSON_TABS.map((t) => t.id) as SalespersonTabId[];
 /** Tabs allowed by Admin Control ('salesperson-analysis' sub tabs); no list = all tabs. */
 function AllowedTabs(user: any): SalespersonTabId[] {
   try {
-    const name = String(user?.name || '').trim().toLowerCase();
-    if (name === 'med sabry' || String(user?.userAdmin || '').toLowerCase() === 'admin') return ALL_TABS;
+    if (isAdminRole(user)) return ALL_TABS;
     const roleStr = String(user?.role || '').trim();
     if (!roleStr || roleStr === 'Admin') return ALL_TABS;
     const perms = JSON.parse(roleStr);

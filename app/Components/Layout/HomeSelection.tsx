@@ -1,5 +1,6 @@
 'use client';
 
+import { isAdminRole } from '@/lib/AdminRole';
 import {
   ArrowRight,
   LogOut,
@@ -105,8 +106,7 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
   const nav = (path: string) => () => { window.location.href = path; };
 
   const isSystemAllowed = (systemId: string) => {
-    const userName = currentUser?.name?.toLowerCase() || '';
-    if (userName === 'med sabry') return true;
+    if (isAdminRole(currentUser)) return true;
 
     try {
       const roleStr = currentUser?.role || '';
@@ -166,7 +166,7 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
     return allowedSystems.filter(sys => sys.title.toLowerCase().includes(q));
   }, [allowedSystems, search]);
 
-  const showAdmin = currentUser?.name === 'MED Sabry';
+  const showAdmin = isAdminRole(currentUser);
   const adminMatches = !search.trim() || 'admin control'.includes(search.trim().toLowerCase());
 
   return (

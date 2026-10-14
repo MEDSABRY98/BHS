@@ -64,8 +64,6 @@ function resolveSystemIds(pathname: string): string[] | null {
 
 function isUnrestricted(user: SessionUser): boolean {
   if (!user) return false;
-  const name = String(user.name || user.NAME || '').trim().toLowerCase();
-  if (name === 'med sabry') return true;
   if (String(user.userAdmin || '').trim().toLowerCase() === 'admin') return true;
   if (String(user.role || '').trim() === 'Admin') return true;
   return false;

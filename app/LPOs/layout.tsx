@@ -1,5 +1,6 @@
 'use client';
 
+import { isAdminRole } from '@/lib/AdminRole';
 import { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
@@ -145,12 +146,13 @@ function getLpoNavIdFromPath(pathname: string): string | null {
 function getFilteredNavItems(user: any) {
   if (!user) return [];
 
-  if (user.NAME === 'MED Sabry' || user.name === 'med sabry') return ALL_NAV_ITEMS;
+  if (isAdminRole(user)) return ALL_NAV_ITEMS;
 
   try {
     const mainUserStr = localStorage.getItem('currentUser');
     if (mainUserStr) {
       const mainUser = JSON.parse(mainUserStr);
+      if (isAdminRole(mainUser)) return ALL_NAV_ITEMS;
       const roleStr = mainUser.role || '{}';
       const perms = JSON.parse(roleStr);
 

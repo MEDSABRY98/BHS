@@ -1,5 +1,5 @@
 'use server';
-import { getSession, getSessionUser } from '@/lib/session';
+import { getSession, getSessionUser, isAdminUser } from '@/lib/session';
 
 import { getSupabaseAdmin } from '@/lib/supabaseAdmin';
 import { AllocateActivityIds } from '@/app/Audit/Utils/ActivityId';
@@ -16,17 +16,12 @@ import {
 
 const TABLE = 'bhs_USERS_ACTIVITY';
 const USERS_TABLE = 'bhs_USERS';
-const ADMIN_NAME = 'MED Sabry';
 
 function IsValidSession(event: unknown): event is ActivitySessionPayload {
   if (!event || typeof event !== 'object') return false;
   const row = event as Record<string, unknown>;
   if (typeof row.MODULE_NAME !== 'string' || !row.MODULE_NAME.trim()) return false;
   return true;
-}
-
-function IsAdmin(name: string | null | undefined): boolean {
-  return (name || '').trim().toLowerCase() === ADMIN_NAME.toLowerCase();
 }
 
 // Business day = UAE time (UTC+4, no DST)
@@ -293,7 +288,7 @@ export async function GetActivitySummary(params: {
 }): Promise<ActivitySummaryResponse> {
   const user = await getSessionUser();
   if (!user) throw new Error('Not logged in');
-  if (!IsAdmin(user.name)) throw new Error('Forbidden');
+  if (!isAdminUser(user)) throw new Error('Forbidden');
 
   const date = params.date || TodayUae();
   const { start, end } = DayBounds(date);

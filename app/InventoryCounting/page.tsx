@@ -1,5 +1,6 @@
 'use client';
 
+import { isAdminRole } from '@/lib/AdminRole';
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Menu, Lock, ArrowLeft, X, AlertCircle } from 'lucide-react';
 import InventoryCountingTab from './InventoryCountingTab';
@@ -18,8 +19,7 @@ import MainLoader from '@/app/Components/Loading/MainLoader';
 import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
 
 function hasInventoryCountingAccess(user: any): boolean {
-  const userName = user?.name?.toLowerCase() || '';
-  if (userName === 'med sabry') return true;
+  if (isAdminRole(user)) return true;
 
   try {
     const perms = JSON.parse(user?.role || '{}');

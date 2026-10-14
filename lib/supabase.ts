@@ -64,10 +64,9 @@ export type SessionUserLike = {
   isSalesManager?: unknown;
 };
 
-/** Full data visibility — Sales, Customers Analysis, Payment Analysis (admin, MED Sabry, or FULL_DATA_ACCESS flag). */
+/** Full data visibility — Sales, Customers Analysis, Payment Analysis (ROLE = Admin, or FULL_DATA_ACCESS flag). */
 export function hasSalesDataAccess(user: SessionUserLike | null | undefined): boolean {
   if (!user) return false;
-  if (String(user.name || '').trim().toLowerCase() === 'med sabry') return true;
   if (String(user.userAdmin || '').trim().toLowerCase() === 'admin') return true;
   return parseBoolFlag(user.salesDataAccess ?? user.isSalesManager);
 }
@@ -83,7 +82,6 @@ export type BhsUserAccessRow = {
 /** Server-side check against a bhs_USERS row. */
 export function hasSalesDataAccessFromDb(user: BhsUserAccessRow | null | undefined): boolean {
   if (!user) return false;
-  if (String(user.NAME || '').trim().toLowerCase() === 'med sabry') return true;
   if (String(user.ROLE || '').trim().toLowerCase() === 'admin') return true;
   return parseBoolFlag(user.FULL_DATA_ACCESS ?? user.SALES_DATA_ACCESS);
 }

@@ -1,3 +1,4 @@
+import { isAdminRole } from '@/lib/AdminRole';
 import { useState, useEffect } from 'react';
 
 export function usePermissions() {
@@ -15,12 +16,11 @@ export function usePermissions() {
     const mainUserStr = localStorage.getItem('currentUser');
     const lpoUserStr = localStorage.getItem('app_lpos_user');
     
-    // Admin Sabry always has full access
-    const checkIsAdmin = (name: string) => name?.toLowerCase() === 'med sabry';
+    // Admin (ROLE column) always has full access
 
     if (mainUserStr) {
       const mainUser = JSON.parse(mainUserStr);
-      if (checkIsAdmin(mainUser.name)) {
+      if (isAdminRole(mainUser)) {
         setPermissions({ canEdit: true, canDelete: true, isLoaded: true });
         return;
       }
@@ -43,7 +43,7 @@ export function usePermissions() {
       }
     } else if (lpoUserStr) {
       const lpoUser = JSON.parse(lpoUserStr);
-      if (checkIsAdmin(lpoUser.NAME) || lpoUser.ROLE === 'admin') {
+      if (isAdminRole(lpoUser)) {
         setPermissions({ canEdit: true, canDelete: true, isLoaded: true });
       } else {
         // Legacy/Standalone behavior: all users have full access unless specified

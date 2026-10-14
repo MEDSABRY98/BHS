@@ -339,7 +339,7 @@ const OrderDetailsTab = forwardRef<OrderDetailsTabHandle, OrderDetailsTabProps>(
 
   const isFinal = handover === 'Confirmed';
   const roleText = String(currentUser?.ROLE || '').toLowerCase();
-  const isAdmin = roleText === 'admin' || String(currentUser?.NAME || '').trim().toLowerCase() === 'med sabry';
+  const isAdmin = roleText === 'admin';
   const hasCancelAuthority = isAdmin || currentUser?.CANCEL_AUTHORITY === true || String(currentUser?.CANCEL_AUTHORITY).toUpperCase() === 'TRUE';
   // a stamped invoice handed to someone -> only he (or an admin) accepts it
   const handedToOther = handover === 'Pending' && !isCancelled && delivery?.OFFICE_HANDOVER_ID && delivery.OFFICE_HANDOVER_ID !== currentUser?.ID;

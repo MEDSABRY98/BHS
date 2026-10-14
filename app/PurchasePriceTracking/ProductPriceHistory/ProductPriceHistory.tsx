@@ -1,3 +1,4 @@
+import { isAdminRole } from '@/lib/AdminRole';
 import React, { useState, useMemo, useEffect } from 'react';
 import { PurchaseRecord, Product, Supplier } from '../page';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
@@ -19,8 +20,8 @@ interface Props {
   onPurchasePriceUpdated?: (id: string, unitPrice: number) => void;
 }
 
-function canEditPurchaseLinePrice(roleStr?: string, userName?: string): boolean {
-  if (userName?.trim().toLowerCase() === 'med sabry') return true;
+function canEditPurchaseLinePrice(roleStr?: string, isAdmin = false): boolean {
+  if (isAdmin) return true;
   if (!roleStr) return false;
   if (roleStr === 'Admin') return true;
 
@@ -52,7 +53,7 @@ export default function ProductPriceHistory({ purchases, products, suppliers, on
         return;
       }
       const user = JSON.parse(mainUserStr);
-      setCanEditPrice(canEditPurchaseLinePrice(user.role, user.name));
+      setCanEditPrice(canEditPurchaseLinePrice(user.role, isAdminRole(user)));
     } catch {
       setCanEditPrice(false);
     }

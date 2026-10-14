@@ -196,14 +196,14 @@ export async function deleteVoucher(id: string) {
   return { success: true };
 }
 
-/** Signature printed on the voucher: the user who created it (old vouchers: MED Sabry, as before). */
+/** Signature printed on the voucher: the user who created it (old vouchers: the admin's signature). */
 export async function getVoucherSignature(voucherId: string): Promise<string | null> {
   await requireUser();
   const db = getSupabaseAdmin();
   const { data: v } = await db.from(TABLE).select('CREATED_BY_ID').eq('ID', voucherId).maybeSingle();
   const query = v?.CREATED_BY_ID
     ? db.from('bhs_USERS').select('SIGNATURE').eq('ID', v.CREATED_BY_ID)
-    : db.from('bhs_USERS').select('SIGNATURE').eq('NAME', 'MED Sabry');
+    : db.from('bhs_USERS').select('SIGNATURE').ilike('ROLE', 'admin').not('SIGNATURE', 'is', null).limit(1);
   const { data } = await query.maybeSingle();
   return (data?.SIGNATURE as string) || null;
 }

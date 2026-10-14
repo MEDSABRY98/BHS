@@ -1,5 +1,6 @@
 'use client';
 
+import { isAdminRole } from '@/lib/AdminRole';
 import { useState, useEffect, useRef, Suspense, type Dispatch, type SetStateAction } from 'react';
 import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
 import { useSearchParams } from 'next/navigation';
@@ -112,7 +113,7 @@ function DebitPageShell({
     try {
       const perms = JSON.parse(currentUser?.role || '{}');
       const allowedTabs = perms.debit || perms.debit_tabs;
-      if (allowedTabs && Array.isArray(allowedTabs) && currentUser?.name !== 'MED Sabry') {
+      if (allowedTabs && Array.isArray(allowedTabs) && !isAdminRole(currentUser)) {
         return isDebitTabAllowed(activeTab, allowedTabs);
       }
     } catch {
@@ -312,7 +313,7 @@ function DebitPageContent() {
   }, []);
 
   useEffect(() => {
-    if (currentUser && currentUser.name !== 'MED Sabry') {
+    if (currentUser && !isAdminRole(currentUser)) {
       try {
         const perms = JSON.parse(currentUser.role || '{}');
         const allowedTabs = perms.debit || perms.debit_tabs;

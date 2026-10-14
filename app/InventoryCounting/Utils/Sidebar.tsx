@@ -1,5 +1,6 @@
 'use client';
 
+import { isAdminRole } from '@/lib/AdminRole';
 import { useState, useEffect } from 'react';
 import {
   Archive,
@@ -39,7 +40,7 @@ export function isCountingTabAllowed(tabId: string): boolean {
   try {
     const savedUser = localStorage.getItem('currentUser');
     const currentUser = savedUser ? JSON.parse(savedUser) : null;
-    if (currentUser?.name?.toLowerCase() === 'med sabry') return true;
+    if (isAdminRole(currentUser)) return true;
 
     const perms = JSON.parse(currentUser?.role || '{}');
     const countingTabs = perms['inventory-counting'];

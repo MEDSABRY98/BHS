@@ -133,7 +133,6 @@ export async function getSessionUser(): Promise<SessionUserRecord | null> {
 
 export function isAdminUser(user: Pick<SessionUserRecord, 'name' | 'role' | 'userAdmin'> | null | undefined): boolean {
   if (!user) return false;
-  if (String(user.name || '').trim().toLowerCase() === 'med sabry') return true;
   if (String(user.userAdmin || '').trim().toLowerCase() === 'admin') return true;
   if (String(user.role || '').trim() === 'Admin') return true;
   return false;

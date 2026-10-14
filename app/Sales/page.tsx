@@ -141,8 +141,7 @@ export default function SalesPage() {
 
   // Admins always; FULL DATA ACCESS alone does not unlock costs ('view-costs' decides)
   const showCosts = useMemo(() => {
-    const name = String(currentUser?.name || '').trim().toLowerCase();
-    if (name === 'med sabry' || String(currentUser?.userAdmin || '').trim().toLowerCase() === 'admin') return true;
+    if (String(currentUser?.userAdmin || '').trim().toLowerCase() === 'admin') return true;
     try {
       const roleStr = currentUser?.role || '';
       if (!roleStr) return true;
