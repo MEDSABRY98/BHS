@@ -202,6 +202,7 @@ const SYSTEMS = [
     { id: 'suppliers-analysis', label: 'Suppliers Analysis' },
     { id: 'intercompany-reconciliation', label: 'Intercompany Reconciliation' },
     { id: 'transfer-requests', label: 'Transfer Requests' },
+    { id: 'petty-cash', label: 'Petty Cash' },
     { id: 'database', label: 'Database' },
 ];
 
@@ -270,6 +271,10 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
         { id: 'new', label: 'New Request' },
         { id: 'requests', label: 'Requests' },
         { id: 'beneficiaries', label: 'Beneficiaries & Banks' },
+    ],
+    'petty-cash': [
+        { id: 'new', label: 'New Petty Cash' },
+        { id: 'records', label: 'My Petty Cash' },
     ],
     'intercompany-reconciliation': [
         { id: 'entries', label: 'Entries' },
