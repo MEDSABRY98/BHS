@@ -335,9 +335,7 @@ export default function InventoryScrapPage() {
         {/* Main Content Component Area */}
         <main className="flex-grow p-4 md:p-6 lg:p-8">
           <div className="max-w-7xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-slate-200/60 min-h-[calc(100vh-6rem)]">
-              <InventoryScrapTab activeSubTab={activeSubTab} />
-            </div>
+            <InventoryScrapTab activeSubTab={activeSubTab} />
           </div>
         </main>
       </div>

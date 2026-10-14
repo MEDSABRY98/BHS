@@ -243,8 +243,8 @@ export async function generatePettyCashPdf(items: PettyCash[], opts: { printedBy
     smartText(doc, name || ' ', x, sy + 23.5, sw, 9);
   };
   sign('Employee', employees.length === 1 ? employees[0] : '', M);
-  sign('Accountant', '', M + sw + 8);
-  sign('Approved By', '', M + (sw + 8) * 2);
+  sign('Accounts Department', '', M + sw + 8);
+  sign('CEO', '', M + (sw + 8) * 2);
 
   // ── Footer on every page ─────────────────────────────────
   const pages = doc.getNumberOfPages();
