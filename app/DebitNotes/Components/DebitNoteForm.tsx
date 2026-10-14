@@ -18,6 +18,13 @@ import {
 } from '../Utils/DebitNoteTypes';
 
 type FormLine = { key: number; description: string; amount: string };
+type Step = 'details' | 'parties' | 'letter' | 'lines';
+const STEPS: { id: Step; title: string }[] = [
+  { id: 'details', title: 'Details' },
+  { id: 'parties', title: 'Parties' },
+  { id: 'letter', title: 'Letter' },
+  { id: 'lines', title: 'Lines' },
+];
 
 interface DebitNoteFormProps {
   editNote?: DebitNote | null; // admin edit
@@ -67,14 +74,8 @@ function onAmountInput(e: React.ChangeEvent<HTMLInputElement>, set: (v: string) 
 const field =
   'w-full rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-4 focus:ring-[#C4A052]/15 focus:border-[#C4A052] transition-all';
 
-function SectionTitle({ n, title, hint }: { n: number; title: string; hint?: string }) {
-  return (
-    <div className="flex items-center gap-3 mb-4">
-      <span className="w-7 h-7 rounded-full bg-[#182E56] text-[#C4A052] text-xs font-black flex items-center justify-center shrink-0">{n}</span>
-      <h2 className="text-base font-black text-slate-900 tracking-tight">{title}</h2>
-      {hint && <span className="text-xs font-semibold text-slate-400">{hint}</span>}
-    </div>
-  );
+function SectionHint({ text }: { text: string }) {
+  return <p className="mb-4 text-xs font-semibold text-slate-400">{text}</p>;
 }
 
 function PartyCard({ tag, p }: { tag: string; p: typeof ISSUED_BY }) {
@@ -109,6 +110,7 @@ export default function DebitNoteForm({ editNote = null, onSaved, onCancelEdit }
   const [lines, setLines] = useState<FormLine[]>(init().lines);
   const [nextNo, setNextNo] = useState<string>(editNote?.ID || '');
   const [saving, setSaving] = useState(false);
+  const [step, setStep] = useState<Step>('details');
   const [errors, setErrors] = useState<Record<number, { description?: boolean; amount?: boolean }>>({});
 
   // preview of the number this note will get (shared numbering, per year)
@@ -156,8 +158,14 @@ export default function DebitNoteForm({ editNote = null, onSaved, onCancelEdit }
       if (e.description || e.amount) errs[l.key] = e;
     });
     setErrors(errs);
-    if (Object.keys(errs).length) return toast.error('Fill the highlighted fields');
-    if (!body.trim()) return toast.error('The debit note text is required');
+    if (Object.keys(errs).length) {
+      setStep('lines');
+      return toast.error('Fill the highlighted fields');
+    }
+    if (!body.trim()) {
+      setStep('letter');
+      return toast.error('The debit note text is required');
+    }
 
     setSaving(true);
     try {
@@ -229,10 +237,44 @@ export default function DebitNoteForm({ editNote = null, onSaved, onCancelEdit }
           <div className="h-1.5 bg-[#182E56]" />
           <div className="h-[2px] bg-[#C4A052]" />
 
-          <div className="p-5 sm:p-7 space-y-8">
+          {/* Sub tabs */}
+          <div className="px-5 sm:px-7 pt-5 sm:pt-6">
+            <div className="grid grid-cols-4 gap-1.5 p-1.5 rounded-2xl bg-[#F5F7FB] border border-slate-100">
+              {STEPS.map((s, i) => {
+                const active = step === s.id;
+                const flag =
+                  (s.id === 'lines' && Object.keys(errors).length > 0) || (s.id === 'letter' && !body.trim());
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => setStep(s.id)}
+                    className={`relative h-11 rounded-xl text-sm font-black flex items-center justify-center gap-2 transition-all ${
+                      active ? 'bg-[#182E56] text-white shadow-md shadow-[#182E56]/20' : 'text-slate-500 hover:text-slate-900 hover:bg-white'
+                    }`}
+                  >
+                    <span
+                      className={`w-5 h-5 rounded-full text-[10px] flex items-center justify-center shrink-0 ${
+                        active ? 'bg-[#C4A052] text-[#182E56]' : 'bg-slate-200 text-slate-500'
+                      }`}
+                    >
+                      {i + 1}
+                    </span>
+                    <span className="truncate">{s.title}</span>
+                    {s.id === 'lines' && (
+                      <span className={`hidden sm:inline text-[11px] font-bold ${active ? 'text-[#C4A052]' : 'text-slate-400'}`}>{lines.length}</span>
+                    )}
+                    {flag && <span className="absolute top-1.5 right-2 w-2 h-2 rounded-full bg-red-500" />}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="p-5 sm:p-7">
             {/* 1. Details */}
+            {step === 'details' && (
             <section>
-              <SectionTitle n={1} title="Details" />
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="rounded-2xl bg-[#F5F7FB] border border-slate-100 px-4 py-3">
                   <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 flex items-center gap-1.5">
@@ -253,10 +295,12 @@ export default function DebitNoteForm({ editNote = null, onSaved, onCancelEdit }
                 </div>
               </div>
             </section>
+            )}
 
             {/* 2. Parties */}
+            {step === 'parties' && (
             <section>
-              <SectionTitle n={2} title="Parties" hint="fixed" />
+              <SectionHint text="Fixed for every debit note" />
               <div className="flex flex-col md:flex-row items-stretch gap-3">
                 <PartyCard tag="From (Issued By)" p={ISSUED_BY} />
                 <div className="hidden md:flex items-center">
@@ -267,23 +311,27 @@ export default function DebitNoteForm({ editNote = null, onSaved, onCancelEdit }
                 <PartyCard tag="To (Debited Party)" p={ISSUED_TO} />
               </div>
             </section>
+            )}
 
             {/* 3. Letter */}
+            {step === 'letter' && (
             <section>
-              <SectionTitle n={3} title="Letter" hint="after “Dear,”" />
+              <SectionHint text="Printed after “Dear,”" />
               <textarea
                 value={body}
                 onChange={(e) => setBody(e.target.value)}
-                rows={3}
+                rows={5}
                 dir="auto"
                 maxLength={1500}
                 className={`${field} px-4 py-3 leading-relaxed resize-y`}
               />
             </section>
+            )}
 
             {/* 4. Lines */}
+            {step === 'lines' && (
             <section>
-              <SectionTitle n={4} title="Lines" hint={`${lines.length} / ${MAX_LINES}`} />
+              <SectionHint text={`${lines.length} / ${MAX_LINES} lines`} />
               <div className="rounded-2xl border border-slate-200 overflow-hidden">
                 <div className="hidden sm:grid grid-cols-[52px_minmax(0,1fr)_190px_44px] bg-[#182E56] text-[10px] font-black uppercase tracking-[0.18em] text-white">
                   <span className="py-3 text-center">No.</span>
@@ -351,6 +399,7 @@ export default function DebitNoteForm({ editNote = null, onSaved, onCancelEdit }
                 </p>
               )}
             </section>
+            )}
           </div>
         </div>
 
