@@ -1,7 +1,8 @@
 'use client';
 
-// One-page Debit Note PDF — same content and navy identity as the issued DN document,
-// with a cleaner layout: header band, info tiles, party cards, lines table, total panel.
+// One-page Debit Note PDF (approved design):
+// white header with navy/gold hairline, number/date/currency strip, From / To cards,
+// letter text, lines table, amount in words + totals box, attachments note.
 
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -11,16 +12,14 @@ import { ISSUED_BY, ISSUED_TO, SUPPORTING_TEXT, formatAmount, formatLongDate, ty
 
 type RGB = [number, number, number];
 const C = {
-  navy: [31, 56, 100] as RGB,
-  navyDark: [21, 39, 72] as RGB,
-  accent: [86, 140, 214] as RGB,
-  accentSoft: [170, 196, 232] as RGB,
-  soft: [243, 246, 251] as RGB,
-  zebra: [248, 250, 253] as RGB,
-  border: [221, 227, 237] as RGB,
+  navy: [24, 46, 86] as RGB,
+  accent: [196, 160, 82] as RGB, // muted gold
+  soft: [245, 247, 251] as RGB,
+  zebra: [250, 251, 253] as RGB,
+  border: [222, 227, 236] as RGB,
   ink: [17, 24, 39] as RGB,
   text: [55, 65, 81] as RGB,
-  grey: [107, 114, 128] as RGB,
+  grey: [110, 117, 130] as RGB,
   white: [255, 255, 255] as RGB,
 };
 
@@ -28,20 +27,8 @@ const ARABIC = /[؀-ۿݐ-ݿࢠ-ࣿﭐ-﷿ﹰ-﻿]/;
 const hasArabic = (s: string) => ARABIC.test(s || '');
 
 const W = 210;
-const M = 18;
+const M = 16;
 const CW = W - M * 2;
-
-function font(doc: jsPDF, text: string, style: 'normal' | 'bold' | 'italic' = 'normal') {
-  if (hasArabic(text)) doc.setFont('Amiri', 'normal');
-  else doc.setFont('helvetica', style);
-}
-
-function smallLabel(doc: jsPDF, text: string, x: number, y: number, color: RGB = C.grey) {
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(6.8);
-  doc.setTextColor(...color);
-  doc.text(text.toUpperCase(), x, y, { charSpace: 0.5 });
-}
 
 export async function generateDebitNotePdf(note: DebitNote) {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
@@ -54,109 +41,104 @@ export async function generateDebitNotePdf(note: DebitNote) {
   }
   doc.setProperties({ title: `Debit Note ${note.ID}`, author: ISSUED_BY.name });
 
-  // ── Header band ──────────────────────────────────────────
-  doc.setFillColor(...C.navy);
-  doc.rect(0, 0, W, 24, 'F');
-  doc.setFillColor(...C.navyDark);
-  doc.rect(0, 24, W, 1, 'F');
-  doc.setFillColor(...C.accent);
-  doc.rect(0, 25, W, 0.7, 'F');
-
-  // monogram
-  doc.setDrawColor(...C.accentSoft);
-  doc.setLineWidth(0.5);
-  doc.roundedRect(M, 5, 14, 14, 2.5, 2.5, 'S');
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9.5);
-  doc.setTextColor(...C.white);
-  doc.text('AM', M + 7, 13.6, { align: 'center' });
-
-  // company
-  doc.setFontSize(11);
-  doc.text(ISSUED_BY.name, M + 19, 11, { charSpace: 0.3 });
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.8);
-  doc.setTextColor(...C.accentSoft);
-  doc.text(`${ISSUED_BY.branch}  ·  Trade License No. ${ISSUED_BY.license}`, M + 19, 16.3);
-
-  // title (right)
-  const right = (text: string, y: number, size: number, color: RGB, spacing: number) => {
+  const label = (t: string, x: number, y: number, c: RGB = C.grey, size = 6.6) => {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(size);
-    doc.setTextColor(...color);
-    const w = doc.getTextWidth(text) + spacing * (text.length - 1);
-    doc.text(text, W - M - w, y, { charSpace: spacing });
+    doc.setTextColor(...c);
+    doc.text(t.toUpperCase(), x, y, { charSpace: 0.55 });
   };
-  right('DEBIT NOTE', 14.6, 16, C.white, 1.1);
 
-  // ── Number & date: one line ──────────────────────────────
-  let y = 32;
-  const gap = 4;
-  doc.setFillColor(...C.soft);
+  // ── Top hairline ─────────────────────────────────────────
+  doc.setFillColor(...C.navy);
+  doc.rect(0, 0, W, 5, 'F');
+  doc.setFillColor(...C.accent);
+  doc.rect(0, 5, W, 0.6, 'F');
+
+  // ── Company (left) ───────────────────────────────────────
+  doc.setFillColor(...C.navy);
+  doc.roundedRect(M, 13, 15, 15, 2.5, 2.5, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+  doc.setTextColor(...C.accent);
+  doc.text('AM', M + 7.5, 22.3, { align: 'center' });
+  doc.setTextColor(...C.navy);
+  doc.setFontSize(12.5);
+  doc.text(ISSUED_BY.name, M + 19, 19, { charSpace: 0.3 });
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.8);
+  doc.setTextColor(...C.grey);
+  doc.text(`${ISSUED_BY.branch}  ·  Trade License No. ${ISSUED_BY.license}`, M + 19, 24.5);
+
+  // ── Title (right) ────────────────────────────────────────
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(20);
+  doc.setTextColor(...C.navy);
+  const title = 'DEBIT NOTE';
+  const sp = 1.4;
+  doc.text(title, W - M - (doc.getTextWidth(title) + sp * (title.length - 1)), 21, { charSpace: sp });
+
+  // ── Number / Date / Currency strip ──────────────────────
+  let y = 36;
   doc.setDrawColor(...C.border);
   doc.setLineWidth(0.3);
-  doc.roundedRect(M, y, CW, 11, 2.5, 2.5, 'FD');
-  doc.setFillColor(...C.accent);
-  doc.rect(M, y + 2.5, 1.2, 6, 'F');
-  const field = (label: string, value: string, x: number, alignRight = false) => {
+  doc.setFillColor(...C.soft);
+  doc.roundedRect(M, y, CW, 15, 2.5, 2.5, 'FD');
+  const cols: [string, string][] = [
+    ['Debit Note No.', note.ID],
+    ['Date', formatLongDate(note.NOTE_DATE)],
+    ['Currency', 'UAE Dirham (AED)'],
+  ];
+  cols.forEach(([l, v], i) => {
+    const x = M + 6 + (i * CW) / 3;
+    if (i) {
+      doc.setDrawColor(...C.border);
+      doc.line(x - 3.5, y + 3, x - 3.5, y + 12);
+    }
+    label(l, x, y + 6);
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(6.8);
-    const lw = doc.getTextWidth(label.toUpperCase()) + label.length * 0.5;
-    doc.setFontSize(10);
-    const vw = doc.getTextWidth(value);
-    const start = alignRight ? x - (lw + 3 + vw) : x;
-    smallLabel(doc, label, start, y + 7.1);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(10);
-    doc.setTextColor(...C.ink);
-    doc.text(value, start + lw + 3, y + 7.3);
-  };
-  field('Debit Note No.', note.ID, M + 6);
-  field('Date', formatLongDate(note.NOTE_DATE), W - M - 6, true);
+    doc.setFontSize(9.6);
+    doc.setTextColor(...(i === 0 ? C.navy : C.ink));
+    doc.text(v, x, y + 11.6);
+  });
 
-  // ── Party cards ──────────────────────────────────────────
-  y += 11 + 7;
-  const half = (CW - gap) / 2;
+  // ── From / To cards ─────────────────────────────────────
+  y += 15 + 7;
+  const half = (CW - 5) / 2;
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.6);
-  const nameH = Math.max(
-    (doc.splitTextToSize(ISSUED_BY.name, half - 10) as string[]).length,
-    (doc.splitTextToSize(ISSUED_TO.name, half - 10) as string[]).length,
+  doc.setFontSize(8.8);
+  const nameRows = Math.max(
+    (doc.splitTextToSize(ISSUED_BY.name, half - 12) as string[]).length,
+    (doc.splitTextToSize(ISSUED_TO.name, half - 12) as string[]).length,
   );
-  const cardH = 14 + nameH * 4 + 9;
-  const party = (title: string, p: typeof ISSUED_BY, x: number) => {
-    doc.setFillColor(...C.soft);
+  const cardH = 22 + nameRows * 4.1;
+  const party = (tag: string, p: typeof ISSUED_BY, x: number) => {
     doc.setDrawColor(...C.border);
     doc.setLineWidth(0.3);
+    doc.setFillColor(...C.white);
     doc.roundedRect(x, y, half, cardH, 2.5, 2.5, 'FD');
-    // chip
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(6.5);
-    const chipW = doc.getTextWidth(title.toUpperCase()) + title.length * 0.4 + 7;
     doc.setFillColor(...C.navy);
-    doc.roundedRect(x + 5, y + 4, chipW, 5.5, 2.7, 2.7, 'F');
-    doc.setTextColor(...C.white);
-    doc.text(title.toUpperCase(), x + 5 + chipW / 2, y + 7.7, { align: 'center', charSpace: 0.4 });
-    // name
-    doc.setFontSize(8.6);
+    doc.rect(x, y + 4, 1.4, cardH - 8, 'F');
+    label(tag, x + 6, y + 6.5, C.accent, 6.8);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.8);
     doc.setTextColor(...C.ink);
-    const nameLines = doc.splitTextToSize(p.name, half - 10) as string[];
-    doc.text(nameLines, x + 5, y + 15.5);
-    let py = y + 15.5 + nameLines.length * 4 + 1.5;
+    const nl = doc.splitTextToSize(p.name, half - 12) as string[];
+    doc.text(nl, x + 6, y + 12);
+    let py = y + 12 + nl.length * 4.1 + 1.5;
     ([['Branch', p.branch], ['Trade License No.', p.license]] as [string, string][]).forEach(([l, v]) => {
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(7.6);
       doc.setTextColor(...C.grey);
-      doc.text(`${l}:`, x + 5, py);
+      doc.text(`${l}:`, x + 6, py);
       const lw = doc.getTextWidth(`${l}:`) + 1.5;
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(...C.text);
-      doc.text(v, x + 5 + lw, py);
-      py += 4.2;
+      doc.text(v, x + 6 + lw, py);
+      py += 4.1;
     });
   };
-  party('Issued By', ISSUED_BY, M);
-  party('Issued To', ISSUED_TO, M + half + gap);
+  party('From (Issued By)', ISSUED_BY, M);
+  party('To (Debited Party)', ISSUED_TO, M + half + 5);
   y += cardH + 9;
 
   // ── Letter ──────────────────────────────────────────────
@@ -165,25 +147,25 @@ export async function generateDebitNotePdf(note: DebitNote) {
   doc.setTextColor(...C.ink);
   doc.text('Dear Sirs,', M, y);
   y += 5.5;
-  font(doc, note.BODY_TEXT);
-  doc.setFontSize(9.3);
+  if (hasArabic(note.BODY_TEXT)) doc.setFont('Amiri', 'normal');
+  else doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9.2);
   doc.setTextColor(...C.text);
   const body = doc.splitTextToSize(note.BODY_TEXT, CW) as string[];
   if (hasArabic(note.BODY_TEXT)) doc.text(body, W - M, y, { align: 'right' });
-  else doc.text(body, M, y, { lineHeightFactor: 1.4 });
-  y += body.length * 4.6 + 3;
+  else doc.text(body, M, y, { lineHeightFactor: 1.45 });
+  y += body.length * 4.7 + 3;
 
   // ── Lines table ─────────────────────────────────────────
-  const descW = CW - 14 - 36;
   autoTable(doc, {
     startY: y,
-    margin: { left: M, right: M, bottom: 24 },
+    margin: { left: M, right: M, bottom: 16 },
     theme: 'plain',
     head: [['No.', 'Description', 'Amount (AED)']],
     body: note.LINES.map((l, i) => [String(i + 1).padStart(2, '0'), l.description, formatAmount(l.amount)]),
-    styles: { font: 'helvetica', fontSize: 8.8, textColor: C.ink, cellPadding: { top: 3.2, bottom: 3.2, left: 3.5, right: 3.5 }, halign: 'center', valign: 'middle' },
-    headStyles: { halign: 'center', fillColor: C.navy, textColor: C.white, fontStyle: 'bold', fontSize: 7.6, cellPadding: { top: 3, bottom: 3, left: 3.5, right: 3.5 } },
-    columnStyles: { 0: { cellWidth: 14, textColor: C.accent, fontStyle: 'bold' }, 1: { cellWidth: descW }, 2: { cellWidth: 36, halign: 'center', fontStyle: 'bold' } },
+    styles: { font: 'helvetica', fontSize: 8.8, textColor: C.ink, halign: 'center', valign: 'middle', cellPadding: { top: 3.4, bottom: 3.4, left: 3, right: 3 } },
+    headStyles: { fillColor: C.navy, textColor: C.white, fontStyle: 'bold', fontSize: 7.6, halign: 'center' },
+    columnStyles: { 0: { cellWidth: 14, textColor: C.accent, fontStyle: 'bold' }, 1: { cellWidth: CW - 14 - 38 }, 2: { cellWidth: 38, fontStyle: 'bold' } },
     didParseCell: (d) => {
       if (d.section !== 'body') return;
       if (d.row.index % 2 === 1) d.cell.styles.fillColor = C.zebra;
@@ -193,48 +175,63 @@ export async function generateDebitNotePdf(note: DebitNote) {
       }
     },
     didDrawCell: (d) => {
-      if (d.section === 'body') {
-        d.doc.setDrawColor(...C.border);
-        d.doc.setLineWidth(0.25);
-        d.doc.line(d.cell.x, d.cell.y + d.cell.height, d.cell.x + d.cell.width, d.cell.y + d.cell.height);
-      }
+      if (d.section !== 'body') return;
+      d.doc.setDrawColor(...C.border);
+      d.doc.setLineWidth(0.25);
+      d.doc.line(d.cell.x, d.cell.y + d.cell.height, d.cell.x + d.cell.width, d.cell.y + d.cell.height);
     },
   });
   y = (doc as any).lastAutoTable.finalY + 5;
 
-  // ── Total panel ─────────────────────────────────────────
-  const tpw = 96;
-  doc.setFillColor(...C.navy);
-  doc.roundedRect(W - M - tpw, y, tpw, 13, 2.5, 2.5, 'F');
-  smallLabel(doc, 'Total Amount Debited', W - M - tpw + 5, y + 8, C.accentSoft);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(12);
-  doc.setTextColor(...C.white);
-  doc.text(`AED ${formatAmount(note.TOTAL)}`, W - M - 5, y + 8.6, { align: 'right' });
-  y += 13 + 7;
-
-  // ── Amount in words ─────────────────────────────────────
+  // ── Amount in words (left) + totals (right) ─────────────
+  const tw = 78;
+  const tx = W - M - tw;
+  const ww = CW - tw - 6;
   doc.setFont('helvetica', 'italic');
-  doc.setFontSize(9);
-  const words = doc.splitTextToSize(note.AMOUNT_IN_WORDS, CW - 12) as string[];
-  const wh = 9 + words.length * 4.3;
+  doc.setFontSize(8.8);
+  const words = doc.splitTextToSize(note.AMOUNT_IN_WORDS, ww - 12) as string[];
+  const boxH = Math.max(26, 14 + words.length * 4.2);
+
+  doc.setDrawColor(...C.border);
   doc.setFillColor(...C.soft);
-  doc.roundedRect(M, y, CW, wh, 2.5, 2.5, 'F');
-  doc.setFillColor(...C.accent);
-  doc.rect(M, y, 1.4, wh, 'F');
-  smallLabel(doc, 'Amount in words', M + 6, y + 5.5, C.navy);
-  doc.setFont('helvetica', 'italic');
-  doc.setFontSize(9);
-  doc.setTextColor(...C.ink);
-  doc.text(words, M + 6, y + 10.5);
-  y += wh + 7;
+  doc.roundedRect(tx, y, tw, boxH, 2.5, 2.5, 'FD');
+  const sub = (l: string, v: string, yy: number) => {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.6);
+    doc.setTextColor(...C.text);
+    doc.text(l, tx + 5, yy);
+    doc.text(v, W - M - 5, yy, { align: 'right' });
+  };
+  sub('Lines', String(note.LINES.length), y + 6.5);
+  sub('Subtotal (AED)', formatAmount(note.TOTAL), y + 12);
+  doc.setFillColor(...C.navy);
+  doc.roundedRect(tx, y + boxH - 11, tw, 11, 2.5, 2.5, 'F');
+  label('Total Debited', tx + 5, y + boxH - 4.2, C.accent, 6.8);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11.5);
+  doc.setTextColor(...C.white);
+  doc.text(`AED ${formatAmount(note.TOTAL)}`, W - M - 5, y + boxH - 3.7, { align: 'right' });
 
-  // ── Supporting documents ───────────────────────────────
-  smallLabel(doc, 'Supporting documents', M, y, C.navy);
+  doc.setFillColor(...C.white);
+  doc.setDrawColor(...C.border);
+  doc.roundedRect(M, y, ww, boxH, 2.5, 2.5, 'FD');
+  doc.setFillColor(...C.accent);
+  doc.rect(M, y + 4, 1.2, boxH - 8, 'F');
+  label('Amount in words', M + 6, y + 6.5, C.navy);
+  doc.setFont('helvetica', 'italic');
+  doc.setFontSize(8.8);
+  doc.setTextColor(...C.ink);
+  doc.text(words, M + 6, y + 12, { lineHeightFactor: 1.35 });
+  y += boxH + 8;
+
+  // ── Attachments note ────────────────────────────────────
+  doc.setFillColor(...C.accent);
+  doc.circle(M + 1.2, y - 1.1, 0.9, 'F');
+  label('Attachments', M + 4, y, C.navy, 7);
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8.5);
+  doc.setFontSize(8.4);
   doc.setTextColor(...C.grey);
-  doc.text(doc.splitTextToSize(SUPPORTING_TEXT, CW) as string[], M, y + 5);
+  doc.text(SUPPORTING_TEXT, M + 4 + doc.getTextWidth('ATTACHMENTS') + 10, y);
 
   const fileName = `${note.ID}_Debit_Note.pdf`;
   saveTrackedPdf(doc, fileName);

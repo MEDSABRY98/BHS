@@ -50,9 +50,9 @@ export const ISSUED_TO = {
 };
 
 export const DEFAULT_BODY =
-  'Please note that we have debited your account with the amount below, being the balance transferred from Al Marai – Dubai FMCG to Al Marai – Al Ain, as detailed in the attached schedule.';
+  'Please note that we have debited your account with the amount below, being the balance transferred from Al Marai – Dubai FMCG to Al Marai – Al Ain, as per the attached documents.';
 
-export const SUPPORTING_TEXT = 'Detailed schedule and original documents attached; they form an integral part of this debit note.';
+export const SUPPORTING_TEXT = 'Supporting documents attached; they form an integral part of this debit note.';
 
 // ── Helpers ─────────────────────────────────────────────────────────────
 export function round2(n: number): number {
