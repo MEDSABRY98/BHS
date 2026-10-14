@@ -201,7 +201,7 @@ export default function TransferRequestsPage() {
                   banks={banks}
                   beneficiaries={beneficiaries}
                   viewAll={permissions.viewAll}
-                  canEdit={visibleTabs.includes('new')}
+                  canEdit={permissions.viewAll && visibleTabs.includes('new')} // edit & delete: admin only
                   onEdit={(r) => {
                     setEditRequest(r);
                     setActiveTab('new');

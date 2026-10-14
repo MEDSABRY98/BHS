@@ -61,7 +61,7 @@ export default function VouchersPage() {
             const perms = await getVoucherPermissions();
             setPermissions(perms);
           } catch {
-            setPermissions({ in: { create: false, view: false }, out: { create: false, view: false }, stats: false });
+            setPermissions({ in: { create: false, view: false }, out: { create: false, view: false }, admin: false, stats: false });
           }
         }
       } catch (error) {
@@ -94,7 +94,7 @@ export default function VouchersPage() {
       const perms = await getVoucherPermissions();
       setPermissions(perms);
     } catch {
-      setPermissions({ in: { create: false, view: false }, out: { create: false, view: false }, stats: false });
+      setPermissions({ in: { create: false, view: false }, out: { create: false, view: false }, admin: false, stats: false });
     }
   };
 
@@ -190,7 +190,7 @@ export default function VouchersPage() {
               <div className={activeTab === 'saved' ? 'block' : 'hidden'}>
                 {visibleTabs.includes('saved') && (
                   <VouchersRegister
-                    canEdit={{ IN: permissions.in.create, OUT: permissions.out.create }}
+                    canEdit={{ IN: permissions.admin, OUT: permissions.admin }}
                     currentUserName={currentUser?.name || ''}
                     onEdit={(v) => {
                       setEditVoucher(v);

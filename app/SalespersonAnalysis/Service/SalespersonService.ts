@@ -44,7 +44,22 @@ function shiftYear(iso: string, years: number): string {
 async function requireUser(): Promise<SessionUserRecord> {
   const user = await getSessionUser();
   if (!user) throw new UnauthorizedError('Your session has expired. Please log in again.');
+  if (!hasModuleAccess(user)) throw new UnauthorizedError("You don't have access to Salesperson Analysis.");
   return user;
+}
+
+/** Admin Control → 'salesperson-analysis' must be enabled for the user (admins always). */
+function hasModuleAccess(user: SessionUserRecord): boolean {
+  if (isAdminUser(user)) return true;
+  try {
+    const roleStr = String(user.role || '').trim();
+    if (!roleStr || roleStr === 'Admin') return true;
+    const perms = JSON.parse(roleStr);
+    if (Array.isArray(perms.systems)) return perms.systems.includes('salesperson-analysis');
+  } catch {
+    // no permissions JSON: open (same default as the other modules)
+  }
+  return true;
 }
 
 /** Same rule as the Sales module: admins always; FULL DATA ACCESS alone does not unlock costs. */

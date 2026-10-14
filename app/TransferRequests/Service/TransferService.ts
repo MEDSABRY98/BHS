@@ -36,7 +36,7 @@ function permissionsOf(user: SessionUserRecord): TransferPermissions {
   if (admin) return { tabs: [...ALL_TABS], viewAll: true };
 
   const raw = String(user.role || '').trim();
-  if (!raw || raw === 'Admin') return { tabs: [...ALL_TABS], viewAll: raw === 'Admin' };
+  if (!raw) return { tabs: [...ALL_TABS], viewAll: false };
 
   let perms: Record<string, unknown>;
   try {
@@ -197,7 +197,7 @@ export async function saveTransferRequest(input: TransferRequestInput): Promise<
     const { data: existing, error: findErr } = await db.from(REQUESTS).select('ID, CREATED_BY, TRANSFER_TYPE').eq('ID', id).maybeSingle();
     if (findErr) throw new Error(findErr.message);
     if (!existing) throw new Error('This request no longer exists');
-    if (!perms.viewAll && existing.CREATED_BY !== user.id) throw new UnauthorizedError('You can only edit your own requests');
+    if (!perms.viewAll) throw new UnauthorizedError('Only the admin can edit a saved request');
     if ((existing.TRANSFER_TYPE === 'INTERNAL') !== (type === 'INTERNAL')) {
       throw new Error("An internal request can't be changed to Al Ain / Dubai (or the opposite) — create a new request");
     }
@@ -214,13 +214,13 @@ export async function saveTransferRequest(input: TransferRequestInput): Promise<
 }
 
 export async function deleteTransferRequest(id: string): Promise<{ success: true }> {
-  const { user, perms } = await requireTab('requests');
+  const { perms } = await requireTab('requests');
+  if (!perms.viewAll) throw new UnauthorizedError('Only the admin can delete a request');
   const reqId = requireUuid(id);
   const db = getSupabaseAdmin();
   const { data: existing, error } = await db.from(REQUESTS).select('CREATED_BY').eq('ID', reqId).maybeSingle();
   if (error) throw new Error(error.message);
   if (!existing) return { success: true };
-  if (!perms.viewAll && existing.CREATED_BY !== user.id) throw new UnauthorizedError('You can only delete your own requests');
   const { error: delErr } = await db.from(REQUESTS).delete().eq('ID', reqId);
   if (delErr) throw new Error(delErr.message);
   return { success: true };

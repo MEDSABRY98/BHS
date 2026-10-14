@@ -28,8 +28,7 @@ const PATH_SYSTEMS: { prefix: string; ids: string[] }[] = [
   { prefix: '/CustomersAnalysis', ids: ['debit', 'customers-analysis'] },
   { prefix: '/SuppliersAnalysis', ids: ['suppliers-analysis'] },
   { prefix: '/PaymentAnalysis', ids: ['payment-analysis'] },
-  // /SalespersonAnalysis is open to every user (the server returns only the user's own data
-  // unless he has full data access), so it has no entry here.
+  { prefix: '/SalespersonAnalysis', ids: ['salesperson-analysis'] },
   { prefix: '/CustomersDocuments', ids: ['customers-documents'] },
   { prefix: '/FinancialModel', ids: ['financial-model'] },
   { prefix: '/IntercompanyReconciliation', ids: ['intercompany-reconciliation'] },

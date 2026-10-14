@@ -107,8 +107,6 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
   const isSystemAllowed = (systemId: string) => {
     const userName = currentUser?.name?.toLowerCase() || '';
     if (userName === 'med sabry') return true;
-    // Open to everyone: each salesperson sees only his own data, full data access sees all
-    if (systemId === 'salesperson-analysis') return true;
 
     try {
       const roleStr = currentUser?.role || '';
