@@ -241,8 +241,9 @@ export async function generateVoucherPdf(v: CashVoucher, opts: VoucherPdfOptions
     smartText(doc, name || ' ', x, sy + 29.5, sw, 9.5);
   };
   const ourSide = v.CREATED_BY || opts.printedBy || '';
-  sign(L.signLeft, ourSide, M, opts.signature);
-  sign(L.signRight, v.TYPE === 'IN' ? (v.VIA || v.PARTY) : v.PARTY, M + sw + 20);
+  // "Paid By" signature is not printed on either voucher type
+  if (L.signLeft !== 'Paid By') sign(L.signLeft, ourSide, M, opts.signature);
+  if (L.signRight !== 'Paid By') sign(L.signRight, v.TYPE === 'IN' ? (v.VIA || v.PARTY) : v.PARTY, M + sw + 20);
 
   // ── Footer on every page ─────────────────────────────────
   const pages = doc.getNumberOfPages();

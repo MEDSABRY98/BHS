@@ -13,6 +13,7 @@ export const TRANSFER_TYPES: { value: TransferType; label: string; short: string
 
 export const CURRENCIES: { code: string; name: string; sub: string }[] = [
   { code: 'AED', name: 'UAE Dirhams', sub: 'Fils' },
+  { code: 'EGP', name: 'Egyptian Pounds', sub: 'Piastres' },
   { code: 'USD', name: 'US Dollars', sub: 'Cents' },
   { code: 'EUR', name: 'Euros', sub: 'Cents' },
   { code: 'SAR', name: 'Saudi Riyals', sub: 'Halalas' },

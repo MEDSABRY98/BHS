@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Loader2, Edit2, Save, Trash2 } from 'lucide-react';
 import { updateAccount, deleteAccount, FinancialAccount } from '../../Service/FinancialService';
+import FieldSelect, { PL_TYPE_OPTIONS, CF_TYPE_OPTIONS, CF_DIRECTION_OPTIONS, COST_BEHAVIOR_OPTIONS } from './FieldSelect';
 
 interface EditAccountModalProps {
   account: FinancialAccount;
@@ -51,8 +52,8 @@ export default function EditAccountModal({ account, onClose, onSuccess, statemen
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
-        <div className="flex items-center justify-between p-6 border-b border-slate-100 bg-slate-50/50">
+      <div className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl animate-in zoom-in-95 duration-200">
+        <div className="flex items-center justify-between p-6 border-b border-slate-100 bg-slate-50/50 rounded-t-3xl">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-[#0f0f0f] flex items-center justify-center shadow-lg shadow-black/10">
               <Edit2 className="w-5 h-5 text-[#D4AF37]" />
@@ -73,24 +74,13 @@ export default function EditAccountModal({ account, onClose, onSuccess, statemen
           </div>
         </div>
 
-        <form onSubmit={handleSave} className="p-6 space-y-4">
+        <form onSubmit={handleSave} className="p-6 sm:p-8 space-y-5">
           {error && (
             <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-600 text-sm font-bold">
               {error}
             </div>
           )}
           
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Account Code *</label>
-            <input 
-              type="text" 
-              value={accountCode}
-              onChange={(e) => setAccountCode(e.target.value)}
-              placeholder="e.g. REV-04"
-              className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#D4AF37] focus:border-[#D4AF37] transition-all text-slate-900 font-semibold"
-            />
-          </div>
-
           <div className="space-y-1.5">
             <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Account Name *</label>
             <input 
@@ -102,45 +92,26 @@ export default function EditAccountModal({ account, onClose, onSuccess, statemen
             />
           </div>
 
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Account Code *</label>
+            <input 
+              type="text" 
+              value={accountCode}
+              onChange={(e) => setAccountCode(e.target.value)}
+              placeholder="e.g. REV-04"
+              className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#D4AF37] focus:border-[#D4AF37] transition-all text-slate-900 font-semibold"
+            />
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Account Type *</label>
-              <select 
-                value={accountType}
-                onChange={(e) => setAccountType(e.target.value)}
-                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#D4AF37] focus:border-[#D4AF37] transition-all text-slate-900 font-semibold"
-              >
-                {statementType === 'PL' ? (
-                  <>
-                    <option value="REVENUE">Revenue</option>
-                    <option value="COGS">COGS (Cost)</option>
-                    <option value="DIRECT_EXPENSE">Direct Expenses</option>
-                    <option value="INDIRECT_EXPENSE">Indirect Expenses</option>
-                    <option value="DEPRECIATION">Depreciation</option>
-                    <option value="FINANCE_COST">Finance Cost (Interest)</option>
-                    <option value="TAXES">Taxes</option>
-                  </>
-                ) : (
-                  <>
-                    <option value="OPENING_BALANCE">Opening Balance</option>
-                    <option value="OPERATING">Operating Activities</option>
-                    <option value="INVESTING">Investing Activities</option>
-                    <option value="FINANCING">Financing Activities</option>
-                  </>
-                )}
-              </select>
+              <FieldSelect value={accountType} options={statementType === 'PL' ? PL_TYPE_OPTIONS : CF_TYPE_OPTIONS} onChange={setAccountType} />
             </div>
             {statementType === 'CF' && (
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Cash Flow Direction *</label>
-                <select 
-                  value={cfDirection}
-                  onChange={(e) => setCfDirection(e.target.value as 'IN'|'OUT')}
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#D4AF37] focus:border-[#D4AF37] transition-all text-slate-900 font-semibold"
-                >
-                  <option value="IN">Inflow (+)</option>
-                  <option value="OUT">Outflow (-)</option>
-                </select>
+                <FieldSelect value={cfDirection} options={CF_DIRECTION_OPTIONS} onChange={(v) => setCfDirection(v as 'IN' | 'OUT')} />
               </div>
             )}
             <div className="space-y-1.5">
@@ -156,15 +127,7 @@ export default function EditAccountModal({ account, onClose, onSuccess, statemen
             {statementType === 'PL' && (
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Cost Behavior</label>
-                <select 
-                  value={costBehavior}
-                  onChange={(e) => setCostBehavior(e.target.value as 'VARIABLE' | 'FIXED' | '')}
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#D4AF37] focus:border-[#D4AF37] transition-all text-slate-900 font-semibold"
-                >
-                  <option value="">Auto (Default)</option>
-                  <option value="VARIABLE">Variable Cost</option>
-                  <option value="FIXED">Fixed Cost</option>
-                </select>
+                <FieldSelect value={costBehavior} options={COST_BEHAVIOR_OPTIONS} onChange={(v) => setCostBehavior(v as 'VARIABLE' | 'FIXED' | '')} />
               </div>
             )}
           </div>
