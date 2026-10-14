@@ -21,7 +21,7 @@ import { FmtDay, GOLD, INK, KpiCard, Money, Panel, SLATE, ShortMoney, SimpleTabl
 export default function CollectionsTab() {
   const { data } = UseSalespersonData();
   const c = useMemo(() => (data ? ComputeCollections(data) : null), [data]);
-  const [view, setView] = useState<'customers' | 'unpaid' | 'recent'>('customers');
+  const [view, setView] = useState<'customers' | 'unpaid'>('customers');
 
   if (!data || !c) return null;
 
@@ -97,13 +97,11 @@ export default function CollectionsTab() {
       </div>
 
       <Panel
-        title={view === 'customers' ? 'Collections per Customer' : view === 'unpaid' ? 'Customers Who Did Not Pay' : 'Latest Payments'}
+        title={view === 'customers' ? 'Collections per Customer' : 'Customers Who Did Not Pay'}
         subtitle={
           view === 'customers'
             ? 'Net collected in the period'
-            : view === 'unpaid'
-              ? 'Balance and no payment in the period'
-              : 'Last 15 payments in the period'
+            : 'Balance and no payment in the period'
         }
         right={
           <div className="flex bg-slate-100 rounded-xl p-1 gap-1">
@@ -111,7 +109,6 @@ export default function CollectionsTab() {
               [
                 ['customers', `Customers (${c.customers.length})`],
                 ['unpaid', `Did Not Pay (${c.unpaid.length})`],
-                ['recent', 'Latest'],
               ] as const
             ).map(([key, label]) => (
               <button
@@ -138,7 +135,7 @@ export default function CollectionsTab() {
             ]}
             footer={['', 'TOTAL', '', Money(c.customers.reduce((s, r) => s + r.net, 0)), Whole(c.cur.payments), '']}
           />
-        ) : view === 'unpaid' ? (
+        ) : (
           <SimpleTable
             rows={c.unpaid}
             empty="Every customer with a balance paid in this period"
@@ -161,17 +158,6 @@ export default function CollectionsTab() {
               },
             ]}
             footer={['', 'TOTAL', '', Money(c.unpaid.reduce((s, r) => s + r.balance, 0)), '', '']}
-          />
-        ) : (
-          <SimpleTable
-            rows={c.recent}
-            empty="No payments in this period"
-            columns={[
-              { header: 'Date', cell: (r) => FmtDay(r.date) },
-              { header: 'Customer', cell: (r) => <span className="font-bold text-slate-900">{r.customer}</span> },
-              { header: 'Number', cell: (r) => <span className="font-mono text-xs">{r.number}</span> },
-              { header: 'Amount', cell: (r) => <span className="font-mono font-bold">{Money(r.amount)}</span> },
-            ]}
           />
         )}
       </Panel>

@@ -367,7 +367,20 @@ export default function EntriesTab({ entries, permissions, onReload, onEntryChan
       {/* Table */}
       <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full table-fixed text-sm">
+            <colgroup>
+              {canSelect && <col className="w-11" />}
+              <col className="w-12" />
+              <col className="w-28" />
+              <col />
+              <col className="w-64" />
+              <col className="w-64" />
+              <col className="w-20" />
+              <col className="w-32" />
+              <col className="w-32" />
+              <col className="w-32" />
+              {hasActions && <col className="w-24" />}
+            </colgroup>
             <thead>
               <tr className="bg-[#0a0f1d] text-[11px] font-black uppercase tracking-[0.15em] text-[#D4AF37] text-center">
                 {canSelect && (
@@ -406,25 +419,25 @@ export default function EntriesTab({ entries, permissions, onReload, onEntryChan
                       )}
                       <td className="py-3 px-3 text-xs font-bold text-slate-400">{(page - 1) * PAGE_SIZE + i + 1}</td>
                       <td className="py-3 px-3 font-semibold text-slate-700 whitespace-nowrap">{formatDate(e.ENTRY_DATE)}</td>
-                      <td className="py-3 px-3 max-w-[220px]" dir="auto">
+                      <td className="py-3 px-3" dir="auto">
                         {e.ACCOUNT_NAME ? (
-                          <span className="block truncate font-semibold text-slate-700" title={e.ACCOUNT_NAME}>{e.ACCOUNT_NAME}</span>
+                          <span className="block font-semibold text-slate-700 [overflow-wrap:anywhere]">{e.ACCOUNT_NAME}</span>
                         ) : (
                           <span className="text-slate-300">—</span>
                         )}
                       </td>
-                      <td className="py-3 px-3 whitespace-nowrap">
+                      <td className="py-3 px-3">
                         {e.AIN_ENTRY_NUMBER ? (
-                          <span className="font-bold text-slate-900">{e.AIN_ENTRY_NUMBER}</span>
+                          <span className="font-bold text-slate-900 [overflow-wrap:anywhere]">{e.AIN_ENTRY_NUMBER}</span>
                         ) : (
                           <span className="px-2.5 py-1 rounded-lg bg-amber-100 text-amber-700 text-[11px] font-black uppercase tracking-wider">Missing</span>
                         )}
                       </td>
-                      <td className="py-3 px-3 whitespace-nowrap">
+                      <td className="py-3 px-3">
                         {!e.DUBAI_ENTRY_NUMBER ? (
                           <span className="px-2.5 py-1 rounded-lg bg-amber-100 text-amber-700 text-[11px] font-black uppercase tracking-wider">Missing</span>
                         ) : (
-                          <span className="font-bold text-slate-900">{e.DUBAI_ENTRY_NUMBER}</span>
+                          <span className="font-bold text-slate-900 [overflow-wrap:anywhere]">{e.DUBAI_ENTRY_NUMBER}</span>
                         )}
                       </td>
                       <td className="py-3 px-3">
