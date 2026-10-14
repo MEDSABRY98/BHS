@@ -392,12 +392,11 @@ export default function EntriesTab({ entries, permissions, onReload, onEntryChan
                 <NoData isTable colSpan={colCount} title={entries.length ? 'NO MATCHING LINES' : 'NO ENTRIES YET'} message={entries.length ? undefined : 'Use the Excel button to upload the entries'} />
               ) : (
                 pageRows.map((e, i) => {
-                  const missing = !e.DUBAI_ENTRY_NUMBER || !e.AIN_ENTRY_NUMBER;
                   return (
                     <tr
                       key={e.ID}
                       className={`text-center transition-colors ${
-                        selected.has(e.ID) ? 'bg-blue-50/70 hover:bg-blue-50' : missing ? 'bg-amber-50/50 hover:bg-amber-50' : 'hover:bg-slate-50/70'
+                        selected.has(e.ID) ? 'bg-blue-50/70 hover:bg-blue-50' : 'hover:bg-slate-50/70'
                       }`}
                     >
                       {canSelect && (
