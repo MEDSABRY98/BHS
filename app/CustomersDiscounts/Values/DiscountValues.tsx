@@ -23,6 +23,7 @@ import {
 import { exportDiscountValuesExcel } from './ExportExcel';
 import { toast } from '@/app/Components/Notification';
 import TabLoader from '@/app/Components/Loading/TabLoader';
+import TabFetchError from '@/app/Components/DataState/TabFetchError';
 
 interface DiscountValuesProps {
   customers: CustomerView[];
@@ -110,6 +111,7 @@ export default function DiscountValues({ customers }: DiscountValuesProps) {
   const [settlements, setSettlements] = useState<SettlementLite[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [reloadKey, setReloadKey] = useState(0);
   const [exporting, setExporting] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [customerScope, setCustomerScope] = useState<CustomerScope>('all');
@@ -154,7 +156,7 @@ export default function DiscountValues({ customers }: DiscountValuesProps) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [reloadKey]);
 
   const filterMonth = useMemo(() => parseYearMonth(dateFrom), [dateFrom]);
 
@@ -324,14 +326,10 @@ export default function DiscountValues({ customers }: DiscountValuesProps) {
           </div>
         </div>
 
-        {error && (
-          <div className="bg-rose-50 border border-rose-100 text-rose-700 font-semibold text-sm rounded-2xl px-5 py-4">
-            {error}
-          </div>
-        )}
-
         {loading ? (
           <TabLoader className="!min-h-[60vh]" />
+        ) : error ? (
+          <TabFetchError message={error} onRetry={() => setReloadKey((k) => k + 1)} className="min-h-[50vh]" />
         ) : rows.length === 0 ? (
           <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-16 text-center">
             <Users className="mx-auto h-14 w-14 text-gray-300 mb-4" />

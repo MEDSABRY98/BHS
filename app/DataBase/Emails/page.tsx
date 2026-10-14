@@ -7,10 +7,12 @@ import NoData from '@/app/Components/DataState/NoDataTab';
 import { toast } from '@/app/Components/Notification';
 import { fetchNormalEmails, addNormalEmail, updateNormalEmail, deleteNormalEmail } from '../Service/database_service';
 import TabLoader from '@/app/Components/Loading/TabLoader';
+import TabFetchError from '@/app/Components/DataState/TabFetchError';
 
 export default function EmailsDatabasePage() {
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -28,13 +30,17 @@ export default function EmailsDatabasePage() {
 
   const loadData = async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const res = await fetchNormalEmails();
       if (res.success && res.data) {
         setData(res.data);
+      } else {
+        setLoadError((res as any)?.error || 'Failed to load emails');
       }
     } catch (error) {
       console.error(error);
+      setLoadError(error instanceof Error ? error.message : 'Failed to load emails');
     } finally {
       setLoading(false);
     }
@@ -176,6 +182,8 @@ export default function EmailsDatabasePage() {
                     <TabLoader className="!min-h-[50vh]" />
                   </td>
                 </tr>
+              ) : loadError ? (
+                <TabFetchError isTable colSpan={4} message={loadError} onRetry={() => void loadData()} />
               ) : filteredData.length === 0 ? (
                 <tr>
                   <td colSpan={4} className="p-0">

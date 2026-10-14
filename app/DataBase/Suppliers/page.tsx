@@ -25,11 +25,13 @@ import { usePermissions } from '../../LPOs/Hooks/usePermissions';
 import { exportDatabaseExcel } from '../Utils/ExcelExport';
 import { downloadUploadIssuesReport, normalizeExcelId } from '../Utils/ExcelUploadUtils';
 import TabLoader from '@/app/Components/Loading/TabLoader';
+import TabFetchError from '@/app/Components/DataState/TabFetchError';
 
 export default function SuppliersPage() {
   const { canEdit, canDelete } = usePermissions();
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<any>(null);
@@ -58,6 +60,7 @@ export default function SuppliersPage() {
   }, [searchTerm, currentPage]);
 
   async function fetchSuppliers(search: string = '', page: number = 1) {
+    setLoadError(null);
     try {
       const start = (page - 1) * itemsPerPage;
       const end = start + itemsPerPage - 1;
@@ -80,6 +83,7 @@ export default function SuppliersPage() {
       setTotalCount(count || 0);
     } catch (err) {
       console.error(err);
+      setLoadError(err instanceof Error ? err.message : (err as any)?.message || 'Failed to load suppliers');
     } finally {
       setIsLoading(false);
     }
@@ -460,6 +464,8 @@ export default function SuppliersPage() {
 
       {isLoading ? (
         <TabLoader className="!min-h-[60vh]" />
+      ) : loadError ? (
+        <TabFetchError message={loadError} onRetry={() => void fetchSuppliers(searchTerm, currentPage)} className="min-h-[60vh]" />
       ) : suppliers.length === 0 ? (
         <NoData title="NO SUPPLIERS FOUND" />
       ) : (

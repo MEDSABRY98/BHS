@@ -12,6 +12,7 @@ import { getSalesMonthsCache, deleteSalesMonth, buildSalesCache, deleteAllSalesD
 import { exportDatabaseExcelTable } from '../Utils/ExcelExport';
 import { downloadUploadIssuesReport, normalizeExcelId } from '../Utils/ExcelUploadUtils';
 import TabLoader from '@/app/Components/Loading/TabLoader';
+import TabFetchError from '@/app/Components/DataState/TabFetchError';
 
 const englishMonths: Record<number, string> = {
   1: "January", 2: "February", 3: "March", 4: "April", 5: "May", 6: "June",
@@ -29,6 +30,7 @@ export default function SalesDBPage() {
   const [salesMonths, setSalesMonths] = useState<SalesMonth[]>([]);
   const totalCount = salesMonths.reduce((sum, m) => sum + m.count, 0);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [targetMonth, setTargetMonth] = useState<{ year: number; month: number } | null>(null);
@@ -47,12 +49,13 @@ export default function SalesDBPage() {
 
   async function fetchSalesMonths(forceRefresh = false) {
     setIsLoading(true);
+    setLoadError(null);
     try {
       const monthsData = await getSalesMonthsCache(forceRefresh);
       setSalesMonths(monthsData || []);
     } catch (err: any) {
       console.error(err);
-      triggerMessage('error', err.message || 'Failed to load sales months');
+      setLoadError(err?.message || 'Failed to load sales months');
     } finally {
       setIsLoading(false);
     }
@@ -664,6 +667,8 @@ export default function SalesDBPage() {
       {/* Grid of Months */}
       {isLoading && salesMonths.length === 0 ? (
         <TabLoader className="!min-h-[60vh]" />
+      ) : loadError ? (
+        <TabFetchError message={loadError} onRetry={() => void fetchSalesMonths(true)} className="min-h-[60vh]" />
       ) : salesMonths.length === 0 ? (
         <NoData title="NO SALES DATA FOUND" />
       ) : (

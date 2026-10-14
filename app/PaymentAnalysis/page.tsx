@@ -7,6 +7,7 @@ import { PaymentAnalysisProvider, usePaymentAnalysis } from './Context/PaymentAn
 import TabLoader from '../Components/Loading/TabLoader';
 import MainLoader from '../Components/Loading/MainLoader';
 import NoData from '../Components/DataState/NoDataTab';
+import TabFetchError from '../Components/DataState/TabFetchError';
 
 import DashboardTab from './DashboardTab/DashboardTab';
 import CitiesTab from './CitiesTab/CitiesTab';
@@ -30,11 +31,19 @@ function PaymentAnalysisShell({
   isMobileSidebarOpen: boolean;
   setIsMobileSidebarOpen: (open: boolean) => void;
 }) {
-  const { loading, data } = usePaymentAnalysis();
+  const { loading, data, error, refresh, isRefreshing } = usePaymentAnalysis();
 
   const renderBody = () => {
     if (loading) {
       return <TabLoader className="!min-h-full flex-1" />;
+    }
+
+    if (error && (!data || data.length === 0)) {
+      return (
+        <div className="max-w-[92%] 2xl:max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-12 flex-1 w-full flex items-center justify-center min-h-[70vh]">
+          <TabFetchError message={error} onRetry={() => void refresh()} isRetrying={isRefreshing} />
+        </div>
+      );
     }
 
     if (!data || data.length === 0) {

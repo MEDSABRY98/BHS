@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Calendar, FileSpreadsheet, Download, Loader2, Search, X, ChevronRight, ChevronDown } from 'lucide-react';
 import TabLoader from '@/app/Components/Loading/TabLoader';
+import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import { toast } from '@/app/Components/Notification';
 import { fetchAccounts, fetchEntriesByYear, FinancialAccount, FinancialEntry } from '../Service/FinancialService';
@@ -24,6 +25,7 @@ export function IncomeStatementTab() {
   };
   
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [accounts, setAccounts] = useState<FinancialAccount[]>([]);
   const [entries, setEntries] = useState<FinancialEntry[]>([]);
   const [isExporting, setIsExporting] = useState(false);
@@ -48,6 +50,7 @@ export function IncomeStatementTab() {
   }, [selectedYear]);
 
   const loadData = async (silent = false) => {
+    if (!silent) setLoadError(null);
     if (!silent) setIsLoading(true);
     try {
       const [accs, yrEntries] = await Promise.all([
@@ -65,6 +68,7 @@ export function IncomeStatementTab() {
       setEntries(yrEntries);
     } catch (error) {
       console.error('Failed to load income statement data:', error);
+      if (!silent) setLoadError(error instanceof Error ? error.message : 'Unable to load the data.');
     } finally {
       if (!silent) setIsLoading(false);
     }
@@ -557,6 +561,8 @@ export function IncomeStatementTab() {
       
       {isLoading ? (
         <TabLoader className="!min-h-[60vh]" />
+      ) : loadError ? (
+        <TabFetchError message={loadError} onRetry={() => void loadData()} className="min-h-[60vh]" />
       ) : accounts.length === 0 ? (
         <NoData />
       ) : (

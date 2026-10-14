@@ -5,6 +5,7 @@ import { SalesInvoice } from '@/lib/supabase';
 import { ArrowLeft, Search } from 'lucide-react';
 import { useSalesModuleFilters } from '@/app/Sales/Model/SalesFilters';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
+import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import { getProductDetailsData } from '../Service/sales_products_service';
 import { trackSalesProductDetailsTab } from '@/app/Audit/Model/SalesTabAudit';
 
@@ -36,6 +37,8 @@ export default function SalesProductDetails({ productId, userId, onBack, initial
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const fetchRequestId = useRef(0);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   // Fetch product details when panel opens
   useEffect(() => {
@@ -47,6 +50,7 @@ export default function SalesProductDetails({ productId, userId, onBack, initial
         return;
       }
       setLoading(true);
+      setLoadError(null);
       try {
         const result = await getProductDetailsData(userId, filters, productId);
         if (requestId !== fetchRequestId.current) return;
@@ -55,6 +59,7 @@ export default function SalesProductDetails({ productId, userId, onBack, initial
       } catch (err) {
         if (requestId !== fetchRequestId.current) return;
         console.error('Error fetching Product Details:', err);
+        setLoadError(err instanceof Error ? err.message : 'Could not load product details');
       } finally {
         if (requestId === fetchRequestId.current) {
           setLoading(false);
@@ -66,7 +71,7 @@ export default function SalesProductDetails({ productId, userId, onBack, initial
     return () => {
       fetchRequestId.current += 1;
     };
-  }, [userId, filters, productId]);
+  }, [userId, filters, productId, reloadKey]);
 
   // Debounce search query
   useEffect(() => {
@@ -253,6 +258,10 @@ export default function SalesProductDetails({ productId, userId, onBack, initial
 
   if (loading) {
     return <SalesTabLoader />;
+  }
+
+  if (loadError) {
+    return <TabFetchError message={loadError} onRetry={() => setReloadKey((k) => k + 1)} className="min-h-[60vh]" />;
   }
 
   return (

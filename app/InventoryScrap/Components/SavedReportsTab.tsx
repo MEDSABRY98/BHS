@@ -9,6 +9,7 @@ import NoData from '@/app/Components/DataState/NoDataTab';
 import { toast } from '@/app/Components/Notification';
 import { getCurrentUserFromStorage, parseUserPermissions, isUnrestrictedAdminUser } from '@/app/AdminControl/AdminControlTab';
 import TabLoader from '@/app/Components/Loading/TabLoader';
+import TabFetchError from '@/app/Components/DataState/TabFetchError';
 
 interface ReportItem {
   productId: string;
@@ -35,6 +36,7 @@ interface SavedReportsTabProps {
 export default function SavedReportsTab({ refreshTrigger = 0 }: SavedReportsTabProps = {}) {
   const [reports, setReports] = useState<SavedReport[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [downloadingExcelId, setDownloadingExcelId] = useState<string | null>(null);
@@ -59,6 +61,7 @@ export default function SavedReportsTab({ refreshTrigger = 0 }: SavedReportsTabP
 
   const fetchSavedReports = async () => {
     setIsLoading(true);
+    setLoadError(null);
     try {
       const data = await fetchSavedScrapReports();
 
@@ -101,6 +104,7 @@ export default function SavedReportsTab({ refreshTrigger = 0 }: SavedReportsTabP
       setReports(sortedReports);
     } catch (err) {
       console.error('Error fetching saved reports:', err);
+      setLoadError(err instanceof Error ? err.message : 'Unable to load saved reports.');
     } finally {
       setIsLoading(false);
     }
@@ -269,6 +273,9 @@ export default function SavedReportsTab({ refreshTrigger = 0 }: SavedReportsTabP
     if (!isLoading) setFirstLoad(false);
   }, [isLoading]);
   if (firstLoad) return <TabLoader />;
+  if (loadError && !isLoading && reports.length === 0) {
+    return <TabFetchError message={loadError} onRetry={() => void fetchSavedReports()} className="min-h-[60vh]" />;
+  }
 
   return (
     <div className="space-y-8 select-none font-sans text-black">

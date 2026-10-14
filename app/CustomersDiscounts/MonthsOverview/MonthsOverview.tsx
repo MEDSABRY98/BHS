@@ -17,6 +17,7 @@ import {
   type CustomerMonthBucket,
 } from "../Utils/settlementUtils";
 import TabLoader from '@/app/Components/Loading/TabLoader';
+import TabFetchError from '@/app/Components/DataState/TabFetchError';
 
 type Settlement = {
   id: string;
@@ -47,6 +48,8 @@ export default function MonthsOverview({
   refreshKey = 0,
 }: MonthsOverviewProps) {
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [retryKey, setRetryKey] = useState(0);
   const [allSettlements, setAllSettlements] = useState<Settlement[]>([]);
 
   const [selectedMonthGroup, setSelectedMonthGroup] = useState<{ year: number; month: number } | null>(
@@ -67,6 +70,7 @@ export default function MonthsOverview({
     const fetchSettlements = async () => {
       try {
         setLoading(true);
+        setLoadError(null);
         const data = await fetchAllData(() =>
           bhs_supabase
             .from("web_CUSTOMERS_DISCOUNTS_SETTLEMENTS")
@@ -82,12 +86,13 @@ export default function MonthsOverview({
         setAllSettlements(mapped);
       } catch (err) {
         console.error("Error fetching settlements overview:", err);
+        setLoadError(err instanceof Error ? err.message : "Unable to load the months overview.");
       } finally {
         setLoading(false);
       }
     };
     fetchSettlements();
-  }, [refreshKey]);
+  }, [refreshKey, retryKey]);
 
   const monthStatsMap = useMemo(() => {
     const map = new Map<
@@ -274,6 +279,14 @@ export default function MonthsOverview({
   if (loading) {
     return (
       <TabLoader className="flex-1 !min-h-0" />
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="flex-1 flex items-center justify-center p-6">
+        <TabFetchError message={loadError} onRetry={() => setRetryKey((k) => k + 1)} />
+      </div>
     );
   }
 

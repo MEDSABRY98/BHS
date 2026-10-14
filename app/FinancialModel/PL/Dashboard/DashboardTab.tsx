@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, TrendingUp, TrendingDown, Activity, ArrowUpRight, ArrowDownRight, DollarSign, Percent, Briefcase, Target, PieChart, ShoppingCart, Award, Maximize2, X, BarChart2, LineChart as LineChartIcon } from 'lucide-react';
 import TabLoader from '@/app/Components/Loading/TabLoader';
+import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import { fetchAccounts, fetchEntriesByYear, FinancialAccount, FinancialEntry } from '../../Service/FinancialService';
 import { useFinancialModel } from '../../Context/FinancialModelContext';
@@ -22,6 +23,7 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 export function DashboardTab() {
   const { selectedYear, startMonth, endMonth } = useFinancialModel();
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [activeView, setActiveView] = useState<'CARDS' | 'CHARTS'>('CARDS');
   const [expandedChart, setExpandedChart] = useState<string | null>(null);
   const [chartType, setChartType] = useState<'bar' | 'line'>('bar');
@@ -38,6 +40,7 @@ export function DashboardTab() {
   }, [selectedYear]);
 
   const loadData = async (silent = false) => {
+    if (!silent) setLoadError(null);
     if (!silent) setIsLoading(true);
     try {
       const [accs, yrEntries] = await Promise.all([
@@ -48,6 +51,7 @@ export function DashboardTab() {
       setEntries(yrEntries);
     } catch (error) {
       console.error('Failed to load dashboard data:', error);
+      if (!silent) setLoadError(error instanceof Error ? error.message : 'Unable to load the data.');
     } finally {
       if (!silent) setIsLoading(false);
     }
@@ -595,6 +599,8 @@ export function DashboardTab() {
 
       {isLoading ? (
         <TabLoader className="!min-h-[60vh]" />
+      ) : loadError ? (
+        <TabFetchError message={loadError} onRetry={() => void loadData()} className="min-h-[60vh]" />
       ) : accounts.length === 0 ? (
         <NoData />
       ) : (

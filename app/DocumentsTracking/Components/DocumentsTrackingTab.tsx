@@ -9,6 +9,7 @@ import * as XLSX from 'xlsx';
 import { saveTrackedPdf } from '@/app/Audit/Utils/TrackedDownload';
 
 import { toast } from '@/app/Components/Notification';
+import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import './DocumentsTrackingTab.css';
 
 import {
@@ -77,6 +78,7 @@ export default function DocumentsTrackingTab({ currentUser }: { currentUser?: an
 
     // Global loading state
     const [isLoading, setIsLoading] = useState(false);
+    const [loadError, setLoadError] = useState<string | null>(null);
 
     const showNotify = (msg: string, type: 'success' | 'error' = 'success') => {
         if (type === 'success') {
@@ -88,6 +90,7 @@ export default function DocumentsTrackingTab({ currentUser }: { currentUser?: an
 
     const fetchChecks = async () => {
         setIsLoading(true);
+        setLoadError(null);
         try {
             const data = await getDocumentsTracking();
             if (data && data.records) {
@@ -119,7 +122,7 @@ export default function DocumentsTrackingTab({ currentUser }: { currentUser?: an
             }
         } catch (error) {
             console.error('Error fetching checks:', error);
-            showNotify('Error loading data from server', 'error');
+            setLoadError(error instanceof Error ? error.message : 'Unable to load documents from the server.');
         } finally {
             setIsLoading(false);
         }
@@ -637,6 +640,10 @@ export default function DocumentsTrackingTab({ currentUser }: { currentUser?: an
                     />
                 )}
 
+                {activeSubTab !== 'register' && loadError && checks.length === 0 ? (
+                    <TabFetchError message={loadError} onRetry={() => void fetchChecks()} isRetrying={isLoading} className="min-h-[50vh]" />
+                ) : (
+                <>
                 {activeSubTab === 'list' && (
                     <ListTab
                         checks={checks}
@@ -659,6 +666,8 @@ export default function DocumentsTrackingTab({ currentUser }: { currentUser?: an
                             exportReceiverToExcel(`${name}_${dateLabel.replace(/\//g, '-')}`, items);
                         }}
                     />
+                )}
+                </>
                 )}
             </div>
 

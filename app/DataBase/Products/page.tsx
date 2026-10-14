@@ -31,6 +31,7 @@ import { exportDatabaseExcel } from '../Utils/ExcelExport';
 import { downloadUploadIssuesReport, normalizeExcelId } from '../Utils/ExcelUploadUtils';
 import { updateProductIdCascade } from '../Service/database_service';
 import TabLoader from '@/app/Components/Loading/TabLoader';
+import TabFetchError from '@/app/Components/DataState/TabFetchError';
 
 function roundProductCost(value: unknown): number {
   const n = typeof value === 'number' ? value : Number(String(value ?? '').replace(/,/g, ''));
@@ -47,6 +48,7 @@ export default function ProductsPage() {
   const { canEdit, canDelete, isLoaded } = usePermissions();
   const [products, setProducts] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<any>(null);
@@ -100,6 +102,7 @@ export default function ProductsPage() {
   }, [activeTab]);
 
   async function fetchProducts(search: string = '', page: number = 1) {
+    setLoadError(null);
     try {
       const start = (page - 1) * itemsPerPage;
       const end = start + itemsPerPage - 1;
@@ -121,7 +124,7 @@ export default function ProductsPage() {
       setProducts(data || []);
       setTotalCount(count || 0);
     } catch (err: any) {
-      toast.error('Failed to load products: ' + err.message);
+      setLoadError(err?.message || 'Failed to load products');
     } finally {
       setIsLoading(false);
     }
@@ -694,6 +697,8 @@ export default function ProductsPage() {
 
       {isLoading ? (
         <TabLoader className="!min-h-[60vh]" />
+      ) : loadError ? (
+        <TabFetchError message={loadError} onRetry={() => void fetchProducts(searchTerm, currentPage)} className="min-h-[60vh]" />
       ) : paginatedProducts.length === 0 ? (
         <NoData title="NO PRODUCTS FOUND" />
       ) : (

@@ -5,6 +5,7 @@ import { Menu } from 'lucide-react';
 import Login from '@/app/Components/Auth/Login';
 import MainLoader from '@/app/Components/Loading/MainLoader';
 import TabLoader from '@/app/Components/Loading/TabLoader';
+import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import { toast } from '@/app/Components/Notification';
 import { restoreSessionUser } from '@/app/Components/Auth/sessionClient';
 import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
@@ -179,12 +180,7 @@ export default function PettyCashPage() {
                 loading && !loaded ? (
                   <TabLoader className="!min-h-[70vh] flex-1" />
                 ) : loadError && !loaded ? (
-                  <div className="p-20 text-center">
-                    <p className="font-bold text-red-500 mb-4">{loadError}</p>
-                    <button onClick={() => void loadData()} className="px-5 py-2.5 rounded-xl bg-[#0a0f1d] text-white text-sm font-bold">
-                      Try Again
-                    </button>
-                  </div>
+                  <TabFetchError message={loadError} onRetry={() => void loadData()} isRetrying={loading} className="min-h-[60vh]" />
                 ) : (
                   <PettyCashCards
                     items={items}

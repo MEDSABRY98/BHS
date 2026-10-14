@@ -18,6 +18,7 @@ type InventoryCountingArchiveContextValue = {
   isArchiveView: boolean;
   isReadOnly: boolean;
   loadingArchives: boolean;
+  archivesError: string | null;
   sessionVersion: number;
   notifySessionClosed: (resetLive: boolean) => void;
 };
@@ -29,6 +30,7 @@ export function InventoryCountingArchiveProvider({ children }: { children: React
   const [archiveId, setArchiveIdState] = useState<string | null>(null);
   const [archives, setArchives] = useState<ICArchiveHeader[]>([]);
   const [loadingArchives, setLoadingArchives] = useState(true);
+  const [archivesError, setArchivesError] = useState<string | null>(null);
   const [sessionVersion, setSessionVersion] = useState(0);
 
   useEffect(() => {
@@ -44,9 +46,13 @@ export function InventoryCountingArchiveProvider({ children }: { children: React
       const result = await fetchInventoryCountArchives();
       if (result.success) {
         setArchives(result.data);
+        setArchivesError(null);
+      } else {
+        setArchivesError('Could not load the archives');
       }
     } catch (err) {
       console.error('Failed to load inventory count archives', err);
+      setArchivesError(err instanceof Error ? err.message : 'Could not load the archives');
     } finally {
       setLoadingArchives(false);
     }
@@ -90,6 +96,7 @@ export function InventoryCountingArchiveProvider({ children }: { children: React
       isArchiveView,
       isReadOnly: isArchiveView,
       loadingArchives,
+      archivesError,
       sessionVersion,
       notifySessionClosed,
     }),
@@ -101,6 +108,7 @@ export function InventoryCountingArchiveProvider({ children }: { children: React
       refreshArchives,
       isArchiveView,
       loadingArchives,
+      archivesError,
       sessionVersion,
       notifySessionClosed,
     ]

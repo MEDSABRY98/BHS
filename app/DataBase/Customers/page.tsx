@@ -33,12 +33,14 @@ import MergeCustomersModal from './Components/MergeCustomersModal';
 import { exportDatabaseExcel } from '../Utils/ExcelExport';
 import { downloadUploadIssuesReport, normalizeExcelId } from '../Utils/ExcelUploadUtils';
 import TabLoader from '@/app/Components/Loading/TabLoader';
+import TabFetchError from '@/app/Components/DataState/TabFetchError';
 
 
 export default function CustomersPage() {
   const { canEdit, canDelete, isLoaded } = usePermissions();
   const [customers, setCustomers] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<any>(null);
@@ -89,6 +91,7 @@ export default function CustomersPage() {
   }, [searchTerm, currentPage]);
 
   async function fetchCustomers(search: string = '', page: number = 1) {
+    setLoadError(null);
     try {
       const start = (page - 1) * itemsPerPage;
       const end = start + itemsPerPage - 1;
@@ -111,6 +114,7 @@ export default function CustomersPage() {
       setTotalCount(count || 0);
     } catch (err) {
       console.error(err);
+      setLoadError(err instanceof Error ? err.message : (err as any)?.message || 'Failed to load customers');
     } finally {
       setIsLoading(false);
     }
@@ -647,6 +651,8 @@ export default function CustomersPage() {
 
       {isLoading ? (
         <TabLoader className="!min-h-[60vh]" />
+      ) : loadError ? (
+        <TabFetchError message={loadError} onRetry={() => void fetchCustomers(searchTerm, currentPage)} className="min-h-[60vh]" />
       ) : paginatedCustomers.length === 0 ? (
         <NoData title="NO CUSTOMERS FOUND" />
       ) : (

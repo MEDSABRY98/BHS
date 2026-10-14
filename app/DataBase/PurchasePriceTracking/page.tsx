@@ -11,6 +11,7 @@ import { getPurchaseDetailsMonthsSummary, deletePurchaseDetailsMonth, uploadPurc
 import { exportDatabaseExcelTable } from '../Utils/ExcelExport';
 import { downloadUploadIssuesReport } from '../Utils/ExcelUploadUtils';
 import TabLoader from '@/app/Components/Loading/TabLoader';
+import TabFetchError from '@/app/Components/DataState/TabFetchError';
 
 const englishMonths: Record<number, string> = {
   1: 'January',
@@ -39,6 +40,7 @@ export default function PurchaseDetailsPage() {
   const { canDelete, canEdit } = usePermissions();
   const [months, setMonths] = useState<DetailMonth[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [targetMonth, setTargetMonth] = useState<{ year: number; month: number } | null>(null);
@@ -55,6 +57,7 @@ export default function PurchaseDetailsPage() {
 
   async function fetchMonths() {
     setIsLoading(true);
+    setLoadError(null);
     try {
       const resData = await getPurchaseDetailsMonthsSummary();
       if ((resData as any).error) {
@@ -63,7 +66,7 @@ export default function PurchaseDetailsPage() {
       setMonths(resData.data || []);
     } catch (err: unknown) {
       console.error(err);
-      toast.error(err instanceof Error ? err.message : 'Failed to load months');
+      setLoadError(err instanceof Error ? err.message : 'Failed to load months');
     } finally {
       setIsLoading(false);
     }
@@ -199,6 +202,8 @@ export default function PurchaseDetailsPage() {
 
       {isLoading && months.length === 0 ? (
         <TabLoader className="!min-h-[60vh]" />
+      ) : loadError ? (
+        <TabFetchError message={loadError} onRetry={() => void fetchMonths()} className="min-h-[60vh]" />
       ) : months.length === 0 ? (
         <NoData title={`NO PURCHASE DETAILS DATA FOUND`} />
       ) : (

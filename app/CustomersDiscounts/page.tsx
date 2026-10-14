@@ -14,6 +14,7 @@ import CustomerDetails from "./CustomerDetails/CustomerDetails";
 import MonthsOverview from "./MonthsOverview/MonthsOverview";
 import Statistics from "./Statistics/Statistics";
 import DiscountValues from "./Values/DiscountValues";
+import TabFetchError from "@/app/Components/DataState/TabFetchError";
 import {
   buildMonthGroups,
   splitMonthGroups,
@@ -190,6 +191,7 @@ export default function CustomerDiscountsPage() {
   const [filteredCustomers, setFilteredCustomers] = useState<CustomerView[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // Filter State
   const [selectedCity, setSelectedCity] = useState("All");
@@ -549,6 +551,7 @@ export default function CustomerDiscountsPage() {
   const fetchCustomersAndDiscounts = async () => {
     try {
       setLoading(true);
+      setLoadError(null);
 
       // New year -> make sure every discount has this year's months
       const ensured = await ensureCurrentYearSettlements().catch(() => null);
@@ -653,6 +656,7 @@ export default function CustomerDiscountsPage() {
       }
     } catch (error) {
       console.error("Error fetching customers and discounts:", error);
+      setLoadError(error instanceof Error ? error.message : "Unable to load customers discounts.");
     } finally {
       setLoading(false);
     }
@@ -953,6 +957,12 @@ export default function CustomerDiscountsPage() {
 
 
 
+        {loadError && !loading && customers.length === 0 && currentView !== "add" ? (
+          <div className="flex-1 flex items-center justify-center p-6">
+            <TabFetchError message={loadError} onRetry={() => void fetchCustomersAndDiscounts()} />
+          </div>
+        ) : (
+        <>
         {currentView === "grid" && (
           <CustomersList
             searchQuery={searchQuery}
@@ -1039,6 +1049,8 @@ export default function CustomerDiscountsPage() {
 
         {currentView === "values" && (
           <DiscountValues customers={customers} />
+        )}
+        </>
         )}
 
       </div>

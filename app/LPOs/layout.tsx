@@ -28,6 +28,16 @@ import {
 } from 'lucide-react';
 import LpoFilterModal from './Components/LpoFilterModal';
 import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
+import TabFetchError from '@/app/Components/DataState/TabFetchError';
+
+/** Shows the shared fetch-error state when the LPO data could not be loaded. */
+function LpoDataGate({ children }: { children: React.ReactNode }) {
+  const { error, loading, orders, refresh, refreshing } = useLpoData();
+  if (error && !loading && orders.length === 0) {
+    return <TabFetchError message={error} onRetry={() => void refresh()} isRetrying={refreshing} className="min-h-[60vh]" />;
+  }
+  return <>{children}</>;
+}
 
 function LpoRefreshButton() {
   const { refresh, refreshing } = useLpoData();
@@ -368,7 +378,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         <main className="flex-1 p-4 md:p-8 lg:p-8">
           <div className={`${(pathname === '/LPOs' || pathname === '/LPOs/Orders' || pathname === '/LPOs/CreateOrders' || pathname === '/LPOs/InvoiceCancel' || pathname.startsWith('/DataBase')) ? 'max-w-[1700px]' : 'max-w-7xl'} mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500`}>
-            {children}
+            <LpoDataGate>{children}</LpoDataGate>
           </div>
         </main>
       </div>

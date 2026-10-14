@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { ArrowLeft, Search, RefreshCw, FileCheck, FileSpreadsheet, AlertCircle, Filter, X } from 'lucide-react';
 import { exportDebitExcelTable } from '@/app/CustomersAnalysis/Utils/ExcelExport';
 import TabLoader from '@/app/Components/Loading/TabLoader';
+import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import MainLoader from '@/app/Components/Loading/MainLoader';
 import Login from '@/app/Components/Auth/Login';
 import FilterModal, { FilterState } from './Modals/FilterModal';
@@ -22,6 +23,7 @@ export default function CustomersDocumentsPage() {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const [docFilters, setDocFilters] = useState<{ [key: string]: FilterState }>({
     creditApp: 'all',
@@ -60,14 +62,16 @@ export default function CustomersDocumentsPage() {
   const fetchData = async () => {
     try {
       setLoading(true);
+      setLoadError(null);
       const result = await getCustomersDocuments();
       if (result.success) {
         setData(result.data as any);
       } else {
-        toast.error(result.error || 'Failed to load customer documents.');
+        setLoadError(result.error || 'Failed to load customer documents.');
       }
     } catch (error) {
       console.error('Error fetching customer documents:', error);
+      setLoadError(error instanceof Error ? error.message : 'Failed to load customer documents.');
     } finally {
       setLoading(false);
     }
@@ -189,6 +193,7 @@ export default function CustomersDocumentsPage() {
   if (!isAuthenticated) return <Login onLogin={handleLogin} />;
   // Loader only (no header / search) until the documents are loaded
   if (loading && data.length === 0) return <TabLoader />;
+  if (loadError && data.length === 0) return <TabFetchError message={loadError} onRetry={() => void fetchData()} className="min-h-[70vh]" />;
 
   // (Old toggleFilter removed)
 

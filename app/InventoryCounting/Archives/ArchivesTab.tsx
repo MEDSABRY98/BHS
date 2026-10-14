@@ -16,6 +16,7 @@ import NoData from '@/app/Components/DataState/NoDataTab';
 import { fetchArchivedAllICDetails, updateArchiveLabel } from '../Service/InventoryCountingService';
 import { exportInventoryCountingExcel } from '../Export/ExcelExport';
 import TabLoader from '@/app/Components/Loading/TabLoader';
+import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import { useInventoryCountingArchive } from './InventoryCountingArchiveContext';
 import type { InventoryCountingTabId } from '../Utils/Sidebar';
 
@@ -43,6 +44,7 @@ export default function ArchivesTab({ onViewArchive }: ArchivesTabProps) {
     setArchiveId,
     refreshArchives,
     loadingArchives,
+    archivesError,
   } = useInventoryCountingArchive();
   const [searchQuery, setSearchQuery] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -172,6 +174,10 @@ export default function ArchivesTab({ onViewArchive }: ArchivesTabProps) {
 
   if (loadingArchives && archives.length === 0) {
     return <TabLoader />;
+  }
+
+  if (archivesError && archives.length === 0) {
+    return <TabFetchError message={archivesError} onRetry={() => void refreshArchives()} isRetrying={loadingArchives} className="min-h-[60vh]" />;
   }
 
   return (

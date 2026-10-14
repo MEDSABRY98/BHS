@@ -12,6 +12,7 @@ import { toast } from '@/app/Components/Notification';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import AppVersionModal, { type AppVersionFormValues, type AppVersionRow } from './Components/AppVersionModal';
 import TabLoader from '@/app/Components/Loading/TabLoader';
+import TabFetchError from '@/app/Components/DataState/TabFetchError';
 
 const TABLE = 'app_VERSIONS';
 const VERSION_PATTERN = /^\d+(\.\d+)*\+\d+$/;
@@ -29,6 +30,7 @@ export default function AppVersionsPage() {
   const { canEdit, canDelete } = usePermissions();
   const [rows, setRows] = useState<AppVersionRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editing, setEditing] = useState<AppVersionRow | null>(null);
@@ -43,11 +45,12 @@ export default function AppVersionsPage() {
   async function fetchRows() {
     try {
       setIsLoading(true);
+      setLoadError(null);
       const { data, error } = await bhs_supabase.from(TABLE).select('*').order('APP_NAME');
       if (error) throw error;
       setRows((data || []) as AppVersionRow[]);
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Failed to load app versions');
+      setLoadError(err instanceof Error ? err.message : 'Failed to load app versions');
     } finally {
       setIsLoading(false);
     }
@@ -131,6 +134,8 @@ export default function AppVersionsPage() {
 
       {isLoading ? (
         <TabLoader className="!min-h-[60vh]" />
+      ) : loadError ? (
+        <TabFetchError message={loadError} onRetry={() => void fetchRows()} className="min-h-[60vh]" />
       ) : rows.length === 0 ? (
         <NoData title="NO APPS FOUND" />
       ) : (

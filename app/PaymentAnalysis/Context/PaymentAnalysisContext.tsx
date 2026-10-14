@@ -46,6 +46,7 @@ export function PaymentAnalysisProvider({ children, enabled = true }: { children
       if (res && res.data) {
         setData(res.data);
       }
+      setError(null);
     } catch (err: any) {
       if (silent) {
         // Silent refresh: keep current data on screen, just log the failure

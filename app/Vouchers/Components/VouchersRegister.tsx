@@ -9,6 +9,7 @@ import { generateVoucherPdf } from '../Utils/VoucherPdf';
 import { exportStyledExcel } from '@/app/Components/Export/ExcelExport';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import TabLoader from '@/app/Components/Loading/TabLoader';
+import TabFetchError from '@/app/Components/DataState/TabFetchError';
 
 type Props = {
   canEdit: { IN: boolean; OUT: boolean };
@@ -30,6 +31,7 @@ function fmtDate(d: string) {
 export default function VouchersRegister({ canEdit, currentUserName, onEdit, refreshTrigger }: Props) {
   const [rows, setRows] = useState<CashVoucher[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [type, setType] = useState<VoucherType | 'ALL'>('ALL');
   const [from, setFrom] = useState(monthStart());
   const [to, setTo] = useState('');
@@ -41,8 +43,10 @@ export default function VouchersRegister({ canEdit, currentUserName, onEdit, ref
     if (!silent) setLoading(true);
     try {
       setRows(await listVouchers({ type, from: from || undefined, to: to || undefined }));
+      setLoadError(null);
     } catch (e: any) {
-      toast.error(e?.message || 'Failed to load vouchers');
+      if (silent) toast.error(e?.message || 'Failed to load vouchers');
+      else setLoadError(e?.message || 'Failed to load vouchers');
     } finally {
       if (!silent) setLoading(false);
     }
@@ -196,6 +200,8 @@ export default function VouchersRegister({ canEdit, currentUserName, onEdit, ref
           <tbody>
             {loading ? (
               <tr><td colSpan={6} className="p-0"><TabLoader className="!min-h-[50vh]" /></td></tr>
+            ) : loadError ? (
+              <TabFetchError isTable colSpan={6} message={loadError} onRetry={() => void load()} />
             ) : filtered.length === 0 ? (
               <NoData isTable={true} colSpan={6} title="NO VOUCHERS FOUND" message="There are no cash vouchers matching your filters in this period." />
             ) : (

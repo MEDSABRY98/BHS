@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { toast } from '@/app/Components/Notification';
 import NoData from '@/app/Components/DataState/NoDataTab';
+import TabFetchError from '@/app/Components/DataState/TabFetchError';
 
 interface Product {
   ID: string;
@@ -44,6 +45,7 @@ interface RecordScrapTabProps {
 export default function RecordScrapTab({ onReportSaved }: RecordScrapTabProps = {}) {
   const [products, setProducts] = useState<Product[]>([]);
   const [isProductsLoading, setIsProductsLoading] = useState(true);
+  const [productsError, setProductsError] = useState<string | null>(null);
   const [isSavingReport, setIsSavingReport] = useState(false);
   
   // Draft Items State
@@ -63,10 +65,12 @@ export default function RecordScrapTab({ onReportSaved }: RecordScrapTabProps = 
   const fetchProducts = async () => {
     try {
       setIsProductsLoading(true);
+      setProductsError(null);
       const allProducts = await fetchAllProductsForScrap();
       setProducts(allProducts);
     } catch (err) {
       console.error('Error fetching products:', err);
+      setProductsError(err instanceof Error ? err.message : 'Unable to load products.');
     } finally {
       setIsProductsLoading(false);
     }
@@ -167,6 +171,10 @@ export default function RecordScrapTab({ onReportSaved }: RecordScrapTabProps = 
 
     return { totalQty, expiredQty, damagedQty };
   }, [draftItems]);
+
+  if (productsError && !isProductsLoading && products.length === 0) {
+    return <TabFetchError message={productsError} onRetry={() => void fetchProducts()} className="min-h-[60vh]" />;
+  }
 
   return (
     <div className="space-y-8">

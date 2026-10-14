@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Save, Loader2, Calendar, Plus, Edit2, Trash2, Download, Upload, ArrowUp, ArrowDown, Search, X } from 'lucide-react';
 import TabLoader from '@/app/Components/Loading/TabLoader';
+import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import { toast } from '@/app/Components/Notification';
 import AddAccountModal from '../Modals/AddAccountModal';
@@ -34,6 +35,7 @@ export function DataEntryTab() {
   const [entries, setEntries] = useState<EntryFormState>({});
   
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState<FinancialAccount | null>(null);
@@ -50,6 +52,7 @@ export function DataEntryTab() {
   }, [selectedMonth, selectedYear]);
 
   const loadData = async (silent = false) => {
+    if (!silent) setLoadError(null);
     const month = Number(selectedMonth);
     const year = Number(selectedYear);
     if (!month || !year || month < 1 || month > 12) return;
@@ -80,6 +83,7 @@ export function DataEntryTab() {
       setEntries(newEntriesState);
     } catch (error) {
       console.error('Failed to load data:', error);
+      if (!silent) setLoadError(error instanceof Error ? error.message : 'Unable to load the data.');
     } finally {
       if (!silent) setIsLoading(false);
     }
@@ -744,6 +748,8 @@ export function DataEntryTab() {
       {/* Main Form Area */}
       {isLoading ? (
         <TabLoader className="!min-h-[60vh]" />
+      ) : loadError ? (
+        <TabFetchError message={loadError} onRetry={() => void loadData()} className="min-h-[60vh]" />
       ) : accounts.length === 0 ? (
         <NoData />
       ) : (

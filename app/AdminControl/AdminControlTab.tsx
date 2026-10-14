@@ -8,6 +8,7 @@ import {
     ClipboardList, ShoppingCart, Database, Users, Sparkles, Trash2, ListChecks, FileSpreadsheet, ArrowLeft, CheckCheck, Ban, Hash
 } from 'lucide-react';
 import TabLoader from '@/app/Components/Loading/TabLoader';
+import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import { fetchUsersList, updateUserRole } from '@/app/DataBase/Service/database_service';
 
@@ -430,6 +431,7 @@ export default function AdminControlTab() {
     const [modalSystem, setModalSystem] = useState<string | null>(null);
     const [modalInnerTab, setModalInnerTab] = useState<'tabs' | 'actions'>('tabs');
     const [systemSearch, setSystemSearch] = useState('');
+    const [loadError, setLoadError] = useState<string | null>(null);
 
     useEffect(() => {
         fetchUsers();
@@ -438,13 +440,17 @@ export default function AdminControlTab() {
     const fetchUsers = async () => {
         try {
             setLoading(true);
+            setLoadError(null);
             const data = await fetchUsersList();
             if (data.success && data.users) {
                 const sortedUsers = data.users.sort((a: any, b: any) => a.name.localeCompare(b.name));
                 setUsers(sortedUsers);
+            } else {
+                setLoadError((data as any)?.error || 'Unable to load users.');
             }
         } catch (error) {
             console.error('Error fetching users:', error);
+            setLoadError(error instanceof Error ? error.message : 'Unable to load users.');
         } finally {
             setLoading(false);
         }
@@ -631,6 +637,7 @@ export default function AdminControlTab() {
     };
 
     if (loading) return <TabLoader />;
+    if (loadError && users.length === 0) return <TabFetchError message={loadError} onRetry={() => void fetchUsers()} className="min-h-[60vh]" />;
 
     const renderSubTabModal = () => {
         if (!modalSystem || !selectedUser) return null;

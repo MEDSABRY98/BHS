@@ -10,6 +10,7 @@ import { getNextInventoryRecordId } from '@/app/DataBase/Utils/InventoryRecordId
 import InventoryItemCodeTable, { InventoryItemCodeRow } from './Components/InventoryItemCodeTable';
 import InventoryItemCodeModal, { InventoryItemCodeFormValues } from './Components/InventoryItemCodeModal';
 import TabLoader from '@/app/Components/Loading/TabLoader';
+import TabFetchError from '@/app/Components/DataState/TabFetchError';
 
 const emptyForm = (): InventoryItemCodeFormValues => ({
   tags: '',
@@ -21,6 +22,7 @@ export default function InventoryItemCodePage() {
   const { canEdit, canDelete } = usePermissions();
   const [rows, setRows] = useState<InventoryItemCodeRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
@@ -43,6 +45,7 @@ export default function InventoryItemCodePage() {
   }, [searchTerm, currentPage]);
 
   async function fetchRows(search: string, page: number) {
+    setLoadError(null);
     try {
       setIsLoading(true);
       const start = (page - 1) * itemsPerPage;
@@ -59,7 +62,7 @@ export default function InventoryItemCodePage() {
       setRows((data || []) as InventoryItemCodeRow[]);
       setTotalCount(count || 0);
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Failed to load item codes');
+      setLoadError(err instanceof Error ? err.message : 'Failed to load item codes');
     } finally {
       setIsLoading(false);
     }
@@ -178,6 +181,9 @@ export default function InventoryItemCodePage() {
         </div>
       </div>
 
+      {loadError && !isLoading ? (
+        <TabFetchError message={loadError} onRetry={() => void fetchRows(searchTerm, currentPage)} className="min-h-[60vh]" />
+      ) : (
       <InventoryItemCodeTable
         rows={rows}
         isLoading={isLoading}
@@ -186,6 +192,7 @@ export default function InventoryItemCodePage() {
         onEdit={openModal}
         onDelete={handleDelete}
       />
+      )}
 
       {totalCount > itemsPerPage && (
         <div className="flex items-center justify-between px-2">

@@ -26,11 +26,13 @@ import { usePermissions } from '../../LPOs/Hooks/usePermissions';
 import SignatureModal from './components/SignatureModal';
 import { toast } from '@/app/Components/Notification';
 import TabLoader from '@/app/Components/Loading/TabLoader';
+import TabFetchError from '@/app/Components/DataState/TabFetchError';
 
 export default function UsersPage() {
   const { canEdit, canDelete, isLoaded } = usePermissions();
   const [users, setUsers] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<any>(null);
@@ -78,11 +80,13 @@ export default function UsersPage() {
   };
 
   async function fetchUsers(search: string = '') {
+    setLoadError(null);
     try {
       const data = await adminListUsers(search);
       setUsers(data || []);
     } catch (err) {
       console.error(err);
+      setLoadError(err instanceof Error ? err.message : 'Failed to load users');
     } finally {
       setIsLoading(false);
     }
@@ -228,6 +232,8 @@ export default function UsersPage() {
 
       {isLoading ? (
         <TabLoader className="!min-h-[60vh]" />
+      ) : loadError ? (
+        <TabFetchError message={loadError} onRetry={() => { setIsLoading(true); void fetchUsers(searchTerm); }} className="min-h-[60vh]" />
       ) : filteredUsers.length === 0 ? (
         <NoData title="NO USERS FOUND" />
       ) : (

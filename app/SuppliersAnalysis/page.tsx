@@ -10,6 +10,7 @@ import { SuppliersDataProvider, useSuppliersData } from './Context/SuppliersData
 import TabLoader from '../Components/Loading/TabLoader';
 import MainLoader from '../Components/Loading/MainLoader';
 import NoData from '../Components/DataState/NoDataTab';
+import TabFetchError from '../Components/DataState/TabFetchError';
 
 function SuppliersPageShell({
   activeTab,
@@ -26,11 +27,19 @@ function SuppliersPageShell({
   isMobileSidebarOpen: boolean;
   setIsMobileSidebarOpen: (open: boolean) => void;
 }) {
-  const { loading, suppliers } = useSuppliersData();
+  const { loading, suppliers, error, refresh } = useSuppliersData();
 
   const renderBody = () => {
     if (loading) {
       return <TabLoader className="!min-h-full flex-1" />;
+    }
+
+    if (error) {
+      return (
+        <div className="max-w-[92%] 2xl:max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-12 flex-1 w-full flex items-center justify-center min-h-[70vh]">
+          <TabFetchError message={error} onRetry={() => void refresh()} isRetrying={loading} />
+        </div>
+      );
     }
 
     if (!suppliers || suppliers.length === 0) {

@@ -29,6 +29,7 @@ import {
 import { generatePaymentReconciliationPDF } from '../PaymentReconciliationTab/Pdf/PaymentReconciliationUtils';
 import DeletePaymentReconciliationSessionModal from './DeletePaymentReconciliationSessionModal';
 import TabLoader from '@/app/Components/Loading/TabLoader';
+import TabFetchError from '@/app/Components/DataState/TabFetchError';
 
 interface SavedPaymentReconciliationsTabProps {
   data?: InvoiceRow[];
@@ -124,6 +125,7 @@ export default function SavedPaymentReconciliationsTab({
   const [viewMode, setViewMode] = useState<ViewMode>('customers');
   const [sessions, setSessions] = useState<PaymentReconciliationSessionSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [namesLoading, setNamesLoading] = useState(false);
   const [nameById, setNameById] = useState<Map<string, string>>(new Map());
   const [searchQuery, setSearchQuery] = useState('');
@@ -163,6 +165,7 @@ export default function SavedPaymentReconciliationsTab({
 
   const loadSessions = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const res = await fetchPaymentReconciliationSessions();
       if (!res.success) {
@@ -171,7 +174,7 @@ export default function SavedPaymentReconciliationsTab({
       setSessions(res.data);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to load saved sessions';
-      toast.error(message);
+      setLoadError(message);
       setSessions([]);
     } finally {
       setLoading(false);
@@ -402,6 +405,9 @@ export default function SavedPaymentReconciliationsTab({
     if (!loading) setFirstLoad(false);
   }, [loading]);
   if (firstLoad && viewMode === 'customers') return <TabLoader />;
+  if (loadError && !loading && viewMode === 'customers') {
+    return <TabFetchError message={loadError} onRetry={() => void loadSessions()} className="min-h-[60vh]" />;
+  }
 
   return (
     <div className="space-y-6">
