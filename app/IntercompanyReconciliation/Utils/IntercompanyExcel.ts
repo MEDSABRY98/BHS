@@ -3,7 +3,7 @@
 // Excel template / export / upload parsing for Intercompany Reconciliation (browser only).
 
 import ExcelJS from 'exceljs';
-import { saveAs } from 'file-saver';
+import { saveTrackedAs } from '@/app/Audit/Utils/TrackedDownload';
 import {
   cleanText,
   compareEntries,
@@ -17,8 +17,12 @@ import {
 
 export const TEMPLATE_HEADERS = ['Date', 'Account Name', 'Al Ain Entry No', 'Dubai Entry No', 'Label', 'Debit', 'Credit'] as const;
 
-const NAVY = 'FF0A0F1D';
-const GOLD = 'FFD4AF37';
+// Same look as the other BHS Excel exports (app/Components/Export/ExcelExport.ts)
+const HEADER_FILL = 'FF000000';
+const HEADER_TEXT = 'FFFFFFFF';
+const GOLD_BORDER = 'FFC9A84C';
+const LIGHT_ROW_BORDER = 'FFEEEEEE';
+const NUM_FMT = '#,##0.00;-#,##0.00;"-"';
 
 // Header names accepted when reading (the template's and Odoo's own export names)
 const HEADER_ALIASES: Record<keyof ImportLine, string[]> = {
@@ -41,7 +45,7 @@ function headerKey(value: unknown): string {
 export async function downloadIntercompanyExcel(entries: IntercompanyEntry[] = [], fileName = 'Intercompany_Template.xlsx') {
   const wb = new ExcelJS.Workbook();
   wb.creator = 'BHS Analysis';
-  const ws = wb.addWorksheet('Entries', { views: [{ state: 'frozen', ySplit: 1 }] });
+  const ws = wb.addWorksheet('Entries', { views: [{ state: 'frozen', ySplit: 1, showGridLines: false }] });
 
   ws.columns = [
     { header: 'Date', key: 'date', width: 14 },
@@ -54,11 +58,12 @@ export async function downloadIntercompanyExcel(entries: IntercompanyEntry[] = [
   ];
 
   const header = ws.getRow(1);
-  header.height = 24;
+  header.height = 25;
   header.eachCell((cell) => {
-    cell.font = { bold: true, color: { argb: GOLD }, size: 11 };
-    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: NAVY } };
-    cell.alignment = { vertical: 'middle', horizontal: 'center' };
+    cell.font = { bold: true, color: { argb: HEADER_TEXT } };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: HEADER_FILL } };
+    cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+    cell.border = { bottom: { style: 'medium', color: { argb: GOLD_BORDER } } };
   });
 
   const sorted = [...entries].sort(compareEntries);
@@ -79,17 +84,21 @@ export async function downloadIntercompanyExcel(entries: IntercompanyEntry[] = [
   const lastRow = Math.max(sorted.length + 1, 200);
   for (let r = 2; r <= lastRow; r++) {
     const row = ws.getRow(r);
+    const filled = r <= sorted.length + 1;
+    if (filled) row.height = 25;
+    for (let c = 1; c <= 7; c++) {
+      const cell = row.getCell(c);
+      cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+      if (filled) cell.border = { bottom: { style: 'thin', color: { argb: LIGHT_ROW_BORDER } } };
+    }
     row.getCell(1).numFmt = 'dd/mm/yyyy';
-    row.getCell(1).alignment = { horizontal: 'center' };
-    row.getCell(3).alignment = { horizontal: 'center' };
-    row.getCell(4).alignment = { horizontal: 'center' };
-    row.getCell(6).numFmt = '#,##0.00';
-    row.getCell(7).numFmt = '#,##0.00';
+    row.getCell(6).numFmt = NUM_FMT;
+    row.getCell(7).numFmt = NUM_FMT;
   }
   ws.autoFilter = { from: 'A1', to: 'G1' };
 
   const buffer = await wb.xlsx.writeBuffer();
-  saveAs(new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), fileName);
+  saveTrackedAs(new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), fileName);
 }
 
 // ─────────────────────────────────────────────────────────────

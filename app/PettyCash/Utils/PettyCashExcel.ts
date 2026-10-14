@@ -1,23 +1,18 @@
 'use client';
 
 import { saveTrackedAs } from '@/app/Audit/Utils/TrackedDownload';
-import { COMPANY_NAME, compareLines, formatDate, uaeDateOf, type PettyCash } from './PettyCashTypes';
+import { compareLines, formatDate, uaeDateOf, type PettyCash } from './PettyCashTypes';
 
-const BLACK = 'FF000000';
-const GOLD = 'FFD4AF37';
+// Same look as the other BHS Excel exports (app/Components/Export/ExcelExport.ts)
+const HEADER_FILL = 'FF000000';
+const HEADER_TEXT = 'FFFFFFFF';
 const GOLD_BORDER = 'FFC9A84C';
-const GOLD_SOFT = 'FFFBF8EE';
-const ROW_BORDER = 'FFEEEEEE';
-const GREEN = 'FF15803D';
-const RED = 'FFB91C1C';
+const LIGHT_ROW_BORDER = 'FFEEEEEE';
 const NUM_FMT = '#,##0.00;-#,##0.00;"-"';
 
 const safe = (s: string) => (s || '').replace(/[^\w؀-ۿ -]+/g, '').trim().slice(0, 40);
 
-/**
- * One petty cash → its rows. Several → all rows with the claim number and employee.
- * Title rows + table + total row with SUM formulas.
- */
+/** All rows of the chosen petty cash (beneficiary, then invoice date) + a total row. */
 export async function exportPettyCashExcel(items: PettyCash[], opts: { period?: string; showAccount?: boolean } = {}) {
   if (!items.length) throw new Error('Nothing to export');
   const single = items.length === 1 ? items[0] : null;
@@ -25,13 +20,14 @@ export async function exportPettyCashExcel(items: PettyCash[], opts: { period?: 
 
   const ExcelJS = (await import('exceljs')).default;
   const wb = new ExcelJS.Workbook();
-  const ws = wb.addWorksheet('Petty Cash', { views: [{ showGridLines: false, rightToLeft: false }] });
+  const ws = wb.addWorksheet('Petty Cash', { views: [{ showGridLines: false }] });
 
   // Account column: admin exports only
   const withAccount = !!opts.showAccount && items.some((p) => p.LINES.some((l) => String(l.ACCOUNT || '').trim()));
   const headers = [
     '#',
-    ...(single ? [] : ['Claim No.', 'Employee', 'Submitted On']),
+    'Claim No.',
+    'Employee',
     'Invoice Date',
     'Description',
     ...(withAccount ? ['Account'] : []),
@@ -40,98 +36,54 @@ export async function exportPettyCashExcel(items: PettyCash[], opts: { period?: 
     'Has Invoice',
     'Amount (AED)',
   ];
-  const widths = [6, ...(single ? [] : [12, 20, 14]), 14, 42, ...(withAccount ? [28] : []), 28, 13, 13, 16];
-  ws.columns = widths.map((w) => ({ width: w }));
+  const widths = [8, 14, 22, 16, 42, ...(withAccount ? [26] : []), 28, 14, 14, 18];
+  ws.columns = headers.map((h, i) => ({ header: h, width: widths[i] }));
   const lastCol = headers.length;
-  const amountCol = lastCol;
 
-  // ── Title block ─────────────────────────────────────────
-  const title = (text: string, size: number, color: string, bold = true) => {
-    const r = ws.addRow([text]);
-    ws.mergeCells(r.number, 1, r.number, lastCol);
-    r.height = size + 10;
-    r.getCell(1).font = { bold, size, color: { argb: color } };
-    r.getCell(1).alignment = { vertical: 'middle', horizontal: 'left' };
-  };
-  title(COMPANY_NAME, 14, BLACK);
-  title(single ? `PETTY CASH CLAIM — ${single.ID}` : 'PETTY CASH STATEMENT', 12, 'FFA8861E');
-  title(
-    single
-      ? `Employee: ${single.CREATED_BY}    ·    Submitted: ${formatDate(uaeDateOf(single.CREATED_AT))}${single.NOTES ? `    ·    Notes: ${single.NOTES}` : ''}`
-      : `Employee: ${employees.length === 1 ? employees[0] : `${employees.length} employees`}    ·    Period: ${opts.period || 'All'}    ·    Claims: ${items.length}`,
-    10,
-    'FF475569',
-    false,
-  );
-  ws.addRow([]);
-
-  // ── Header ──────────────────────────────────────────────
-  const headerRow = ws.addRow(headers);
-  headerRow.height = 26;
-  headerRow.eachCell((cell) => {
-    cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
-    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: BLACK } };
-    cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
-    cell.border = { bottom: { style: 'medium', color: { argb: GOLD_BORDER } } };
-  });
-  const firstData = headerRow.number + 1;
-
-  // ── Rows ────────────────────────────────────────────────
-  let n = 0;
-  // all rows together: beneficiary, then invoice date (oldest first)
   const allRows = items.flatMap((p) => p.LINES.map((l) => ({ p, l }))).sort((a, b) => compareLines(a.l, b.l));
-  {
-    for (const { p, l } of allRows) {
-      n++;
-      const r = ws.addRow([
-        n,
-        ...(single ? [] : [p.ID, p.CREATED_BY, formatDate(uaeDateOf(p.CREATED_AT))]),
-        formatDate(l.INVOICE_DATE),
-        l.DESCRIPTION,
-        ...(withAccount ? [String(l.ACCOUNT || '').trim()] : []),
-        l.BENEFICIARY,
-        l.IS_TAX_INVOICE ? 'Yes' : 'No',
-        l.HAS_INVOICE ? 'Yes' : 'No',
-        l.AMOUNT,
-      ]);
-      r.height = 22;
-      r.eachCell({ includeEmpty: true }, (cell, col) => {
-        cell.alignment = { vertical: 'middle', horizontal: col === amountCol ? 'right' : 'center', wrapText: true };
-        cell.border = { bottom: { style: 'thin', color: { argb: ROW_BORDER } } };
-      });
-      r.getCell(amountCol).numFmt = NUM_FMT;
-      r.getCell(amountCol).font = { bold: true };
-      r.getCell(amountCol - 1).font = { bold: true, color: { argb: l.HAS_INVOICE ? GREEN : RED } };
-      if (l.IS_TAX_INVOICE) r.getCell(amountCol - 2).font = { bold: true, color: { argb: 'FFA8861E' } };
-    }
-  }
+  allRows.forEach(({ p, l }, i) => {
+    ws.addRow([
+      i + 1,
+      p.ID,
+      p.CREATED_BY,
+      formatDate(l.INVOICE_DATE),
+      l.DESCRIPTION,
+      ...(withAccount ? [String(l.ACCOUNT || '').trim()] : []),
+      l.BENEFICIARY,
+      l.IS_TAX_INVOICE ? 'Yes' : 'No',
+      l.HAS_INVOICE ? 'Yes' : 'No',
+      l.AMOUNT,
+    ]);
+  });
   const lastData = ws.lastRow!.number;
-  const colLetter = ws.getColumn(amountCol).letter;
-  const taxLetter = ws.getColumn(amountCol - 2).letter;
-  const invLetter = ws.getColumn(amountCol - 1).letter;
+  const amountLetter = ws.getColumn(lastCol).letter;
 
-  // ── Totals ──────────────────────────────────────────────
-  const totalRow = (text: string, formula: string, numFmt: string | null) => {
-    const r = ws.addRow([]);
-    ws.mergeCells(r.number, 1, r.number, amountCol - 1);
-    r.getCell(1).value = text;
-    r.getCell(amountCol).value = { formula } as any;
-    if (numFmt) r.getCell(amountCol).numFmt = numFmt;
-    r.height = 22;
+  const total = ws.addRow([]);
+  total.getCell(1).value = 'TOTAL';
+  total.getCell(lastCol).value = { formula: `SUM(${amountLetter}2:${amountLetter}${lastData})` } as any;
+
+  ws.eachRow((row, rowNumber) => {
+    row.height = 25;
     for (let c = 1; c <= lastCol; c++) {
-      const cell = r.getCell(c);
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: GOLD_SOFT } };
-      cell.font = { bold: true };
-      cell.alignment = { vertical: 'middle', horizontal: c === 1 ? 'right' : c === amountCol ? 'right' : 'center' };
+      const cell = row.getCell(c);
+      cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+      if (rowNumber === 1) {
+        cell.font = { bold: true, color: { argb: HEADER_TEXT } };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: HEADER_FILL } };
+        cell.border = { bottom: { style: 'medium', color: { argb: GOLD_BORDER } } };
+        continue;
+      }
+      if (c === lastCol) cell.numFmt = NUM_FMT;
+      if (row.number === total.number) {
+        cell.font = { bold: true };
+        cell.border = { top: { style: 'medium', color: { argb: GOLD_BORDER } } };
+      } else {
+        cell.border = { bottom: { style: 'thin', color: { argb: LIGHT_ROW_BORDER } } };
+      }
     }
-    return r;
-  };
-  const tot = totalRow('Total', `SUM(${colLetter}${firstData}:${colLetter}${lastData})`, NUM_FMT);
-  tot.getCell(amountCol).border = { top: { style: 'medium', color: { argb: GOLD } } };
-  totalRow('Tax Invoices Total', `SUMIF(${taxLetter}${firstData}:${taxLetter}${lastData},"Yes",${colLetter}${firstData}:${colLetter}${lastData})`, NUM_FMT);
-  totalRow('Rows Without Invoice', `COUNTIF(${invLetter}${firstData}:${invLetter}${lastData},"No")`, '0');
+  });
 
-  ws.pageSetup = { paperSize: 9, orientation: single ? 'portrait' : 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 };
+  ws.pageSetup = { paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 };
 
   const fileName = single
     ? `${single.ID}_${safe(single.CREATED_BY) || 'PettyCash'}.xlsx`
