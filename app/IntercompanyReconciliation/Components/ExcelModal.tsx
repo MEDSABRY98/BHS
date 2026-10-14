@@ -135,7 +135,6 @@ export default function ExcelModal({ open, onClose, entries, filtered, canEdit, 
               <Download className="w-5 h-5 text-emerald-600 shrink-0" />
               <div>
                 <p className="text-sm font-black text-slate-900">Download Template</p>
-                <p className="text-xs text-slate-400 font-medium">Empty sheet with the right columns</p>
               </div>
             </button>
             <button
@@ -146,9 +145,6 @@ export default function ExcelModal({ open, onClose, entries, filtered, canEdit, 
               <Download className="w-5 h-5 text-blue-600 shrink-0" />
               <div>
                 <p className="text-sm font-black text-slate-900">Export Lines ({filtered.length.toLocaleString('en-US')})</p>
-                <p className="text-xs text-slate-400 font-medium">
-                  {filtered.length === entries.length ? 'All saved lines' : 'Lines shown with the current filters'} — edit and upload it back to update them
-                </p>
               </div>
             </button>
           </div>
@@ -174,7 +170,6 @@ export default function ExcelModal({ open, onClose, entries, filtered, canEdit, 
               >
                 {reading ? <Loader2 className="w-8 h-8 text-emerald-600 animate-spin" /> : <FileUp className="w-8 h-8 text-slate-400" />}
                 <p className="text-sm font-black text-slate-700">{reading ? 'Reading file...' : fileName || 'Upload the filled template (.xlsx)'}</p>
-                <p className="text-xs text-slate-400 font-medium">Click or drop the file here</p>
                 <input ref={inputRef} type="file" accept=".xlsx" className="hidden" onChange={(e) => void handleFile(e.target.files?.[0])} />
               </div>
 
