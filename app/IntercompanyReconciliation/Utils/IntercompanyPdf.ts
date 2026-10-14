@@ -42,19 +42,15 @@ function drawHeader(doc: any, rows: IntercompanyEntry[], opts: IntercompanyPdfOp
   y += 6;
 
   doc.setFontSize(11);
-  doc.setTextColor(...COLORS.gold);
-  doc.text('Al Ain  -  Dubai', margin, y);
-  const w = doc.getTextWidth('Al Ain  -  Dubai');
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(...COLORS.gray);
-  doc.text('| ALMARAI ALARABIA TRADING', margin + w + 2, y);
+  doc.text('ALMARAI ALARABIA TRADING', margin, y);
 
-  // Same row, right side: CREATED AT … PERIOD …
+  // Same row, right side: PERIOD …
   const dates = rows.map((r) => r.ENTRY_DATE).sort();
   const from = opts.dateFrom || dates[0] || '';
   const to = opts.dateTo || dates[dates.length - 1] || '';
   const parts: [string, string][] = [
-    ['CREATED AT', formatDate(new Date().toISOString().slice(0, 10))],
     ['PERIOD', from || to ? `${formatDate(from)}  to  ${formatDate(to)}` : '-'],
   ];
   let x = margin + contentWidth;
@@ -110,7 +106,6 @@ function addPageNumbers(doc: any, pageWidth: number, margin: number) {
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7);
     doc.setTextColor(...COLORS.gray);
-    doc.text('Intercompany Reconciliation  |  Al Ain - Dubai', margin, h - 7);
     doc.text(`Page ${i} of ${total}`, pageWidth - margin, h - 7, { align: 'right' });
   }
 }
