@@ -27,6 +27,7 @@ export interface DebitNote {
   CREATED_AT: string;
   UPDATED_BY?: string | null;
   UPDATED_AT?: string | null;
+  EXTRA_SIGNERS?: string[]; // optional signatures chosen on the form (see OPTIONAL_SIGNERS)
 }
 
 export type DebitNoteInput = {
@@ -34,7 +35,18 @@ export type DebitNoteInput = {
   NOTE_DATE: string;
   BODY_TEXT: string;
   LINES: DebitNoteLine[];
+  EXTRA_SIGNERS?: string[];
 };
+
+// ── Signatures on the PDF: the optional ones (chosen per note) + the fixed ones ──
+export const OPTIONAL_SIGNERS = ['Salah', 'Tarek Hassan'] as const;
+export const FIXED_SIGNERS = ['Accounts Department', 'CEO'] as const;
+
+/** Keeps only known optional signers, in their fixed order. */
+export function cleanSigners(list: unknown): string[] {
+  const chosen = new Set(Array.isArray(list) ? list.map((s) => String(s)) : []);
+  return OPTIONAL_SIGNERS.filter((s) => chosen.has(s));
+}
 
 // ── Fixed parties (Al Marai Trading → Al Marai Sole Proprietorship) ─────────
 export const ISSUED_BY = {

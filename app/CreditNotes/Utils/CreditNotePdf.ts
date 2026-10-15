@@ -8,7 +8,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { addArabicFont } from '@/app/Components/Pdf/shared';
 import { saveTrackedPdf } from '@/app/Audit/Utils/TrackedDownload';
-import { HEADER_NAME, ISSUED_BY, ISSUED_TO, SUPPORTING_TEXT, formatAmount, formatLongDate, type CreditNote } from './CreditNoteTypes';
+import { HEADER_NAME, ISSUED_BY, ISSUED_TO, SUPPORTING_TEXT, FIXED_SIGNERS, cleanSigners, formatAmount, formatLongDate, type CreditNote } from './CreditNoteTypes';
 
 type RGB = [number, number, number];
 const C = {
@@ -233,16 +233,18 @@ export async function generateCreditNotePdf(note: CreditNote) {
   doc.setTextColor(...C.grey);
   doc.text(SUPPORTING_TEXT, M + 4 + doc.getTextWidth('ATTACHMENTS') + 10, y);
 
-  // ── Signatures: Accounts Department · CEO (bottom of the page) ──
+  // ── Signatures: chosen optional ones + Accounts Department · CEO (bottom of the page) ──
   const PH = 297;
   let sy = Math.max(y + 22, PH - 48);
   if (sy > PH - 30) {
     doc.addPage();
     sy = 40;
   }
-  const sw = (CW - 24) / 2;
-  (['Accounts Department', 'CEO'] as const).forEach((title, i) => {
-    const x = M + i * (sw + 24);
+  const signers = [...cleanSigners(note.EXTRA_SIGNERS), ...FIXED_SIGNERS];
+  const gap = signers.length > 2 ? 10 : 24;
+  const sw = (CW - gap * (signers.length - 1)) / signers.length;
+  signers.forEach((title, i) => {
+    const x = M + i * (sw + gap);
     label(title, x, sy, C.navy, 7);
     doc.setDrawColor(...C.ink);
     doc.setLineWidth(0.35);

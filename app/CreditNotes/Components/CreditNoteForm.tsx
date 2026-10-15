@@ -10,6 +10,8 @@ import {
   ISSUED_BY,
   ISSUED_TO,
   MAX_LINES,
+  FIXED_SIGNERS,
+  OPTIONAL_SIGNERS,
   amountToWords,
   formatAmount,
   round2,
@@ -108,6 +110,7 @@ export default function CreditNoteForm({ editNote = null, onSaved, onCancelEdit 
   const [date, setDate] = useState(init().date);
   const [body, setBody] = useState(init().body);
   const [lines, setLines] = useState<FormLine[]>(init().lines);
+  const [signers, setSigners] = useState<string[]>(editNote?.EXTRA_SIGNERS || []);
   const [nextNo, setNextNo] = useState<string>(editNote?.ID || '');
   const [saving, setSaving] = useState(false);
   const [step, setStep] = useState<Step>('details');
@@ -143,6 +146,7 @@ export default function CreditNoteForm({ editNote = null, onSaved, onCancelEdit 
     const i = init();
     setDate(i.date);
     setBody(i.body);
+    setSigners(editNote?.EXTRA_SIGNERS || []);
     setLines(i.lines);
     setErrors({});
   };
@@ -173,6 +177,7 @@ export default function CreditNoteForm({ editNote = null, onSaved, onCancelEdit 
         ID: editNote?.ID,
         NOTE_DATE: date,
         BODY_TEXT: body.trim(),
+        EXTRA_SIGNERS: signers,
         LINES: list.map((l) => ({ description: l.description.trim(), amount: parseAmount(l.amount) })),
       });
       toast.success(`${saved.ID} ${isEdit ? 'updated' : 'saved'} — AED ${formatAmount(saved.TOTAL)}`);
@@ -292,6 +297,36 @@ export default function CreditNoteForm({ editNote = null, onSaved, onCancelEdit 
                 <div className="rounded-2xl bg-[#F5F7FB] border border-slate-100 px-4 py-3">
                   <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Currency</p>
                   <p className="mt-1.5 text-base font-black text-slate-900">UAE Dirham (AED)</p>
+                </div>
+              </div>
+
+              {/* Signatures on the PDF: optional ones toggle, fixed ones always printed */}
+              <div className="mt-5">
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Signatures</p>
+                <div className="flex flex-wrap gap-2">
+                  {OPTIONAL_SIGNERS.map((s) => {
+                    const on = signers.includes(s);
+                    return (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => setSigners((prev) => (on ? prev.filter((x) => x !== s) : [...prev, s]))}
+                        className={`h-10 px-4 rounded-xl border text-sm font-black flex items-center gap-2 transition-all ${
+                          on ? 'bg-[#182E56] border-[#182E56] text-white' : 'bg-white border-slate-200 text-slate-400 hover:text-slate-700 hover:border-slate-300'
+                        }`}
+                      >
+                        <span className={`w-4 h-4 rounded-md border-2 flex items-center justify-center ${on ? 'bg-[#C4A052] border-[#C4A052]' : 'border-slate-300'}`}>
+                          {on && <span className="w-1.5 h-1.5 rounded-sm bg-[#182E56]" />}
+                        </span>
+                        {s}
+                      </button>
+                    );
+                  })}
+                  {FIXED_SIGNERS.map((s) => (
+                    <span key={s} className="h-10 px-4 rounded-xl border border-slate-100 bg-[#F5F7FB] text-sm font-bold text-slate-500 flex items-center" title="Always printed">
+                      {s}
+                    </span>
+                  ))}
                 </div>
               </div>
             </section>

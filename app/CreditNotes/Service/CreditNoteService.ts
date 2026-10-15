@@ -11,6 +11,7 @@ import {
   CREDIT_NOTES_SYSTEM_ID,
   MAX_LINES,
   amountToWords,
+  cleanSigners,
   formatNoteNumber,
   linesTotal,
   parseNoteNumber,
@@ -69,6 +70,7 @@ function normalize(row: any, names: Map<string, string>): CreditNote {
       amount: Number(l?.amount) || 0,
     })),
     CREATED_BY_NAME: names.get(String(row.CREATED_BY)) || '',
+    EXTRA_SIGNERS: cleanSigners(row.EXTRA_SIGNERS),
   };
 }
 
@@ -79,7 +81,7 @@ async function userNames(ids: string[]): Promise<Map<string, string>> {
   return new Map((data || []).map((u: any) => [String(u.ID), String(u.NAME || '')]));
 }
 
-function cleanInput(input: CreditNoteInput): { NOTE_DATE: string; BODY_TEXT: string; LINES: CreditNoteLine[] } {
+function cleanInput(input: CreditNoteInput): { NOTE_DATE: string; BODY_TEXT: string; LINES: CreditNoteLine[]; EXTRA_SIGNERS: string[] } {
   const date = String(input?.NOTE_DATE || '').trim();
   if (!DATE_RE.test(date)) throw new Error('Date is required');
   const body = String(input?.BODY_TEXT || '').trim().slice(0, 1500);
@@ -98,7 +100,7 @@ function cleanInput(input: CreditNoteInput): { NOTE_DATE: string; BODY_TEXT: str
     if (!l.description) throw new Error(`Line ${i + 1}: description is required`);
     if (!(l.amount > 0)) throw new Error(`Line ${i + 1}: amount must be greater than zero`);
   });
-  return { NOTE_DATE: date, BODY_TEXT: body, LINES: lines };
+  return { NOTE_DATE: date, BODY_TEXT: body, LINES: lines, EXTRA_SIGNERS: cleanSigners(input?.EXTRA_SIGNERS) };
 }
 
 async function maxNumber(year: number): Promise<number> {
