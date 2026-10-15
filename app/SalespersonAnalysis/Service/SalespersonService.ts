@@ -225,11 +225,18 @@ export async function GetSalespersonData(input: { salespersonId: string; period:
 
   // last payment per main customer (all history)
   const lastPaymentByCustomer: Record<string, string> = {};
-  // matching groups still open (closed ones before the window don't change balances / aging)
+  // closed matching groups entirely before the window don't change balances / aging.
+  // A group is dropped only as a whole: dropping just its old rows would leave a fake
+  // residual and make the Debit numbers depend on the selected period.
   const groupNet = new Map<string, number>();
+  const groupLastDate = new Map<string, string>();
   for (const r of mine) {
     const key = String(r.matching || '').trim();
-    if (key) groupNet.set(key, (groupNet.get(key) || 0) + (Number(r.debit) || 0) - (Number(r.credit) || 0));
+    if (key) {
+      groupNet.set(key, (groupNet.get(key) || 0) + (Number(r.debit) || 0) - (Number(r.credit) || 0));
+      const d = dayOf(r.date);
+      if (d > (groupLastDate.get(key) || '')) groupLastDate.set(key, d);
+    }
     if (getInvoiceType(r) === 'Payment') {
       const d = dayOf(r.date);
       const name = r.customerName || '';
@@ -241,7 +248,8 @@ export async function GetSalespersonData(input: { salespersonId: string; period:
   for (const r of mine) {
     const date = dayOf(r.date);
     const key = String(r.matching || '').trim();
-    const closedOldGroup = key && Math.abs(groupNet.get(key) || 0) < 0.01 && date < windowStart;
+    const closedOldGroup =
+      key && Math.abs(groupNet.get(key) || 0) < 0.01 && (groupLastDate.get(key) || '') < windowStart;
     if (closedOldGroup) continue;
     ledger.push({
       id: String(r.id),

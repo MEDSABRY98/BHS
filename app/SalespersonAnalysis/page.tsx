@@ -115,7 +115,7 @@ function SalespersonShell() {
                 {SALESPERSON_TABS.find((t) => t.id === activeTab)?.label}
               </h2>
             </div>
-            <SalespersonPicker />
+            <SalespersonPicker showPeriod={activeTab !== 'debit'} />
             {renderBody()}
           </div>
         )}

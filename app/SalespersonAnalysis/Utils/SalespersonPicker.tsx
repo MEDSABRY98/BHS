@@ -6,7 +6,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { CalendarDays, ChevronDown, Search, UserRound } from 'lucide-react';
 import { UseSalespersonData } from '../Context/SalespersonDataContext';
 
-export default function SalespersonPicker() {
+/** showPeriod=false on the Debit tab: debit is always as of today, the period doesn't apply. */
+export default function SalespersonPicker({ showPeriod = true }: { showPeriod?: boolean }) {
   const { salespersons, canChoose, listLoading, selectedId, setSelectedId, period, setPeriod } = UseSalespersonData();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -93,6 +94,7 @@ export default function SalespersonPicker() {
       </div>
 
       {/* period */}
+      {showPeriod ? (
       <div className="flex flex-wrap items-center gap-2">
         <CalendarDays className="w-5 h-5 text-[#B8860B] shrink-0" />
         <input
@@ -118,6 +120,12 @@ export default function SalespersonPicker() {
           Apply
         </button>
       </div>
+      ) : (
+        <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
+          <CalendarDays className="w-4 h-4 text-[#B8860B] shrink-0" />
+          Open debit as of today (not affected by the period)
+        </div>
+      )}
     </div>
   );
 }
