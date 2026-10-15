@@ -29,6 +29,16 @@ export default function SalesST_ByCustomers({ customersData, loading, refreshTri
   const [generationProgress, setGenerationProgress] = useState({ current: 0, total: 0 });
   const [showDownloadModal, setShowDownloadModal] = useState(false);
   const [analysisModalConfig, setAnalysisModalConfig] = useState<{ isOpen: boolean; customerName: string | null; mode: 'pdf' | 'excel' | 'bulk_pdf' } | null>(null);
+  // Users who can't see costs: fixed columns (Barcode, Product, Most Price) and no column popup
+  const BASIC_ANALYSIS_COLS = { barcode: true, product: true, mostPrice: true, maxPrice: false, cost: false, diff: false, margin: false };
+  const openAnalysis = (customerName: string, mode: 'pdf' | 'excel') => {
+    if (showCosts) {
+      setAnalysisModalConfig({ isOpen: true, customerName, mode });
+      return;
+    }
+    if (mode === 'pdf') void handleDownload(customerName, 'analysis', 'most', BASIC_ANALYSIS_COLS);
+    else void handleExportAnalysisExcel(customerName, BASIC_ANALYSIS_COLS);
+  };
   const [selectedAnalysisCols, setSelectedAnalysisCols] = useState({ barcode: true, product: true, mostPrice: true, maxPrice: true, cost: showCosts, diff: showCosts, margin: showCosts });
 
   useEffect(() => {
@@ -246,7 +256,7 @@ export default function SalesST_ByCustomers({ customersData, loading, refreshTri
                   <th className="py-4 px-8 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Customer Name</th>
                   <th className="py-4 px-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider w-[180px]">Items</th>
                   <th className="py-4 px-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider w-[120px]">Standard</th>
-                  {showCosts && <th className="py-4 px-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider w-[120px]">Analysis</th>}
+                  <th className="py-4 px-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider w-[120px]">Analysis</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
@@ -276,11 +286,11 @@ export default function SalesST_ByCustomers({ customersData, loading, refreshTri
                         </button>
                       </div>
                     </td>
-                    {showCosts && (
+                    {(
                       <td className="py-3 px-4 text-center">
                         <div className="flex items-center justify-center gap-2">
                           <button
-                            onClick={() => setAnalysisModalConfig({ isOpen: true, customerName: c.customer, mode: 'excel' })}
+                            onClick={() => openAnalysis(c.customer, 'excel')}
                             disabled={isGenerating}
                             className="p-2 bg-white border border-emerald-200 text-emerald-600 rounded-lg hover:bg-emerald-600 hover:text-white hover:border-emerald-600 transition-all disabled:opacity-30"
                             title="Analysis Excel"
@@ -288,7 +298,7 @@ export default function SalesST_ByCustomers({ customersData, loading, refreshTri
                             <FileSpreadsheet className="w-4 h-4" />
                           </button>
                           <button
-                            onClick={() => setAnalysisModalConfig({ isOpen: true, customerName: c.customer, mode: 'pdf' })}
+                            onClick={() => openAnalysis(c.customer, 'pdf')}
                             disabled={isGenerating}
                             className="p-2 bg-white border border-red-200 text-red-600 rounded-lg hover:bg-red-600 hover:text-white hover:border-red-600 transition-all disabled:opacity-30"
                             title="Analysis PDF"
