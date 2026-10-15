@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { fetchSavedScrapReports, deleteScrapReport, updateProductCosts } from '../Service/InventoryScrapService';
-import { Download, Calendar, FileText, Search, Loader2, StickyNote, FileSpreadsheet, Trash2 } from 'lucide-react';
+import { Download, Calendar, FileText, Search, Loader2, StickyNote, FileSpreadsheet, Trash2, Pencil } from 'lucide-react';
+import EditReportModal from './EditReportModal';
 import { downloadInventoryScrapReportPDF } from '@/app/InventoryScrap/Pdf/InventoryScrapReportPdf';
 import { exportInventoryScrapExcel } from '../Export/ExcelExport';
 import NoData from '@/app/Components/DataState/NoDataTab';
@@ -12,6 +13,7 @@ import TabLoader from '@/app/Components/Loading/TabLoader';
 import TabFetchError from '@/app/Components/DataState/TabFetchError';
 
 interface ReportItem {
+  rowId?: string;
   productId: string;
   barcode: string;
   name: string;
@@ -45,6 +47,7 @@ export default function SavedReportsTab({ refreshTrigger = 0 }: SavedReportsTabP
   const [disposalMethod, setDisposalMethod] = useState('');
   const [reportToDelete, setReportToDelete] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [reportToEdit, setReportToEdit] = useState<SavedReport | null>(null);
 
   // Missing Costs State
   const [missingCostsItems, setMissingCostsItems] = useState<ReportItem[] | null>(null);
@@ -58,6 +61,9 @@ export default function SavedReportsTab({ refreshTrigger = 0 }: SavedReportsTabP
   const hasDeletePermission =
     isUnrestrictedAdminUser(currentUser) ||
     (perms['inventory-scrap-actions'] && perms['inventory-scrap-actions'].includes('delete'));
+  const hasEditPermission =
+    isUnrestrictedAdminUser(currentUser) ||
+    (perms['inventory-scrap-actions'] && (perms['inventory-scrap-actions'].includes('edit') || perms['inventory-scrap-actions'].includes('delete')));
 
   const fetchSavedReports = async () => {
     setIsLoading(true);
@@ -73,6 +79,7 @@ export default function SavedReportsTab({ refreshTrigger = 0 }: SavedReportsTabP
         const qty = Number(row.QTY || 0);
 
         const item: ReportItem = {
+          rowId: row.ID,
           productId: row.PRODUCT_ID,
           barcode: row['PRODUCT BARCODE'] || '—',
           name: row['PRODUCT NAME'] || 'Unknown Product',
@@ -362,6 +369,15 @@ export default function SavedReportsTab({ refreshTrigger = 0 }: SavedReportsTabP
                   )}
                   Excel
                 </button>
+                {hasEditPermission && (
+                  <button
+                    onClick={() => setReportToEdit(report)}
+                    title={`Edit ${report.reportId}`}
+                    className="flex-1 py-3 px-2 flex items-center justify-center gap-2 bg-amber-50 hover:bg-amber-100 text-amber-700 font-bold rounded-2xl transition-all active:scale-[0.98] cursor-pointer text-xs shadow-sm"
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </button>
+                )}
                 {hasDeletePermission && (
                   <button
                     onClick={() => setReportToDelete(report.reportId)}
@@ -438,6 +454,18 @@ export default function SavedReportsTab({ refreshTrigger = 0 }: SavedReportsTabP
             </div>
           </div>
         </div>
+      )}
+
+      {reportToEdit && (
+        <EditReportModal
+          reportId={reportToEdit.reportId}
+          items={reportToEdit.items}
+          onClose={() => setReportToEdit(null)}
+          onSaved={() => {
+            setReportToEdit(null);
+            void fetchSavedReports(); // reload: new rows get their row numbers from the server
+          }}
+        />
       )}
 
       {/* Delete Confirmation Modal */}

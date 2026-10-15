@@ -415,6 +415,83 @@ export async function fetchMaxScrapReportRowId() {
   }
 }
 
+/**
+ * Edit a saved report: changed rows are updated in place, removed rows are deleted and new rows
+ * get the next free row numbers. The report number and its date stay the same.
+ */
+export async function updateScrapReport(
+  reportId: string,
+  items: { rowId?: string | null; productId: string; qty: number; reason: string; unit: string }[],
+): Promise<{ success: true }> {
+  await requireSession();
+  const rid = String(reportId || '').trim();
+  if (!/^SCR-\d{4}-\d+$/.test(rid)) throw new Error('Invalid report number');
+  if (!Array.isArray(items) || items.length === 0) throw new Error('A report needs at least one item — delete the report instead.');
+
+  const clean = items.map((it, i) => {
+    const qty = Number(it?.qty);
+    const reason = String(it?.reason || '').toUpperCase();
+    if (!String(it?.productId || '').trim()) throw new Error(`Item ${i + 1}: product is missing`);
+    if (!(qty > 0)) throw new Error(`Item ${i + 1}: quantity must be greater than zero`);
+    if (reason !== 'EXPIRED' && reason !== 'DAMAGED') throw new Error(`Item ${i + 1}: invalid reason`);
+    return { rowId: it?.rowId ? String(it.rowId) : '', productId: String(it.productId).trim(), qty, reason, unit: String(it?.unit || 'PCS') };
+  });
+
+  try {
+    const { data: current, error: curErr } = await bhs_supabas.from(REPORT_TABLE).select('ID, CREATED_AT').eq('REPORT_ID', rid);
+    if (curErr) throw curErr;
+    if (!current || current.length === 0) throw new Error(`Report ${rid} no longer exists`);
+    const existingIds = new Set(current.map((r: any) => String(r.ID)));
+    const createdAt = current.map((r: any) => r.CREATED_AT).filter(Boolean).sort()[0] || null;
+
+    // 1) update kept rows
+    const kept = clean.filter((c) => c.rowId && existingIds.has(c.rowId));
+    for (const c of kept) {
+      const { error } = await bhs_supabas
+        .from(REPORT_TABLE)
+        .update({ PRODUCT_ID: c.productId, QTY: c.qty, REASON: c.reason, UNIT: c.unit })
+        .eq('ID', c.rowId)
+        .eq('REPORT_ID', rid);
+      if (error) throw error;
+    }
+
+    // 2) delete removed rows
+    const keptIds = new Set(kept.map((c) => c.rowId));
+    const removed = Array.from(existingIds).filter((id) => !keptIds.has(id));
+    if (removed.length) {
+      const { error } = await bhs_supabas.from(REPORT_TABLE).delete().eq('REPORT_ID', rid).in('ID', removed);
+      if (error) throw error;
+    }
+
+    // 3) insert new rows (same report number and date); retry if row numbers were taken meanwhile
+    const added = clean.filter((c) => !c.rowId || !existingIds.has(c.rowId));
+    if (added.length) {
+      let done = false;
+      for (let attempt = 0; attempt < 5 && !done; attempt++) {
+        const all = await fetchAllRows<{ ID: string }>(REPORT_TABLE, 'ID', 'ID');
+        const maxIdNum = all.reduce((max, r) => Math.max(max, rowNum(r.ID)), 0);
+        const payload = added.map((c, i) => ({
+          ID: `R-${String(maxIdNum + 1 + i).padStart(4, '0')}`,
+          REPORT_ID: rid,
+          PRODUCT_ID: c.productId,
+          UNIT: c.unit,
+          QTY: c.qty,
+          REASON: c.reason,
+          ...(createdAt ? { CREATED_AT: createdAt } : {}),
+        }));
+        const { error } = await bhs_supabas.from(REPORT_TABLE).insert(payload);
+        if (!error) done = true;
+        else if (error.code !== '23505') throw error;
+      }
+      if (!done) throw new Error('Could not add the new items, please try again.');
+    }
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error updating scrap report:', error);
+    throw new Error(error.message || 'Failed to update the report');
+  }
+}
+
 export async function deleteScrapReport(reportId: string) {
   await requireSession();
   try {

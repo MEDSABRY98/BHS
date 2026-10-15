@@ -213,22 +213,24 @@ export async function downloadInventoryScrapReportPDF(
   }
 
   y += 4;
+  y = ensureSpace(y, 36); // keep the signatures together on one page
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...gold);
   doc.setFontSize(8);
   doc.text('AUTHORIZED SIGNATURES', M, y);
   y += 8;
 
-  const sigWidth = (W - M * 2 - 10) / 2;
-  const roles = ['Warehouse Authority', 'Office Authority'];
+  const roles = ['Warehouse Department', 'Supply Chain Department', 'Accounts Department', 'CEO'];
+  const sigGap = 6;
+  const sigWidth = (W - M * 2 - sigGap * (roles.length - 1)) / roles.length;
   roles.forEach((role, i) => {
-    const x = M + i * (sigWidth + 10);
+    const x = M + i * (sigWidth + sigGap);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(...gray);
     doc.setFontSize(7);
     doc.text(role.toUpperCase(), x + sigWidth / 2, y, { align: 'center' });
     doc.setDrawColor(...black);
-    doc.line(x + 5, y + 22, x + sigWidth - 5, y + 22);
+    doc.line(x + 2, y + 22, x + sigWidth - 2, y + 22);
     doc.setFontSize(6);
     doc.setTextColor(136, 136, 136);
     doc.text('Signature & Date', x + sigWidth / 2, y + 26, { align: 'center' });
