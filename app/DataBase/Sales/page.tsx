@@ -42,6 +42,7 @@ export default function SalesDBPage() {
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [isUpdateUploadModalOpen, setIsUpdateUploadModalOpen] = useState(false);
+  const [exportingMonth, setExportingMonth] = useState<string | null>(null);
 
   useEffect(() => {
     fetchSalesMonths();
@@ -207,20 +208,29 @@ export default function SalesDBPage() {
   };
 
 
-  const downloadSalesExcel = async () => {
-    setIsUploading(true);
+  /** Full DB export, or one month only when `target` is given (month card button). */
+  const downloadSalesExcel = async (target?: { year: number; month: number }) => {
+    const monthKey = target ? `${target.year}-${target.month}` : null;
+    if (monthKey) setExportingMonth(monthKey);
+    else setIsUploading(true);
     try {
+      const range = target
+        ? {
+            from: `${target.year}-${String(target.month).padStart(2, '0')}-01`,
+            to: target.month === 12 ? `${target.year + 1}-01-01` : `${target.year}-${String(target.month + 1).padStart(2, '0')}-01`,
+          }
+        : null;
       let allSales: any[] = [];
       let fetchMore = true;
       let pageIndex = 0;
       const limit = 1000;
 
       while (fetchMore) {
-        const { data, error } = await bhs_supabas
+        let q = bhs_supabas
           .from('web_Sales_DB')
-          .select('ID, "INVOICE DATE", "INVOICE NUMBER", "CUSTOMER ID", "PRODUCT ID", "PRODUCT PRICE", "PRODUCT COST", "AMOUNT", "QTY"')
-          .order('ID')
-          .range(pageIndex * limit, (pageIndex + 1) * limit - 1);
+          .select('ID, "INVOICE DATE", "INVOICE NUMBER", "CUSTOMER ID", "PRODUCT ID", "PRODUCT PRICE", "PRODUCT COST", "AMOUNT", "QTY"');
+        if (range) q = q.gte('INVOICE DATE', range.from).lt('INVOICE DATE', range.to);
+        const { data, error } = await q.order('ID').range(pageIndex * limit, (pageIndex + 1) * limit - 1);
 
         if (error) throw error;
 
@@ -234,8 +244,7 @@ export default function SalesDBPage() {
       }
 
       if (allSales.length === 0) {
-        toast.error('No sales found in database to export');
-        setIsUploading(false);
+        toast.error(target ? 'No sales found for this month' : 'No sales found in database to export');
         return;
       }
 
@@ -292,13 +301,15 @@ export default function SalesDBPage() {
         s['AMOUNT'] || 0
       ]);
 
-      await exportDatabaseExcelTable(headers, rows, "Sales_Data_Full.xlsx");
+      const fileName = target ? `Sales_${target.year}_${String(target.month).padStart(2, '0')}_${englishMonths[target.month]}.xlsx` : 'Sales_Data_Full.xlsx';
+      await exportDatabaseExcelTable(headers, rows, fileName);
       toast.success('Excel file exported successfully!');
     } catch (err: any) {
       console.error(err);
       toast.error('Failed to export Excel file');
     } finally {
-      setIsUploading(false);
+      if (monthKey) setExportingMonth(null);
+      else setIsUploading(false);
     }
   };
 
@@ -637,7 +648,7 @@ export default function SalesDBPage() {
         {canEdit && (
           <div className="flex items-center gap-2">
             <button
-              onClick={downloadSalesExcel}
+              onClick={() => void downloadSalesExcel()}
               disabled={isUploading}
               className="p-3 bg-white border border-gray-200 text-blue-600 rounded-2xl shadow-sm hover:scale-[1.05] active:scale-[0.95] transition-all flex items-center justify-center shrink-0 cursor-pointer disabled:opacity-50"
               title="Download Full Sales DB"
@@ -701,15 +712,27 @@ export default function SalesDBPage() {
                   <Calendar className="w-3.5 h-3.5 text-gray-300" />
                   <span>Sales Invoices</span>
                 </div>
-                {canDelete && (
-                  <button
-                    onClick={() => handleDeleteClick(m.year, m.month)}
-                    className="p-2.5 bg-red-50 hover:bg-red-500 rounded-xl text-red-500 hover:text-white transition-all border border-transparent hover:border-red-100"
-                    title="Delete Month Sales Data"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                )}
+                <div className="flex items-center gap-2">
+                  {canEdit && (
+                    <button
+                      onClick={() => void downloadSalesExcel({ year: m.year, month: m.month })}
+                      disabled={exportingMonth === `${m.year}-${m.month}`}
+                      className="p-2.5 bg-green-50 hover:bg-green-600 rounded-xl text-green-600 hover:text-white transition-all border border-transparent hover:border-green-100 disabled:opacity-60"
+                      title="Download Month Excel"
+                    >
+                      {exportingMonth === `${m.year}-${m.month}` ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4" />}
+                    </button>
+                  )}
+                  {canDelete && (
+                    <button
+                      onClick={() => handleDeleteClick(m.year, m.month)}
+                      className="p-2.5 bg-red-50 hover:bg-red-500 rounded-xl text-red-500 hover:text-white transition-all border border-transparent hover:border-red-100"
+                      title="Delete Month Sales Data"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           ))}

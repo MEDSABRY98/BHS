@@ -195,7 +195,12 @@ export default function ProductsPage() {
             "IS_ACTIVE": isActive
           })
           .eq('ID', editingProduct.ID);
-        if (error) throw error;
+        if (error) {
+          // 23503 = the old PRODUCT ID is used by sales / other tables and the DB links don't follow ID changes yet
+          if (error.code === '23503')
+            throw new Error('This Product ID is used in other tables. Run supabase/Products_CascadeUpdate.sql once in Supabase, then save again.');
+          throw error;
+        }
 
         if (oldProductId && newProductId && oldProductId !== newProductId) {
           const cascadeResult = await updateProductIdCascade(oldProductId, newProductId);
