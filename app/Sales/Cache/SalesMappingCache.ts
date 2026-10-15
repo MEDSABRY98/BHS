@@ -21,6 +21,66 @@ const USER_DATA_CACHE_MAX = 25;
 const userContextCache = new Map<string, { ctx: SalesUserContext | null; at: number }>();
 const userDataCache = new Map<string, { raw: any[]; mappings: Map<string, any>; data: any[] }>();
 
+/** Same data -> same key: full-access users share one, others get their own (and no-cost users a separate one). */
+function userDataKey(ctx: SalesUserContext): string {
+  return (ctx.hasSalesDataAccess ? '__ALL__' : `${ctx.cleanUserId}|${ctx.cleanUserName}`) + (ctx.canSeeCosts ? '' : '|NO_COST');
+}
+
+// ─────────────────────────────────────────────────────────────
+//  RESULT MEMO (warm server instance)
+//  A tab's result for (user data, filters) is kept until the sales data or the
+//  mappings change (they are new objects then, so old results are ignored).
+//  Same request twice at the same time -> computed once.
+// ─────────────────────────────────────────────────────────────
+const RESULT_MEMO_MAX = 200;
+const resultMemo = new Map<string, { data: any[]; value: unknown }>();
+const resultInFlight = new Map<string, Promise<unknown>>();
+
+function stableKey(value: unknown): string {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value ?? null);
+  if (Array.isArray(value)) return `[${value.map(stableKey).join(',')}]`;
+  const obj = value as Record<string, unknown>;
+  return `{${Object.keys(obj).sort().filter((k) => obj[k] !== undefined).map((k) => `${JSON.stringify(k)}:${stableKey(obj[k])}`).join(',')}}`;
+}
+
+export async function memoSalesResult<T>(name: string, userId: string, args: unknown[], compute: () => Promise<T>): Promise<T> {
+  const ctx = await resolveSalesUserContext(userId);
+  if (!ctx) return compute();
+  const data = await getFilteredSalesData(userId);
+  const key = `${name}#${userDataKey(ctx)}#${stableKey(args)}`;
+
+  const hit = resultMemo.get(key);
+  if (hit && hit.data === data) {
+    resultMemo.delete(key);
+    resultMemo.set(key, hit); // recently used
+    return hit.value as T;
+  }
+
+  const running = resultInFlight.get(key);
+  if (running) return running as Promise<T>;
+
+  const started = Date.now();
+  const promise = compute()
+    .then((value) => {
+      resultMemo.set(key, { data, value });
+      if (resultMemo.size > RESULT_MEMO_MAX) {
+        const oldest = resultMemo.keys().next().value;
+        if (oldest !== undefined) resultMemo.delete(oldest);
+      }
+      const ms = Date.now() - started;
+      if (ms > 400) console.log(`⏱️ Sales ${name}: ${ms} ms (${data.length} rows)`);
+      return value;
+    })
+    .finally(() => resultInFlight.delete(key));
+  resultInFlight.set(key, promise);
+  return promise;
+}
+
+/** Forget saved tab results (e.g. after hiding / restoring an inactive customer). */
+export function clearSalesResultMemo() {
+  resultMemo.clear();
+}
+
 export async function getGlobalMappings(): Promise<Map<string, any>> {
   if (globalMappingCache) return globalMappingCache;
 
@@ -186,6 +246,7 @@ export function invalidateMappingCache(userId?: string) {
   globalCustomerClassCache = null;
   userContextCache.clear();
   userDataCache.clear();
+  resultMemo.clear();
   console.log('🗑️ Global mapping cache invalidated');
 }
 
@@ -223,7 +284,7 @@ export async function getFilteredSalesData(userId: string): Promise<any[]> {
   const { cleanUserId, cleanUserName, hasSalesDataAccess, canSeeCosts } = userContext;
 
   // Same sales cache + same mappings -> same result: reuse it.
-  const cacheKey = (hasSalesDataAccess ? '__ALL__' : `${cleanUserId}|${cleanUserName}`) + (canSeeCosts ? '' : '|NO_COST');
+  const cacheKey = userDataKey(userContext);
   const hit = userDataCache.get(cacheKey);
   if (hit && hit.raw === rawSales && hit.mappings === allMappings) {
     userDataCache.delete(cacheKey);

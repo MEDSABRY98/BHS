@@ -1,6 +1,12 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { createContext, useContext, useEffect, useRef } from 'react';
+
+/** true while the tab is the one on screen (kept-alive hidden tabs get false). Outside a TabPanel: true. */
+const TabActiveContext = createContext(true);
+export function useTabActive(): boolean {
+  return useContext(TabActiveContext);
+}
 
 interface TabPanelProps {
   tabId: string;
@@ -26,7 +32,9 @@ export default function TabPanel({ tabId, activeTab, isVisited, children }: TabP
 
   return (
     <div className={isActive ? 'block' : 'hidden'} aria-hidden={!isActive}>
-      <div ref={innerRef}>{children}</div>
+      <div ref={innerRef}>
+        <TabActiveContext.Provider value={isActive}>{children}</TabActiveContext.Provider>
+      </div>
     </div>
   );
 }

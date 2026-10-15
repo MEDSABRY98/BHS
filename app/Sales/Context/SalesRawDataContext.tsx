@@ -4,7 +4,6 @@ import React, {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useMemo,
   useRef,
   useState,
@@ -66,6 +65,12 @@ const EMPTY_STOCK: SalesStockReportBundle = {
 
 const SalesRawDataContext = createContext<SalesRawDataContextValue | null>(null);
 
+// Bundles already loaded in this browser tab, by key (user + filters + data version).
+type RawBundle = { dailySales: SalesDailySalesBundle; statistics: SalesStatisticsBundle; stockReport: SalesStockReportBundle };
+const BUNDLE_CACHE_MAX = 12;
+const BUNDLE_CACHE_TTL_MS = 10 * 60_000;
+const bundleCache = new Map<string, { value: RawBundle; at: number }>();
+
 export function SalesRawDataProvider({
   children,
   userId,
@@ -100,7 +105,16 @@ export function SalesRawDataProvider({
     setLoading(true);
 
     try {
-      const bundle = await getSalesRawDataBundle(userId, filters, invoiceTypeFilter);
+      const key = currentKey;
+      const hit = bundleCache.get(key);
+      const bundle =
+        hit && Date.now() - hit.at < BUNDLE_CACHE_TTL_MS ? hit.value : ((await getSalesRawDataBundle(userId, filters, invoiceTypeFilter)) as RawBundle);
+      bundleCache.delete(key);
+      bundleCache.set(key, { value: bundle, at: hit?.at ?? Date.now() });
+      if (bundleCache.size > BUNDLE_CACHE_MAX) {
+        const oldest = bundleCache.keys().next().value;
+        if (oldest !== undefined) bundleCache.delete(oldest);
+      }
       if (requestId !== fetchRequestId.current) return;
 
       setDailySales(bundle.dailySales);
@@ -144,11 +158,8 @@ export function SalesRawDataProvider({
     setStockReport(null);
   }, []);
 
-  useEffect(() => {
-    if (!userId) return;
-    if (cacheKeyRef.current === currentKey && dailySales !== null) return;
-    void loadRawData();
-  }, [userId, currentKey, loadRawData, dailySales]);
+  // No automatic load here: the Daily Sales / Statistics / Stock tabs call ensureRawData() when they are on screen,
+  // so opening the module (or changing a filter on another tab) doesn't build this bundle for nothing.
 
   const isRefreshing = loading && (dailySales !== null || statistics !== null || stockReport !== null);
   const isInitialLoading = loading && dailySales === null && statistics === null && stockReport === null;

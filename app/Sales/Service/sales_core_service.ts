@@ -36,6 +36,7 @@ import { buildDailySalesFromRaw, buildStatisticsFromRaw } from '@/app/Sales/Util
 import { applySalesCommonFilters } from '@/app/Sales/Utils/SalesDataFilters';
 import { buildOverviewFromFilteredData } from '@/app/Sales/Overview/SalesOverviewAggregation';
 import { bhs_supabas } from '@/lib/supabase';
+import { memoSalesResult } from '@/app/Sales/Cache/SalesMappingCache';
 
 // -------------------------------------------------------------
 // 0. Cache & Metadata (From api/Sales/route.ts, Build, Metadata, Mapping)
@@ -153,7 +154,7 @@ export async function buildSalesCache() {
   return { success: true, rows };
 }
 
-export async function getSalesMetadata(userId: string, forceRefresh: boolean = false) {
+async function getSalesMetadataUncached(userId: string, forceRefresh: boolean = false) {
   await requireSession();
   if (forceRefresh) {
     invalidateMemoryCache();
@@ -297,7 +298,7 @@ export async function uploadSalesMappingsBulk(userId: string, mapping: any) {
 
 
 
-export async function getOverviewData(userId: string, filters: any) {
+async function getOverviewDataUncached(userId: string, filters: any) {
   await requireSession();
   const augmentedData = await getFilteredSalesData(userId);
   return buildOverviewFromFilteredData(augmentedData, filters);
@@ -330,7 +331,7 @@ export async function getStatisticsData(userId: string, filters: any) {
 // -------------------------------------------------------------
 // 4. Top 10 Data
 // -------------------------------------------------------------
-export async function getTop10Data(userId: string, filters: any) {
+async function getTop10DataUncached(userId: string, filters: any) {
   await requireSession();
   const augmentedData = await getFilteredSalesData(userId);
 
@@ -499,7 +500,7 @@ function _matchesListingFilters(item: any, filters: any): boolean {
   return true;
 }
 
-export async function getNewListingsData(userId: string, filters: any) {
+async function getNewListingsDataUncached(userId: string, filters: any) {
   await requireSession();
   const augmentedData = await getFilteredSalesData(userId);
   const canonicalProductIds = _buildCanonicalProductIds(augmentedData);
@@ -661,4 +662,26 @@ export async function getClientSalesData(userId: string, watermark?: string): Pr
 
   // users without 'view-costs' never receive the cost
   return canSeeCosts ? processed : processed.map(hideCost);
+}
+
+// ── Cached entry points: same user data + same filters -> saved result (see memoSalesResult) ──
+export async function getSalesMetadata(userId: string, forceRefresh: boolean = false) {
+  await requireSession();
+  if (forceRefresh) return getSalesMetadataUncached(userId, true);
+  return memoSalesResult('metadata', userId, [], () => getSalesMetadataUncached(userId, false));
+}
+
+export async function getOverviewData(userId: string, filters: any) {
+  await requireSession();
+  return memoSalesResult('overview', userId, [filters], () => getOverviewDataUncached(userId, filters));
+}
+
+export async function getTop10Data(userId: string, filters: any) {
+  await requireSession();
+  return memoSalesResult('top10', userId, [filters], () => getTop10DataUncached(userId, filters));
+}
+
+export async function getNewListingsData(userId: string, filters: any) {
+  await requireSession();
+  return memoSalesResult('newListings', userId, [filters], () => getNewListingsDataUncached(userId, filters));
 }

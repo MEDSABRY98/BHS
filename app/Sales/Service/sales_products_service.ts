@@ -2,11 +2,12 @@
 import { requireSession } from '@/lib/session';
 
 import { getFilteredSalesData } from '@/app/Sales/Cache/SalesMappingCache';
+import { memoSalesResult } from '@/app/Sales/Cache/SalesMappingCache';
 
 // -------------------------------------------------------------
 // 1. Products Data
 // -------------------------------------------------------------
-export async function getProductsData(userId: string, filters: any) {
+async function getProductsDataUncached(userId: string, filters: any) {
   await requireSession();
   const augmentedData = await getFilteredSalesData(userId);
 
@@ -149,7 +150,7 @@ export async function getProductsData(userId: string, filters: any) {
 // -------------------------------------------------------------
 // 2. Product Details Data
 // -------------------------------------------------------------
-export async function getProductDetailsData(userId: string, filters: any, productId: string) {
+async function getProductDetailsDataUncached(userId: string, filters: any, productId: string) {
   await requireSession();
   const augmentedData = await getFilteredSalesData(userId);
 
@@ -220,7 +221,7 @@ export async function getProductDetailsData(userId: string, filters: any, produc
 // -------------------------------------------------------------
 // 3. Categories Data
 // -------------------------------------------------------------
-export async function getCategoriesData(userId: string, filters: any) {
+async function getCategoriesDataUncached(userId: string, filters: any) {
   await requireSession();
   const augmentedData = await getFilteredSalesData(userId);
 
@@ -344,3 +345,18 @@ export async function getCategoriesData(userId: string, filters: any) {
   }));
 }
 
+// ── Cached entry points: same user data + same filters -> saved result (see memoSalesResult) ──
+export async function getProductsData(userId: string, filters: any) {
+  await requireSession();
+  return memoSalesResult('products', userId, [filters], () => getProductsDataUncached(userId, filters));
+}
+
+export async function getProductDetailsData(userId: string, filters: any, productId: string) {
+  await requireSession();
+  return memoSalesResult('productDetails', userId, [filters, productId], () => getProductDetailsDataUncached(userId, filters, productId));
+}
+
+export async function getCategoriesData(userId: string, filters: any) {
+  await requireSession();
+  return memoSalesResult('categories', userId, [filters], () => getCategoriesDataUncached(userId, filters));
+}

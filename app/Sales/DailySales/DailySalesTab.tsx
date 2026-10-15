@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { FileSpreadsheet } from 'lucide-react';
 import { useSalesRawData } from '@/app/Sales/Context/SalesRawDataContext';
+import { useTabActive } from '@/app/Components/Layout/TabPanel';
 import { exportSalesExcel } from '@/app/Sales/Export/ExcelExport';
 import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
@@ -21,9 +22,10 @@ interface SalesDailySalesTabProps {
 export default function SalesDailySalesTab({ userId, showCosts = true }: SalesDailySalesTabProps) {
   const { ensureRawData, dailySales, loading, isInitialLoading, error } = useSalesRawData();
 
+  const isTabActive = useTabActive();
   useEffect(() => {
-    void ensureRawData();
-  }, [ensureRawData]);
+    if (isTabActive) void ensureRawData(); // hidden tab: loads when opened again
+  }, [ensureRawData, isTabActive]);
 
   const dailySalesData = dailySales?.dailySalesData ?? [];
   const salesByDayData = dailySales?.salesByDayData ?? [];

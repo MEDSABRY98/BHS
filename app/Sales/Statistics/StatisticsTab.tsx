@@ -5,6 +5,7 @@ import { SalesInvoice } from '@/lib/supabase';;
 import { MapPin, ShoppingBag, UserCircle, DollarSign, Package, Store } from 'lucide-react';
 import { useSalesModuleFilters } from '@/app/Sales/Model/SalesFilters';
 import { useSalesRawData } from '@/app/Sales/Context/SalesRawDataContext';
+import { useTabActive } from '@/app/Components/Layout/TabPanel';
 import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
 
@@ -26,9 +27,10 @@ export default function SalesStatisticsTab({ userId, showCosts = true }: SalesSt
   const { ensureRawData, statistics, isInitialLoading, error, loading } = useSalesRawData();
   const [activeSubTab, setActiveSubTab] = useState<'area' | 'market' | 'merchandiser' | 'salesrep'>('area');
 
+  const isTabActive = useTabActive();
   useEffect(() => {
-    void ensureRawData();
-  }, [ensureRawData]);
+    if (isTabActive) void ensureRawData(); // hidden tab: loads when opened again
+  }, [ensureRawData, isTabActive]);
 
   const areaStats = useMemo(() => ({
     stats: statistics?.areaStats?.stats || [],

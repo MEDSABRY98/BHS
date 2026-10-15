@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { SalesInvoice } from '@/lib/supabase';;
 import { Users, Tag, Percent } from 'lucide-react';
 import { useSalesRawData } from '@/app/Sales/Context/SalesRawDataContext';
+import { useTabActive } from '@/app/Components/Layout/TabPanel';
 import SalesST_ByCustomers from './ByCustomers/ST_ByCustomersTab';
 import SalesST_ByProduct from './ByProduct/ST_ByProductTab';
 import SalesST_CustomerMarginTab from './CustomerMargin/ST_CustomerMarginTab';
@@ -22,9 +23,10 @@ export default function SalesStockReportTab({ userId, showCosts = true }: SalesS
   const { stockReport, loading, isInitialLoading, ensureRawData, error } = useSalesRawData();
   const [activeTab, setActiveTab] = useState<TabMode>('customers');
 
+  const isTabActive = useTabActive();
   useEffect(() => {
-    void ensureRawData();
-  }, [ensureRawData]);
+    if (isTabActive) void ensureRawData(); // hidden tab: loads when opened again
+  }, [ensureRawData, isTabActive]);
 
   useEffect(() => {
     trackSalesNestedTab('sales-download-form', activeTab, {

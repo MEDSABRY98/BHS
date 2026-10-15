@@ -16,6 +16,7 @@ import {
   resolveCustomerId,
   isLegacyMappingRowId
 } from '@/app/Sales/Cache/SalesMappingCache';
+import { memoSalesResult, clearSalesResultMemo } from '@/app/Sales/Cache/SalesMappingCache';
 
 function normCustomerId(value: unknown): string {
   if (value === null || value === undefined || value === '') return '';
@@ -44,7 +45,7 @@ async function getCustomerNameMap() {
 // -------------------------------------------------------------
 // 1. Customers Data
 // -------------------------------------------------------------
-export async function getCustomersData(userId: string, filters: any, activeTab: string) {
+async function getCustomersDataUncached(userId: string, filters: any, activeTab: string) {
   await requireSession();
   const augmentedData = await getFilteredSalesData(userId);
   const customerNameMap = await getCustomerNameMap();
@@ -202,7 +203,7 @@ export async function getCustomersData(userId: string, filters: any, activeTab: 
 // -------------------------------------------------------------
 // 2. Customer Details Data
 // -------------------------------------------------------------
-export async function getCustomerDetailsData(userId: string, filters: any, customerName: string, customerId: string, customerType: string) {
+async function getCustomerDetailsDataUncached(userId: string, filters: any, customerName: string, customerId: string, customerType: string) {
   await requireSession();
   const augmentedData = await getFilteredSalesData(userId);
   const targetCustomerId = normCustomerId(customerId);
@@ -343,7 +344,7 @@ export async function getCustomersList() {
 // -------------------------------------------------------------
 // 4. Customers Comparison
 // -------------------------------------------------------------
-export async function getCustomersComparisonData(userId: string, filters: any, currentYear: number, prevYear: number, selectedMonths: string[]) {
+async function getCustomersComparisonDataUncached(userId: string, filters: any, currentYear: number, prevYear: number, selectedMonths: string[]) {
   await requireSession();
   const augmentedData = await getFilteredSalesData(userId);
 
@@ -573,7 +574,7 @@ export async function batchSaveCustomerMapping(userId: string, mapping: Record<s
 // -------------------------------------------------------------
 // 6. Inactive Customers
 // -------------------------------------------------------------
-export async function getInactiveCustomersData(userId: string, filters: any, days: number | string, minAmount: number | string) {
+async function getInactiveCustomersDataUncached(userId: string, filters: any, days: number | string, minAmount: number | string) {
   await requireSession();
   const augmentedData = await getFilteredSalesData(userId);
 
@@ -773,6 +774,7 @@ export async function hideInactiveCustomer(customerId: string, customerName?: st
   });
 
   if (error) throw error;
+  clearSalesResultMemo(); // the inactive list must not come from a saved result
 
   return {
     success: true,
@@ -793,6 +795,28 @@ export async function restoreInactiveCustomer(customerId: string) {
     .eq('CUSTOMER ID', cId);
 
   if (error) throw error;
+  clearSalesResultMemo();
 
   return { success: true };
+}
+
+// ── Cached entry points: same user data + same filters -> saved result (see memoSalesResult) ──
+export async function getCustomersData(userId: string, filters: any, activeTab: string) {
+  await requireSession();
+  return memoSalesResult('customers', userId, [filters, activeTab], () => getCustomersDataUncached(userId, filters, activeTab));
+}
+
+export async function getCustomerDetailsData(userId: string, filters: any, customerName: string, customerId: string, customerType: string) {
+  await requireSession();
+  return memoSalesResult('customerDetails', userId, [filters, customerName, customerId, customerType], () => getCustomerDetailsDataUncached(userId, filters, customerName, customerId, customerType));
+}
+
+export async function getCustomersComparisonData(userId: string, filters: any, currentYear: number, prevYear: number, selectedMonths: string[]) {
+  await requireSession();
+  return memoSalesResult('comparison', userId, [filters, currentYear, prevYear, selectedMonths], () => getCustomersComparisonDataUncached(userId, filters, currentYear, prevYear, selectedMonths));
+}
+
+export async function getInactiveCustomersData(userId: string, filters: any, days: number | string, minAmount: number | string) {
+  await requireSession();
+  return memoSalesResult('inactive', userId, [filters, days, minAmount], () => getInactiveCustomersDataUncached(userId, filters, days, minAmount));
 }

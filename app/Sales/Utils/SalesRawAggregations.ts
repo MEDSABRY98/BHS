@@ -206,6 +206,8 @@ export function buildDailySalesFromRaw(globallyFilteredData: any[], invoiceTypeF
   return { dailySalesData: filteredInvoices, salesByDayData, avgSalesByDayData };
 }
 
+export const UNASSIGNED_DIMENSION = 'Unassigned';
+
 function calculateStatsForDimension(data: any[], dimensionKey: string) {
   const dimensionMap = new Map<string, { amount: number; qty: number; count: number }>();
   const dimensionCustomersMap = new Map<string, Set<string>>();
@@ -213,8 +215,9 @@ function calculateStatsForDimension(data: any[], dimensionKey: string) {
   const monthlyData = new Map<string, Map<string, { amount: number; qty: number }>>();
 
   data.forEach((item: any) => {
-    const dimValue = item[dimensionKey];
-    if (!dimValue) return;
+    // Rows with no area / market / merchandiser / sales rep go under "Unassigned",
+    // so the statistics add up to the same total as the Overview.
+    const dimValue = String(item[dimensionKey] || '').trim() || UNASSIGNED_DIMENSION;
 
     const existing = dimensionMap.get(dimValue) || { amount: 0, qty: 0, count: 0 };
     dimensionMap.set(dimValue, {

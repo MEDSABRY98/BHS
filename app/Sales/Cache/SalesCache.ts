@@ -77,12 +77,21 @@ function scheduleVersionCheck() {
 //  PUBLIC: Read cache (used by every API route)
 //  Priority: Memory → Storage JSON → DB fallback
 // ─────────────────────────────────────────────────────────────
+let coldLoad: Promise<any[]> | null = null;
+
 export async function getSalesDataServer(): Promise<any[]> {
   // 1. Memory hit (fastest). Freshness is checked in the background.
   if (memoryCache) {
     scheduleVersionCheck();
     return memoryCache;
   }
+  // Several requests arriving on a cold instance share one download instead of each downloading the file.
+  if (!coldLoad) coldLoad = loadIntoMemory().finally(() => { coldLoad = null; });
+  return coldLoad;
+}
+
+async function loadIntoMemory(): Promise<any[]> {
+  const started = Date.now();
 
   // 2. Supabase Storage hit (fast — single HTTP request, CDN cached)
   try {
@@ -91,7 +100,7 @@ export async function getSalesDataServer(): Promise<any[]> {
       memoryCache = parsed;
       memoryVersion = version;
       lastVersionCheckAt = Date.now();
-      console.log(`📦 Storage cache hit: ${parsed.length} rows`);
+      console.log(`📦 Storage cache hit: ${parsed.length} rows in ${Date.now() - started} ms`);
       return memoryCache;
     }
   } catch (e) {
