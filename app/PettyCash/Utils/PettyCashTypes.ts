@@ -13,7 +13,7 @@ export const STATUS_META: Record<PettyCashStatus, { label: string; badge: string
   SETTLED: { label: 'Settled', badge: 'bg-emerald-100 text-emerald-700', dot: 'bg-emerald-500' },
 };
 
-export type PettyCashTabId = 'new' | 'records';
+export type PettyCashTabId = 'new' | 'records' | 'analysis'; // analysis: admin only
 
 export interface PettyCashPermissions {
   tabs: PettyCashTabId[];

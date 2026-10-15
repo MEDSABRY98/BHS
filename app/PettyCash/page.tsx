@@ -13,6 +13,7 @@ import { usePettyCashTabAudit } from '@/app/Audit/Model/PettyCashTabAudit';
 import PettyCashSidebar from './Utils/Sidebar';
 import PettyCashForm from './Components/PettyCashForm';
 import PettyCashCards from './Components/PettyCashCards';
+import PettyCashAnalysisTab from './Components/PettyCashAnalysisTab';
 import { getPettyCashPermissions, listPettyCash } from './Service/PettyCashService';
 import type { PettyCash, PettyCashPermissions, PettyCashTabId } from './Utils/PettyCashTypes';
 
@@ -197,6 +198,7 @@ export default function PettyCashPage() {
                   />
                 )
               )}
+              {activeTab === 'analysis' && visibleTabs.includes('analysis') && <PettyCashAnalysisTab />}
             </>
           )}
         </div>

@@ -269,7 +269,7 @@ function breakdownTable(doc: jsPDF, y: number, D: Analysis) {
   return (doc as any).lastAutoTable.finalY as number;
 }
 
-function detailsTable(doc: jsPDF, y: number, D: Analysis, multiClaim: boolean) {
+function detailsTable(doc: jsPDF, y: number, D: Analysis, multiClaim: boolean, groupLabel: string) {
   const rows = D.lines; // already: beneficiary, then invoice date
   const body = rows.map((l) => [l.person, fd(l.date), ...(multiClaim ? [l.claim] : []), l.account, l.label, fmt(l.amount)]);
   body.push(['Total', '', ...(multiClaim ? [''] : []), '', '', fmt(D.total)]);
@@ -277,7 +277,7 @@ function detailsTable(doc: jsPDF, y: number, D: Analysis, multiClaim: boolean) {
   autoTable(doc, {
     ...baseTable,
     startY: y,
-    head: [['Beneficiary', 'Date', ...(multiClaim ? ['Claim'] : []), 'Account', 'Description', 'Amount (AED)']],
+    head: [['Beneficiary', 'Date', ...(multiClaim ? [groupLabel] : []), 'Account', 'Description', 'Amount (AED)']],
     body,
     styles: { ...baseTable.styles, fontSize: 7, cellPadding: { top: 1.4, bottom: 1.4, left: 1.5, right: 1.5 } },
     rowPageBreak: 'avoid',
@@ -307,7 +307,6 @@ function detailsTable(doc: jsPDF, y: number, D: Analysis, multiClaim: boolean) {
 
 function decorate(doc: jsPDF, period: string) {
   const n = doc.getNumberOfPages();
-  const printed = new Date().toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
   for (let i = 1; i <= n; i++) {
     doc.setPage(i);
     doc.setFillColor(...C.black);
@@ -322,13 +321,16 @@ function decorate(doc: jsPDF, period: string) {
     doc.text(`Petty Cash Analysis${period ? '  |  ' + period : ''}`, PW - M, 6, { align: 'right' });
     doc.setFontSize(7);
     doc.setTextColor(...C.grey);
-    doc.text(`System generated · Printed ${printed}`, M, PH - 8);
     doc.text(`Page ${i} of ${n}`, PW - M, PH - 8, { align: 'right' });
   }
 }
 
-/** Admin analysis report for one or more petty cash claims. */
-export async function generatePettyCashAnalysisPdf(items: PettyCash[]) {
+/**
+ * Admin analysis report for one or more petty cash claims.
+ * groupLabel 'Employee': items are grouped per employee (uploaded Excel), not saved claims.
+ */
+export async function generatePettyCashAnalysisPdf(items: PettyCash[], opts: { groupLabel?: 'Claim' | 'Employee' } = {}) {
+  const groupLabel = opts.groupLabel || 'Claim';
   if (!items.length) throw new Error('Nothing to export');
   const D = analyse(items);
   if (!D.lines.length) throw new Error('No rows to analyse');
@@ -358,7 +360,7 @@ export async function generatePettyCashAnalysisPdf(items: PettyCash[]) {
   const kpis: [string, string][] = [
     [fmt(D.total), 'Total Expenses (AED)'],
     [String(D.lines.length), 'Expense Lines'],
-    [String(D.claims.length), D.claims.length === 1 ? 'Claim' : 'Claims'],
+    [String(D.claims.length), D.claims.length === 1 ? groupLabel : `${groupLabel}s`],
     [String(D.acc.length), 'Expense Accounts'],
     [String(D.per.length), 'Beneficiaries'],
   ];
@@ -430,11 +432,11 @@ export async function generatePettyCashAnalysisPdf(items: PettyCash[]) {
   // ── Line details ───────────────────────────────────────────
   doc.addPage();
   y = heading(doc, 22, 'Line Details');
-  detailsTable(doc, y, D, D.claims.length > 1);
+  detailsTable(doc, y, D, D.claims.length > 1, groupLabel);
   decorate(doc, D.period);
 
   const safe = (s: string) => (s || '').replace(/[^\w؀-ۿ -]+/g, '').replace(/\s+/g, '').slice(0, 40);
-  const fileName = `PettyCashAnalysis${D.claims.length === 1 ? '_' + D.claims[0] : ''}${D.employees.length === 1 ? '_' + safe(D.employees[0]) : ''}${D.period ? '_' + safe(D.period) : ''}.pdf`;
+  const fileName = `PettyCashAnalysis${D.claims.length === 1 && groupLabel === 'Claim' ? '_' + D.claims[0] : ''}${D.employees.length === 1 ? '_' + safe(D.employees[0]) : ''}${D.period ? '_' + safe(D.period) : ''}.pdf`;
   saveTrackedPdf(doc, fileName);
   return fileName;
 }

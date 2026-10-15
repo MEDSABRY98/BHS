@@ -34,7 +34,7 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 //  Permissions (Admin Control → 'petty-cash', tabs: new / records)
 // ─────────────────────────────────────────────────────────────
 function permissionsOf(user: SessionUserRecord): PettyCashPermissions {
-  if (isAdminUser(user)) return { tabs: [...ALL_TABS], viewAll: true };
+  if (isAdminUser(user)) return { tabs: [...ALL_TABS, 'analysis'], viewAll: true }; // Analysis (upload an Excel): admin only
 
   const raw = String(user.role || '').trim();
   if (!raw) return { tabs: [...ALL_TABS], viewAll: false };

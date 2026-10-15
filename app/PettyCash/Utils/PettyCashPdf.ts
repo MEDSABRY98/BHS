@@ -246,7 +246,6 @@ export async function generatePettyCashPdf(items: PettyCash[], opts: { printedBy
 
   // ── Footer on every page ─────────────────────────────────
   const pages = doc.getNumberOfPages();
-  const printed = new Date().toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
   for (let p = 1; p <= pages; p++) {
     doc.setPage(p);
     doc.setFillColor(...C.gold);
@@ -254,7 +253,6 @@ export async function generatePettyCashPdf(items: PettyCash[], opts: { printedBy
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7.5);
     doc.setTextColor(...C.slate500);
-    doc.text(`System generated · Petty Cash${single ? ` · ${single.ID}` : ''} · Printed ${printed}${opts.printedBy ? ` by ${opts.printedBy}` : ''}`, M, H - 9.5);
     doc.text(`Page ${p} of ${pages}`, W - M, H - 9.5, { align: 'right' });
   }
 
