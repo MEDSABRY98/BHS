@@ -205,6 +205,7 @@ const SYSTEMS = [
     { id: 'transfer-requests', label: 'Transfer Requests' },
     { id: 'petty-cash', label: 'Petty Cash' },
     { id: 'debit-notes', label: 'Debit Notes' },
+    { id: 'credit-notes', label: 'Credit Notes' },
     { id: 'database', label: 'Database' },
 ];
 
@@ -281,6 +282,10 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
     'debit-notes': [
         { id: 'new', label: 'New Debit Note' },
         { id: 'notes', label: 'Debit Notes' },
+    ],
+    'credit-notes': [
+        { id: 'new', label: 'New Credit Note' },
+        { id: 'notes', label: 'Credit Notes' },
     ],
     'intercompany-reconciliation': [
         { id: 'entries', label: 'Entries' },
@@ -388,6 +393,7 @@ const getSystemIcon = (id: string) => {
         case 'intercompany-reconciliation': return <Layers className="w-5 h-5 text-cyan-500" />;
         case 'transfer-requests': return <CreditCard className="w-5 h-5 text-emerald-500" />;
         case 'debit-notes': return <FileCheck className="w-5 h-5 text-indigo-500" />;
+        case 'credit-notes': return <FileCheck className="w-5 h-5 text-emerald-500" />;
         case 'database': return <Database className="w-5 h-5 text-slate-500" />;
         default: return <Settings className="w-5 h-5 text-slate-500" />;
     }

@@ -155,6 +155,7 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
     { id: 'transfer-requests', title: 'Transfer Requests', path: '/TransferRequests', color: 'emerald' },
     { id: 'petty-cash', title: 'Petty Cash', path: '/PettyCash', color: 'teal' },
     { id: 'debit-notes', title: 'Debit Notes', path: '/DebitNotes', color: 'indigo' },
+    { id: 'credit-notes', title: 'Credit Notes', path: '/CreditNotes', color: 'emerald' },
   ];
 
   const allowedSystems = useMemo(
