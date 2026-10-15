@@ -36,6 +36,17 @@ export async function downloadInventoryScrapReportPDF(
 
   const W = doc.internal.pageSize.getWidth();
   const M = 16;
+  // text boxes grow with their text (8pt lines) instead of a fixed height
+  const LINE_FACTOR = 1.35;
+  const LINE_MM = 8 * LINE_FACTOR * 0.3528;
+  const boxHeight = (lines: number) => Math.max(16, 5 + Math.max(lines - 1, 0) * LINE_MM + 5);
+  const ensureSpace = (top: number, need: number) => {
+    if (top + need + 20 > doc.internal.pageSize.getHeight()) {
+      doc.addPage();
+      return 20;
+    }
+    return top;
+  };
   const gold: [number, number, number] = [212, 175, 55];
   const black: [number, number, number] = [15, 15, 15];
   const gray: [number, number, number] = [85, 85, 85];
@@ -169,17 +180,16 @@ export async function downloadInventoryScrapReportPDF(
   doc.text('METHOD OF DISPOSAL', M, y);
   y += 3;
 
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  const disposalLines: string[] = disposalMethod.trim() ? doc.splitTextToSize(disposalMethod, W - M * 2 - 6) : [];
+  const disposalHeight = boxHeight(disposalLines.length);
+  y = ensureSpace(y, disposalHeight);
   doc.setDrawColor(224, 208, 160);
   doc.setFillColor(253, 252, 248);
-  const disposalHeight = 16;
   doc.rect(M, y, W - M * 2, disposalHeight, 'FD');
-  doc.setFont('helvetica', 'normal');
   doc.setTextColor(...gray);
-  doc.setFontSize(8);
-  if (disposalMethod.trim()) {
-    const split = doc.splitTextToSize(disposalMethod, W - M * 2 - 6);
-    doc.text(split, M + 3, y + 5);
-  }
+  if (disposalLines.length) doc.text(disposalLines, M + 3, y + 5, { lineHeightFactor: LINE_FACTOR });
   y += disposalHeight + 10;
 
   if (notes.trim()) {
@@ -189,15 +199,16 @@ export async function downloadInventoryScrapReportPDF(
     doc.text('REMARKS & NOTES', M, y);
     y += 3;
 
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    const noteLines: string[] = doc.splitTextToSize(notes, W - M * 2 - 6);
+    const notesHeight = boxHeight(noteLines.length);
+    y = ensureSpace(y, notesHeight);
     doc.setDrawColor(224, 208, 160);
     doc.setFillColor(253, 252, 248);
-    const notesHeight = 16;
     doc.rect(M, y, W - M * 2, notesHeight, 'FD');
-    doc.setFont('helvetica', 'normal');
     doc.setTextColor(...gray);
-    doc.setFontSize(8);
-    const split = doc.splitTextToSize(notes, W - M * 2 - 6);
-    doc.text(split, M + 3, y + 5);
+    doc.text(noteLines, M + 3, y + 5, { lineHeightFactor: LINE_FACTOR });
     y += notesHeight + 10;
   }
 
