@@ -233,6 +233,26 @@ export async function generateDebitNotePdf(note: DebitNote) {
   doc.setTextColor(...C.grey);
   doc.text(SUPPORTING_TEXT, M + 4 + doc.getTextWidth('ATTACHMENTS') + 10, y);
 
+  // ── Signatures: Accounts Department · CEO (bottom of the page) ──
+  const PH = 297;
+  let sy = Math.max(y + 22, PH - 48);
+  if (sy > PH - 30) {
+    doc.addPage();
+    sy = 40;
+  }
+  const sw = (CW - 24) / 2;
+  (['Accounts Department', 'CEO'] as const).forEach((title, i) => {
+    const x = M + i * (sw + 24);
+    label(title, x, sy, C.navy, 7);
+    doc.setDrawColor(...C.ink);
+    doc.setLineWidth(0.35);
+    doc.line(x, sy + 20, x + sw, sy + 20);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.4);
+    doc.setTextColor(...C.grey);
+    doc.text('Signature & Date', x, sy + 25);
+  });
+
   const fileName = `${note.ID}_Debit_Note.pdf`;
   saveTrackedPdf(doc, fileName);
   return fileName;
