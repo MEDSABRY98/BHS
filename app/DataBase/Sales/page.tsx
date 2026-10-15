@@ -551,31 +551,34 @@ export default function SalesDBPage() {
         if (!proceed) return;
       }
 
-      // Same invoice uploaded before? (re-uploading a file would double the sales)
+      // Works by invoice number: invoices already in the database are skipped (all their rows),
+      // everything else in the file is uploaded. So a full month can be uploaded again to pick up
+      // invoices that were added later with an old date (sales or returns) — nothing is counted twice.
       const existingInvoices = await findExistingInvoices(formattedRows.map((r) => r['INVOICE NUMBER']));
+      const firstNum = parseInt(String(allFormattedRows[0]?.ID || '').replace(/\D/g, ''), 10) || 1;
+      const uploadRows = formattedRows
+        .filter((r) => !existingInvoices.has(r['INVOICE NUMBER']))
+        .map((r, i) => ({ ...r, ID: `R-${String(firstNum + i).padStart(5, '0')}` })); // keep the row numbers continuous
+
+      if (uploadRows.length === 0) {
+        toast.info(`Nothing new — all ${existingInvoices.size} invoice(s) in this file are already in the database.`);
+        return;
+      }
       if (existingInvoices.size > 0) {
         const list = [...existingInvoices].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
         downloadUploadIssuesReport(
-          `Sales_Existing_Invoices_${new Date().toISOString().split('T')[0]}.txt`,
-          'Sales Upload - Invoices Already In Database',
-          [{ heading: `=== INVOICES ALREADY UPLOADED (${list.length}) ===`, lines: list }]
+          `Sales_Skipped_Existing_Invoices_${new Date().toISOString().split('T')[0]}.txt`,
+          'Sales Upload - Invoices Already In Database (skipped)',
+          [{ heading: `=== SKIPPED: ALREADY UPLOADED (${list.length}) ===`, lines: list }]
         );
-        const proceed = window.confirm(
-          `${list.length} invoice number(s) in this file are ALREADY in the Sales database (e.g. ${list.slice(0, 5).join(', ')}). ` +
-          `Uploading again will count them twice. A full list was downloaded.\n\nUpload anyway?`
-        );
-        if (!proceed) {
-          toast.error('Upload cancelled — no rows were added.');
-          return;
-        }
       }
 
       // Insert in chunks; if any chunk fails, remove what this upload already added
       const chunkSize = 500;
       const insertedIds: string[] = [];
       try {
-        for (let i = 0; i < formattedRows.length; i += chunkSize) {
-          const chunk = formattedRows.slice(i, i + chunkSize);
+        for (let i = 0; i < uploadRows.length; i += chunkSize) {
+          const chunk = uploadRows.slice(i, i + chunkSize);
           const { error: insertErr } = await bhs_supabas
             .from('web_Sales_DB')
             .insert(chunk);
@@ -595,7 +598,11 @@ export default function SalesDBPage() {
         .update({ DATA: null })
         .in('KEY', ['sales_data', 'months_data']);
 
-      toast.success(`Successfully uploaded ${formattedRows.length} sales rows!`);
+      const newInvoices = new Set(uploadRows.map((r) => r['INVOICE NUMBER'])).size;
+      toast.success(
+        `Uploaded ${uploadRows.length} row(s) from ${newInvoices} new invoice(s)` +
+          (existingInvoices.size ? ` — ${existingInvoices.size} invoice(s) already in the database were skipped.` : '.'),
+      );
       setIsUploadModalOpen(false);
 
       buildSalesCache().catch(err => console.warn('Background build warning:', err));
