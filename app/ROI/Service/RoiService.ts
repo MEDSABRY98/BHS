@@ -124,9 +124,8 @@ function visibleCustomers(user: SessionUserRecord, all: Map<string, CustomerRow>
 }
 
 async function nextNumber(): Promise<number> {
-  const { data, error } = await db().from(TABLE).select('ID');
-  if (error) throw error;
-  const max = ((data || []) as any[]).reduce((acc, r) => {
+  const data = await fetchAllRows('ID', 'ID');
+  const max = data.reduce((acc, r) => {
     const m = String(r.ID || '').match(/^ROI-(\d+)$/i);
     return m ? Math.max(acc, parseInt(m[1], 10)) : acc;
   }, 0);
@@ -135,6 +134,19 @@ async function nextNumber(): Promise<number> {
 
 async function nextId(): Promise<string> {
   return `ROI-${String(await nextNumber()).padStart(4, '0')}`;
+}
+
+/** Reads a whole table page by page (Supabase returns at most 1000 rows per request). */
+async function fetchAllRows(select: string, order: string): Promise<any[]> {
+  const pageSize = 1000;
+  const out: any[] = [];
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await db().from(TABLE).select(select).order(order, { ascending: true }).range(from, from + pageSize - 1);
+    if (error) throw error;
+    out.push(...((data || []) as any[]));
+    if (!data || data.length < pageSize) break;
+  }
+  return out;
 }
 
 function validate(input: SupportInput): string | null {
@@ -152,11 +164,15 @@ export async function GetRoiData(): Promise<RoiData> {
   const [allCustomers, { idByKey, nameById }] = await Promise.all([loadCustomers(), loadUsers()]);
   const customers = visibleCustomers(user, allCustomers);
 
-  const { data, error } = await db().from(TABLE).select('*').order('ID', { ascending: true });
-  if (error) throw new Error(errMsg(error, 'Failed to load the supports'));
+  let rowsAll: any[];
+  try {
+    rowsAll = await fetchAllRows('*', 'ID');
+  } catch (e) {
+    throw new Error(errMsg(e, 'Failed to load the supports'));
+  }
 
   const supports: SupportRecord[] = [];
-  for (const r of (data || []) as any[]) {
+  for (const r of rowsAll) {
     const c = customers.get(norm(r.CUSTOMER_ID));
     if (!c) continue;
     // his own SALESPERSON_ID, or (older rows) the customer's current SALES_REP
@@ -178,9 +194,9 @@ export async function GetRoiData(): Promise<RoiData> {
   const wanted = new Set(supports.map((s) => norm(s.customerId)));
   const sales: RoiLine[] = [];
   const lastSale: Record<string, string> = {};
+  // sales: always the last 3 full months (not the support month, not the current month)
+  const win = SalesWindow();
   if (wanted.size) {
-    // sales: always the last 3 full months (not the support month, not the current month)
-    const win = SalesWindow();
     const from = `${win[0]}-01`;
     const to = `${win[win.length - 1]}-31`;
     const showCosts = canSeeCosts(user);
@@ -204,7 +220,7 @@ export async function GetRoiData(): Promise<RoiData> {
     }
   }
 
-  return { supports, sales, showCosts: canSeeCosts(user), lastSale };
+  return { supports, sales, showCosts: canSeeCosts(user), window: win, lastSale };
 }
 
 /** Customers + salespersons for the "add customer" form. */
@@ -322,6 +338,11 @@ export async function UpdateSupport(id: string, input: SupportInput): Promise<Re
     const bad = validate(input);
     if (bad) return { success: false, error: bad };
     const customer = await assertCustomerAllowed(user, input.customerId);
+    // the entry being edited must also belong to a customer this user may see
+    const { data: existing, error: readErr } = await db().from(TABLE).select('CUSTOMER_ID').eq('ID', id).maybeSingle();
+    if (readErr) throw readErr;
+    if (!existing) return { success: false, error: 'Support not found.' };
+    await assertCustomerAllowed(user, String((existing as any).CUSTOMER_ID));
     const { error } = await db()
       .from(TABLE)
       .update({

@@ -115,10 +115,10 @@ function computeResult(
   perMonth: PerMonth,
   customerLines: RoiLine[],
   showCosts: boolean,
+  windowKeys: string[],
   lastSale?: string,
 ): RoiResult {
   const monthKeys = Array.from(perMonth.keys()).sort(); // support months
-  const windowKeys = SalesWindow(); // sales months
   const byMonth = new Map<string, Bucket>(windowKeys.map((m) => [m, newBucket()]));
   const total = newBucket();
   let lastTransaction = '';
@@ -268,6 +268,7 @@ function buildResults(data: RoiData, keyOf: (e: SupportRecord) => string): RoiRe
       perMonth,
       index.get(latest.customerId) || [],
       data.showCosts,
+      data.window?.length ? data.window : SalesWindow(),
       data.lastSale?.[latest.customerId],
     );
   });

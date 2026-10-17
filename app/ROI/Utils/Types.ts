@@ -44,6 +44,8 @@ export type RoiData = {
   supports: SupportRecord[];
   sales: RoiLine[];
   showCosts: boolean;
+  /** the 3 sales months the server loaded (so the screen and the server always agree) */
+  window: string[];
   /** last positive invoice date of each supported customer (all history) - explains empty months */
   lastSale?: Record<string, string>;
 };
