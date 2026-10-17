@@ -74,6 +74,7 @@ const INVENTORY_COUNTING_VIEW_TAB_IDS = [
     'user_comparison',
     'record',
     'archives',
+    'reports',
 ] as const;
 
 const INVENTORY_COUNTING_TAB_IDS = [
@@ -195,7 +196,7 @@ const SYSTEMS = [
     { id: 'purchase-price-tracking', label: 'Purchase Price Tracking' },
     { id: 'purchase-planning', label: 'Purchase Planning' },
     { id: 'sales', label: 'Sales Analysis' },
-    { id: 'lpo-management', label: "LPO's" },
+    { id: 'lpo-management', label: 'Invoices Tracking' },
     { id: 'customers-discounts', label: 'Customers Discounts' },
     { id: 'payment-analysis', label: 'Payment Analysis' },
     { id: 'salesperson-analysis', label: 'Salesperson Analysis' },
@@ -266,6 +267,7 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
         { id: 'user_comparison', label: 'User Comparison' },
         { id: 'record', label: 'Record' },
         { id: 'archives', label: 'Archives' },
+        { id: 'reports', label: 'Reports' },
         { id: 'close_session', label: 'Close Count Session' },
     ],
     'inventory-scrap': [

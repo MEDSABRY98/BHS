@@ -25,8 +25,8 @@ export type SecureResult = {
 // Tables the browser screens may use through this gateway
 const ALLOWED_TABLES = new Set([
   'app_VERSIONS',
-  'app_lpos_DRIVERS',
-  'app_lpos_ORDERS',
+  'app_INVOICES_TRACKING_DRIVERS',
+  'app_INVOICES_TRACKING_ORDERS',
   'bhs_CUSTOMERS',
   'bhs_CUSTOMERS_MAX_ID',
   'bhs_PRODUCTS',
@@ -105,13 +105,13 @@ function canSeeAllDebit(user: SessionUserRecord): boolean {
 }
 
 // ─────────────────────────────────────────────────────────────
-//  LPOs: each user sees / changes only the orders he created; the admin sees all.
+//  Invoices Tracking: each user (and his team) sees / changes only the orders created by the team; the admin sees all.
 //  Orders are owned by CREATED_BY (set here on insert, never from the browser).
-//  Delivery rows (app_lpos_DRIVERS) follow their order.
+//  Delivery rows (app_INVOICES_TRACKING_DRIVERS) follow their order.
 //  Identifier-only lookups (numbering, duplicate invoice / LPO checks) stay global.
 // ─────────────────────────────────────────────────────────────
-const LPO_ORDERS = 'app_lpos_ORDERS';
-const LPO_DRIVERS = 'app_lpos_DRIVERS';
+const LPO_ORDERS = 'app_INVOICES_TRACKING_ORDERS';
+const LPO_DRIVERS = 'app_INVOICES_TRACKING_DRIVERS';
 const LOOKUP_COLUMNS = new Set(['ID', 'ORDER_ID', 'INVOICE_ID', 'LPO_ID', 'DRIVERS_NAME']);
 const MAIN_METHODS = new Set(['select', 'insert', 'update', 'upsert', 'delete']);
 
@@ -137,13 +137,38 @@ function stampRows(rows: unknown, user: SessionUserRecord): unknown {
   return Array.isArray(rows) ? rows.map(stamp) : stamp(rows);
 }
 
+/**
+ * Teams: users that share the same value in bhs_USERS."TEAM" see and continue each other's work.
+ * No team (empty) = only himself. Reusable by any module that scopes data by owner.
+ */
+export async function teamUserIds(user: SessionUserRecord): Promise<string[]> {
+  const me = String(user.id);
+  // TEAM may hold several teams separated by comma / semicolon / "|" / Arabic comma
+  const parse = (v: any): string[] =>
+    String(v ?? '')
+      .split(/[,;|\u060C]/)
+      .map((t) => t.trim().toLowerCase())
+      .filter(Boolean);
+  const { data: self, error } = await getSupabaseAdmin().from('bhs_USERS').select('TEAM').eq('ID', me).maybeSingle();
+  if (error) return [me];
+  const myTeams = new Set(parse((self as any)?.TEAM));
+  if (myTeams.size === 0) return [me];
+  const { data: mates, error: e2 } = await getSupabaseAdmin().from('bhs_USERS').select('ID, TEAM');
+  if (e2) return [me];
+  const ids = (mates || [])
+    .filter((u: any) => parse(u.TEAM).some((t) => myTeams.has(t)))
+    .map((u: any) => String(u.ID));
+  return ids.includes(me) ? ids : [...ids, me];
+}
+
 async function myOrderIds(user: SessionUserRecord): Promise<string[]> {
   const ids: string[] = [];
+  const owners = await teamUserIds(user);
   for (let from = 0; ; from += 1000) {
     const { data, error } = await getSupabaseAdmin()
       .from(LPO_ORDERS)
       .select('ORDER_ID')
-      .eq('CREATED_BY', String(user.id))
+      .in('CREATED_BY', owners)
       .order('ORDER_ID')
       .range(from, from + 999);
     if (error) throw new Error(error.message);
@@ -164,10 +189,10 @@ async function scopeLpo(user: SessionUserRecord, table: string, steps: SecureSte
   if (table === LPO_ORDERS) {
     if (main === 'insert') return steps.map(([m, a]) => (m === 'insert' ? [m, [stampRows(a?.[0], user), ...(a || []).slice(1)]] : [m, a])) as SecureStep[];
     if (main === 'upsert') return 'Not allowed.';
-    return withFilter(steps, ['eq', ['CREATED_BY', String(user.id)]]);
+    return withFilter(steps, ['in', ['CREATED_BY', await teamUserIds(user)]]);
   }
 
-  // app_lpos_DRIVERS: only rows of the user's own orders
+  // app_INVOICES_TRACKING_DRIVERS: only rows of the user's own orders
   const mine = await myOrderIds(user);
   if (main === 'insert' || main === 'upsert') {
     const a = steps.find(([m]) => m === main)?.[1];

@@ -3,8 +3,8 @@
 import { useState, useEffect } from 'react';
 import { Trash2, Calendar, Loader2, FileSpreadsheet, Download, Upload, X } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import { usePermissions } from '@/app/LPOs/Hooks/usePermissions';
-import { ConfirmModal } from '@/app/LPOs/Components/ConfirmModal';
+import { usePermissions } from '@/app/InvoicesTracking/Hooks/usePermissions';
+import { ConfirmModal } from '@/app/InvoicesTracking/Components/ConfirmModal';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import { toast } from '@/app/Components/Notification';
 import { getPurchaseDetailsMonthsSummary, deletePurchaseDetailsMonth, uploadPurchaseDetails } from './PurchaseDetailsService';

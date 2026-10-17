@@ -40,7 +40,7 @@ const PATH_SYSTEMS: { prefix: string; ids: string[] }[] = [
   { prefix: '/InventoryScrap', ids: ['inventory-scrap'] },
   { prefix: '/PurchasePriceTracking', ids: ['purchase-price-tracking'] },
   { prefix: '/Sales', ids: ['sales'] },
-  { prefix: '/LPOs', ids: ['lpo-management'] },
+  { prefix: '/InvoicesTracking', ids: ['lpo-management'] },
   { prefix: '/DataBase', ids: ['database'] },
   { prefix: '/CustomersDiscounts', ids: ['customers-discounts'] },
 ].sort((a, b) => b.prefix.length - a.prefix.length);

@@ -6,8 +6,8 @@
 import { useEffect, useState } from 'react';
 import { Plus, Edit2, Trash2, Smartphone } from 'lucide-react';
 import { bhs_supabase } from '@/lib/secureDb';
-import { ConfirmModal } from '@/app/LPOs/Components/ConfirmModal';
-import { usePermissions } from '@/app/LPOs/Hooks/usePermissions';
+import { ConfirmModal } from '@/app/InvoicesTracking/Components/ConfirmModal';
+import { usePermissions } from '@/app/InvoicesTracking/Hooks/usePermissions';
 import { toast } from '@/app/Components/Notification';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import AppVersionModal, { type AppVersionFormValues, type AppVersionRow } from './Components/AppVersionModal';

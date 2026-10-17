@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { matchesSearch } from '@/app/DataBase/Utils/SearchUtils';
 import { Plus, Edit2, Trash2, Search, MailPlus, FileSpreadsheet } from 'lucide-react';
 import { exportStyledExcel } from '@/app/Components/Export/ExcelExport';
 import NoData from '@/app/Components/DataState/NoDataTab';
@@ -48,11 +49,7 @@ export default function LuluEmailsDatabasePage() {
     }
   };
 
-  const filteredData = data.filter(item => 
-    (item['CUSTOMER ID']?.toLowerCase() || '').includes(search.toLowerCase()) ||
-    (item['CUSTOMER CODE']?.toLowerCase() || '').includes(search.toLowerCase()) ||
-    (item['TO:']?.toLowerCase() || '').includes(search.toLowerCase())
-  );
+  const filteredData = data.filter(item => matchesSearch([item['CUSTOMER ID'], item['CUSTOMER CODE'], item['TO:']], search));
 
   const handleExport = async () => {
     if (filteredData.length === 0) {

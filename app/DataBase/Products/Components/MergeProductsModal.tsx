@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react';
 import { AlertTriangle, GitMerge, X } from 'lucide-react';
-import SearchSelect from '@/app/LPOs/Components/DropDownList';
+import SearchSelect from '@/app/InvoicesTracking/Components/DropDownList';
 import type { ProductRecord } from '../Hooks/UseMergeProducts';
 
 const AFFECTED_TABLES = [

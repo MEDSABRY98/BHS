@@ -23,9 +23,11 @@ interface DashboardTabProps {
   allData: SalesInvoice[];
   productId: string;
   filterYear?: string;
+  /** optional custom matcher (used by Category Details) instead of matching one productId */
+  matchItem?: (item: SalesInvoice) => boolean;
 }
 
-export default function DashboardTab({ productData, monthlySales, allData, productId, filterYear }: DashboardTabProps) {
+export default function DashboardTab({ productData, monthlySales, allData, productId, filterYear, matchItem }: DashboardTabProps) {
   // Dashboard metrics
   const dashboardMetrics = useMemo(() => {
     const totalAmount = productData.reduce((sum, item) => sum + item.amount, 0);
@@ -78,8 +80,9 @@ export default function DashboardTab({ productData, monthlySales, allData, produ
   // Get all product data from unfiltered source (for comparison)
   const productAllData = useMemo(() => {
     const source = allData.length > 0 ? allData : productData;
+    if (matchItem) return source.filter(matchItem);
     return source.filter(item => (item.productId || item.barcode || item.product) === productId);
-  }, [allData, productData, productId]);
+  }, [allData, productData, productId, matchItem]);
 
   // Chart data for monthly sales - Jan-Dec comparison
   const chartData = useMemo(() => {

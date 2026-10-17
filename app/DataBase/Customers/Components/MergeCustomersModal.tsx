@@ -2,11 +2,11 @@
 
 import { useMemo } from 'react';
 import { AlertTriangle, GitMerge, X } from 'lucide-react';
-import SearchSelect from '@/app/LPOs/Components/DropDownList';
+import SearchSelect from '@/app/InvoicesTracking/Components/DropDownList';
 import type { CustomerRecord } from '../Hooks/UseMergeCustomers';
 
 const AFFECTED_TABLES = [
-  'Every table that uses the Customer ID (sales, debit, emails, notes, LPOs, discounts, documents, reconciliations…)',
+  'Every table that uses the Customer ID (sales, debit, emails, notes, Invoices Tracking, discounts, documents, reconciliations…)',
   'All changes happen together — if anything fails, nothing is changed',
 ];
 

@@ -1,4 +1,5 @@
 'use server';
+import { inSel } from '@/app/Sales/Utils/MultiSelect';
 import { requireSession, getSessionUser, isAdminUser, UnauthorizedError } from '@/lib/session';
 
 /** Deleting sales needs the same right as the Delete button in DataBase (database-actions: delete). */
@@ -347,8 +348,8 @@ async function getTop10DataUncached(userId: string, filters: any) {
         return true;
       });
     }
-    if (productTag) globallyFilteredData = globallyFilteredData.filter(i => i.productTag === productTag);
-    if (product) globallyFilteredData = globallyFilteredData.filter(i => i.product === product);
+    if (productTag) globallyFilteredData = globallyFilteredData.filter(i => inSel(i.productTag, productTag));
+    if (product) globallyFilteredData = globallyFilteredData.filter(i => inSel(i.product, product));
     if (customerTag) globallyFilteredData = globallyFilteredData.filter(i => i.customerTag === customerTag);
     if (customerName) globallyFilteredData = globallyFilteredData.filter(i => i.customerName === customerName || i.customerMainName === customerName);
     if (customerClass) globallyFilteredData = globallyFilteredData.filter(i => i.customerClass === customerClass);
@@ -488,8 +489,8 @@ function _resolveListingProductId(item: any, canonical: Map<string, string>): st
 function _matchesListingFilters(item: any, filters: any): boolean {
   if (!filters) return true;
   const { area, market, merchandiser, salesRep, productTag, product, customerName, customerTag, customerClass } = filters;
-  if (productTag && item.productTag !== productTag) return false;
-  if (product && item.product !== product) return false;
+  if (productTag && !inSel(item.productTag, productTag)) return false;
+  if (product && !inSel(item.product, product)) return false;
   if (customerTag && item.customerTag !== customerTag) return false;
   if (customerName && item.customerName !== customerName && item.customerMainName !== customerName) return false;
   if (customerClass && item.customerClass !== customerClass) return false;

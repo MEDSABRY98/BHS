@@ -50,6 +50,17 @@ export const SALES_PRODUCT_DETAILS_TAB_LABELS: Record<string, string> = {
   dashboard: 'Dashboard',
   monthly: 'Monthly',
   products: 'Products',
+  cities: 'Cities',
+  salespersons: 'Salespersons',
+};
+
+export const SALES_CATEGORY_DETAILS_TAB_LABELS: Record<string, string> = {
+  dashboard: 'Dashboard',
+  monthly: 'Sales by Month',
+  products: 'Products',
+  customers: 'Customers',
+  cities: 'Cities',
+  salespersons: 'Salespersons',
 };
 
 export const SALES_REPORTS_TABLE_TAB_LABELS: Record<string, string> = Object.fromEntries(
@@ -90,6 +101,10 @@ export function trackSalesCustomersTab(tabId: string) {
 
 export function trackSalesProductDetailsTab(tabId: string) {
   trackSalesNestedTab('sales-products', tabId, SALES_PRODUCT_DETAILS_TAB_LABELS);
+}
+
+export function trackSalesCategoryDetailsTab(tabId: string) {
+  trackSalesNestedTab('sales-categories', tabId, SALES_CATEGORY_DETAILS_TAB_LABELS);
 }
 
 export function trackSalesReportsTableTab(tabId: string) {

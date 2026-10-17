@@ -6,6 +6,7 @@ import TotalCountTab from './TotalCount/TotalCountTab';
 import UserComparisonTab from './UserComparison/UserComparisonTab';
 import RecordTab from './Record/RecordTab';
 import ArchivesTab from './Archives/ArchivesTab';
+import ReportsTab from './Reports/ReportsTab';
 import { type InventoryCountingTabId } from './Utils/Sidebar';
 
 interface InventoryCountingTabProps {
@@ -33,6 +34,9 @@ export default function InventoryCountingTab({
         </TabPanel>
         <TabPanel tabId="archives" activeTab={activeTab} isVisited={visitedTabs.has('archives')}>
           <ArchivesTab onViewArchive={onTabChange} />
+        </TabPanel>
+        <TabPanel tabId="reports" activeTab={activeTab} isVisited={visitedTabs.has('reports')}>
+          <ReportsTab active={activeTab === 'reports'} />
         </TabPanel>
       </div>
     </div>

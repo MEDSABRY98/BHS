@@ -792,7 +792,12 @@ export async function verifyUserCredentials(name: string, password?: string) {
 export async function adminListUsers(search: string = '') {
   await requireAdmin();
   let query = getSupabaseAdmin().from('bhs_USERS').select('*');
-  const term = String(search || '').trim().replace(/[%,()]/g, '');
+  const term = String(search || '')
+    .normalize('NFKC')
+    .replace(/[\u200B-\u200F\u202A-\u202E\u2060\u2066-\u2069\uFEFF\u00AD]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/[%,()]/g, '');
   if (term) query = query.or(`NAME.ilike.%${term}%,ID.ilike.%${term}%`);
   const { data, error } = await query.order('NAME');
   if (error) throw new Error(error.message);
@@ -809,6 +814,8 @@ export async function adminSaveUser(
     CANCEL_AUTHORITY: boolean;
     CITY: string;
     FULL_DATA_ACCESS: string;
+    /** users with the same TEAM see and continue each other's work (empty = no team) */
+    TEAM?: string;
   },
   editingId?: string | null
 ) {
@@ -816,6 +823,7 @@ export async function adminSaveUser(
   const db = getSupabaseAdmin();
   const { PASSWORD, ...rest } = fields;
   const payload: Record<string, any> = { ...rest };
+  if (payload.TEAM !== undefined) payload.TEAM = String(payload.TEAM || '').trim() || null;
   const newPassword = String(PASSWORD || '');
 
   if (editingId) {

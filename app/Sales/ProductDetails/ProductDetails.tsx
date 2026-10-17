@@ -14,12 +14,13 @@ import DashboardTab from './DashboardTab';
 import MonthlySalesTab from './MonthlySalesTab';
 import CustomersTab from './CustomersTab';
 import CitiesTab from './CitiesTab';
+import SalespersonsTab from './SalespersonsTab';
 
 interface SalesProductDetailsProps {
   productId: string;
   userId?: string;
   onBack: () => void;
-  initialTab?: 'dashboard' | 'monthly' | 'products' | 'cities';
+  initialTab?: 'dashboard' | 'monthly' | 'products' | 'cities' | 'salespersons';
   filterYear?: string;
 }
 
@@ -28,7 +29,7 @@ export default function SalesProductDetails({ productId, userId, onBack, initial
   const [data, setData] = useState<SalesInvoice[]>([]);
   const [allData, setAllData] = useState<SalesInvoice[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'monthly' | 'products' | 'cities'>(initialTab);
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'monthly' | 'products' | 'cities' | 'salespersons'>(initialTab);
 
   useEffect(() => {
     trackSalesProductDetailsTab(activeTab);
@@ -333,6 +334,15 @@ export default function SalesProductDetails({ productId, userId, onBack, initial
         >
           Cities
         </button>
+        <button
+          onClick={() => setActiveTab('salespersons')}
+          className={`flex-1 py-3 font-semibold transition-colors border-b-2 text-center ${activeTab === 'salespersons'
+            ? 'text-green-600 border-green-600'
+            : 'text-gray-500 border-transparent hover:text-gray-700'
+            }`}
+        >
+          Salespersons
+        </button>
       </div>
 
       {/* Tab Content */}
@@ -356,6 +366,10 @@ export default function SalesProductDetails({ productId, userId, onBack, initial
 
       {activeTab === 'cities' && (
         <CitiesTab productData={productData} productId={productId} />
+      )}
+
+      {activeTab === 'salespersons' && (
+        <SalespersonsTab productData={productData} productId={productId} />
       )}
     </div>
   );

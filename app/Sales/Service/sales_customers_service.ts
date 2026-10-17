@@ -1,4 +1,5 @@
 'use server';
+import { inSel } from '@/app/Sales/Utils/MultiSelect';
 import { requireSession } from '@/lib/session';
 
 import { bhs_supabas, SalesInvoice } from '@/lib/supabase';
@@ -62,8 +63,8 @@ async function getCustomersDataUncached(userId: string, filters: any, activeTab:
         return true;
       });
     }
-    if (productTag) globallyFilteredData = globallyFilteredData.filter(i => i.productTag === productTag);
-    if (product) globallyFilteredData = globallyFilteredData.filter(i => i.product === product);
+    if (productTag) globallyFilteredData = globallyFilteredData.filter(i => inSel(i.productTag, productTag));
+    if (product) globallyFilteredData = globallyFilteredData.filter(i => inSel(i.product, product));
     if (customerMainName) globallyFilteredData = globallyFilteredData.filter(i => i.customerMainName === customerMainName);
     if (customerSubName) globallyFilteredData = globallyFilteredData.filter(i => i.customerName === customerSubName);
     if (customerClass) globallyFilteredData = globallyFilteredData.filter(i => i.customerClass === customerClass);
@@ -229,8 +230,8 @@ async function getCustomerDetailsDataUncached(userId: string, filters: any, cust
         return true;
       });
     }
-    if (productTag) allData = allData.filter(i => i.productTag === productTag);
-    if (product) allData = allData.filter(i => i.product === product);
+    if (productTag) allData = allData.filter(i => inSel(i.productTag, productTag));
+    if (product) allData = allData.filter(i => inSel(i.product, product));
     if (customerMainName) allData = allData.filter(i => i.customerMainName === customerMainName);
     if (customerSubName) allData = allData.filter(i => i.customerName === customerSubName);
     if (customerClass) allData = allData.filter(i => i.customerClass === customerClass);
@@ -307,8 +308,8 @@ function buildMainGroupDataForSub(
         return true;
       });
     }
-    if (productTag) mainGroupData = mainGroupData.filter((i) => i.productTag === productTag);
-    if (product) mainGroupData = mainGroupData.filter((i) => i.product === product);
+    if (productTag) mainGroupData = mainGroupData.filter((i) => inSel(i.productTag, productTag));
+    if (product) mainGroupData = mainGroupData.filter((i) => inSel(i.product, product));
     if (customerTag) mainGroupData = mainGroupData.filter(i => i.customerTag === customerTag);
     if (customerName) mainGroupData = mainGroupData.filter(i => i.customerName === customerName || i.customerMainName === customerName);
     if (customerClass) mainGroupData = mainGroupData.filter(i => i.customerClass === customerClass);
@@ -360,8 +361,8 @@ async function getCustomersComparisonDataUncached(userId: string, filters: any, 
         return true;
       });
     }
-    if (productTag) globallyFilteredData = globallyFilteredData.filter(i => i.productTag === productTag);
-    if (product) globallyFilteredData = globallyFilteredData.filter(i => i.product === product);
+    if (productTag) globallyFilteredData = globallyFilteredData.filter(i => inSel(i.productTag, productTag));
+    if (product) globallyFilteredData = globallyFilteredData.filter(i => inSel(i.product, product));
     if (customerTag) globallyFilteredData = globallyFilteredData.filter(i => i.customerTag === customerTag);
     if (customerName) globallyFilteredData = globallyFilteredData.filter(i => i.customerName === customerName || i.customerMainName === customerName);
     if (customerClass) globallyFilteredData = globallyFilteredData.filter(i => i.customerClass === customerClass);
@@ -590,8 +591,8 @@ async function getInactiveCustomersDataUncached(userId: string, filters: any, da
         return true;
       });
     }
-    if (productTag) globallyFilteredData = globallyFilteredData.filter(i => i.productTag === productTag);
-    if (product) globallyFilteredData = globallyFilteredData.filter(i => i.product === product);
+    if (productTag) globallyFilteredData = globallyFilteredData.filter(i => inSel(i.productTag, productTag));
+    if (product) globallyFilteredData = globallyFilteredData.filter(i => inSel(i.product, product));
     if (customerTag) globallyFilteredData = globallyFilteredData.filter(i => i.customerTag === customerTag);
     if (customerName) globallyFilteredData = globallyFilteredData.filter(i => i.customerName === customerName || i.customerMainName === customerName);
     if (customerClass) globallyFilteredData = globallyFilteredData.filter(i => i.customerClass === customerClass);

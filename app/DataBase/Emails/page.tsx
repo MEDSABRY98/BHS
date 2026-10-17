@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { matchesSearch } from '@/app/DataBase/Utils/SearchUtils';
 import { Plus, Edit2, Trash2, Search, Mail, FileSpreadsheet } from 'lucide-react';
 import { exportStyledExcel } from '@/app/Components/Export/ExcelExport';
 import NoData from '@/app/Components/DataState/NoDataTab';
@@ -46,10 +47,7 @@ export default function EmailsDatabasePage() {
     }
   };
 
-  const filteredData = data.filter(item => 
-    (item['CUSTOMER ID']?.toLowerCase() || '').includes(search.toLowerCase()) ||
-    (item['EMAIL_NAME']?.toLowerCase() || '').includes(search.toLowerCase())
-  );
+  const filteredData = data.filter(item => matchesSearch([item['CUSTOMER ID'], item['EMAIL_NAME']], search));
 
   const handleExport = async () => {
     if (filteredData.length === 0) {

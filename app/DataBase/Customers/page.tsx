@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { searchOrFilters } from '@/app/DataBase/Utils/SearchUtils';
 import { bhs_supabas } from '@/lib/secureDb';
 import {
   UserCircle,
@@ -25,9 +26,9 @@ import {
 } from 'lucide-react';
 import { toast } from '@/app/Components/Notification';
 import * as XLSX from 'xlsx';
-import { ConfirmModal } from '../../LPOs/Components/ConfirmModal';
+import { ConfirmModal } from '../../InvoicesTracking/Components/ConfirmModal';
 import NoData from '@/app/Components/DataState/NoDataTab';
-import { usePermissions } from '../../LPOs/Hooks/usePermissions';
+import { usePermissions } from '../../InvoicesTracking/Hooks/usePermissions';
 import { useMergeCustomers } from './Hooks/UseMergeCustomers';
 import MergeCustomersModal from './Components/MergeCustomersModal';
 import { exportDatabaseExcel } from '../Utils/ExcelExport';
@@ -52,10 +53,6 @@ export default function CustomersPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 100;
   const [totalCount, setTotalCount] = useState(0);
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm]);
 
   // Form states - Matching DB columns
   const [CUSTOMER_SUB_NAME, setCUSTOMER_SUB_NAME] = useState('');
@@ -83,14 +80,24 @@ export default function CustomersPage() {
   }, []);
 
   // Fetch customers when page or search term changes (debounced)
+  const lastSearchRef = useRef(searchTerm);
+  const fetchSeq = useRef(0);
   useEffect(() => {
+    const searchChanged = lastSearchRef.current !== searchTerm;
+    lastSearchRef.current = searchTerm;
+    // a new search starts on page 1; the page change re-runs this effect, so only one request is sent
+    if (searchChanged && currentPage !== 1) {
+      setCurrentPage(1);
+      return;
+    }
     const handler = setTimeout(() => {
       fetchCustomers(searchTerm, currentPage);
-    }, 300);
+    }, searchChanged ? 250 : 0);
     return () => clearTimeout(handler);
   }, [searchTerm, currentPage]);
 
   async function fetchCustomers(search: string = '', page: number = 1) {
+    const seq = ++fetchSeq.current;
     setLoadError(null);
     try {
       const start = (page - 1) * itemsPerPage;
@@ -100,19 +107,20 @@ export default function CustomersPage() {
         .from('bhs_CUSTOMERS')
         .select('*', { count: 'exact' });
 
-      if (search.trim()) {
-        const term = `%${search.trim()}%`;
-        query = query.or(`"CUSTOMER SUB NAME".ilike.${term},"CUSTOMER MAIN NAME".ilike.${term},"CUSTOMER ID".ilike.${term},"CUSTOMER CITY".ilike.${term},"CUSTOMER TAG".ilike.${term},"CUSTOMER CLASS".ilike.${term}`);
+      for (const f of searchOrFilters(['"CUSTOMER SUB NAME"', '"CUSTOMER MAIN NAME"', '"CUSTOMER ID"', '"CUSTOMER CITY"', '"CUSTOMER TAG"', '"CUSTOMER CLASS"'], search)) {
+        query = query.or(f);
       }
 
       const { data, error, count } = await query
         .order('CUSTOMER SUB NAME')
         .range(start, end);
 
+      if (seq !== fetchSeq.current) return; // a newer search is already running
       if (error) throw error;
       setCustomers(data || []);
       setTotalCount(count || 0);
     } catch (err) {
+      if (seq !== fetchSeq.current) return;
       console.error(err);
       setLoadError(err instanceof Error ? err.message : (err as any)?.message || 'Failed to load customers');
     } finally {

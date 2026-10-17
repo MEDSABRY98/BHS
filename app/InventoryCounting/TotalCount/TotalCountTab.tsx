@@ -382,7 +382,7 @@ export default function TotalCountTab() {
           <div className="overflow-x-auto">
             <table
               className="w-full"
-              style={{ tableLayout: 'fixed', minWidth: 890 }}
+              style={{ tableLayout: 'fixed', minWidth: 700 }}
             >
               <colgroup>
                 <col style={{ width: 50 }} />
@@ -391,8 +391,6 @@ export default function TotalCountTab() {
                 <col style={{ width: 100 }} />
                 <col style={{ width: 100 }} />
                 <col style={{ width: 90 }} />
-                <col style={{ width: 90 }} />
-                <col style={{ width: 100 }} />
               </colgroup>
               <thead className="bg-black text-white sticky top-0 z-10">
                 <tr>
@@ -404,8 +402,6 @@ export default function TotalCountTab() {
                       ['availableQty', 'Available'],
                       ['totalCountedQty', 'Total Count'],
                       ['difference', 'Diff'],
-                      ['normalQty', 'Normal'],
-                      ['damageQty', 'Damage'],
                     ] as [SortKey, string][]
                   ).map(([key, label]) => (
                     <th
@@ -424,7 +420,7 @@ export default function TotalCountTab() {
               <tbody className="divide-y divide-gray-100">
                 {filteredData.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="px-4 py-16 text-center text-sm font-bold text-slate-400">
+                    <td colSpan={6} className="px-4 py-16 text-center text-sm font-bold text-slate-400">
                       No matching items
                     </td>
                   </tr>
@@ -470,16 +466,6 @@ export default function TotalCountTab() {
                           ) : (
                             '-'
                           )}
-                        </span>
-                      </td>
-                      <td className="px-4 py-4 text-center overflow-hidden">
-                        <span className="text-sm font-bold text-blue-700">
-                          {item.normalQty > 0 ? item.normalQty.toLocaleString() : '-'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-4 text-center overflow-hidden">
-                        <span className="text-sm font-bold text-red-600">
-                          {item.damageQty > 0 ? item.damageQty.toLocaleString() : '-'}
                         </span>
                       </td>
                     </tr>

@@ -8,6 +8,7 @@ export const INVENTORY_COUNTING_TAB_LABELS: Record<InventoryCountingTabId, strin
   user_comparison: 'User Comparison',
   record: 'Record',
   archives: 'Archives',
+  reports: 'Reports',
 };
 
 export function useInventoryCountingTabAudit(activeTab: InventoryCountingTabId) {

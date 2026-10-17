@@ -2,6 +2,7 @@
 // The same invoice date appears on thousands of rows, so each distinct date string is
 // parsed once and reused (same results as `new Date(item.invoiceDate)` on every row).
 
+import { inSel } from '@/app/Sales/Utils/MultiSelect';
 type ParsedDate = { t: number; y: number; m: number } | null;
 
 const DATE_CACHE_MAX = 20_000;
@@ -62,8 +63,8 @@ export function applySalesCommonFilters(data: any[], filters: any): any[] {
       const num = item.invoiceNumber?.trim().toUpperCase() || '';
       if (invoiceType === 'sales' ? !num.startsWith('SAL') : !num.startsWith('RSAL')) continue;
     }
-    if (productTag && item.productTag !== productTag) continue;
-    if (product && item.product !== product) continue;
+    if (productTag && !inSel(item.productTag, productTag)) continue;
+    if (product && !inSel(item.product, product)) continue;
     if (customerMainName && item.customerMainName !== customerMainName) continue;
     if (customerSubName && item.customerName !== customerSubName) continue;
     if (customerTag && item.customerTag !== customerTag) continue;

@@ -11,16 +11,22 @@ import { useSalesTabFetch } from '@/app/Sales/Hooks/useSalesTabFetch';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
+import SalesCategoryDetails from '@/app/Sales/CategoryDetails/CategoryDetails';
 
 interface SalesCategoriesTabProps {
   userId: string;
 }
 
-const CategoryRow = memo(({ item, rowNumber, salesShare }: { item: { category: string; amount: number; avgMonthly: number; qty: number; customers: number; mainCustomers: number; productsCount: number }; rowNumber: number; salesShare: number }) => {
+const CategoryRow = memo(({ item, rowNumber, salesShare, onCategoryClick }: { item: { category: string; amount: number; avgMonthly: number; qty: number; customers: number; mainCustomers: number; productsCount: number }; rowNumber: number; salesShare: number; onCategoryClick: (category: string) => void }) => {
   return (
     <tr className="border-b border-gray-100 hover:bg-gray-50 text-center">
       <td className="py-3 px-4 text-sm text-gray-600 font-medium">{rowNumber}</td>
-      <td className="py-3 px-4 text-sm text-gray-800 font-medium">{item.category}</td>
+      <td
+        className="py-3 px-4 text-sm text-gray-800 font-medium cursor-pointer hover:text-green-600 hover:underline"
+        onClick={() => onCategoryClick(item.category)}
+      >
+        {item.category}
+      </td>
       <td className="py-3 px-4 text-sm text-gray-800 font-semibold">{item.productsCount || 0}</td>
       <td className="py-3 px-4 text-sm text-gray-800 font-semibold">{item.mainCustomers || 0}</td>
       <td className="py-3 px-4 text-sm text-gray-800 font-semibold">{item.customers}</td>
@@ -46,6 +52,7 @@ export default function SalesCategoriesTab({ userId }: SalesCategoriesTabProps) 
   const { commonFilters: filters } = useSalesModuleFilters();
   const { dataVersion } = useSalesDataContext();
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
   const { data: categoriesData, isInitialLoading, error, reload, loading } = useSalesTabFetch({
     tabKey: 'categories',
@@ -148,6 +155,16 @@ export default function SalesCategoriesTab({ userId }: SalesCategoriesTabProps) 
     );
   }
 
+  if (selectedCategory) {
+    return (
+      <SalesCategoryDetails
+        category={selectedCategory}
+        userId={userId}
+        onBack={() => setSelectedCategory(null)}
+      />
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header Section */}
@@ -204,6 +221,7 @@ export default function SalesCategoriesTab({ userId }: SalesCategoriesTabProps) 
                     key={item.category}
                     item={item}
                     rowNumber={index + 1}
+                    onCategoryClick={setSelectedCategory}
                     salesShare={totals.totalAmount > 0 ? (item.amount / totals.totalAmount) * 100 : 0}
                   />
                 ))}

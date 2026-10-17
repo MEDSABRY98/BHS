@@ -1,0 +1,388 @@
+'use client';
+
+import { isAdminRole } from '@/lib/AdminRole';
+import { useState, useEffect } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
+import Link from 'next/link';
+import Login from '@/app/Components/Auth/Login';
+import MainLoader from '@/app/Components/Loading/MainLoader';
+import { useInvoicesTrackingRouteAudit } from '@/app/Audit/Model/InvoicesTrackingTabAudit';
+import { InvoicesTrackingDataProvider, useInvoicesTrackingData } from './Context/InvoicesTrackingDataContext';
+import {
+  LayoutDashboard,
+  ShoppingCart,
+  Users,
+  Package,
+  UserCircle,
+  LogOut,
+  Menu,
+  X,
+  ReceiptText,
+  ChevronRight,
+  ChevronLeft,
+  FileText,
+  ArrowLeft,
+  FileX2,
+  RefreshCw,
+  Filter,
+} from 'lucide-react';
+import InvoicesTrackingFilterModal from './Components/InvoicesTrackingFilterModal';
+import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
+import TabFetchError from '@/app/Components/DataState/TabFetchError';
+
+/** Shows the shared fetch-error state when the Invoices Tracking data could not be loaded. */
+function InvoicesTrackingDataGate({ children }: { children: React.ReactNode }) {
+  const { error, loading, orders, refresh, refreshing } = useInvoicesTrackingData();
+  if (error && !loading && orders.length === 0) {
+    return <TabFetchError message={error} onRetry={() => void refresh()} isRetrying={refreshing} className="min-h-[60vh]" />;
+  }
+  return <>{children}</>;
+}
+
+function InvoicesTrackingRefreshButton() {
+  const { refresh, refreshing } = useInvoicesTrackingData();
+
+  return (
+    <button
+      type="button"
+      onClick={() => void refresh()}
+      disabled={refreshing}
+      className={`relative flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-200 shrink-0 ${
+        refreshing
+          ? 'bg-amber-600 text-white shadow-lg shadow-amber-950/40'
+          : 'bg-white/5 text-slate-300 hover:text-white hover:bg-white/10 border border-white/10'
+      } disabled:opacity-50 cursor-pointer`}
+      title="Refresh data"
+    >
+      <RefreshCw className={`w-5 h-5 ${refreshing ? 'animate-spin' : ''}`} />
+    </button>
+  );
+}
+
+function InvoicesTrackingFilterButton() {
+  const { filters } = useInvoicesTrackingData();
+  const [open, setOpen] = useState(false);
+  const active =
+    Boolean(filters.dateFrom || filters.dateTo) ||
+    (filters.driver && filters.driver !== 'ALL') ||
+    (filters.status && filters.status !== 'ALL');
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className={`relative flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-200 cursor-pointer shrink-0 ${
+          active
+            ? 'bg-amber-600 text-white shadow-lg shadow-amber-950/40'
+            : 'bg-white/5 text-slate-300 hover:text-white hover:bg-white/10 border border-white/10'
+        }`}
+        title="Filters"
+      >
+        <Filter className="w-5 h-5" />
+        {active && <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-white" />}
+      </button>
+      <InvoicesTrackingFilterModal open={open} onClose={() => setOpen(false)} />
+    </>
+  );
+}
+
+interface NavItemProps {
+  href: string;
+  icon: any;
+  label: string;
+  isActive: boolean;
+  onClick?: () => void;
+  isCollapsed?: boolean;
+}
+
+function NavItem({ href, icon: Icon, label, isActive, onClick, isCollapsed }: NavItemProps) {
+  return (
+    <Link
+      href={href}
+      replace
+      onClick={onClick}
+      className={`w-full flex items-center ${isCollapsed ? 'justify-center px-2' : 'px-4'} py-3.5 rounded-xl transition-all duration-200 group relative ${
+        isActive
+          ? 'bg-gradient-to-r from-amber-600 to-[#D4AF37] text-white shadow-lg shadow-amber-950/40 border-l-4 border-[#D4AF37] font-bold'
+          : 'text-slate-400 hover:text-white hover:bg-white/5'
+      }`}
+      title={isCollapsed ? label : undefined}
+    >
+      <Icon className={`w-5 h-5 transition-colors shrink-0 ${isCollapsed ? '' : 'mr-3'} ${isActive ? 'text-white' : 'group-hover:text-white'}`} />
+      {!isCollapsed && (
+        <span className="text-sm tracking-wide whitespace-nowrap overflow-hidden text-left animate-in fade-in duration-200">{label}</span>
+      )}
+      {!isCollapsed && isActive && (
+        <ChevronRight className="w-4 h-4 ml-auto text-amber-200 animate-in fade-in duration-200" />
+      )}
+    </Link>
+  );
+}
+
+function readStoredUser() {
+  if (typeof window === 'undefined') return null;
+  const mainUserStr = localStorage.getItem('currentUser');
+  if (!mainUserStr) return null;
+  try {
+    const userData = JSON.parse(mainUserStr);
+    if (!userData.NAME && userData.name) {
+      userData.NAME = userData.name;
+    }
+    return userData;
+  } catch {
+    localStorage.removeItem('currentUser');
+    return null;
+  }
+}
+
+const ALL_NAV_ITEMS = [
+  { id: 'lpo-dashboard', href: '/InvoicesTracking', icon: LayoutDashboard, label: 'Dashboard' },
+  { id: 'lpo-orders', href: '/InvoicesTracking/Orders', icon: ShoppingCart, label: 'Orders' },
+  { id: 'lpo-create-orders', href: '/InvoicesTracking/CreateOrders', icon: ReceiptText, label: 'Create Orders' },
+  { id: 'lpo-reports', href: '/InvoicesTracking/Reports', icon: FileText, label: 'Reports' },
+  { id: 'lpo-invoice-cancel', href: '/InvoicesTracking/InvoiceCancel', icon: FileX2, label: 'Invoice Cancel' },
+];
+
+function getInvoicesTrackingNavIdFromPath(pathname: string): string | null {
+  if (pathname === '/InvoicesTracking') return 'lpo-dashboard';
+  if (pathname.startsWith('/InvoicesTracking/OrderDetails') || pathname.startsWith('/InvoicesTracking/Orders')) return 'lpo-orders';
+  if (pathname.startsWith('/InvoicesTracking/CreateOrders')) return 'lpo-create-orders';
+  if (pathname.startsWith('/InvoicesTracking/Reports')) return 'lpo-reports';
+  if (pathname.startsWith('/InvoicesTracking/InvoiceCancel')) return 'lpo-invoice-cancel';
+  return null;
+}
+
+function getFilteredNavItems(user: any) {
+  if (!user) return [];
+
+  if (isAdminRole(user)) return ALL_NAV_ITEMS;
+
+  try {
+    const mainUserStr = localStorage.getItem('currentUser');
+    if (mainUserStr) {
+      const mainUser = JSON.parse(mainUserStr);
+      if (isAdminRole(mainUser)) return ALL_NAV_ITEMS;
+      const roleStr = mainUser.role || '{}';
+      const perms = JSON.parse(roleStr);
+
+      if (perms.systems && !perms.systems.includes('lpo-management')) return [];
+
+      if (Array.isArray(perms['lpo-management'])) {
+        return ALL_NAV_ITEMS.filter((item) => perms['lpo-management'].includes(item.id));
+      }
+    }
+  } catch (e) {
+    console.error('Error parsing permissions:', e);
+  }
+
+  return ALL_NAV_ITEMS;
+}
+
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(true);
+  const [user, setUser] = useState<any>(null);
+  const [isChecking, setIsChecking] = useState(true);
+  useInvoicesTrackingRouteAudit(pathname);
+  useSyncLiveUser(setUser);
+
+  useEffect(() => {
+    const stored = localStorage.getItem('sidebarCollapsed');
+    if (stored === 'true') {
+      setIsCollapsed(true);
+    }
+
+    const storedUser = readStoredUser();
+    if (storedUser) {
+      setUser(storedUser);
+    }
+    setIsChecking(false);
+  }, []);
+
+  useEffect(() => {
+    if (isChecking || !user) return;
+
+    const navItemsForUser = getFilteredNavItems(user);
+    if (navItemsForUser.length === 0) {
+      router.replace('/');
+      return;
+    }
+
+    const currentNavId = getInvoicesTrackingNavIdFromPath(pathname);
+    if (!currentNavId) return;
+
+    const allowedIds = new Set(navItemsForUser.map((item) => item.id));
+    if (!allowedIds.has(currentNavId)) {
+      router.replace(navItemsForUser[0].href);
+    }
+  }, [isChecking, user, pathname, router]);
+
+  const toggleSidebar = () => {
+    const nextState = !isCollapsed;
+    setIsCollapsed(nextState);
+    localStorage.setItem('sidebarCollapsed', String(nextState));
+  };
+
+  const handleLogin = (loggedInUser: any) => {
+    if (!loggedInUser.NAME && loggedInUser.name) {
+      loggedInUser.NAME = loggedInUser.name;
+    }
+    setUser(loggedInUser);
+    localStorage.setItem('currentUser', JSON.stringify(loggedInUser));
+  };
+
+  const handleLogout = () => {
+    // Only remove main user if they really want to log out of the whole system, 
+    // but usually in this context "Sign Out" from LPO means going back to main selection.
+    router.push('/');
+  };
+
+  if (isChecking) {
+    return <MainLoader />;
+  }
+
+  if (!user) {
+    return <Login onLogin={handleLogin} />;
+  }
+
+  const navItems = getFilteredNavItems(user);
+
+  return (
+    <InvoicesTrackingDataProvider>
+    <div className="flex min-h-screen bg-[#F8F9FA] text-black">
+      {/* Sidebar - Desktop */}
+      <aside className={`hidden lg:flex flex-col ${isCollapsed ? 'w-20' : 'w-72'} bg-[#0a0f1d] text-white border-r border-amber-950/20 shadow-2xl fixed h-screen left-0 top-0 z-50 transition-all duration-300`}>
+        <div className={`px-4 ${isCollapsed ? 'px-2' : 'px-6'} pt-6 pb-2 shrink-0 transition-all duration-300`}>
+          <button
+            onClick={handleLogout}
+            className={`flex items-center justify-center ${isCollapsed ? 'gap-0' : 'gap-3'} py-2.5 text-[#D4AF37] hover:text-amber-300 transition-all duration-200 group w-full cursor-pointer bg-white/5 rounded-xl border border-white/10`}
+            title={isCollapsed ? 'Back to Home' : undefined}
+          >
+            <ArrowLeft className="w-5 h-5 shrink-0 group-hover:-translate-x-1 transition-transform" />
+            {!isCollapsed && (
+              <span className="text-xs font-black uppercase tracking-[0.2em] whitespace-nowrap overflow-hidden transition-all duration-300">
+                Back Home
+              </span>
+            )}
+          </button>
+        </div>
+        <div className={`px-4 ${isCollapsed ? 'py-4' : 'pt-2 pb-6'} shrink-0 flex flex-col items-center justify-center transition-all duration-300 border-b border-white/5`}>
+          <div className="flex flex-col items-center text-center">
+            <div className="w-12 h-12 bg-gradient-to-br from-amber-500 to-[#D4AF37] rounded-2xl flex items-center justify-center mb-3 shadow-lg shadow-amber-950/50 transition-all duration-300">
+              <ReceiptText className="w-6 h-6 text-white" />
+            </div>
+            {!isCollapsed && (
+              <div className="animate-in fade-in duration-300">
+                <h2 className="text-lg font-bold tracking-tight text-white">Invoices Tracking</h2>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <nav className="flex-1 mt-4 overflow-y-auto no-scrollbar px-3 space-y-1">
+          {navItems.map((item) => (
+            <NavItem
+              key={item.href}
+              {...item}
+              isActive={pathname === item.href || (item.href !== '/InvoicesTracking' && pathname.startsWith(item.href))}
+              isCollapsed={isCollapsed}
+            />
+          ))}
+        </nav>
+
+        <div className={`p-4 border-t border-white/5 mt-auto flex ${isCollapsed ? 'flex-col items-center' : 'flex-row justify-center items-center'} gap-2 shrink-0`}>
+                          <button
+                              onClick={toggleSidebar}
+                              className="flex items-center justify-center w-10 h-10 hover:bg-white/10 rounded-xl transition-all duration-200 text-slate-400"
+                              title={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
+                            >
+                              {isCollapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
+                            </button>
+                          <InvoicesTrackingFilterButton />
+                          <InvoicesTrackingRefreshButton />
+                        </div>
+      </aside>
+
+      {/* Main Content Area - Shifted by Sidebar Width on Desktop */}
+      <div className={`flex-1 flex flex-col min-w-0 ${isCollapsed ? 'lg:ml-20' : 'lg:ml-72'} transition-all duration-300`}>
+        {/* Header - Mobile */}
+        <header className="lg:hidden flex items-center justify-between p-4 bg-white border-b border-gray-200 sticky top-0 z-30">
+          <button onClick={() => setIsSidebarOpen(true)} className="p-2 text-black">
+            <Menu className="w-6 h-6" />
+          </button>
+          <div className="flex items-center">
+            <div className="w-8 h-8 bg-black rounded-lg flex items-center justify-center mr-2">
+              <ReceiptText className="w-5 h-5 text-[#D4AF37]" />
+            </div>
+            <h1 className="font-bold">BHS Invoices Tracking</h1>
+          </div>
+          <div className="w-10 h-10 bg-black text-[#D4AF37] rounded-full flex items-center justify-center text-sm font-bold">
+            {user.NAME.charAt(0)}
+          </div>
+        </header>
+
+        {/* Mobile Sidebar Overlay */}
+        {isSidebarOpen && (
+          <div
+            className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm lg:hidden"
+            onClick={() => setIsSidebarOpen(false)}
+          />
+        )}
+
+        {/* Mobile Sidebar */}
+        <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-[#0a0f1d] text-white border-r border-amber-950/20 transition-transform duration-300 transform lg:hidden ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} flex flex-col`}>
+          <button
+            onClick={() => setIsSidebarOpen(false)}
+            className="absolute right-4 top-4 p-2 text-slate-400 hover:text-white"
+            title="Close Sidebar"
+          >
+            <X className="w-6 h-6" />
+          </button>
+
+          <div className="px-6 pt-6 pb-2 shrink-0">
+            <button
+              onClick={handleLogout}
+              className="flex items-center justify-center gap-3 py-2.5 text-[#D4AF37] hover:text-amber-300 transition-all duration-200 group w-full cursor-pointer bg-white/5 rounded-xl border border-white/10"
+            >
+              <ArrowLeft className="w-5 h-5 shrink-0 group-hover:-translate-x-1 transition-transform" />
+              <span className="text-xs font-black uppercase tracking-[0.2em]">Back Home</span>
+            </button>
+          </div>
+
+          <div className="px-4 pt-2 pb-6 shrink-0 flex flex-col items-center justify-center border-b border-white/5">
+            <div className="w-12 h-12 bg-gradient-to-br from-amber-500 to-[#D4AF37] rounded-2xl flex items-center justify-center mb-3 shadow-lg shadow-amber-950/50">
+              <ReceiptText className="w-6 h-6 text-white" />
+            </div>
+            <h2 className="text-lg font-bold tracking-tight text-white">Invoices Tracking</h2>
+          </div>
+
+          <nav className="flex-1 mt-4 overflow-y-auto no-scrollbar px-3 space-y-1">
+            {navItems.map((item) => (
+              <NavItem
+                key={item.href}
+                {...item}
+                isActive={pathname === item.href}
+                onClick={() => setIsSidebarOpen(false)}
+              />
+            ))}
+          </nav>
+
+          <div className="p-4 border-t border-white/5 mt-auto flex justify-center gap-3 shrink-0">
+            <InvoicesTrackingFilterButton />
+            <InvoicesTrackingRefreshButton />
+          </div>
+        </aside>
+
+        <main className="flex-1 p-4 md:p-8 lg:p-8">
+          <div className={`${(pathname === '/InvoicesTracking' || pathname === '/InvoicesTracking/Orders' || pathname === '/InvoicesTracking/CreateOrders' || pathname === '/InvoicesTracking/InvoiceCancel' || pathname.startsWith('/DataBase')) ? 'max-w-[1700px]' : 'max-w-7xl'} mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500`}>
+            <InvoicesTrackingDataGate>{children}</InvoicesTrackingDataGate>
+          </div>
+        </main>
+      </div>
+    </div>
+    </InvoicesTrackingDataProvider>
+  );
+}

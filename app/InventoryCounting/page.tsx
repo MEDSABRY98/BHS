@@ -357,6 +357,8 @@ function InventoryCountingPageContent({
               <h1 className="text-2xl font-black text-slate-900 tracking-tight shrink-0">
                 {pageTitle}
               </h1>
+              {/* tabs of the active page (e.g. Reports) are placed here, beside the title */}
+              <div id="ic-header-slot" className="flex items-center ml-4 min-w-0" />
               {isArchiveView && archiveMeta && (
                 <ArchiveInfoButton archiveMeta={archiveMeta} onExit={() => setArchiveId(null)} />
               )}

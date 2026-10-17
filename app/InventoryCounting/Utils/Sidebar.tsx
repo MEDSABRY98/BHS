@@ -9,6 +9,7 @@ import {
   ChevronRight,
   ClipboardCheck,
   ClipboardList,
+  FileText,
   Filter,
   History,
   Layers,
@@ -23,7 +24,8 @@ export type InventoryCountingTabId =
   | 'total_count'
   | 'user_comparison'
   | 'record'
-  | 'archives';
+  | 'archives'
+  | 'reports';
 
 const INVENTORY_COUNTING_TABS: {
   id: InventoryCountingTabId;
@@ -34,6 +36,7 @@ const INVENTORY_COUNTING_TABS: {
   { id: 'user_comparison', label: 'User Comparison', icon: Users },
   { id: 'record', label: 'Record', icon: History },
   { id: 'archives', label: 'Archives', icon: Archive },
+  { id: 'reports', label: 'Reports', icon: FileText },
 ];
 
 export function isCountingTabAllowed(tabId: string): boolean {

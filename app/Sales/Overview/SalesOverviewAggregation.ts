@@ -1,3 +1,4 @@
+import { inSel } from '@/app/Sales/Utils/MultiSelect';
 export function buildOverviewFromFilteredData(augmentedData: any[], filters: any, targetMap: Map<string, number> = new Map(), targetUserIds: string[] | null = null) {
   const augmentedWithDates = augmentedData.map((item) => {
     let parsedDate = null;
@@ -32,8 +33,8 @@ export function buildOverviewFromFilteredData(augmentedData: any[], filters: any
 
     geographyFilteredData = [...globallyFilteredData];
 
-    if (productTag) geographyFilteredData = geographyFilteredData.filter((i) => i.productTag === productTag);
-    if (product) geographyFilteredData = geographyFilteredData.filter((i) => i.product === product);
+    if (productTag) geographyFilteredData = geographyFilteredData.filter((i) => inSel(i.productTag, productTag));
+    if (product) geographyFilteredData = geographyFilteredData.filter((i) => inSel(i.product, product));
     if (customerMainName) {
       geographyFilteredData = geographyFilteredData.filter((i) => i.customerMainName === customerMainName);
     }

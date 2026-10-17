@@ -149,6 +149,26 @@ async function fetchAllRows(select: string, order: string): Promise<any[]> {
   return out;
 }
 
+/** PRODUCT ID -> cost, from the products table (bhs_PRODUCTS). Never taken from the sales rows. */
+async function loadProductCosts(): Promise<Map<string, number>> {
+  const map = new Map<string, number>();
+  const pageSize = 1000;
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await db()
+      .from('bhs_PRODUCTS')
+      .select('"PRODUCT ID", "PRODUCT COST"')
+      .order('PRODUCT ID', { ascending: true })
+      .range(from, from + pageSize - 1);
+    if (error) throw error;
+    for (const p of (data || []) as any[]) {
+      const cost = Number(String(p['PRODUCT COST'] ?? '').replace(/,/g, '').trim());
+      if (Number.isFinite(cost) && cost > 0) map.set(norm(p['PRODUCT ID']), cost);
+    }
+    if (!data || data.length < pageSize) break;
+  }
+  return map;
+}
+
 function validate(input: SupportInput): string | null {
   if (!String(input.customerId || '').trim()) return 'Please select a customer.';
   if (!MONTH.test(String(input.month || ''))) return 'Please choose the support month.';
@@ -200,6 +220,14 @@ export async function GetRoiData(): Promise<RoiData> {
     const from = `${win[0]}-01`;
     const to = `${win[win.length - 1]}-31`;
     const showCosts = canSeeCosts(user);
+    let productCosts = new Map<string, number>();
+    if (showCosts) {
+      try {
+        productCosts = await loadProductCosts();
+      } catch (e) {
+        throw new Error(errMsg(e, 'Failed to load the product costs'));
+      }
+    }
     const salesAll = (await getSalesDataServer()) as any[];
     for (const s of salesAll) {
       if (!wanted.has(norm(s.customerId))) continue;
@@ -215,7 +243,7 @@ export async function GetRoiData(): Promise<RoiData> {
         productId: String(s.productId ?? '').trim(),
         amount: Number(s.amount) || 0,
         qty: Number(s.qty) || 0,
-        cost: showCosts ? Number(s.productCost) || 0 : 0,
+        cost: showCosts ? productCosts.get(norm(s.productId)) || 0 : 0,
       });
     }
   }

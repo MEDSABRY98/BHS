@@ -262,13 +262,6 @@ export default function FiltersModal({ open, onClose }: FiltersModalProps) {
           >
             Clear All
           </button>
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black uppercase tracking-wider rounded-xl shadow-lg shadow-indigo-200/50 transition-all"
-          >
-            Done
-          </button>
         </div>
       </div>
     </div>,

@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { searchOrFilters } from '@/app/DataBase/Utils/SearchUtils';
 import { useDataBaseProductsTabAudit } from '@/app/Audit/Model/DataBaseTabAudit';
 import { bhs_supabas } from '@/lib/secureDb';
 import * as XLSX from 'xlsx';
@@ -21,9 +22,9 @@ import {
   Upload,
   GitMerge
 } from 'lucide-react';
-import { ConfirmModal } from '../../LPOs/Components/ConfirmModal';
+import { ConfirmModal } from '../../InvoicesTracking/Components/ConfirmModal';
 import NoData from '@/app/Components/DataState/NoDataTab';
-import { usePermissions } from '../../LPOs/Hooks/usePermissions';
+import { usePermissions } from '../../InvoicesTracking/Hooks/usePermissions';
 import { toast } from '@/app/Components/Notification';
 import { useMergeProducts } from './Hooks/UseMergeProducts';
 import MergeProductsModal from './Components/MergeProductsModal';
@@ -60,10 +61,6 @@ export default function ProductsPage() {
   const itemsPerPage = 100;
   const [totalCount, setTotalCount] = useState(0);
 
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm]);
-
   // Form states
   const [name, setName] = useState('');
   const [unit, setUnit] = useState('');
@@ -86,13 +83,21 @@ export default function ProductsPage() {
   const [isCategoriesLoading, setIsCategoriesLoading] = useState(false);
 
   // Fetch products when page or search term changes (debounced)
+  const lastSearchRef = useRef(searchTerm);
+  const fetchSeq = useRef(0);
   useEffect(() => {
-    if (activeTab === 'products') {
-      const handler = setTimeout(() => {
-        fetchProducts(searchTerm, currentPage);
-      }, 300);
-      return () => clearTimeout(handler);
+    const searchChanged = lastSearchRef.current !== searchTerm;
+    lastSearchRef.current = searchTerm;
+    if (activeTab !== 'products') return;
+    // a new search starts on page 1; the page change re-runs this effect, so only one request is sent
+    if (searchChanged && currentPage !== 1) {
+      setCurrentPage(1);
+      return;
     }
+    const handler = setTimeout(() => {
+      fetchProducts(searchTerm, currentPage);
+    }, searchChanged ? 250 : 0);
+    return () => clearTimeout(handler);
   }, [searchTerm, currentPage, activeTab]);
 
   useEffect(() => {
@@ -102,6 +107,7 @@ export default function ProductsPage() {
   }, [activeTab]);
 
   async function fetchProducts(search: string = '', page: number = 1) {
+    const seq = ++fetchSeq.current;
     setLoadError(null);
     try {
       const start = (page - 1) * itemsPerPage;
@@ -111,19 +117,20 @@ export default function ProductsPage() {
         .from('bhs_PRODUCTS')
         .select('*', { count: 'exact' });
 
-      if (search.trim()) {
-        const term = `%${search.trim()}%`;
-        query = query.or(`"PRODUCT NAME".ilike.${term},"PRODUCT BARCODE".ilike.${term},"PRODUCT ID".ilike.${term}`);
+      for (const f of searchOrFilters(['"PRODUCT NAME"', '"PRODUCT BARCODE"', '"PRODUCT ID"'], search)) {
+        query = query.or(f);
       }
 
       const { data, error, count } = await query
         .order('PRODUCT NAME')
         .range(start, end);
 
+      if (seq !== fetchSeq.current) return; // a newer search is already running
       if (error) throw error;
       setProducts(data || []);
       setTotalCount(count || 0);
     } catch (err: any) {
+      if (seq !== fetchSeq.current) return;
       setLoadError(err?.message || 'Failed to load products');
     } finally {
       setIsLoading(false);

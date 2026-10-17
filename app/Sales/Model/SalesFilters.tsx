@@ -19,6 +19,7 @@ import {
   BarChart3,
 } from 'lucide-react';
 import TabLoader from '@/app/Components/Loading/TabLoader';
+import { splitSel, joinSel } from '@/app/Sales/Utils/MultiSelect';
 
 export type InvoiceTypeFilter = 'all' | 'sales' | 'returns';
 export type SalesFilterTab = 'mode' | 'timing' | 'product' | 'customer' | 'outreach' | 'advanced' | 'reporting';
@@ -131,6 +132,148 @@ function filtersEqual(a: SalesCommonFilters, b: SalesCommonFilters): boolean {
     a.customerSubName === b.customerSubName &&
     a.customerTag === b.customerTag &&
     a.customerClass === b.customerClass
+  );
+}
+
+function ModernMultiSelect({
+  value,
+  onChange,
+  options,
+  placeholder = 'Select Options',
+  allLabel = 'All',
+  className = '',
+}: {
+  /** selected values joined with the Sales multi-select separator ('' = nothing selected) */
+  value: string;
+  onChange: (val: string) => void;
+  options: string[];
+  placeholder?: string;
+  allLabel?: string;
+  className?: string;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen) setSearchTerm('');
+  }, [isOpen]);
+
+  const selected = useMemo(() => splitSel(value), [value]);
+  const selectedSet = useMemo(() => new Set(selected), [selected]);
+
+  const filteredOptions = options.filter((opt) =>
+    opt.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const toggle = (opt: string) => {
+    const next = selectedSet.has(opt) ? selected.filter((v) => v !== opt) : [...selected, opt];
+    onChange(joinSel(next));
+  };
+
+  const summary =
+    selected.length === 0
+      ? placeholder
+      : selected.length === 1
+        ? selected[0]
+        : `${selected.length} selected`;
+
+  return (
+    <div className={`relative ${className}`} ref={containerRef}>
+      <button
+        type="button"
+        onMouseDown={(e) => {
+          e.preventDefault();
+          setIsOpen(!isOpen);
+        }}
+        className="w-full px-5 py-4 bg-white border border-slate-200 rounded-2xl font-bold text-slate-700 outline-none focus:ring-4 focus:ring-green-500/5 focus:border-green-500/20 transition-all text-sm flex items-center justify-between group text-left"
+      >
+        <span className={selected.length === 0 ? 'text-slate-400 font-normal' : 'truncate'}>{summary}</span>
+        <ChevronDown
+          className={`w-4 h-4 text-slate-400 transition-transform duration-300 group-hover:text-slate-600 shrink-0 ${isOpen ? 'rotate-180' : ''}`}
+        />
+      </button>
+
+      {isOpen && (
+        <div className="absolute z-[100] mt-2 w-full bg-white/95 backdrop-blur-xl border border-slate-100 rounded-2xl shadow-2xl pb-2 animate-in zoom-in-95 fade-in duration-200 overflow-hidden ring-1 ring-slate-100 flex flex-col">
+          <div className="p-2 border-b border-slate-100 bg-slate-50/50 sticky top-0">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                onMouseDown={(e) => e.stopPropagation()}
+                placeholder="Search..."
+                className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500/40 transition-all"
+                autoFocus
+              />
+            </div>
+          </div>
+
+          <div className="max-h-60 overflow-y-auto no-scrollbar scroll-smooth">
+            <button
+              type="button"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                onChange('');
+              }}
+              className={`w-full px-5 py-3 text-left text-xs font-bold transition-all hover:bg-green-50 hover:text-green-600 ${
+                selected.length === 0 ? 'bg-green-50 text-green-600' : 'text-slate-600'
+              }`}
+            >
+              <div className="flex items-center justify-between font-outfit">
+                <span className="truncate">{allLabel}</span>
+                {selected.length === 0 && <CheckCircle2 className="w-3.5 h-3.5" />}
+              </div>
+            </button>
+            {filteredOptions.map((opt) => {
+              const checked = selectedSet.has(opt);
+              return (
+                <button
+                  key={opt}
+                  type="button"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    toggle(opt);
+                  }}
+                  className={`w-full px-5 py-3 text-left text-xs font-bold transition-all hover:bg-green-50 hover:text-green-600 ${
+                    checked ? 'bg-green-50 text-green-600' : 'text-slate-600'
+                  }`}
+                >
+                  <div className="flex items-center gap-3 font-outfit">
+                    <span
+                      className={`w-4 h-4 shrink-0 rounded-md border flex items-center justify-center ${
+                        checked ? 'bg-green-600 border-green-600 text-white' : 'border-slate-300 bg-white'
+                      }`}
+                    >
+                      {checked && <CheckCircle2 className="w-3 h-3" />}
+                    </span>
+                    <span className="truncate">{opt}</span>
+                  </div>
+                </button>
+              );
+            })}
+            {filteredOptions.length === 0 && (
+              <div className="px-5 py-8 text-xs text-slate-400 italic text-center">
+                <Search className="w-8 h-8 text-slate-200 mx-auto mb-2" />
+                No results found
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -854,49 +997,42 @@ export function SalesFilterModal({
                       <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">
                         Product Category
                       </label>
-                      <ModernSelect
+                      <ModernMultiSelect
                         value={filterProductTag}
                         onChange={(value) => {
                           setFilterProductTag(value);
-                          if (
-                            value &&
-                            filterProduct &&
-                            uniqueValues.productCategoryByName?.[filterProduct] !== value
-                          ) {
-                            setFilterProduct('');
+                          // drop selected products that no longer belong to the selected categories
+                          const tags = new Set(splitSel(value));
+                          if (tags.size > 0 && filterProduct) {
+                            const keep = splitSel(filterProduct).filter((p) => {
+                              const c = uniqueValues.productCategoryByName?.[p];
+                              return !c || tags.has(c);
+                            });
+                            const next = joinSel(keep);
+                            if (next !== filterProduct) setFilterProduct(next);
                           }
                         }}
-                        options={[
-                          { label: 'All Categories', value: '' },
-                          ...uniqueValues.productTags.map((v) => ({ label: v, value: v })),
-                        ]}
+                        options={uniqueValues.productTags}
                         placeholder="All Categories"
+                        allLabel="All Categories"
                       />
                     </div>
                     <div className="space-y-2">
                       <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">
                         Product
                       </label>
-                      <ModernSelect
+                      <ModernMultiSelect
                         value={filterProduct}
-                        onChange={(value) => {
-                          setFilterProduct(value);
-                          if (value) {
-                            const tag = uniqueValues.productCategoryByName?.[value];
-                            if (tag) setFilterProductTag(tag);
-                          }
-                        }}
-                        options={[
-                          { label: 'All Products', value: '' },
-                          ...(uniqueValues.products || [])
-                            .filter(
-                              (name) =>
-                                !filterProductTag ||
-                                uniqueValues.productCategoryByName?.[name] === filterProductTag
-                            )
-                            .map((v) => ({ label: v, value: v })),
-                        ]}
+                        onChange={setFilterProduct}
+                        options={(uniqueValues.products || []).filter((name) => {
+                          const tags = splitSel(filterProductTag);
+                          return (
+                            tags.length === 0 ||
+                            tags.includes(uniqueValues.productCategoryByName?.[name] as string)
+                          );
+                        })}
                         placeholder="All Products"
+                        allLabel="All Products"
                       />
                     </div>
                   </div>

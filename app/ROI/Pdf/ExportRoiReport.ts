@@ -195,10 +195,12 @@ export async function ExportRoiReport(results: RoiResult[], opts: { fileName?: s
     font('bold', 10);
     setText(bn.text);
     doc.text(r.assessment.label, M + 5, y + 10.2);
+    // the note sits right next to the label (on its right), not at a fixed far position
+    const noteX = M + 5 + doc.getTextWidth(r.assessment.label) + 7;
     font('normal', 7.6);
     setText(C.text);
-    const noteLines: string[] = doc.splitTextToSize(r.assessment.note, W - M * 2 - 76).slice(0, 2);
-    noteLines.forEach((line, i) => doc.text(line, M + 62, y + (noteLines.length > 1 ? 6.2 : 8.2) + i * 3.8));
+    const noteLines: string[] = doc.splitTextToSize(r.assessment.note, Math.max(50, W - M - 4 - noteX)).slice(0, 2);
+    noteLines.forEach((line, i) => doc.text(line, noteX, y + (noteLines.length > 1 ? 6.2 : 8.2) + i * 3.8));
     y += 13 + 6;
 
     // ── benefit we get from this customer (written in the entry form) ──
@@ -242,7 +244,6 @@ export async function ExportRoiReport(results: RoiResult[], opts: { fileName?: s
 
     const body = r.salesMonths.map((m) => [
       MonthLabel(m.month),
-      money(m.support),
       money(m.gross),
       money(m.returns),
       money(m.net),
@@ -255,11 +256,10 @@ export async function ExportRoiReport(results: RoiResult[], opts: { fileName?: s
       startY: y,
       theme: 'plain',
       margin: { left: M, right: M, top: 38, bottom: 14 },
-      head: [['Sales Month', 'Support / mo', 'Gross Sales', 'Returns', 'Net Sales', 'Invoices', 'Avg Invoice', 'Avg Items', 'Return %']],
+      head: [['Sales Month', 'Gross Sales', 'Returns', 'Net Sales', 'Invoices', 'Avg Invoice', 'Avg Items', 'Return %']],
       body,
       foot: [[
         'Total',
-        money(r.totalSupport),
         money(r.gross),
         money(r.returns),
         money(r.net),
@@ -273,7 +273,7 @@ export async function ExportRoiReport(results: RoiResult[], opts: { fileName?: s
       headStyles: { fillColor: C.ink, textColor: C.white, fontStyle: 'bold', fontSize: 7, halign: 'center' },
       alternateRowStyles: { fillColor: C.soft },
       footStyles: { fillColor: C.goldSoft, textColor: C.ink, fontStyle: 'bold', halign: 'center' },
-      columnStyles: { 0: { fontStyle: 'bold', textColor: C.ink }, 4: { fontStyle: 'bold', textColor: C.ink } },
+      columnStyles: { 0: { fontStyle: 'bold', textColor: C.ink }, 3: { fontStyle: 'bold', textColor: C.ink } },
       didParseCell: (d: any) => {
         if (d.section === 'body') {
           d.cell.styles.lineWidth = { bottom: 0.15 };
@@ -336,21 +336,6 @@ export async function ExportRoiReport(results: RoiResult[], opts: { fileName?: s
         doc.text(MonthLabel(m.month), cx, y + chartH + 4.5, { align: 'center' });
       });
     }
-
-    // ── page footer ──
-    setDraw(C.line);
-    doc.setLineWidth(0.2);
-    doc.line(M, H - 11, W - M, H - 11);
-    font('normal', 6.5);
-    setText(C.muted);
-    doc.text(
-      'Net sales / support is a screening ratio. Sales figures cover the last 3 full months (the current month is excluded).',
-      M,
-      H - 7.5,
-      { maxWidth: W - M * 2 - 24 },
-    );
-    font('normal', 7);
-    doc.text(`Page ${index + 1} of ${results.length}`, W - M, H - 7.5, { align: 'right' });
   });
 
   const safe = (s: string) => s.replace(/[\\/:*?"<>|]+/g, ' ').trim();

@@ -13,7 +13,7 @@ export * from './InventoryCountingTabAudit';
 export * from './InventoryItemCodeTabAudit';
 
 export * from './InventoryScrapTabAudit';
-export * from './LPOsTabAudit';
+export * from './InvoicesTrackingTabAudit';
 export * from './PettyCashTabAudit';
 export * from './PurchasePriceTrackingTabAudit';
 export * from './SalesTabAudit';

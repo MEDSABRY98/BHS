@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { cleanSearch } from '@/app/DataBase/Utils/SearchUtils';
 import { parseBoolFlag, toTextBoolFlag } from '@/lib/supabase';
 import { adminListUsers, adminSaveUser, adminDeleteUser, adminRevealPassword } from '@/app/DataBase/Service/database_service';
 import {
@@ -20,9 +21,9 @@ import {
   Eye,
   Copy,
 } from 'lucide-react';
-import { ConfirmModal } from '../../LPOs/Components/ConfirmModal';
+import { ConfirmModal } from '../../InvoicesTracking/Components/ConfirmModal';
 import NoData from '@/app/Components/DataState/NoDataTab';
-import { usePermissions } from '../../LPOs/Hooks/usePermissions';
+import { usePermissions } from '../../InvoicesTracking/Hooks/usePermissions';
 import SignatureModal from './components/SignatureModal';
 import { toast } from '@/app/Components/Notification';
 import TabLoader from '@/app/Components/Loading/TabLoader';
@@ -53,6 +54,7 @@ export default function UsersPage() {
   const [IS_IN_OFFICE, setIS_IN_OFFICE] = useState(false);
   const [CANCEL_AUTHORITY, setCANCEL_AUTHORITY] = useState(false);
   const [CITY, setCITY] = useState('');
+  const [TEAM, setTEAM] = useState('');
   const [salesDataAccess, setSalesDataAccess] = useState(false);
 
   useEffect(() => {
@@ -70,7 +72,7 @@ export default function UsersPage() {
   useEffect(() => {
     const handler = setTimeout(() => {
       fetchUsers(searchTerm);
-    }, 300);
+    }, 250);
     return () => clearTimeout(handler);
   }, [searchTerm]);
 
@@ -79,12 +81,16 @@ export default function UsersPage() {
     setIsSignatureModalOpen(true);
   };
 
+  const usersSeq = useRef(0);
   async function fetchUsers(search: string = '') {
+    const seq = ++usersSeq.current;
     setLoadError(null);
     try {
-      const data = await adminListUsers(search);
+      const data = await adminListUsers(cleanSearch(search));
+      if (seq !== usersSeq.current) return; // a newer search is already running
       setUsers(data || []);
     } catch (err) {
+      if (seq !== usersSeq.current) return;
       console.error(err);
       setLoadError(err instanceof Error ? err.message : 'Failed to load users');
     } finally {
@@ -101,6 +107,7 @@ export default function UsersPage() {
     setIS_IN_OFFICE(user ? user.IS_IN_OFFICE : false);
     setCANCEL_AUTHORITY(user ? parseBoolFlag(user.CANCEL_AUTHORITY) : false);
     setCITY(user ? user.CITY || '' : '');
+    setTEAM(user ? user.TEAM || '' : '');
     setSalesDataAccess(user ? parseBoolFlag(user.FULL_DATA_ACCESS) : false);
     setIsModalOpen(true);
   };
@@ -123,6 +130,7 @@ export default function UsersPage() {
           IS_IN_OFFICE,
           CANCEL_AUTHORITY,
           CITY,
+          TEAM,
           FULL_DATA_ACCESS: salesDataAccessValue,
         },
         editingUser ? editingUser.ID : null
@@ -271,6 +279,12 @@ export default function UsersPage() {
                       <span className="inline-flex items-center px-3 py-1 bg-gray-50 text-gray-500 rounded-xl text-[9px] font-black uppercase tracking-widest">
                         {user.USER_TYPE || 'Creator'}
                       </span>
+                      {/* Team Badge */}
+                      {user.TEAM ? (
+                        <span className="inline-flex items-center px-3 py-1 bg-amber-50 text-[#B8860B] rounded-xl text-[9px] font-black uppercase tracking-widest">
+                          {user.TEAM}
+                        </span>
+                      ) : null}
                     </div>
                   </div>
 
@@ -377,6 +391,24 @@ export default function UsersPage() {
                     required
                     className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold"
                   />
+                </div>
+
+                {/* TEAM: users with the same team see and continue each other's work */}
+                <div className="space-y-2 md:col-span-2">
+                  <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">TEAM</label>
+                  <input
+                    type="text"
+                    list="user-teams"
+                    value={TEAM}
+                    onChange={(e) => setTEAM(e.target.value)}
+                    placeholder="No team (own work only). Several teams: separate with comma"
+                    className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold"
+                  />
+                  <datalist id="user-teams">
+                    {Array.from(new Set(users.map((u: any) => String(u.TEAM || '').trim()).filter(Boolean))).map((t) => (
+                      <option key={t as string} value={t as string} />
+                    ))}
+                  </datalist>
                 </div>
 
                 {/* ROLE Toggle (admin/user) */}

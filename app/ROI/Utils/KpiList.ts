@@ -18,18 +18,28 @@ const fmtDay = (iso: string) => {
 export function KpiList(r: RoiResult): KpiBox[] {
   const rrTone: Tone = r.returnRate === null ? 'slate' : r.returnRate >= 25 ? 'red' : r.returnRate >= 10 ? 'amber' : 'green';
   const supTone: Tone = r.supportPctOfNet === null ? 'slate' : r.supportPctOfNet > 10 ? 'amber' : 'green';
+  const hasProfit = r.profit !== null;
+  const profitTone: Tone = !hasProfit ? 'slate' : (r.profit as number) < 0 ? 'red' : 'green';
+  const roiTone: Tone = r.roiPct === null ? 'slate' : r.roiPct < 0 ? 'red' : r.roiPct < 100 ? 'amber' : 'green';
   return [
     { label: 'Support (AED)', value: money(r.totalSupport), foot: r.monthsCount > 1 ? `${r.monthsCount} months • avg ${money(r.support.monthlySupport)} / mo` : '1 month', tone: 'gold' },
     { label: 'Gross Sales', value: money(r.gross), foot: `Avg / month ${money(r.avgGross)}`, tone: 'ink' },
     { label: 'Returns / Credit Notes', value: money(r.returns), foot: `Avg / month ${money(r.avgReturns)}`, tone: 'slate' },
     { label: 'Return Rate', value: pct(r.returnRate), foot: 'Returns / gross sales', tone: rrTone },
     { label: 'Net Sales', value: money(r.net), foot: 'Gross - returns', tone: 'ink' },
+    // profit cards: only for users who may see costs (cost = products table)
+    ...(hasProfit
+      ? [{ label: 'Gross Profit', value: money(r.profit as number), foot: r.marginPct === null ? 'Net sales - product cost' : `Margin ${pct(r.marginPct)} • last 3 months`, tone: profitTone } as KpiBox]
+      : []),
     { label: 'Avg Monthly Net Sales', value: money(r.avgNet), foot: 'Last 3 full months', tone: 'ink' },
     { label: 'Sales Invoices', value: whole(r.invoices), foot: `Avg ${one(r.avgInvoicesPerMonth)} / month`, tone: 'slate' },
     { label: 'Avg Invoice Value', value: money(r.avgInvoice), foot: 'Gross / invoices', tone: 'slate' },
     { label: 'Avg Items / Invoice', value: one(r.avgItems), foot: 'Distinct products', tone: 'slate' },
     { label: 'Support % of Avg Net', value: pct(r.supportPctOfNet), foot: 'Monthly support / avg net', tone: supTone },
-    { label: 'Net Sales per 1 Support', value: r.netPerSupport === null ? '-' : one(r.netPerSupport), foot: 'Not ROI', tone: 'slate' },
+    { label: 'Net Sales per 1 Support', value: r.netPerSupport === null ? '-' : one(r.netPerSupport), foot: 'Sales ratio, not ROI', tone: 'slate' },
+    ...(hasProfit
+      ? [{ label: 'ROI %', value: pct(r.roiPct), foot: '(Gross profit - support) / support', tone: roiTone } as KpiBox]
+      : []),
     { label: 'Last Transaction', value: fmtDay(r.lastTransaction), foot: 'Last positive invoice', tone: 'slate' },
     { label: 'Assessment', value: r.assessment.label, foot: 'Screening flag', tone: r.assessment.tone },
   ];

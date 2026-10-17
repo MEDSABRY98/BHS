@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { searchOrFilters } from '@/app/DataBase/Utils/SearchUtils';
 import { bhs_supabas } from '@/lib/secureDb';
 import { Search, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
-import { ConfirmModal } from '@/app/LPOs/Components/ConfirmModal';
-import { usePermissions } from '@/app/LPOs/Hooks/usePermissions';
+import { ConfirmModal } from '@/app/InvoicesTracking/Components/ConfirmModal';
+import { usePermissions } from '@/app/InvoicesTracking/Hooks/usePermissions';
 import { toast } from '@/app/Components/Notification';
 import { getNextInventoryRecordId } from '@/app/DataBase/Utils/InventoryRecordIds';
 import InventoryItemCodeTable, { InventoryItemCodeRow } from './Components/InventoryItemCodeTable';
@@ -35,16 +36,24 @@ export default function InventoryItemCodePage() {
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<string | null>(null);
 
+  const lastSearchRef = useRef(searchTerm);
+  const fetchSeq = useRef(0);
   useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm]);
-
-  useEffect(() => {
-    const t = setTimeout(() => fetchRows(searchTerm, currentPage), 300);
-    return () => clearTimeout(t);
+    const searchChanged = lastSearchRef.current !== searchTerm;
+    lastSearchRef.current = searchTerm;
+    // a new search starts on page 1; the page change re-runs this effect, so only one request is sent
+    if (searchChanged && currentPage !== 1) {
+      setCurrentPage(1);
+      return;
+    }
+    const handler = setTimeout(() => {
+      fetchRows(searchTerm, currentPage);
+    }, searchChanged ? 250 : 0);
+    return () => clearTimeout(handler);
   }, [searchTerm, currentPage]);
 
   async function fetchRows(search: string, page: number) {
+    const seq = ++fetchSeq.current;
     setLoadError(null);
     try {
       setIsLoading(true);
@@ -52,16 +61,17 @@ export default function InventoryItemCodePage() {
       const end = start + itemsPerPage - 1;
 
       let query = bhs_supabas.from('web_INVENTORY_ITEM_CODE').select('*', { count: 'exact' });
-      if (search.trim()) {
-        const term = `%${search.trim()}%`;
-        query = query.or(`TAGS.ilike.${term},"ITEM CODE".ilike.${term},BARCODE.ilike.${term}`);
+      for (const f of searchOrFilters(['TAGS', '"ITEM CODE"', 'BARCODE'], search)) {
+        query = query.or(f);
       }
 
       const { data, error, count } = await query.order('ITEM CODE').range(start, end);
+      if (seq !== fetchSeq.current) return; // a newer search is already running
       if (error) throw error;
       setRows((data || []) as InventoryItemCodeRow[]);
       setTotalCount(count || 0);
     } catch (err: unknown) {
+      if (seq !== fetchSeq.current) return;
       setLoadError(err instanceof Error ? err.message : 'Failed to load item codes');
     } finally {
       setIsLoading(false);

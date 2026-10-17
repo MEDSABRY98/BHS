@@ -1,4 +1,5 @@
 'use server';
+import { inSel } from '@/app/Sales/Utils/MultiSelect';
 import { requireSession } from '@/lib/session';
 
 import { getFilteredSalesData } from '@/app/Sales/Cache/SalesMappingCache';
@@ -23,8 +24,8 @@ async function getProductsDataUncached(userId: string, filters: any) {
         return true;
       });
     }
-    if (productTag) globallyFilteredData = globallyFilteredData.filter(i => i.productTag === productTag);
-    if (product) globallyFilteredData = globallyFilteredData.filter(i => i.product === product);
+    if (productTag) globallyFilteredData = globallyFilteredData.filter(i => inSel(i.productTag, productTag));
+    if (product) globallyFilteredData = globallyFilteredData.filter(i => inSel(i.product, product));
     if (customerMainName) globallyFilteredData = globallyFilteredData.filter(i => i.customerMainName === customerMainName);
     if (customerSubName) globallyFilteredData = globallyFilteredData.filter(i => i.customerName === customerSubName);
     if (customerClass) globallyFilteredData = globallyFilteredData.filter(i => i.customerClass === customerClass);
@@ -150,13 +151,11 @@ async function getProductsDataUncached(userId: string, filters: any) {
 // -------------------------------------------------------------
 // 2. Product Details Data
 // -------------------------------------------------------------
-async function getProductDetailsDataUncached(userId: string, filters: any, productId: string) {
+async function getDetailsDataUncached(userId: string, filters: any, match: (item: any) => boolean) {
   await requireSession();
   const augmentedData = await getFilteredSalesData(userId);
 
-  let productRawData = augmentedData.filter(item => {
-    return (item.productId || item.barcode || item.product) === productId;
-  });
+  let productRawData = augmentedData.filter(match);
 
   let allData = productRawData;
   if (filters) {
@@ -169,8 +168,8 @@ async function getProductDetailsDataUncached(userId: string, filters: any, produ
         return true;
       });
     }
-    if (productTag) allData = allData.filter(i => i.productTag === productTag);
-    if (product) allData = allData.filter(i => i.product === product);
+    if (productTag) allData = allData.filter(i => inSel(i.productTag, productTag));
+    if (product) allData = allData.filter(i => inSel(i.product, product));
     if (customerMainName) allData = allData.filter(i => i.customerMainName === customerMainName);
     if (customerSubName) allData = allData.filter(i => i.customerName === customerSubName);
     if (customerClass) allData = allData.filter(i => i.customerClass === customerClass);
@@ -218,6 +217,14 @@ async function getProductDetailsDataUncached(userId: string, filters: any, produ
   return { data, allData };
 }
 
+async function getProductDetailsDataUncached(userId: string, filters: any, productId: string) {
+  return getDetailsDataUncached(userId, filters, (item) => (item.productId || item.barcode || item.product) === productId);
+}
+
+async function getCategoryDetailsDataUncached(userId: string, filters: any, category: string) {
+  return getDetailsDataUncached(userId, filters, (item) => (item.productTag || 'Uncategorized') === category);
+}
+
 // -------------------------------------------------------------
 // 3. Categories Data
 // -------------------------------------------------------------
@@ -237,8 +244,8 @@ async function getCategoriesDataUncached(userId: string, filters: any) {
         return true;
       });
     }
-    if (productTag) globallyFilteredData = globallyFilteredData.filter(i => i.productTag === productTag);
-    if (product) globallyFilteredData = globallyFilteredData.filter(i => i.product === product);
+    if (productTag) globallyFilteredData = globallyFilteredData.filter(i => inSel(i.productTag, productTag));
+    if (product) globallyFilteredData = globallyFilteredData.filter(i => inSel(i.product, product));
     if (customerMainName) globallyFilteredData = globallyFilteredData.filter(i => i.customerMainName === customerMainName);
     if (customerSubName) globallyFilteredData = globallyFilteredData.filter(i => i.customerName === customerSubName);
     if (customerClass) globallyFilteredData = globallyFilteredData.filter(i => i.customerClass === customerClass);
@@ -354,6 +361,11 @@ export async function getProductsData(userId: string, filters: any) {
 export async function getProductDetailsData(userId: string, filters: any, productId: string) {
   await requireSession();
   return memoSalesResult('productDetails', userId, [filters, productId], () => getProductDetailsDataUncached(userId, filters, productId));
+}
+
+export async function getCategoryDetailsData(userId: string, filters: any, category: string) {
+  await requireSession();
+  return memoSalesResult('categoryDetails', userId, [filters, category], () => getCategoryDetailsDataUncached(userId, filters, category));
 }
 
 export async function getCategoriesData(userId: string, filters: any) {
