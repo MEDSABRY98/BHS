@@ -199,6 +199,7 @@ const SYSTEMS = [
     { id: 'customers-discounts', label: 'Customers Discounts' },
     { id: 'payment-analysis', label: 'Payment Analysis' },
     { id: 'salesperson-analysis', label: 'Salesperson Analysis' },
+    { id: 'roi', label: 'ROI' },
     { id: 'financial-model', label: 'Financial Model' },
     { id: 'suppliers-analysis', label: 'Suppliers Analysis' },
     { id: 'intercompany-reconciliation', label: 'Intercompany Reconciliation' },
@@ -243,6 +244,12 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
         { id: 'sales', label: 'Sales' },
         { id: 'debit', label: 'Debit' },
         { id: 'collections', label: 'Collections' },
+    ],
+    'roi': [
+        { id: 'overview', label: 'Overview' },
+        { id: 'salespersons', label: 'Salespersons' },
+        { id: 'customers', label: 'Customers' },
+        { id: 'months', label: 'Months' },
     ],
     'payment-analysis': [
         { id: 'dashboard', label: 'Collections Overview' },
