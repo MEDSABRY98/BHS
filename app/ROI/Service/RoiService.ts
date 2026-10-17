@@ -2,7 +2,7 @@
 
 // ════════════════════════════════════════════════════════════════
 //  ROI — server side
-//  • supports (commission given to a customer in a month) live in web_ROI_ENTRIES
+//  • supports (commission given to a customer in a month) live in web_ROI
 //  • the analysis numbers come from the real sales data (same cache as Sales)
 // ════════════════════════════════════════════════════════════════
 
@@ -13,7 +13,7 @@ import { hasFullDebitAccess } from '@/app/CustomersAnalysis/Service/debit_scope'
 import { SalesWindow } from '../Utils/RoiCalc';
 import type { CustomerOption, RoiData, RoiLine, SalespersonOption, SupportInput, SupportRecord } from '../Utils/Types';
 
-const TABLE = 'web_ROI_ENTRIES';
+const TABLE = 'web_ROI';
 const SYSTEM_ID = 'roi';
 
 type Result<T = object> = ({ success: true } & T) | { success: false; error: string };
@@ -25,7 +25,7 @@ const MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
 
 function errMsg(error: unknown, fallback: string): string {
   const m = (error as { message?: string })?.message;
-  if (m && /(web_ROI_ENTRIES|SALESPERSON_ID)/.test(m) && /(does not exist|schema cache|relation|column)/i.test(m)) {
+  if (m && /(web_ROI|SALESPERSON_ID)/.test(m) && /(does not exist|schema cache|relation|column)/i.test(m)) {
     return 'The ROI table is missing or outdated. Run ROI/sql/roi_tables.sql in Supabase first.';
   }
   return m || fallback;

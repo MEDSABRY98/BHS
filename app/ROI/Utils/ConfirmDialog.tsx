@@ -67,7 +67,7 @@ export default function ConfirmDialog({
           <button
             onClick={onCancel}
             disabled={busy}
-            className="px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-sm font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+            className="w-28 justify-center px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-sm font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50 flex items-center"
           >
             Cancel
           </button>
@@ -75,7 +75,7 @@ export default function ConfirmDialog({
             onClick={onConfirm}
             disabled={busy}
             autoFocus
-            className="px-5 py-2.5 rounded-xl bg-red-600 text-white text-sm font-bold shadow-lg shadow-red-600/20 hover:bg-red-700 disabled:opacity-60 flex items-center gap-2"
+            className="w-28 justify-center px-4 py-2.5 rounded-xl bg-red-600 text-white text-sm font-bold shadow-lg shadow-red-600/20 hover:bg-red-700 disabled:opacity-60 flex items-center gap-2"
           >
             {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
             {confirmLabel}

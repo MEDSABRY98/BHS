@@ -131,12 +131,7 @@ export default function CustomersTab() {
 
         {confirming ? (
           <ConfirmDialog
-            title="Delete this support?"
-            details={[
-              { label: 'Customer', value: confirming.support.customerName },
-              { label: 'Month', value: FullMonthLabel(confirming.support.startMonth) },
-              { label: 'Support', value: `${money(confirming.totalSupport)} AED` },
-            ]}
+            title="Do you want to delete this support?"
             busy={busyKey === confirming.support.id}
             onConfirm={() => void removeMonth(confirming)}
             onCancel={() => setConfirming(null)}
