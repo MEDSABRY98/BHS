@@ -22,7 +22,7 @@ import {
   getCustomerMonthStats,
 } from '../Utils/settlementUtils';
 import { exportDiscountValuesExcel } from './ExportExcel';
-import { exportDiscountValuesPdf } from './ExportPdf';
+import { exportDiscountValuesZip } from './ExportPdf';
 import { toast } from '@/app/Components/Notification';
 import TabLoader from '@/app/Components/Loading/TabLoader';
 import TabFetchError from '@/app/Components/DataState/TabFetchError';
@@ -385,8 +385,8 @@ export default function DiscountValues({ customers, refreshKey = 0 }: DiscountVa
         toast.error(`No unsettled customers for ${filterMonthLabel || 'this period'}`);
         return;
       }
-      await exportDiscountValuesPdf(unsettledRows, dateFrom, dateTo, rentMonths, `Unsettled customers · ${filterMonthLabel}`);
-      toast.success('PDF downloaded successfully');
+      await exportDiscountValuesZip(unsettledRows, dateFrom, dateTo, rentMonths, filterMonthLabel);
+      toast.success('ZIP downloaded: full PDF + one file per city');
     } catch (err) {
       console.error('Failed to export Values PDF:', err);
       toast.error('Failed to export PDF');
@@ -430,7 +430,7 @@ export default function DiscountValues({ customers, refreshKey = 0 }: DiscountVa
               onClick={() => void handleExportPdf()}
               disabled={exportingPdf || loading || rows.length === 0}
               className="inline-flex items-center justify-center w-10 h-10 bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 rounded-xl transition-all disabled:opacity-50 shadow-sm shrink-0"
-              title="PDF of the unsettled customers for the selected period"
+              title="ZIP: full PDF of the unsettled customers + a reminder PDF per city for the salesmen"
               aria-label="Export to PDF"
             >
               {exportingPdf ? <Loader2 className="w-5 h-5 animate-spin" /> : <FileText className="w-5 h-5" />}
