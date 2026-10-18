@@ -278,9 +278,27 @@ export default function CustomerDiscountsPage() {
     });
   }, [currentUser]);
 
-  // Filter customers in Grid view
-  useEffect(() => {
+  // Sidebar filters (city + discount type) apply to every tab
+  const isFilterActive = selectedCity !== "All" || selectedDiscountType !== "All";
+  const scopedCustomers = React.useMemo(() => {
     let result = customers;
+    if (selectedCity !== "All") {
+      result = result.filter(c => c.city === selectedCity);
+    }
+    if (selectedDiscountType !== "All") {
+      result = result.filter(c => {
+        const hasWithPayment = c.discounts.some(d => d.settlementType === "with_payment");
+        if (selectedDiscountType === "Monthly") return !hasWithPayment;
+        if (selectedDiscountType === "WithPayment") return hasWithPayment;
+        return true;
+      });
+    }
+    return result;
+  }, [customers, selectedCity, selectedDiscountType]);
+
+  // Grid view: sidebar filters + search box
+  useEffect(() => {
+    let result = scopedCustomers;
 
     if (searchQuery.trim()) {
       const lowerQ = searchQuery.toLowerCase();
@@ -290,21 +308,8 @@ export default function CustomerDiscountsPage() {
       );
     }
 
-    if (selectedCity !== "All") {
-      result = result.filter(c => c.city === selectedCity);
-    }
-
-    if (selectedDiscountType !== "All") {
-      result = result.filter(c => {
-        const hasWithPayment = c.discounts.some(d => d.settlementType === "with_payment");
-        if (selectedDiscountType === "Monthly") return !hasWithPayment;
-        if (selectedDiscountType === "WithPayment") return hasWithPayment;
-        return true;
-      });
-    }
-
     setFilteredCustomers(result);
-  }, [searchQuery, customers, selectedCity, selectedDiscountType]);
+  }, [searchQuery, scopedCustomers]);
 
   // Load all customers for Add form when view is "add"
   useEffect(() => {
@@ -968,7 +973,7 @@ export default function CustomerDiscountsPage() {
             searchQuery={searchQuery}
             setSearchQuery={setSearchQuery}
             loading={loading}
-            customers={customers}
+            customers={scopedCustomers}
             filteredCustomers={filteredCustomers}
             handleSelectCustomer={handleSelectCustomer}
             customersWithEmails={customersWithEmails}
@@ -1037,18 +1042,19 @@ export default function CustomerDiscountsPage() {
 
         {currentView === "months" && (
           <MonthsOverview
-            customers={customers}
+            customers={scopedCustomers}
+            onlyListedCustomers={isFilterActive}
             handleSelectCustomer={handleSelectCustomer}
             refreshKey={monthsOverviewRefreshKey}
           />
         )}
 
         {currentView === "stats" && (
-          <Statistics customers={customers} />
+          <Statistics customers={scopedCustomers} />
         )}
 
         {currentView === "values" && (
-          <DiscountValues customers={customers} />
+          <DiscountValues customers={scopedCustomers} />
         )}
         </>
         )}

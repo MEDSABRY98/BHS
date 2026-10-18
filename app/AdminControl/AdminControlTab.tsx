@@ -300,6 +300,7 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
     // Forms: each sub-tab is one form (app/Forms/Shared/FormsRegistry.ts)
     'forms': [
         { id: 'employee-charge', label: 'Employee Charge' },
+        { id: 'letterhead', label: 'Company Letter' },
     ],
     'intercompany-reconciliation': [
         { id: 'entries', label: 'Entries' },

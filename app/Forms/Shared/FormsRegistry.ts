@@ -18,4 +18,10 @@ export const FORMS: FormDefinition[] = [
     description: 'Charge an amount to an employee, with the details and how it will be settled.',
     path: '/Forms/EmployeeCharge',
   },
+  {
+    id: 'letterhead',
+    title: 'Company Letter',
+    description: 'Write a letter and print it on the company letterhead paper.',
+    path: '/Forms/Letterhead',
+  },
 ];

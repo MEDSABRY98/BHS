@@ -40,17 +40,26 @@ interface MonthsOverviewProps {
     initialTab?: "details" | "pending" | "semi" | "settled"
   ) => void;
   refreshKey?: number;
+  /** Sidebar filter is on: count only the customers passed in `customers`. */
+  onlyListedCustomers?: boolean;
 }
 
 export default function MonthsOverview({
   customers,
   handleSelectCustomer,
   refreshKey = 0,
+  onlyListedCustomers = false,
 }: MonthsOverviewProps) {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryKey, setRetryKey] = useState(0);
-  const [allSettlements, setAllSettlements] = useState<Settlement[]>([]);
+  const [loadedSettlements, setAllSettlements] = useState<Settlement[]>([]);
+  // sidebar filters (city / discount type) narrow the settlements to the listed customers
+  const allSettlements = useMemo(() => {
+    if (!onlyListedCustomers) return loadedSettlements;
+    const ids = new Set(customers.map((c) => c.customerId));
+    return loadedSettlements.filter((s) => ids.has(s.customerId));
+  }, [loadedSettlements, customers, onlyListedCustomers]);
 
   const [selectedMonthGroup, setSelectedMonthGroup] = useState<{ year: number; month: number } | null>(
     null
