@@ -5,6 +5,7 @@ import {
   Calculator,
   Calendar,
   FileSpreadsheet,
+  FileText,
   ListFilter,
   Loader2,
   Search,
@@ -21,6 +22,7 @@ import {
   getCustomerMonthStats,
 } from '../Utils/settlementUtils';
 import { exportDiscountValuesExcel } from './ExportExcel';
+import { exportDiscountValuesPdf } from './ExportPdf';
 import { toast } from '@/app/Components/Notification';
 import TabLoader from '@/app/Components/Loading/TabLoader';
 import TabFetchError from '@/app/Components/DataState/TabFetchError';
@@ -97,6 +99,8 @@ type ValueRow = {
   customerId: string;
   customerName: string;
   city: string;
+  /** false = the discount is settled with the payment (not every month) */
+  monthly: boolean;
   discountPercent: number;
   netSales: number;
   discountValue: number;
@@ -113,6 +117,7 @@ export default function DiscountValues({ customers }: DiscountValuesProps) {
   const [error, setError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
   const [exporting, setExporting] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [customerScope, setCustomerScope] = useState<CustomerScope>('all');
   const [scopeMenuOpen, setScopeMenuOpen] = useState(false);
@@ -212,6 +217,7 @@ export default function DiscountValues({ customers }: DiscountValuesProps) {
           customerId: c.customerId,
           customerName: c.customerName,
           city: c.city || 'Unknown',
+          monthly: !c.discounts.some((d) => d.settlementType === 'with_payment'),
           discountPercent,
           netSales,
           discountValue,
@@ -270,6 +276,20 @@ export default function DiscountValues({ customers }: DiscountValuesProps) {
     }
   };
 
+  const handleExportPdf = async () => {
+    if (filteredRows.length === 0 || exportingPdf) return;
+    try {
+      setExportingPdf(true);
+      await exportDiscountValuesPdf(filteredRows, dateFrom, dateTo, rentMonths);
+      toast.success('PDF downloaded successfully');
+    } catch (err) {
+      console.error('Failed to export Values PDF:', err);
+      toast.error('Failed to export PDF');
+    } finally {
+      setExportingPdf(false);
+    }
+  };
+
   // Loader only (no header / filters) until the first load finishes
   const [firstLoad, setFirstLoad] = useState(true);
   useEffect(() => {
@@ -299,6 +319,16 @@ export default function DiscountValues({ customers }: DiscountValuesProps) {
               ) : (
                 <FileSpreadsheet className="w-5 h-5" />
               )}
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleExportPdf()}
+              disabled={exportingPdf || loading || filteredRows.length === 0}
+              className="inline-flex items-center justify-center w-10 h-10 bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 rounded-xl transition-all disabled:opacity-50 shadow-sm shrink-0"
+              title="Export to PDF (monthly / non-monthly, by city)"
+              aria-label="Export to PDF"
+            >
+              {exportingPdf ? <Loader2 className="w-5 h-5 animate-spin" /> : <FileText className="w-5 h-5" />}
             </button>
           </div>
 
