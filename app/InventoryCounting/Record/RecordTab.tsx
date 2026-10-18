@@ -41,6 +41,8 @@ export default function RecordTab() {
       });
   }, [entries, lotById, search, user]);
 
+  const totalQty = useMemo(() => rows.reduce((sum, { e }) => sum + e.qty, 0), [rows]);
+
   const exportExcel = () =>
     exportInventoryCountingExcelTable(
       ['Date', 'User', 'Product ID', 'Barcode', 'Product Name', 'Lot Number', 'Expiry Date', 'Count Details', 'Counted Qty'],
@@ -61,14 +63,19 @@ export default function RecordTab() {
 
   return (
     <div className="space-y-5">
-      <SessionBar search={search} onSearch={setSearch}>
-        <ModernSelect
-          className="w-52"
-          icon={User}
-          value={user}
-          onChange={setUser}
-          options={[{ value: '', label: 'All users' }, ...users.map((u) => ({ value: u, label: u }))]}
-        />
+      <SessionBar
+        search={search}
+        onSearch={setSearch}
+        beforeSearch={
+          <ModernSelect
+            className="w-full xl:w-52 shrink-0"
+            icon={User}
+            value={user}
+            onChange={setUser}
+            options={[{ value: '', label: 'All users' }, ...users.map((u) => ({ value: u, label: u }))]}
+          />
+        }
+      >
         <ExcelIconButton onClick={() => void exportExcel()} disabled={!rows.length} />
       </SessionBar>
 
@@ -77,7 +84,7 @@ export default function RecordTab() {
       ) : error ? (
         <TabFetchError message={error} onRetry={() => void refresh()} />
       ) : !data ? (
-        <NoData title="No count sessions" message="Start a count from the BHS mobile app." />
+        <NoData title="No open count" message="Start a count from the BHS mobile app. Closed counts are in the Archive tab." />
       ) : (
         <>
           <div className="bg-white rounded-2xl border border-slate-200/60 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] overflow-x-auto">
@@ -142,6 +149,15 @@ export default function RecordTab() {
                   ))
                 )}
               </tbody>
+              {rows.length > 0 && (
+                <tfoot className="bg-slate-100/90 border-t-2 border-slate-300 font-black text-sm">
+                  <tr>
+                    <td colSpan={7} className="px-5 py-3.5"></td>
+                    <td className="px-4 py-3.5 text-center font-black text-[#B8860B] text-base">{formatQty(totalQty)}</td>
+                    <td className="px-5 py-3.5"></td>
+                  </tr>
+                </tfoot>
+              )}
             </table>
           </div>
         </>

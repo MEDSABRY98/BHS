@@ -112,8 +112,8 @@ export async function fetchICSessionData(sessionId: number): Promise<ICSessionDa
   if (!sessionRow) throw new Error('This count session was not found.');
 
   const [stock, entries, users] = await Promise.all([
-    fetchAll<any>(SESSION_STOCK_TABLE, 'LOT_ID,EXPECTED_QTY', ['LOT_ID'], { eq: ['SESSION_ID', sessionId] }),
-    fetchAll<any>(ENTRIES_TABLE, 'ID,LOT_ID,COUNTED_QTY,COUNT_DETAILS,USER_ID,CREATED_AT', ['ID'], { eq: ['SESSION_ID', sessionId] }),
+    fetchAll<any>(SESSION_STOCK_TABLE, 'LOT_ID,EXPECTED_QTY,PRODUCT_ID,LOT_NUMBER,EXPIRY_DATE', ['LOT_ID'], { eq: ['SESSION_ID', sessionId] }),
+    fetchAll<any>(ENTRIES_TABLE, 'ID,LOT_ID,COUNTED_QTY,COUNT_DETAILS,USER_ID,CREATED_AT,PRODUCT_ID,LOT_NUMBER,EXPIRY_DATE', ['ID'], { eq: ['SESSION_ID', sessionId] }),
     fetchAll<any>('bhs_USERS', 'ID,NAME', ['ID']),
   ]);
 
@@ -123,10 +123,28 @@ export async function fetchICSessionData(sessionId: number): Promise<ICSessionDa
   for (const e of entries) countedByLot.set(Number(e.LOT_ID), (countedByLot.get(Number(e.LOT_ID)) ?? 0) + num(e.COUNTED_QTY));
 
   const lotIds = Array.from(new Set([...expectedByLot.keys(), ...countedByLot.keys()]));
-  const lots = lotIds.length
-    ? await fetchIn<any>(LOTS_TABLE, 'ID,PRODUCT_ID,LOT_NUMBER,EXPIRY_DATE', ['ID'], 'ID', lotIds)
+
+  // The lot details saved with the count (snapshot) win; the live lots table is only a fallback.
+  // This keeps old counts complete even after the lots stock is deleted or replaced.
+  const snapshot = new Map<number, { PRODUCT_ID: string; LOT_NUMBER: string; EXPIRY_DATE: string | null }>();
+  for (const r of [...stock, ...entries]) {
+    const id = Number(r.LOT_ID);
+    if (!snapshot.has(id) && text(r.PRODUCT_ID) && text(r.LOT_NUMBER)) {
+      snapshot.set(id, { PRODUCT_ID: text(r.PRODUCT_ID), LOT_NUMBER: text(r.LOT_NUMBER), EXPIRY_DATE: r.EXPIRY_DATE ?? null });
+    }
+  }
+  const missingIds = lotIds.filter((id) => !snapshot.has(id));
+  const liveLots = missingIds.length
+    ? await fetchIn<any>(LOTS_TABLE, 'ID,PRODUCT_ID,LOT_NUMBER,EXPIRY_DATE', ['ID'], 'ID', missingIds)
     : [];
-  const productIds = lots.map((l) => text(l.PRODUCT_ID)).filter(Boolean);
+  for (const l of liveLots) {
+    snapshot.set(Number(l.ID), { PRODUCT_ID: text(l.PRODUCT_ID), LOT_NUMBER: text(l.LOT_NUMBER), EXPIRY_DATE: l.EXPIRY_DATE ?? null });
+  }
+  const lots = lotIds
+    .filter((id) => snapshot.has(id))
+    .map((id) => ({ ID: id, ...snapshot.get(id)! }));
+
+  const productIds = Array.from(new Set(lots.map((l) => text(l.PRODUCT_ID)).filter(Boolean)));
   const products = productIds.length
     ? await fetchIn<any>('bhs_PRODUCTS', '"PRODUCT ID","PRODUCT BARCODE","PRODUCT NAME"', ['PRODUCT ID'], 'PRODUCT ID', productIds)
     : [];

@@ -5,8 +5,6 @@ import { bhs_supabase } from '@/lib/supabase';
 
 // Stock per lot used by the mobile Inventory Counting (expected qty when a count session opens).
 const LOTS_TABLE = 'app_INVENTORY_COUNT_LOTS';
-const SESSION_STOCK_TABLE = 'app_INVENTORY_COUNT_SESSION_STOCK';
-const ENTRIES_TABLE = 'app_INVENTORY_COUNT_ENTRIES';
 const PAGE_SIZE = 1000;
 const CHUNK_SIZE = 500;
 
@@ -42,7 +40,6 @@ export interface LotStockUploadResult {
 
 export interface LotStockClearResult {
   deleted: number;
-  zeroed: number;
 }
 
 interface LotRow {
@@ -104,38 +101,6 @@ export async function fetchLotStockSummary(): Promise<LotStockSummary> {
     products: new Set(lots.map((l) => l.PRODUCT_ID)).size,
     totalQty: lots.reduce((sum, l) => sum + num(l.QTY), 0),
   };
-}
-
-/** Template = every countable product; products that already have lots get one row per lot. */
-export async function fetchLotStockTemplateRows(): Promise<LotStockTemplateRow[]> {
-  await requireSession();
-  const [products, lots] = await Promise.all([loadProducts(true), loadLots()]);
-
-  const lotsByProduct = new Map<string, LotRow[]>();
-  for (const lot of lots) {
-    const list = lotsByProduct.get(lot.PRODUCT_ID) ?? [];
-    list.push(lot);
-    lotsByProduct.set(lot.PRODUCT_ID, list);
-  }
-
-  const rows: LotStockTemplateRow[] = [];
-  const sorted = [...products].sort((a, b) => text(a['PRODUCT NAME']).localeCompare(text(b['PRODUCT NAME'])));
-  for (const p of sorted) {
-    const productId = text(p['PRODUCT ID']);
-    if (!productId) continue;
-    const base = { productId, barcode: text(p['PRODUCT BARCODE']), productName: text(p['PRODUCT NAME']) };
-    const productLots = lotsByProduct.get(productId) ?? [];
-    if (productLots.length === 0) {
-      rows.push({ ...base, lotNumber: '', expiryDate: '', qty: null });
-      continue;
-    }
-    productLots
-      .sort((a, b) => text(a.EXPIRY_DATE).localeCompare(text(b.EXPIRY_DATE)) || a.LOT_NUMBER.localeCompare(b.LOT_NUMBER))
-      .forEach((lot) =>
-        rows.push({ ...base, lotNumber: lot.LOT_NUMBER, expiryDate: text(lot.EXPIRY_DATE).slice(0, 10), qty: num(lot.QTY) }),
-      );
-  }
-  return rows;
 }
 
 /**
@@ -211,28 +176,23 @@ export async function uploadLotStock(rows: LotStockUploadRow[]): Promise<LotStoc
 }
 
 /**
- * Clears the lots stock. Lots that were never used in a count are deleted;
- * lots used by count sessions are kept (their history needs them) with QTY set to 0.
+ * Deletes EVERYTHING in the lots table (the mobile app reads the same table).
+ * Count entries and session stock keep their own copy of the lot details, so old counts are not touched
+ * (needs bhs_lots_snapshot.sql to be applied once).
+ * Verifies at the end that the table is really empty (a silent RLS no-op would otherwise look like success).
  */
 export async function clearLotStock(): Promise<LotStockClearResult> {
   await requireSession();
-  const [lots, sessionStock, entries] = await Promise.all([
-    loadLots(),
-    fetchAll<{ LOT_ID: number }>(SESSION_STOCK_TABLE, 'LOT_ID', ['SESSION_ID', 'LOT_ID']),
-    fetchAll<{ LOT_ID: number }>(ENTRIES_TABLE, 'LOT_ID', ['ID']),
-  ]);
 
-  const used = new Set<number>([...sessionStock, ...entries].map((r) => Number(r.LOT_ID)));
-  const toDelete = lots.filter((l) => !used.has(Number(l.ID))).map((l) => l.ID);
-  const toZero = lots.filter((l) => used.has(Number(l.ID)) && num(l.QTY) !== 0).map((l) => l.ID);
+  const { count, error } = await bhs_supabase.from(LOTS_TABLE).delete({ count: 'exact' }).gte('ID', 0);
+  if (error) throw new Error(`${LOTS_TABLE}: ${error.message}`);
 
-  for (let i = 0; i < toDelete.length; i += CHUNK_SIZE) {
-    const { error } = await bhs_supabase.from(LOTS_TABLE).delete().in('ID', toDelete.slice(i, i + CHUNK_SIZE));
-    if (error) throw new Error(`${LOTS_TABLE}: ${error.message}`);
+  const { count: remaining, error: checkError } = await bhs_supabase
+    .from(LOTS_TABLE)
+    .select('ID', { count: 'exact', head: true });
+  if (checkError) throw new Error(`${LOTS_TABLE}: ${checkError.message}`);
+  if ((remaining ?? 0) > 0) {
+    throw new Error(`${(remaining ?? 0).toLocaleString()} lots could not be deleted (check the table permissions).`);
   }
-  for (let i = 0; i < toZero.length; i += CHUNK_SIZE) {
-    const { error } = await bhs_supabase.from(LOTS_TABLE).update({ QTY: 0 }).in('ID', toZero.slice(i, i + CHUNK_SIZE));
-    if (error) throw new Error(`${LOTS_TABLE}: ${error.message}`);
-  }
-  return { deleted: toDelete.length, zeroed: toZero.length };
+  return { deleted: count ?? 0 };
 }

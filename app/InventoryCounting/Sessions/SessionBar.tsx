@@ -163,11 +163,13 @@ export default function SessionBar({
   search,
   onSearch,
   placeholder = 'Search product, barcode or lot...',
+  beforeSearch,
   children,
 }: {
   search: string;
   onSearch: (v: string) => void;
   placeholder?: string;
+  beforeSearch?: React.ReactNode;
   children?: React.ReactNode;
 }) {
   const { sessions, selectedId, setSelectedId, data } = useICSession();
@@ -176,7 +178,7 @@ export default function SessionBar({
   return (
     <div className="bg-white rounded-2xl border border-slate-200/60 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] p-4 flex flex-col xl:flex-row gap-3 xl:items-center">
       <ModernSelect
-        className="xl:w-[420px] shrink-0"
+        className="w-full xl:w-[380px] shrink-0"
         icon={ClipboardList}
         value={selectedId != null ? String(selectedId) : ''}
         onChange={(v) => setSelectedId(Number(v))}
@@ -197,6 +199,7 @@ export default function SessionBar({
           {session.status}
         </span>
       )}
+      {beforeSearch}
       <div className="relative flex-1 min-w-0">
         <Search className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
         <input value={search} onChange={(e) => onSearch(e.target.value)} placeholder={placeholder} className={`${inputCls} pl-11`} />

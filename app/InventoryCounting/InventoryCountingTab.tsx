@@ -7,6 +7,7 @@ import LotsStockTab from './LotsStock/LotsStockTab';
 import TotalCountTab from './TotalCount/TotalCountTab';
 import UserComparisonTab from './UserComparison/UserComparisonTab';
 import RecordTab from './Record/RecordTab';
+import ArchiveTab from './Archive/ArchiveTab';
 import { ICSessionProvider } from './Sessions/ICSessionContext';
 import { type InventoryCountingTabId } from './Utils/Sidebar';
 
@@ -29,6 +30,9 @@ export default function InventoryCountingTab({ activeTab, visitedTabs }: Invento
           </TabPanel>
           <TabPanel tabId="record" activeTab={activeTab} isVisited={visitedTabs.has('record')}>
             <RecordTab />
+          </TabPanel>
+          <TabPanel tabId="archive" activeTab={activeTab} isVisited={visitedTabs.has('archive')}>
+            <ArchiveTab />
           </TabPanel>
         </ICSessionProvider>
         <TabPanel tabId="lots_stock" activeTab={activeTab} isVisited={visitedTabs.has('lots_stock')}>

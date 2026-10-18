@@ -3,7 +3,7 @@
 // Lots Stock - Excel template download and upload parsing.
 
 import { exportInventoryCountingExcelTable } from '../Export/ExcelExport';
-import type { LotStockTemplateRow, LotStockUploadRow } from './LotsStockService';
+import type { LotStockUploadRow } from './LotsStockService';
 
 export const LOT_STOCK_HEADERS = ['Product ID', 'Barcode', 'Product Name', 'Lot Number', 'Expiry Date', 'Qty'];
 
@@ -70,10 +70,9 @@ function toNumber(v: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-export async function downloadLotStockTemplate(rows: LotStockTemplateRow[]): Promise<void> {
-  const data = rows.length
-    ? rows.map((r) => [r.productId, r.barcode, r.productName, r.lotNumber, r.expiryDate, r.qty ?? ''])
-    : [['', '', '', '', '', '']];
+/** Empty template: header row only. A product can be repeated on as many rows as it has lots. */
+export async function downloadLotStockTemplate(): Promise<void> {
+  const data: (string | number)[][] = [];
   await exportInventoryCountingExcelTable(LOT_STOCK_HEADERS, data, 'Lots_Stock_Template.xlsx', {
     sheetName: 'Lots Stock',
     numericColumns: ['Qty'],

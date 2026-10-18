@@ -9,6 +9,7 @@ import {
   ClipboardList,
   FileText,
   History,
+  Archive,
   Layers,
   PackageSearch,
   RefreshCw,
@@ -17,7 +18,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 
-export type InventoryCountingTabId = 'total_count' | 'user_comparison' | 'record' | 'lots_stock' | 'reports';
+export type InventoryCountingTabId = 'total_count' | 'user_comparison' | 'record' | 'archive' | 'lots_stock' | 'reports';
 
 const INVENTORY_COUNTING_TABS: {
   id: InventoryCountingTabId;
@@ -27,6 +28,7 @@ const INVENTORY_COUNTING_TABS: {
   { id: 'total_count', label: 'Total Count', icon: Layers },
   { id: 'user_comparison', label: 'User Comparison', icon: Users },
   { id: 'record', label: 'Record', icon: History },
+  { id: 'archive', label: 'Archive', icon: Archive },
   { id: 'lots_stock', label: 'Lots Stock', icon: PackageSearch },
   { id: 'reports', label: 'Reports', icon: FileText },
 ];
@@ -41,6 +43,7 @@ export function isCountingTabAllowed(tabId: string): boolean {
     const countingTabs = perms['inventory-counting'];
     if (Array.isArray(countingTabs)) {
       if (countingTabs.includes(tabId)) return true;
+      if (tabId === 'archive' && countingTabs.includes('archives')) return true;
       if (
         tabId === 'record' &&
         (countingTabs.includes('normal_record') || countingTabs.includes('damage_record'))

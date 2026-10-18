@@ -1,11 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AlertCircle, CheckCircle2, Download, Trash2, Upload, X } from 'lucide-react';
+import { AlertCircle, Download, Trash2, Upload, X } from 'lucide-react';
 import {
   clearLotStock,
   fetchLotStockSummary,
-  fetchLotStockTemplateRows,
   uploadLotStock,
   type LotStockSummary,
 } from './LotsStockService';
@@ -20,7 +19,6 @@ export default function LotsStockTab({ active = true }: { active?: boolean }) {
   const [summary, setSummary] = useState<LotStockSummary | null>(null);
   const [busy, setBusy] = useState<Busy>('');
   const [errors, setErrors] = useState<string[]>([]);
-  const [message, setMessage] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   useICTabInitialLoading('lots_stock', summary === null && errors.length === 0);
@@ -55,14 +53,13 @@ export default function LotsStockTab({ active = true }: { active?: boolean }) {
 
   const reset = () => {
     setErrors([]);
-    setMessage('');
   };
 
   const onTemplate = async () => {
     reset();
     setBusy('template');
     try {
-      await downloadLotStockTemplate(await fetchLotStockTemplateRows());
+      await downloadLotStockTemplate();
     } catch (e) {
       setErrors([e instanceof Error ? e.message : 'Could not build the template.']);
     } finally {
@@ -78,7 +75,6 @@ export default function LotsStockTab({ active = true }: { active?: boolean }) {
       const rows = await parseLotStockExcel(file);
       const result = await uploadLotStock(rows);
       if (result.ok) {
-        setMessage(`${result.saved.toLocaleString()} lots saved from ${file.name}.`);
         await loadSummary();
       } else {
         setErrors(result.errors);
@@ -96,12 +92,7 @@ export default function LotsStockTab({ active = true }: { active?: boolean }) {
     reset();
     setBusy('delete');
     try {
-      const result = await clearLotStock();
-      setMessage(
-        result.zeroed > 0
-          ? `${result.deleted.toLocaleString()} lots deleted. ${result.zeroed.toLocaleString()} lots used in counts were kept with qty 0.`
-          : `${result.deleted.toLocaleString()} lots deleted.`,
-      );
+      await clearLotStock();
       await loadSummary();
     } catch (e) {
       setErrors([e instanceof Error ? e.message : 'Could not delete the data.']);
@@ -130,16 +121,6 @@ export default function LotsStockTab({ active = true }: { active?: boolean }) {
             )}
           </div>
           <button type="button" onClick={() => setErrors([])} className="text-red-400 hover:text-red-600">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      )}
-
-      {message && (
-        <div className="flex items-start gap-3 bg-emerald-50 border border-emerald-100 text-emerald-700 rounded-2xl px-5 py-4 text-sm font-bold max-w-4xl mx-auto">
-          <CheckCircle2 className="w-5 h-5 shrink-0 mt-0.5" />
-          <span className="flex-1">{message}</span>
-          <button type="button" onClick={() => setMessage('')} className="text-emerald-400 hover:text-emerald-600">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -203,8 +184,8 @@ export default function LotsStockTab({ active = true }: { active?: boolean }) {
         </div>
 
         <p className="text-xs font-semibold text-slate-400 max-w-xl mx-auto">
-          The template has every countable product with its current lots. Fill Lot Number, Expiry Date (yyyy-mm-dd) and Qty,
-          then upload: existing lots are updated, new lots are added, and empty rows are ignored.
+          The template has the header row only. Fill Product ID (or Barcode), Lot Number, Expiry Date (yyyy-mm-dd) and Qty.
+          Repeat the product on as many rows as it has lots. Existing lots are updated, new lots are added.
         </p>
       </div>
 
@@ -216,7 +197,7 @@ export default function LotsStockTab({ active = true }: { active?: boolean }) {
             </div>
             <h3 className="text-lg font-black text-slate-900">Delete all lots stock?</h3>
             <p className="text-sm font-semibold text-slate-500">
-              All lots will be removed. Lots already used in count sessions are kept for their history, with qty set to 0.
+              Every row in the lots table will be deleted, in the mobile app too. Past counts and their reports are not affected, they keep their own copy of the lot details.
             </p>
             <div className="flex gap-3 pt-2">
               <button

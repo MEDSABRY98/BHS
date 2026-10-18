@@ -7,7 +7,10 @@ import { useICTabInitialLoading } from '../Utils/ICPageLoading';
 const STORAGE_KEY = 'ic_selected_session';
 
 type ICSessionContextValue = {
+  /** Open count sessions only: the three live tabs work on these. */
   sessions: ICSession[];
+  /** Closed count sessions: shown in the Archive tab only. */
+  closedSessions: ICSession[];
   selectedId: number | null;
   setSelectedId: (id: number) => void;
   data: ICSessionData | null;
@@ -21,6 +24,7 @@ const ICSessionContext = createContext<ICSessionContextValue | null>(null);
 /** Shares the chosen count session (and its data) between Total Count, User Comparison and Record. */
 export function ICSessionProvider({ children }: { children: React.ReactNode }) {
   const [sessions, setSessions] = useState<ICSession[]>([]);
+  const [closedSessions, setClosedSessions] = useState<ICSession[]>([]);
   const [selectedId, setSelectedIdState] = useState<number | null>(null);
   const [data, setData] = useState<ICSessionData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -49,8 +53,11 @@ export function ICSessionProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const loadSessions = useCallback(async (): Promise<number | null> => {
-    const list = await fetchICSessions();
+    const all = await fetchICSessions();
+    // a closed count leaves Total Count / User Comparison / Record and moves to the Archive tab
+    const list = all.filter((s) => s.status === 'OPEN');
     setSessions(list);
+    setClosedSessions(all.filter((s) => s.status !== 'OPEN'));
     let stored: number | null = null;
     try {
       const raw = sessionStorage.getItem(STORAGE_KEY);
@@ -58,11 +65,7 @@ export function ICSessionProvider({ children }: { children: React.ReactNode }) {
     } catch {
       stored = null;
     }
-    const pick =
-      list.find((s) => s.id === stored)?.id ??
-      list.find((s) => s.status === 'OPEN')?.id ??
-      list[0]?.id ??
-      null;
+    const pick = list.find((s) => s.id === stored)?.id ?? list[0]?.id ?? null;
     return pick;
   }, []);
 
@@ -93,16 +96,18 @@ export function ICSessionProvider({ children }: { children: React.ReactNode }) {
   );
 
   const refresh = useCallback(async () => {
+    let pick = selectedId;
     try {
-      await loadSessions();
+      pick = await loadSessions();
+      setSelectedIdState(pick);
     } catch {
       // keep the current list
     }
-    await loadData(selectedId);
+    await loadData(pick);
   }, [loadSessions, loadData, selectedId]);
 
   return (
-    <ICSessionContext.Provider value={{ sessions, selectedId, setSelectedId, data, loading, error, refresh }}>
+    <ICSessionContext.Provider value={{ sessions, closedSessions, selectedId, setSelectedId, data, loading, error, refresh }}>
       {children}
     </ICSessionContext.Provider>
   );
