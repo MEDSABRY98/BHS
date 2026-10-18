@@ -190,6 +190,15 @@ export async function exportDiscountValuesPdf(
     const meta: Meta[] = [];
     const body: any[] = [];
     let currentCity: string | null = null;
+    // D % / R % = share of the customer inside his city (in this section)
+    const cityTotals = new Map<string, { disc: number; rent: number }>();
+    for (const r of section.list) {
+      const c = r.city || 'Unknown';
+      const t = cityTotals.get(c) || { disc: 0, rent: 0 };
+      t.disc += r.discountValue;
+      t.rent += r.rent;
+      cityTotals.set(c, t);
+    }
     let n = 0;
     for (const r of section.list) {
       const city = r.city || 'Unknown';
@@ -207,9 +216,9 @@ export async function exportDiscountValuesPdf(
         pct(r.discountPercent),
         money(r.netSales),
         money(r.discountValue),
-        share(r.discountValue, totals.disc),
+        share(r.discountValue, cityTotals.get(r.city || 'Unknown')!.disc),
         money(r.rent),
-        share(r.rent, totals.rent),
+        share(r.rent, cityTotals.get(r.city || 'Unknown')!.rent),
       ]);
     }
 
