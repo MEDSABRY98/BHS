@@ -1,7 +1,7 @@
 'use client';
 
 import { addArabicFont } from '@/app/Components/Pdf/shared';
-import { printPdfInSameTab } from '@/app/LPOs/Pdf/DeliveryUtils';
+import { printPdfInSameTab } from '@/app/InvoicesTracking/Pdf/DeliveryUtils';
 import { saveTrackedPdf } from '@/app/Audit/Utils/TrackedDownload';
 
 export interface PaymentReconciliationLine {

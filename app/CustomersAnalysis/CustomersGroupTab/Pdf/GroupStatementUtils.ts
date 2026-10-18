@@ -2,7 +2,7 @@
 
 import { addArabicFont } from '@/app/Components/Pdf/shared';
 import { saveTrackedPdf } from '@/app/Audit/Utils/TrackedDownload';
-import { printPdfInSameTab } from '@/app/LPOs/Pdf/DeliveryUtils';
+import { printPdfInSameTab } from '@/app/InvoicesTracking/Pdf/DeliveryUtils';
 import { getInvoiceType } from '@/app/CustomersAnalysis/Utils/InvoiceType';
 import { sortInvoicesByDateThenNumber } from '@/app/CustomersAnalysis/CustomerDetailsTab/Utils';
 
