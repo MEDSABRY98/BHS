@@ -46,14 +46,14 @@ function DropdownSelect({ label, value, options, onChange, icon, searchPlacehold
           type="button"
           onClick={() => setIsOpen(!isOpen)}
           className={`w-full flex items-center justify-between h-12 bg-slate-50 hover:bg-slate-100/60 border-2 border-transparent rounded-2xl px-4 transition-all shadow-sm text-sm font-bold text-slate-800 cursor-pointer ${
-            isOpen ? 'bg-white border-blue-500 ring-2 ring-blue-500/10' : ''
+            isOpen ? 'bg-white border-[#D4AF37] ring-2 ring-[#D4AF37]/15' : ''
           }`}
         >
           <div className="flex items-center gap-2 truncate">
             {icon}
             <span className="truncate">{value}</span>
           </div>
-          <ChevronDown className={`w-4 h-4 text-slate-400 shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180 text-blue-600' : ''}`} />
+          <ChevronDown className={`w-4 h-4 text-slate-400 shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180 text-[#D4AF37]' : ''}`} />
         </button>
 
         {isOpen && (
@@ -100,12 +100,12 @@ function DropdownSelect({ label, value, options, onChange, icon, searchPlacehold
                       }}
                       className={`w-full text-left px-3 py-2.5 rounded-xl text-xs font-bold flex items-center justify-between transition-colors cursor-pointer ${
                         isSelected
-                          ? 'bg-blue-50 text-blue-700'
+                          ? 'bg-amber-50/50 text-amber-700'
                           : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                       }`}
                     >
                       <span className="truncate">{opt}</span>
-                      {isSelected && <Check className="w-3.5 h-3.5 text-blue-600 shrink-0 ml-2" />}
+                      {isSelected && <Check className="w-3.5 h-3.5 text-[#D4AF37] shrink-0 ml-2" />}
                     </button>
                   );
                 })
@@ -269,7 +269,7 @@ export default function EditRecordModal({
               Product Search & Select
             </label>
             <div className="relative group">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-300 group-focus-within:text-blue-500 transition-colors" />
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-300 group-focus-within:text-[#D4AF37] transition-colors" />
               <input
                 type="text"
                 value={productSearchQuery}
@@ -279,11 +279,11 @@ export default function EditRecordModal({
                 }}
                 onFocus={() => setIsSearchFocused(true)}
                 placeholder="Search by product name, barcode, or ID..."
-                className="w-full pl-11 pr-4 py-3.5 bg-slate-50 border-2 border-transparent focus:border-blue-500 focus:bg-white rounded-2xl outline-none font-bold text-slate-800 transition-all shadow-sm text-sm"
+                className="w-full pl-11 pr-4 py-3.5 bg-slate-50 border-2 border-transparent focus:border-[#D4AF37] focus:bg-white rounded-2xl outline-none font-bold text-slate-800 transition-all shadow-sm text-sm"
               />
               {isSearchingProducts && (
                 <div className="absolute right-4 top-1/2 -translate-y-1/2">
-                  <Loader2 className="w-5 h-5 text-blue-500 animate-spin" />
+                  <Loader2 className="w-5 h-5 text-[#D4AF37] animate-spin" />
                 </div>
               )}
             </div>
@@ -309,7 +309,7 @@ export default function EditRecordModal({
               </div>
             )}
             {selectedProduct && (
-              <div className="mt-2 p-3 bg-blue-50/50 border border-blue-100 rounded-xl text-xs font-bold text-blue-800">
+              <div className="mt-2 p-3 bg-amber-50/50 border border-amber-100 rounded-xl text-xs font-bold text-amber-800">
                 Selected Product: {selectedProduct.productName} ({selectedProduct.productId})
               </div>
             )}
@@ -322,7 +322,7 @@ export default function EditRecordModal({
               value={formatCountType(countType)}
               options={['Normal', 'Damage & Expire']}
               onChange={(val) => setCountType(val === 'Normal' ? 'Normal' : 'DamageExpire')}
-              icon={<Tag className="w-4 h-4 text-blue-500 shrink-0" />}
+              icon={<Tag className="w-4 h-4 text-[#D4AF37] shrink-0" />}
             />
 
             {/* Warehouse Selector */}
@@ -331,7 +331,7 @@ export default function EditRecordModal({
               value={warehouse}
               options={finalWarehouses}
               onChange={setWarehouse}
-              icon={<MapPin className="w-4 h-4 text-blue-500 shrink-0" />}
+              icon={<MapPin className="w-4 h-4 text-[#D4AF37] shrink-0" />}
               searchPlaceholder="Search warehouse..."
             />
           </div>
@@ -342,7 +342,7 @@ export default function EditRecordModal({
             value={user}
             options={finalUsers}
             onChange={setUser}
-            icon={<UserIcon className="w-4 h-4 text-blue-500 shrink-0" />}
+            icon={<UserIcon className="w-4 h-4 text-[#D4AF37] shrink-0" />}
             searchPlaceholder="Search user..."
           />
 
@@ -358,7 +358,7 @@ export default function EditRecordModal({
                 value={qtyInBox}
                 onChange={(e) => setQtyInBox(Number(e.target.value))}
                 required
-                className="w-full px-4 py-3.5 bg-slate-50 border-2 border-transparent focus:border-blue-500 focus:bg-white rounded-2xl outline-none font-bold text-slate-800 transition-all shadow-sm text-center text-sm"
+                className="w-full px-4 py-3.5 bg-slate-50 border-2 border-transparent focus:border-[#D4AF37] focus:bg-white rounded-2xl outline-none font-bold text-slate-800 transition-all shadow-sm text-center text-sm"
               />
             </div>
 
@@ -373,7 +373,7 @@ export default function EditRecordModal({
                 value={countedQty}
                 onChange={(e) => setCountedQty(Number(e.target.value))}
                 required
-                className="w-full px-4 py-3.5 bg-slate-50 border-2 border-transparent focus:border-blue-500 focus:bg-white rounded-2xl outline-none font-bold text-slate-800 transition-all shadow-sm text-center text-sm"
+                className="w-full px-4 py-3.5 bg-slate-50 border-2 border-transparent focus:border-[#D4AF37] focus:bg-white rounded-2xl outline-none font-bold text-slate-800 transition-all shadow-sm text-center text-sm"
               />
             </div>
           </div>
@@ -389,7 +389,7 @@ export default function EditRecordModal({
             </button>
             <button
               type="submit"
-              className="flex-1 py-4 rounded-2xl bg-blue-600 text-white font-black hover:bg-blue-700 transition-all shadow-lg hover:shadow-blue-500/30 flex items-center justify-center gap-2"
+              className="flex-1 py-4 rounded-2xl bg-[#0f0f0f] text-[#D4AF37] font-black hover:bg-black transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
               disabled={isSaving}
             >
               {isSaving ? (

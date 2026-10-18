@@ -79,7 +79,7 @@ export default function ReportsTab({ active = true }: { active?: boolean }) {
     setCover((c) => ({ ...c, committee: c.committee.length > 1 ? c.committee.filter((m) => m.id !== id) : c.committee }));
 
   const inputCls =
-    'w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-800 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-400 transition-all';
+    'w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-800 outline-none focus:ring-4 focus:ring-[#D4AF37]/15 focus:border-[#D4AF37] transition-all';
   const btnCls =
     'inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed';
 
@@ -119,7 +119,7 @@ export default function ReportsTab({ active = true }: { active?: boolean }) {
       )}
 
       {subTab === 'report' && (
-        <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-8 max-w-4xl mx-auto text-center space-y-8">
+        <div className="bg-white rounded-2xl border border-slate-200/60 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] p-8 max-w-4xl mx-auto text-center space-y-8">
           <input
             ref={fileRef}
             type="file"
@@ -142,7 +142,7 @@ export default function ReportsTab({ active = true }: { active?: boolean }) {
               type="button"
               onClick={() => fileRef.current?.click()}
               disabled={busy !== ''}
-              className={`${btnCls} w-44 justify-center bg-indigo-600 text-white hover:bg-indigo-700 shadow-lg shadow-indigo-200/50`}
+              className={`${btnCls} w-44 justify-center bg-[#0f0f0f] text-[#D4AF37] hover:bg-black shadow-lg hover:shadow-xl`}
             >
               <Upload className="w-4 h-4" /> {busy === 'upload' ? 'Reading...' : 'Upload Excel'}
             </button>
@@ -167,7 +167,7 @@ export default function ReportsTab({ active = true }: { active?: boolean }) {
       )}
 
       {subTab === 'cover' && (
-        <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 md:p-8 space-y-8 max-w-4xl mx-auto">
+        <div className="bg-white rounded-2xl border border-slate-200/60 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] p-6 md:p-8 space-y-8 max-w-4xl mx-auto">
           <div>
             <h2 className="text-lg font-black text-slate-900">Report Cover</h2>
           </div>

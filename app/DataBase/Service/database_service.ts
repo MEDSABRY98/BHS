@@ -816,6 +816,8 @@ export async function adminSaveUser(
     FULL_DATA_ACCESS: string;
     /** users with the same TEAM see and continue each other's work (empty = no team) */
     TEAM?: string;
+    /** mobile apps (BHS App) the user can open; null = every app */
+    MOBILE_APPS?: string[] | null;
   },
   editingId?: string | null
 ) {
@@ -824,6 +826,11 @@ export async function adminSaveUser(
   const { PASSWORD, ...rest } = fields;
   const payload: Record<string, any> = { ...rest };
   if (payload.TEAM !== undefined) payload.TEAM = String(payload.TEAM || '').trim() || null;
+  if (payload.MOBILE_APPS !== undefined && payload.MOBILE_APPS !== null) {
+    payload.MOBILE_APPS = Array.from(
+      new Set((payload.MOBILE_APPS as string[]).map((a) => String(a).trim().toLowerCase()).filter(Boolean)),
+    );
+  }
   const newPassword = String(PASSWORD || '');
 
   if (editingId) {

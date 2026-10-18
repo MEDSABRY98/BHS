@@ -62,7 +62,7 @@ export default function EditItemModal({ item, onSave, onClose }: EditItemModalPr
                 
                 <div className="flex justify-between items-center mb-8">
                     <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center shadow-sm">
+                        <div className="w-12 h-12 bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center shadow-sm">
                             <Package className="w-6 h-6" />
                         </div>
                         <div>
@@ -83,7 +83,7 @@ export default function EditItemModal({ item, onSave, onClose }: EditItemModalPr
                             value={barcodeName}
                             onChange={e => setBarcodeName(e.target.value)}
                             required
-                            className="w-full px-5 py-4 bg-slate-50 border-2 border-transparent focus:border-blue-500 focus:bg-white rounded-2xl outline-none font-bold text-slate-800 transition-all shadow-sm"
+                            className="w-full px-5 py-4 bg-slate-50 border-2 border-transparent focus:border-[#D4AF37] focus:bg-white rounded-2xl outline-none font-bold text-slate-800 transition-all shadow-sm"
                             placeholder="Enter barcode..."
                         />
                     </div>
@@ -95,7 +95,7 @@ export default function EditItemModal({ item, onSave, onClose }: EditItemModalPr
                             value={productName}
                             onChange={e => setProductName(e.target.value)}
                             required
-                            className="w-full px-5 py-4 bg-slate-50 border-2 border-transparent focus:border-blue-500 focus:bg-white rounded-2xl outline-none font-bold text-slate-800 transition-all shadow-sm"
+                            className="w-full px-5 py-4 bg-slate-50 border-2 border-transparent focus:border-[#D4AF37] focus:bg-white rounded-2xl outline-none font-bold text-slate-800 transition-all shadow-sm"
                             placeholder="Enter product name..."
                         />
                     </div>
@@ -109,7 +109,7 @@ export default function EditItemModal({ item, onSave, onClose }: EditItemModalPr
                                 value={availableQty}
                                 onChange={e => setAvailableQty(Number(e.target.value))}
                                 required
-                                className="w-full px-5 py-4 bg-slate-50 border-2 border-transparent focus:border-blue-500 focus:bg-white rounded-2xl outline-none font-bold text-slate-800 transition-all shadow-sm text-center"
+                                className="w-full px-5 py-4 bg-slate-50 border-2 border-transparent focus:border-[#D4AF37] focus:bg-white rounded-2xl outline-none font-bold text-slate-800 transition-all shadow-sm text-center"
                             />
                         </div>
                         <div>
@@ -120,7 +120,7 @@ export default function EditItemModal({ item, onSave, onClose }: EditItemModalPr
                                 value={qtyInBox}
                                 onChange={e => setQtyInBox(Number(e.target.value))}
                                 required
-                                className="w-full px-5 py-4 bg-slate-50 border-2 border-transparent focus:border-blue-500 focus:bg-white rounded-2xl outline-none font-bold text-slate-800 transition-all shadow-sm text-center"
+                                className="w-full px-5 py-4 bg-slate-50 border-2 border-transparent focus:border-[#D4AF37] focus:bg-white rounded-2xl outline-none font-bold text-slate-800 transition-all shadow-sm text-center"
                             />
                         </div>
                     </div>
@@ -136,7 +136,7 @@ export default function EditItemModal({ item, onSave, onClose }: EditItemModalPr
                         </button>
                         <button
                             type="submit"
-                            className="flex-1 py-4 rounded-2xl bg-blue-600 text-white font-black hover:bg-blue-700 transition-all shadow-lg hover:shadow-blue-500/30 flex items-center justify-center gap-2"
+                            className="flex-1 py-4 rounded-2xl bg-[#0f0f0f] text-[#D4AF37] font-black hover:bg-black transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
                             disabled={isSaving}
                         >
                             {isSaving ? (

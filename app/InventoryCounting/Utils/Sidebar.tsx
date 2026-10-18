@@ -3,29 +3,21 @@
 import { isAdminRole } from '@/lib/AdminRole';
 import { useState, useEffect } from 'react';
 import {
-  Archive,
   ArrowLeft,
   ChevronLeft,
   ChevronRight,
-  ClipboardCheck,
   ClipboardList,
   FileText,
-  Filter,
   History,
   Layers,
+  PackageSearch,
   RefreshCw,
   Users,
   X,
   type LucideIcon,
 } from 'lucide-react';
-import { useInventoryCountingFilters } from '../Model/InventoryCountingFiltersContext';
 
-export type InventoryCountingTabId =
-  | 'total_count'
-  | 'user_comparison'
-  | 'record'
-  | 'archives'
-  | 'reports';
+export type InventoryCountingTabId = 'total_count' | 'user_comparison' | 'record' | 'lots_stock' | 'reports';
 
 const INVENTORY_COUNTING_TABS: {
   id: InventoryCountingTabId;
@@ -35,7 +27,7 @@ const INVENTORY_COUNTING_TABS: {
   { id: 'total_count', label: 'Total Count', icon: Layers },
   { id: 'user_comparison', label: 'User Comparison', icon: Users },
   { id: 'record', label: 'Record', icon: History },
-  { id: 'archives', label: 'Archives', icon: Archive },
+  { id: 'lots_stock', label: 'Lots Stock', icon: PackageSearch },
   { id: 'reports', label: 'Reports', icon: FileText },
 ];
 
@@ -110,7 +102,7 @@ interface SidebarProps {
   isCollapsed: boolean;
   onToggleCollapse: () => void;
   onCloseMobile?: () => void;
-  onOpenFilters: () => void;
+  onOpenFilters?: () => void;
 }
 
 export default function Sidebar({
@@ -119,12 +111,10 @@ export default function Sidebar({
   isCollapsed,
   onToggleCollapse,
   onCloseMobile,
-  onOpenFilters,
 }: SidebarProps) {
   const [hoveredTab, setHoveredTab] = useState<{ label: string; top: number } | null>(null);
 
   const tabs = getAllowedCountingTabs();
-  const { activeFilterCount, hasActiveFilters } = useInventoryCountingFilters();
   const [refreshingTabs, setRefreshingTabs] = useState<Record<string, boolean>>({});
   const isCurrentTabRefreshing = refreshingTabs[activeTab] || false;
 
@@ -153,12 +143,12 @@ export default function Sidebar({
   };
 
   return (
-    <div className="flex flex-col h-full bg-[#0a0f1d] text-white border-r border-blue-950/20">
+    <div className="flex flex-col h-full bg-white text-slate-800 border-r border-slate-200">
       {onCloseMobile && (
         <button
           type="button"
           onClick={onCloseMobile}
-          className="absolute right-4 top-4 p-2 text-slate-400 hover:text-white lg:hidden"
+          className="absolute right-4 top-4 p-2 text-slate-400 hover:text-slate-800 lg:hidden"
           title="Close Sidebar"
         >
           <X className="w-6 h-6" />
@@ -169,7 +159,7 @@ export default function Sidebar({
         <button
           type="button"
           onClick={() => { window.location.href = '/'; }}
-          className={`flex items-center justify-center ${isCollapsed ? 'gap-0' : 'gap-3'} py-2.5 text-blue-300 hover:text-blue-200 transition-all duration-200 group w-full cursor-pointer bg-white/5 rounded-xl border border-white/10`}
+          className={`flex items-center justify-center ${isCollapsed ? 'gap-0' : 'gap-3'} py-2.5 text-[#B8860B] hover:text-[#D4AF37] transition-all duration-200 group w-full cursor-pointer bg-slate-50 rounded-xl border border-slate-100 hover:bg-slate-100`}
           
         >
           <ArrowLeft className="w-5 h-5 shrink-0 group-hover:-translate-x-1 transition-transform" />
@@ -181,14 +171,14 @@ export default function Sidebar({
         </button>
       </div>
 
-      <div className={`px-4 ${isCollapsed ? 'py-4' : 'pt-2 pb-6'} shrink-0 flex flex-col items-center justify-center transition-all duration-300 border-b border-white/5`}>
+      <div className={`px-4 ${isCollapsed ? 'py-4' : 'pt-2 pb-6'} shrink-0 flex flex-col items-center justify-center transition-all duration-300 border-b border-slate-100`}>
         <div className="flex flex-col items-center text-center">
-          <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-2xl flex items-center justify-center mb-3 shadow-lg shadow-blue-950/50 transition-all duration-300">
+          <div className="w-12 h-12 bg-gradient-to-br from-[#D4AF37] to-[#B8860B] rounded-2xl flex items-center justify-center mb-3 shadow-lg shadow-[#D4AF37]/30 transition-all duration-300">
             <ClipboardList className="w-6 h-6 text-white" />
           </div>
           {!isCollapsed && (
             <div className="animate-in fade-in duration-300">
-              <h2 className="text-lg font-bold tracking-tight text-white">Inventory Counting</h2>
+              <h2 className="text-lg font-bold tracking-tight text-slate-900">Inventory Counting</h2>
             </div>
           )}
         </div>
@@ -215,51 +205,31 @@ export default function Sidebar({
               }}
               className={`w-full flex items-center ${isCollapsed ? 'justify-center px-2' : 'px-4'} py-3.5 rounded-xl transition-all duration-200 group relative ${
                 isActive
-                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-950/40 border-l-4 border-blue-300 font-bold'
-                  : 'text-slate-400 hover:text-white hover:bg-white/5'
+                  ? 'bg-gradient-to-r from-[#D4AF37] to-[#B8860B] text-white shadow-lg shadow-[#D4AF37]/30 border-l-4 border-[#D4AF37] font-bold'
+                  : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'
               }`}
               
             >
-              <Icon className={`w-5 h-5 transition-colors shrink-0 ${isCollapsed ? '' : 'mr-3'} ${isActive ? 'text-white' : 'group-hover:text-white'}`} />
+              <Icon className={`w-5 h-5 transition-colors shrink-0 ${isCollapsed ? '' : 'mr-3'} ${isActive ? 'text-white' : 'group-hover:text-slate-800'}`} />
               {!isCollapsed && (
                 <span className="text-sm tracking-wide whitespace-nowrap overflow-hidden text-left">{tab.label}</span>
               )}
               {!isCollapsed && isActive && (
-                <ChevronRight className="w-4 h-4 ml-auto text-blue-200 animate-in fade-in duration-200" />
+                <ChevronRight className="w-4 h-4 ml-auto text-white animate-in fade-in duration-200" />
               )}
             </button>
           );
         })}
       </nav>
 
-      <div className="p-4 border-t border-white/5 mt-auto flex flex-col items-center gap-3 shrink-0">
+      <div className={`p-4 border-t border-slate-100 mt-auto flex ${isCollapsed ? 'flex-col items-center mx-auto' : 'flex-row justify-center'} gap-2 shrink-0`}>
                   <button
                     type="button"
                     onClick={onToggleCollapse}
-                    className="flex items-center justify-center w-10 h-10 hover:bg-white/10 rounded-xl transition-all duration-200 text-slate-400 group"
+                    className="flex items-center justify-center w-10 h-10 hover:bg-slate-100 rounded-xl transition-all duration-200 text-slate-500 group border border-slate-200 shrink-0"
                     title={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
                   >
                     {isCollapsed ? <ChevronRight className="w-5 h-5 shrink-0" /> : <ChevronLeft className="w-5 h-5 shrink-0" />}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onOpenFilters();
-                      onCloseMobile?.();
-                    }}
-                    className={`relative flex items-center justify-center w-12 h-12 rounded-2xl transition-all duration-200 ${
-                      hasActiveFilters
-                        ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-950/40'
-                        : 'bg-white/5 text-slate-300 hover:text-white hover:bg-white/10 border border-white/10'
-                    }`}
-                    title="Filters"
-                  >
-                    <Filter className="w-5 h-5" />
-                    {hasActiveFilters && (
-                      <span className="absolute -top-1.5 -right-1.5 min-w-[1.25rem] h-5 px-1 rounded-full bg-amber-400 text-slate-900 text-[10px] font-black flex items-center justify-center shadow">
-                        {activeFilterCount}
-                      </span>
-                    )}
                   </button>
                   <button
                     type="button"
@@ -268,14 +238,10 @@ export default function Sidebar({
                       onCloseMobile?.();
                     }}
                     disabled={isCurrentTabRefreshing}
-                    className={`relative flex items-center justify-center w-12 h-12 rounded-2xl transition-all duration-200 ${
-                      isCurrentTabRefreshing
-                        ? 'bg-blue-600 text-white shadow-lg shadow-blue-950/40'
-                        : 'bg-white/5 text-slate-300 hover:text-white hover:bg-white/10 border border-white/10'
-                    } disabled:opacity-50`}
+                    className="flex items-center justify-center w-10 h-10 hover:bg-slate-100 rounded-xl transition-all duration-200 text-slate-500 disabled:cursor-not-allowed group border border-slate-200 shrink-0"
                     title="Refresh Tab"
                   >
-                    <RefreshCw className={`w-5 h-5 ${isCurrentTabRefreshing ? 'animate-spin' : ''}`} />
+                    <RefreshCw className={`w-5 h-5 shrink-0 ${isCurrentTabRefreshing ? 'animate-spin text-[#D4AF37]' : ''}`} />
                   </button>
                 </div>
 

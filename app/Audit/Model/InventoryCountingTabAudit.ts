@@ -7,7 +7,7 @@ export const INVENTORY_COUNTING_TAB_LABELS: Record<InventoryCountingTabId, strin
   total_count: 'Total Count',
   user_comparison: 'User Comparison',
   record: 'Record',
-  archives: 'Archives',
+  lots_stock: 'Lots Stock',
   reports: 'Reports',
 };
 

@@ -1,8 +1,8 @@
 'use client';
 
 import { isAdminRole } from '@/lib/AdminRole';
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { Menu, Lock, ArrowLeft, X, AlertCircle } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { Menu, Lock, ArrowLeft } from 'lucide-react';
 import InventoryCountingTab from './InventoryCountingTab';
 import Sidebar, {
   getAllowedCountingTabs,
@@ -10,12 +10,10 @@ import Sidebar, {
   type InventoryCountingTabId,
 } from './Utils/Sidebar';
 import { useInventoryCountingTabAudit } from '@/app/Audit/Model/InventoryCountingTabAudit';
-import { InventoryCountingArchiveProvider, useInventoryCountingArchive } from './Archives/InventoryCountingArchiveContext';
-import { InventoryCountingFiltersProvider } from './Model/InventoryCountingFiltersContext';
-import FiltersModal from './Utils/FiltersModal';
-import ICDataBootstrap from './Utils/ICDataBootstrap';
 import Login from '@/app/Components/Auth/Login';
 import MainLoader from '@/app/Components/Loading/MainLoader';
+import TabLoader from '@/app/Components/Loading/TabLoader';
+import { ICPageLoadingProvider, useICPageLoading } from './Utils/ICPageLoading';
 import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
 
 function hasInventoryCountingAccess(user: any): boolean {
@@ -164,94 +162,18 @@ export default function InventoryCountingPage() {
   }
 
   return (
-    <InventoryCountingArchiveProvider>
-      <InventoryCountingFiltersProvider>
-        <InventoryCountingPageContent
-          isSidebarCollapsed={isSidebarCollapsed}
-          isMobileSidebarOpen={isMobileSidebarOpen}
-          setIsMobileSidebarOpen={setIsMobileSidebarOpen}
-          activeTab={activeTab}
-          setActiveTab={setActiveTab}
-          toggleSidebar={toggleSidebar}
-          allowedTabs={allowedTabs}
-          visitedTabs={visitedTabs}
-          setVisitedTabs={setVisitedTabs}
-        />
-      </InventoryCountingFiltersProvider>
-    </InventoryCountingArchiveProvider>
-  );
-}
-
-function ArchiveInfoButton({ archiveMeta, onExit }: { archiveMeta: any; onExit: () => void }) {
-  const [isOpen, setIsOpen] = useState(false);
-  const popoverRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleOutsideClick = (e: MouseEvent) => {
-      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleOutsideClick);
-    return () => document.removeEventListener('mousedown', handleOutsideClick);
-  }, [isOpen]);
-
-  return (
-    <div className="relative inline-flex items-center gap-1 shrink-0">
-      <button
-        type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        title="Show Archive Details"
-        className="p-1.5 rounded-xl text-amber-500 hover:bg-amber-50 transition-all active:scale-95 shrink-0"
-      >
-        <AlertCircle className="w-5 h-5 animate-pulse" />
-      </button>
-
-      <button
-        type="button"
-        onClick={onExit}
-        title="Back to current session"
-        className="p-1.5 rounded-xl border border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100 transition-colors shrink-0"
-      >
-        <X className="w-4 h-4" />
-      </button>
-
-      {isOpen && (
-        <div
-          ref={popoverRef}
-          className="absolute left-0 top-full mt-2 w-72 bg-white border border-slate-200 rounded-2xl shadow-xl p-4 z-[999] animate-in fade-in slide-in-from-top-2 duration-200 text-left font-medium text-slate-800"
-        >
-          <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-2">
-            <span className="text-xs font-black text-amber-800 uppercase tracking-wider">Archive Details</span>
-            <button
-              type="button"
-              onClick={() => setIsOpen(false)}
-              className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-          <div className="space-y-2 text-slate-700 text-sm">
-            <div>
-              <span className="text-slate-400 text-xs block">Archive ID</span>
-              <span className="font-mono text-slate-800 font-bold">{archiveMeta.archiveId}</span>
-            </div>
-            <div>
-              <span className="text-slate-400 text-xs block">Description</span>
-              <span className="text-slate-800 font-bold block rtl text-right">{archiveMeta.label || 'No description'}</span>
-            </div>
-            <div>
-              <span className="text-slate-400 text-xs block">Count Date</span>
-              <span className="text-slate-800 font-bold">{archiveMeta.countDate || 'N/A'}</span>
-            </div>
-            <div className="pt-1.5 border-t border-slate-100 text-xs text-amber-700 font-bold">
-              • Viewing in read-only mode
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+    <ICPageLoadingProvider>
+    <InventoryCountingPageContent
+      isSidebarCollapsed={isSidebarCollapsed}
+      isMobileSidebarOpen={isMobileSidebarOpen}
+      setIsMobileSidebarOpen={setIsMobileSidebarOpen}
+      activeTab={activeTab}
+      setActiveTab={setActiveTab}
+      toggleSidebar={toggleSidebar}
+      allowedTabs={allowedTabs}
+      visitedTabs={visitedTabs}
+    />
+    </ICPageLoadingProvider>
   );
 }
 
@@ -264,7 +186,6 @@ function InventoryCountingPageContent({
   toggleSidebar,
   allowedTabs,
   visitedTabs,
-  setVisitedTabs,
 }: {
   isSidebarCollapsed: boolean;
   isMobileSidebarOpen: boolean;
@@ -274,15 +195,11 @@ function InventoryCountingPageContent({
   toggleSidebar: () => void;
   allowedTabs: ReturnType<typeof getAllowedCountingTabs>;
   visitedTabs: Set<InventoryCountingTabId>;
-  setVisitedTabs: React.Dispatch<React.SetStateAction<Set<InventoryCountingTabId>>>;
 }) {
-  const { isArchiveView, archiveMeta, setArchiveId } = useInventoryCountingArchive();
-  const [filtersOpen, setFiltersOpen] = useState(false);
   const pageTitle = getCountingTabLabel(activeTab);
-
-  const handleBootstrapReady = useCallback(() => {
-    setVisitedTabs(new Set(allowedTabs.map((tab) => tab.id)));
-  }, [allowedTabs, setVisitedTabs]);
+  // while the active tab loads its data for the first time, show only the loader
+  const { loadingTabs } = useICPageLoading();
+  const isTabLoading = loadingTabs.has(activeTab);
 
   const countingContent =
     allowedTabs.length > 0 ? (
@@ -292,42 +209,38 @@ function InventoryCountingPageContent({
         onTabChange={setActiveTab}
       />
     ) : (
-      <div className="bg-white rounded-3xl p-8 text-center border border-slate-100 shadow-sm">
+      <div className="bg-white rounded-2xl p-8 text-center border border-slate-200/60 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)]">
         <p className="text-slate-500 font-bold">No counting tabs are enabled for your account.</p>
       </div>
     );
 
   return (
-    <div className="flex min-h-screen bg-[#F8F9FA] text-black">
-      <aside className={`hidden lg:flex flex-col ${isSidebarCollapsed ? 'w-20' : 'w-72'} bg-[#0a0f1d] text-white shadow-2xl fixed h-screen left-0 top-0 z-50 transition-all duration-300`}>
+    <div className="flex min-h-screen bg-slate-50 text-slate-900">
+      <aside className={`hidden lg:flex flex-col ${isSidebarCollapsed ? 'w-20' : 'w-72'} bg-white border-r border-slate-200 text-slate-800 shadow-2xl fixed h-screen left-0 top-0 z-50 transition-all duration-300`}>
         <Sidebar
           activeTab={activeTab}
           onTabChange={setActiveTab}
           isCollapsed={isSidebarCollapsed}
           onToggleCollapse={toggleSidebar}
-          onOpenFilters={() => setFiltersOpen(true)}
         />
       </aside>
 
       {isMobileSidebarOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm lg:hidden"
+          className="fixed inset-0 z-40 bg-black/80 backdrop-blur-sm lg:hidden"
           onClick={() => setIsMobileSidebarOpen(false)}
         />
       )}
 
-      <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-[#0a0f1d] text-white transition-transform duration-300 transform lg:hidden ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'} flex flex-col`}>
+      <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-white border-r border-slate-200 text-slate-800 transition-transform duration-300 transform lg:hidden ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'} flex flex-col`}>
         <Sidebar
           activeTab={activeTab}
           onTabChange={setActiveTab}
           isCollapsed={false}
           onToggleCollapse={() => {}}
           onCloseMobile={() => setIsMobileSidebarOpen(false)}
-          onOpenFilters={() => setFiltersOpen(true)}
         />
       </aside>
-
-      <FiltersModal open={filtersOpen} onClose={() => setFiltersOpen(false)} />
 
       <div className={`flex-1 flex flex-col min-w-0 ${isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-72'} transition-all duration-300`}>
         <div className="lg:hidden bg-white border-b border-slate-200">
@@ -341,30 +254,23 @@ function InventoryCountingPageContent({
                 <Menu className="w-6 h-6" />
               </button>
               <div className="flex items-center gap-2 min-w-0 flex-1">
-                <span className="font-bold text-slate-800 shrink-0">{pageTitle}</span>
-                {isArchiveView && archiveMeta && (
-                  <ArchiveInfoButton archiveMeta={archiveMeta} onExit={() => setArchiveId(null)} />
-                )}
+                {!isTabLoading && <span className="font-bold text-slate-800 shrink-0">{pageTitle}</span>}
               </div>
             </div>
           </div>
         </div>
 
-        <div className="max-w-[95%] 2xl:max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-12 flex-1 w-full">
-          {/* the title shows only after the data is loaded (loader alone while loading) */}
-          <ICDataBootstrap onReady={handleBootstrapReady}>
-            <div className="hidden lg:flex items-center gap-2 pb-4 min-w-0">
-              <h1 className="text-2xl font-black text-slate-900 tracking-tight shrink-0">
-                {pageTitle}
-              </h1>
-              {/* tabs of the active page (e.g. Reports) are placed here, beside the title */}
-              <div id="ic-header-slot" className="flex items-center ml-4 min-w-0" />
-              {isArchiveView && archiveMeta && (
-                <ArchiveInfoButton archiveMeta={archiveMeta} onExit={() => setArchiveId(null)} />
-              )}
-            </div>
-            {countingContent}
-          </ICDataBootstrap>
+        {isTabLoading && <TabLoader className="!min-h-full flex-1" />}
+        {/* kept mounted (hidden) so the tab keeps loading behind the loader */}
+        <div className={`max-w-[95%] 2xl:max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-12 flex-1 w-full ${isTabLoading ? 'hidden' : ''}`}>
+          <div className="hidden lg:flex items-center gap-2 pb-4 min-w-0">
+            <h1 className="text-2xl font-black text-slate-900 tracking-tight shrink-0">
+              {pageTitle}
+            </h1>
+            {/* tabs of the active page (e.g. Reports) are placed here, beside the title */}
+            <div id="ic-header-slot" className="flex items-center ml-4 min-w-0" />
+          </div>
+          {countingContent}
         </div>
       </div>
     </div>

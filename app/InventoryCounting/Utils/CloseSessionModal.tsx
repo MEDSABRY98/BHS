@@ -53,8 +53,8 @@ export default function CloseSessionModal({ onClose, onSuccess }: CloseSessionMo
       <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg border border-slate-100 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 bg-slate-50/80">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center">
-              <Archive className="w-5 h-5 text-indigo-600" />
+            <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center">
+              <Archive className="w-5 h-5 text-[#B8860B]" />
             </div>
             <div>
               <h3 className="text-lg font-black text-slate-900">Close Count Session</h3>
@@ -81,7 +81,7 @@ export default function CloseSessionModal({ onClose, onSuccess }: CloseSessionMo
               value={label}
               onChange={(e) => setLabel(e.target.value)}
               placeholder="e.g. January warehouse count"
-              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500"
+              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-[#D4AF37]/15 focus:border-[#D4AF37]"
             />
           </div>
 
@@ -93,7 +93,7 @@ export default function CloseSessionModal({ onClose, onSuccess }: CloseSessionMo
               type="date"
               value={countDate}
               onChange={(e) => setCountDate(e.target.value)}
-              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500"
+              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-[#D4AF37]/15 focus:border-[#D4AF37]"
             />
           </div>
 
@@ -118,7 +118,7 @@ export default function CloseSessionModal({ onClose, onSuccess }: CloseSessionMo
               type="checkbox"
               checked={confirmEmpty}
               onChange={(e) => setConfirmEmpty(e.target.checked)}
-              className="mt-1 w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+              className="mt-1 w-4 h-4 rounded border-slate-300 text-[#B8860B] focus:ring-[#D4AF37]"
             />
             <div>
               <p className="text-sm font-bold text-slate-700">I confirm closing this session</p>
@@ -142,7 +142,7 @@ export default function CloseSessionModal({ onClose, onSuccess }: CloseSessionMo
             type="button"
             onClick={handleSubmit}
             disabled={isSubmitting || !confirmEmpty}
-            className="px-5 py-2.5 rounded-xl text-sm font-black text-white bg-indigo-600 hover:bg-indigo-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            className="px-5 py-2.5 rounded-xl text-sm font-black text-[#D4AF37] bg-[#0f0f0f] hover:bg-black shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
             {isSubmitting ? (
               <>

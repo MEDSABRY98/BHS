@@ -20,6 +20,8 @@ import {
   MapPin,
   Eye,
   Copy,
+  ChevronDown,
+  Smartphone,
 } from 'lucide-react';
 import { ConfirmModal } from '../../InvoicesTracking/Components/ConfirmModal';
 import NoData from '@/app/Components/DataState/NoDataTab';
@@ -28,6 +30,95 @@ import SignatureModal from './components/SignatureModal';
 import { toast } from '@/app/Components/Notification';
 import TabLoader from '@/app/Components/Loading/TabLoader';
 import TabFetchError from '@/app/Components/DataState/TabFetchError';
+
+/** Apps of the mobile BHS App (IDs must match AppModules.dart in the Flutter app). */
+const MOBILE_APPS = [
+  { id: 'customers', label: 'Customers' },
+  { id: 'lpos', label: 'LPOs' },
+  { id: 'inventory', label: 'Inventory Counting' },
+];
+const ALL_MOBILE_APP_IDS = MOBILE_APPS.map((a) => a.id);
+
+/** bhs_USERS.MOBILE_APPS -> list of app IDs (empty column = every app). */
+function readMobileApps(value: unknown): string[] {
+  if (value === null || value === undefined) return [...ALL_MOBILE_APP_IDS];
+  const list = Array.isArray(value)
+    ? value
+    : String(value).replace(/^\{|\}$/g, '').split(',');
+  return list.map((v) => String(v).replace(/"/g, '').trim().toLowerCase()).filter(Boolean);
+}
+
+function MobileAppsDropdown({ value, onChange }: { value: string[]; onChange: (apps: string[]) => void }) {
+  const [open, setOpen] = useState(false);
+  const boxRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (boxRef.current && !boxRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [open]);
+
+  const toggle = (id: string) =>
+    onChange(value.includes(id) ? value.filter((a) => a !== id) : [...value, id]);
+  const allSelected = ALL_MOBILE_APP_IDS.every((id) => value.includes(id));
+  const summary =
+    value.length === 0
+      ? 'No apps'
+      : allSelected
+        ? 'All apps'
+        : MOBILE_APPS.filter((a) => value.includes(a.id)).map((a) => a.label).join(', ');
+
+  return (
+    <div ref={boxRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold flex items-center justify-between gap-3"
+      >
+        <span className={`truncate ${value.length === 0 ? 'text-gray-400' : ''}`}>{summary}</span>
+        <ChevronDown className={`w-4 h-4 shrink-0 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="absolute z-20 left-0 right-0 mt-2 bg-white border border-gray-100 rounded-2xl shadow-xl p-2 animate-in fade-in slide-in-from-top-2 duration-150">
+          <button
+            type="button"
+            onClick={() => onChange(allSelected ? [] : [...ALL_MOBILE_APP_IDS])}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-gray-50 transition-all text-left"
+          >
+            <span
+              className={`w-5 h-5 rounded-md border flex items-center justify-center ${allSelected ? 'bg-black border-black' : 'border-gray-300'}`}
+            >
+              {allSelected && <Check className="w-3.5 h-3.5 text-[#D4AF37]" />}
+            </span>
+            <span className="text-xs font-black uppercase tracking-widest text-gray-500">Select all</span>
+          </button>
+          <div className="h-px bg-gray-100 my-1" />
+          {MOBILE_APPS.map((app) => {
+            const checked = value.includes(app.id);
+            return (
+              <button
+                key={app.id}
+                type="button"
+                onClick={() => toggle(app.id)}
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-gray-50 transition-all text-left"
+              >
+                <span
+                  className={`w-5 h-5 rounded-md border flex items-center justify-center ${checked ? 'bg-black border-black' : 'border-gray-300'}`}
+                >
+                  {checked && <Check className="w-3.5 h-3.5 text-[#D4AF37]" />}
+                </span>
+                <span className="text-sm font-bold text-black">{app.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function UsersPage() {
   const { canEdit, canDelete, isLoaded } = usePermissions();
@@ -55,6 +146,7 @@ export default function UsersPage() {
   const [CANCEL_AUTHORITY, setCANCEL_AUTHORITY] = useState(false);
   const [CITY, setCITY] = useState('');
   const [TEAM, setTEAM] = useState('');
+  const [mobileApps, setMobileApps] = useState<string[]>([...ALL_MOBILE_APP_IDS]);
   const [salesDataAccess, setSalesDataAccess] = useState(false);
 
   useEffect(() => {
@@ -108,6 +200,7 @@ export default function UsersPage() {
     setCANCEL_AUTHORITY(user ? parseBoolFlag(user.CANCEL_AUTHORITY) : false);
     setCITY(user ? user.CITY || '' : '');
     setTEAM(user ? user.TEAM || '' : '');
+    setMobileApps(user ? readMobileApps(user.MOBILE_APPS) : [...ALL_MOBILE_APP_IDS]);
     setSalesDataAccess(user ? parseBoolFlag(user.FULL_DATA_ACCESS) : false);
     setIsModalOpen(true);
   };
@@ -131,6 +224,8 @@ export default function UsersPage() {
           CANCEL_AUTHORITY,
           CITY,
           TEAM,
+          // every app ticked = empty column (new apps added later are open to the user too)
+          MOBILE_APPS: ALL_MOBILE_APP_IDS.every((id) => mobileApps.includes(id)) ? null : mobileApps,
           FULL_DATA_ACCESS: salesDataAccessValue,
         },
         editingUser ? editingUser.ID : null
@@ -285,6 +380,26 @@ export default function UsersPage() {
                           {user.TEAM}
                         </span>
                       ) : null}
+                      {/* Mobile Apps Badges */}
+                      {(() => {
+                        const apps = readMobileApps(user.MOBILE_APPS);
+                        if (ALL_MOBILE_APP_IDS.every((id) => apps.includes(id))) return null;
+                        if (apps.length === 0) {
+                          return (
+                            <span className="inline-flex items-center gap-1 px-3 py-1 bg-red-50 text-red-500 rounded-xl text-[9px] font-black uppercase tracking-widest">
+                              <Smartphone className="w-2.5 h-2.5" /> No apps
+                            </span>
+                          );
+                        }
+                        return MOBILE_APPS.filter((a) => apps.includes(a.id)).map((a) => (
+                          <span
+                            key={a.id}
+                            className="inline-flex items-center gap-1 px-3 py-1 bg-black text-white rounded-xl text-[9px] font-black uppercase tracking-widest"
+                          >
+                            <Smartphone className="w-2.5 h-2.5 text-[#D4AF37]" /> {a.label}
+                          </span>
+                        ));
+                      })()}
                     </div>
                   </div>
 
@@ -409,6 +524,12 @@ export default function UsersPage() {
                       <option key={t as string} value={t as string} />
                     ))}
                   </datalist>
+                </div>
+
+                {/* MOBILE APPS: which apps the user can open in the BHS mobile app */}
+                <div className="space-y-2 md:col-span-2">
+                  <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">MOBILE APPS</label>
+                  <MobileAppsDropdown value={mobileApps} onChange={setMobileApps} />
                 </div>
 
                 {/* ROLE Toggle (admin/user) */}
