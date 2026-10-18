@@ -213,7 +213,12 @@ export default function CustomerDiscountsPage() {
   // Sidebar UI State
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [autoSettling, setAutoSettling] = useState(false);
-  const [monthsOverviewRefreshKey, setMonthsOverviewRefreshKey] = useState(0);
+  // keys start from the time the module is opened, so every new visit loads fresh data once
+  const [monthsOverviewRefreshKey, setMonthsOverviewRefreshKey] = useState(() => Date.now());
+  const [valuesRefreshKey, setValuesRefreshKey] = useState(() => Date.now());
+  const [refreshing, setRefreshing] = useState(false);
+  // the module loads once; later reloads (after saving, or the sidebar Refresh) keep the page on screen
+  const loadedOnceRef = React.useRef(false);
 
   const [selectedAddCustomerId, setSelectedAddCustomerId] = useState<string>("");
   const [discountName, setDiscountName] = useState("");
@@ -329,6 +334,23 @@ export default function CustomerDiscountsPage() {
       );
     }
   }, [addSearch, allCustomers]);
+
+  /** Sidebar Refresh: reload everything of the module (customers, months, values). */
+  const handleRefresh = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    try {
+      setMonthsOverviewRefreshKey((k) => k + 1);
+      setValuesRefreshKey((k) => k + 1);
+      setAllCustomers([]);
+      await Promise.all([
+        fetchCustomersAndDiscounts(),
+        currentView === "add" ? fetchAllCustomersForAdd() : Promise.resolve(),
+      ]);
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const fetchAllCustomersForAdd = async () => {
     try {
@@ -555,7 +577,7 @@ export default function CustomerDiscountsPage() {
 
   const fetchCustomersAndDiscounts = async () => {
     try {
-      setLoading(true);
+      if (!loadedOnceRef.current) setLoading(true);
       setLoadError(null);
 
       // New year -> make sure every discount has this year's months
@@ -663,6 +685,7 @@ export default function CustomerDiscountsPage() {
       console.error("Error fetching customers and discounts:", error);
       setLoadError(error instanceof Error ? error.message : "Unable to load customers discounts.");
     } finally {
+      loadedOnceRef.current = true;
       setLoading(false);
     }
   };
@@ -955,6 +978,8 @@ export default function CustomerDiscountsPage() {
         availableCities={availableCities}
         selectedDiscountType={selectedDiscountType}
         setSelectedDiscountType={setSelectedDiscountType}
+        onRefresh={() => void handleRefresh()}
+        refreshing={refreshing}
       />
 
       {/* Main Workspace Area (Right) */}
@@ -1054,7 +1079,7 @@ export default function CustomerDiscountsPage() {
         )}
 
         {currentView === "values" && (
-          <DiscountValues customers={scopedCustomers} />
+          <DiscountValues customers={scopedCustomers} refreshKey={valuesRefreshKey} />
         )}
         </>
         )}

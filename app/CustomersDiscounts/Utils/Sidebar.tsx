@@ -12,6 +12,7 @@ import {
   ShieldCheck,
   Users,
   Filter,
+  RefreshCw,
 } from 'lucide-react';
 import { getAllowedModuleTabIds } from '@/app/AdminControl/AdminControlTab';
 import CustomersFilterModal from '../Modals/CustomersFilterModal';
@@ -28,6 +29,8 @@ interface SidebarProps {
   availableCities: string[];
   selectedDiscountType: "All" | "Monthly" | "WithPayment";
   setSelectedDiscountType: (type: "All" | "Monthly" | "WithPayment") => void;
+  onRefresh?: () => void;
+  refreshing?: boolean;
 }
 
 export const CUSTOMERS_DISCOUNTS_TAB_IDS = ['grid', 'months', 'stats', 'values', 'add'] as const;
@@ -52,6 +55,8 @@ export default function Sidebar({
   availableCities,
   selectedDiscountType,
   setSelectedDiscountType,
+  onRefresh,
+  refreshing = false,
 }: SidebarProps) {
   const [hoveredTab, setHoveredTab] = useState<{ label: string; top: number } | null>(null);
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
@@ -160,6 +165,19 @@ export default function Sidebar({
                       <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border border-[#0a0f1d]"></span>
                     )}
                   </button>
+                  {onRefresh && (
+                    <button
+                      type="button"
+                      onClick={onRefresh}
+                      disabled={refreshing}
+                      className={`flex items-center justify-center w-10 h-10 hover:bg-white/10 rounded-xl transition-all duration-200 disabled:cursor-not-allowed ${
+                        refreshing ? 'text-[#D4AF37]' : 'text-slate-400'
+                      }`}
+                      title="Refresh data"
+                    >
+                      <RefreshCw className={`w-5 h-5 shrink-0 ${refreshing ? 'animate-spin' : ''}`} />
+                    </button>
+                  )}
                 </div>
 
       {/* Portal-like Tooltip for Collapsed Sidebar */}

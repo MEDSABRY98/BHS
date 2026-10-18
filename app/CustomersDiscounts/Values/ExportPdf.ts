@@ -63,6 +63,7 @@ export async function exportDiscountValuesPdf(
   dateFrom: string,
   dateTo: string,
   rentMonths: number,
+  note?: string,
 ): Promise<void> {
   if (!rows.length) return;
   const jsPDF = (await import('jspdf')).default;
@@ -109,7 +110,7 @@ export async function exportDiscountValuesPdf(
   doc.setFontSize(9);
   doc.setTextColor(203, 213, 225);
   doc.text(
-    `From ${dmy(dateFrom)} to ${dmy(dateTo)}${rentMonths > 1 ? `  ·  Rent for ${rentMonths} months` : ''}`,
+    `${note ? `${note}  ·  ` : ''}From ${dmy(dateFrom)} to ${dmy(dateTo)}${rentMonths > 1 ? `  ·  Rent for ${rentMonths} months` : ''}`,
     M,
     19,
   );
@@ -288,5 +289,5 @@ export async function exportDiscountValuesPdf(
     doc.text(`Page ${p} of ${pages}`, W - M, H - 5, { align: 'right' });
   }
 
-  saveTrackedPdf(doc, `Discount_Values_${dateFrom}_to_${dateTo}.pdf`);
+  saveTrackedPdf(doc, `Discount_Values_${note ? 'Unsettled_' : ''}${dateFrom}_to_${dateTo}.pdf`);
 }

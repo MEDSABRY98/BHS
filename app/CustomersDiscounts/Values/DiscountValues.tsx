@@ -29,6 +29,8 @@ import TabFetchError from '@/app/Components/DataState/TabFetchError';
 
 interface DiscountValuesProps {
   customers: CustomerView[];
+  /** changes when the sidebar Refresh is pressed */
+  refreshKey?: number;
 }
 
 type CustomerScope = 'all' | 'unsettled';
@@ -95,6 +97,43 @@ function monthsInRange(dateFrom: string, dateTo: string): number {
   return n > 0 ? n : 1;
 }
 
+/**
+ * Loaded once per visit of the module: switching tabs and coming back shows the data
+ * straight away (only the settlements are refreshed quietly, they change when months are settled).
+ */
+let valuesCache: {
+  key: number;
+  debitRows: InvoiceRow[];
+  settlements: SettlementLite[];
+  /** customer / outlet ID -> main customer name */
+  mainNameById: Map<string, string>;
+} | null = null;
+
+/** Every ID (main customer and its outlets) with its main customer name. */
+const fetchMainNames = async (): Promise<Map<string, string>> => {
+  const data = await fetchAllData(() => bhs_supabase.from('bhs_CUSTOMERS').select('"CUSTOMER ID", "CUSTOMER MAIN NAME"'));
+  const map = new Map<string, string>();
+  (data || []).forEach((d: any) => {
+    const id = String(d['CUSTOMER ID'] ?? '').trim();
+    const name = String(d['CUSTOMER MAIN NAME'] ?? '').trim();
+    if (id && name) map.set(id, name);
+  });
+  return map;
+};
+
+const mapSettlements = (data: any[]): SettlementLite[] =>
+  (data || []).map((d: any) => ({
+    customerId: String(d.CUSTOMER_ID || '').trim(),
+    month: Number(d.MONTH),
+    year: Number(d.YEAR),
+    status: d.STATUS || 'Pending',
+  }));
+
+const fetchSettlements = () =>
+  fetchAllData(() =>
+    bhs_supabase.from('web_CUSTOMERS_DISCOUNTS_SETTLEMENTS').select('CUSTOMER_ID, MONTH, YEAR, STATUS'),
+  );
+
 type ValueRow = {
   customerId: string;
   customerName: string;
@@ -107,13 +146,16 @@ type ValueRow = {
   rent: number;
 };
 
-export default function DiscountValues({ customers }: DiscountValuesProps) {
+export default function DiscountValues({ customers, refreshKey = 0 }: DiscountValuesProps) {
   const defaults = defaultDateRange();
   const [dateFrom, setDateFrom] = useState(defaults.from);
   const [dateTo, setDateTo] = useState(defaults.to);
-  const [debitRows, setDebitRows] = useState<InvoiceRow[]>([]);
-  const [settlements, setSettlements] = useState<SettlementLite[]>([]);
-  const [loading, setLoading] = useState(true);
+  const cacheHit = !!valuesCache && valuesCache.key === refreshKey;
+  const [debitRows, setDebitRows] = useState<InvoiceRow[]>(() => (cacheHit ? valuesCache!.debitRows : []));
+  const [settlements, setSettlements] = useState<SettlementLite[]>(() => (cacheHit ? valuesCache!.settlements : []));
+  const [mainNameById, setMainNameById] = useState<Map<string, string>>(() => (cacheHit ? valuesCache!.mainNameById : new Map()));
+  const [loading, setLoading] = useState(() => !cacheHit);
+  const shownRef = React.useRef(cacheHit);
   const [error, setError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
   const [exporting, setExporting] = useState(false);
@@ -124,28 +166,46 @@ export default function DiscountValues({ customers }: DiscountValuesProps) {
 
   useEffect(() => {
     let cancelled = false;
+
+    // already loaded in this visit: show it now, refresh the settlements quietly
+    if (reloadKey === 0 && valuesCache && valuesCache.key === refreshKey) {
+      fetchSettlements()
+        .then((data) => {
+          if (cancelled || !valuesCache) return;
+          const fresh = mapSettlements(data);
+          valuesCache = { ...valuesCache, settlements: fresh };
+          setSettlements(fresh);
+        })
+        .catch(() => {
+          // keep the cached settlements
+        });
+      return () => {
+        cancelled = true;
+      };
+    }
+
     const load = async () => {
       try {
-        setLoading(true);
+        // first load only shows the loader; Refresh keeps the table on screen while it reloads
+        if (!shownRef.current) setLoading(true);
         setError('');
-        const [debitResult, settlementsData] = await Promise.all([
+        const [debitResult, settlementsData, mainNames] = await Promise.all([
           getDebitData(),
-          fetchAllData(() =>
-            bhs_supabase
-              .from('web_CUSTOMERS_DISCOUNTS_SETTLEMENTS')
-              .select('CUSTOMER_ID, MONTH, YEAR, STATUS'),
-          ),
+          fetchSettlements(),
+          fetchMainNames().catch(() => new Map<string, string>()),
         ]);
         if (cancelled) return;
-        setDebitRows(debitResult.data || []);
-        setSettlements(
-          (settlementsData || []).map((d: any) => ({
-            customerId: String(d.CUSTOMER_ID || '').trim(),
-            month: Number(d.MONTH),
-            year: Number(d.YEAR),
-            status: d.STATUS || 'Pending',
-          })),
-        );
+        const next = {
+          key: refreshKey,
+          debitRows: debitResult.data || [],
+          settlements: mapSettlements(settlementsData),
+          mainNameById: mainNames,
+        };
+        valuesCache = next;
+        shownRef.current = true;
+        setDebitRows(next.debitRows);
+        setSettlements(next.settlements);
+        setMainNameById(next.mainNameById);
       } catch (err) {
         console.error('Failed to load Values tab data:', err);
         if (!cancelled) {
@@ -161,41 +221,75 @@ export default function DiscountValues({ customers }: DiscountValuesProps) {
     return () => {
       cancelled = true;
     };
-  }, [reloadKey]);
+  }, [reloadKey, refreshKey]);
 
   const filterMonth = useMemo(() => parseYearMonth(dateFrom), [dateFrom]);
+  const filterMonthTo = useMemo(() => parseYearMonth(dateTo), [dateTo]);
 
+  /** Every month of the selected period, as "year-month". */
+  const periodMonths = useMemo(() => {
+    const keys = new Set<string>();
+    if (!filterMonth) return keys;
+    const end = filterMonthTo && (filterMonthTo.year * 12 + filterMonthTo.month >= filterMonth.year * 12 + filterMonth.month) ? filterMonthTo : filterMonth;
+    let y = filterMonth.year;
+    let m = filterMonth.month;
+    for (let i = 0; i < 120 && (y < end.year || (y === end.year && m <= end.month)); i++) {
+      keys.add(`${y}-${m}`);
+      m += 1;
+      if (m > 12) {
+        m = 1;
+        y += 1;
+      }
+    }
+    return keys;
+  }, [filterMonth, filterMonthTo]);
+
+  /** Customers with a pending / semi-settled month inside the selected period. */
   const unsettledCustomerIds = useMemo(() => {
     const ids = new Set<string>();
-    if (!filterMonth) return ids;
-
-    const byCustomer = new Map<string, SettlementLite[]>();
+    const byCustomerMonth = new Map<string, SettlementLite[]>();
     settlements.forEach((s) => {
-      if (s.year !== filterMonth.year || s.month !== filterMonth.month) return;
-      if (!s.customerId) return;
-      const list = byCustomer.get(s.customerId) || [];
+      if (!s.customerId || !periodMonths.has(`${s.year}-${s.month}`)) return;
+      const key = `${s.customerId}|${s.year}-${s.month}`;
+      const list = byCustomerMonth.get(key) || [];
       list.push(s);
-      byCustomer.set(s.customerId, list);
+      byCustomerMonth.set(key, list);
     });
 
-    byCustomer.forEach((rows, customerId) => {
+    byCustomerMonth.forEach((rows, key) => {
       const bucket = classifyCustomerMonth(getCustomerMonthStats(rows));
       if (bucket === 'pending' || bucket === 'semi') {
-        ids.add(customerId);
+        ids.add(key.split('|')[0]);
       }
     });
 
     return ids;
-  }, [settlements, filterMonth]);
+  }, [settlements, periodMonths]);
 
   const netSalesByCustomer = useMemo(
     () => buildNetSalesByCustomerId(debitRows, dateFrom, dateTo),
     [debitRows, dateFrom, dateTo],
   );
 
+  // A main customer's sales are booked on its outlets' IDs: add them up by main customer name
+  const netSalesByMainName = useMemo(() => {
+    const map = new Map<string, number>();
+    netSalesByCustomer.forEach((net, id) => {
+      const main = mainNameById.get(id);
+      if (main) map.set(main, (map.get(main) || 0) + net);
+    });
+    return map;
+  }, [netSalesByCustomer, mainNameById]);
+
   const rentMonths = useMemo(() => monthsInRange(dateFrom, dateTo), [dateFrom, dateTo]);
 
   const rows = useMemo<ValueRow[]>(() => {
+    // two configs on the same main customer: keep each on its own ID (no double counting)
+    const configsPerMain = new Map<string, number>();
+    customers.forEach((c) => {
+      const main = mainNameById.get(String(c.customerId).trim());
+      if (main) configsPerMain.set(main, (configsPerMain.get(main) || 0) + 1);
+    });
     return customers
       .map((c) => {
         let discountPercent = 0;
@@ -206,7 +300,10 @@ export default function DiscountValues({ customers }: DiscountValuesProps) {
           else rent += val * rentMonths;
         });
 
-        let netSales = netSalesByCustomer.get(String(c.customerId).trim()) || 0;
+        const id = String(c.customerId).trim();
+        const mainName = mainNameById.get(id);
+        const useGroup = !!mainName && configsPerMain.get(mainName) === 1;
+        let netSales = (useGroup ? netSalesByMainName.get(mainName!) : netSalesByCustomer.get(id)) || 0;
         if (netSales <= 0) {
           netSales = 0;
         }
@@ -226,7 +323,7 @@ export default function DiscountValues({ customers }: DiscountValuesProps) {
       })
       .filter((row) => row.netSales > 0 || row.rent > 0)
       .sort((a, b) => a.customerName.localeCompare(b.customerName));
-  }, [customers, netSalesByCustomer, rentMonths]);
+  }, [customers, netSalesByCustomer, netSalesByMainName, mainNameById, rentMonths]);
 
   const scopedRows = useMemo(() => {
     if (customerScope === 'all') return rows;
@@ -258,9 +355,12 @@ export default function DiscountValues({ customers }: DiscountValuesProps) {
     [filteredRows],
   );
 
-  const filterMonthLabel = filterMonth
-    ? `${MONTH_NAMES[filterMonth.month - 1]} ${filterMonth.year}`
-    : '';
+  const monthLabel = (ym: { year: number; month: number }) => `${MONTH_NAMES[ym.month - 1]} ${ym.year}`;
+  const filterMonthLabel = !filterMonth
+    ? ''
+    : periodMonths.size > 1 && filterMonthTo
+      ? `${monthLabel(filterMonth)} – ${monthLabel(filterMonthTo)}`
+      : monthLabel(filterMonth);
 
   const handleExportExcel = async () => {
     if (filteredRows.length === 0 || exporting) return;
@@ -277,10 +377,15 @@ export default function DiscountValues({ customers }: DiscountValuesProps) {
   };
 
   const handleExportPdf = async () => {
-    if (filteredRows.length === 0 || exportingPdf) return;
+    if (exportingPdf) return;
     try {
       setExportingPdf(true);
-      await exportDiscountValuesPdf(filteredRows, dateFrom, dateTo, rentMonths);
+      const unsettledRows = rows.filter((row) => unsettledCustomerIds.has(String(row.customerId).trim()));
+      if (unsettledRows.length === 0) {
+        toast.error(`No unsettled customers for ${filterMonthLabel || 'this period'}`);
+        return;
+      }
+      await exportDiscountValuesPdf(unsettledRows, dateFrom, dateTo, rentMonths, `Unsettled customers · ${filterMonthLabel}`);
       toast.success('PDF downloaded successfully');
     } catch (err) {
       console.error('Failed to export Values PDF:', err);
@@ -291,7 +396,7 @@ export default function DiscountValues({ customers }: DiscountValuesProps) {
   };
 
   // Loader only (no header / filters) until the first load finishes
-  const [firstLoad, setFirstLoad] = useState(true);
+  const [firstLoad, setFirstLoad] = useState(() => !cacheHit);
   useEffect(() => {
     if (!loading) setFirstLoad(false);
   }, [loading]);
@@ -323,9 +428,9 @@ export default function DiscountValues({ customers }: DiscountValuesProps) {
             <button
               type="button"
               onClick={() => void handleExportPdf()}
-              disabled={exportingPdf || loading || filteredRows.length === 0}
+              disabled={exportingPdf || loading || rows.length === 0}
               className="inline-flex items-center justify-center w-10 h-10 bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 rounded-xl transition-all disabled:opacity-50 shadow-sm shrink-0"
-              title="Export to PDF (monthly / non-monthly, by city)"
+              title="PDF of the unsettled customers for the selected period"
               aria-label="Export to PDF"
             >
               {exportingPdf ? <Loader2 className="w-5 h-5 animate-spin" /> : <FileText className="w-5 h-5" />}

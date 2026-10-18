@@ -44,16 +44,21 @@ interface MonthsOverviewProps {
   onlyListedCustomers?: boolean;
 }
 
+/** Loaded once per visit of the module; a new refreshKey (after saving / Refresh) loads it again. */
+let monthsCache: { key: number; settlements: Settlement[] } | null = null;
+
 export default function MonthsOverview({
   customers,
   handleSelectCustomer,
   refreshKey = 0,
   onlyListedCustomers = false,
 }: MonthsOverviewProps) {
-  const [loading, setLoading] = useState(true);
+  const cachedHere = monthsCache && monthsCache.key === refreshKey ? monthsCache.settlements : null;
+  const [loading, setLoading] = useState(() => !cachedHere);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryKey, setRetryKey] = useState(0);
-  const [loadedSettlements, setAllSettlements] = useState<Settlement[]>([]);
+  const [loadedSettlements, setAllSettlements] = useState<Settlement[]>(() => cachedHere ?? []);
+  const shownRef = React.useRef(!!cachedHere);
   // sidebar filters (city / discount type) narrow the settlements to the listed customers
   const allSettlements = useMemo(() => {
     if (!onlyListedCustomers) return loadedSettlements;
@@ -76,9 +81,15 @@ export default function MonthsOverview({
   ];
 
   useEffect(() => {
+    if (retryKey === 0 && monthsCache && monthsCache.key === refreshKey) {
+      setAllSettlements(monthsCache.settlements);
+      setLoading(false);
+      return;
+    }
     const fetchSettlements = async () => {
       try {
-        setLoading(true);
+        // first load only: later reloads keep the current numbers on screen
+        if (!shownRef.current) setLoading(true);
         setLoadError(null);
         const data = await fetchAllData(() =>
           bhs_supabase
@@ -92,6 +103,8 @@ export default function MonthsOverview({
           year: Number(d.YEAR),
           status: d.STATUS || "Pending",
         }));
+        monthsCache = { key: refreshKey, settlements: mapped };
+        shownRef.current = true;
         setAllSettlements(mapped);
       } catch (err) {
         console.error("Error fetching settlements overview:", err);
