@@ -165,7 +165,8 @@ export async function exportDiscountValuesPdf(
   for (const section of filled) {
     const isLast = section === filled[filled.length - 1];
     const withGrand = isLast && filled.length > 1;
-    if (y > H - 40) {
+    // every section starts on its own page (the first one under the summary cards)
+    if (section !== filled[0]) {
       doc.addPage();
       y = 16;
     }
@@ -285,7 +286,6 @@ export async function exportDiscountValuesPdf(
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7);
     doc.setTextColor(...MUTED);
-    doc.text('Discount Values', M, H - 5);
     doc.text(`Page ${p} of ${pages}`, W - M, H - 5, { align: 'right' });
   }
 
