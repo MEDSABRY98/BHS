@@ -18,7 +18,7 @@ import NoData from '@/app/Components/DataState/NoDataTab';
 import FilterBar from '../CustomerDetailsTab/FilterBar';
 import { isPaymentTxn, sortInvoicesByDateThenNumber } from '../CustomerDetailsTab/Utils';
 import { getInvoiceType } from '@/app/CustomersAnalysis/Utils/InvoiceType';
-import { printPdfInSameTab } from '@/app/LPOs/Pdf/DeliveryUtils';
+import { printPdfInSameTab } from '@/app/InvoicesTracking/Pdf/DeliveryUtils';
 import CustomerTagsPickerModal from '../Modals/CustomerTagsPickerModal';
 
 interface CustomersGroupTabProps {
