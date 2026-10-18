@@ -98,6 +98,39 @@ function drawHeader(doc: any, rows: IntercompanyEntry[], opts: IntercompanyPdfOp
   return y + 15 + 6;
 }
 
+/** Approval signatures at the bottom of the last page (a new page when the table leaves no room). */
+function drawSignatures(doc: any, pageWidth: number, margin: number) {
+  const h = doc.internal.pageSize.getHeight();
+  const lineY = h - 26;
+  const finalY = doc.lastAutoTable?.finalY ?? 0;
+  if (finalY > lineY - 24) doc.addPage();
+
+  const labels = ['Accounts Department', 'CEO'];
+  const colW = (pageWidth - margin * 2) / labels.length;
+
+  doc.setFillColor(...COLORS.gold);
+  doc.rect(margin, lineY - 17, 1.6, 5, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(...COLORS.black);
+  doc.text('Approvals', margin + 4, lineY - 13);
+
+  labels.forEach((label, i) => {
+    const cx = margin + colW * i + colW / 2;
+    doc.setDrawColor(...COLORS.black);
+    doc.setLineWidth(0.3);
+    doc.line(cx - 40, lineY, cx + 40, lineY);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9.5);
+    doc.setTextColor(...COLORS.black);
+    doc.text(label, cx, lineY + 5.5, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.setTextColor(...COLORS.gray);
+    doc.text('Name / Signature / Date', cx, lineY + 9.5, { align: 'center' });
+  });
+}
+
 function addPageNumbers(doc: any, pageWidth: number, margin: number) {
   const total = doc.getNumberOfPages();
   const h = doc.internal.pageSize.getHeight();
@@ -183,6 +216,7 @@ export async function exportIntercompanyPdf(rows: IntercompanyEntry[], opts: Int
   if (typeof (doc as any).autoTable === 'function') (doc as any).autoTable(tableOptions);
   else if (typeof autoTable === 'function') autoTable(doc, tableOptions as any);
 
+  drawSignatures(doc, pageWidth, margin);
   addPageNumbers(doc, pageWidth, margin);
   saveTrackedPdf(doc, `Intercompany_Entries_${new Date().toISOString().slice(0, 10)}.pdf`);
 }

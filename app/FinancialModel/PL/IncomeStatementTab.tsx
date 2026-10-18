@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Calendar, FileSpreadsheet, Download, Loader2, Search, X, ChevronRight, ChevronDown } from 'lucide-react';
+import { Calendar, FileSpreadsheet, FileText, Download, Loader2, Search, X, ChevronRight, ChevronDown, Eye, EyeOff } from 'lucide-react';
 import TabLoader from '@/app/Components/Loading/TabLoader';
 import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import NoData from '@/app/Components/DataState/NoDataTab';
@@ -29,17 +29,65 @@ export function IncomeStatementTab() {
   const [accounts, setAccounts] = useState<FinancialAccount[]>([]);
   const [entries, setEntries] = useState<FinancialEntry[]>([]);
   const [isExporting, setIsExporting] = useState(false);
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Hide accounts that are zero in every month of the selected range (for the shown view: actual / forecast / both)
+  const [hideZero, setHideZero] = useState<boolean>(() => {
+    try {
+      return typeof window !== 'undefined' && localStorage.getItem('plHideZeroAccounts') === '1';
+    } catch {
+      return false;
+    }
+  });
+  const toggleHideZero = () => {
+    setHideZero((v) => {
+      try {
+        localStorage.setItem('plHideZeroAccounts', v ? '0' : '1');
+      } catch {
+        // storage not available
+      }
+      return !v;
+    });
+  };
+
+  const zeroAccountIds = useMemo(() => {
+    const nonZero = new Set<string>();
+    for (const e of entries) {
+      if (e.PERIOD_MONTH < startMonth || e.PERIOD_MONTH > endMonth) continue;
+      const a = Number(e.ACTUAL_AMOUNT) || 0;
+      const f = Number(e.FORECAST_AMOUNT) || 0;
+      const used = viewMode === 'ACTUAL' ? a !== 0 : viewMode === 'FORECAST' ? f !== 0 : a !== 0 || f !== 0;
+      if (used) nonZero.add(e.ACCOUNT_ID);
+    }
+    return new Set(accounts.filter((acc) => !nonZero.has(acc.ID)).map((acc) => acc.ID));
+  }, [entries, accounts, startMonth, endMonth, viewMode]);
+
+  /** accounts with no actual AND no forecast in the selected range (the PDF shows both) */
+  const emptyAccountIds = useMemo(() => {
+    const used = new Set<string>();
+    for (const e of entries) {
+      if (e.PERIOD_MONTH < startMonth || e.PERIOD_MONTH > endMonth) continue;
+      if ((Number(e.ACTUAL_AMOUNT) || 0) !== 0 || (Number(e.FORECAST_AMOUNT) || 0) !== 0) used.add(e.ACCOUNT_ID);
+    }
+    return new Set(accounts.filter((acc) => !used.has(acc.ID)).map((acc) => acc.ID));
+  }, [entries, accounts, startMonth, endMonth]);
+
+  /** accounts shown in the statement (and in the Excel export) */
+  const visibleAccounts = useMemo(
+    () => (hideZero ? accounts.filter((a) => !zeroAccountIds.has(a.ID)) : accounts),
+    [accounts, hideZero, zeroAccountIds],
+  );
+
   const filteredAccounts = useMemo(() => {
-    if (!searchQuery.trim()) return accounts;
+    if (!searchQuery.trim()) return visibleAccounts;
     const query = searchQuery.toLowerCase().trim();
-    return accounts.filter(a => 
+    return visibleAccounts.filter(a => 
       a.ACCOUNT_NAME.toLowerCase().includes(query) ||
       a.ACCOUNT_CODE?.toLowerCase().includes(query) ||
       a.ACCOUNT_CATEGORY?.toLowerCase().includes(query)
     );
-  }, [accounts, searchQuery]);
+  }, [visibleAccounts, searchQuery]);
 
   useEffect(() => {
     loadData();
@@ -371,7 +419,7 @@ export function IncomeStatementTab() {
       };
 
       const rows: PLExportRow[] = [];
-      const sectionAccounts = (type: string) => accounts.filter(a => a.ACCOUNT_TYPE === type);
+      const sectionAccounts = (type: string) => visibleAccounts.filter(a => a.ACCOUNT_TYPE === type);
 
       const pushAccounts = (list: FinancialAccount[], section: PLSectionKey) => {
         list.forEach(acc => modes.forEach(mode => {
@@ -465,6 +513,23 @@ export function IncomeStatementTab() {
     }
   };
 
+  // ---------- PDF report (full analysis: summary, ratios, charts, monthly + account detail) ----------
+  const handleExportPdf = async () => {
+    setIsExportingPdf(true);
+    try {
+      const { exportPLPdfReport } = await import('./Export/PLPdfReport');
+      // with "hide zero accounts" on, the PDF also drops accounts that have no actual and no forecast
+      const pdfAccounts = hideZero ? accounts.filter((a) => !emptyAccountIds.has(a.ID)) : accounts;
+      await exportPLPdfReport({ accounts: pdfAccounts, entries, year: selectedYear, startMonth, endMonth });
+      toast.success('PDF report downloaded');
+    } catch (err) {
+      console.error(err);
+      toast.error('PDF export failed');
+    } finally {
+      setIsExportingPdf(false);
+    }
+  };
+
   // Loader only (no header / filters) until the first load finishes
   const [firstLoad, setFirstLoad] = useState(true);
   useEffect(() => {
@@ -492,6 +557,14 @@ export function IncomeStatementTab() {
           >
             {isExporting ? <Loader2 className="w-[18px] h-[18px] animate-spin" /> : <Download className="w-[18px] h-[18px]" />}
           </button>
+          <button
+            onClick={handleExportPdf}
+            disabled={isExportingPdf || isLoading || accounts.length === 0}
+            title="Full P&L report (PDF): summary, ratios, charts and details"
+            className="flex items-center justify-center w-10 h-10 rounded-xl bg-white/5 hover:bg-red-500/15 border border-white/10 hover:border-red-400/40 text-red-400 hover:text-red-300 transition-all disabled:opacity-40 disabled:pointer-events-none"
+          >
+            {isExportingPdf ? <Loader2 className="w-[18px] h-[18px] animate-spin" /> : <FileText className="w-[18px] h-[18px]" />}
+          </button>
 
           <div className="relative ml-2 w-48 sm:w-64">
             <Search className="w-4 h-4 text-white/40 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -512,6 +585,22 @@ export function IncomeStatementTab() {
               </button>
             )}
           </div>
+          <button
+            onClick={toggleHideZero}
+            title={hideZero ? `Show zero accounts (${zeroAccountIds.size} hidden)` : 'Hide accounts with zero values'}
+            className={`relative flex items-center justify-center w-10 h-10 rounded-xl border transition-all ${
+              hideZero
+                ? 'bg-[#D4AF37]/15 border-[#D4AF37]/50 text-[#D4AF37]'
+                : 'bg-white/5 border-white/10 text-white/50 hover:text-white/80 hover:border-white/20'
+            }`}
+          >
+            {hideZero ? <EyeOff className="w-[18px] h-[18px]" /> : <Eye className="w-[18px] h-[18px]" />}
+            {hideZero && zeroAccountIds.size > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-[#D4AF37] text-black text-[10px] font-black flex items-center justify-center">
+                {zeroAccountIds.size}
+              </span>
+            )}
+          </button>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
