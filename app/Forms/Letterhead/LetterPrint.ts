@@ -20,7 +20,10 @@ export interface LetterSignature {
 
 export type SignatureAlign = 'start' | 'center' | 'end';
 
-export const DEFAULT_MARGINS: LetterMargins = { top: 40, bottom: 30, left: 20, right: 20 };
+/** The letterhead space at the top is fixed (the company paper), it can not be changed from the page. */
+export const FIXED_TOP_MM = 50;
+
+export const DEFAULT_MARGINS: LetterMargins = { top: FIXED_TOP_MM, bottom: 30, left: 20, right: 20 };
 
 /** Shared look of the letter text, used by the editor on screen and by the printout. */
 export const LETTER_CONTENT_CSS = `

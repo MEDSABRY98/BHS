@@ -40,6 +40,7 @@ import { useModuleTabAudit } from '@/app/Audit/Utils/useModuleTabAudit';
 import { getAllowedForms } from '../Shared/FormsAccess';
 import {
   DEFAULT_MARGINS,
+  FIXED_TOP_MM,
   LETTER_CONTENT_CSS,
   printLetter,
   signaturesHtml,
@@ -168,7 +169,7 @@ function LetterEditor() {
   // restore the draft + margins of this browser
   useEffect(() => {
     const m = readJson<LetterMargins>(MARGINS_KEY);
-    if (m) setMargins({ ...DEFAULT_MARGINS, ...m });
+    if (m) setMargins({ ...DEFAULT_MARGINS, ...m, top: FIXED_TOP_MM });
     const d = readJson<Draft>(DRAFT_KEY);
     if (d) {
       if (editorRef.current) editorRef.current.innerHTML = d.html || '';
@@ -343,9 +344,13 @@ function LetterEditor() {
                 type="number"
                 min={0}
                 max={max}
-                value={margins[key]}
-                onChange={(e) => setMargins((m) => ({ ...m, [key]: clampMm(Number(e.target.value), max) }))}
-                className="w-32 h-10 px-3 rounded-xl border border-slate-200 text-sm font-bold outline-none focus:border-[#D4AF37] focus:ring-4 focus:ring-[#D4AF37]/15"
+                value={key === 'top' ? FIXED_TOP_MM : margins[key]}
+                disabled={key === 'top'}
+                title={key === 'top' ? 'Fixed for the company letterhead' : undefined}
+                onChange={(e) =>
+                  key !== 'top' && setMargins((m) => ({ ...m, [key]: clampMm(Number(e.target.value), max) }))
+                }
+                className="w-32 h-10 px-3 rounded-xl border border-slate-200 text-sm font-bold outline-none focus:border-[#D4AF37] focus:ring-4 focus:ring-[#D4AF37]/15 disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed"
               />
             </label>
           ))}
