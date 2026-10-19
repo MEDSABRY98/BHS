@@ -218,7 +218,8 @@ function computeResult(
     marginPct: profit !== null && net > 0 ? (profit / net) * 100 : null,
     netProfit: profit !== null ? profit - totalSupport : null,
     roiPct,
-    lastTransaction,
+    // the customer's latest sales invoice in the whole database (not only the 3-month window)
+    lastTransaction: lastSale && lastSale > lastTransaction ? lastSale : lastTransaction,
     assessment,
   };
 }

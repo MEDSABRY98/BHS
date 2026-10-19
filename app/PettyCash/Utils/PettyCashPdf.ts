@@ -224,13 +224,13 @@ export async function generatePettyCashPdf(items: PettyCash[], opts: { printedBy
   });
   y = (doc as any).lastAutoTable.finalY + 12;
 
-  // ── Signatures (bottom of the last page) ─────────────────
+  // ── Signatures (right after the table) ───────────────────
   const sigH = 34;
   if (y > H - 22 - sigH) {
     doc.addPage();
     y = 20;
   }
-  const sy = Math.max(y, H - 22 - sigH);
+  const sy = y;
   const sw = (CW - 16) / 3;
   const sign = (title: string, name: string, x: number) => {
     label(doc, title, x, sy);

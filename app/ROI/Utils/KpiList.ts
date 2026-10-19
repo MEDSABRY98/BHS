@@ -40,7 +40,7 @@ export function KpiList(r: RoiResult): KpiBox[] {
     ...(hasProfit
       ? [{ label: 'ROI %', value: pct(r.roiPct), foot: '(Gross profit - support) / support', tone: roiTone } as KpiBox]
       : []),
-    { label: 'Last Transaction', value: fmtDay(r.lastTransaction), foot: 'Last positive invoice', tone: 'slate' },
+    { label: 'Last Transaction', value: fmtDay(r.lastTransaction), foot: 'Last sales invoice', tone: 'slate' },
     { label: 'Assessment', value: r.assessment.label, foot: 'Screening flag', tone: r.assessment.tone },
   ];
 }
