@@ -86,10 +86,10 @@ export function hasSalesDataAccessFromDb(user: BhsUserAccessRow | null | undefin
   return parseBoolFlag(user.FULL_DATA_ACCESS ?? user.SALES_DATA_ACCESS);
 }
 
-/** Users assigned on LPO invoices (any USER_TYPE), resolved from app_INVOICES_TRACKING_DRIVERS. */
+/** Users assigned on LPO invoices (any USER_TYPE), resolved from mix_INVOICES_TRACKING. */
 export async function fetchAssignedDrivers() {
   const assignments = await fetchAllData(() =>
-    bhs_supabas.from('app_INVOICES_TRACKING_DRIVERS').select('DRIVERS_NAME')
+    bhs_supabas.from('mix_INVOICES_TRACKING').select('DRIVERS_NAME').not('DRIVERS_NAME', 'is', null).order('ID')
   );
 
   const driverIds = [...new Set(

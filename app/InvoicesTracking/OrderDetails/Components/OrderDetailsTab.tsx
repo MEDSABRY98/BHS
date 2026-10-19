@@ -9,6 +9,7 @@
 
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useState } from 'react';
 import { bhs_supabas, fetchAllData } from '@/lib/secureDb';
+import { TRACKING_TABLE, deliveryOf, deliveryUpdate } from '../../Utils/TrackingTable';
 import { listInvoicesTrackingUsers, findInvoicesTrackingUserByName } from '../../Service/invoices_tracking_users_service';
 import SearchSelect from '../../Components/DropDownList';
 import { toast } from '@/app/Components/Notification';
@@ -161,20 +162,21 @@ const OrderDetailsTab = forwardRef<OrderDetailsTabHandle, OrderDetailsTabProps>(
     async (silent = false) => {
       if (!silent) setIsLoadingDelivery(true);
       try {
+        // the delivery lives in the order row itself
         const { data, error } = await bhs_supabas
-          .from('app_INVOICES_TRACKING_DRIVERS')
+          .from(TRACKING_TABLE)
           .select('*')
-          .eq('ORDER_ID', order.ORDER_ID)
+          .eq('ID', order.ID)
           .maybeSingle();
         if (error) throw error;
-        setDelivery(data || null);
+        setDelivery(deliveryOf(data));
       } catch (err) {
         console.error('Error loading driver data:', err);
       } finally {
         if (!silent) setIsLoadingDelivery(false);
       }
     },
-    [order.ORDER_ID]
+    [order.ID]
   );
 
   useEffect(() => {
@@ -230,7 +232,7 @@ const OrderDetailsTab = forwardRef<OrderDetailsTabHandle, OrderDetailsTabProps>(
     }
     if (trimmedInvoice) {
       const { data } = await bhs_supabas
-        .from('app_INVOICES_TRACKING_ORDERS')
+        .from(TRACKING_TABLE)
         .select('ORDER_ID')
         .eq('INVOICE_ID', trimmedInvoice)
         .neq('ID', order.ID)
@@ -252,7 +254,7 @@ const OrderDetailsTab = forwardRef<OrderDetailsTabHandle, OrderDetailsTabProps>(
       };
       if (notes !== undefined) updateData.NOTES = notes;
 
-      const { error } = await bhs_supabas.from('app_INVOICES_TRACKING_ORDERS').update(updateData).eq('ID', order.ID);
+      const { error } = await bhs_supabas.from(TRACKING_TABLE).update(updateData).eq('ID', order.ID);
       if (error) throw error;
       toast.success('Order details updated successfully');
       onEditingChange(false);
@@ -272,42 +274,19 @@ const OrderDetailsTab = forwardRef<OrderDetailsTabHandle, OrderDetailsTabProps>(
   useImperativeHandle(ref, () => ({ save: handleSave, cancel: handleCancel }), [handleSave, handleCancel]);
 
   // ── driver ──
-  const nextDriverRecordId = async () => {
-    const rows: any[] = [];
-    for (let from = 0; ; from += 1000) {
-      const { data, error } = await bhs_supabas.from('app_INVOICES_TRACKING_DRIVERS').select('ID').order('ID').range(from, from + 999);
-      if (error) throw error;
-      rows.push(...(data || []));
-      if (!data || data.length < 1000) break;
-    }
-    const max = rows.reduce((m: number, r: any) => {
-      const n = String(r.ID || '').match(/(\d+)\s*$/);
-      return n ? Math.max(m, parseInt(n[1], 10)) : m;
-    }, 0);
-    return `R-${(max + 1).toString().padStart(4, '0')}`;
-  };
-
   const saveDriverFields = async (fields: Record<string, any>) => {
     setIsSavingDriver(true);
     try {
-      if (!delivery?.ID) {
-        const { data, error } = await bhs_supabas
-          .from('app_INVOICES_TRACKING_DRIVERS')
-          .insert([{ ID: await nextDriverRecordId(), ORDER_ID: order.ORDER_ID, STATUS: 'Assigned', ...fields }])
-          .select()
-          .maybeSingle();
-        if (error) throw error;
-        setDelivery(data);
-      } else {
-        const { data, error } = await bhs_supabas
-          .from('app_INVOICES_TRACKING_DRIVERS')
-          .update(fields)
-          .eq('ID', delivery.ID)
-          .select()
-          .maybeSingle();
-        if (error) throw error;
-        setDelivery(data || { ...delivery, ...fields });
-      }
+      // first driver of the order -> the delivery starts as 'Assigned'
+      const patch = delivery?.ID ? fields : { STATUS: 'Assigned', ...fields };
+      const { data, error } = await bhs_supabas
+        .from(TRACKING_TABLE)
+        .update(deliveryUpdate(patch))
+        .eq('ID', order.ID)
+        .select()
+        .maybeSingle();
+      if (error) throw error;
+      setDelivery(deliveryOf(data) || (delivery ? { ...delivery, ...fields } : null));
     } catch (err: any) {
       console.error('Error saving driver:', err);
       toast.error(err.message || 'Failed to save driver');
@@ -334,7 +313,7 @@ const OrderDetailsTab = forwardRef<OrderDetailsTabHandle, OrderDetailsTabProps>(
       return { label: 'Cancel Requested', detail: `The driver asked to cancel this invoice (${FormatDateTime(delivery.OFFICE_HANDOVER_TIME)}).`, tone: 'amber' };
     if (handover === 'Pending')
       return { label: 'Waiting Office', detail: `The driver handed the stamped invoice to ${staffName(delivery.OFFICE_HANDOVER_ID) || 'the office'} (${FormatDateTime(delivery.OFFICE_HANDOVER_TIME)}).`, tone: 'amber' };
-    return { label: 'With Driver', detail: 'The invoice is not handed to the office yet.', tone: 'gray' };
+    return { label: 'With Driver', detail: '', tone: 'gray' };
   })();
 
   const isFinal = handover === 'Confirmed';
@@ -371,7 +350,7 @@ const OrderDetailsTab = forwardRef<OrderDetailsTabHandle, OrderDetailsTabProps>(
               OFFICE_HANDOVER_TIME: now,
               TRACKING_NOTES: 'SYSTEM_CANCELLED',
             };
-      const { error } = await bhs_supabas.from('app_INVOICES_TRACKING_DRIVERS').update(payload).eq('ID', delivery.ID);
+      const { error } = await bhs_supabas.from(TRACKING_TABLE).update(deliveryUpdate(payload)).eq('ID', order.ID);
       if (error) throw error;
       toast.success(action === 'accept' ? 'Invoice received' : 'Invoice cancelled');
       await loadDelivery(true);
@@ -576,8 +555,9 @@ const OrderDetailsTab = forwardRef<OrderDetailsTabHandle, OrderDetailsTabProps>(
         </div>
       </section>
 
-      {/* ═══ 2. DRIVER ═══ */}
-      <section className="space-y-5">
+      {/* ═══ 2 + 3. DRIVER and INVOICE STATUS (one row) ═══ */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+      <section className="space-y-5 flex flex-col">
         <SectionTitle icon={<Truck className="w-5 h-5" />} title="Driver" />
         {!isApproved ? (
           <div className="bg-white rounded-3xl p-6 border border-gray-100 text-sm font-bold text-gray-400">
@@ -588,7 +568,7 @@ const OrderDetailsTab = forwardRef<OrderDetailsTabHandle, OrderDetailsTabProps>(
             <Loader2 className="w-4 h-4 animate-spin" /> Loading driver...
           </div>
         ) : (
-          <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm space-y-3 md:max-w-xl">
+          <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm space-y-3 flex-1">
             <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider block">Driver</span>
             {delivery?.DRIVERS_NAME ? (
               <div className="flex items-center justify-between gap-4">
@@ -631,20 +611,19 @@ const OrderDetailsTab = forwardRef<OrderDetailsTabHandle, OrderDetailsTabProps>(
         )}
       </section>
 
-      {/* ═══ 3. INVOICE STATUS ═══ */}
-      <section className="space-y-5">
+      <section className="space-y-5 flex flex-col">
         <SectionTitle icon={<FileText className="w-5 h-5" />} title="Invoice Status" />
         {!isApproved ? (
           <div className="bg-white rounded-3xl p-6 border border-gray-100 text-sm font-bold text-gray-400">
             The order is not approved yet.
           </div>
         ) : isLoadingDelivery ? null : (
-          <div className="bg-white rounded-3xl p-8 border border-gray-100 shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+          <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm flex flex-col 2xl:flex-row 2xl:items-center justify-between gap-5 flex-1">
             <div className="flex items-center gap-5 min-w-0">
               <span className={`px-5 py-2.5 rounded-2xl text-[11px] font-black uppercase tracking-widest whitespace-nowrap ${toneClass}`}>
                 {status.label}
               </span>
-              <p className="text-sm font-bold text-gray-600">{status.detail}</p>
+              {status.detail && <p className="text-sm font-bold text-gray-600">{status.detail}</p>}
             </div>
 
             <div className="flex items-center gap-3 shrink-0">
@@ -701,6 +680,7 @@ const OrderDetailsTab = forwardRef<OrderDetailsTabHandle, OrderDetailsTabProps>(
           </div>
         )}
       </section>
+      </div>
 
       <ConfirmModal
         isOpen={pendingAction !== null}

@@ -20,7 +20,7 @@ export default function PendingCustomerInvoices() {
   const invoices = useMemo(
     () =>
       orders.filter((order: any) => {
-        const driverRecord = order.app_INVOICES_TRACKING_DRIVERS?.[0];
+        const driverRecord = order.deliveries?.[0];
         return driverRecord && driverRecord.OFFICE_HANDOVER_STATUS !== 'Confirmed';
       }),
     [orders],
@@ -41,7 +41,7 @@ export default function PendingCustomerInvoices() {
 
       // 2. Driver filter match (Optional)
       if (selectedDriverId) {
-        const driverRecord = inv.app_INVOICES_TRACKING_DRIVERS?.[0];
+        const driverRecord = inv.deliveries?.[0];
         if (driverRecord?.DRIVERS_NAME !== selectedDriverId) {
           return false;
         }
@@ -242,7 +242,7 @@ export default function PendingCustomerInvoices() {
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {sortedInvoices.map((inv) => {
-                    const driverId = inv.app_INVOICES_TRACKING_DRIVERS?.[0]?.DRIVERS_NAME || '';
+                    const driverId = inv.deliveries?.[0]?.DRIVERS_NAME || '';
                     const displayDriverName = getDriverName(driverId);
                     return (
                       <tr key={inv.ID} className="group hover:bg-gray-50/30 transition-colors">

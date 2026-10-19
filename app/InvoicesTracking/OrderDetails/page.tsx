@@ -20,6 +20,7 @@ import { usePermissions } from '../Hooks/usePermissions';
 import OrderDetailsTab, { OrderDetailsTabHandle } from './Components/OrderDetailsTab';
 import { exportInvoicesTrackingExcel } from '../Export/ExcelExport';
 import { useInvoicesTrackingOrderDetailsTabAudit } from '@/app/Audit/Model/InvoicesTrackingTabAudit';
+import { TRACKING_TABLE } from '../Utils/TrackingTable';
 
 function OrderDetailsPageContent() {
   const { canEdit, canDelete, isLoaded } = usePermissions();
@@ -64,7 +65,7 @@ function OrderDetailsPageContent() {
   async function fetchOrderDetails(silent = false) {
     try {
       const { data: orderData, error: orderError } = await bhs_supabas
-        .from('app_INVOICES_TRACKING_ORDERS')
+        .from(TRACKING_TABLE)
         .select(`
           *,
           bhs_CUSTOMERS ( *, "CUSTOMER NAME":"CUSTOMER SUB NAME" )
@@ -115,15 +116,9 @@ function OrderDetailsPageContent() {
   const handleDeleteOrder = async () => {
     setIsSaving(true);
     try {
-
-      // 1. Delete Delivery data (common for both types)
-      await Promise.all([
-        bhs_supabas.from('app_INVOICES_TRACKING_DRIVERS').delete().eq('ORDER_ID', order.ID)
-      ]);
-
-      // 3. Delete the order itself from the main table
+      // the delivery is in the same row, so one delete removes everything
       const { error: orderError } = await bhs_supabas
-        .from('app_INVOICES_TRACKING_ORDERS')
+        .from(TRACKING_TABLE)
         .delete()
         .eq('ID', order.ID);
 
@@ -146,7 +141,7 @@ function OrderDetailsPageContent() {
       // Removed items logic
       // Direct status update for orders without items
       const { error: orderError } = await bhs_supabas
-        .from('app_INVOICES_TRACKING_ORDERS')
+        .from(TRACKING_TABLE)
         .update({ STATUS: statusToSave, NOTES: adminNotes })
         .eq('ID', order.ID);
 

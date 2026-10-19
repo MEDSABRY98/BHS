@@ -11,6 +11,7 @@ import React, {
 } from 'react';
 import { listInvoicesTrackingUsers } from '../Service/invoices_tracking_users_service';
 import { bhs_supabas, fetchAllData } from '@/lib/secureDb';
+import { TRACKING_TABLE, withDeliveries } from '../Utils/TrackingTable';
 
 export type InvoicesTrackingFilters = {
   dateFrom: string;
@@ -77,17 +78,7 @@ function buildAssignedDrivers(drivers: any[], users: any[]) {
 
 const ORDERS_SELECT = `
   *,
-  bhs_CUSTOMERS ( "CUSTOMER NAME":"CUSTOMER SUB NAME", "CUSTOMER CITY" ),
-  app_INVOICES_TRACKING_DRIVERS (
-    ID,
-    DRIVERS_NAME,
-    OFFICE_HANDOVER_ID,
-    OFFICE_HANDOVER_STATUS,
-    OFFICE_HANDOVER_TIME,
-    DELIVERY_TIME,
-    TRACKING_NOTES,
-    STATUS
-  )
+  bhs_CUSTOMERS ( "CUSTOMER NAME":"CUSTOMER SUB NAME", "CUSTOMER CITY" )
 `;
 
 export function InvoicesTrackingDataProvider({ children }: { children: React.ReactNode }) {
@@ -105,7 +96,7 @@ export function InvoicesTrackingDataProvider({ children }: { children: React.Rea
     if (isInitial) setLoading(true);
     setError(null);
     try {
-      const [usersData, customersData, driversData, ordersData] = await Promise.all([
+      const [usersData, customersData, ordersData] = await Promise.all([
         listInvoicesTrackingUsers(),
         fetchAllData(() =>
           bhs_supabas
@@ -115,11 +106,8 @@ export function InvoicesTrackingDataProvider({ children }: { children: React.Rea
             .order('CUSTOMER ID'),
         ),
         fetchAllData(() =>
-          bhs_supabas.from('app_INVOICES_TRACKING_DRIVERS').select('*').order('ID', { ascending: false }),
-        ),
-        fetchAllData(() =>
           bhs_supabas
-            .from('app_INVOICES_TRACKING_ORDERS')
+            .from(TRACKING_TABLE)
             .select(ORDERS_SELECT)
             .order('CREATED_AT', { ascending: false })
             .order('ID', { ascending: false }),
@@ -128,8 +116,15 @@ export function InvoicesTrackingDataProvider({ children }: { children: React.Rea
 
       setUsers(usersData || []);
       setCustomers(customersData || []);
-      setDrivers(driversData || []);
-      setOrders(ordersData || []);
+      // one row = order + its delivery; `drivers` = the deliveries (newest first, like before)
+      const rows = (ordersData || []).map(withDeliveries);
+      setOrders(rows);
+      setDrivers(
+        rows
+          .map((o: any) => o.deliveries[0])
+          .filter(Boolean)
+          .sort((a: any, b: any) => String(b.ID).localeCompare(String(a.ID), undefined, { numeric: true })),
+      );
     } catch (err) {
       console.error('Failed to preload Invoices Tracking data:', err);
       setError(err instanceof Error ? err.message : 'Failed to load Invoices Tracking data');

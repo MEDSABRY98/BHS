@@ -7,6 +7,7 @@ interface ConfirmModalProps {
   isLoading?: boolean;
   title?: string;
   message?: string;
+  confirmLabel?: string;
 }
 
 export function ConfirmModal({ 
@@ -15,7 +16,8 @@ export function ConfirmModal({
   onCancel, 
   isLoading = false,
   title = "Confirm Save",
-  message = "Are you sure you want to save these changes?"
+  message = "Are you sure you want to save these changes?",
+  confirmLabel = "Yes, Save"
 }: ConfirmModalProps) {
   if (!isOpen) return null;
 
@@ -42,7 +44,7 @@ export function ConfirmModal({
               disabled={isLoading}
               className="flex-1 py-4 bg-black text-[#D4AF37] rounded-2xl font-black text-xs uppercase tracking-wider hover:bg-gray-900 transition-all shadow-lg shadow-black/10 flex items-center justify-center disabled:opacity-50"
             >
-              {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Yes, Save"}
+              {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : confirmLabel}
             </button>
           </div>
         </div>

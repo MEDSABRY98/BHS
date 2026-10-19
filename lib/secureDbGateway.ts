@@ -25,8 +25,6 @@ export type SecureResult = {
 // Tables the browser screens may use through this gateway
 const ALLOWED_TABLES = new Set([
   'app_VERSIONS',
-  'app_INVOICES_TRACKING_DRIVERS',
-  'app_INVOICES_TRACKING_ORDERS',
   'bhs_CUSTOMERS',
   'bhs_CUSTOMERS_MAX_ID',
   'bhs_PRODUCTS',
@@ -35,6 +33,7 @@ const ALLOWED_TABLES = new Set([
   'bhs_USERS',
   'mix_DEBIT',
   'mix_INVENTORY_COUNT_DETAILS',
+  'mix_INVOICES_TRACKING',
   'mix_INVENTORY_COUNT_TOTALS',
   'web_CUSTOMERS_DISCOUNTS',
   'web_CUSTOMERS_DISCOUNTS_SETTLEMENTS',
@@ -107,11 +106,10 @@ function canSeeAllDebit(user: SessionUserRecord): boolean {
 // ─────────────────────────────────────────────────────────────
 //  Invoices Tracking: each user (and his team) sees / changes only the orders created by the team; the admin sees all.
 //  Orders are owned by CREATED_BY (set here on insert, never from the browser).
-//  Delivery rows (app_INVOICES_TRACKING_DRIVERS) follow their order.
+//  One table (mix_INVOICES_TRACKING): the order and its delivery are the same row.
 //  Identifier-only lookups (numbering, duplicate invoice / LPO checks) stay global.
 // ─────────────────────────────────────────────────────────────
-const LPO_ORDERS = 'app_INVOICES_TRACKING_ORDERS';
-const LPO_DRIVERS = 'app_INVOICES_TRACKING_DRIVERS';
+const LPO_TABLE = 'mix_INVOICES_TRACKING';
 const LOOKUP_COLUMNS = new Set(['ID', 'ORDER_ID', 'INVOICE_ID', 'LPO_ID', 'DRIVERS_NAME']);
 const MAIN_METHODS = new Set(['select', 'insert', 'update', 'upsert', 'delete']);
 
@@ -161,47 +159,17 @@ export async function teamUserIds(user: SessionUserRecord): Promise<string[]> {
   return ids.includes(me) ? ids : [...ids, me];
 }
 
-async function myOrderIds(user: SessionUserRecord): Promise<string[]> {
-  const ids: string[] = [];
-  const owners = await teamUserIds(user);
-  for (let from = 0; ; from += 1000) {
-    const { data, error } = await getSupabaseAdmin()
-      .from(LPO_ORDERS)
-      .select('ORDER_ID')
-      .in('CREATED_BY', owners)
-      .order('ORDER_ID')
-      .range(from, from + 999);
-    if (error) throw new Error(error.message);
-    ids.push(...(data || []).map((r: any) => String(r.ORDER_ID)).filter(Boolean));
-    if (!data || data.length < 1000) break;
-  }
-  return ids;
-}
-
 /** Returns the steps limited to the user's own LPO data, or an error message. */
 async function scopeLpo(user: SessionUserRecord, table: string, steps: SecureStep[]): Promise<SecureStep[] | string> {
-  if (table !== LPO_ORDERS && table !== LPO_DRIVERS) return steps;
-  if (isAdminUser(user)) return steps;
-  if (isLookupOnly(steps)) return steps;
+  if (table !== LPO_TABLE) return steps;
 
   const main = steps.find(([m]) => MAIN_METHODS.has(m))?.[0];
-
-  if (table === LPO_ORDERS) {
-    if (main === 'insert') return steps.map(([m, a]) => (m === 'insert' ? [m, [stampRows(a?.[0], user), ...(a || []).slice(1)]] : [m, a])) as SecureStep[];
-    if (main === 'upsert') return 'Not allowed.';
-    return withFilter(steps, ['in', ['CREATED_BY', await teamUserIds(user)]]);
-  }
-
-  // app_INVOICES_TRACKING_DRIVERS: only rows of the user's own orders
-  const mine = await myOrderIds(user);
-  if (main === 'insert' || main === 'upsert') {
-    const a = steps.find(([m]) => m === main)?.[1];
-    const rows = Array.isArray(a?.[0]) ? (a![0] as any[]) : [a?.[0]];
-    const own = new Set(mine);
-    if (rows.some((r) => !own.has(String(r?.ORDER_ID || '')))) return "You can't change deliveries of another user's orders.";
-    return steps;
-  }
-  return withFilter(steps, ['in', ['ORDER_ID', mine.length ? mine : ['__none__']]]);
+  // every new row is owned by the user who saved it (the admin too)
+  if (main === 'insert') return steps.map(([m, a]) => (m === 'insert' ? [m, [stampRows(a?.[0], user), ...(a || []).slice(1)]] : [m, a])) as SecureStep[];
+  if (isAdminUser(user)) return steps;
+  if (isLookupOnly(steps)) return steps;
+  if (main === 'upsert') return 'Not allowed.';
+  return withFilter(steps, ['in', ['CREATED_BY', await teamUserIds(user)]]);
 }
 
 function stripSecrets(value: any): any {

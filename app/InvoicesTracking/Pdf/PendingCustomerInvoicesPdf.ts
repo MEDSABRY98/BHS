@@ -20,7 +20,7 @@ export async function generatePendingCustomerInvoicesPDF(
   // Group invoices by driver ID
   const groupedInvoices: Record<string, any[]> = {};
   invoices.forEach((inv) => {
-    const driverId = inv.app_INVOICES_TRACKING_DRIVERS?.[0]?.DRIVERS_NAME || 'Unassigned';
+    const driverId = inv.deliveries?.[0]?.DRIVERS_NAME || 'Unassigned';
     if (!groupedInvoices[driverId]) {
       groupedInvoices[driverId] = [];
     }

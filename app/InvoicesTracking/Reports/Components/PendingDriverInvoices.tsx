@@ -35,7 +35,7 @@ export default function PendingDriverInvoices() {
   const invoices = useMemo(
     () =>
       orders.filter((order: any) => {
-        const driverRecord = order.app_INVOICES_TRACKING_DRIVERS?.[0];
+        const driverRecord = order.deliveries?.[0];
         return driverRecord && driverRecord.OFFICE_HANDOVER_STATUS !== 'Confirmed';
       }),
     [orders],
@@ -67,7 +67,7 @@ export default function PendingDriverInvoices() {
     const invoicesByDriver = new Map<string, typeof filteredInvoices>();
 
     filteredInvoices.forEach((inv) => {
-      const driverId = inv.app_INVOICES_TRACKING_DRIVERS?.[0]?.DRIVERS_NAME;
+      const driverId = inv.deliveries?.[0]?.DRIVERS_NAME;
       if (!driverId) return;
       if (!invoicesByDriver.has(driverId)) invoicesByDriver.set(driverId, []);
       invoicesByDriver.get(driverId)!.push(inv);

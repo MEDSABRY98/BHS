@@ -7,7 +7,7 @@ const CANCELLED_ROW_FILL: [number, number, number] = [255, 235, 235];
 
 function isInvoiceCancelled(inv: any): boolean {
   const trackingNotes =
-    inv.app_INVOICES_TRACKING_DRIVERS?.[0]?.TRACKING_NOTES ||
+    inv.deliveries?.[0]?.TRACKING_NOTES ||
     inv.TRACKING_NOTES ||
     inv.tracking_notes;
   return trackingNotes === 'SYSTEM_CANCELLED';
@@ -42,7 +42,7 @@ export async function generateDeliveredDriverInvoicesPDF(
       ? new Date(inv.ORDER_DATE).toLocaleDateString('en-GB')
       : (inv.CREATED_AT ? new Date(inv.CREATED_AT).toLocaleDateString('en-GB') : '-');
 
-    const driverRecord = inv.app_INVOICES_TRACKING_DRIVERS?.[0];
+    const driverRecord = inv.deliveries?.[0];
     const handoverDateStr = driverRecord?.OFFICE_HANDOVER_TIME;
     const formattedHandoverDate = handoverDateStr
       ? new Date(handoverDateStr).toLocaleDateString('en-GB')

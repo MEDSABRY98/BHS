@@ -7,7 +7,7 @@ const CANCELLED_ROW_FILL: [number, number, number] = [255, 235, 235];
 
 function isInvoiceCancelled(inv: any): boolean {
   const trackingNotes =
-    inv.app_INVOICES_TRACKING_DRIVERS?.[0]?.TRACKING_NOTES ||
+    inv.deliveries?.[0]?.TRACKING_NOTES ||
     inv.TRACKING_NOTES ||
     inv.tracking_notes;
   return trackingNotes === 'SYSTEM_CANCELLED';

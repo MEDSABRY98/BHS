@@ -35,7 +35,7 @@ export default function DeliveredDriverInvoices() {
   const invoices = useMemo(() => {
     if (!selectedDriverId) return [];
     return orders.filter((order: any) => {
-      const driverRecord = order.app_INVOICES_TRACKING_DRIVERS?.[0];
+      const driverRecord = order.deliveries?.[0];
       return (
         driverRecord &&
         driverRecord.OFFICE_HANDOVER_STATUS === 'Confirmed' &&
@@ -55,7 +55,7 @@ export default function DeliveredDriverInvoices() {
         }
       }
 
-      const driverRecord = inv.app_INVOICES_TRACKING_DRIVERS?.[0];
+      const driverRecord = inv.deliveries?.[0];
       const dateStr = driverRecord?.OFFICE_HANDOVER_TIME || inv.ORDER_DATE || inv.CREATED_AT;
       if (!dateStr) return true;
 
@@ -263,7 +263,7 @@ export default function DeliveredDriverInvoices() {
                       ? new Date(inv.ORDER_DATE).toLocaleDateString('en-GB')
                       : (inv.CREATED_AT ? new Date(inv.CREATED_AT).toLocaleDateString('en-GB') : '-');
 
-                    const driverRecord = inv.app_INVOICES_TRACKING_DRIVERS?.[0];
+                    const driverRecord = inv.deliveries?.[0];
                     const handoverDateStr = driverRecord?.OFFICE_HANDOVER_TIME;
                     const formattedHandoverDate = handoverDateStr
                       ? new Date(handoverDateStr).toLocaleDateString('en-GB')

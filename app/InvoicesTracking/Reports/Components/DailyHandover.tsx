@@ -49,7 +49,7 @@ export default function HandoverReports() {
   const allConfirmedOrders = useMemo(
     () =>
       orders.filter((order: any) => {
-        const driverRecord = order.app_INVOICES_TRACKING_DRIVERS?.[0];
+        const driverRecord = order.deliveries?.[0];
         return driverRecord && driverRecord.OFFICE_HANDOVER_STATUS === 'Confirmed';
       }),
     [orders],
@@ -60,7 +60,7 @@ export default function HandoverReports() {
     const groupsMap: { [key: string]: HandoverGroup } = {};
 
     allConfirmedOrders.forEach((order: any) => {
-      const driverRecord = order.app_INVOICES_TRACKING_DRIVERS?.[0];
+      const driverRecord = order.deliveries?.[0];
       if (!driverRecord || driverRecord.OFFICE_HANDOVER_STATUS !== 'Confirmed' || !driverRecord.OFFICE_HANDOVER_TIME) {
         return;
       }

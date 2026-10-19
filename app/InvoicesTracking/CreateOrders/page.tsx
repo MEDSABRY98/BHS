@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { bhs_supabas, fetchAllData } from '@/lib/secureDb';
 import { useInvoicesTrackingData } from '../Context/InvoicesTrackingDataContext';
+import { TRACKING_TABLE } from '../Utils/TrackingTable';
 import {
   ReceiptText,
   Send,
@@ -101,7 +102,7 @@ export default function CreateOrderPage() {
 
       // Check Supabase database
       const { data, error } = await bhs_supabas
-        .from('app_INVOICES_TRACKING_ORDERS')
+        .from(TRACKING_TABLE)
         .select('ORDER_ID')
         .eq('INVOICE_ID', trimmedInvoice)
         .limit(1);
@@ -141,8 +142,8 @@ export default function CreateOrderPage() {
   };
 
   /** Highest R-number in a table, read as numbers (text order breaks after R-9999). */
-  async function maxRecordNumber(table: 'app_INVOICES_TRACKING_ORDERS' | 'app_INVOICES_TRACKING_DRIVERS') {
-    const rows = await fetchAllData(() => bhs_supabas.from(table).select('ID').order('ID'));
+  async function maxRecordNumber() {
+    const rows = await fetchAllData(() => bhs_supabas.from(TRACKING_TABLE).select('ID').order('ID'));
     return (rows || []).reduce((max: number, row: any) => {
       const m = String(row.ID || '').match(/(\d+)\s*$/);
       return m ? Math.max(max, parseInt(m[1], 10)) : max;
@@ -158,72 +159,44 @@ export default function CreateOrderPage() {
     setIsSubmitting(true);
 
     try {
-      // Orders and their drivers are saved together: if the drivers fail, the new orders are
-      // removed again, so pressing Save a second time can't create the same orders twice.
+      // Each order is ONE row (with its driver / delivery columns), so nothing can be half saved.
       // Numbers are re-read and retried if another user saved at the same moment.
-      const ordersWithDrivers = pendingOrders.filter(o => o.driverId);
       let saved = false;
       let lastError: any = null;
 
       for (let attempt = 0; attempt < 5 && !saved; attempt++) {
-        const baseNum = (await maxRecordNumber('app_INVOICES_TRACKING_ORDERS')) + 1;
+        const baseNum = (await maxRecordNumber()) + 1;
+        const now = new Date().toISOString();
 
-        const tempIdToOrderId: Record<string, string> = {};
-        const ordersToInsert = pendingOrders.map(({ tempId, customerName, driverId, driverName, DRIVER_ID, ...rest }, index) => {
-          const currentPkId = `R-${(baseNum + index).toString().padStart(4, '0')}`;
-          const currentOrderId = `ONI-${(baseNum + index).toString().padStart(4, '0')}`;
-          tempIdToOrderId[tempId] = currentOrderId;
-
+        const rowsToInsert = pendingOrders.map(({ tempId, customerName, driverId, driverName, DRIVER_ID, ...rest }, index) => {
+          const num = (baseNum + index).toString().padStart(4, '0');
           const orderDateVal = rest.ORDER_DATE
             ? new Date(rest.ORDER_DATE).toISOString()
-            : new Date().toISOString();
+            : now;
 
           return {
             ...rest,
-            ID: currentPkId,
-            ORDER_ID: currentOrderId,
+            ID: `R-${num}`,
+            ORDER_ID: `ONI-${num}`,
             AMOUNT: parseFloat(rest.AMOUNT) || 0,
             ORDER_DATE: orderDateVal,
-            STATUS: 'Approved'
+            STATUS: 'Approved',
+            // delivery
+            DRIVERS_NAME: driverId || null,
+            DELIVERY_STATUS: driverId ? 'Dispatched' : null,
+            DISPATCH_TIME: driverId ? now : null,
           };
         });
 
-        const { error: orderError } = await bhs_supabas
-          .from('app_INVOICES_TRACKING_ORDERS')
-          .insert(ordersToInsert);
+        const { error: insertError } = await bhs_supabas
+          .from(TRACKING_TABLE)
+          .insert(rowsToInsert);
 
-        if (orderError) {
-          lastError = orderError;
-          if (orderError.code === '23505') continue; // numbers taken meanwhile -> retry
-          throw orderError;
+        if (insertError) {
+          lastError = insertError;
+          if (insertError.code === '23505') continue; // numbers taken meanwhile -> retry
+          throw insertError;
         }
-
-        if (ordersWithDrivers.length === 0) {
-          saved = true;
-          break;
-        }
-
-        const baseDriverNum = (await maxRecordNumber('app_INVOICES_TRACKING_DRIVERS')) + 1;
-        const driversToInsert = ordersWithDrivers.map((order, index) => ({
-          ID: `R-${(baseDriverNum + index).toString().padStart(4, '0')}`,
-          ORDER_ID: tempIdToOrderId[order.tempId],
-          DRIVERS_NAME: order.driverId,
-          STATUS: 'Dispatched',
-          DISPATCH_TIME: new Date().toISOString()
-        }));
-
-        const { error: driverError } = await bhs_supabas
-          .from('app_INVOICES_TRACKING_DRIVERS')
-          .insert(driversToInsert);
-
-        if (driverError) {
-          // Undo the orders of this attempt
-          await bhs_supabas.from('app_INVOICES_TRACKING_ORDERS').delete().in('ID', ordersToInsert.map(o => o.ID));
-          lastError = driverError;
-          if (driverError.code === '23505') continue;
-          throw new Error(`${driverError.message} — no orders were saved, please try again.`);
-        }
-
         saved = true;
       }
 
@@ -293,7 +266,7 @@ export default function CreateOrderPage() {
         if (uploadedInvoiceIds.length > 0) {
           const dbOrders = await fetchAllData(() =>
             bhs_supabas
-              .from('app_INVOICES_TRACKING_ORDERS')
+              .from(TRACKING_TABLE)
               .select('ORDER_ID, INVOICE_ID')
               .in('INVOICE_ID', uploadedInvoiceIds)
           );
@@ -310,7 +283,7 @@ export default function CreateOrderPage() {
         if (uploadedLpoIds.length > 0) {
           const dbLpoOrders = await fetchAllData(() =>
             bhs_supabas
-              .from('app_INVOICES_TRACKING_ORDERS')
+              .from(TRACKING_TABLE)
               .select('ORDER_ID, LPO_ID')
               .in('LPO_ID', uploadedLpoIds)
           );
@@ -528,7 +501,7 @@ export default function CreateOrderPage() {
 
           // Check if this invoice ID exists in database
           const { data: dbOrders, error: findError } = await bhs_supabas
-            .from('app_INVOICES_TRACKING_ORDERS')
+            .from(TRACKING_TABLE)
             .select('ORDER_ID')
             .eq('INVOICE_ID', invoiceId)
             .limit(1);
@@ -599,7 +572,7 @@ export default function CreateOrderPage() {
           // Perform database update
           if (Object.keys(updatePayload).length > 0) {
             const { error: updateErr } = await bhs_supabas
-              .from('app_INVOICES_TRACKING_ORDERS')
+              .from(TRACKING_TABLE)
               .update(updatePayload)
               .eq('ORDER_ID', orderId);
 

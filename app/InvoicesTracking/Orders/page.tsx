@@ -3,19 +3,22 @@
 import { useState, useEffect, useMemo } from 'react';
 import { bhs_supabas } from '@/lib/secureDb';
 import { useInvoicesTrackingData } from '../Context/InvoicesTrackingDataContext';
+import { TRACKING_TABLE, deliveryUpdate } from '../Utils/TrackingTable';
 import {
   Search,
   Eye,
   CheckCircle2,
   FileSpreadsheet,
   XCircle,
-  Loader2
+  Loader2,
+  Trash2
 } from 'lucide-react';
 import Link from 'next/link';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import TabLoader from '@/app/Components/Loading/TabLoader';
 import { toast } from '@/app/Components/Notification';
 import { usePermissions } from '../Hooks/usePermissions';
+import { isAdminRole } from '@/lib/AdminRole';
 import { ConfirmModal } from '../Components/ConfirmModal';
 import { exportInvoicesTrackingExcel } from '../Export/ExcelExport';
 
@@ -70,6 +73,15 @@ function resolveCurrentUserProfile(users: any[]) {
 
 export default function OrdersPage() {
   const { canEdit } = usePermissions();
+  // bulk delete is for the admin only
+  const [isAdmin, setIsAdmin] = useState(false);
+  useEffect(() => {
+    try {
+      setIsAdmin(isAdminRole(JSON.parse(localStorage.getItem('currentUser') || 'null')));
+    } catch {
+      setIsAdmin(false);
+    }
+  }, []);
   const { scopedOrders: orders, users, loading, refresh, filters } = useInvoicesTrackingData();
   const [currentUserProfile, setCurrentUserProfile] = useState<any>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -81,6 +93,8 @@ export default function OrdersPage() {
 
   const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
   const [isBulkConfirmModalOpen, setIsBulkConfirmModalOpen] = useState(false);
+  const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   const [isBulkSaving, setIsBulkSaving] = useState(false);
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
 
@@ -127,7 +141,7 @@ export default function OrdersPage() {
   const handleUpdateStatus = async (orderId: string, newStatus: string) => {
     const order = processedOrders.find((o) => o.ID === orderId);
     if (!order) return;
-    const driverData = order.app_INVOICES_TRACKING_DRIVERS?.[0];
+    const driverData = order.deliveries?.[0];
     if (!driverData) return;
 
     const userProfile = currentUserProfile || resolveCurrentUserProfile(users);
@@ -197,8 +211,8 @@ export default function OrdersPage() {
       }
 
       const { error } = await bhs_supabas
-        .from('app_INVOICES_TRACKING_DRIVERS')
-        .update(updatePayload)
+        .from(TRACKING_TABLE)
+        .update(deliveryUpdate(updatePayload))
         .eq('ID', driverData.ID);
 
       if (error) throw error;
@@ -226,7 +240,7 @@ export default function OrdersPage() {
       const confirmableOrders = selectedOrderIds
         .map((orderId) => processedOrders.find((order) => order.ID === orderId))
         .filter((order): order is NonNullable<typeof order> => Boolean(order))
-        .filter((order) => canConfirmInvoiceHandover(order.app_INVOICES_TRACKING_DRIVERS?.[0], userProfile));
+        .filter((order) => canConfirmInvoiceHandover(order.deliveries?.[0], userProfile));
 
       if (confirmableOrders.length === 0) {
         toast.error('None of the selected invoices can be confirmed by you.');
@@ -235,14 +249,14 @@ export default function OrdersPage() {
 
       const now = new Date().toISOString();
       const updates = confirmableOrders.map((order) => {
-        const driver = order.app_INVOICES_TRACKING_DRIVERS[0];
+        const driver = order.deliveries[0];
         return bhs_supabas
-          .from('app_INVOICES_TRACKING_DRIVERS')
-          .update({
+          .from(TRACKING_TABLE)
+          .update(deliveryUpdate({
             OFFICE_HANDOVER_STATUS: 'Confirmed',
             OFFICE_HANDOVER_TIME: now,
             OFFICE_HANDOVER_ID: userProfile.ID || 'R-0001',
-          })
+          }))
           .eq('ID', driver.ID);
       });
 
@@ -270,9 +284,39 @@ export default function OrdersPage() {
     }
   };
 
+  /** Deletes the selected orders (the delivery is in the same row). */
+  const handleBulkDelete = async () => {
+    if (!isAdmin) return;
+    const targets = orders.filter((o) => selectedOrderIds.includes(o.ID));
+    if (targets.length === 0) return;
+    setIsBulkDeleting(true);
+    try {
+      const CHUNK = 200;
+      for (let i = 0; i < targets.length; i += CHUNK) {
+        const chunk = targets.slice(i, i + CHUNK);
+        const ids = chunk.map((o) => o.ID);
+        const { error: ordersError } = await bhs_supabas
+          .from(TRACKING_TABLE)
+          .delete()
+          .in('ID', ids);
+        if (ordersError) throw ordersError;
+      }
+      toast.success(`Deleted ${targets.length} order(s).`);
+      setSelectedOrderIds([]);
+      await refresh();
+    } catch (err) {
+      console.error(err);
+      toast.error(err instanceof Error ? err.message : 'Failed to delete the selected orders.');
+      await refresh();
+    } finally {
+      setIsBulkDeleting(false);
+      setIsBulkDeleteModalOpen(false);
+    }
+  };
+
   const processedOrders = useMemo(() => {
     return orders.map(o => {
-      const drv = o.app_INVOICES_TRACKING_DRIVERS?.[0];
+      const drv = o.deliveries?.[0];
       const driverUserId = drv?.DRIVERS_NAME;
       return {
         ...o,
@@ -295,7 +339,7 @@ export default function OrdersPage() {
   const selectedConfirmableCount = useMemo(() => {
     return selectedOrderIds.filter((orderId) => {
       const order = processedOrders.find((item) => item.ID === orderId);
-      return canConfirmInvoiceHandover(order?.app_INVOICES_TRACKING_DRIVERS?.[0], currentUserProfile);
+      return canConfirmInvoiceHandover(order?.deliveries?.[0], currentUserProfile);
     }).length;
   }, [selectedOrderIds, processedOrders, currentUserProfile]);
 
@@ -431,6 +475,16 @@ export default function OrdersPage() {
                 title="Confirm Office Receipt"
               >
                 <CheckCircle2 className="w-5 h-5" />
+              </button>
+            )}
+            {isAdmin && (
+              <button
+                onClick={() => setIsBulkDeleteModalOpen(true)}
+                disabled={isBulkDeleting}
+                className="w-10 h-10 flex items-center justify-center bg-red-500 text-white rounded-xl hover:bg-red-600 hover:scale-105 active:scale-95 transition-all shadow-md shadow-red-500/10 disabled:opacity-40 disabled:hover:scale-100 disabled:cursor-not-allowed"
+                title="Delete Selected"
+              >
+                <Trash2 className="w-5 h-5" />
               </button>
             )}
           </div>
@@ -588,7 +642,7 @@ export default function OrdersPage() {
                         >
                           <Eye className="w-5 h-5" />
                         </Link>
-                        {order.app_INVOICES_TRACKING_DRIVERS?.[0] && !['Confirmed', 'Rejected'].includes(order.app_INVOICES_TRACKING_DRIVERS[0].OFFICE_HANDOVER_STATUS) && (
+                        {order.deliveries?.[0] && !['Confirmed', 'Rejected'].includes(order.deliveries[0].OFFICE_HANDOVER_STATUS) && (
                           <>
                             <button
                               onClick={() => handleUpdateStatus(order.ID, 'Confirmed')}
@@ -681,6 +735,16 @@ export default function OrdersPage() {
         isLoading={isBulkSaving}
         title="Confirm Office Receipt"
         message={`Confirm office receipt for ${selectedConfirmableCount} of ${selectedOrderIds.length} selected invoice(s)? This uses the same confirmation as Invoices Status.`}
+      />
+
+      <ConfirmModal
+        isOpen={isBulkDeleteModalOpen}
+        onConfirm={handleBulkDelete}
+        onCancel={() => setIsBulkDeleteModalOpen(false)}
+        isLoading={isBulkDeleting}
+        title="Delete Orders"
+        confirmLabel="Yes, Delete"
+        message={`Delete ${selectedOrderIds.length} selected order(s)? This can not be undone.`}
       />
     </div>
   );
