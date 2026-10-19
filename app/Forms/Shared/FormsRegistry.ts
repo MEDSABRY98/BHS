@@ -24,4 +24,10 @@ export const FORMS: FormDefinition[] = [
     description: 'Write a letter and print it on the company letterhead paper.',
     path: '/Forms/Letterhead',
   },
+  {
+    id: 'file-labels',
+    title: 'File Labels',
+    description: 'Print file spine labels at their real size, the name fitted to each label.',
+    path: '/Forms/FileLabels',
+  },
 ];

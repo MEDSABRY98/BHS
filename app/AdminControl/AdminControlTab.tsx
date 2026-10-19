@@ -301,6 +301,7 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
     'forms': [
         { id: 'employee-charge', label: 'Employee Charge' },
         { id: 'letterhead', label: 'Company Letter' },
+        { id: 'file-labels', label: 'File Labels' },
     ],
     'intercompany-reconciliation': [
         { id: 'entries', label: 'Entries' },
