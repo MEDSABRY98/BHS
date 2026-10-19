@@ -255,7 +255,7 @@ export default function SalesDBPage() {
       while (fetchMoreCust) {
         const { data, error } = await bhs_supabas
           .from('bhs_CUSTOMERS')
-          .select('"CUSTOMER ID", "CUSTOMER SUB NAME"')
+          .select('"CUSTOMER ID", "CUSTOMER MAIN NAME", "CUSTOMER SUB NAME"')
           .range(pageCust * limit, (pageCust + 1) * limit - 1);
         if (error) throw error;
         if (data && data.length > 0) {
@@ -264,8 +264,13 @@ export default function SalesDBPage() {
           else pageCust++;
         } else fetchMoreCust = false;
       }
-      const custMap = new Map<string, string>();
-      allCustomers.forEach(c => custMap.set(normalizeExcelId(c['CUSTOMER ID']) || '', c['CUSTOMER SUB NAME'] || ''));
+      const custMap = new Map<string, { main: string; sub: string }>();
+      allCustomers.forEach(c =>
+        custMap.set(normalizeExcelId(c['CUSTOMER ID']) || '', {
+          main: c['CUSTOMER MAIN NAME'] || '',
+          sub: c['CUSTOMER SUB NAME'] || '',
+        })
+      );
 
       // Fetch Products
       let allProducts: any[] = [];
@@ -274,7 +279,7 @@ export default function SalesDBPage() {
       while (fetchMoreProd) {
         const { data, error } = await bhs_supabas
           .from('bhs_PRODUCTS')
-          .select('"PRODUCT ID", "PRODUCT NAME"')
+          .select('"PRODUCT ID", "PRODUCT BARCODE", "PRODUCT NAME"')
           .range(pageProd * limit, (pageProd + 1) * limit - 1);
         if (error) throw error;
         if (data && data.length > 0) {
@@ -283,18 +288,30 @@ export default function SalesDBPage() {
           else pageProd++;
         } else fetchMoreProd = false;
       }
-      const prodMap = new Map<string, string>();
-      allProducts.forEach(p => prodMap.set(normalizeExcelId(p['PRODUCT ID']) || '', p['PRODUCT NAME'] || ''));
+      const prodMap = new Map<string, { barcode: string; name: string }>();
+      allProducts.forEach(p =>
+        prodMap.set(normalizeExcelId(p['PRODUCT ID']) || '', {
+          barcode: p['PRODUCT BARCODE'] != null ? String(p['PRODUCT BARCODE']) : '',
+          name: p['PRODUCT NAME'] || '',
+        })
+      );
 
-      const headers = ['ID', 'INVOICE DATE', 'INVOICE NUMBER', 'CUSTOMER ID', 'CUSTOMER NAME', 'PRODUCT ID', 'PRODUCT NAME', 'PRICE COST', 'PRICE SALES', 'QTY', 'AMOUNT'];
-      const rows = allSales.map(s => [
-        s['ID'] || '',
+      const headers = [
+        '#', 'INVOICE DATE', 'INVOICE NUMBER',
+        'CUSTOMER ID', 'CUSTOMER MAIN NAME', 'CUSTOMER SUB NAME',
+        'PRODUCT ID', 'PRODUCT BARCODE', 'PRODUCT NAME',
+        'PRICE COST', 'PRICE SALES', 'QTY', 'AMOUNT',
+      ];
+      const rows = allSales.map((s, i) => [
+        i + 1,
         s['INVOICE DATE'] || '',
         s['INVOICE NUMBER'] || '',
         s['CUSTOMER ID'] || '',
-        custMap.get(normalizeExcelId(s['CUSTOMER ID']) || '') || '',
+        custMap.get(normalizeExcelId(s['CUSTOMER ID']) || '')?.main || '',
+        custMap.get(normalizeExcelId(s['CUSTOMER ID']) || '')?.sub || '',
         s['PRODUCT ID'] || '',
-        prodMap.get(normalizeExcelId(s['PRODUCT ID']) || '') || '',
+        prodMap.get(normalizeExcelId(s['PRODUCT ID']) || '')?.barcode || '',
+        prodMap.get(normalizeExcelId(s['PRODUCT ID']) || '')?.name || '',
         s['PRODUCT COST'] || 0,
         s['PRODUCT PRICE'] || 0,
         s['QTY'] || 0,
