@@ -13,6 +13,7 @@ import { ArrowDown, ArrowUp, Search, Download, Package, Upload, X } from 'lucide
 import { exportStyledExcel } from '@/app/Components/Export/ExcelExport';
 import TabLoader from '@/app/Components/Loading/TabLoader';
 import TabFetchError from '@/app/Components/DataState/TabFetchError';
+import NoData from '@/app/Components/DataState/NoDataTab';
 
 const OrderQuantityCell = ({ productId, qtyInBox, showInBoxes }: { productId: string, qtyInBox: number, showInBoxes: boolean }) => {
   const { orderQuantities, setOrderQuantity } = usePurchaseData();
@@ -80,6 +81,21 @@ export function PlanningTab() {
     return result;
   }, [products, parentView, searchTerm, globalFilters.categories, showOrderedOnly, orderQuantities, barcodeFilter]);
 
+  // "With Parent": 2+ products under the same parent with the SAME unit -> their names are shown in red
+  const unitKey = (p: { parentId: string; unit: string }) => `${p.parentId}|${(p.unit || '').trim().toUpperCase()}`;
+  const sharedParents = useMemo(() => {
+    const out = new Set<string>();
+    if (parentView !== 'withParent') return out;
+    const count = new Map<string, number>();
+    filteredProducts.forEach(p => {
+      if (!p.parentId) return;
+      const k = unitKey(p);
+      count.set(k, (count.get(k) || 0) + 1);
+    });
+    count.forEach((n, k) => { if (n > 1) out.add(k); });
+    return out;
+  }, [parentView, filteredProducts]);
+
   const columns = useMemo(() => {
     const baseCols = [
       {
@@ -91,7 +107,12 @@ export function PlanningTab() {
         header: 'Product Name',
         accessorKey: 'name',
         cell: (info: any) => (
-          <div className="min-w-[200px] whitespace-normal font-bold text-sm leading-tight text-center" title={info.getValue()}>
+          <div
+            className={`min-w-[200px] whitespace-normal font-bold text-sm leading-tight text-center ${
+              sharedParents.has(unitKey(info.row.original)) ? 'text-red-600' : ''
+            }`}
+            title={info.getValue()}
+          >
             {info.getValue()}
           </div>
         )
@@ -163,7 +184,7 @@ export function PlanningTab() {
       }
     ];
     return finalCols;
-  }, [months, showInBoxes]);
+  }, [months, showInBoxes, sharedParents]);
 
   const table = useReactTable({
     data: filteredProducts,
@@ -392,6 +413,11 @@ export function PlanningTab() {
         </div>
       </div>
 
+      {sortedRows.length === 0 ? (
+        <div className="flex-1 flex flex-col items-center justify-center min-h-[45vh] rounded-xl border border-gray-100">
+          <NoData title={products.length ? 'NO MATCHING PRODUCTS' : 'NO PRODUCTS FOUND'} />
+        </div>
+      ) : (
       <div className="flex-1 rounded-xl border border-gray-100 relative">
         <table className="w-full text-center border-separate border-spacing-0">
           <thead className="sticky top-0 z-30">
@@ -437,13 +463,6 @@ export function PlanningTab() {
                 })}
               </React.Fragment>
             ))}
-            {sortedRows.length === 0 && (
-              <tr>
-                <td colSpan={columns.length} className="px-4 py-12 text-center text-gray-400 font-bold uppercase tracking-widest text-sm">
-                  No Products Found
-                </td>
-              </tr>
-            )}
           </tbody>
           <tfoot className="bg-slate-100 border-t-2 border-slate-300 font-black text-sm text-slate-800">
             <tr>
@@ -469,6 +488,7 @@ export function PlanningTab() {
           </tfoot>
         </table>
       </div>
+      )}
     </div>
   );
 }
