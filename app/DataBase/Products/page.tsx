@@ -66,6 +66,7 @@ export default function ProductsPage() {
   const [unit, setUnit] = useState('');
   const [barcode, setBarcode] = useState('');
   const [productId, setProductId] = useState('');
+  const [parentId, setParentId] = useState('');
   const [itemCode, setItemCode] = useState<string>('');
   const [productCategory, setProductCategory] = useState('');
   const [productCost, setProductCost] = useState<string>('');
@@ -117,7 +118,7 @@ export default function ProductsPage() {
         .from('bhs_PRODUCTS')
         .select('*', { count: 'exact' });
 
-      for (const f of searchOrFilters(['"PRODUCT NAME"', '"PRODUCT BARCODE"', '"PRODUCT ID"'], search)) {
+      for (const f of searchOrFilters(['"PRODUCT NAME"', '"PRODUCT BARCODE"', '"PRODUCT ID"', '"PRODUCT PARENT ID"'], search)) {
         query = query.or(f);
       }
 
@@ -143,6 +144,7 @@ export default function ProductsPage() {
     setUnit(product ? product["UNIT"] || '' : '');
     setBarcode(product ? product["PRODUCT BARCODE"] || '' : '');
     setProductId(product ? product["PRODUCT ID"] : '');
+    setParentId(product ? (product["PRODUCT PARENT ID"] ?? '').toString() : '');
     setItemCode(product ? (product["ITEM CODE"] ?? '').toString() : '');
     setProductCategory(product ? product["PRODUCT CATEGORY"] || '' : '');
     setProductCost(product ? formatProductCost(product["PRODUCT COST"]) : '');
@@ -193,6 +195,7 @@ export default function ProductsPage() {
             "UNIT": unit.trim(),
             "PRODUCT BARCODE": barcode.trim(),
             "PRODUCT ID": productId,
+            "PRODUCT PARENT ID": parentId.trim() || null,
             "ITEM CODE": itemCodeValue,
             "PRODUCT CATEGORY": productCategory,
             "PRODUCT COST": costValue,
@@ -244,6 +247,7 @@ export default function ProductsPage() {
             "UNIT": unit.trim(),
             "PRODUCT BARCODE": barcode.trim(),
             "PRODUCT ID": productId,
+            "PRODUCT PARENT ID": parentId.trim() || null,
             "ITEM CODE": itemCodeValue,
             "PRODUCT CATEGORY": productCategory,
             "PRODUCT COST": costValue,
@@ -399,6 +403,7 @@ export default function ProductsPage() {
       const exportData = allData.map((p: any) => ({
         'ID': p.ID,
         'PRODUCT ID': p['PRODUCT ID'],
+        'PRODUCT PARENT ID': p['PRODUCT PARENT ID'] ?? '',
         'PRODUCT BARCODE': p['PRODUCT BARCODE'],
         'PRODUCT NAME': p['PRODUCT NAME'],
         'UNIT': p['UNIT'] || '',
@@ -435,6 +440,9 @@ export default function ProductsPage() {
       const firstSheetName = workbook.SheetNames[0];
       const worksheet = workbook.Sheets[firstSheetName];
       const jsonData: Record<string, unknown>[] = XLSX.utils.sheet_to_json(worksheet);
+      // old files without the PRODUCT PARENT ID column must not clear the saved parent IDs
+      const headerRow = (XLSX.utils.sheet_to_json(worksheet, { header: 1 })[0] as unknown[]) || [];
+      const hasParentColumn = headerRow.some((h) => String(h ?? '').trim().toUpperCase() === 'PRODUCT PARENT ID');
 
       if (jsonData.length === 0) {
         toast.error('The uploaded Excel file is empty.');
@@ -547,6 +555,7 @@ export default function ProductsPage() {
           'UNIT': row['UNIT']?.toString().trim() || '',
           'PRODUCT BARCODE': row['PRODUCT BARCODE']?.toString().trim() || '',
           'PRODUCT ID': normalizeExcelId(row['PRODUCT ID']),
+          ...(hasParentColumn ? { 'PRODUCT PARENT ID': normalizeExcelId(row['PRODUCT PARENT ID']) || null } : {}),
           'ITEM CODE': row['ITEM CODE'] ? Number(row['ITEM CODE']) : null,
           'PRODUCT CATEGORY': row['PRODUCT CATEGORY']?.toString().trim() || '',
           'PRODUCT COST':
@@ -760,6 +769,12 @@ export default function ProductsPage() {
                       <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-gray-50 text-gray-500 rounded-xl text-[9px] font-black uppercase tracking-widest font-mono">
                         ID: {product['PRODUCT ID']}
                       </span>
+                      {/* empty or 0 = no parent */}
+                      {product['PRODUCT PARENT ID'] != null && !/^0*$/.test(String(product['PRODUCT PARENT ID']).trim()) && (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-gray-50 text-gray-500 rounded-xl text-[9px] font-black uppercase tracking-widest font-mono">
+                          PARENT: {product['PRODUCT PARENT ID']}
+                        </span>
+                      )}
                       <span className={`inline-flex items-center px-2.5 py-1 rounded-xl text-[9px] font-black uppercase tracking-widest ${product['IS_ACTIVE'] === false ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'}`}>
                         {product['IS_ACTIVE'] === false ? 'Inactive' : 'Active'}
                       </span>
@@ -957,6 +972,17 @@ export default function ProductsPage() {
                     onChange={(e) => setProductId(e.target.value)}
                     placeholder="Internal SKU or ID"
                     required
+                    className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">PRODUCT PARENT ID</label>
+                  <input
+                    type="text"
+                    value={parentId}
+                    onChange={(e) => setParentId(e.target.value)}
+                    placeholder="Parent product ID (optional)"
                     className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold"
                   />
                 </div>

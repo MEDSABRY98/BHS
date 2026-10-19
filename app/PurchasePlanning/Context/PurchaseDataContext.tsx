@@ -3,36 +3,35 @@
 import React, { createContext, useContext, useEffect, useMemo, useState, useRef } from 'react';
 import { bhs_supabas } from '@/lib/secureDb';
 
-// Helper to calculate the last 4 completed months
-export function getLast4CompletedMonths() {
-  const months = [];
+/**
+ * The 4 planning months: the CURRENT month (sales so far) + the 3 months before it. Oldest first.
+ * start / end are plain dates (yyyy-mm-dd) so the time zone never moves a sale into another month;
+ * `end` is the first day of the NEXT month (use it with "<").
+ */
+export function getPlanningMonths(count = 4) {
+  const monthNames = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+  const ymd = (y: number, m: number) => `${y}-${String(m + 1).padStart(2, '0')}-01`;
   const today = new Date();
-  // Start from the previous month
-  today.setMonth(today.getMonth() - 1);
-  
-  for (let i = 0; i < 4; i++) {
-    const year = today.getFullYear();
-    const monthIndex = today.getMonth(); // 0-11
-    
-    // Create first day of month
-    const start = new Date(year, monthIndex, 1);
-    // Create last day of month
-    const end = new Date(year, monthIndex + 1, 0);
-    end.setHours(23, 59, 59, 999);
-    
-    const monthNames = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
-    const shortYear = year.toString().slice(-2);
-    
-    months.unshift({ // unshift to put oldest first
+  const months = [];
+  for (let i = count - 1; i >= 0; i--) {
+    const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
+    const next = new Date(d.getFullYear(), d.getMonth() + 1, 1);
+    const year = d.getFullYear();
+    const monthIndex = d.getMonth(); // 0-11
+    months.push({
       key: `${year}-${String(monthIndex + 1).padStart(2, '0')}`,
-      label: `${monthNames[monthIndex]}-${shortYear}`,
-      start: start.toISOString(),
-      end: end.toISOString()
+      label: `${monthNames[monthIndex]}-${year.toString().slice(-2)}`,
+      start: ymd(year, monthIndex),
+      end: ymd(next.getFullYear(), next.getMonth()),
     });
-    
-    today.setMonth(today.getMonth() - 1);
   }
   return months;
+}
+
+/** PRODUCT PARENT ID: empty or 0 = the product has no parent (returns ''). */
+export function cleanParentId(value: unknown): string {
+  const v = String(value ?? '').trim();
+  return v === '' || /^0+$/.test(v) ? '' : v;
 }
 
 export type PlanningMonth = {
@@ -45,6 +44,7 @@ export type PlanningMonth = {
 export type ProductPurchaseRow = {
   id: string;
   productId: string; // SKU or internal ID
+  parentId: string; // PRODUCT PARENT ID ('' = no parent)
   barcode: string;
   name: string;
   category: string;
@@ -82,7 +82,7 @@ export function PurchaseDataProvider({ children }: { children: React.ReactNode }
   const [globalFilters, setGlobalFilters] = useState<PurchaseFilters>({ categories: [] });
   const [uniqueCategories, setUniqueCategories] = useState<string[]>([]);
   
-  const months = useMemo(() => getLast4CompletedMonths(), []);
+  const months = useMemo(() => getPlanningMonths(), []);
 
   const setOrderQuantity = (productId: string, quantity: number) => {
     setOrderQuantities(prev => {
@@ -121,13 +121,13 @@ export function PurchaseDataProvider({ children }: { children: React.ReactNode }
 
       // 2. Fetch Sales for the date range
       const oldestDate = months[0].start;
-      const newestDate = months[months.length - 1].end;
+      const endExclusive = months[months.length - 1].end; // first day after the current month
 
       const { count, error: countError } = await bhs_supabas
         .from('web_Sales_DB')
         .select('*', { count: 'exact', head: true })
         .gte('INVOICE DATE', oldestDate)
-        .lte('INVOICE DATE', newestDate);
+        .lt('INVOICE DATE', endExclusive);
       
       if (countError) throw countError;
 
@@ -147,7 +147,7 @@ export function PurchaseDataProvider({ children }: { children: React.ReactNode }
                 .from('web_Sales_DB')
                 .select('"INVOICE DATE", "PRODUCT ID", "QTY"')
                 .gte('INVOICE DATE', oldestDate)
-                .lte('INVOICE DATE', newestDate)
+                .lt('INVOICE DATE', endExclusive)
                 .order('ID', { ascending: true }) // fixed order: pages never overlap or skip rows
                 .range(r.from, r.to)
             )
@@ -171,10 +171,8 @@ export function PurchaseDataProvider({ children }: { children: React.ReactNode }
         const dateStr = sale['INVOICE DATE'];
         if (!dateStr) return;
         
-        const date = new Date(dateStr);
-        const year = date.getFullYear();
-        const monthIndex = date.getMonth() + 1;
-        const key = `${year}-${String(monthIndex).padStart(2, '0')}`;
+        // yyyy-mm from the stored date itself (no time zone shift)
+        const key = String(dateStr).slice(0, 7);
         
         // Find if this key is in our tracked months
         const trackedMonth = months.find(m => m.key === key);
@@ -200,6 +198,7 @@ export function PurchaseDataProvider({ children }: { children: React.ReactNode }
         return {
           id: p['ID'] || pId,
           productId: pId,
+          parentId: cleanParentId(p['PRODUCT PARENT ID']),
           barcode: p['PRODUCT BARCODE'] || '',
           name: p['PRODUCT NAME'] || '',
           category: p['PRODUCT CATEGORY'] || 'Uncategorized',

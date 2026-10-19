@@ -46,10 +46,15 @@ export function PlanningTab() {
   const [showInBoxes, setShowInBoxes] = useState(false);
 
   const [showOrderedOnly, setShowOrderedOnly] = useState(false);
+  // all products / only products without a PRODUCT PARENT ID / only products with one
+  const [parentView, setParentView] = useState<'all' | 'noParent' | 'withParent'>('all');
   const [barcodeFilter, setBarcodeFilter] = useState<Set<string>>(new Set());
 
   const filteredProducts = useMemo(() => {
     let result = products;
+
+    if (parentView === 'noParent') result = result.filter(p => !p.parentId);
+    else if (parentView === 'withParent') result = result.filter(p => !!p.parentId);
 
     if (barcodeFilter.size > 0) {
       result = result.filter(p => barcodeFilter.has((p.barcode || '').trim()));
@@ -73,7 +78,7 @@ export function PlanningTab() {
     }
 
     return result;
-  }, [products, searchTerm, globalFilters.categories, showOrderedOnly, orderQuantities, barcodeFilter]);
+  }, [products, parentView, searchTerm, globalFilters.categories, showOrderedOnly, orderQuantities, barcodeFilter]);
 
   const columns = useMemo(() => {
     const baseCols = [
@@ -169,6 +174,30 @@ export function PlanningTab() {
     getSortedRowModel: getSortedRowModel(),
   });
 
+  const sortedRows = table.getRowModel().rows;
+
+  // "With Parent": rows grouped by PRODUCT PARENT ID, groups A-Z by the parent's name, products A-Z inside each group
+  const parentGroups = useMemo(() => {
+    if (parentView !== 'withParent') return null;
+    const nameOf = new Map(products.map(p => [p.productId, p.name]));
+    const groups = new Map<string, typeof sortedRows>();
+    sortedRows.forEach(row => {
+      const key = row.original.parentId;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(row);
+    });
+    const byName = (a: string, b: string) => a.localeCompare(b, undefined, { sensitivity: 'base', numeric: true });
+    return Array.from(groups.entries())
+      .map(([parentId, rows]) => ({
+        parentId,
+        parentName: nameOf.get(parentId) || '',
+        rows: [...rows].sort((a, b) => byName(a.original.name || '', b.original.name || '')),
+      }))
+      .sort((a, b) => byName(a.parentName || a.parentId, b.parentName || b.parentId));
+  }, [parentView, sortedRows, products]);
+
+  const orderedRows = parentGroups ? parentGroups.flatMap(g => g.rows) : sortedRows;
+
   const totals = useMemo(() => {
     let stock = 0;
     const monthlyTotals: Record<string, number> = {};
@@ -190,11 +219,12 @@ export function PlanningTab() {
   }, [filteredProducts, months, orderQuantities]);
 
   const handleExport = async () => {
-    const dataToExport = table.getRowModel().rows.map((r, index) => {
+    const dataToExport = orderedRows.map((r, index) => {
       const p = r.original;
       const noBox = showInBoxes && (!p.qtyInBox || p.qtyInBox <= 0);
       const row: any = {
         '#': index + 1,
+        ...(parentView === 'withParent' ? { 'Parent ID': p.parentId } : {}),
         'Product ID': p.productId,
         'Barcode': p.barcode || '-',
         'Product Name': p.name,
@@ -243,6 +273,26 @@ export function PlanningTab() {
       <div className="flex items-center justify-between mb-6 shrink-0 gap-4">
         <div className="flex items-center gap-4">
           <h2 className="text-2xl font-black text-gray-800">Purchase Planner</h2>
+          <div className="grid grid-cols-3 gap-1 p-1 bg-slate-100 rounded-xl border border-slate-200" role="tablist" aria-label="Products view">
+            {([
+              ['all', 'All'],
+              ['noParent', 'No Parent'],
+              ['withParent', 'With Parent'],
+            ] as const).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                role="tab"
+                aria-selected={parentView === value}
+                onClick={() => setParentView(value)}
+                className={`w-24 h-8 px-2 rounded-lg text-xs font-bold text-center transition-all whitespace-nowrap ${
+                  parentView === value ? 'bg-white text-gray-900 shadow-sm' : 'text-slate-500 hover:text-gray-800'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
           <button
             onClick={() => setShowInBoxes(!showInBoxes)}
             title="Toggle Box View"
@@ -300,14 +350,33 @@ export function PlanningTab() {
             </button>
           )}
           
-          <label className="flex items-center gap-2 cursor-pointer bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl shadow-sm hover:bg-slate-100 transition-colors">
-            <input 
-              type="checkbox" 
-              className="w-4 h-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500 cursor-pointer" 
-              checked={showOrderedOnly} 
-              onChange={e => setShowOrderedOnly(e.target.checked)} 
+          <label
+            className={`flex items-center gap-2.5 h-10 pl-2.5 pr-3.5 rounded-xl border shadow-sm cursor-pointer select-none transition-colors ${
+              showOrderedOnly
+                ? 'bg-purple-50 border-purple-200 text-purple-700'
+                : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+            }`}
+          >
+            <input
+              type="checkbox"
+              className="peer sr-only"
+              checked={showOrderedOnly}
+              onChange={e => setShowOrderedOnly(e.target.checked)}
             />
-            <span className="text-sm font-bold text-slate-700 select-none">Ordered Only</span>
+            {/* switch */}
+            <span
+              aria-hidden="true"
+              className={`relative inline-flex w-9 h-5 shrink-0 rounded-full transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-purple-400 peer-focus-visible:ring-offset-1 ${
+                showOrderedOnly ? 'bg-purple-600' : 'bg-slate-300'
+              }`}
+            >
+              <span
+                className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${
+                  showOrderedOnly ? 'translate-x-4' : 'translate-x-0'
+                }`}
+              />
+            </span>
+            <span className="text-sm font-bold whitespace-nowrap">Ordered Only</span>
           </label>
         </div>
         
@@ -342,19 +411,33 @@ export function PlanningTab() {
             ))}
           </thead>
           <tbody className="divide-y divide-gray-50">
-            {table.getRowModel().rows.map(row => {
-              const hasNoBoxQty = showInBoxes && (!row.original.qtyInBox || row.original.qtyInBox <= 0);
-              return (
-                <tr key={row.id} className={`transition-colors ${hasNoBoxQty ? 'bg-red-50 hover:bg-red-100' : 'hover:bg-indigo-50/30'}`}>
-                  {row.getVisibleCells().map(cell => (
-                    <td key={cell.id} className={`px-4 py-3 text-sm text-center border-r last:border-r-0 align-middle ${hasNoBoxQty ? 'border-red-100' : 'border-gray-50'}`}>
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+            {(parentGroups || [{ parentId: '', parentName: '', rows: sortedRows }]).map(group => (
+              <React.Fragment key={`group-${group.parentId}`}>
+                {parentGroups && (
+                  <tr className="bg-slate-50">
+                    <td colSpan={columns.length} className="px-4 py-2.5 text-left border-b border-slate-200">
+                      <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest mr-2">Parent</span>
+                      <span className="font-mono text-xs font-bold text-slate-700">{group.parentId}</span>
+                      {group.parentName && <span className="ml-2 text-sm font-black text-gray-800">{group.parentName}</span>}
+                      <span className="ml-2 text-xs font-bold text-slate-400">({group.rows.length})</span>
                     </td>
-                  ))}
-                </tr>
-              );
-            })}
-            {table.getRowModel().rows.length === 0 && (
+                  </tr>
+                )}
+                {group.rows.map(row => {
+                  const hasNoBoxQty = showInBoxes && (!row.original.qtyInBox || row.original.qtyInBox <= 0);
+                  return (
+                    <tr key={row.id} className={`transition-colors ${hasNoBoxQty ? 'bg-red-50 hover:bg-red-100' : 'hover:bg-indigo-50/30'}`}>
+                      {row.getVisibleCells().map(cell => (
+                        <td key={cell.id} className={`px-4 py-3 text-sm text-center border-r last:border-r-0 align-middle ${hasNoBoxQty ? 'border-red-100' : 'border-gray-50'}`}>
+                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        </td>
+                      ))}
+                    </tr>
+                  );
+                })}
+              </React.Fragment>
+            ))}
+            {sortedRows.length === 0 && (
               <tr>
                 <td colSpan={columns.length} className="px-4 py-12 text-center text-gray-400 font-bold uppercase tracking-widest text-sm">
                   No Products Found
