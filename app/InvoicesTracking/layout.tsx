@@ -64,6 +64,7 @@ function InvoicesTrackingFilterButton() {
   const [open, setOpen] = useState(false);
   const active =
     Boolean(filters.dateFrom || filters.dateTo) ||
+    (filters.createdBy && filters.createdBy !== 'ALL') ||
     (filters.driver && filters.driver !== 'ALL') ||
     (filters.status && filters.status !== 'ALL');
 

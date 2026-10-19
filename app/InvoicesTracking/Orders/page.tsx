@@ -70,7 +70,7 @@ function resolveCurrentUserProfile(users: any[]) {
 
 export default function OrdersPage() {
   const { canEdit } = usePermissions();
-  const { orders, users, loading, refresh, filters } = useInvoicesTrackingData();
+  const { scopedOrders: orders, users, loading, refresh, filters } = useInvoicesTrackingData();
   const [currentUserProfile, setCurrentUserProfile] = useState<any>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
@@ -336,7 +336,7 @@ export default function OrdersPage() {
       }
 
       if (driver !== 'ALL') {
-        if (order.driver_id !== driver) matchesAdvanced = false;
+        if (String(order.driver_id ?? '') !== driver) matchesAdvanced = false;
       }
 
       if (status !== 'ALL') {
@@ -347,10 +347,9 @@ export default function OrdersPage() {
           if (!isCancelled) matchesAdvanced = false;
         } else if (status === 'Delivered') {
           if (!isDelivered) matchesAdvanced = false;
-        } else if (status === 'Pending Driver') {
-          if (isDelivered || isCancelled) matchesAdvanced = false;
-        } else if (status === 'Pending Customer') {
-          if (!isDelivered || order.handover_status === 'Confirmed' || isCancelled) matchesAdvanced = false;
+        } else if (status === 'Pending') {
+          // pending with the driver (not delivered yet) or with the office (delivered, handover not confirmed)
+          if (isCancelled || (isDelivered && order.handover_status === 'Confirmed')) matchesAdvanced = false;
         }
       }
 

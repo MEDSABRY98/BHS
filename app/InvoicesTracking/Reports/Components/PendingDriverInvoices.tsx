@@ -12,7 +12,7 @@ import { saveTrackedAs } from '@/app/Audit/Utils/TrackedDownload';
 import { toast } from '@/app/Components/Notification';
 
 export default function PendingDriverInvoices() {
-  const { assignedDrivers: drivers, orders, loading: isLoading, filters } = useInvoicesTrackingData();
+  const { assignedDrivers: drivers, scopedOrders: orders, loading: isLoading, filters } = useInvoicesTrackingData();
   const [generatingDriverId, setGeneratingDriverId] = useState<string | null>(null);
   const [isGeneratingZip, setIsGeneratingZip] = useState(false);
   // dates come from the LPO filter (applies to every tab)

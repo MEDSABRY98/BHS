@@ -15,6 +15,7 @@ import { bhs_supabas, fetchAllData } from '@/lib/secureDb';
 export type InvoicesTrackingFilters = {
   dateFrom: string;
   dateTo: string;
+  createdBy: string; // user ID of who entered the order, or 'ALL'
   driver: string;
   status: string;
 };
@@ -24,7 +25,11 @@ export type InvoicesTrackingDataContextValue = {
   customers: any[];
   drivers: any[];
   assignedDrivers: any[];
+  /** users who entered at least one order (for the Created By filter) */
+  creators: any[];
   orders: any[];
+  /** orders of the Created By filter (all orders when it is ALL) */
+  scopedOrders: any[];
   loading: boolean;
   refreshing: boolean;
   error: string | null;
@@ -41,6 +46,22 @@ export function useInvoicesTrackingData(): InvoicesTrackingDataContextValue {
     throw new Error('useInvoicesTrackingData must be used within InvoicesTrackingDataProvider');
   }
   return context;
+}
+
+export const DEFAULT_INVOICES_TRACKING_FILTERS: InvoicesTrackingFilters = {
+  dateFrom: '',
+  dateTo: '',
+  createdBy: 'ALL',
+  driver: 'ALL',
+  status: 'ALL',
+};
+
+function buildCreators(orders: any[], users: any[]) {
+  const ids = [...new Set(orders.map((o) => String(o.CREATED_BY ?? '').trim()).filter(Boolean))];
+  const userById = new Map(users.map((u) => [String(u.ID), u]));
+  return ids
+    .map((id) => ({ ID: id, NAME: userById.get(id)?.NAME || id }))
+    .sort((a, b) => String(a.NAME || '').localeCompare(String(b.NAME || '')));
 }
 
 function buildAssignedDrivers(drivers: any[], users: any[]) {
@@ -78,12 +99,7 @@ export function InvoicesTrackingDataProvider({ children }: { children: React.Rea
   const [refreshing, setRefreshing] = useState(false);
   const refreshingRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
-  const [filters, setFilters] = useState<InvoicesTrackingFilters>({
-    dateFrom: '',
-    dateTo: '',
-    driver: 'ALL',
-    status: 'ALL',
-  });
+  const [filters, setFilters] = useState<InvoicesTrackingFilters>(DEFAULT_INVOICES_TRACKING_FILTERS);
 
   const loadAll = useCallback(async (isInitial = false) => {
     if (isInitial) setLoading(true);
@@ -131,6 +147,16 @@ export function InvoicesTrackingDataProvider({ children }: { children: React.Rea
     [drivers, users],
   );
 
+  const creators = useMemo(() => buildCreators(orders, users), [orders, users]);
+
+  const scopedOrders = useMemo(
+    () =>
+      filters.createdBy && filters.createdBy !== 'ALL'
+        ? orders.filter((o) => String(o.CREATED_BY ?? '').trim() === filters.createdBy)
+        : orders,
+    [orders, filters.createdBy],
+  );
+
   const refresh = useCallback(async () => {
     if (refreshingRef.current) return;
     refreshingRef.current = true;
@@ -150,7 +176,9 @@ export function InvoicesTrackingDataProvider({ children }: { children: React.Rea
       customers,
       drivers,
       assignedDrivers,
+      creators,
       orders,
+      scopedOrders,
       loading,
       refreshing,
       error,
@@ -158,7 +186,7 @@ export function InvoicesTrackingDataProvider({ children }: { children: React.Rea
       filters,
       setFilters,
     }),
-    [users, customers, drivers, assignedDrivers, orders, loading, refreshing, error, refresh, filters],
+    [users, customers, drivers, assignedDrivers, creators, orders, scopedOrders, loading, refreshing, error, refresh, filters],
   );
 
   return <InvoicesTrackingDataContext.Provider value={value}>{children}</InvoicesTrackingDataContext.Provider>;

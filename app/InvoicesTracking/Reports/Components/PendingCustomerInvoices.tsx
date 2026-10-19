@@ -9,7 +9,7 @@ import TabLoader from '@/app/Components/Loading/TabLoader';
 import SearchSelect from '../../Components/DropDownList';
 
 export default function PendingCustomerInvoices() {
-  const { assignedDrivers: drivers, orders, loading: isInvoicesLoading, filters } = useInvoicesTrackingData();
+  const { assignedDrivers: drivers, scopedOrders: orders, loading: isInvoicesLoading, filters } = useInvoicesTrackingData();
   const [customerSearch, setCustomerSearch] = useState('');
   const [selectedDriverId, setSelectedDriverId] = useState('');
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);

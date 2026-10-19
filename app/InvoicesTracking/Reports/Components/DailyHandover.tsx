@@ -19,7 +19,7 @@ interface HandoverGroup {
 }
 
 export default function HandoverReports() {
-  const { assignedDrivers: drivers, orders, loading, filters } = useInvoicesTrackingData();
+  const { assignedDrivers: drivers, scopedOrders: orders, loading, filters } = useInvoicesTrackingData();
   const [selectedDriverId, setSelectedDriverId] = useState('');
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   // dates come from the LPO filter (applies to every tab)

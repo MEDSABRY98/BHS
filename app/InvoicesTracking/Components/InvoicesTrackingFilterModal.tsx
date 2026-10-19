@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { X, Filter, RotateCcw, ChevronDown, Check } from 'lucide-react';
-import { useInvoicesTrackingData } from '../Context/InvoicesTrackingDataContext';
+import { DEFAULT_INVOICES_TRACKING_FILTERS, useInvoicesTrackingData } from '../Context/InvoicesTrackingDataContext';
 
 interface Props {
   open: boolean;
@@ -47,7 +47,7 @@ function CustomDropdown({ value, options, onChange }: { value: string, options: 
 }
 
 export default function InvoicesTrackingFilterModal({ open, onClose }: Props) {
-  const { filters, setFilters, assignedDrivers } = useInvoicesTrackingData();
+  const { filters, setFilters, assignedDrivers, creators } = useInvoicesTrackingData();
   const [draft, setDraft] = useState(filters);
 
   useEffect(() => {
@@ -64,7 +64,7 @@ export default function InvoicesTrackingFilterModal({ open, onClose }: Props) {
   };
 
   const handleReset = () => {
-    const defaultFilters = { dateFrom: '', dateTo: '', driver: 'ALL', status: 'ALL' };
+    const defaultFilters = DEFAULT_INVOICES_TRACKING_FILTERS;
     setDraft(defaultFilters);
     setFilters(defaultFilters);
     onClose();
@@ -114,6 +114,18 @@ export default function InvoicesTrackingFilterModal({ open, onClose }: Props) {
             </div>
           </div>
 
+          <div className="relative z-30">
+            <label className="mb-1.5 block text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Created By</label>
+            <CustomDropdown
+              value={draft.createdBy || 'ALL'}
+              onChange={(val) => setDraft({ ...draft, createdBy: val })}
+              options={[
+                { label: 'All Users', value: 'ALL' },
+                ...creators.map((u) => ({ label: u.NAME, value: u.ID })),
+              ]}
+            />
+          </div>
+
           <div className="relative z-20">
             <label className="mb-1.5 block text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Driver</label>
             <CustomDropdown
@@ -121,7 +133,7 @@ export default function InvoicesTrackingFilterModal({ open, onClose }: Props) {
               onChange={(val) => setDraft({ ...draft, driver: val })}
               options={[
                 { label: 'All Drivers', value: 'ALL' },
-                ...assignedDrivers.map(d => ({ label: d.NAME, value: d.NAME }))
+                ...assignedDrivers.map(d => ({ label: d.NAME, value: String(d.ID) }))
               ]}
             />
           </div>
@@ -133,8 +145,7 @@ export default function InvoicesTrackingFilterModal({ open, onClose }: Props) {
               onChange={(val) => setDraft({ ...draft, status: val })}
               options={[
                 { label: 'All Statuses', value: 'ALL' },
-                { label: 'Pending Customer', value: 'Pending Customer' },
-                { label: 'Pending Driver', value: 'Pending Driver' },
+                { label: 'Pending', value: 'Pending' },
                 { label: 'Canceled', value: 'Canceled' },
                 { label: 'Delivered', value: 'Delivered' }
               ]}
