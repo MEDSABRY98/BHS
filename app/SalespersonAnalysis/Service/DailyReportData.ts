@@ -120,7 +120,8 @@ export async function buildDailySalesReportData(opts: {
 
     const amount = Number(s.amount) || 0;
     const qty = Number(s.qty) || 0;
-    const unitCost = showCosts ? Number(s.productCost) || 0 : 0;
+    // the cost is always loaded: the product Margin columns show for everyone; showCosts only hides the profit cards / columns
+    const unitCost = Number(s.productCost) || 0;
     const customerId = cust ? cust.id : String(s.customerId ?? '').trim();
     const invoice = String(s.invoiceNumber ?? '').trim();
 

@@ -436,13 +436,19 @@ export async function buildDailySalesReportPdf(
     table({
       title: 'Top Products',
       sub: `${byProduct.length} product${byProduct.length === 1 ? '' : 's'} • top 15 by net sales`,
-      head: ['#', 'Barcode', 'Product', 'Qty', 'Net', 'Share'],
-      body: byProduct
-        .slice(0, 15)
-        .map((g, i) => [String(i + 1), data.products[g.key]?.barcode || '-', prodName(g.key), whole(g.qty), money(g.net), share(g.net, tot.net)]),
+      // GP (gross profit) + GP % after Share — for everyone (only lines that have a cost count)
+      head: ['#', 'Barcode', 'Product', 'Qty', 'Net', 'Share', 'GP', 'GP %'],
+      body: byProduct.slice(0, 15).map((g, i) => {
+        const row = [String(i + 1), data.products[g.key]?.barcode || '-', prodName(g.key), whole(g.qty), money(g.net), share(g.net, tot.net)];
+        const pt = totalsOf(g.lines);
+        const m = margin(pt);
+        row.push(m === null ? '-' : money(pt.profit), m === null ? '-' : `${m.toFixed(1)}%`);
+        return row;
+      }),
       nameCols: [2],
       boldCols: [4],
       colWidths: { 0: 7, 1: 26 },
+      didParseCell: negCell([6, 7]),
     });
 
   };

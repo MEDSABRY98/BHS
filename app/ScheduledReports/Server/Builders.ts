@@ -33,7 +33,7 @@ const change = (now: number, before: number) => {
 };
 
 const salespersonDaily: Builder = async (range, reportName, salespersonId) => {
-  // a salesperson's own copy: his sales only, without costs / profit (same as the Sales rule for non-admins)
+  // a salesperson's own copy: his sales only, without the profit cards / columns (the product Margin columns still show)
   const data = await buildDailySalesReportData({ start: range.start, end: range.end, onlySalespersonId: salespersonId, showCosts: !salespersonId });
   let scope = 'All salespersons';
   if (salespersonId) {
