@@ -341,6 +341,39 @@ export async function buildDailySalesReportPdf(
     if (String(d.cell.raw ?? '').startsWith('-')) d.cell.styles.textColor = C.red;
   };
 
+  // ── one salesperson's invoices ──
+  const invoicesTable = (g: Group, t: ReturnType<typeof totalsOf>) => {
+  const byInvoice = groupBy(g.lines, (l) => `${l.invoice}|${l.customerId}|${l.date}`).sort(
+    (a, b) => a.lines[0].date.localeCompare(b.lines[0].date) || a.lines[0].invoice.localeCompare(b.lines[0].invoice, undefined, { numeric: true }),
+  );
+  table({
+    title: 'Invoices',
+    sub: `${byInvoice.length} invoice${byInvoice.length === 1 ? '' : 's'} (returns included)`,
+    head: ['#', 'Invoice', ...(oneDay ? [] : ['Date']), 'Customer', 'City', 'Lines', 'Gross', 'Returns', 'Net'],
+    body: byInvoice.map((iv, i) => {
+      const l0 = iv.lines[0];
+      return [
+        String(i + 1),
+        l0.invoice || '-',
+        ...(oneDay ? [] : [fmtDay(l0.date)]),
+        custName(l0.customerId),
+        custCity(l0.customerId),
+        whole(iv.lines.length),
+        money(iv.gross),
+        iv.returns ? `-${money(iv.returns)}` : '0.00',
+        money(iv.net),
+      ];
+    }),
+    foot: ['', 'Total', ...(oneDay ? [] : ['']), '', '', whole(g.lines.length), money(t.gross), t.returns ? `-${money(t.returns)}` : '0.00', money(t.net)],
+    nameCols: [oneDay ? 2 : 3, oneDay ? 3 : 4],
+    boldCols: [oneDay ? 7 : 8],
+    colWidths: { 0: 7 },
+    fontSize: 7.2,
+    didParseCell: negCell([oneDay ? 6 : 7]),
+  });
+
+  };
+
   // ════════════════ COMPANY OVERVIEW ════════════════
   newPage(data.allSalespersons ? 'All Salespersons' : spName(Object.keys(data.salespersons)[0] || ''));
 
@@ -422,8 +455,8 @@ export async function buildDailySalesReportPdf(
     }
   }
 
-  // ── by day (several days only) ──
-  if (!oneDay) {
+  // ── by day (several days only; the full report only) ──
+  if (!oneDay && data.allSalespersons) {
     const byDay = groupBy(lines, (l) => l.date).sort((a, b) => a.key.localeCompare(b.key));
     table({
       title: 'Sales by Day',
@@ -434,150 +467,147 @@ export async function buildDailySalesReportPdf(
     });
   }
 
-  // ── top customers ──
-  const byCustomer = groupBy(lines, (l) => l.customerId);
-  table({
-    title: 'Top Customers',
-    sub: `${byCustomer.length} customer${byCustomer.length === 1 ? '' : 's'} • top 15 by net sales`,
-    head: ['#', 'Customer', 'City', ...(data.allSalespersons ? ['Salesperson'] : []), 'Invoices', 'Net', 'Share'],
-    body: byCustomer.slice(0, 15).map((g, i) => [
-      String(i + 1),
-      custName(g.key),
-      custCity(g.key),
-      ...(data.allSalespersons ? [spName(g.lines[0].salespersonId)] : []),
-      whole(g.invoices),
-      money(g.net),
-      share(g.net, total.net),
-    ]),
-    nameCols: data.allSalespersons ? [1, 3] : [1],
-    boldCols: [data.allSalespersons ? 5 : 4],
-    colWidths: { 0: 7 },
-  });
-
-  // ── top products ──
-  const byProduct = groupBy(lines, (l) => l.productId);
-  table({
-    title: 'Top Products',
-    sub: `${byProduct.length} product${byProduct.length === 1 ? '' : 's'} • top 15 by net sales`,
-    head: ['#', 'Barcode', 'Product', 'Qty', 'Net', 'Share'],
-    body: byProduct
-      .slice(0, 15)
-      .map((g, i) => [String(i + 1), data.products[g.key]?.barcode || '-', prodName(g.key), whole(g.qty), money(g.net), share(g.net, total.net)]),
-    nameCols: [2],
-    boldCols: [4],
-    colWidths: { 0: 7, 1: 26 },
-  });
-
-  // ── by city / by category ──
-  const byCity = groupBy(lines, (l) => custCity(l.customerId));
-  table({
-    title: 'Sales by City',
-    head: ['City', 'Customers', 'Invoices', 'Net', 'Share'],
-    body: byCity.slice(0, 12).map((g) => [g.key, whole(g.customers), whole(g.invoices), money(g.net), share(g.net, total.net)]),
-    nameCols: [0],
-    boldCols: [3],
-  });
-  const byCategory = groupBy(lines, (l) => shortCategory(data.products[l.productId]?.category || 'Uncategorized'));
-  table({
-    title: 'Sales by Category',
-    head: ['Category', 'Products', 'Qty', 'Net', 'Share'],
-    body: byCategory
-      .slice(0, 12)
-      .map((g) => [g.key, whole(new Set(g.lines.map((l) => l.productId)).size), whole(g.qty), money(g.net), share(g.net, total.net)]),
-    nameCols: [0],
-    boldCols: [3],
-  });
-
-  // ── returns ──
-  const returns = lines.filter((l) => l.amount < 0).sort((a, b) => a.amount - b.amount);
-  if (returns.length) {
-    const head = ['Invoice', ...(oneDay ? [] : ['Date']), 'Customer', ...(data.allSalespersons ? ['Salesperson'] : []), 'Product', 'Qty', 'Amount'];
+  // ── top customers / top products ──
+  const topTables = () => {
+    const byCustomer = groupBy(lines, (l) => l.customerId);
     table({
-      title: 'Returns',
-      sub: `${returns.length} return line${returns.length === 1 ? '' : 's'} • AED ${money(total.returns)}${returns.length > 25 ? ' • biggest 25' : ''}`,
-      head,
-      body: returns
-        .slice(0, 25)
-        .map((l) => [
-          l.invoice || '-',
-          ...(oneDay ? [] : [fmtDay(l.date)]),
-          custName(l.customerId),
-          ...(data.allSalespersons ? [spName(l.salespersonId)] : []),
-          prodName(l.productId),
-          whole(Math.abs(l.qty)),
-          `-${money(Math.abs(l.amount))}`,
-        ]),
-      nameCols: ['Customer', 'Salesperson', 'Product'].map((h) => head.indexOf(h)).filter((i) => i >= 0),
-      fontSize: 7,
-      didParseCell: (d) => {
-        if (d.section === 'body' && d.column.index === head.length - 1) {
-          d.cell.styles.textColor = C.red;
-          d.cell.styles.fontStyle = 'bold';
-        }
-      },
-    });
-  }
-
-  // ════════════════ ONE SECTION PER SALESPERSON ════════════════
-  for (const g of bySp) {
-    newPage(spName(g.key));
-    const t = totalsOf(g.lines);
-    const prevNet = data.prevNetBySalesperson[g.key] || 0;
-    const m = margin(t);
-    const spCards: Card[] = [
-      { label: 'Net Sales', value: `AED ${money(t.net)}`, change: change(t.net, prevNet), foot: `prev ${shortMoney(prevNet)}`, accent: C.gold },
-      { label: 'Share of Total', value: share(t.net, total.net), foot: data.allSalespersons ? `rank ${bySp.indexOf(g) + 1} of ${bySp.length}` : '', accent: C.goldDark },
-      { label: 'Gross / Returns', value: `${shortMoney(t.gross)} / ${shortMoney(t.returns)}`, foot: t.gross ? `returns ${((t.returns / t.gross) * 100).toFixed(1)}%` : '', accent: C.red },
-      { label: 'Invoices', value: whole(t.invoices), foot: `avg AED ${money(t.invoices ? t.gross / t.invoices : 0)}`, accent: C.ink },
-      { label: 'Customers', value: whole(t.customers), foot: `${whole(t.qty)} items • ${whole(t.products)} products`, accent: C.ink },
-      showCosts
-        ? { label: 'Gross Profit', value: `AED ${money(t.profit)}`, foot: m === null ? '' : `margin ${m.toFixed(1)}%`, accent: C.green }
-        : { label: 'Avg per Customer', value: `AED ${money(t.customers ? t.net / t.customers : 0)}`, accent: C.green },
-    ];
-    cards(spCards);
-
-    // invoices
-    const byInvoice = groupBy(g.lines, (l) => `${l.invoice}|${l.customerId}|${l.date}`).sort(
-      (a, b) => a.lines[0].date.localeCompare(b.lines[0].date) || a.lines[0].invoice.localeCompare(b.lines[0].invoice, undefined, { numeric: true }),
-    );
-    table({
-      title: 'Invoices',
-      sub: `${byInvoice.length} invoice${byInvoice.length === 1 ? '' : 's'} (returns included)`,
-      head: ['#', 'Invoice', ...(oneDay ? [] : ['Date']), 'Customer', 'City', 'Lines', 'Gross', 'Returns', 'Net'],
-      body: byInvoice.map((iv, i) => {
-        const l0 = iv.lines[0];
-        return [
-          String(i + 1),
-          l0.invoice || '-',
-          ...(oneDay ? [] : [fmtDay(l0.date)]),
-          custName(l0.customerId),
-          custCity(l0.customerId),
-          whole(iv.lines.length),
-          money(iv.gross),
-          iv.returns ? `-${money(iv.returns)}` : '0.00',
-          money(iv.net),
-        ];
-      }),
-      foot: ['', 'Total', ...(oneDay ? [] : ['']), '', '', whole(g.lines.length), money(t.gross), t.returns ? `-${money(t.returns)}` : '0.00', money(t.net)],
-      nameCols: [oneDay ? 2 : 3, oneDay ? 3 : 4],
-      boldCols: [oneDay ? 7 : 8],
+      title: 'Top Customers',
+      sub: `${byCustomer.length} customer${byCustomer.length === 1 ? '' : 's'} • top 15 by net sales`,
+      head: ['#', 'Customer', 'City', ...(data.allSalespersons ? ['Salesperson'] : []), 'Invoices', 'Net', 'Share'],
+      body: byCustomer.slice(0, 15).map((g, i) => [
+        String(i + 1),
+        custName(g.key),
+        custCity(g.key),
+        ...(data.allSalespersons ? [spName(g.lines[0].salespersonId)] : []),
+        whole(g.invoices),
+        money(g.net),
+        share(g.net, total.net),
+      ]),
+      nameCols: data.allSalespersons ? [1, 3] : [1],
+      boldCols: [data.allSalespersons ? 5 : 4],
       colWidths: { 0: 7 },
-      fontSize: 7.2,
-      didParseCell: negCell([oneDay ? 6 : 7]),
     });
 
-    // top products of this salesperson
-    const prods = groupBy(g.lines, (l) => l.productId);
+    // ── top products ──
+    const byProduct = groupBy(lines, (l) => l.productId);
     table({
       title: 'Top Products',
-      sub: `${prods.length} product${prods.length === 1 ? '' : 's'} • top 10`,
+      sub: `${byProduct.length} product${byProduct.length === 1 ? '' : 's'} • top 15 by net sales`,
       head: ['#', 'Barcode', 'Product', 'Qty', 'Net', 'Share'],
-      body: prods.slice(0, 10).map((p, i) => [String(i + 1), data.products[p.key]?.barcode || '-', prodName(p.key), whole(p.qty), money(p.net), share(p.net, t.net)]),
+      body: byProduct
+        .slice(0, 15)
+        .map((g, i) => [String(i + 1), data.products[g.key]?.barcode || '-', prodName(g.key), whole(g.qty), money(g.net), share(g.net, total.net)]),
       nameCols: [2],
       boldCols: [4],
       colWidths: { 0: 7, 1: 26 },
     });
-  }
+
+  };
+
+  // ── by city / by category ──
+  const placeTables = () => {
+    const byCity = groupBy(lines, (l) => custCity(l.customerId));
+    table({
+      title: 'Sales by City',
+      head: ['City', 'Customers', 'Invoices', 'Net', 'Share'],
+      body: byCity.slice(0, 12).map((g) => [g.key, whole(g.customers), whole(g.invoices), money(g.net), share(g.net, total.net)]),
+      nameCols: [0],
+      boldCols: [3],
+    });
+    const byCategory = groupBy(lines, (l) => shortCategory(data.products[l.productId]?.category || 'Uncategorized'));
+    table({
+      title: 'Sales by Category',
+      head: ['Category', 'Products', 'Qty', 'Net', 'Share'],
+      body: byCategory
+        .slice(0, 12)
+        .map((g) => [g.key, whole(new Set(g.lines.map((l) => l.productId)).size), whole(g.qty), money(g.net), share(g.net, total.net)]),
+      nameCols: [0],
+      boldCols: [3],
+    });
+
+  };
+
+  const spTitle = spName(Object.keys(data.salespersons)[0] || '');
+
+  if (!data.allSalespersons) {
+    // ═══ one salesperson: cards → tops → city & category → invoices (each part starts a new page) ═══
+    newPage(spTitle);
+    topTables();
+    newPage(spTitle);
+    placeTables();
+    const g = bySp[0];
+    if (g) {
+      newPage(spTitle);
+      invoicesTable(g, totalsOf(g.lines));
+    }
+  } else {
+    topTables();
+    placeTables();
+
+    // ── returns ──
+    const returns = lines.filter((l) => l.amount < 0).sort((a, b) => a.amount - b.amount);
+    if (returns.length) {
+      const head = ['Invoice', ...(oneDay ? [] : ['Date']), 'Customer', ...(data.allSalespersons ? ['Salesperson'] : []), 'Product', 'Qty', 'Amount'];
+      table({
+        title: 'Returns',
+        sub: `${returns.length} return line${returns.length === 1 ? '' : 's'} • AED ${money(total.returns)}${returns.length > 25 ? ' • biggest 25' : ''}`,
+        head,
+        body: returns
+          .slice(0, 25)
+          .map((l) => [
+            l.invoice || '-',
+            ...(oneDay ? [] : [fmtDay(l.date)]),
+            custName(l.customerId),
+            ...(data.allSalespersons ? [spName(l.salespersonId)] : []),
+            prodName(l.productId),
+            whole(Math.abs(l.qty)),
+            `-${money(Math.abs(l.amount))}`,
+          ]),
+        nameCols: ['Customer', 'Salesperson', 'Product'].map((h) => head.indexOf(h)).filter((i) => i >= 0),
+        fontSize: 7,
+        didParseCell: (d) => {
+          if (d.section === 'body' && d.column.index === head.length - 1) {
+            d.cell.styles.textColor = C.red;
+            d.cell.styles.fontStyle = 'bold';
+          }
+        },
+      });
+    }
+
+    // ════════════════ ONE SECTION PER SALESPERSON ════════════════
+    for (const g of bySp) {
+      newPage(spName(g.key));
+      const t = totalsOf(g.lines);
+      const prevNet = data.prevNetBySalesperson[g.key] || 0;
+      const m = margin(t);
+      const spCards: Card[] = [
+        { label: 'Net Sales', value: `AED ${money(t.net)}`, change: change(t.net, prevNet), foot: `prev ${shortMoney(prevNet)}`, accent: C.gold },
+        { label: 'Share of Total', value: share(t.net, total.net), foot: data.allSalespersons ? `rank ${bySp.indexOf(g) + 1} of ${bySp.length}` : '', accent: C.goldDark },
+        { label: 'Gross / Returns', value: `${shortMoney(t.gross)} / ${shortMoney(t.returns)}`, foot: t.gross ? `returns ${((t.returns / t.gross) * 100).toFixed(1)}%` : '', accent: C.red },
+        { label: 'Invoices', value: whole(t.invoices), foot: `avg AED ${money(t.invoices ? t.gross / t.invoices : 0)}`, accent: C.ink },
+        { label: 'Customers', value: whole(t.customers), foot: `${whole(t.qty)} items • ${whole(t.products)} products`, accent: C.ink },
+        showCosts
+          ? { label: 'Gross Profit', value: `AED ${money(t.profit)}`, foot: m === null ? '' : `margin ${m.toFixed(1)}%`, accent: C.green }
+          : { label: 'Avg per Customer', value: `AED ${money(t.customers ? t.net / t.customers : 0)}`, accent: C.green },
+      ];
+      cards(spCards);
+
+      invoicesTable(g, t);
+
+      // top products of this salesperson
+      const prods = groupBy(g.lines, (l) => l.productId);
+      table({
+        title: 'Top Products',
+        sub: `${prods.length} product${prods.length === 1 ? '' : 's'} • top 10`,
+        head: ['#', 'Barcode', 'Product', 'Qty', 'Net', 'Share'],
+        body: prods.slice(0, 10).map((p, i) => [String(i + 1), data.products[p.key]?.barcode || '-', prodName(p.key), whole(p.qty), money(p.net), share(p.net, t.net)]),
+        nameCols: [2],
+        boldCols: [4],
+        colWidths: { 0: 7, 1: 26 },
+      });
+    }
+
+  } // end full report
 
   // ── footer: page X of Y ──
   const pages = doc.internal.getNumberOfPages();
