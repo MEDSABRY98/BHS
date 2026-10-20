@@ -67,21 +67,21 @@ export default function SalesTab() {
         />
         <KpiCard
           compact
-          label="Avg Invoice"
-          value={Money(s.avgInvoice)}
-          icon={<Receipt className="w-5 h-5" />}
-          accent="slate"
-          change={Change(s.avgInvoice, s.prevAvgInvoice)}
-          previous={Money(s.prevAvgInvoice)}
-        />
-        <KpiCard
-          compact
           label="Active Customers"
           value={Whole(s.cur.customers)}
           icon={<Users className="w-5 h-5" />}
           accent="green"
           change={Change(s.cur.customers, s.prev.customers)}
           previous={Whole(s.prev.customers)}
+        />
+        <KpiCard
+          compact
+          label="Avg Invoice"
+          value={Money(s.avgInvoice)}
+          icon={<Receipt className="w-5 h-5" />}
+          accent="slate"
+          change={Change(s.avgInvoice, s.prevAvgInvoice)}
+          previous={Money(s.prevAvgInvoice)}
         />
         <KpiCard
           compact

@@ -9,7 +9,7 @@ import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import { toast } from '@/app/Components/Notification';
 import { restoreSessionUser } from '@/app/Components/Auth/sessionClient';
 import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
-import { useDebitNotesTabAudit } from '@/app/Audit/Model/DebitNotesTabAudit';
+import { useDebitNotesTabAudit } from '@/app/AdminControl/Code/Audit/Model/DebitNotesTabAudit';
 import DebitNotesSidebar from './Utils/Sidebar';
 import DebitNoteForm from './Components/DebitNoteForm';
 import DebitNotesList from './Components/DebitNotesList';

@@ -3,7 +3,7 @@
 // PDF export of the lines shown in Intercompany Entries (same look as the other BHS statements).
 
 import { addArabicFont } from '@/app/Components/Pdf/shared';
-import { saveTrackedPdf } from '@/app/Audit/Utils/TrackedDownload';
+import { saveTrackedPdf } from '@/app/AdminControl/Code/Audit/TrackedDownload';
 import { formatAmount, formatDate, round2, type IntercompanyEntry } from './IntercompanyTypes';
 
 const COLORS = {

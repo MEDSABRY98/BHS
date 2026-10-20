@@ -35,7 +35,7 @@ function errMsg(error: unknown, fallback: string): string {
 async function requireUser(): Promise<SessionUserRecord> {
   const user = await getSessionUser();
   if (!user) throw new UnauthorizedError('Your session has expired. Please log in again.');
-  if (isAdminUser(user)) return user;
+  if (isAdminUser(user, 'roi')) return user;
   try {
     const roleStr = String(user.role || '').trim();
     if (!roleStr || roleStr === 'Admin') return user;
@@ -52,7 +52,7 @@ async function requireUser(): Promise<SessionUserRecord> {
 
 /** Same rule as the Sales module: admins always; FULL DATA ACCESS alone does not unlock costs. */
 function canSeeCosts(user: SessionUserRecord): boolean {
-  if (isAdminUser(user)) return true;
+  if (isAdminUser(user, 'roi')) return true;
   try {
     const roleStr = String(user.role || '').trim();
     if (!roleStr || roleStr === 'Admin') return true;
@@ -114,7 +114,7 @@ async function loadCustomers(): Promise<Map<string, CustomerRow>> {
 
 /** Customers the user is allowed to see: everyone for full-access users, own customers otherwise. */
 function visibleCustomers(user: SessionUserRecord, all: Map<string, CustomerRow>): Map<string, CustomerRow> {
-  if (hasFullDebitAccess(user)) return all;
+  if (hasFullDebitAccess(user, 'roi')) return all;
   const mine = new Set([norm(user.id), norm(user.name)].filter(Boolean));
   const out = new Map<string, CustomerRow>();
   all.forEach((c, k) => {
@@ -264,7 +264,7 @@ export async function ListCustomerOptions(): Promise<{ customers: CustomerOption
     list.push({ id: c.id, name: c.name, mainName: c.mainName, city: c.city, salespersonId: spId });
   });
   // everyone who can be chosen as the salesperson of a support (any user is allowed for full-access users)
-  if (hasFullDebitAccess(user)) nameById.forEach((name, id) => spMap.set(id, { id, name }));
+  if (hasFullDebitAccess(user, 'roi')) nameById.forEach((name, id) => spMap.set(id, { id, name }));
   return {
     customers: list.sort((a, b) => a.name.localeCompare(b.name)),
     salespersons: Array.from(spMap.values()).sort((a, b) => a.name.localeCompare(b.name)),

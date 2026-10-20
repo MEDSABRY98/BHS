@@ -1,5 +1,5 @@
 import autoTable from 'jspdf-autotable';
-import { saveTrackedPdf } from '@/app/Audit/Utils/TrackedDownload';
+import { saveTrackedPdf } from '@/app/AdminControl/Code/Audit/TrackedDownload';
 
 export type ScrapReportPdfItem = {
   barcode?: string;
@@ -235,6 +235,17 @@ export async function downloadInventoryScrapReportPDF(
     doc.setTextColor(136, 136, 136);
     doc.text('Signature & Date', x + sigWidth / 2, y + 26, { align: 'center' });
   });
+
+  // ── Footer: page X of Y on every page ───────────────────
+  const pages = doc.getNumberOfPages();
+  const H = doc.internal.pageSize.getHeight();
+  for (let p = 1; p <= pages; p++) {
+    doc.setPage(p);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(136, 136, 136);
+    doc.text(`Page ${p} of ${pages}`, W - M, H - 8, { align: 'right' });
+  }
 
   const safeName = String(reportNo || 'Scrap_Report').replace(/[\\/:*?"<>|]+/g, '_');
   saveTrackedPdf(doc, `${safeName}.pdf`);

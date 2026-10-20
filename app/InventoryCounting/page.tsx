@@ -9,7 +9,7 @@ import Sidebar, {
   getCountingTabLabel,
   type InventoryCountingTabId,
 } from './Utils/Sidebar';
-import { useInventoryCountingTabAudit } from '@/app/Audit/Model/InventoryCountingTabAudit';
+import { useInventoryCountingTabAudit } from '@/app/AdminControl/Code/Audit/Model/InventoryCountingTabAudit';
 import Login from '@/app/Components/Auth/Login';
 import MainLoader from '@/app/Components/Loading/MainLoader';
 import TabLoader from '@/app/Components/Loading/TabLoader';
@@ -17,7 +17,7 @@ import { ICPageLoadingProvider, useICPageLoading } from './Utils/ICPageLoading';
 import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
 
 function hasInventoryCountingAccess(user: any): boolean {
-  if (isAdminRole(user)) return true;
+  if (isAdminRole(user, 'inventory-counting')) return true;
 
   try {
     const perms = JSON.parse(user?.role || '{}');

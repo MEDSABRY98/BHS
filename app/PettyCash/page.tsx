@@ -9,7 +9,7 @@ import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import { toast } from '@/app/Components/Notification';
 import { restoreSessionUser } from '@/app/Components/Auth/sessionClient';
 import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
-import { usePettyCashTabAudit } from '@/app/Audit/Model/PettyCashTabAudit';
+import { usePettyCashTabAudit } from '@/app/AdminControl/Code/Audit/Model/PettyCashTabAudit';
 import PettyCashSidebar from './Utils/Sidebar';
 import PettyCashForm from './Components/PettyCashForm';
 import PettyCashCards from './Components/PettyCashCards';

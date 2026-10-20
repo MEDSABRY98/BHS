@@ -8,7 +8,7 @@ import { Menu } from 'lucide-react';
 import { restoreSessionUser } from '@/app/Components/Auth/sessionClient';
 import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
 
-import { useCashReceiptTabAudit } from '@/app/Audit/Model/CashReceiptTabAudit';
+import { useCashReceiptTabAudit } from '@/app/AdminControl/Code/Audit/Model/CashReceiptTabAudit';
 
 // Unified cash vouchers (Cash In / Cash Out)
 import VoucherEntry from './Components/VoucherEntry';

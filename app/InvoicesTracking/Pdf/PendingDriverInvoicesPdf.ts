@@ -1,7 +1,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { printPdfInSameTab } from './DeliveryUtils';
-import { saveTrackedPdf } from '@/app/Audit/Utils/TrackedDownload';
+import { saveTrackedPdf } from '@/app/AdminControl/Code/Audit/TrackedDownload';
 
 export async function generatePendingDriverInvoicesPDF(
   driverName: string,

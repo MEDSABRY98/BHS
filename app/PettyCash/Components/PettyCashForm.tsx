@@ -4,7 +4,15 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Copy, FolderOpen, Loader2, Pencil, Plus, RotateCcw, Save, Trash2, X } from 'lucide-react';
 import { toast } from '@/app/Components/Notification';
 import SuggestInput from './SuggestInput';
-import { getAccountSuggestions, getMyOpenPettyCash, getPettyCashSuggestions, savePettyCash, updatePettyCash } from '../Service/PettyCashService';
+import EmployeePicker from './EmployeePicker';
+import {
+  getAccountSuggestions,
+  getMyOpenPettyCash,
+  getPettyCashSuggestions,
+  listPettyCashEmployees,
+  savePettyCash,
+  updatePettyCash,
+} from '../Service/PettyCashService';
 import {
   MAX_LINES,
   MAX_OPEN_LINES,
@@ -133,12 +141,36 @@ export default function PettyCashForm({ onSaved, editItem = null, onCancelEdit, 
   const [suggestions, setSuggestions] = useState<{ beneficiaries: string[]; descriptions: string[] }>({ beneficiaries: [], descriptions: [] });
   const focusKey = useRef<number | null>(null);
   const today = uaeToday();
+  // admin only (new or edit): the employee it is for - any name; new: '' = himself
+  const pickEmployee = admin;
+  const [employeeInput, setEmployeeInput] = useState(editItem?.EMPLOYEE_NAME || '');
+  const [employeeNames, setEmployeeNames] = useState<string[]>([]);
+  const employeeName = pickEmployee ? employeeInput.trim() : '';
+  const [lookupName, setLookupName] = useState(''); // employeeName, after the user stops typing
 
   useEffect(() => {
     getPettyCashSuggestions().then(setSuggestions).catch(() => {});
     if (showAccount) getAccountSuggestions().then(setAccounts).catch(() => {});
-    if (!isEdit) getMyOpenPettyCash().then(setOpenPc).catch(() => setOpenPc(null));
-  }, [isEdit, showAccount]);
+    if (pickEmployee) listPettyCashEmployees().then(setEmployeeNames).catch(() => setEmployeeNames([]));
+  }, [showAccount, pickEmployee]);
+
+  useEffect(() => {
+    const t = setTimeout(() => setLookupName(employeeName), 400);
+    return () => clearTimeout(t);
+  }, [employeeName]);
+
+  // the open petty cash for this employee name (or the user himself)
+  useEffect(() => {
+    if (isEdit) return;
+    let alive = true;
+    setOpenPc(undefined);
+    getMyOpenPettyCash(lookupName || undefined)
+      .then((pc) => alive && setOpenPc(pc))
+      .catch(() => alive && setOpenPc(null));
+    return () => {
+      alive = false;
+    };
+  }, [isEdit, lookupName]);
 
   // focus the description of a newly added row
   useEffect(() => {
@@ -187,6 +219,7 @@ export default function PettyCashForm({ onSaved, editItem = null, onCancelEdit, 
   const reset = () => {
     setRows(editItem && editItem.LINES.length ? rowsFrom(editItem) : [emptyRow()]);
     setNotes(editItem?.NOTES || '');
+    setEmployeeInput(editItem?.EMPLOYEE_NAME || '');
     setErrors({});
   };
 
@@ -231,15 +264,17 @@ export default function PettyCashForm({ onSaved, editItem = null, onCancelEdit, 
     setSaving(true);
     try {
       if (editItem) {
-        const saved = await updatePettyCash(editItem.ID, { NOTES: notes, LINES: lines });
+        const saved = await updatePettyCash(editItem.ID, { NOTES: notes, LINES: lines, ...(employeeName ? { EMPLOYEE_NAME: employeeName } : {}) });
         toast.success(`${saved.ID} updated — AED ${formatAmount(saved.TOTAL_AMOUNT)}`);
         onSaved(saved, true);
         return;
       }
-      const saved = await savePettyCash({ NOTES: notes, LINES: lines });
+      const saved = await savePettyCash({ NOTES: notes, LINES: lines, ...(employeeName ? { EMPLOYEE_NAME: employeeName } : {}) });
       toast.success(`${lines.length} row${lines.length === 1 ? '' : 's'} added to ${saved.ID} — now ${saved.LINES_COUNT} rows · AED ${formatAmount(saved.TOTAL_AMOUNT)}`);
       setOpenPc({ ID: saved.ID, LINES_COUNT: saved.LINES_COUNT, TOTAL_AMOUNT: saved.TOTAL_AMOUNT });
+      const keepEmployee = employeeInput; // the next rows are usually for the same employee
       reset();
+      setEmployeeInput(keepEmployee);
       onSaved(saved, false);
     } catch (err: any) {
       toast.error(err?.message || 'Could not save');
@@ -262,7 +297,9 @@ export default function PettyCashForm({ onSaved, editItem = null, onCancelEdit, 
             <div className="min-w-0">
               <h1 className="text-3xl sm:text-4xl font-normal text-black tracking-tighter">Edit {editItem.ID}</h1>
               <p className="text-sm font-semibold text-slate-400 truncate">
-                {editItem.CREATED_BY} · {formatDate(uaeDateOf(editItem.CREATED_AT))}
+                {editItem.EMPLOYEE_NAME}
+                {editItem.CREATED_BY && editItem.CREATED_BY !== editItem.EMPLOYEE_NAME ? ` · recorded by ${editItem.CREATED_BY}` : ''} ·{' '}
+                {formatDate(uaeDateOf(editItem.CREATED_AT))}
               </p>
             </div>
           </div>
@@ -274,16 +311,25 @@ export default function PettyCashForm({ onSaved, editItem = null, onCancelEdit, 
                 <FolderOpen className="w-4 h-4 text-amber-500 shrink-0" />
                 {openPc ? (
                   <span>
-                    Adding to your open <span className="font-black text-slate-700">{openPc.ID}</span> · {openPc.LINES_COUNT} row{openPc.LINES_COUNT === 1 ? '' : 's'} · AED {formatAmount(openPc.TOTAL_AMOUNT)}
+                    Adding to {employeeName ? <span dir="auto">{employeeName}&apos;s</span> : 'your'} open <span className="font-black text-slate-700">{openPc.ID}</span> · {openPc.LINES_COUNT} row{openPc.LINES_COUNT === 1 ? '' : 's'} · AED {formatAmount(openPc.TOTAL_AMOUNT)}
                   </span>
                 ) : (
-                  <span>A new open petty cash will start with these rows</span>
+                  <span>A new open petty cash{employeeName ? <> for <span dir="auto">{employeeName}</span></> : ''} will start with these rows</span>
                 )}
               </p>
             )}
           </div>
         )}
         <div className="flex flex-wrap gap-2">
+          {pickEmployee && (
+            <EmployeePicker
+              value={employeeInput}
+              names={employeeNames}
+              onChange={setEmployeeInput}
+              disabled={saving}
+              placeholder={editItem ? editItem.EMPLOYEE_NAME || editItem.CREATED_BY : 'Myself'}
+            />
+          )}
           <span className="px-3.5 py-2 rounded-xl bg-white border border-slate-100 shadow-sm text-sm font-bold text-slate-700">
             <span className="text-slate-400 mr-1">Rows</span>
             {filled.length}

@@ -3,7 +3,7 @@ import { Bebas_Neue, Geist, Geist_Mono, Space_Mono } from "next/font/google";
 import "./globals.css";
 import { NotificationContainer } from "@/app/Components/Notification";
 import MobileBlocker from "@/lib/MobileBlocker";
-import ActivityTracker from "@/app/Audit/Components/ActivityTracker";
+import ActivityTracker from "@/app/AdminControl/Code/Audit/ActivityTracker";
 import { AppSessionProvider } from "@/app/Components/Auth/AppSessionProvider";
 
 const geistSans = Geist({

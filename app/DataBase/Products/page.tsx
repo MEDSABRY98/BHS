@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { searchOrFilters } from '@/app/DataBase/Utils/SearchUtils';
-import { useDataBaseProductsTabAudit } from '@/app/Audit/Model/DataBaseTabAudit';
+import { useDataBaseProductsTabAudit } from '@/app/AdminControl/Code/Audit/Model/DataBaseTabAudit';
 import { bhs_supabas } from '@/lib/secureDb';
 import * as XLSX from 'xlsx';
 import {

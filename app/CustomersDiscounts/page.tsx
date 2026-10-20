@@ -4,7 +4,7 @@ import { CheckCircle } from "lucide-react";
 import { buildCustomerEmailMap, getCustomerEmail } from "@/lib/supabase";
 import { bhs_supabase, fetchAllData, getAllCustomerEmails, getLuluEmails } from "@/lib/secureDb";
 import Sidebar, { CUSTOMERS_DISCOUNTS_TAB_IDS } from "./Utils/Sidebar";
-import { getAllowedModuleTabIds, getCurrentUserFromStorage } from '@/app/AdminControl/AdminControlTab';
+import { getAllowedModuleTabIds, getCurrentUserFromStorage } from '@/app/AdminControl/AdminControl/AdminControlTab';
 import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
 import ConfirmModal from "./ConfirmModal";
 import { toast, NotificationContainer } from "@/app/Components/Notification";
@@ -29,7 +29,7 @@ import {
   updateDiscount,
   updateSettlementType,
 } from "./Service/discounts_service";
-import { useCustomersDiscountsTabAudit } from '@/app/Audit/Model/CustomersDiscountsTabAudit';
+import { useCustomersDiscountsTabAudit } from '@/app/AdminControl/Code/Audit/Model/CustomersDiscountsTabAudit';
 
 export type { MonthGroup } from "./Utils/settlementUtils";
 
@@ -462,7 +462,7 @@ export default function CustomerDiscountsPage() {
       if (!built) return;
 
       const blob = new Blob([built.emlContent], { type: "message/rfc822" });
-      const { saveTrackedAs } = await import("@/app/Audit/Utils/TrackedDownload");
+      const { saveTrackedAs } = await import("@/app/AdminControl/Code/Audit/TrackedDownload");
       saveTrackedAs(blob, `Tax_Rebate_Request_${built.fileLabel}.eml`);
       toast.success(
         tag
@@ -559,7 +559,7 @@ export default function CustomerDiscountsPage() {
       }
 
       const content = await zip.generateAsync({ type: "blob" });
-      const { saveTrackedAs } = await import("@/app/Audit/Utils/TrackedDownload");
+      const { saveTrackedAs } = await import("@/app/AdminControl/Code/Audit/TrackedDownload");
       saveTrackedAs(
         content,
         `Tax_Rebate_Emails_${new Date().toISOString().split("T")[0]}.zip`

@@ -23,6 +23,7 @@ type SalesUserLike = {
   userAdmin?: string;
   salesDataAccess?: unknown;
   isSalesManager?: unknown;
+  moduleAdmins?: Record<string, unknown>;
 } | null | undefined;
 
 /** Admin / super-user — unrestricted tab visibility within Sales. */
@@ -30,6 +31,7 @@ export function isUnrestrictedSalesUser(user: SalesUserLike): boolean {
   if (!user) return false;
   if (String(user.userAdmin || '').trim().toLowerCase() === 'admin') return true;
   if (String(user.role || '').trim() === 'Admin') return true;
+  if (user.moduleAdmins?.['sales']) return true; // admin of the Sales module
   return false;
 }
 

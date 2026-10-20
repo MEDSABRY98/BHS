@@ -32,7 +32,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 //  Permissions (Admin Control → 'transfer-requests', tabs: new / requests / beneficiaries)
 // ─────────────────────────────────────────────────────────────
 function permissionsOf(user: SessionUserRecord): TransferPermissions {
-  const admin = isAdminUser(user);
+  const admin = isAdminUser(user, TRANSFER_SYSTEM_ID); // the admin or an admin of this module
   if (admin) return { tabs: [...ALL_TABS], viewAll: true };
 
   const raw = String(user.role || '').trim();
@@ -197,7 +197,7 @@ export async function saveTransferRequest(input: TransferRequestInput): Promise<
     const { data: existing, error: findErr } = await db.from(REQUESTS).select('ID, CREATED_BY, TRANSFER_TYPE').eq('ID', id).maybeSingle();
     if (findErr) throw new Error(findErr.message);
     if (!existing) throw new Error('This request no longer exists');
-    if (!perms.viewAll) throw new UnauthorizedError('Only the admin can edit a saved request');
+    if (!perms.viewAll || !isAdminUser(user, TRANSFER_SYSTEM_ID, 'edit')) throw new UnauthorizedError('Only the admin can edit a saved request');
     if ((existing.TRANSFER_TYPE === 'INTERNAL') !== (type === 'INTERNAL')) {
       throw new Error("An internal request can't be changed to Al Ain / Dubai (or the opposite) — create a new request");
     }
@@ -214,8 +214,8 @@ export async function saveTransferRequest(input: TransferRequestInput): Promise<
 }
 
 export async function deleteTransferRequest(id: string): Promise<{ success: true }> {
-  const { perms } = await requireTab('requests');
-  if (!perms.viewAll) throw new UnauthorizedError('Only the admin can delete a request');
+  const { user, perms } = await requireTab('requests');
+  if (!perms.viewAll || !isAdminUser(user, TRANSFER_SYSTEM_ID, 'delete')) throw new UnauthorizedError('Only the admin can delete a request');
   const reqId = requireUuid(id);
   const db = getSupabaseAdmin();
   const { data: existing, error } = await db.from(REQUESTS).select('CREATED_BY').eq('ID', reqId).maybeSingle();

@@ -3,7 +3,7 @@
 import { isAdminRole } from '@/lib/AdminRole';
 import { useState, useEffect } from 'react';
 import InventoryScrapTab from '@/app/InventoryScrap/Components/InventoryScrapTab';
-import { useInventoryScrapTabAudit } from '@/app/Audit/Model/InventoryScrapTabAudit';
+import { useInventoryScrapTabAudit } from '@/app/AdminControl/Code/Audit/Model/InventoryScrapTabAudit';
 import Login from '@/app/Components/Auth/Login';
 import MainLoader from '@/app/Components/Loading/MainLoader';
 import {
@@ -18,8 +18,8 @@ import {
   Lock,
   History
 } from 'lucide-react';
-import type { InventoryScrapTabId } from '@/app/Audit/Model/InventoryScrapTabAudit';
-import { getAllowedModuleTabIds } from '@/app/AdminControl/AdminControlTab';
+import type { InventoryScrapTabId } from '@/app/AdminControl/Code/Audit/Model/InventoryScrapTabAudit';
+import { getAllowedModuleTabIds } from '@/app/AdminControl/AdminControl/AdminControlTab';
 import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
 
 const SCRAP_TABS: { id: InventoryScrapTabId; label: string; icon: typeof Plus }[] = [
@@ -46,7 +46,7 @@ export default function InventoryScrapPage() {
     try {
       const perms = JSON.parse(currentUser.role || '{}');
       if (Array.isArray(perms.systems)) {
-        setIsAllowed(perms.systems.includes('inventory-scrap') || isAdminRole(currentUser));
+        setIsAllowed(perms.systems.includes('inventory-scrap') || isAdminRole(currentUser, 'inventory-scrap'));
       }
     } catch {
       // keep current allow state
@@ -70,7 +70,7 @@ export default function InventoryScrapPage() {
         }
 
         // Check permission for inventory-scrap
-        if (isAdminRole(parsed)) {
+        if (isAdminRole(parsed, 'inventory-scrap')) {
           setIsAllowed(true);
         } else {
           try {
@@ -125,7 +125,7 @@ export default function InventoryScrapPage() {
     localStorage.setItem('currentUser', JSON.stringify(user));
 
     // Check permission for inventory-scrap on login
-    if (isAdminRole(user)) {
+    if (isAdminRole(user, 'inventory-scrap')) {
       setIsAllowed(true);
     } else {
       try {

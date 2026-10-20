@@ -20,7 +20,7 @@ const ALL_TABS = SALESPERSON_TABS.map((t) => t.id) as SalespersonTabId[];
 /** Tabs allowed by Admin Control ('salesperson-analysis' sub tabs); no list = all tabs. */
 function AllowedTabs(user: any): SalespersonTabId[] {
   try {
-    if (isAdminRole(user)) return ALL_TABS;
+    if (isAdminRole(user, 'salesperson-analysis')) return ALL_TABS;
     const roleStr = String(user?.role || '').trim();
     if (!roleStr || roleStr === 'Admin') return ALL_TABS;
     const perms = JSON.parse(roleStr);

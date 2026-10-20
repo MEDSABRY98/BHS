@@ -8,7 +8,7 @@ import { downloadInventoryScrapReportPDF } from '@/app/InventoryScrap/Pdf/Invent
 import { exportInventoryScrapExcel } from '../Export/ExcelExport';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import { toast } from '@/app/Components/Notification';
-import { getCurrentUserFromStorage, parseUserPermissions, isUnrestrictedAdminUser } from '@/app/AdminControl/AdminControlTab';
+import { getCurrentUserFromStorage, parseUserPermissions, isUnrestrictedAdminUser } from '@/app/AdminControl/AdminControl/AdminControlTab';
 import TabLoader from '@/app/Components/Loading/TabLoader';
 import TabFetchError from '@/app/Components/DataState/TabFetchError';
 

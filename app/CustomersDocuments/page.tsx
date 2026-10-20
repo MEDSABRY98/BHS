@@ -9,7 +9,7 @@ import MainLoader from '@/app/Components/Loading/MainLoader';
 import Login from '@/app/Components/Auth/Login';
 import FilterModal, { FilterState } from './Modals/FilterModal';
 import CustomersDocumentsGrid from './Components/CustomersDocumentsGrid';
-import { useCustomersDocumentsTabAudit } from '@/app/Audit/Model/CustomersDocumentsTabAudit';
+import { useCustomersDocumentsTabAudit } from '@/app/AdminControl/Code/Audit/Model/CustomersDocumentsTabAudit';
 import { getCustomersDocuments, updateCustomerDocument } from './Service/customers_documents_service';
 import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
 import { toast } from '@/app/Components/Notification';

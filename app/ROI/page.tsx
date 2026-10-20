@@ -19,7 +19,7 @@ const ALL_TABS = ROI_TABS.map((t) => t.id) as RoiTabId[];
 /** Tabs allowed by Admin Control ('roi' sub tabs); no list = all tabs. */
 function AllowedTabs(user: any): RoiTabId[] {
   try {
-    if (isAdminRole(user)) return ALL_TABS;
+    if (isAdminRole(user, 'roi')) return ALL_TABS;
     const roleStr = String(user?.role || '').trim();
     if (!roleStr || roleStr === 'Admin') return ALL_TABS;
     const perms = JSON.parse(roleStr);

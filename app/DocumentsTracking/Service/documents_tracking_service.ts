@@ -11,7 +11,7 @@ async function requireDocsAccess() {
   await requireSession();
   const user = await getSessionUser();
   if (!user) throw new UnauthorizedError('Your session has expired. Please log in again.');
-  if (isAdminUser(user)) return user;
+  if (isAdminUser(user, 'documents-tracking')) return user;
   try {
     const perms = JSON.parse(String(user.role || '').trim() || '{}');
     if (Array.isArray(perms?.systems) && !perms.systems.includes(SYSTEM_ID)) {

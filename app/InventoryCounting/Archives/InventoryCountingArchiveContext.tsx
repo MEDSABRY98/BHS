@@ -135,7 +135,7 @@ export function canCloseInventoryCountSession(): boolean {
   try {
     const savedUser = localStorage.getItem('currentUser');
     const currentUser = savedUser ? JSON.parse(savedUser) : null;
-    if (isAdminRole(currentUser)) return true;
+    if (isAdminRole(currentUser, 'inventory-counting')) return true;
 
     const perms = JSON.parse(currentUser?.role || '{}');
     const countingTabs = perms['inventory-counting'];

@@ -7,7 +7,7 @@ import { useSalesModuleFilters } from '@/app/Sales/Model/SalesFilters';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
 import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import { getCategoryDetailsData } from '../Service/sales_products_service';
-import { trackSalesCategoryDetailsTab } from '@/app/Audit/Model/SalesTabAudit';
+import { trackSalesCategoryDetailsTab } from '@/app/AdminControl/Code/Audit/Model/SalesTabAudit';
 
 import DashboardTab from '../ProductDetails/DashboardTab';
 import MonthlySalesTab from '../ProductDetails/MonthlySalesTab';

@@ -6,7 +6,7 @@ import { ArrowRight, RefreshCcw } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
-import { saveTrackedPdf } from '@/app/Audit/Utils/TrackedDownload';
+import { saveTrackedPdf } from '@/app/AdminControl/Code/Audit/TrackedDownload';
 
 import { toast } from '@/app/Components/Notification';
 import TabFetchError from '@/app/Components/DataState/TabFetchError';
@@ -24,7 +24,7 @@ import {
 
 // Tab imports
 import RegisterTab from './RegisterTab';
-import { useDocumentsTrackingTabAudit } from '@/app/Audit/Model/DocumentsTrackingTabAudit';
+import { useDocumentsTrackingTabAudit } from '@/app/AdminControl/Code/Audit/Model/DocumentsTrackingTabAudit';
 import ListTab from './ListTab';
 import ReceiversTab from './ReceiversTab';
 
@@ -39,7 +39,7 @@ import BulkDeliverModal from './Modals/BulkDeliverModal';
 import ReceiverExcelModal from './Modals/ReceiverExcelModal';
 import { exportDebitExcelTable } from '../../CustomersAnalysis/Utils/ExcelExport';
 import { getDocumentsTracking, updateDocumentTrackingRecord, deleteDocumentTrackingRecord, bulkUpdateDocumentsTrackingRecords } from '../Service/documents_tracking_service';
-import { getAllowedModuleTabIds } from '@/app/AdminControl/AdminControlTab';
+import { getAllowedModuleTabIds } from '@/app/AdminControl/AdminControl/AdminControlTab';
 import TabLoader from '@/app/Components/Loading/TabLoader';
 
 const DOCUMENTS_TRACKING_TAB_IDS = ['register', 'list', 'receivers'] as const;

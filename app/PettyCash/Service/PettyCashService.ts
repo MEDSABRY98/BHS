@@ -6,6 +6,8 @@
 // (opened automatically). The employee edits / removes his rows while it is OPEN, then submits it for
 // settlement (SUBMITTED → locked for him). The admin settles it (SETTLED) and can edit / delete anything.
 // Each employee sees only his own petty cash; the admin sees all.
+// EMPLOYEE_NAME = the employee the petty cash is for (any name; the admin can type / pick it, an employee
+// always records for himself). CREATED_BY = who recorded it and owns it. One OPEN per (creator, employee name).
 
 import { getSupabaseAdmin } from '@/lib/supabaseAdmin';
 import { getSessionUser, isAdminUser, UnauthorizedError, type SessionUserRecord } from '@/lib/session';
@@ -34,7 +36,7 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 //  Permissions (Admin Control → 'petty-cash', tabs: new / records)
 // ─────────────────────────────────────────────────────────────
 function permissionsOf(user: SessionUserRecord): PettyCashPermissions {
-  if (isAdminUser(user)) return { tabs: [...ALL_TABS, 'analysis'], viewAll: true }; // Analysis (upload an Excel): admin only
+  if (isAdminUser(user, PETTY_CASH_SYSTEM_ID)) return { tabs: [...ALL_TABS, 'analysis'], viewAll: true }; // Analysis (upload an Excel): admin only
 
   const raw = String(user.role || '').trim();
   if (!raw) return { tabs: [...ALL_TABS], viewAll: false };
@@ -84,6 +86,7 @@ function normalize(row: any, admin: boolean, userId: string): PettyCash {
     .sort(compareLines); // beneficiary, then invoice date (oldest first)
   return {
     ...row,
+    EMPLOYEE_NAME: String(row.EMPLOYEE_NAME || row.CREATED_BY || ''),
     LINES_COUNT: Number(row.LINES_COUNT) || lines.length,
     TOTAL_AMOUNT: Number(row.TOTAL_AMOUNT) || 0,
     TAX_AMOUNT_TOTAL: Number(row.TAX_AMOUNT_TOTAL) || 0,
@@ -151,16 +154,37 @@ export async function listPettyCash(): Promise<PettyCash[]> {
   return out;
 }
 
-/** Adds the rows (all or nothing) to the user's open petty cash — opens a new one if he has none. */
+/** Admin only: names for the Employee box - every user + every employee name used before (A-Z). */
+export async function listPettyCashEmployees(): Promise<string[]> {
+  const user = await requireUser();
+  if (!isAdminUser(user, PETTY_CASH_SYSTEM_ID)) return [];
+  const db = getSupabaseAdmin();
+  const names = new Set<string>();
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await db.from('bhs_USERS').select('NAME').order('ID', { ascending: true }).range(from, from + 999);
+    if (error) break;
+    (data || []).forEach((u: any) => u.NAME && names.add(String(u.NAME).trim()));
+    if (!data || data.length < 1000) break;
+  }
+  const { data: used } = await db.from(HEADERS).select('EMPLOYEE_NAME').not('EMPLOYEE_NAME', 'is', null).limit(5000);
+  (used || []).forEach((r: any) => r.EMPLOYEE_NAME && names.add(String(r.EMPLOYEE_NAME).trim()));
+  return Array.from(names).filter(Boolean).sort((a, b) => a.localeCompare(b));
+}
+
+/** Adds the rows (all or nothing) to the employee's open petty cash — opens a new one if he has none. */
 export async function savePettyCash(input: PettyCashInput): Promise<PettyCash> {
   const { user, perms } = await requireTab('new');
   const lines = cleanLines(input?.LINES);
   const notes = String(input?.NOTES || '').trim().slice(0, 1000);
+  const userName = String(user.name || '').trim() || 'Unknown';
+  // admin: the typed / picked name (default himself). Everybody else: null = himself, his open petty cash
+  const employee = isAdminUser(user, PETTY_CASH_SYSTEM_ID) ? String(input?.EMPLOYEE_NAME || '').trim().slice(0, 200) || userName : null;
   const db = getSupabaseAdmin();
 
-  const { data: id, error } = await db.rpc('web_save_petty_cash', {
-    p_user_name: String(user.name || '').trim() || 'Unknown',
+  const { data: id, error } = await db.rpc('web_save_petty_cash_for', {
+    p_employee_name: employee,
     p_user_id: String(user.id),
+    p_user_name: String(user.name || '').trim() || 'Unknown',
     p_notes: notes || null,
     p_lines: lines,
   });
@@ -171,16 +195,22 @@ export async function savePettyCash(input: PettyCashInput): Promise<PettyCash> {
   return normalize(data, perms.viewAll, String(user.id));
 }
 
-/** The user's open petty cash (number, rows, total) — shown on the New tab. */
-export async function getMyOpenPettyCash(): Promise<{ ID: string; LINES_COUNT: number; TOTAL_AMOUNT: number } | null> {
+/** The user's open petty cash (number, rows, total) — shown on the New tab. Admin: the one for this employee name. */
+export async function getMyOpenPettyCash(employeeName?: string): Promise<{ ID: string; LINES_COUNT: number; TOTAL_AMOUNT: number } | null> {
   const { user } = await requireTab('new');
-  const { data, error } = await getSupabaseAdmin()
+  const name = isAdminUser(user, PETTY_CASH_SYSTEM_ID) ? String(employeeName || '').trim() || String(user.name || '').trim() : '';
+  const { data: rows, error } = await getSupabaseAdmin()
     .from(HEADERS)
-    .select('ID, LINES_COUNT, TOTAL_AMOUNT')
+    .select('ID, LINES_COUNT, TOTAL_AMOUNT, EMPLOYEE_NAME, CREATED_BY')
     .eq('CREATED_BY_ID', String(user.id))
     .eq('STATUS', 'OPEN')
-    .maybeSingle();
-  if (error || !data) return null;
+    .order('CREATED_AT', { ascending: true });
+  if (error || !rows?.length) return null;
+  const key = name.toLowerCase();
+  const data = name
+    ? rows.find((r: any) => String(r.EMPLOYEE_NAME || r.CREATED_BY || '').trim().toLowerCase() === key)
+    : rows[0];
+  if (!data) return null;
   return { ID: String(data.ID), LINES_COUNT: Number(data.LINES_COUNT) || 0, TOTAL_AMOUNT: Number(data.TOTAL_AMOUNT) || 0 };
 }
 
@@ -210,13 +240,13 @@ export async function submitPettyCash(id: string): Promise<PettyCash> {
 
   const { data, error: readErr } = await db.from(HEADERS).select(SELECT).eq('ID', head.ID).single();
   if (readErr) throw new Error(readErr.message);
-  return normalize(data, isAdminUser(user), String(user.id));
+  return normalize(data, isAdminUser(user, PETTY_CASH_SYSTEM_ID), String(user.id));
 }
 
 /** Admin only: change the status (Settle, undo settle, reopen). */
 export async function setPettyCashStatus(id: string, status: PettyCashStatus): Promise<PettyCash> {
   const user = await requireUser();
-  if (!isAdminUser(user)) throw new UnauthorizedError('Only the admin can settle a petty cash.');
+  if (!isAdminUser(user, PETTY_CASH_SYSTEM_ID, 'edit')) throw new UnauthorizedError('Only the admin can settle a petty cash.');
   if (!['OPEN', 'SUBMITTED', 'SETTLED'].includes(status)) throw new Error('Invalid status');
   const head = await readHeader(id);
 
@@ -260,7 +290,7 @@ export async function getPettyCashSuggestions(): Promise<{ beneficiaries: string
 export async function deletePettyCash(id: string): Promise<{ success: true }> {
   const user = await requireUser();
   const head = await readHeader(id);
-  if (!isAdminUser(user) && !(String(head.CREATED_BY_ID) === String(user.id) && head.STATUS === 'OPEN')) {
+  if (!isAdminUser(user, PETTY_CASH_SYSTEM_ID, 'delete') && !(String(head.CREATED_BY_ID) === String(user.id) && head.STATUS === 'OPEN')) {
     throw new UnauthorizedError('Only the admin can delete a submitted petty cash.');
   }
   const pcId = head.ID;
@@ -276,7 +306,7 @@ export async function deletePettyCash(id: string): Promise<{ success: true }> {
  */
 export async function updatePettyCash(id: string, input: PettyCashInput): Promise<PettyCash> {
   const user = await requireUser();
-  const admin = isAdminUser(user);
+  const admin = isAdminUser(user, PETTY_CASH_SYSTEM_ID, 'edit');
   const head = await readHeader(id);
   if (!admin && !(String(head.CREATED_BY_ID) === String(user.id) && head.STATUS === 'OPEN')) {
     throw new UnauthorizedError('A submitted petty cash can only be edited by the admin.');
@@ -292,6 +322,16 @@ export async function updatePettyCash(id: string, input: PettyCashInput): Promis
     lines = lines.map((l) => ({ ...l, ACCOUNT: (l.LINE_ID && accounts.get(l.LINE_ID)) || '' }));
   }
   const notes = String(input?.NOTES || '').trim().slice(0, 1000);
+
+  // admin: the employee name can be changed too (empty = keep it)
+  const employee = admin ? String(input?.EMPLOYEE_NAME || '').trim().slice(0, 200) : '';
+  if (employee) {
+    const { error: nameErr } = await db.from(HEADERS).update({ EMPLOYEE_NAME: employee }).eq('ID', pcId);
+    if (nameErr) {
+      if ((nameErr as any).code === '23505') throw new Error(`There is already an open petty cash for ${employee} - add the rows there or submit it first`);
+      throw new Error(nameErr.message);
+    }
+  }
 
   const { error } = await db.rpc('web_update_petty_cash', {
     p_id: pcId,
@@ -309,7 +349,7 @@ export async function updatePettyCash(id: string, input: PettyCashInput): Promis
 /** Admin only: accounts used before (for the Account column suggestions). */
 export async function getAccountSuggestions(): Promise<string[]> {
   const user = await requireUser();
-  if (!isAdminUser(user)) return [];
+  if (!isAdminUser(user, PETTY_CASH_SYSTEM_ID)) return [];
   const { data, error } = await getSupabaseAdmin().from('web_PETTY_CASH_LINES').select('ACCOUNT').not('ACCOUNT', 'is', null).limit(5000);
   if (error) return [];
   return Array.from(new Set((data || []).map((r: any) => String(r.ACCOUNT || '').trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b));

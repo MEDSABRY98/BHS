@@ -107,6 +107,14 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
 
   const isSystemAllowed = (systemId: string) => {
     if (isAdminRole(currentUser)) return true;
+    // admin of this module (Admin Control → Module Admins); some home cards use another id
+    const adminOf = currentUser?.moduleAdmins || {};
+    const aliases: Record<string, string[]> = {
+      vouchers: ['cash-receipt', 'cash-handover'],
+      'cash-handling': ['cash-receipt', 'cash-handover'],
+      'customers-analysis': ['debit'],
+    };
+    if ([systemId, ...(aliases[systemId] || [])].some((id) => adminOf[id])) return true;
 
     try {
       const roleStr = currentUser?.role || '';

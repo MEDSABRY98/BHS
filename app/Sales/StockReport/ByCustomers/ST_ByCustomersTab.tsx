@@ -9,7 +9,7 @@ import { generateSalesAnalysisComparisonPDF } from './AnalysisComparison';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
 import JSZip from 'jszip';
-import { saveTrackedAs } from '@/app/Audit/Utils/TrackedDownload';
+import { saveTrackedAs } from '@/app/AdminControl/Code/Audit/TrackedDownload';
 import { exportSalesExcel } from '@/app/Sales/Export/ExcelExport';
 
 interface SalesST_ByCustomersProps {

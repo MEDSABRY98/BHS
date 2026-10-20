@@ -13,6 +13,7 @@ import { TRACKING_TABLE, deliveryOf, deliveryUpdate } from '../../Utils/Tracking
 import { listInvoicesTrackingUsers, findInvoicesTrackingUserByName } from '../../Service/invoices_tracking_users_service';
 import SearchSelect from '../../Components/DropDownList';
 import { toast } from '@/app/Components/Notification';
+import { isAdminRole } from '@/lib/AdminRole';
 import { ConfirmModal } from '../../Components/ConfirmModal';
 import { generateCancelInvoicePDF } from '@/app/InvoicesTracking/Pdf/CancelInvoicePdf';
 import {
@@ -317,8 +318,17 @@ const OrderDetailsTab = forwardRef<OrderDetailsTabHandle, OrderDetailsTabProps>(
   })();
 
   const isFinal = handover === 'Confirmed';
+  const storedUser = useMemo(() => {
+    if (typeof window === 'undefined') return null;
+    try {
+      return JSON.parse(localStorage.getItem('currentUser') || 'null');
+    } catch {
+      return null;
+    }
+  }, [currentUser]);
   const roleText = String(currentUser?.ROLE || '').toLowerCase();
-  const isAdmin = roleText === 'admin';
+  // the admin, or an admin of Invoices Tracking (Module Admins) with the edit right
+  const isAdmin = roleText === 'admin' || isAdminRole(storedUser, 'lpo-management', 'edit');
   const hasCancelAuthority = isAdmin || currentUser?.CANCEL_AUTHORITY === true || String(currentUser?.CANCEL_AUTHORITY).toUpperCase() === 'TRUE';
   // a stamped invoice handed to someone -> only he (or an admin) accepts it
   const handedToOther = handover === 'Pending' && !isCancelled && delivery?.OFFICE_HANDOVER_ID && delivery.OFFICE_HANDOVER_ID !== currentUser?.ID;

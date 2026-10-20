@@ -25,7 +25,7 @@ import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import Login from '@/app/Components/Auth/Login';
 import TabPanel from '@/app/Components/Layout/TabPanel';
 import DebitSidebar, { isDebitTabAllowed } from './Utils/Sidebar';
-import { useDebitTabAudit } from '@/app/Audit/Model/DebitTabAudit';
+import { useDebitTabAudit } from '@/app/AdminControl/Code/Audit/Model/DebitTabAudit';
 import { DebitDataProvider, useDebitData } from './Context/DebitDataContext';
 import { useGlobalDebitFilter } from './Hooks/useGlobalDebitFilter';
 import type { PaymentReconciliationSessionSummary } from './Service/debit_service';
@@ -113,7 +113,7 @@ function DebitPageShell({
     try {
       const perms = JSON.parse(currentUser?.role || '{}');
       const allowedTabs = perms.debit || perms.debit_tabs;
-      if (allowedTabs && Array.isArray(allowedTabs) && !isAdminRole(currentUser)) {
+      if (allowedTabs && Array.isArray(allowedTabs) && !isAdminRole(currentUser, 'debit')) {
         return isDebitTabAllowed(activeTab, allowedTabs);
       }
     } catch {
@@ -313,7 +313,7 @@ function DebitPageContent() {
   }, []);
 
   useEffect(() => {
-    if (currentUser && !isAdminRole(currentUser)) {
+    if (currentUser && !isAdminRole(currentUser, 'debit')) {
       try {
         const perms = JSON.parse(currentUser.role || '{}');
         const allowedTabs = perms.debit || perms.debit_tabs;

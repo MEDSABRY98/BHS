@@ -10,7 +10,7 @@ import TabLoader from '@/app/Components/Loading/TabLoader';
 import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import { restoreSessionUser } from '@/app/Components/Auth/sessionClient';
 import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
-import { useModuleTabAudit } from '@/app/Audit/Utils/useModuleTabAudit';
+import { useModuleTabAudit } from '@/app/AdminControl/Code/Audit/useModuleTabAudit';
 import { FORMS } from './Shared/FormsRegistry';
 import { getAllowedForms } from './Shared/FormsAccess';
 

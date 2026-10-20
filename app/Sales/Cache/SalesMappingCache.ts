@@ -214,11 +214,20 @@ async function fetchSalesUserContext(cleanUserId: string): Promise<SalesUserCont
 
   if (!user) return null;
 
+  // admin of the Sales module (Admin Control → Module Admins): all the data + costs, like the admin
+  const { data: salesAdmin } = await bhs_supabas
+    .from('app_MODULE_ADMINS')
+    .select('ID')
+    .eq('USER_ID', String(user.ID ?? cleanUserId))
+    .eq('MODULE_ID', 'sales')
+    .limit(1);
+  const isSalesAdmin = Array.isArray(salesAdmin) && salesAdmin.length > 0;
+
   return {
     cleanUserId,
     cleanUserName: String(user.NAME || '').trim().toUpperCase(),
-    hasSalesDataAccess: hasSalesDataAccessFromDb(user),
-    canSeeCosts: canSeeCostsFromDb(user),
+    hasSalesDataAccess: isSalesAdmin || hasSalesDataAccessFromDb(user),
+    canSeeCosts: isSalesAdmin || canSeeCostsFromDb(user),
   };
 }
 

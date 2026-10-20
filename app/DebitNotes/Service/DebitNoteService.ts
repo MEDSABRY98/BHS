@@ -31,7 +31,7 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 //  Permissions (Admin Control → 'debit-notes', tabs: new / notes)
 // ─────────────────────────────────────────────────────────────
 function permissionsOf(user: SessionUserRecord): DebitNotePermissions {
-  if (isAdminUser(user)) return { tabs: [...ALL_TABS], admin: true };
+  if (isAdminUser(user, 'debit-notes')) return { tabs: [...ALL_TABS], admin: true };
 
   const raw = String(user.role || '').trim();
   if (!raw) return { tabs: [...ALL_TABS], admin: false };
@@ -149,7 +149,7 @@ export async function saveDebitNote(input: DebitNoteInput): Promise<DebitNote> {
   // Edit (admin only). The number stays the same.
   if (input?.ID) {
     const user = await requireUser();
-    if (!isAdminUser(user)) throw new UnauthorizedError('Only the admin can edit a saved debit note.');
+    if (!isAdminUser(user, 'debit-notes', 'edit')) throw new UnauthorizedError('Only the admin can edit a saved debit note.');
     const { data, error } = await db
       .from(TABLE)
       .update({ ...record, UPDATED_BY: String(user.id), UPDATED_AT: new Date().toISOString() })
@@ -178,7 +178,7 @@ export async function saveDebitNote(input: DebitNoteInput): Promise<DebitNote> {
 
 export async function deleteDebitNote(id: string): Promise<{ success: true }> {
   const user = await requireUser();
-  if (!isAdminUser(user)) throw new UnauthorizedError('Only the admin can delete a debit note.');
+  if (!isAdminUser(user, 'debit-notes', 'delete')) throw new UnauthorizedError('Only the admin can delete a debit note.');
   const { error } = await getSupabaseAdmin().from(TABLE).delete().eq('ID', String(id || ''));
   if (error) throw new Error(error.message);
   return { success: true };

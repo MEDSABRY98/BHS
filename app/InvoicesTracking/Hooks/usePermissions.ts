@@ -24,6 +24,15 @@ export function usePermissions() {
         setPermissions({ canEdit: true, canDelete: true, isLoaded: true });
         return;
       }
+      // admin of Invoices Tracking (Admin Control → Module Admins): edit / delete as the admin gave him
+      if (isAdminRole(mainUser, 'lpo-management')) {
+        setPermissions({
+          canEdit: isAdminRole(mainUser, 'lpo-management', 'edit') || isAdminRole(mainUser, 'lpo-management', 'delete'),
+          canDelete: isAdminRole(mainUser, 'lpo-management', 'delete'),
+          isLoaded: true,
+        });
+        return;
+      }
 
       try {
         const perms = JSON.parse(mainUser.role || '{}');

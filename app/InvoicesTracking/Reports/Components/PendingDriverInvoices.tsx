@@ -8,7 +8,7 @@ import { generatePendingDriverInvoicesPDF } from '@/app/InvoicesTracking/Pdf/Pen
 import NoData from '@/app/Components/DataState/NoDataTab';
 import TabLoader from '@/app/Components/Loading/TabLoader';
 import JSZip from 'jszip';
-import { saveTrackedAs } from '@/app/Audit/Utils/TrackedDownload';
+import { saveTrackedAs } from '@/app/AdminControl/Code/Audit/TrackedDownload';
 import { toast } from '@/app/Components/Notification';
 
 export default function PendingDriverInvoices() {

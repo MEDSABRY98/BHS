@@ -9,7 +9,7 @@ import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import { toast } from '@/app/Components/Notification';
 import { restoreSessionUser } from '@/app/Components/Auth/sessionClient';
 import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
-import { useCreditNotesTabAudit } from '@/app/Audit/Model/CreditNotesTabAudit';
+import { useCreditNotesTabAudit } from '@/app/AdminControl/Code/Audit/Model/CreditNotesTabAudit';
 import CreditNotesSidebar from './Utils/Sidebar';
 import CreditNoteForm from './Components/CreditNoteForm';
 import CreditNotesList from './Components/CreditNotesList';

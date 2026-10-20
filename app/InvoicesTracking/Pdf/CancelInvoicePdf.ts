@@ -2,7 +2,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { addArabicFont } from '@/app/Components/Pdf/shared';
 import { printPdfInSameTab } from './DeliveryUtils';
-import { saveTrackedPdf } from '@/app/Audit/Utils/TrackedDownload';
+import { saveTrackedPdf } from '@/app/AdminControl/Code/Audit/TrackedDownload';
 
 const DISCLAIMER_EN =
   'I, the warehouse responsible, confirm the cancellation of the invoice(s) listed above.';

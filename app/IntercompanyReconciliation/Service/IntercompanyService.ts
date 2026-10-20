@@ -40,6 +40,14 @@ const MAX_IMPORT_CHUNK = 1000;
 function permissionsOf(user: SessionUserRecord): IntercompanyPermissions {
   const full: IntercompanyPermissions = { tabs: [...ALL_TABS], edit: true, delete: true };
   if (isAdminUser(user)) return full;
+  // admin of this module: everything, edit / delete as the admin gave him
+  if (isAdminUser(user, INTERCOMPANY_SYSTEM_ID)) {
+    return {
+      tabs: [...ALL_TABS],
+      edit: isAdminUser(user, INTERCOMPANY_SYSTEM_ID, 'edit'),
+      delete: isAdminUser(user, INTERCOMPANY_SYSTEM_ID, 'delete'),
+    };
+  }
 
   const raw = String(user.role || '').trim();
   if (!raw || raw === 'Admin') return full;

@@ -1,4 +1,4 @@
-import { saveTrackedAs } from '@/app/Audit/Utils/TrackedDownload';
+import { saveTrackedAs } from '@/app/AdminControl/Code/Audit/TrackedDownload';
 
 const GOLD_BORDER = 'FFC9A84C';
 const LIGHT_ROW_BORDER = 'FFEEEEEE';

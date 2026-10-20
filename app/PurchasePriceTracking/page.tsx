@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Sidebar, { PURCHASE_PRICE_TAB_IDS } from './Utils/Sidebar';
-import { getAllowedModuleTabIds, getCurrentUserFromStorage } from '@/app/AdminControl/AdminControlTab';
+import { getAllowedModuleTabIds, getCurrentUserFromStorage } from '@/app/AdminControl/AdminControl/AdminControlTab';
 import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
 import { bhs_supabase, fetchAllData } from '@/lib/secureDb';
 import ProductPriceHistory from './ProductPriceHistory/ProductPriceHistory';
@@ -15,7 +15,7 @@ import {
   usePurchaseModuleFilters,
 } from './Model/PurchaseFilters';
 import TabFetchError from '@/app/Components/DataState/TabFetchError';
-import { usePurchasePriceTrackingTabAudit } from '@/app/Audit/Model/PurchasePriceTrackingTabAudit';
+import { usePurchasePriceTrackingTabAudit } from '@/app/AdminControl/Code/Audit/Model/PurchasePriceTrackingTabAudit';
 import TabLoader from '@/app/Components/Loading/TabLoader';
 
 export type PurchaseRecord = {

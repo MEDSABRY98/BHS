@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { ArrowLeft, ChevronLeft, ChevronRight, X, RefreshCcw, UserRound, ShoppingCart, Wallet, CreditCard, FileDown, Loader2 } from 'lucide-react';
 import { UseSalespersonData } from '../Context/SalespersonDataContext';
 import { toast } from '@/app/Components/Notification';
+import DailyReportButton from './DailyReportButton';
 
 export const SALESPERSON_TABS = [
   { id: 'sales', label: 'Sales', icon: ShoppingCart },
@@ -139,6 +140,7 @@ export default function SalespersonSidebar({
         >
           {isExporting ? <Loader2 className="w-5 h-5 animate-spin text-[#D4AF37]" /> : <FileDown className="w-5 h-5" />}
         </button>
+        <DailyReportButton />
       </div>
 
       {hoveredTab && isCollapsed && (

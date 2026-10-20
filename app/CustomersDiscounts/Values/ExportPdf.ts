@@ -6,7 +6,7 @@
 // Inside each section the customers are grouped by city, then sorted by name.
 
 import { addArabicFont } from '@/app/Components/Pdf/shared';
-import { saveTrackedAs } from '@/app/Audit/Utils/TrackedDownload';
+import { saveTrackedAs } from '@/app/AdminControl/Code/Audit/TrackedDownload';
 
 export type DiscountValuesPdfRow = {
   customerName: string;

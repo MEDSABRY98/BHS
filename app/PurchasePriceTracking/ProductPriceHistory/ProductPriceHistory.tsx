@@ -53,7 +53,7 @@ export default function ProductPriceHistory({ purchases, products, suppliers, on
         return;
       }
       const user = JSON.parse(mainUserStr);
-      setCanEditPrice(canEditPurchaseLinePrice(user.role, isAdminRole(user)));
+      setCanEditPrice(canEditPurchaseLinePrice(user.role, isAdminRole(user, 'purchase-price-tracking', 'edit')));
     } catch {
       setCanEditPrice(false);
     }

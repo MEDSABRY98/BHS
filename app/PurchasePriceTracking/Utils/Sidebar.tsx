@@ -11,7 +11,7 @@ import {
   TrendingUp,
   Users,
 } from 'lucide-react';
-import { getAllowedModuleTabIds } from '@/app/AdminControl/AdminControlTab';
+import { getAllowedModuleTabIds } from '@/app/AdminControl/AdminControl/AdminControlTab';
 
 interface SidebarProps {
   isSidebarOpen: boolean;

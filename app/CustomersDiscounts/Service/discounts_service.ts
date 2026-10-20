@@ -25,7 +25,7 @@ function errMsg(error: unknown, fallback: string): string {
 async function requireTab(...tabIds: string[]) {
   const user = await getSessionUser();
   if (!user) throw new UnauthorizedError('Your session has expired. Please log in again.');
-  if (isAdminUser(user)) return user;
+  if (isAdminUser(user, 'customers-discounts')) return user;
   let perms: Record<string, unknown> = {};
   try {
     perms = JSON.parse(String(user.role || '').trim() || '{}') || {};

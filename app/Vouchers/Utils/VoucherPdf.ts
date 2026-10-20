@@ -3,7 +3,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { addArabicFont } from '@/app/Components/Pdf/shared';
-import { saveTrackedPdf, trackFileDownload } from '@/app/Audit/Utils/TrackedDownload';
+import { saveTrackedPdf, trackFileDownload } from '@/app/AdminControl/Code/Audit/TrackedDownload';
 import { COMPANY, VOUCHER_LABELS, formatAED, linesTotal, type CashVoucher } from './voucherTypes';
 
 type RGB = [number, number, number];

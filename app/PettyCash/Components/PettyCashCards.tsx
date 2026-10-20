@@ -124,10 +124,10 @@ export default function PettyCashCards({ items, viewAll, canEditTab, onEdit, cur
   const employees = useMemo<EmployeeOption[]>(() => {
     const m = new Map<string, EmployeeOption>();
     for (const p of items) {
-      const e = m.get(p.CREATED_BY) || { name: p.CREATED_BY, count: 0, total: 0 };
+      const e = m.get(p.EMPLOYEE_NAME) || { name: p.EMPLOYEE_NAME, count: 0, total: 0 };
       e.count++;
       e.total = round2(e.total + p.TOTAL_AMOUNT);
-      m.set(p.CREATED_BY, e);
+      m.set(p.EMPLOYEE_NAME, e);
     }
     return Array.from(m.values()).sort((a, b) => a.name.localeCompare(b.name));
   }, [items]);
@@ -145,10 +145,11 @@ export default function PettyCashCards({ items, viewAll, canEditTab, onEdit, cur
       const day = uaeDateOf(p.CREATED_AT);
       if (dateFrom && day < dateFrom) return false;
       if (dateTo && day > dateTo) return false;
-      if (employee && p.CREATED_BY !== employee) return false;
+      if (employee && p.EMPLOYEE_NAME !== employee) return false;
       if (!q) return true;
       return (
         p.ID.toLowerCase().includes(q) ||
+        p.EMPLOYEE_NAME.toLowerCase().includes(q) ||
         p.CREATED_BY.toLowerCase().includes(q) ||
         String(p.NOTES || '').toLowerCase().includes(q) ||
         formatAmount(p.TOTAL_AMOUNT).includes(q) ||
@@ -347,7 +348,7 @@ export default function PettyCashCards({ items, viewAll, canEditTab, onEdit, cur
                 </div>
                 <div className="flex items-end justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-sm font-bold text-slate-700 truncate" dir="auto">{p.CREATED_BY}</p>
+                    <p className="text-sm font-bold text-slate-700 truncate" dir="auto">{p.EMPLOYEE_NAME}</p>
                     <p className="text-xs font-semibold text-slate-400">{formatDate(uaeDateOf(p.CREATED_AT))}</p>
                   </div>
                   <p className="text-xl font-black text-slate-900 whitespace-nowrap">
@@ -382,7 +383,8 @@ export default function PettyCashCards({ items, viewAll, canEditTab, onEdit, cur
                     <span className={`px-2 py-0.5 rounded-md text-[11px] font-black uppercase tracking-wider ${meta.badge}`}>{meta.label}</span>
                   </p>
                   <p className="text-sm font-semibold text-slate-400 mt-1" dir="auto">
-                    {p.CREATED_BY} · {formatDate(uaeDateOf(p.CREATED_AT))}
+                    {p.EMPLOYEE_NAME}
+                    {p.CREATED_BY && p.CREATED_BY !== p.EMPLOYEE_NAME ? ` · recorded by ${p.CREATED_BY}` : ''} · {formatDate(uaeDateOf(p.CREATED_AT))}
                     {p.STATUS === 'SETTLED' && p.SETTLED_AT && (
                       <span className="text-emerald-400">
                         {' '}· Settled {formatDate(uaeDateOf(p.SETTLED_AT))}
@@ -573,7 +575,7 @@ export default function PettyCashCards({ items, viewAll, canEditTab, onEdit, cur
         message={
           statusAction ? (
             <>
-              {statusAction.p.CREATED_BY} · {statusAction.p.LINES_COUNT} row{statusAction.p.LINES_COUNT === 1 ? '' : 's'} · AED {formatAmount(statusAction.p.TOTAL_AMOUNT)}
+              {statusAction.p.EMPLOYEE_NAME} · {statusAction.p.LINES_COUNT} row{statusAction.p.LINES_COUNT === 1 ? '' : 's'} · AED {formatAmount(statusAction.p.TOTAL_AMOUNT)}
               <br />
               {statusAction.to === 'SUBMIT'
                 ? "You won't be able to edit it after submitting. New rows will start a new petty cash."
@@ -598,7 +600,7 @@ export default function PettyCashCards({ items, viewAll, canEditTab, onEdit, cur
         message={
           deleteTarget ? (
             <>
-              {deleteTarget.CREATED_BY} · {deleteTarget.LINES_COUNT} row{deleteTarget.LINES_COUNT === 1 ? '' : 's'} · AED {formatAmount(deleteTarget.TOTAL_AMOUNT)}
+              {deleteTarget.EMPLOYEE_NAME} · {deleteTarget.LINES_COUNT} row{deleteTarget.LINES_COUNT === 1 ? '' : 's'} · AED {formatAmount(deleteTarget.TOTAL_AMOUNT)}
               <br />
               This can&apos;t be undone.
             </>

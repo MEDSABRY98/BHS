@@ -1,5 +1,5 @@
 import type ExcelJS from 'exceljs';
-import { saveTrackedAs } from '@/app/Audit/Utils/TrackedDownload';
+import { saveTrackedAs } from '@/app/AdminControl/Code/Audit/TrackedDownload';
 
 export type StyledExcelExportOptions = {
   sheetName?: string;

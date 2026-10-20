@@ -35,11 +35,14 @@ function permsOf(user: SessionUserRecord): Record<string, unknown> | null {
   }
 }
 
+/** Admin Control system id of the voucher type (also its Module Admins id). */
+const moduleOf = (type: VoucherType) => (type === 'IN' ? 'cash-receipt' : 'cash-handover');
+
 function can(user: SessionUserRecord, type: VoucherType, action: Action): boolean {
-  if (isAdminUser(user)) return true;
+  if (isAdminUser(user, moduleOf(type))) return true;
   const perms = permsOf(user);
   if (!perms) return true;
-  const key = type === 'IN' ? 'cash-receipt' : 'cash-handover';
+  const key = moduleOf(type);
   const list = perms[key];
   return Array.isArray(list) && list.includes(action);
 }
@@ -63,8 +66,11 @@ export async function getVoucherPermissions() {
   return {
     in: { create: can(user, 'IN', 'new'), view: can(user, 'IN', 'saved') },
     out: { create: can(user, 'OUT', 'new'), view: can(user, 'OUT', 'saved') },
-    admin: isAdminUser(user), // only the admin can edit or delete a saved voucher
-    stats: isAdminUser(user) || !permsOf(user) || (Array.isArray(permsOf(user)?.['cash-receipt']) && (permsOf(user)!['cash-receipt'] as string[]).includes('stats')),
+    // only the admin (or a module admin with edit / delete rights) can edit or delete a saved voucher
+    admin:
+      isAdminUser(user) ||
+      (['IN', 'OUT'] as VoucherType[]).some((t) => isAdminUser(user, moduleOf(t), 'edit') || isAdminUser(user, moduleOf(t), 'delete')),
+    stats: isAdminUser(user, 'cash-receipt') || !permsOf(user) || (Array.isArray(permsOf(user)?.['cash-receipt']) && (permsOf(user)!['cash-receipt'] as string[]).includes('stats')),
   };
 }
 
@@ -157,7 +163,7 @@ export async function saveVoucher(input: VoucherInput): Promise<CashVoucher> {
     const { data: existing, error: findErr } = await db.from(TABLE).select('ID, TYPE').eq('ID', input.ID).maybeSingle();
     if (findErr) throw new Error(findErr.message);
     if (existing) {
-      if (!isAdminUser(user)) throw new UnauthorizedError('Only the admin can edit a saved voucher.');
+      if (!isAdminUser(user, moduleOf(existing.TYPE as VoucherType), 'edit')) throw new UnauthorizedError('Only the admin can edit a saved voucher.');
       if (existing.TYPE !== type) throw new Error('A voucher type cannot be changed after saving');
       const { data, error } = await db
         .from(TABLE)
@@ -190,7 +196,7 @@ export async function deleteVoucher(id: string) {
   if (error) throw new Error(error.message);
   if (!existing) return { success: true };
   const user = await requirePermission(existing.TYPE as VoucherType, 'new');
-  if (!isAdminUser(user)) throw new UnauthorizedError('Only the admin can delete a voucher.');
+  if (!isAdminUser(user, moduleOf(existing.TYPE as VoucherType), 'delete')) throw new UnauthorizedError('Only the admin can delete a voucher.');
   const { error: delErr } = await db.from(TABLE).delete().eq('ID', id);
   if (delErr) throw new Error(delErr.message);
   return { success: true };

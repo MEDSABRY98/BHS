@@ -15,7 +15,7 @@ import CustomerDetailsTab from '../CustomerDetailsTab/CustomerDetailsTab';
 import { generateAccountStatementPDF, generateBulkCustomerStatementsPDF } from '@/app/CustomersAnalysis/CustomerDetailsTab/Pdf/StatementUtils';
 import { generateBulkDebitSummaryPDF } from '@/app/CustomersAnalysis/CustomersTab/Pdf/SummaryUtils';
 import { FileSpreadsheet, FileText } from 'lucide-react';
-import { saveTrackedAs } from '@/app/Audit/Utils/TrackedDownload';
+import { saveTrackedAs } from '@/app/AdminControl/Code/Audit/TrackedDownload';
 
 // Sub-components
 import DefaultView from './Views/DefaultView';

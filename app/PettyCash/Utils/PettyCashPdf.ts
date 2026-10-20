@@ -3,7 +3,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { addArabicFont } from '@/app/Components/Pdf/shared';
-import { saveTrackedPdf } from '@/app/Audit/Utils/TrackedDownload';
+import { saveTrackedPdf } from '@/app/AdminControl/Code/Audit/TrackedDownload';
 import {
   COMPANY_NAME,
   compareLines,
@@ -93,7 +93,7 @@ export async function generatePettyCashPdf(items: PettyCash[], opts: { printedBy
   const total = round2(rows.reduce((s, l) => s + l.AMOUNT, 0));
   const taxTotal = round2(rows.reduce((s, l) => s + (l.IS_TAX_INVOICE ? l.AMOUNT : 0), 0));
   const noInvoice = missingInvoices(rows);
-  const employees = Array.from(new Set(items.map((p) => p.CREATED_BY).filter(Boolean)));
+  const employees = Array.from(new Set(items.map((p) => p.EMPLOYEE_NAME || p.CREATED_BY).filter(Boolean)));
 
   // ── Header band ──────────────────────────────────────────
   doc.setFillColor(...C.ink);
@@ -130,7 +130,7 @@ export async function generatePettyCashPdf(items: PettyCash[], opts: { printedBy
   if (single) {
     infoBox(doc, 'Claim No.', single.ID, M, y, bw);
     infoBox(doc, 'Submitted On', formatDate(uaeDateOf(single.CREATED_AT)), M + bw + gap, y, bw);
-    infoBox(doc, 'Employee', single.CREATED_BY, M + (bw + gap) * 2, y, bw);
+    infoBox(doc, 'Employee', single.EMPLOYEE_NAME || single.CREATED_BY, M + (bw + gap) * 2, y, bw);
   } else {
     infoBox(doc, 'Employee', employees.length === 1 ? employees[0] : `${employees.length} employees`, M, y, bw);
     infoBox(doc, 'Period', opts.period || 'All', M + bw + gap, y, bw);
@@ -257,7 +257,7 @@ export async function generatePettyCashPdf(items: PettyCash[], opts: { printedBy
   }
 
   const fileName = single
-    ? `${single.ID}_${safe(single.CREATED_BY) || 'PettyCash'}.pdf`
+    ? `${single.ID}_${safe(single.EMPLOYEE_NAME || single.CREATED_BY) || 'PettyCash'}.pdf`
     : `PettyCash_Statement_${employees.length === 1 ? safe(employees[0]) + '_' : ''}${new Date().toISOString().slice(0, 10)}.pdf`;
   saveTrackedPdf(doc, fileName);
   return fileName;

@@ -15,6 +15,7 @@ export type SessionUser = {
   NAME?: string;
   role?: string;
   userAdmin?: string;
+  moduleAdmins?: Record<string, { edit: boolean; delete: boolean }>;
   salesDataAccess?: boolean;
   [key: string]: unknown;
 } | null;
@@ -71,6 +72,8 @@ function isUnrestricted(user: SessionUser): boolean {
 
 function isSystemAllowed(user: SessionUser, systemIds: string[]): boolean {
   if (!user || isUnrestricted(user)) return true;
+  // admin of this module (Admin Control → Module Admins)
+  if (user.moduleAdmins && systemIds.some((id) => user.moduleAdmins![id])) return true;
   try {
     const roleStr = String(user.role || '').trim();
     if (!roleStr) return true;
@@ -84,7 +87,7 @@ function isSystemAllowed(user: SessionUser, systemIds: string[]): boolean {
 
 function sessionFingerprint(user: SessionUser): string {
   if (!user) return '';
-  return `${user.id ?? ''}|${user.name ?? user.NAME ?? ''}|${user.role ?? ''}|${user.userAdmin ?? ''}|${String(user.salesDataAccess ?? '')}`;
+  return `${user.id ?? ''}|${user.name ?? user.NAME ?? ''}|${user.role ?? ''}|${user.userAdmin ?? ''}|${String(user.salesDataAccess ?? '')}|${JSON.stringify(user.moduleAdmins ?? {})}`;
 }
 
 export function AppSessionProvider({ children }: { children: React.ReactNode }) {
@@ -222,7 +225,8 @@ export function useSyncLiveUser(setCurrentUser: (value: any) => void) {
       if (
         prev.role === liveUser.role &&
         prev.userAdmin === liveUser.userAdmin &&
-        prev.salesDataAccess === liveUser.salesDataAccess
+        prev.salesDataAccess === liveUser.salesDataAccess &&
+        JSON.stringify(prev.moduleAdmins ?? {}) === JSON.stringify(liveUser.moduleAdmins ?? {})
       ) {
         return prev;
       }

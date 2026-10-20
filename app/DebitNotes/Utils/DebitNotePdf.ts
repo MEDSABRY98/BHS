@@ -7,7 +7,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { addArabicFont } from '@/app/Components/Pdf/shared';
-import { saveTrackedPdf } from '@/app/Audit/Utils/TrackedDownload';
+import { saveTrackedPdf } from '@/app/AdminControl/Code/Audit/TrackedDownload';
 import { ISSUED_BY, ISSUED_TO, SUPPORTING_TEXT, FIXED_SIGNERS, cleanSigners, formatAmount, formatLongDate, type DebitNote } from './DebitNoteTypes';
 
 type RGB = [number, number, number];

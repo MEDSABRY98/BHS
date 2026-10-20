@@ -32,7 +32,7 @@ async function requireUser(): Promise<SessionUserRecord> {
 
 async function permissionsOf(user: SessionUserRecord): Promise<EmployeeChargePermissions> {
   const allowed = formsOf(user).includes(EMPLOYEE_CHARGE_FORM_ID);
-  return { tabs: allowed ? [...ALL_TABS] : [], admin: isAdminUser(user) };
+  return { tabs: allowed ? [...ALL_TABS] : [], admin: isAdminUser(user, 'forms') };
 }
 
 async function requireForm() {
@@ -121,7 +121,7 @@ export async function saveEmployeeCharge(input: EmployeeChargeInput): Promise<Em
   // Edit (admin only). The number stays the same.
   if (input?.ID) {
     const user = await requireUser();
-    if (!isAdminUser(user)) throw new UnauthorizedError('Only the admin can edit a saved form.');
+    if (!isAdminUser(user, 'forms', 'edit')) throw new UnauthorizedError('Only the admin can edit a saved form.');
     const { data, error } = await db
       .from(TABLE)
       .update({ ...record, UPDATED_BY: String(user.id), UPDATED_AT: new Date().toISOString() })
@@ -150,7 +150,7 @@ export async function saveEmployeeCharge(input: EmployeeChargeInput): Promise<Em
 
 export async function deleteEmployeeCharge(id: string): Promise<{ success: true }> {
   const user = await requireUser();
-  if (!isAdminUser(user)) throw new UnauthorizedError('Only the admin can delete a form.');
+  if (!isAdminUser(user, 'forms', 'delete')) throw new UnauthorizedError('Only the admin can delete a form.');
   const { error } = await getSupabaseAdmin().from(TABLE).delete().eq('ID', String(id || ''));
   if (error) throw new Error(error.message);
   return { success: true };

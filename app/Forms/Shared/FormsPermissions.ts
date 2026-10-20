@@ -7,7 +7,7 @@ import { FORMS, FORMS_SYSTEM_ID } from './FormsRegistry';
 
 export function formsOf(user: SessionUserRecord): string[] {
   const all = FORMS.map((f) => f.id);
-  if (isAdminUser(user)) return all;
+  if (isAdminUser(user, FORMS_SYSTEM_ID)) return all;
 
   const raw = String(user.role || '').trim();
   if (!raw) return all;

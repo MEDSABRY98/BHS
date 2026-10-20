@@ -36,7 +36,7 @@ import MainLoader from '@/app/Components/Loading/MainLoader';
 import TabLoader from '@/app/Components/Loading/TabLoader';
 import { restoreSessionUser } from '@/app/Components/Auth/sessionClient';
 import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
-import { useModuleTabAudit } from '@/app/Audit/Utils/useModuleTabAudit';
+import { useModuleTabAudit } from '@/app/AdminControl/Code/Audit/useModuleTabAudit';
 import { getAllowedForms } from '../Shared/FormsAccess';
 import {
   DEFAULT_MARGINS,

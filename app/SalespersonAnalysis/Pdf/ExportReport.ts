@@ -7,7 +7,7 @@
 // ════════════════════════════════════════════════════════════════
 
 import { addArabicFont } from '@/app/Components/Pdf/shared';
-import { saveTrackedPdf } from '@/app/Audit/Utils/TrackedDownload';
+import { saveTrackedPdf } from '@/app/AdminControl/Code/Audit/TrackedDownload';
 import {
   AGING_BUCKETS,
   Change,
@@ -361,8 +361,8 @@ export async function ExportSalespersonReport(data: SalespersonData, agingMode: 
   cards([
     { label: 'Net Sales', value: money(sales.cur.netSales), change: Change(sales.cur.netSales, sales.prev.netSales), foot: `LY ${money(sales.prev.netSales)}`, accent: C.gold },
     { label: 'Invoices', value: whole(sales.cur.invoices), change: Change(sales.cur.invoices, sales.prev.invoices), foot: `LY ${whole(sales.prev.invoices)}`, accent: C.ink },
-    { label: 'Avg Invoice', value: money(sales.avgInvoice), change: Change(sales.avgInvoice, sales.prevAvgInvoice), foot: `LY ${money(sales.prevAvgInvoice)}`, accent: C.prev },
     { label: 'Active Customers', value: whole(sales.cur.customers), change: Change(sales.cur.customers, sales.prev.customers), foot: `LY ${whole(sales.prev.customers)}`, accent: C.green },
+    { label: 'Avg Invoice', value: money(sales.avgInvoice), change: Change(sales.avgInvoice, sales.prevAvgInvoice), foot: `LY ${money(sales.prevAvgInvoice)}`, accent: C.prev },
     { label: 'Returns', value: money(sales.cur.returns), change: Change(sales.cur.returns, sales.prev.returns), invert: true, foot: `${sales.returnRate.toFixed(1)}% of gross`, accent: C.red },
     { label: 'New / Lost Customers', value: `${whole(sales.newCustomers.length)} / ${whole(sales.lostCustomers.length)}`, foot: 'New this period / lost vs last year', accent: C.ink },
   ]);

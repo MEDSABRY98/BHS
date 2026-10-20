@@ -29,6 +29,7 @@ import type {
   SalespersonData,
   SalespersonOption,
 } from '../Utils/Types';
+import type { DailySalesLine, DailySalesReportData } from '../Utils/DailyTypes';
 
 const norm = (v: unknown) => String(v ?? '').trim().toUpperCase();
 const dayOf = (v: unknown) => String(v ?? '').split('T')[0].trim();
@@ -50,7 +51,7 @@ async function requireUser(): Promise<SessionUserRecord> {
 
 /** Admin Control → 'salesperson-analysis' must be enabled for the user (admins always). */
 function hasModuleAccess(user: SessionUserRecord): boolean {
-  if (isAdminUser(user)) return true;
+  if (isAdminUser(user, 'salesperson-analysis')) return true;
   try {
     const roleStr = String(user.role || '').trim();
     if (!roleStr || roleStr === 'Admin') return true;
@@ -64,7 +65,7 @@ function hasModuleAccess(user: SessionUserRecord): boolean {
 
 /** Same rule as the Sales module: admins always; FULL DATA ACCESS alone does not unlock costs. */
 function canSeeCosts(user: SessionUserRecord): boolean {
-  if (isAdminUser(user)) return true;
+  if (isAdminUser(user, 'salesperson-analysis')) return true;
   try {
     const roleStr = String(user.role || '').trim();
     if (!roleStr || roleStr === 'Admin') return true;
@@ -130,7 +131,7 @@ export async function ListSalespersons(): Promise<{ canChoose: boolean; salesper
   const user = await requireUser();
   const [{ idByKey, nameById }, customers] = await Promise.all([loadUsers(), loadCustomers()]);
 
-  if (!hasFullDebitAccess(user)) {
+  if (!hasFullDebitAccess(user, 'salesperson-analysis')) {
     const id = idByKey.get(norm(user.id)) || norm(user.id);
     return { canChoose: false, salespersons: [{ id, name: nameById.get(id) || user.name }] };
   }
@@ -158,7 +159,7 @@ export async function GetSalespersonData(input: { salespersonId: string; period:
   const [{ idByKey, nameById }, customers] = await Promise.all([loadUsers(), loadCustomers()]);
   const ownId = idByKey.get(norm(user.id)) || norm(user.id);
   const targetId = idByKey.get(norm(input.salespersonId)) || norm(input.salespersonId);
-  if (!hasFullDebitAccess(user) && targetId !== ownId) {
+  if (!hasFullDebitAccess(user, 'salesperson-analysis') && targetId !== ownId) {
     throw new UnauthorizedError("You can only see your own analysis.");
   }
   const salesperson: SalespersonOption = { id: targetId, name: nameById.get(targetId) || input.salespersonId };
@@ -277,5 +278,125 @@ export async function GetSalespersonData(input: { salespersonId: string; period:
     products: productInfo,
     ledger,
     lastPaymentByCustomer,
+  };
+}
+
+// ════════════════════════════════════════════════════════════════
+//  Daily sales report: every salesperson (or only himself) for a short period,
+//  plus the totals of the period of the same length right before it.
+// ════════════════════════════════════════════════════════════════
+const UNASSIGNED = 'UNASSIGNED';
+const MAX_REPORT_DAYS = 93;
+
+function addDays(iso: string, days: number): string {
+  const [y, m, d] = iso.split('-').map(Number);
+  const t = new Date(Date.UTC(y, m - 1, d + days));
+  return `${t.getUTCFullYear()}-${pad(t.getUTCMonth() + 1)}-${pad(t.getUTCDate())}`;
+}
+function daysBetween(a: string, b: string): number {
+  const [y1, m1, d1] = a.split('-').map(Number);
+  const [y2, m2, d2] = b.split('-').map(Number);
+  return Math.round((Date.UTC(y2, m2 - 1, d2) - Date.UTC(y1, m1 - 1, d1)) / 86_400_000);
+}
+
+export async function GetDailySalesReport(input: { start: string; end: string }): Promise<DailySalesReportData> {
+  const user = await requireUser();
+  const start = String(input?.start || '');
+  const end = String(input?.end || '');
+  if (!ISO_DAY.test(start) || !ISO_DAY.test(end) || start > end) throw new Error('Invalid period');
+  const days = daysBetween(start, end) + 1;
+  if (days > MAX_REPORT_DAYS) throw new Error(`Pick ${MAX_REPORT_DAYS} days at most`);
+  const prevEnd = addDays(start, -1);
+  const prevStart = addDays(prevEnd, -(days - 1));
+
+  const [{ idByKey, nameById }, customers] = await Promise.all([loadUsers(), loadCustomers()]);
+  const allSalespersons = hasFullDebitAccess(user, 'salesperson-analysis');
+  const ownId = idByKey.get(norm(user.id)) || norm(user.id);
+  const showCosts = canSeeCosts(user);
+
+  const salespersons: Record<string, string> = {};
+  const customerInfo: DailySalesReportData['customers'] = {};
+  const productInfo: DailySalesReportData['products'] = {};
+  const lines: DailySalesLine[] = [];
+  const prev = { gross: 0, returns: 0, net: 0, qty: 0, profit: 0, costedSales: 0, invoices: new Set<string>(), customers: new Set<string>() };
+  const prevNetBySalesperson: Record<string, number> = {};
+
+  const salesAll = (await getSalesDataServer()) as any[];
+  for (const s of salesAll) {
+    const date = dayOf(s.invoiceDate);
+    if (!date || date < prevStart || date > end) continue;
+    const cust = customers.get(norm(s.customerId));
+    const spId = cust?.rep ? idByKey.get(cust.rep) || cust.rep : UNASSIGNED;
+    if (!allSalespersons && spId !== ownId) continue;
+
+    const amount = Number(s.amount) || 0;
+    const qty = Number(s.qty) || 0;
+    const unitCost = showCosts ? Number(s.productCost) || 0 : 0;
+    const customerId = cust ? cust.id : String(s.customerId ?? '').trim();
+    const invoice = String(s.invoiceNumber ?? '').trim();
+
+    if (date < start) {
+      // previous period: totals only (same rules as the Sales tab)
+      const q = Math.abs(qty);
+      prev.net += amount;
+      if (amount > 0) {
+        prev.gross += amount;
+        prev.qty += q;
+        if (invoice) prev.invoices.add(invoice);
+        if (customerId) prev.customers.add(customerId);
+        if (unitCost > 0) {
+          prev.profit += amount - unitCost * q;
+          prev.costedSales += amount;
+        }
+      } else if (amount < 0) {
+        prev.returns += -amount;
+        if (unitCost > 0) {
+          prev.profit += amount + unitCost * q;
+          prev.costedSales += amount;
+        }
+      }
+      prevNetBySalesperson[spId] = (prevNetBySalesperson[spId] || 0) + amount;
+      continue;
+    }
+
+    if (!salespersons[spId]) salespersons[spId] = spId === UNASSIGNED ? 'Unassigned' : nameById.get(spId) || spId;
+    if (customerId && !customerInfo[customerId]) {
+      customerInfo[customerId] = {
+        name: cust?.subName || String(s.customerName || customerId).trim(),
+        mainName: cust?.mainName || String(s.customerMainName || s.customerName || customerId).trim(),
+        city: cust?.city || '',
+      };
+    }
+    const productId = String(s.productId ?? '').trim();
+    if (productId && !productInfo[productId]) {
+      productInfo[productId] = {
+        barcode: String(s.barcode || '').trim(),
+        name: String(s.product || productId).trim(),
+        category: String(s.productTag || 'Uncategorized').trim() || 'Uncategorized',
+      };
+    }
+    lines.push({ date, invoice, salespersonId: spId, customerId, productId, amount, qty, cost: unitCost });
+  }
+
+  return {
+    period: { start, end },
+    prevPeriod: { start: prevStart, end: prevEnd },
+    allSalespersons,
+    showCosts,
+    salespersons,
+    customers: customerInfo,
+    products: productInfo,
+    lines,
+    prevTotals: {
+      gross: prev.gross,
+      returns: prev.returns,
+      net: prev.net,
+      invoices: prev.invoices.size,
+      customers: prev.customers.size,
+      qty: prev.qty,
+      profit: prev.profit,
+      costedSales: prev.costedSales,
+    },
+    prevNetBySalesperson,
   };
 }

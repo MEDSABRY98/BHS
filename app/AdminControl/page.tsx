@@ -4,9 +4,10 @@ import { isAdminRole } from '@/lib/AdminRole';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Menu } from 'lucide-react';
-import UserActivityTab from './UserActivityTab/UserActivityTab';
-import AdminControlTab from './AdminControlTab';
-import AdminSidebar from './Utils/Sidebar';
+import UserActivityTab from './UserActivity/UserActivityTab';
+import AdminControlTab from './AdminControl/AdminControlTab';
+import ModuleAdminsTab from './ModuleAdmins/ModuleAdminsTab';
+import AdminSidebar from './Code/Sidebar';
 import TabPanel from '@/app/Components/Layout/TabPanel';
 import { restoreSessionUser } from '@/app/Components/Auth/sessionClient';
 import Login from '@/app/Components/Auth/Login';
@@ -131,6 +132,9 @@ export default function AdminControlPage() {
           </TabPanel>
           <TabPanel tabId="user-activity" activeTab={activeTab} isVisited={visitedTabs.has('user-activity')}>
             <UserActivityTab adminName={adminName} />
+          </TabPanel>
+          <TabPanel tabId="module-admins" activeTab={activeTab} isVisited={visitedTabs.has('module-admins')}>
+            <ModuleAdminsTab />
           </TabPanel>
         </div>
       </div>

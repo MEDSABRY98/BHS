@@ -10,6 +10,7 @@
 import { cookies } from 'next/headers';
 import { createHmac, randomBytes, scryptSync, timingSafeEqual } from 'crypto';
 import { getSupabaseAdmin } from '@/lib/supabaseAdmin';
+import { isModuleAdmin, type ModuleAdminAction, type ModuleAdminMap } from '@/lib/ModuleAdmin';
 
 const COOKIE_NAME = 'bhs_session';
 const SESSION_MAX_AGE_SEC = 60 * 60 * 24 * 30; // 30 days
@@ -22,6 +23,7 @@ export type SessionUserRecord = {
   role: string;            // AUTHORITY (permissions JSON or 'Admin')
   userAdmin: string;       // ROLE column
   salesDataAccess: boolean;
+  moduleAdmins?: ModuleAdminMap; // modules this user is admin of (Admin Control → Module Admins)
 };
 
 export class UnauthorizedError extends Error {
@@ -122,20 +124,43 @@ export function toSessionUser(row: any): SessionUserRecord {
 export async function getSessionUser(): Promise<SessionUserRecord | null> {
   const session = await getSession();
   if (!session) return null;
-  const { data, error } = await getSupabaseAdmin()
-    .from('bhs_USERS')
-    .select('*') // '*' so it works before and after renaming SALES_DATA_ACCESS -> FULL_DATA_ACCESS
-    .eq('ID', session.uid)
-    .maybeSingle();
+  const db = getSupabaseAdmin();
+  const [{ data, error }, admins] = await Promise.all([
+    db
+      .from('bhs_USERS')
+      .select('*') // '*' so it works before and after renaming SALES_DATA_ACCESS -> FULL_DATA_ACCESS
+      .eq('ID', session.uid)
+      .maybeSingle(),
+    db.from('app_MODULE_ADMINS').select('MODULE_ID, CAN_EDIT, CAN_DELETE').eq('USER_ID', String(session.uid)),
+  ]);
   if (error || !data) return null;
-  return toSessionUser(data);
+  const user = toSessionUser(data);
+  // table missing / error -> no module admin rights (never blocks the login)
+  // (always set, even empty, so a removed right also disappears from the browser copy)
+  const map: ModuleAdminMap = {};
+  if (!admins.error) {
+    for (const r of (admins.data || []) as any[]) {
+      const id = String(r.MODULE_ID || '').trim();
+      if (id) map[id] = { edit: !!r.CAN_EDIT, delete: !!r.CAN_DELETE };
+    }
+  }
+  user.moduleAdmins = map;
+  return user;
 }
 
-export function isAdminUser(user: Pick<SessionUserRecord, 'name' | 'role' | 'userAdmin'> | null | undefined): boolean {
+/**
+ * The admin. With a module id: also an admin of that module (Admin Control → Module Admins);
+ * with an action ('edit' / 'delete') only when he was given that right in the module.
+ */
+export function isAdminUser(
+  user: Pick<SessionUserRecord, 'name' | 'role' | 'userAdmin' | 'moduleAdmins'> | null | undefined,
+  moduleId?: string,
+  action?: ModuleAdminAction,
+): boolean {
   if (!user) return false;
   if (String(user.userAdmin || '').trim().toLowerCase() === 'admin') return true;
   if (String(user.role || '').trim() === 'Admin') return true;
-  return false;
+  return isModuleAdmin(user, moduleId, action);
 }
 
 /** Throws if there is no valid session. Returns the session payload (cheap: no DB call). */

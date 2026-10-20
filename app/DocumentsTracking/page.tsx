@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import DocumentsTrackingTab from './Components/DocumentsTrackingTab';
-import { useAuditAfterAuth } from '@/app/Audit/Utils/useModuleTabAudit';
+import { useAuditAfterAuth } from '@/app/AdminControl/Code/Audit/useModuleTabAudit';
 import { ChevronLeft } from 'lucide-react';
 import MainLoader from '@/app/Components/Loading/MainLoader';
 import { restoreSessionUser } from '@/app/Components/Auth/sessionClient';

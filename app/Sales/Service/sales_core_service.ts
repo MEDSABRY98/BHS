@@ -6,7 +6,7 @@ import { requireSession, getSessionUser, isAdminUser, UnauthorizedError } from '
 async function requireSalesDeleteRight() {
   const user = await getSessionUser();
   if (!user) throw new UnauthorizedError('Your session has expired. Please log in again.');
-  if (isAdminUser(user)) return user;
+  if (isAdminUser(user, 'sales')) return user;
   let perms: any = null;
   try {
     perms = JSON.parse(String(user.role || '').trim() || 'null');

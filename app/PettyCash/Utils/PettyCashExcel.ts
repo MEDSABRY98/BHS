@@ -1,6 +1,6 @@
 'use client';
 
-import { saveTrackedAs } from '@/app/Audit/Utils/TrackedDownload';
+import { saveTrackedAs } from '@/app/AdminControl/Code/Audit/TrackedDownload';
 import { compareLines, formatDate, uaeDateOf, type PettyCash } from './PettyCashTypes';
 
 // Same look as the other BHS Excel exports (app/Components/Export/ExcelExport.ts)
@@ -16,7 +16,7 @@ const safe = (s: string) => (s || '').replace(/[^\w؀-ۿ -]+/g, '').trim().slice
 export async function exportPettyCashExcel(items: PettyCash[], opts: { period?: string; showAccount?: boolean } = {}) {
   if (!items.length) throw new Error('Nothing to export');
   const single = items.length === 1 ? items[0] : null;
-  const employees = Array.from(new Set(items.map((p) => p.CREATED_BY).filter(Boolean)));
+  const employees = Array.from(new Set(items.map((p) => p.EMPLOYEE_NAME || p.CREATED_BY).filter(Boolean)));
 
   const ExcelJS = (await import('exceljs')).default;
   const wb = new ExcelJS.Workbook();
@@ -45,7 +45,7 @@ export async function exportPettyCashExcel(items: PettyCash[], opts: { period?: 
     ws.addRow([
       i + 1,
       p.ID,
-      p.CREATED_BY,
+      p.EMPLOYEE_NAME || p.CREATED_BY,
       formatDate(l.INVOICE_DATE),
       l.DESCRIPTION,
       ...(withAccount ? [String(l.ACCOUNT || '').trim()] : []),
@@ -86,7 +86,7 @@ export async function exportPettyCashExcel(items: PettyCash[], opts: { period?: 
   ws.pageSetup = { paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 };
 
   const fileName = single
-    ? `${single.ID}_${safe(single.CREATED_BY) || 'PettyCash'}.xlsx`
+    ? `${single.ID}_${safe(single.EMPLOYEE_NAME || single.CREATED_BY) || 'PettyCash'}.xlsx`
     : `PettyCash_Statement_${employees.length === 1 ? safe(employees[0]) + '_' : ''}${new Date().toISOString().slice(0, 10)}.xlsx`;
 
   const buffer = await wb.xlsx.writeBuffer();

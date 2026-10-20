@@ -23,6 +23,7 @@ export type PermissionUser = {
     NAME?: string;
     role?: string;
     userAdmin?: string;
+    moduleAdmins?: Record<string, unknown>;
 } | null | undefined;
 
 export function getCurrentUserFromStorage(): PermissionUser {
@@ -59,6 +60,7 @@ export function getAllowedModuleTabIds(
 ): string[] {
     if (!user) return [...allTabIds];
     if (isUnrestrictedAdminUser(user)) return [...allTabIds];
+    if (user.moduleAdmins?.[systemId]) return [...allTabIds]; // admin of this module (Module Admins)
 
     const perms = parseUserPermissions(user);
     const allowed = perms[systemId];
@@ -184,7 +186,7 @@ function migrateInventoryScrapTabs(tabs: string[]): string[] {
     )];
 }
 
-const SYSTEMS = [
+export const SYSTEMS = [
     { id: 'cash-receipt', label: 'Receipt Vouchers (IN)' },
     { id: 'cash-handover', label: 'Payment Vouchers (OUT)' },
     { id: 'documents-tracking', label: 'Documents Tracking' },

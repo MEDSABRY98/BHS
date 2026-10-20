@@ -27,9 +27,10 @@ const round2 = (n: number) => Math.round(n * 100) / 100;
 /** Invoice number up to the first space, e.g. "INV/2026/10205 20" → "INV/2026/10205". */
 const invoiceKey = (v: unknown) => norm(v).split(/\s+/)[0] || '';
 
-export function hasFullDebitAccess(user: SessionUserRecord): boolean {
+/** Sees every customer: the admin, an admin of the module (default Customers Analysis = 'debit'), or full data access. */
+export function hasFullDebitAccess(user: SessionUserRecord, moduleId: string = 'debit'): boolean {
   return (
-    isAdminUser(user) ||
+    isAdminUser(user, moduleId) ||
     hasSalesDataAccess({ name: user.name, userAdmin: user.userAdmin, salesDataAccess: user.salesDataAccess })
   );
 }

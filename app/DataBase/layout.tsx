@@ -13,9 +13,9 @@ import {
   ChevronLeft,
   ArrowLeft,
 } from 'lucide-react';
-import { useDataBaseRouteAudit } from '@/app/Audit/Model/DataBaseTabAudit';
+import { useDataBaseRouteAudit } from '@/app/AdminControl/Code/Audit/Model/DataBaseTabAudit';
 import { findDatabaseNavItemByPath, getDatabaseNavItemsByCategory, DATABASE_NAV_ITEMS } from './Utils/DatabaseHubConfig';
-import { getAllowedModuleTabIds } from '@/app/AdminControl/AdminControlTab';
+import { getAllowedModuleTabIds } from '@/app/AdminControl/AdminControl/AdminControlTab';
 import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
 
 interface NavItemProps {

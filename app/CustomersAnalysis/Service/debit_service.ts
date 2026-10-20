@@ -38,7 +38,7 @@ export interface DebitCustomersSummaryRow {
 async function requireDebitTab(...tabIds: string[]) {
   const user = await getSessionUser();
   if (!user) throw new UnauthorizedError('Your session has expired. Please log in again.');
-  if (isAdminUser(user)) return user;
+  if (isAdminUser(user, 'debit')) return user;
   try {
     const perms = JSON.parse(String(user.role || '').trim() || '{}');
     const allowed = perms?.debit || perms?.debit_tabs;

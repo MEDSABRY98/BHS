@@ -75,7 +75,7 @@ export default function DebitSidebar({
 
   const getFilteredTabs = () => {
     if (!currentUser) return [];
-    if (isAdminRole(currentUser)) return allTabs;
+    if (isAdminRole(currentUser, 'debit')) return allTabs;
 
     try {
       const perms = JSON.parse(currentUser.role || '{}');

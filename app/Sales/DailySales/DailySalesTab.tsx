@@ -8,7 +8,7 @@ import { exportSalesExcel } from '@/app/Sales/Export/ExcelExport';
 import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import SalesTabLoader from '@/app/Sales/Shared/TabLoader';
 import ExportExcelModal from './ExportExcelModal';
-import { trackSalesNestedTab, SALES_DAILY_SALES_TAB_LABELS } from '@/app/Audit/Model/SalesTabAudit';
+import { trackSalesNestedTab, SALES_DAILY_SALES_TAB_LABELS } from '@/app/AdminControl/Code/Audit/Model/SalesTabAudit';
 
 import AllInvoicesTab from './AllInvoicesTab';
 import SalesByDayTab from './SalesByDayTab';

@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { exportDebitExcelTable } from '@/app/CustomersAnalysis/Utils/ExcelExport';
-import { saveTrackedAs } from '@/app/Audit/Utils/TrackedDownload';
+import { saveTrackedAs } from '@/app/AdminControl/Code/Audit/TrackedDownload';
 import {
   AreaChart,
   Area,
@@ -66,7 +66,7 @@ import OverdueTab from './Tabs/OverdueTab';
 import MonthlyTab from './Tabs/MonthlyTab';
 import NotesTab from './Tabs/NotesTab';
 import { SharedTabProps, InvoiceWithNetDebt, MonthlyDebt, AgingSummary, OverdueInvoice } from './Types';
-import { useDebitCustomerDetailsTabAudit } from '@/app/Audit/Model/DebitTabAudit';
+import { useDebitCustomerDetailsTabAudit } from '@/app/AdminControl/Code/Audit/Model/DebitTabAudit';
 import {
   isPaymentTxn,
   getPaymentAmount,

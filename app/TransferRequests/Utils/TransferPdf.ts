@@ -4,7 +4,7 @@
 // Signatures (on paper): Prepared By · Accounts Department · CEO
 
 import { addArabicFont } from '@/app/Components/Pdf/shared';
-import { saveTrackedPdf, trackFileDownload } from '@/app/Audit/Utils/TrackedDownload';
+import { saveTrackedPdf, trackFileDownload } from '@/app/AdminControl/Code/Audit/TrackedDownload';
 import {
   amountToWords,
   formatAmount,

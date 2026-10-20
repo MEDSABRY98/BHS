@@ -58,7 +58,7 @@ export default function NotesTab(props: SharedTabProps) {
               const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
               // Robust comparison: check if names exist and match (ignoring case/whitespace)
               // Permission Check: only the admin (ROLE column) can edit/delete/mark solved
-              const canManageNotes = isAdminRole(currentUser);
+              const canManageNotes = isAdminRole(currentUser, 'debit', 'edit');
 
               return (
                 <div key={index} className="bg-white p-6 rounded-lg shadow hover:shadow-md transition-shadow">

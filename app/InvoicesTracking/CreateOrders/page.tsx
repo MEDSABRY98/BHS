@@ -27,7 +27,7 @@ import * as XLSX from 'xlsx';
 import { exportInvoicesTrackingExcel } from '../Export/ExcelExport';
 import { toast } from '@/app/Components/Notification';
 import TabLoader from '@/app/Components/Loading/TabLoader';
-import { triggerTrackedDownload } from '@/app/Audit/Utils/TrackedDownload';
+import { triggerTrackedDownload } from '@/app/AdminControl/Code/Audit/TrackedDownload';
 
 function downloadUploadErrorsReport(errors: string[], action: 'import' | 'update') {
   if (errors.length === 0) return;

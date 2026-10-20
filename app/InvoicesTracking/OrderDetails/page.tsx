@@ -19,7 +19,7 @@ import TabLoader from '@/app/Components/Loading/TabLoader';
 import { usePermissions } from '../Hooks/usePermissions';
 import OrderDetailsTab, { OrderDetailsTabHandle } from './Components/OrderDetailsTab';
 import { exportInvoicesTrackingExcel } from '../Export/ExcelExport';
-import { useInvoicesTrackingOrderDetailsTabAudit } from '@/app/Audit/Model/InvoicesTrackingTabAudit';
+import { useInvoicesTrackingOrderDetailsTabAudit } from '@/app/AdminControl/Code/Audit/Model/InvoicesTrackingTabAudit';
 import { TRACKING_TABLE } from '../Utils/TrackingTable';
 
 function OrderDetailsPageContent() {

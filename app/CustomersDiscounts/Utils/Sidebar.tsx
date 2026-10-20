@@ -14,7 +14,7 @@ import {
   Filter,
   RefreshCw,
 } from 'lucide-react';
-import { getAllowedModuleTabIds } from '@/app/AdminControl/AdminControlTab';
+import { getAllowedModuleTabIds } from '@/app/AdminControl/AdminControl/AdminControlTab';
 import CustomersFilterModal from '../Modals/CustomersFilterModal';
 
 interface SidebarProps {

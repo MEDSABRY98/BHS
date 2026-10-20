@@ -9,7 +9,7 @@ import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import { toast } from '@/app/Components/Notification';
 import { restoreSessionUser } from '@/app/Components/Auth/sessionClient';
 import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
-import { useModuleTabAudit } from '@/app/Audit/Utils/useModuleTabAudit';
+import { useModuleTabAudit } from '@/app/AdminControl/Code/Audit/useModuleTabAudit';
 import EmployeeChargeSidebar from './Utils/Sidebar';
 import EmployeeChargeForm from './NewCharge/EmployeeChargeForm';
 import EmployeeChargesList from './Charges/EmployeeChargesList';

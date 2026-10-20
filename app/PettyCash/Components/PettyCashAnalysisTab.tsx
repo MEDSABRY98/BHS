@@ -6,7 +6,7 @@
 import { useRef, useState } from 'react';
 import { BarChart3, CheckCircle2, Download, FileUp, Loader2, X } from 'lucide-react';
 import { toast } from '@/app/Components/Notification';
-import { saveTrackedAs } from '@/app/Audit/Utils/TrackedDownload';
+import { saveTrackedAs } from '@/app/AdminControl/Code/Audit/TrackedDownload';
 import { generatePettyCashAnalysisPdf } from '../Utils/PettyCashAnalysisPdf';
 import { round2, type PettyCash } from '../Utils/PettyCashTypes';
 
@@ -167,6 +167,7 @@ function toGroups(rows: Row[]): PettyCash[] {
     NOTES: null,
     CREATED_BY: employee,
     CREATED_BY_ID: '',
+    EMPLOYEE_NAME: employee,
     CREATED_AT: '',
     STATUS: 'SUBMITTED' as const,
     MINE: false,

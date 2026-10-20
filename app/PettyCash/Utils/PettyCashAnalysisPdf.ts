@@ -6,7 +6,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { addArabicFont } from '@/app/Components/Pdf/shared';
-import { saveTrackedPdf } from '@/app/Audit/Utils/TrackedDownload';
+import { saveTrackedPdf } from '@/app/AdminControl/Code/Audit/TrackedDownload';
 import { COMPANY_NAME, compareLines, type PettyCash } from './PettyCashTypes';
 
 type RGB = [number, number, number];
@@ -72,7 +72,7 @@ function analyse(items: PettyCash[]) {
   const acc = group(lines, 'account');
   acc.forEach((a) => (a.people = group(lines.filter((l) => l.account === a.name), 'person')));
   const per = group(lines, 'person');
-  const employees = Array.from(new Set(items.map((p) => p.CREATED_BY).filter(Boolean)));
+  const employees = Array.from(new Set(items.map((p) => p.EMPLOYEE_NAME || p.CREATED_BY).filter(Boolean)));
 
   const dates = Array.from(new Set(lines.map((l) => l.date))).sort();
   let period = '';
@@ -160,7 +160,7 @@ function chart(doc: jsPDF, y: number, rows: Group[], total: number, isHi: (r: Gr
 
 const baseTable = {
   theme: 'plain' as const,
-  margin: { left: M, right: M, top: 20, bottom: 22 },
+  margin: { left: M, right: M, top: 22, bottom: 22 },
   styles: { font: 'helvetica', fontSize: 8.5, halign: 'center' as const, valign: 'middle' as const, cellPadding: { top: 1.9, bottom: 1.9, left: 2, right: 2 }, textColor: C.black, lineColor: C.line },
   headStyles: { fillColor: C.black, textColor: C.white, fontStyle: 'bold' as const, halign: 'center' as const },
 };
@@ -310,15 +310,16 @@ function decorate(doc: jsPDF, period: string) {
   for (let i = 1; i <= n; i++) {
     doc.setPage(i);
     doc.setFillColor(...C.black);
-    doc.rect(0, 0, PW, 9, 'F');
+    // taller band so it is not cut by the printer's own top margin
+    doc.rect(0, 0, PW, 14, 'F');
     doc.setFillColor(...C.gold);
-    doc.rect(0, 9, PW, 1.2, 'F');
+    doc.rect(0, 14, PW, 1.2, 'F');
     doc.setTextColor(...C.white);
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8.5);
-    doc.text(COMPANY_NAME, M, 6);
+    doc.setFontSize(9);
+    doc.text(COMPANY_NAME, M, 9);
     doc.setFont('helvetica', 'normal');
-    doc.text(`Petty Cash Analysis${period ? '  |  ' + period : ''}`, PW - M, 6, { align: 'right' });
+    doc.text(`Petty Cash Analysis${period ? '  |  ' + period : ''}`, PW - M, 9, { align: 'right' });
     doc.setFontSize(7);
     doc.setTextColor(...C.grey);
     doc.text(`Page ${i} of ${n}`, PW - M, PH - 8, { align: 'right' });

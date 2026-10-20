@@ -2,7 +2,7 @@
 
 import { getInvoiceType } from '@/app/CustomersAnalysis/Utils/InvoiceType';
 import { addArabicFont } from '@/app/Components/Pdf/shared';
-import { saveTrackedPdf } from '@/app/Audit/Utils/TrackedDownload';
+import { saveTrackedPdf } from '@/app/AdminControl/Code/Audit/TrackedDownload';
 import { sortInvoicesByDateThenNumber } from '@/app/CustomersAnalysis/CustomerDetailsTab/Utils';
 
 // --- Colors ---

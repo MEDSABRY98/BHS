@@ -36,7 +36,7 @@ const db = () => getSupabaseAdmin();
 async function requireFinancialAccess(write = false) {
   const user = await getSessionUser();
   if (!user) throw new UnauthorizedError('Your session has expired. Please log in again.');
-  if (isAdminUser(user)) return user;
+  if (isAdminUser(user, 'financial-model')) return user;
   let perms: any = {};
   try {
     perms = JSON.parse(String(user.role || '').trim() || '{}') || {};

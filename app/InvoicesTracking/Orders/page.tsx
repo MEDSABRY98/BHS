@@ -77,7 +77,7 @@ export default function OrdersPage() {
   const [isAdmin, setIsAdmin] = useState(false);
   useEffect(() => {
     try {
-      setIsAdmin(isAdminRole(JSON.parse(localStorage.getItem('currentUser') || 'null')));
+      setIsAdmin(isAdminRole(JSON.parse(localStorage.getItem('currentUser') || 'null'), 'lpo-management', 'delete'));
     } catch {
       setIsAdmin(false);
     }

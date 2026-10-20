@@ -2,7 +2,7 @@
 
 import { addArabicFont } from '@/app/Components/Pdf/shared';
 import { printPdfInSameTab } from '@/app/InvoicesTracking/Pdf/DeliveryUtils';
-import { saveTrackedPdf } from '@/app/Audit/Utils/TrackedDownload';
+import { saveTrackedPdf } from '@/app/AdminControl/Code/Audit/TrackedDownload';
 
 export interface PaymentReconciliationLine {
   customerName: string;

@@ -86,7 +86,7 @@ function parsePerms(user: SessionUserRecord): any | null {
 
 /** Same rule as the Database screens (usePermissions): database-actions → edit / delete. */
 function canWriteDatabase(user: SessionUserRecord, action: 'edit' | 'delete'): boolean {
-  if (isAdminUser(user)) return true;
+  if (isAdminUser(user, 'database', action)) return true; // the admin, or a Database module admin with this right
   const perms = parsePerms(user);
   const actions = perms?.['database-actions'];
   if (!Array.isArray(actions)) return false;
@@ -96,7 +96,11 @@ function canWriteDatabase(user: SessionUserRecord, action: 'edit' | 'delete'): b
 
 /** Full data access flag, or access to the Database module. */
 function canSeeAllDebit(user: SessionUserRecord): boolean {
-  if (isAdminUser(user) || hasSalesDataAccess({ name: user.name, userAdmin: user.userAdmin, salesDataAccess: user.salesDataAccess })) {
+  if (
+    isAdminUser(user, 'debit') ||
+    isAdminUser(user, 'database') ||
+    hasSalesDataAccess({ name: user.name, userAdmin: user.userAdmin, salesDataAccess: user.salesDataAccess })
+  ) {
     return true;
   }
   const systems = parsePerms(user)?.systems;
@@ -167,6 +171,11 @@ async function scopeLpo(user: SessionUserRecord, table: string, steps: SecureSte
   // every new row is owned by the user who saved it (the admin too)
   if (main === 'insert') return steps.map(([m, a]) => (m === 'insert' ? [m, [stampRows(a?.[0], user), ...(a || []).slice(1)]] : [m, a])) as SecureStep[];
   if (isAdminUser(user)) return steps;
+  // admin of Invoices Tracking: sees every order; changes / deletes them only with that right
+  const lpo = 'lpo-management';
+  if (main === 'select' && isAdminUser(user, lpo)) return steps;
+  if (main === 'update' && isAdminUser(user, lpo, 'edit')) return steps;
+  if (main === 'delete' && isAdminUser(user, lpo, 'delete')) return steps;
   if (isLookupOnly(steps)) return steps;
   if (main === 'upsert') return 'Not allowed.';
   return withFilter(steps, ['in', ['CREATED_BY', await teamUserIds(user)]]);

@@ -41,8 +41,9 @@ export interface PettyCash {
   TOTAL_AMOUNT: number;
   TAX_AMOUNT_TOTAL: number;
   NOTES: string | null;
-  CREATED_BY: string;
+  CREATED_BY: string;       // who recorded it (he sees / edits / submits it)
   CREATED_BY_ID: string;
+  EMPLOYEE_NAME: string;    // the employee it is for - any name (old ones = CREATED_BY)
   CREATED_AT: string;
   UPDATED_BY?: string | null;
   UPDATED_AT?: string | null;
@@ -67,6 +68,7 @@ export type PettyCashLineInput = {
 
 export type PettyCashInput = {
   NOTES?: string;
+  EMPLOYEE_NAME?: string;   // admin only: record it for another employee (default: himself)
   LINES: PettyCashLineInput[];
 };
 

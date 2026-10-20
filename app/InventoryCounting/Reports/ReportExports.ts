@@ -3,7 +3,7 @@
 // Inventory Count report - PDF (cover page + grouped details + signatures) and Excel exports.
 
 import { addArabicFont } from '@/app/Components/Pdf/shared';
-import { saveTrackedPdf, saveTrackedAs } from '@/app/Audit/Utils/TrackedDownload';
+import { saveTrackedPdf, saveTrackedAs } from '@/app/AdminControl/Code/Audit/TrackedDownload';
 import {
   type CountRow,
   type CoverInfo,

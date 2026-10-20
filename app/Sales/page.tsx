@@ -34,7 +34,7 @@ import { getAllowedSalesTabIds, isSalesTabAllowed } from '@/app/Sales/Utils/sale
 import { getCustomersList, getMyCustomersData, batchSaveCustomerMapping } from '@/app/Sales/Service/sales_customers_service';
 import { getSalesMetadata } from '@/app/Sales/Service/sales_core_service';
 import { logoutEverywhere } from '@/app/Components/Auth/sessionClient';
-import { trackSalesTab } from '@/app/Audit/Model/SalesTabAudit';
+import { trackSalesTab } from '@/app/AdminControl/Code/Audit/Model/SalesTabAudit';
 
 export default function SalesPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -142,6 +142,7 @@ export default function SalesPage() {
   // Admins always; FULL DATA ACCESS alone does not unlock costs ('view-costs' decides)
   const showCosts = useMemo(() => {
     if (String(currentUser?.userAdmin || '').trim().toLowerCase() === 'admin') return true;
+    if (currentUser?.moduleAdmins?.['sales']) return true; // admin of the Sales module
     try {
       const roleStr = currentUser?.role || '';
       if (!roleStr) return true;

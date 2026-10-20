@@ -1,4 +1,4 @@
-import { triggerTrackedDownload } from '@/app/Audit/Utils/TrackedDownload';
+import { triggerTrackedDownload } from '@/app/AdminControl/Code/Audit/TrackedDownload';
 
 /**
  * Download a text file detailing any issues encountered during Excel upload.
