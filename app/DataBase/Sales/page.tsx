@@ -1065,7 +1065,7 @@ export default function SalesDBPage() {
 
       {removedPrompt && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl border border-slate-200/60 overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[85vh]">
+          <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl border border-slate-200/60 overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[85vh]">
             <div className="p-6 flex items-start gap-4 border-b border-slate-100">
               <span className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
                 <AlertTriangle className="w-6 h-6" />
@@ -1086,19 +1086,19 @@ export default function SalesDBPage() {
               <table className="w-full text-sm">
                 <thead className="sticky top-0 bg-slate-50">
                   <tr className="text-[11px] font-black uppercase tracking-wider text-slate-400">
-                    <th className="py-2.5 px-4 text-left">Invoice</th>
+                    <th className="py-2.5 px-4 text-center">Invoice</th>
                     <th className="py-2.5 px-3 text-center">Date</th>
                     <th className="py-2.5 px-3 text-center">Customer</th>
-                    <th className="py-2.5 px-4 text-right">Amount</th>
+                    <th className="py-2.5 px-4 text-center">Amount</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {removedPrompt.list.map((r) => (
                     <tr key={r.invoice} className="hover:bg-slate-50/60">
-                      <td className="py-2.5 px-4 font-bold text-slate-900 break-all">{r.invoice}</td>
+                      <td className="py-2.5 px-4 text-center font-bold text-slate-900 whitespace-nowrap">{r.invoice}</td>
                       <td className="py-2.5 px-3 text-center font-semibold text-slate-500 whitespace-nowrap">{r.date}</td>
                       <td className="py-2.5 px-3 text-center font-semibold text-slate-500">{r.customer}</td>
-                      <td className={`py-2.5 px-4 text-right font-black whitespace-nowrap ${r.amount < 0 ? 'text-red-600' : 'text-slate-900'}`}>
+                      <td className={`py-2.5 px-4 text-center font-black whitespace-nowrap ${r.amount < 0 ? 'text-red-600' : 'text-slate-900'}`}>
                         {r.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
                     </tr>
