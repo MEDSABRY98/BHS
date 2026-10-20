@@ -211,6 +211,7 @@ export const SYSTEMS = [
     { id: 'debit-notes', label: 'Debit Notes' },
     { id: 'credit-notes', label: 'Credit Notes' },
     { id: 'forms', label: 'Forms' },
+    { id: 'scheduled-reports', label: 'Scheduled Reports' },
     { id: 'database', label: 'Database' },
 ];
 

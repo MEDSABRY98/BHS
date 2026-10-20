@@ -115,6 +115,8 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
       'customers-analysis': ['debit'],
     };
     if ([systemId, ...(aliases[systemId] || [])].some((id) => adminOf[id])) return true;
+    // admins only (and admins of this module, handled above)
+    if (systemId === 'scheduled-reports') return false;
 
     try {
       const roleStr = currentUser?.role || '';
@@ -166,6 +168,7 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
     { id: 'debit-notes', title: 'Debit Notes', path: '/DebitNotes', color: 'indigo' },
     { id: 'credit-notes', title: 'Credit Notes', path: '/CreditNotes', color: 'emerald' },
     { id: 'forms', title: 'Forms', path: '/Forms', color: 'violet' },
+    { id: 'scheduled-reports', title: 'Scheduled Reports', path: '/ScheduledReports', color: 'yellow' },
   ];
 
   const allowedSystems = useMemo(

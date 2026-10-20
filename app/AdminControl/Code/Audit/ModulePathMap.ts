@@ -22,6 +22,7 @@ const MODULE_ROUTES: { prefix: string; name: string }[] = [
   { prefix: '/InvoicesTracking', name: 'Invoices Tracking' },
   { prefix: '/DataBase', name: 'Database' },
   { prefix: '/CustomersDiscounts', name: 'Customers Discounts' },
+  { prefix: '/ScheduledReports', name: 'Scheduled Reports' },
 ];
 
 const SORTED_ROUTES = [...MODULE_ROUTES].sort((a, b) => b.prefix.length - a.prefix.length);

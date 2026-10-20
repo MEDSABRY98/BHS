@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ['exceljs', 'jszip', 'xlsx', 'file-saver'],
+  serverExternalPackages: ['exceljs', 'jszip', 'xlsx', 'file-saver', 'nodemailer', 'jspdf', 'jspdf-autotable'],
   experimental: {
     serverActions: {
       bodySizeLimit: '50mb',

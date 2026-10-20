@@ -17,3 +17,4 @@ export * from './InvoicesTrackingTabAudit';
 export * from './PettyCashTabAudit';
 export * from './PurchasePriceTrackingTabAudit';
 export * from './SalesTabAudit';
+export * from './ScheduledReportsTabAudit';
