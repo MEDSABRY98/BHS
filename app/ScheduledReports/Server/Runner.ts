@@ -3,7 +3,7 @@
 // • runReport():     builds one report, emails it, writes the log
 
 import { getSupabaseAdmin } from '@/lib/supabaseAdmin';
-import { EMAIL_RE, TIME_RE, type ReportLogRow, type ScheduledReport } from '../Utils/Types';
+import { EMAIL_RE, TIME_RE, type Recipient, type ReportLogRow, type ScheduledReport } from '../Utils/Types';
 import { dubaiNow, periodRange, toMinutes } from './Dubai';
 import { REPORT_BUILDERS } from './Builders';
 import { mailStatus, sendMail } from './Mailer';
@@ -16,12 +16,21 @@ const LATE_WINDOW_MIN = 180;
 /** Failed automatic sends are retried on the next runs, at most this many times a day. */
 const MAX_TRIES_PER_DAY = 3;
 
+export function recipientsFromRow(r: any): Recipient[] {
+  const list: Recipient[] = Array.isArray(r.RECIPIENTS) && r.RECIPIENTS.length
+    ? r.RECIPIENTS.map((x: any) => ({ email: String(x?.email || '').trim().toLowerCase(), salespersonId: x?.salespersonId ? String(x.salespersonId) : null }))
+    : (Array.isArray(r.EMAILS) ? r.EMAILS : []).map((e: any) => ({ email: String(e).trim().toLowerCase(), salespersonId: null }));
+  return list.filter((x) => x.email);
+}
+
 export function reportFromRow(r: any): ScheduledReport {
+  const recipients = recipientsFromRow(r);
   return {
     id: Number(r.ID),
     name: String(r.NAME || ''),
     reportType: String(r.REPORT_TYPE || ''),
-    emails: Array.isArray(r.EMAILS) ? r.EMAILS.map(String) : [],
+    recipients,
+    emails: [...new Set(recipients.map((x) => x.email))],
     sendTime: String(r.SEND_TIME || '09:00'),
     days: Array.isArray(r.DAYS) ? r.DAYS.map(Number) : [],
     period: r.PERIOD || 'yesterday',
@@ -41,6 +50,7 @@ export function logFromRow(r: any): ReportLogRow {
     periodStart: r.PERIOD_START ? String(r.PERIOD_START).slice(0, 10) : null,
     periodEnd: r.PERIOD_END ? String(r.PERIOD_END).slice(0, 10) : null,
     emails: Array.isArray(r.EMAILS) ? r.EMAILS.map(String) : [],
+    scope: r.SCOPE ?? null,
     status: r.STATUS,
     message: r.MESSAGE ?? null,
     trigger: r.TRIGGER === 'manual' ? 'manual' : 'schedule',
@@ -53,6 +63,7 @@ async function writeLog(entry: {
   report: ScheduledReport;
   range: { start: string; end: string } | null;
   emails: string[];
+  scope: string | null;
   status: ReportLogRow['status'];
   message: string | null;
   trigger: 'schedule' | 'manual';
@@ -67,6 +78,7 @@ async function writeLog(entry: {
       PERIOD_START: entry.range?.start ?? null,
       PERIOD_END: entry.range?.end ?? null,
       EMAILS: entry.emails,
+      SCOPE: entry.scope,
       STATUS: entry.status,
       MESSAGE: entry.message ? entry.message.slice(0, 1000) : null,
       TRIGGER: entry.trigger,
@@ -81,42 +93,78 @@ async function writeLog(entry: {
   return logFromRow(data);
 }
 
-/** Builds one report for the period of `today` (Dubai) and emails it. Never throws. */
+/**
+ * Builds the report for the period of `today` (Dubai) and emails it. Never throws.
+ * The recipients are grouped by what they receive: one email for "all salespersons",
+ * and one email per salesperson (with only his own sales). Each group gets its own log row.
+ */
 export async function runReport(
   report: ScheduledReport,
   opts: { trigger: 'schedule' | 'manual'; sentBy?: string | null; today?: string },
-): Promise<{ status: ReportLogRow['status']; message: string | null; log: ReportLogRow | null }> {
+): Promise<{ status: ReportLogRow['status']; message: string | null }> {
   const today = opts.today || dubaiNow().date;
   const range = periodRange(report.period, today);
-  const emails = [...new Set(report.emails.map((e) => e.trim().toLowerCase()).filter((e) => EMAIL_RE.test(e)))];
-  const base = { report, range, emails, trigger: opts.trigger, sentBy: opts.sentBy ?? null };
+  const log = (emails: string[], scope: string | null, status: ReportLogRow['status'], message: string | null) =>
+    writeLog({ report, range, emails, scope, status, message, trigger: opts.trigger, sentBy: opts.sentBy ?? null });
 
-  const finish = async (status: ReportLogRow['status'], message: string | null) => ({
-    status,
-    message,
-    log: await writeLog({ ...base, status, message }),
-  });
+  // group the emails: key '' = all salespersons, otherwise the salesperson id
+  const groups = new Map<string, Set<string>>();
+  for (const r of report.recipients) {
+    const email = r.email.trim().toLowerCase();
+    if (!EMAIL_RE.test(email)) continue;
+    const key = r.salespersonId || '';
+    if (!groups.has(key)) groups.set(key, new Set());
+    groups.get(key)!.add(email);
+  }
+  const allEmails = [...new Set([...groups.values()].flatMap((s) => [...s]))];
 
   const builder = REPORT_BUILDERS[report.reportType];
-  if (!builder) return finish('failed', `Unknown report type: ${report.reportType}`);
-  if (!emails.length) return finish('failed', 'No email addresses');
-  if (!(await mailStatus()).ready) return finish('failed', 'Email is not set up yet — connect Zoho Mail (✉ button)');
+  const fail = async (message: string) => {
+    await log(allEmails, null, 'failed', message);
+    return { status: 'failed' as const, message };
+  };
+  if (!builder) return fail(`Unknown report type: ${report.reportType}`);
+  if (!groups.size) return fail('No email addresses');
+  if (!(await mailStatus()).ready) return fail('Email is not set up yet');
 
-  try {
-    const built = await builder(range, report.name);
-    if ('skip' in built) return finish('skipped', built.skip);
-    await sendMail({
-      to: emails,
-      subject: built.subject,
-      html: built.html,
-      text: built.text,
-      attachments: [{ filename: built.fileName, content: built.pdf, contentType: 'application/pdf' }],
-    });
-    return finish('sent', `${built.fileName} → ${emails.length} recipient${emails.length === 1 ? '' : 's'}`);
-  } catch (e: unknown) {
-    console.error(`[ScheduledReports] report ${report.id} failed:`, e);
-    return finish('failed', e instanceof Error ? e.message : String(e));
+  let sent = 0;
+  let failed = 0;
+  let skipped = 0;
+  const notes: string[] = [];
+  for (const [key, set] of groups) {
+    const emails = [...set];
+    let scope: string | null = key ? key : 'All salespersons';
+    try {
+      const built = await builder(range, report.name, key || null);
+      scope = built.scope;
+      if ('skip' in built) {
+        skipped++;
+        notes.push(`${scope}: ${built.skip}`);
+        await log(emails, scope, 'skipped', built.skip);
+        continue;
+      }
+      await sendMail({
+        to: emails,
+        subject: built.subject,
+        html: built.html,
+        text: built.text,
+        attachments: [{ filename: built.fileName, content: built.pdf, contentType: 'application/pdf' }],
+      });
+      sent++;
+      await log(emails, scope, 'sent', `${built.fileName} → ${emails.length} recipient${emails.length === 1 ? '' : 's'}`);
+    } catch (e: unknown) {
+      failed++;
+      const message = e instanceof Error ? e.message : String(e);
+      console.error(`[ScheduledReports] report ${report.id} (${scope}) failed:`, e);
+      notes.push(`${scope}: ${message}`);
+      await log(emails, scope, 'failed', message);
+    }
   }
+
+  // "failed" only when nothing went out (then the automatic run may try again without sending twice)
+  const status: ReportLogRow['status'] = sent ? 'sent' : failed ? 'failed' : 'skipped';
+  const parts = [sent && `${sent} sent`, skipped && `${skipped} skipped`, failed && `${failed} failed`].filter(Boolean).join(' · ');
+  return { status, message: [parts, ...notes].filter(Boolean).join(' — ') || null };
 }
 
 /** Sends every enabled report whose day and time have come and that was not sent today (Dubai time). */

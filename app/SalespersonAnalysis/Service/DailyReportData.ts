@@ -186,3 +186,15 @@ export async function buildDailySalesReportData(opts: {
     prevNetBySalesperson,
   };
 }
+
+/** Every salesperson that has customers (id + name), A-Z. */
+export async function listAllSalespersons(): Promise<{ id: string; name: string }[]> {
+  const [{ idByKey, nameById }, customers] = await Promise.all([loadUsers(), loadCustomers()]);
+  const out = new Map<string, string>();
+  customers.forEach((c) => {
+    if (!c.rep) return;
+    const id = idByKey.get(c.rep) || c.rep;
+    if (!out.has(id)) out.set(id, nameById.get(id) || c.rep);
+  });
+  return [...out].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
+}

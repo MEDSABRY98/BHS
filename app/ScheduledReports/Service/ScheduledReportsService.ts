@@ -16,6 +16,7 @@ import {
 } from '../Utils/Types';
 import { LOG_TABLE, REPORTS_TABLE, logFromRow, reportFromRow, runReport } from '../Server/Runner';
 import { mailStatus } from '../Server/Mailer';
+import { listAllSalespersons } from '@/app/SalespersonAnalysis/Service/DailyReportData';
 import { connectZoho, disconnectZoho, getZohoConnection, zohoClientReady, zohoScopes } from '../Server/ZohoMail';
 
 const MODULE_ID = 'scheduled-reports';
@@ -62,12 +63,22 @@ function clean(input: ScheduledReportInput) {
   if (!TIME_RE.test(sendTime)) throw new Error('Pick the send time');
   const days = [...new Set((input.days || []).map(Number))].filter((d) => Number.isInteger(d) && d >= 0 && d <= 6).sort();
   if (!days.length) throw new Error('Pick at least one day');
-  const emails = [...new Set((input.emails || []).map((e) => String(e).trim().toLowerCase()).filter(Boolean))];
-  const bad = emails.find((e) => !EMAIL_RE.test(e));
-  if (bad) throw new Error(`Not a valid email: ${bad}`);
-  if (!emails.length) throw new Error('Add at least one email');
-  if (emails.length > 50) throw new Error('50 emails at most');
-  return { NAME: name, REPORT_TYPE: input.reportType, PERIOD: input.period, SEND_TIME: sendTime, DAYS: days, EMAILS: emails, ENABLED: input.enabled !== false };
+  const seen = new Set<string>();
+  const recipients: { email: string; salespersonId: string | null }[] = [];
+  for (const r of input.recipients || []) {
+    const email = String(r?.email || '').trim().toLowerCase();
+    if (!email) continue;
+    if (!EMAIL_RE.test(email)) throw new Error(`Not a valid email: ${email}`);
+    const salespersonId = r?.salespersonId ? String(r.salespersonId).trim() : null;
+    const key = `${email}|${salespersonId || ''}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    recipients.push({ email, salespersonId });
+  }
+  if (!recipients.length) throw new Error('Add at least one email');
+  if (recipients.length > 100) throw new Error('100 emails at most');
+  const emails = [...new Set(recipients.map((r) => r.email))];
+  return { NAME: name, REPORT_TYPE: input.reportType, PERIOD: input.period, SEND_TIME: sendTime, DAYS: days, EMAILS: emails, RECIPIENTS: recipients, ENABLED: input.enabled !== false };
 }
 
 export async function saveScheduledReport(input: ScheduledReportInput): Promise<ScheduledReport> {
@@ -110,6 +121,9 @@ export async function sendScheduledReportNow(id: number, onlyTo?: string): Promi
   if (onlyTo !== undefined) {
     const to = String(onlyTo).trim().toLowerCase();
     if (!EMAIL_RE.test(to)) throw new Error('Enter a valid email for the test');
+    // a test copy of each different scope (all / each salesperson) to this one email
+    const scopes = [...new Set(report.recipients.map((r) => r.salespersonId || ''))];
+    report.recipients = scopes.map((s) => ({ email: to, salespersonId: s || null }));
     report.emails = [to];
   }
   const out = await runReport(report, { trigger: 'manual', sentBy: user.name });
@@ -165,4 +179,10 @@ export async function disconnectZohoMail(): Promise<MailSettings> {
   await requireReportsAdmin('edit');
   await disconnectZoho();
   return getMailSettings();
+}
+
+/** Salespersons that can get their own copy of a report (id + name, A-Z). */
+export async function listReportSalespersons(): Promise<{ id: string; name: string }[]> {
+  await requireReportsAdmin();
+  return listAllSalespersons();
 }

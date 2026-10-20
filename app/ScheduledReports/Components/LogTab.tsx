@@ -29,7 +29,7 @@ export default function LogTab({ rows }: { rows: ReportLogRow[] }) {
     return rows.filter(
       (r) =>
         (status === 'all' || r.status === status) &&
-        (!q || r.reportName.toLowerCase().includes(q) || (r.message || '').toLowerCase().includes(q) || r.emails.some((e) => e.includes(q))),
+        (!q || r.reportName.toLowerCase().includes(q) || (r.message || '').toLowerCase().includes(q) || (r.scope || '').toLowerCase().includes(q) || r.emails.some((e) => e.includes(q))),
     );
   }, [rows, search, status]);
 
@@ -100,7 +100,10 @@ export default function LogTab({ rows }: { rows: ReportLogRow[] }) {
                         <p className="font-bold text-slate-900" dir="auto">
                           {r.reportName}
                         </p>
-                        <p className="text-[11px] font-semibold text-slate-400">{reportTypeLabel(r.reportType)}</p>
+                        <p className="text-[11px] font-semibold text-slate-400">
+                          {reportTypeLabel(r.reportType)}
+                          {r.scope ? <span className="text-amber-700"> · {r.scope}</span> : null}
+                        </p>
                       </td>
                       <td className="py-3 px-4 text-center font-semibold text-slate-600 whitespace-nowrap">{fmtPeriod(r)}</td>
                       <td className="py-3 px-4 text-center">

@@ -2,11 +2,15 @@
 
 export type ReportPeriodId = 'yesterday' | 'today' | 'last-7-days' | 'month-to-date' | 'last-month';
 
+/** One email and what it receives: salespersonId null = every salesperson, otherwise only that salesperson. */
+export type Recipient = { email: string; salespersonId: string | null };
+
 export type ScheduledReport = {
   id: number;
   name: string;
   reportType: string;
-  emails: string[];
+  recipients: Recipient[];
+  emails: string[]; // all the emails (from recipients)
   sendTime: string; // HH:MM, Dubai time
   days: number[]; // 0 = Sunday … 6 = Saturday
   period: ReportPeriodId;
@@ -16,7 +20,7 @@ export type ScheduledReport = {
   updatedAt: string | null;
 };
 
-export type ScheduledReportInput = Omit<ScheduledReport, 'id' | 'lastRunDate' | 'updatedBy' | 'updatedAt'> & { id?: number };
+export type ScheduledReportInput = Omit<ScheduledReport, 'id' | 'emails' | 'lastRunDate' | 'updatedBy' | 'updatedAt'> & { id?: number };
 
 export type ReportLogStatus = 'sent' | 'failed' | 'skipped';
 
@@ -28,6 +32,7 @@ export type ReportLogRow = {
   periodStart: string | null;
   periodEnd: string | null;
   emails: string[];
+  scope: string | null; // "All salespersons" or the salesperson's name
   status: ReportLogStatus;
   message: string | null;
   trigger: 'schedule' | 'manual';

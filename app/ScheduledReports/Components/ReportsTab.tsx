@@ -3,13 +3,12 @@
 // Scheduled Reports → Reports: one card per report. Click a card to edit it.
 
 import { useState } from 'react';
-import { CalendarClock, Clock, Loader2, Mail, Plus, Search, Send, Trash2 } from 'lucide-react';
+import { CalendarClock, Clock, Loader2, Plus, Search, Send, Trash2 } from 'lucide-react';
 import { toast } from '@/app/Components/Notification';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import { daysLabel, formatTime12, periodLabel, reportTypeLabel, type ScheduledReport } from '../Utils/Types';
 import { deleteScheduledReport, sendScheduledReportNow, setScheduledReportEnabled } from '../Service/ScheduledReportsService';
 import ReportModal from './ReportModal';
-import MailSettingsModal from './MailSettingsModal';
 
 interface Props {
   reports: ScheduledReport[];
@@ -27,7 +26,6 @@ export default function ReportsTab({ reports, mailReady, mailFrom, cronReady, ca
   const [modal, setModal] = useState<{ report: ScheduledReport | null } | null>(null);
   const [busy, setBusy] = useState<Record<number, 'send' | 'delete' | 'toggle'>>({});
   const [confirmDelete, setConfirmDelete] = useState<ScheduledReport | null>(null);
-  const [mailOpen, setMailOpen] = useState(false);
   const [from, setFrom] = useState<string | null>(mailFrom);
 
   const q = search.trim().toLowerCase();
@@ -111,17 +109,6 @@ export default function ReportsTab({ reports, mailReady, mailFrom, cronReady, ca
                 className="w-full h-11 pl-10 pr-4 rounded-xl border border-slate-200 bg-white text-sm font-semibold outline-none focus:border-[#D4AF37] focus:ring-4 focus:ring-[#D4AF37]/15"
               />
             </div>
-            <button
-              type="button"
-              onClick={() => setMailOpen(true)}
-              title={from ? `Sent from ${from}` : 'Email is not set up — click to connect'}
-              className={`relative w-11 h-11 rounded-xl border flex items-center justify-center shrink-0 transition-colors ${
-                from ? 'border-slate-200 bg-white text-slate-600 hover:bg-slate-100' : 'border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100'
-              }`}
-            >
-              <Mail className="w-5 h-5" />
-              <span className={`absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 border-white ${from ? 'bg-emerald-500' : 'bg-amber-500'}`} />
-            </button>
             {canEdit && (
               <button
                 type="button"
@@ -238,8 +225,6 @@ export default function ReportsTab({ reports, mailReady, mailFrom, cronReady, ca
           onSent={onSent}
         />
       )}
-
-      {mailOpen && <MailSettingsModal canEdit={canEdit} onClose={() => setMailOpen(false)} onChanged={setFrom} />}
 
       {confirmDelete && (
         <div className="fixed inset-0 z-[210] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4" onMouseDown={(e) => e.target === e.currentTarget && setConfirmDelete(null)}>

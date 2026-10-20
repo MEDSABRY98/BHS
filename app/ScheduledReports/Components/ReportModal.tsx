@@ -3,7 +3,8 @@
 // New / edit scheduled report (popup).
 
 import { useEffect, useRef, useState } from 'react';
-import { CalendarClock, Check, Clock, FileBarChart, Loader2, Mail, Send, X } from 'lucide-react';
+import { CalendarClock, CalendarDays, Check, Clock, FileBarChart, Loader2, Mail, Plus, Send, UserRound, Users, X } from 'lucide-react';
+import NiceSelect, { type NiceOption } from './NiceSelect';
 import { toast } from '@/app/Components/Notification';
 import {
   EMAIL_RE,
@@ -15,7 +16,7 @@ import {
   type ScheduledReport,
   type ScheduledReportInput,
 } from '../Utils/Types';
-import { saveScheduledReport, sendScheduledReportNow } from '../Service/ScheduledReportsService';
+import { listReportSalespersons, saveScheduledReport, sendScheduledReportNow } from '../Service/ScheduledReportsService';
 
 interface Props {
   report: ScheduledReport | null; // null = new
@@ -32,10 +33,12 @@ const input =
 export default function ReportModal({ report, canEdit, onClose, onSaved, onSent }: Props) {
   const [form, setForm] = useState<ScheduledReportInput>(() =>
     report
-      ? { id: report.id, name: report.name, reportType: report.reportType, emails: report.emails, sendTime: report.sendTime, days: report.days, period: report.period, enabled: report.enabled }
-      : { name: '', reportType: REPORT_TYPES[0].id, emails: [], sendTime: '09:00', days: [0, 1, 2, 3, 4, 6], period: 'yesterday', enabled: true },
+      ? { id: report.id, name: report.name, reportType: report.reportType, recipients: report.recipients, sendTime: report.sendTime, days: report.days, period: report.period, enabled: report.enabled }
+      : { name: '', reportType: REPORT_TYPES[0].id, recipients: [], sendTime: '09:00', days: [0, 1, 2, 3, 4, 6], period: 'yesterday', enabled: true },
   );
   const [emailDraft, setEmailDraft] = useState('');
+  const [draftScope, setDraftScope] = useState(''); // '' = all salespersons
+  const [salespersons, setSalespersons] = useState<{ id: string; name: string }[]>([]);
   const [saving, setSaving] = useState(false);
   const [sending, setSending] = useState(false);
   const nameRef = useRef<HTMLInputElement>(null);
@@ -47,6 +50,19 @@ export default function ReportModal({ report, canEdit, onClose, onSaved, onSent 
   }, [report]);
 
   useEffect(() => {
+    listReportSalespersons()
+      .then(setSalespersons)
+      .catch(() => setSalespersons([]));
+  }, []);
+
+  const spName = (id: string | null) => (id ? salespersons.find((s) => s.id === id)?.name || id : 'All salespersons');
+  const scopeOptions: NiceOption[] = [
+    { value: '', label: 'All salespersons', hint: 'The full report', icon: <Users className="w-4 h-4 text-slate-500 shrink-0" /> },
+    ...salespersons.map((sp) => ({ value: sp.id, label: sp.name, hint: 'Only his own sales', icon: <UserRound className="w-4 h-4 text-amber-600 shrink-0" /> })),
+  ];
+  const scopeTone = (v: string) => (v ? ('accent' as const) : ('default' as const));
+
+  useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && !busy && onClose();
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
@@ -54,13 +70,19 @@ export default function ReportModal({ report, canEdit, onClose, onSaved, onSent 
 
   const set = <K extends keyof ScheduledReportInput>(k: K, v: ScheduledReportInput[K]) => setForm((f) => ({ ...f, [k]: v }));
 
-  /** adds every email in the text (comma / space / ; / new line separated). Returns false if one is not valid. */
+  const merge = (list: ScheduledReportInput['recipients'], emails: string[], scope: string | null) => {
+    const out = [...list];
+    for (const email of emails) if (!out.some((x) => x.email === email && (x.salespersonId || null) === scope)) out.push({ email, salespersonId: scope });
+    return out;
+  };
+
+  /** adds every email in the text (comma / space / ; / new line separated) with the picked scope. Returns false if one is not valid. */
   const addEmails = (text: string): boolean => {
     const parts = text.split(/[\s,;]+/).map((p) => p.trim().toLowerCase()).filter(Boolean);
     if (!parts.length) return true;
     const bad = parts.filter((p) => !EMAIL_RE.test(p));
     const good = parts.filter((p) => EMAIL_RE.test(p));
-    if (good.length) setForm((f) => ({ ...f, emails: [...new Set([...f.emails, ...good])] }));
+    if (good.length) setForm((f) => ({ ...f, recipients: merge(f.recipients, good, draftScope || null) }));
     if (bad.length) {
       toast.error(`Not a valid email: ${bad.join(', ')}`);
       setEmailDraft(bad.join(', '));
@@ -75,14 +97,16 @@ export default function ReportModal({ report, canEdit, onClose, onSaved, onSent 
   const save = async () => {
     if (busy || readOnly) return;
     if (emailDraft.trim() && !addEmails(emailDraft)) return;
-    const emails = emailDraft.trim() ? [...new Set([...form.emails, ...emailDraft.split(/[\s,;]+/).map((e) => e.trim().toLowerCase()).filter(Boolean)])] : form.emails;
+    const recipients = emailDraft.trim()
+      ? merge(form.recipients, emailDraft.split(/[\s,;]+/).map((e) => e.trim().toLowerCase()).filter(Boolean), draftScope || null)
+      : form.recipients;
     if (!form.name.trim()) return toast.error('Enter a name for the report');
-    if (!emails.length) return toast.error('Add at least one email');
+    if (!recipients.length) return toast.error('Add at least one email');
     if (!TIME_RE.test(form.sendTime)) return toast.error('Pick the send time');
     if (!form.days.length) return toast.error('Pick at least one day');
     setSaving(true);
     try {
-      const saved = await saveScheduledReport({ ...form, emails });
+      const saved = await saveScheduledReport({ ...form, recipients });
       toast.success(report ? 'Report updated' : 'Report scheduled');
       onSaved(saved);
     } catch (err: any) {
@@ -143,16 +167,12 @@ export default function ReportModal({ report, canEdit, onClose, onSaved, onSent 
                     type="button"
                     disabled={readOnly}
                     onClick={() => set('reportType', t.id)}
-                    className={`flex items-start gap-3 p-3 rounded-2xl border text-left transition-all ${sel ? 'border-[#D4AF37] bg-amber-50/60 ring-4 ring-[#D4AF37]/10' : 'border-slate-200 hover:border-slate-300'}`}
+                    className={`flex items-center gap-3 p-3 rounded-2xl border text-left transition-all ${sel ? 'border-[#D4AF37] bg-amber-50/60 ring-4 ring-[#D4AF37]/10' : 'border-slate-200 hover:border-slate-300'}`}
                   >
                     <span className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${sel ? 'bg-[#0a0f1d] text-[#D4AF37]' : 'bg-slate-100 text-slate-500'}`}>
                       <FileBarChart className="w-4 h-4" />
                     </span>
-                    <span className="flex-1 min-w-0">
-                      <span className="block text-sm font-black text-slate-900">{t.label}</span>
-                      <span className="block text-[11px] font-bold text-amber-700">{t.module}</span>
-                      <span className="block text-xs font-semibold text-slate-500 mt-0.5">{t.description}</span>
-                    </span>
+                    <span className="flex-1 min-w-0 text-sm font-black text-slate-900 truncate">{t.label}</span>
                     {sel && <Check className="w-5 h-5 text-[#B8860B] shrink-0" />}
                   </button>
                 );
@@ -170,13 +190,12 @@ export default function ReportModal({ report, canEdit, onClose, onSaved, onSent 
             </div>
             <div>
               <label className={label}>Period</label>
-              <select value={form.period} disabled={readOnly} onChange={(e) => set('period', e.target.value as ReportPeriodId)} className={input}>
-                {REPORT_PERIODS.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.label}
-                  </option>
-                ))}
-              </select>
+              <NiceSelect
+                value={form.period}
+                disabled={readOnly}
+                onChange={(v) => set('period', v as ReportPeriodId)}
+                options={REPORT_PERIODS.map((p) => ({ value: p.id, label: p.label, icon: <CalendarDays className="w-4 h-4 text-slate-400 shrink-0" /> }))}
+              />
             </div>
           </div>
 
@@ -202,44 +221,82 @@ export default function ReportModal({ report, canEdit, onClose, onSaved, onSent 
           </div>
 
           <div>
-            <label className={label}>Send to ({form.emails.length})</label>
-            <div className="min-h-[44px] p-1.5 rounded-xl border border-slate-200 bg-white flex flex-wrap items-center gap-1.5 focus-within:border-[#D4AF37] focus-within:ring-4 focus-within:ring-[#D4AF37]/15">
-              {form.emails.map((e) => (
-                <span key={e} className="inline-flex items-center gap-1 pl-2.5 pr-1 h-8 rounded-lg bg-slate-100 text-xs font-bold text-slate-700">
-                  <Mail className="w-3 h-3 text-slate-400" />
-                  {e}
-                  {!readOnly && (
-                    <button type="button" onClick={() => set('emails', form.emails.filter((x) => x !== e))} className="w-6 h-6 rounded-md flex items-center justify-center text-slate-400 hover:bg-white hover:text-slate-700" title="Remove">
-                      <X className="w-3 h-3" />
-                    </button>
-                  )}
-                </span>
-              ))}
-              {!readOnly && (
-                <input
-                  value={emailDraft}
-                  onChange={(e) => setEmailDraft(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (['Enter', ',', ';', ' ', 'Tab'].includes(e.key) && emailDraft.trim()) {
-                      e.preventDefault();
-                      addEmails(emailDraft);
-                    } else if (e.key === 'Backspace' && !emailDraft && form.emails.length) {
-                      set('emails', form.emails.slice(0, -1));
-                    }
-                  }}
-                  onBlur={() => emailDraft.trim() && addEmails(emailDraft)}
-                  onPaste={(e) => {
-                    const text = e.clipboardData.getData('text');
-                    if (/[\s,;]/.test(text.trim())) {
-                      e.preventDefault();
-                      addEmails(text);
-                    }
-                  }}
-                  placeholder={form.emails.length ? 'Add another email...' : 'Type an email and press Enter'}
-                  className="flex-1 min-w-[180px] h-8 px-2 bg-transparent text-sm font-semibold outline-none"
-                />
-              )}
-            </div>
+            <label className={label}>Send to ({form.recipients.length})</label>
+            {!readOnly && (
+              <div className="flex flex-col sm:flex-row gap-2">
+                <div className="relative flex-1 min-w-0">
+                  <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                  <input
+                    value={emailDraft}
+                    onChange={(e) => setEmailDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (['Enter', ',', ';', ' '].includes(e.key) && emailDraft.trim()) {
+                        e.preventDefault();
+                        addEmails(emailDraft);
+                      }
+                    }}
+                    onPaste={(e) => {
+                      const text = e.clipboardData.getData('text');
+                      if (/[\s,;]/.test(text.trim())) {
+                        e.preventDefault();
+                        addEmails(text);
+                      }
+                    }}
+                    placeholder="Type an email and press Enter"
+                    className={`${input} pl-9`}
+                  />
+                </div>
+                <div className="sm:w-60 shrink-0">
+                  <NiceSelect value={draftScope} onChange={setDraftScope} options={scopeOptions} tone={scopeTone} searchPlaceholder="Search salesperson..." />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => emailDraft.trim() && addEmails(emailDraft)}
+                  disabled={!emailDraft.trim()}
+                  title="Add"
+                  className="w-11 h-11 rounded-xl bg-[#0a0f1d] text-[#D4AF37] flex items-center justify-center shrink-0 disabled:opacity-40 self-end sm:self-auto"
+                >
+                  <Plus className="w-5 h-5" />
+                </button>
+              </div>
+            )}
+            {form.recipients.length > 0 && (
+              <div className="mt-2 rounded-2xl border border-slate-200 divide-y divide-slate-100 overflow-hidden">
+                {form.recipients.map((rc, i) => (
+                  <div key={`${rc.email}|${rc.salespersonId || ''}`} className="flex items-center gap-2 px-3 py-2 bg-white">
+                    <Mail className="w-4 h-4 text-slate-400 shrink-0" />
+                    <span className="flex-1 min-w-0 truncate text-sm font-bold text-slate-800" title={rc.email}>
+                      {rc.email}
+                    </span>
+                    <div className="w-48 sm:w-56 shrink-0">
+                      <NiceSelect
+                        size="sm"
+                        value={rc.salespersonId || ''}
+                        disabled={readOnly}
+                        onChange={(v) => set('recipients', form.recipients.map((x, j) => (j === i ? { ...x, salespersonId: v || null } : x)))}
+                        options={
+                          rc.salespersonId && !salespersons.some((sp) => sp.id === rc.salespersonId)
+                            ? [...scopeOptions, { value: rc.salespersonId, label: spName(rc.salespersonId), icon: <UserRound className="w-4 h-4 text-amber-600 shrink-0" /> }]
+                            : scopeOptions
+                        }
+                        tone={scopeTone}
+                        searchPlaceholder="Search salesperson..."
+                      />
+                    </div>
+                    {!readOnly && (
+                      <button
+                        type="button"
+                        onClick={() => set('recipients', form.recipients.filter((_, j) => j !== i))}
+                        className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-300 hover:bg-slate-100 hover:text-slate-700 shrink-0"
+                        title="Remove"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <label className={`flex items-center justify-between gap-3 p-3 rounded-2xl border border-slate-200 ${readOnly ? '' : 'cursor-pointer'}`}>

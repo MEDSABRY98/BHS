@@ -4,12 +4,20 @@
 import { buildDailySalesReportData } from '@/app/SalespersonAnalysis/Service/DailyReportData';
 import { buildDailySalesReportPdf } from '@/app/SalespersonAnalysis/Pdf/DailySalesReportBuilder';
 import { addArabicFontServer } from './ServerFont';
+import { listAllSalespersons } from '@/app/SalespersonAnalysis/Service/DailyReportData';
 
+async function salespersonNames(): Promise<Map<string, string>> {
+  const list = await listAllSalespersons();
+  return new Map(list.map((s) => [s.id.trim().toUpperCase(), s.name]));
+}
+
+/** scope: what this copy covers ("All salespersons" or the salesperson's name) — shown in the log. */
 export type BuiltReport =
-  | { skip: string }
-  | { fileName: string; pdf: Buffer; subject: string; html: string; text: string };
+  | { scope: string; skip: string }
+  | { scope: string; fileName: string; pdf: Buffer; subject: string; html: string; text: string };
 
-type Builder = (range: { start: string; end: string }, reportName: string) => Promise<BuiltReport>;
+/** salespersonId null = every salesperson; otherwise only that salesperson's sales. */
+type Builder = (range: { start: string; end: string }, reportName: string, salespersonId: string | null) => Promise<BuiltReport>;
 
 const money = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] as string);
@@ -24,9 +32,15 @@ const change = (now: number, before: number) => {
   return `${pct >= 0 ? '▲' : '▼'} ${Math.abs(pct).toFixed(1)}%`;
 };
 
-const salespersonDaily: Builder = async (range, reportName) => {
-  const data = await buildDailySalesReportData({ start: range.start, end: range.end, onlySalespersonId: null, showCosts: true });
-  if (!data.lines.length) return { skip: 'No sales in this period' };
+const salespersonDaily: Builder = async (range, reportName, salespersonId) => {
+  // a salesperson's own copy: his sales only, without costs / profit (same as the Sales rule for non-admins)
+  const data = await buildDailySalesReportData({ start: range.start, end: range.end, onlySalespersonId: salespersonId, showCosts: !salespersonId });
+  let scope = 'All salespersons';
+  if (salespersonId) {
+    const names = await salespersonNames();
+    scope = names.get(salespersonId.trim().toUpperCase()) || salespersonId;
+  }
+  if (!data.lines.length) return { scope, skip: 'No sales in this period' };
 
   const { doc, fileName } = await buildDailySalesReportPdf(data, addArabicFontServer);
   const pdf = Buffer.from(doc.output('arraybuffer') as ArrayBuffer);
@@ -48,6 +62,7 @@ const salespersonDaily: Builder = async (range, reportName) => {
   const net = gross - returns;
   const top = [...bySp.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
   const when = periodText(range);
+  const title = salespersonId ? `${reportName} — ${scope}` : reportName;
 
   const row = (label: string, value: string, extra = '') =>
     `<tr><td style="padding:6px 12px;color:#64748b;font-size:13px">${label}</td><td style="padding:6px 12px;font-weight:700;font-size:14px;color:#0f172a;text-align:right">${value}</td><td style="padding:6px 12px;font-size:12px;color:#64748b;text-align:right">${extra}</td></tr>`;
@@ -55,7 +70,7 @@ const salespersonDaily: Builder = async (range, reportName) => {
 <div style="font-family:Segoe UI,Arial,sans-serif;max-width:620px;margin:0 auto;color:#0f172a">
   <div style="background:#0a0f1d;color:#fff;padding:18px 22px;border-radius:14px 14px 0 0">
     <div style="font-size:12px;letter-spacing:2px;color:#D4AF37;font-weight:700">BHS · SCHEDULED REPORT</div>
-    <div style="font-size:20px;font-weight:700;margin-top:4px">${esc(reportName)}</div>
+    <div style="font-size:20px;font-weight:700;margin-top:4px">${esc(title)}</div>
     <div style="font-size:13px;color:#cbd5e1;margin-top:2px">${esc(when)}</div>
   </div>
   <div style="border:1px solid #e2e8f0;border-top:none;border-radius:0 0 14px 14px;padding:16px 10px">
@@ -66,15 +81,15 @@ const salespersonDaily: Builder = async (range, reportName) => {
       ${row('Invoices', String(invoices.size), change(invoices.size, data.prevTotals.invoices))}
       ${row('Active customers', String(customers.size), change(customers.size, data.prevTotals.customers))}
     </table>
-    <div style="margin:14px 12px 6px;font-size:12px;font-weight:700;color:#64748b;letter-spacing:1px">TOP SALESPERSONS (NET)</div>
+    ${salespersonId ? '' : `<div style="margin:14px 12px 6px;font-size:12px;font-weight:700;color:#64748b;letter-spacing:1px">TOP SALESPERSONS (NET)</div>
     <table style="width:100%;border-collapse:collapse">
       ${top.map(([id, v], i) => row(`${i + 1}. ${esc(data.salespersons[id] || id)}`, `AED ${money(v)}`)).join('')}
-    </table>
+    </table>`}
     <p style="margin:16px 12px 4px;font-size:12px;color:#94a3b8">The full report is attached (PDF). Compared with ${esc(periodText(data.prevPeriod))}.</p>
   </div>
 </div>`;
   const text = [
-    `${reportName} — ${when}`,
+    `${title} — ${when}`,
     `Net sales: AED ${money(net)}`,
     `Gross sales: AED ${money(gross)}`,
     `Returns: AED ${money(returns)}`,
@@ -84,7 +99,7 @@ const salespersonDaily: Builder = async (range, reportName) => {
     'The full report is attached (PDF).',
   ].join('\n');
 
-  return { fileName, pdf, subject: `${reportName} — ${when}`, html, text };
+  return { scope, fileName, pdf, subject: `${title} — ${when}`, html, text };
 };
 
 export const REPORT_BUILDERS: Record<string, Builder> = {
