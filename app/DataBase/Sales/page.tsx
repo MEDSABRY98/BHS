@@ -395,12 +395,13 @@ export default function SalesDBPage() {
       );
 
       const headers = [
-        '#', 'INVOICE DATE', 'INVOICE NUMBER',
+        'ID', '#', 'INVOICE DATE', 'INVOICE NUMBER',
         'CUSTOMER ID', 'CUSTOMER MAIN NAME', 'CUSTOMER SUB NAME',
         'PRODUCT ID', 'PRODUCT BARCODE', 'PRODUCT NAME',
         'PRICE COST', 'PRICE SALES', 'QTY', 'AMOUNT',
       ];
       const rows = allSales.map((s, i) => [
+        s['ID'] || '',
         i + 1,
         s['INVOICE DATE'] || '',
         s['INVOICE NUMBER'] || '',
@@ -451,23 +452,31 @@ export default function SalesDBPage() {
         return;
       }
 
+      // only the real web_Sales_DB columns (the export also has #, names and barcode for reading)
+      const TABLE_COLUMNS = ['ID', 'INVOICE DATE', 'INVOICE NUMBER', 'CUSTOMER ID', 'PRODUCT ID', 'PRODUCT PRICE', 'PRODUCT COST', 'AMOUNT', 'QTY', 'PRICE SALES', 'PRICE COST'];
+      const toNum = (v: unknown) => Number(String(v ?? '').replace(/,/g, '').trim()) || 0; // the sheet is read as text ("1,234.50")
       const rowsToUpdate = jsonData.map(row => {
-        const out: any = { ...row };
-        if (out['AMOUNT'] !== undefined) out['AMOUNT'] = Number(out['AMOUNT']) || 0;
-        if (out['QTY'] !== undefined) out['QTY'] = Number(out['QTY']) || 0;
+        const out: any = {};
+        for (const col of TABLE_COLUMNS) if (row[col] !== undefined) out[col] = row[col];
+        if (out['ID'] !== undefined) out['ID'] = String(out['ID']).trim();
+        if (out['INVOICE NUMBER'] !== undefined) out['INVOICE NUMBER'] = String(out['INVOICE NUMBER']).trim();
+        if (out['CUSTOMER ID'] !== undefined) out['CUSTOMER ID'] = normalizeExcelId(out['CUSTOMER ID']);
+        if (out['PRODUCT ID'] !== undefined) out['PRODUCT ID'] = normalizeExcelId(out['PRODUCT ID']);
+        if (out['AMOUNT'] !== undefined) out['AMOUNT'] = toNum(out['AMOUNT']);
+        if (out['QTY'] !== undefined) out['QTY'] = toNum(out['QTY']);
         
         if (out['PRICE SALES'] !== undefined) {
-          out['PRODUCT PRICE'] = Number(out['PRICE SALES']) || 0;
+          out['PRODUCT PRICE'] = toNum(out['PRICE SALES']);
           delete out['PRICE SALES'];
         } else if (out['PRODUCT PRICE'] !== undefined) {
-          out['PRODUCT PRICE'] = Number(out['PRODUCT PRICE']) || 0;
+          out['PRODUCT PRICE'] = toNum(out['PRODUCT PRICE']);
         }
 
         if (out['PRICE COST'] !== undefined) {
-          out['PRODUCT COST'] = Number(out['PRICE COST']) || 0;
+          out['PRODUCT COST'] = toNum(out['PRICE COST']);
           delete out['PRICE COST'];
         } else if (out['PRODUCT COST'] !== undefined && out['PRODUCT COST'] !== '') {
-          out['PRODUCT COST'] = Number(out['PRODUCT COST']) || 0;
+          out['PRODUCT COST'] = toNum(out['PRODUCT COST']);
         }
 
         return out;
