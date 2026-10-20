@@ -3,7 +3,7 @@
 // Scheduled Reports → Reports: one card per report. Click a card to edit it.
 
 import { useState } from 'react';
-import { AlertTriangle, CalendarClock, Clock, Loader2, Mail, Plus, Search, Send, Trash2 } from 'lucide-react';
+import { CalendarClock, Clock, Loader2, Plus, Search, Send, Trash2 } from 'lucide-react';
 import { toast } from '@/app/Components/Notification';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import { daysLabel, formatTime12, periodLabel, reportTypeLabel, type ScheduledReport } from '../Utils/Types';
@@ -29,7 +29,7 @@ export default function ReportsTab({ reports, mailReady, mailFrom, cronReady, ca
 
   const q = search.trim().toLowerCase();
   const list = reports.filter(
-    (r) => !q || r.name.toLowerCase().includes(q) || reportTypeLabel(r.reportType).toLowerCase().includes(q) || r.emails.some((e) => e.includes(q)),
+    (r) => !q || r.name.toLowerCase().includes(q) || reportTypeLabel(r.reportType).toLowerCase().includes(q) || false,
   );
 
   const setBusyFor = (id: number, v: 'send' | 'delete' | 'toggle' | null) =>
@@ -104,7 +104,7 @@ export default function ReportsTab({ reports, mailReady, mailFrom, cronReady, ca
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search report or email..."
+                placeholder="Search report..."
                 className="w-full h-11 pl-10 pr-4 rounded-xl border border-slate-200 bg-white text-sm font-semibold outline-none focus:border-[#D4AF37] focus:ring-4 focus:ring-[#D4AF37]/15"
               />
             </div>
@@ -120,16 +120,6 @@ export default function ReportsTab({ reports, mailReady, mailFrom, cronReady, ca
           </div>
         </div>
       </div>
-
-      {(!mailReady || !cronReady) && (
-        <div className="flex items-start gap-3 p-4 rounded-2xl border border-amber-200 bg-amber-50 text-amber-900">
-          <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5 text-amber-600" />
-          <div className="text-sm font-semibold space-y-0.5">
-            {!mailReady && <p>Email is not set up yet: add SMTP_HOST, SMTP_PORT, SMTP_USER and SMTP_PASS in Vercel → Settings → Environment Variables, then redeploy.</p>}
-            {!cronReady && <p>The timer is not set up yet: add CRON_SECRET in Vercel and run the Scheduled Reports SQL in Supabase.</p>}
-          </div>
-        </div>
-      )}
 
       {list.length === 0 ? (
         <NoData title={reports.length ? 'NO MATCHES' : 'NO SCHEDULED REPORTS'} message={reports.length ? 'No report matches your search' : canEdit ? 'Click "New Report" to schedule one' : undefined} />
@@ -186,12 +176,7 @@ export default function ReportsTab({ reports, mailReady, mailFrom, cronReady, ca
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 min-w-0">
-                  <Mail className="w-4 h-4 text-slate-400 shrink-0" />
-                  <p className="text-xs font-semibold text-slate-600 truncate flex-1" title={r.emails.join(', ')}>
-                    {r.emails.slice(0, 2).join(', ')}
-                    {r.emails.length > 2 ? ` +${r.emails.length - 2}` : ''}
-                  </p>
+                <div className="flex items-center justify-end gap-2 min-w-0">
                   {canEdit && (
                     <button
                       type="button"
