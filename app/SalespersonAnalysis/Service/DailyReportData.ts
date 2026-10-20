@@ -7,7 +7,7 @@
 
 import { getSupabaseAdmin } from '@/lib/supabaseAdmin';
 import { getSalesDataServer } from '@/app/Sales/Cache/SalesCache';
-import type { DailySalesLine, DailySalesReportData } from '../Utils/DailyTypes';
+import type { DailySalesLine, DailySalesReportData, DailyTotals } from '../Utils/DailyTypes';
 
 const norm = (v: unknown) => String(v ?? '').trim().toUpperCase();
 const dayOf = (v: unknown) => String(v ?? '').split('T')[0].trim();
@@ -104,7 +104,10 @@ export async function buildDailySalesReportData(opts: {
   const customerInfo: DailySalesReportData['customers'] = {};
   const productInfo: DailySalesReportData['products'] = {};
   const lines: DailySalesLine[] = [];
-  const prev = { gross: 0, returns: 0, net: 0, qty: 0, profit: 0, costedSales: 0, invoices: new Set<string>(), customers: new Set<string>() };
+  type Acc = { gross: number; returns: number; net: number; qty: number; profit: number; costedSales: number; invoices: Set<string>; customers: Set<string> };
+  const newAcc = (): Acc => ({ gross: 0, returns: 0, net: 0, qty: 0, profit: 0, costedSales: 0, invoices: new Set<string>(), customers: new Set<string>() });
+  const prev = newAcc();
+  const prevBySp = new Map<string, Acc>();
   const prevNetBySalesperson: Record<string, number> = {};
 
   const salesAll = (await getSalesDataServer()) as any[];
@@ -122,23 +125,26 @@ export async function buildDailySalesReportData(opts: {
     const invoice = String(s.invoiceNumber ?? '').trim();
 
     if (date < start) {
-      // previous period: totals only (same rules as the Sales tab)
+      // previous period: totals only (same rules as the Sales tab), for the company and per salesperson
       const q = Math.abs(qty);
-      prev.net += amount;
-      if (amount > 0) {
-        prev.gross += amount;
-        prev.qty += q;
-        if (invoice) prev.invoices.add(invoice);
-        if (customerId) prev.customers.add(customerId);
-        if (unitCost > 0) {
-          prev.profit += amount - unitCost * q;
-          prev.costedSales += amount;
-        }
-      } else if (amount < 0) {
-        prev.returns += -amount;
-        if (unitCost > 0) {
-          prev.profit += amount + unitCost * q;
-          prev.costedSales += amount;
+      if (!prevBySp.has(spId)) prevBySp.set(spId, newAcc());
+      for (const acc of [prev, prevBySp.get(spId)!]) {
+        acc.net += amount;
+        if (amount > 0) {
+          acc.gross += amount;
+          acc.qty += q;
+          if (invoice) acc.invoices.add(invoice);
+          if (customerId) acc.customers.add(customerId);
+          if (unitCost > 0) {
+            acc.profit += amount - unitCost * q;
+            acc.costedSales += amount;
+          }
+        } else if (amount < 0) {
+          acc.returns += -amount;
+          if (unitCost > 0) {
+            acc.profit += amount + unitCost * q;
+            acc.costedSales += amount;
+          }
         }
       }
       prevNetBySalesperson[spId] = (prevNetBySalesperson[spId] || 0) + amount;
@@ -173,17 +179,22 @@ export async function buildDailySalesReportData(opts: {
     customers: customerInfo,
     products: productInfo,
     lines,
-    prevTotals: {
-      gross: prev.gross,
-      returns: prev.returns,
-      net: prev.net,
-      invoices: prev.invoices.size,
-      customers: prev.customers.size,
-      qty: prev.qty,
-      profit: prev.profit,
-      costedSales: prev.costedSales,
-    },
+    prevTotals: totalsFrom(prev),
     prevNetBySalesperson,
+    prevTotalsBySalesperson: Object.fromEntries([...prevBySp].map(([id, acc]) => [id, totalsFrom(acc)])),
+  };
+}
+
+function totalsFrom(acc: { gross: number; returns: number; net: number; qty: number; profit: number; costedSales: number; invoices: Set<string>; customers: Set<string> }): DailyTotals {
+  return {
+    gross: acc.gross,
+    returns: acc.returns,
+    net: acc.net,
+    invoices: acc.invoices.size,
+    customers: acc.customers.size,
+    qty: acc.qty,
+    profit: acc.profit,
+    costedSales: acc.costedSales,
   };
 }
 

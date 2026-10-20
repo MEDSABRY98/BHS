@@ -223,7 +223,8 @@ export default function ReportModal({ report, canEdit, onClose, onSaved, onSent 
           <div>
             <label className={label}>Send to ({form.recipients.length})</label>
             {!readOnly && (
-              <div className="flex flex-col sm:flex-row gap-2">
+              // same side padding + border as the list below, so the dropdowns line up exactly
+              <div className="flex flex-col sm:flex-row gap-2 sm:px-3 border border-transparent">
                 <div className="relative flex-1 min-w-0">
                   <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                   <input
@@ -246,7 +247,7 @@ export default function ReportModal({ report, canEdit, onClose, onSaved, onSent 
                     className={`${input} pl-9`}
                   />
                 </div>
-                <div className="sm:w-60 shrink-0">
+                <div className="w-full sm:w-60 shrink-0">
                   <NiceSelect value={draftScope} onChange={setDraftScope} options={scopeOptions} tone={scopeTone} searchPlaceholder="Search salesperson..." />
                 </div>
                 <button
@@ -268,9 +269,8 @@ export default function ReportModal({ report, canEdit, onClose, onSaved, onSent 
                     <span className="flex-1 min-w-0 truncate text-sm font-bold text-slate-800" title={rc.email}>
                       {rc.email}
                     </span>
-                    <div className="w-48 sm:w-56 shrink-0">
+                    <div className="w-44 sm:w-60 shrink-0">
                       <NiceSelect
-                        size="sm"
                         value={rc.salespersonId || ''}
                         disabled={readOnly}
                         onChange={(v) => set('recipients', form.recipients.map((x, j) => (j === i ? { ...x, salespersonId: v || null } : x)))}
@@ -287,7 +287,7 @@ export default function ReportModal({ report, canEdit, onClose, onSaved, onSent 
                       <button
                         type="button"
                         onClick={() => set('recipients', form.recipients.filter((_, j) => j !== i))}
-                        className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-300 hover:bg-slate-100 hover:text-slate-700 shrink-0"
+                        className="w-11 h-11 rounded-xl flex items-center justify-center text-slate-300 hover:bg-slate-100 hover:text-slate-700 shrink-0"
                         title="Remove"
                       >
                         <X className="w-4 h-4" />

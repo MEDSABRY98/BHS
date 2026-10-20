@@ -39,4 +39,6 @@ export type DailySalesReportData = {
   lines: DailySalesLine[];
   prevTotals: DailyTotals;
   prevNetBySalesperson: Record<string, number>;
+  /** previous period totals per salesperson (for his own cards) */
+  prevTotalsBySalesperson?: Record<string, DailyTotals>;
 };
