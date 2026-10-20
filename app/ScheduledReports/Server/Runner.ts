@@ -6,7 +6,7 @@ import { getSupabaseAdmin } from '@/lib/supabaseAdmin';
 import { EMAIL_RE, TIME_RE, type ReportLogRow, type ScheduledReport } from '../Utils/Types';
 import { dubaiNow, periodRange, toMinutes } from './Dubai';
 import { REPORT_BUILDERS } from './Builders';
-import { mailConfigured, sendMail } from './Mailer';
+import { mailStatus, sendMail } from './Mailer';
 
 export const REPORTS_TABLE = 'app_SCHEDULED_REPORTS';
 export const LOG_TABLE = 'app_SCHEDULED_REPORTS_LOG';
@@ -100,7 +100,7 @@ export async function runReport(
   const builder = REPORT_BUILDERS[report.reportType];
   if (!builder) return finish('failed', `Unknown report type: ${report.reportType}`);
   if (!emails.length) return finish('failed', 'No email addresses');
-  if (!mailConfigured()) return finish('failed', 'Email is not set up yet (SMTP settings in Vercel)');
+  if (!(await mailStatus()).ready) return finish('failed', 'Email is not set up yet — connect Zoho Mail (✉ button)');
 
   try {
     const built = await builder(range, report.name);

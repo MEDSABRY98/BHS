@@ -15,7 +15,8 @@ import {
   type ScheduledReportInput,
 } from '../Utils/Types';
 import { LOG_TABLE, REPORTS_TABLE, logFromRow, reportFromRow, runReport } from '../Server/Runner';
-import { mailConfigured, mailFrom } from '../Server/Mailer';
+import { mailStatus } from '../Server/Mailer';
+import { connectZoho, disconnectZoho, getZohoConnection, zohoClientReady, zohoScopes } from '../Server/ZohoMail';
 
 const MODULE_ID = 'scheduled-reports';
 
@@ -42,10 +43,11 @@ export async function listScheduledReports(): Promise<{
   await requireReportsAdmin();
   const { data, error } = await getSupabaseAdmin().from(REPORTS_TABLE).select('*').order('NAME', { ascending: true });
   if (error) throw new Error(error.message);
+  const mail = await mailStatus();
   return {
     reports: (data || []).map(reportFromRow),
-    mailReady: mailConfigured(),
-    mailFrom: mailFrom(),
+    mailReady: mail.ready,
+    mailFrom: mail.from,
     cronReady: !!process.env.CRON_SECRET,
   };
 }
@@ -123,4 +125,44 @@ export async function listScheduledReportLog(limit = 300): Promise<ReportLogRow[
     .limit(Math.min(Math.max(1, Number(limit) || 300), 1000));
   if (error) throw new Error(error.message);
   return (data || []).map(logFromRow);
+}
+
+// ── email connection (Zoho Mail API) ──
+export type MailSettings = {
+  provider: 'zoho' | 'smtp' | null;
+  from: string | null;
+  zohoClientReady: boolean;
+  zohoConnected: boolean;
+  zohoConnectedBy: string | null;
+  zohoConnectedAt: string | null;
+  zohoScopes: string;
+  zohoDc: string;
+};
+
+export async function getMailSettings(): Promise<MailSettings> {
+  await requireReportsAdmin();
+  const [status, zoho] = await Promise.all([mailStatus(), getZohoConnection()]);
+  return {
+    provider: status.provider,
+    from: status.from,
+    zohoClientReady: zohoClientReady(),
+    zohoConnected: !!zoho,
+    zohoConnectedBy: zoho?.connectedBy ?? null,
+    zohoConnectedAt: zoho?.connectedAt ?? null,
+    zohoScopes: zohoScopes(),
+    zohoDc: (process.env.ZOHO_DC || 'com').trim() || 'com',
+  };
+}
+
+export async function connectZohoMail(code: string): Promise<MailSettings> {
+  const user = await requireReportsAdmin('edit');
+  if (!String(code || '').trim()) throw new Error('Paste the code from Zoho');
+  await connectZoho(String(code), user.name);
+  return getMailSettings();
+}
+
+export async function disconnectZohoMail(): Promise<MailSettings> {
+  await requireReportsAdmin('edit');
+  await disconnectZoho();
+  return getMailSettings();
 }

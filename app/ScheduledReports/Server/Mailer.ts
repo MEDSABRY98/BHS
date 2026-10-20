@@ -1,21 +1,18 @@
-// Scheduled Reports — sends email through the company mailbox (SMTP).
-// Settings live in Vercel → Settings → Environment Variables (never in the code):
-//   SMTP_HOST     e.g. smtp.office365.com / smtp.gmail.com / mail.yourcompany.com
-//   SMTP_PORT     587 (STARTTLS, default) or 465 (SSL)
-//   SMTP_USER     the mailbox, e.g. reports@yourcompany.com
-//   SMTP_PASS     its password / app password
-//   SMTP_FROM     optional, e.g. "BHS Reports <reports@yourcompany.com>"
-//   SMTP_SECURE   optional, "true" for SSL (default: true only on port 465)
+// Scheduled Reports — sends the email.
+// 1) Zoho Mail API, when Zoho Mail is connected in the module (recommended: Zoho blocks SMTP from Vercel)
+// 2) otherwise SMTP (any other mailbox, e.g. Gmail), from Vercel → Environment Variables:
+//    SMTP_HOST, SMTP_PORT (587 / 465), SMTP_USER, SMTP_PASS, optional SMTP_FROM, SMTP_SECURE
 
 import nodemailer from 'nodemailer';
+import { getZohoConnection, sendViaZoho } from './ZohoMail';
 
-export function mailConfigured(): boolean {
-  return !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
-}
+const smtpReady = () => !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
 
-export function mailFrom(): string | null {
-  if (!mailConfigured()) return null;
-  return process.env.SMTP_FROM?.trim() || `BHS Reports <${process.env.SMTP_USER}>`;
+export async function mailStatus(): Promise<{ ready: boolean; provider: 'zoho' | 'smtp' | null; from: string | null }> {
+  const zoho = await getZohoConnection();
+  if (zoho && process.env.ZOHO_CLIENT_ID && process.env.ZOHO_CLIENT_SECRET) return { ready: true, provider: 'zoho', from: zoho.fromEmail };
+  if (smtpReady()) return { ready: true, provider: 'smtp', from: process.env.SMTP_FROM?.trim() || `BHS Reports <${process.env.SMTP_USER}>` };
+  return { ready: false, provider: null, from: null };
 }
 
 let transporter: any = null;
@@ -43,9 +40,14 @@ export async function sendMail(mail: {
   text: string;
   attachments?: { filename: string; content: Buffer; contentType?: string }[];
 }): Promise<void> {
-  if (!mailConfigured()) throw new Error('Email is not set up yet (SMTP settings in Vercel).');
+  const status = await mailStatus();
+  if (status.provider === 'zoho') {
+    const conn = await getZohoConnection();
+    if (conn) return sendViaZoho(conn, mail);
+  }
+  if (status.provider !== 'smtp') throw new Error('Email is not set up yet — connect Zoho Mail (✉ button in Scheduled Reports)');
   await getTransporter().sendMail({
-    from: mailFrom(),
+    from: status.from,
     to: mail.to.join(', '),
     subject: mail.subject,
     html: mail.html,
