@@ -330,11 +330,11 @@ export default function PettyCashForm({ onSaved, editItem = null, onCancelEdit, 
               placeholder={editItem ? editItem.EMPLOYEE_NAME || editItem.CREATED_BY : 'Myself'}
             />
           )}
-          <span className="px-3.5 py-2 rounded-xl bg-white border border-slate-100 shadow-sm text-sm font-bold text-slate-700">
+          <span className="h-10 w-44 px-3 inline-flex items-center justify-center rounded-xl bg-white border border-slate-100 shadow-sm text-sm font-bold text-slate-700">
             <span className="text-slate-400 mr-1">Rows</span>
             {filled.length}
           </span>
-          <span className="px-3.5 py-2 rounded-xl bg-[#0a0f1d] text-sm font-black text-[#D4AF37] shadow-sm">AED {formatAmount(total)}</span>
+          <span className="h-10 w-44 px-3 inline-flex items-center justify-center rounded-xl bg-[#0a0f1d] border border-[#0a0f1d] text-sm font-black text-[#D4AF37] shadow-sm whitespace-nowrap">AED {formatAmount(total)}</span>
           <button
             type="button"
             onClick={reset}
