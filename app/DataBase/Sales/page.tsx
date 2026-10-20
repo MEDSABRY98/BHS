@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Trash2, Calendar, Loader2, Database, FileSpreadsheet, Download, Upload, X } from 'lucide-react';
+import { Trash2, Calendar, Loader2, Database, FileSpreadsheet, Download, Upload, X, AlertTriangle, RefreshCw } from 'lucide-react';
 import { usePermissions } from '../../InvoicesTracking/Hooks/usePermissions';
 import { ConfirmModal } from '../../InvoicesTracking/Components/ConfirmModal';
 import NoData from '@/app/Components/DataState/NoDataTab';
@@ -25,6 +25,13 @@ interface SalesMonth {
   count: number;
 }
 
+type LineChange = {
+  id: string;
+  invoice: string;
+  productId: string;
+  fields: { col: 'QTY' | 'PRODUCT PRICE' | 'PRODUCT COST' | 'AMOUNT'; before: number; after: number }[];
+};
+
 export default function SalesDBPage() {
   const { canDelete, canEdit, isLoaded } = usePermissions();
   const [salesMonths, setSalesMonths] = useState<SalesMonth[]>([]);
@@ -43,6 +50,32 @@ export default function SalesDBPage() {
   const [isUploading, setIsUploading] = useState(false);
   const [isUpdateUploadModalOpen, setIsUpdateUploadModalOpen] = useState(false);
   const [exportingMonth, setExportingMonth] = useState<string | null>(null);
+  // "invoices in the database but not in the file" dialog (upload waits for the answer)
+  const [removedPrompt, setRemovedPrompt] = useState<{
+    from: string;
+    to: string;
+    rows: number;
+    list: { invoice: string; date: string; customer: string; amount: number; rows: number }[];
+    resolve: (ok: boolean) => void;
+  } | null>(null);
+  // "lines of uploaded invoices whose qty / price / cost / amount changed" dialog
+  const [changesPrompt, setChangesPrompt] = useState<{
+    changes: LineChange[];
+    unmatched: number;
+    resolve: (ok: boolean) => void;
+  } | null>(null);
+  const askChanges = (info: Omit<NonNullable<typeof changesPrompt>, 'resolve'>) =>
+    new Promise<boolean>((resolve) => setChangesPrompt({ ...info, resolve }));
+  const answerChanges = (ok: boolean) => {
+    changesPrompt?.resolve(ok);
+    setChangesPrompt(null);
+  };
+  const askRemoved = (info: Omit<NonNullable<typeof removedPrompt>, 'resolve'>) =>
+    new Promise<boolean>((resolve) => setRemovedPrompt({ ...info, resolve }));
+  const answerRemoved = (ok: boolean) => {
+    removedPrompt?.resolve(ok);
+    setRemovedPrompt(null);
+  };
 
   useEffect(() => {
     fetchSalesMonths();
@@ -174,6 +207,71 @@ export default function SalesDBPage() {
       });
     }
     return existing;
+  };
+
+  /**
+   * Rows in web_Sales_DB dated inside [from, to] whose invoice number is NOT in the file:
+   * invoices that were removed from the accounting system after they were uploaded.
+   */
+  const findRemovedInvoiceRows = async (
+    from: string,
+    to: string,
+    fileInvoices: Set<string>,
+  ): Promise<{ ID: string; invoice: string; date: string; customer: string; amount: number }[]> => {
+    const out: { ID: string; invoice: string; date: string; customer: string; amount: number }[] = [];
+    const [ty, tm, td] = to.split('-').map(Number);
+    const nd = new Date(Date.UTC(ty, tm - 1, td + 1));
+    const dayAfter = `${nd.getUTCFullYear()}-${String(nd.getUTCMonth() + 1).padStart(2, '0')}-${String(nd.getUTCDate()).padStart(2, '0')}`;
+    const pageSize = 1000;
+    let start = 0;
+    while (true) {
+      const { data, error } = await bhs_supabas
+        .from('web_Sales_DB')
+        .select('ID, "INVOICE DATE", "INVOICE NUMBER", "CUSTOMER ID", "AMOUNT"')
+        .gte('INVOICE DATE', from)
+        .lt('INVOICE DATE', dayAfter) // exclusive end: works for date and timestamp columns
+        .order('ID', { ascending: true })
+        .range(start, start + pageSize - 1);
+      if (error) throw error;
+      const rows = (data || []) as Record<string, unknown>[];
+      for (const row of rows) {
+        const invoice = String(row['INVOICE NUMBER'] ?? '').trim();
+        if (fileInvoices.has(invoice)) continue;
+        out.push({
+          ID: String(row.ID),
+          invoice,
+          date: String(row['INVOICE DATE'] ?? '').split('T')[0],
+          customer: String(row['CUSTOMER ID'] ?? ''),
+          amount: Number(row['AMOUNT']) || 0,
+        });
+      }
+      if (rows.length < pageSize) break;
+      start += pageSize;
+    }
+    return out;
+  };
+
+  /** All web_Sales_DB lines of these invoice numbers. */
+  const fetchInvoiceLines = async (invoiceNumbers: string[]): Promise<Record<string, unknown>[]> => {
+    const out: Record<string, unknown>[] = [];
+    const unique = Array.from(new Set(invoiceNumbers.filter(Boolean)));
+    for (let i = 0; i < unique.length; i += 100) {
+      const chunk = unique.slice(i, i + 100);
+      let start = 0;
+      while (true) {
+        const { data, error } = await bhs_supabas
+          .from('web_Sales_DB')
+          .select('ID, "INVOICE NUMBER", "PRODUCT ID", "QTY", "PRODUCT PRICE", "PRODUCT COST", "AMOUNT"')
+          .in('INVOICE NUMBER', chunk)
+          .order('ID', { ascending: true })
+          .range(start, start + 999);
+        if (error) throw error;
+        out.push(...((data || []) as Record<string, unknown>[]));
+        if (!data || data.length < 1000) break;
+        start += 1000;
+      }
+    }
+    return out;
   };
 
   const getNextSalesRecordNum = async (): Promise<number> => {
@@ -583,16 +681,92 @@ export default function SalesDBPage() {
       // everything else in the file is uploaded. So a full month can be uploaded again to pick up
       // invoices that were added later with an old date (sales or returns) — nothing is counted twice.
       const existingInvoices = await findExistingInvoices(formattedRows.map((r) => r['INVOICE NUMBER']));
+
+      // Invoices already in the database: same invoice + product → update QTY / PRICE / COST / AMOUNT if they changed.
+      let lineChanges: LineChange[] = [];
+      if (existingInvoices.size) {
+        const dbLines = await fetchInvoiceLines([...existingInvoices]);
+        const keyOf = (inv: unknown, pid: unknown) => `${String(inv ?? '').trim()}|${normalizeExcelId(pid)}`;
+        const fileByKey = new Map<string, (typeof formattedRows)[number][]>();
+        for (const fr of formattedRows) {
+          if (!existingInvoices.has(fr['INVOICE NUMBER'])) continue;
+          const k = keyOf(fr['INVOICE NUMBER'], fr['PRODUCT ID']);
+          (fileByKey.get(k) || fileByKey.set(k, []).get(k)!).push(fr);
+        }
+        const dbByKey = new Map<string, Record<string, unknown>[]>();
+        for (const dr of dbLines) {
+          const k = keyOf(dr['INVOICE NUMBER'], dr['PRODUCT ID']);
+          (dbByKey.get(k) || dbByKey.set(k, []).get(k)!).push(dr);
+        }
+        const num = (v: unknown) => Number(v) || 0;
+        const sortKey = (q: number, a: number) => q * 1e9 + a;
+        let unmatched = 0;
+        for (const [k, fileRows] of fileByKey) {
+          const dbRows = dbByKey.get(k) || [];
+          if (dbRows.length !== fileRows.length) {
+            unmatched += Math.abs(dbRows.length - fileRows.length) || 1;
+            continue;
+          }
+          const f = [...fileRows].sort((a, b) => sortKey(a.QTY, a.AMOUNT) - sortKey(b.QTY, b.AMOUNT));
+          const d = [...dbRows].sort((a, b) => sortKey(num(a.QTY), num(a.AMOUNT)) - sortKey(num(b.QTY), num(b.AMOUNT)));
+          f.forEach((fr, i) => {
+            const dr = d[i];
+            const fields: LineChange['fields'] = [];
+            const cmp = (col: 'QTY' | 'PRODUCT PRICE' | 'PRODUCT COST' | 'AMOUNT', next: number) => {
+              const before = num(dr[col]);
+              if (Math.abs(before - next) > 0.005) fields.push({ col, before, after: next });
+            };
+            cmp('QTY', fr.QTY);
+            cmp('PRODUCT PRICE', fr['PRODUCT PRICE']);
+            if (fr['PRODUCT COST']) cmp('PRODUCT COST', fr['PRODUCT COST']); // empty cost in the file = keep the saved cost
+            cmp('AMOUNT', fr.AMOUNT);
+            if (fields.length) lineChanges.push({ id: String(dr.ID), invoice: fr['INVOICE NUMBER'], productId: fr['PRODUCT ID'], fields });
+          });
+        }
+        for (const [k, dbRows] of dbByKey) if (!fileByKey.has(k)) unmatched += dbRows.length;
+        if (lineChanges.length) {
+          const ok = await askChanges({ changes: lineChanges, unmatched });
+          if (!ok) lineChanges = [];
+        }
+      }
       const firstNum = parseInt(String(allFormattedRows[0]?.ID || '').replace(/\D/g, ''), 10) || 1;
       const uploadRows = formattedRows
         .filter((r) => !existingInvoices.has(r['INVOICE NUMBER']))
         .map((r, i) => ({ ...r, ID: `R-${String(firstNum + i).padStart(5, '0')}` })); // keep the row numbers continuous
 
-      if (uploadRows.length === 0) {
+      // Invoices in the database inside the file's period (first → last invoice date) that are no longer
+      // in the file = removed from the accounting system after they were uploaded → delete them (after asking).
+      const fileDates = formattedRows.map((r) => r['INVOICE DATE']).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)).sort();
+      const fileInvoices = new Set(formattedRows.map((r) => r['INVOICE NUMBER']));
+      let removedRows: Awaited<ReturnType<typeof findRemovedInvoiceRows>> = [];
+      if (fileDates.length) {
+        const periodFrom = fileDates[0];
+        const periodTo = fileDates[fileDates.length - 1];
+        const found = await findRemovedInvoiceRows(periodFrom, periodTo, fileInvoices);
+        if (found.length) {
+          const byInvoice = new Map<string, { date: string; customer: string; amount: number; rows: number }>();
+          for (const r of found) {
+            const g = byInvoice.get(r.invoice) || { date: r.date, customer: r.customer, amount: 0, rows: 0 };
+            g.amount += r.amount;
+            g.rows += 1;
+            byInvoice.set(r.invoice, g);
+          }
+          const list = [...byInvoice].sort((x, y) => x[1].date.localeCompare(y[1].date) || x[0].localeCompare(y[0], undefined, { numeric: true }));
+          const ok = await askRemoved({
+            from: periodFrom,
+            to: periodTo,
+            rows: found.length,
+            list: list.map(([invoice, g]) => ({ invoice, date: g.date, customer: g.customer, amount: g.amount, rows: g.rows })),
+          });
+          if (ok) removedRows = found;
+        }
+      }
+
+      if (uploadRows.length === 0 && removedRows.length === 0 && lineChanges.length === 0) {
         toast.info(`Nothing new — all ${existingInvoices.size} invoice(s) in this file are already in the database.`);
         return;
       }
-      if (existingInvoices.size > 0) {
+      if (existingInvoices.size > 0 && uploadRows.length > 0) {
         const list = [...existingInvoices].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
         downloadUploadIssuesReport(
           `Sales_Skipped_Existing_Invoices_${new Date().toISOString().split('T')[0]}.txt`,
@@ -621,16 +795,53 @@ export default function SalesDBPage() {
         throw insertError;
       }
 
+      // Then update the changed lines of invoices already in the database
+      let updatedLines = 0;
+      let updateError = '';
+      for (let i = 0; i < lineChanges.length && !updateError; i += 10) {
+        const batch = lineChanges.slice(i, i + 10);
+        const results = await Promise.all(
+          batch.map((c) =>
+            bhs_supabas
+              .from('web_Sales_DB')
+              .update(Object.fromEntries(c.fields.map((f) => [f.col, f.after])))
+              .eq('ID', c.id),
+          ),
+        );
+        for (const res of results) {
+          if (res.error) updateError = res.error.message || 'update failed';
+          else updatedLines++;
+        }
+      }
+
+      // Then delete the removed invoices (only after the new rows are in)
+      let deletedRows = 0;
+      let deleteError = '';
+      for (let i = 0; i < removedRows.length; i += 500) {
+        const ids = removedRows.slice(i, i + 500).map((r) => r.ID);
+        const { error: delErr } = await bhs_supabas.from('web_Sales_DB').delete().in('ID', ids);
+        if (delErr) {
+          deleteError = delErr.message || 'delete failed';
+          break;
+        }
+        deletedRows += ids.length;
+      }
+      const deletedInvoices = new Set(removedRows.slice(0, deletedRows).map((r) => r.invoice)).size;
+
       await bhs_supabas
         .from('web_Sales_DB_Cache')
         .update({ DATA: null })
         .in('KEY', ['sales_data', 'months_data']);
 
       const newInvoices = new Set(uploadRows.map((r) => r['INVOICE NUMBER'])).size;
-      toast.success(
-        `Uploaded ${uploadRows.length} row(s) from ${newInvoices} new invoice(s)` +
-          (existingInvoices.size ? ` — ${existingInvoices.size} invoice(s) already in the database were skipped.` : '.'),
-      );
+      const parts: string[] = [];
+      if (uploadRows.length) parts.push(`Uploaded ${uploadRows.length} row(s) from ${newInvoices} new invoice(s)`);
+      if (updatedLines) parts.push(`${updatedLines} changed line(s) updated`);
+      if (existingInvoices.size) parts.push(`${existingInvoices.size} invoice(s) already in the database were skipped`);
+      if (deletedRows) parts.push(`${deletedInvoices} removed invoice(s) deleted (${deletedRows} row(s))`);
+      toast.success(parts.join(' — ') + '.');
+      if (deleteError) toast.error(`Some removed invoices could not be deleted: ${deleteError}`);
+      if (updateError) toast.error(`Some changed lines could not be updated: ${updateError}`);
       setIsUploadModalOpen(false);
 
       buildSalesCache().catch(err => console.warn('Background build warning:', err));
@@ -782,6 +993,140 @@ export default function SalesDBPage() {
       />
 
       {/* Excel Upload Modal */}
+      {changesPrompt && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl border border-slate-200/60 overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[85vh]">
+            <div className="p-6 flex items-center gap-4 border-b border-slate-100">
+              <span className="w-12 h-12 rounded-2xl bg-sky-50 text-sky-600 flex items-center justify-center shrink-0">
+                <RefreshCw className="w-6 h-6" />
+              </span>
+              <div className="min-w-0">
+                <h2 className="text-lg font-black text-slate-900">Changed lines in uploaded invoices</h2>
+                {changesPrompt.unmatched > 0 && (
+                  <p className="text-xs font-semibold text-amber-700 mt-2">
+                    {changesPrompt.unmatched} line(s) could not be matched (product added / removed or repeated in the invoice) — they are left as they are.
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto">
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 bg-slate-50">
+                  <tr className="text-[11px] font-black uppercase tracking-wider text-slate-400">
+                    <th className="py-2.5 px-4 text-center">Invoice</th>
+                    <th className="py-2.5 px-3 text-center">Product</th>
+                    <th className="py-2.5 px-3 text-center">Field</th>
+                    <th className="py-2.5 px-4 text-center">Now → New</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {changesPrompt.changes.flatMap((c) =>
+                    c.fields.map((f, j) => (
+                      <tr key={`${c.id}-${f.col}`} className="hover:bg-slate-50/60">
+                        <td className="py-2.5 px-4 text-center font-bold text-slate-900 break-all">{j === 0 ? c.invoice : ''}</td>
+                        <td className="py-2.5 px-3 text-center font-semibold text-slate-500">{j === 0 ? c.productId : ''}</td>
+                        <td className="py-2.5 px-3 text-center">
+                          <span className="inline-block px-2 py-0.5 rounded-md bg-slate-100 text-[11px] font-black text-slate-600">
+                            {f.col === 'PRODUCT PRICE' ? 'PRICE' : f.col === 'PRODUCT COST' ? 'COST' : f.col}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-4 text-center whitespace-nowrap">
+                          <span className="font-semibold text-slate-400 line-through">{f.before.toLocaleString('en-US', { maximumFractionDigits: 2 })}</span>
+                          <span className="mx-1.5 text-slate-300">→</span>
+                          <span className="font-black text-slate-900">{f.after.toLocaleString('en-US', { maximumFractionDigits: 2 })}</span>
+                        </td>
+                      </tr>
+                    )),
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="p-5 bg-slate-50 border-t border-slate-100 grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => answerChanges(false)}
+                className="h-12 rounded-2xl bg-white border border-slate-200 text-sm font-bold text-slate-700 hover:bg-slate-100 transition-colors"
+              >
+                Keep the saved values
+              </button>
+              <button
+                type="button"
+                onClick={() => answerChanges(true)}
+                className="h-12 rounded-2xl bg-[#0a0f1d] hover:bg-slate-800 text-sm font-black text-white inline-flex items-center justify-center gap-2 shadow-lg transition-colors"
+              >
+                <RefreshCw className="w-4 h-4" /> Update {changesPrompt.changes.length} line{changesPrompt.changes.length === 1 ? '' : 's'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {removedPrompt && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl border border-slate-200/60 overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[85vh]">
+            <div className="p-6 flex items-start gap-4 border-b border-slate-100">
+              <span className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-6 h-6" />
+              </span>
+              <div className="min-w-0">
+                <h2 className="text-lg font-black text-slate-900">Invoices not in this file</h2>
+                <p className="text-sm font-semibold text-slate-500 mt-1">
+                  {removedPrompt.list.length} invoice{removedPrompt.list.length === 1 ? '' : 's'} in the database are dated inside this file&apos;s period but are not in the file — probably removed from the system.
+                </p>
+                <span className="inline-flex items-center gap-1.5 mt-3 px-3 h-8 rounded-lg bg-slate-100 text-xs font-black text-slate-700">
+                  <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                  {removedPrompt.from === removedPrompt.to ? removedPrompt.from : `${removedPrompt.from} → ${removedPrompt.to}`}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto">
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 bg-slate-50">
+                  <tr className="text-[11px] font-black uppercase tracking-wider text-slate-400">
+                    <th className="py-2.5 px-4 text-left">Invoice</th>
+                    <th className="py-2.5 px-3 text-center">Date</th>
+                    <th className="py-2.5 px-3 text-center">Customer</th>
+                    <th className="py-2.5 px-4 text-right">Amount</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {removedPrompt.list.map((r) => (
+                    <tr key={r.invoice} className="hover:bg-slate-50/60">
+                      <td className="py-2.5 px-4 font-bold text-slate-900 break-all">{r.invoice}</td>
+                      <td className="py-2.5 px-3 text-center font-semibold text-slate-500 whitespace-nowrap">{r.date}</td>
+                      <td className="py-2.5 px-3 text-center font-semibold text-slate-500">{r.customer}</td>
+                      <td className={`py-2.5 px-4 text-right font-black whitespace-nowrap ${r.amount < 0 ? 'text-red-600' : 'text-slate-900'}`}>
+                        {r.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="p-5 bg-slate-50 border-t border-slate-100 grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => answerRemoved(false)}
+                className="h-12 rounded-2xl bg-white border border-slate-200 text-sm font-bold text-slate-700 hover:bg-slate-100 transition-colors"
+              >
+                Keep them
+              </button>
+              <button
+                type="button"
+                onClick={() => answerRemoved(true)}
+                className="h-12 rounded-2xl bg-red-600 hover:bg-red-700 text-sm font-black text-white inline-flex items-center justify-center gap-2 shadow-lg shadow-red-600/20 transition-colors"
+              >
+                <Trash2 className="w-4 h-4" /> Delete {removedPrompt.list.length} invoice{removedPrompt.list.length === 1 ? '' : 's'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {isUploadModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/20 animate-in fade-in duration-300">
           <div className="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl animate-in slide-in-from-bottom-8 duration-500 overflow-hidden">
