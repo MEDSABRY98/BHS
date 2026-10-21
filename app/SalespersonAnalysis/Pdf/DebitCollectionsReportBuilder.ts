@@ -88,6 +88,9 @@ export function MergeSalespersonData(list: SalespersonData[], period: Period): S
   };
 }
 
+/** Debit older than 120 days (the 120+ aging bucket). */
+const over120Of = (debit: ReturnType<typeof ComputeDebit>) => debit.buckets.find((b) => b.key === 'older')?.amount || 0;
+
 /** The numbers of one section (also used for the email summary). */
 export function DebitCollectionsTotals(data: SalespersonData, agingMode: AgingMode = 'days') {
   const debit = ComputeDebit(data, agingMode);
@@ -96,8 +99,8 @@ export function DebitCollectionsTotals(data: SalespersonData, agingMode: AgingMo
     openDebit: debit.openDebit,
     overdue: debit.overdue,
     overduePct: debit.overduePct,
-    over90: debit.over90,
-    over90Pct: debit.over90Pct,
+    over120: over120Of(debit),
+    over120Pct: debit.openDebit ? (over120Of(debit) / debit.openDebit) * 100 : 0,
     debitCustomers: debit.customersCount,
     netCollected: coll.cur.net,
     prevNetCollected: coll.prev.net,
@@ -115,7 +118,14 @@ const isEmpty = (d: SalespersonData) => !d.ledger.length;
  * addFont: loads the Arabic font (Amiri) into the doc — throw if it can't (names fall back to helvetica).
  */
 export async function BuildDebitCollectionsReportPdf(
-  input: { period: Period; sections: SalespersonData[]; allSalespersons: boolean; agingMode?: AgingMode },
+  input: {
+    period: Period;
+    sections: SalespersonData[];
+    allSalespersons: boolean;
+    agingMode?: AgingMode;
+    /** false = all salespersons: the summary + company pages only (each salesperson in his own PDF) */
+    includeSections?: boolean;
+  },
   addFont: (doc: any) => Promise<void>,
 ): Promise<{ doc: any; fileName: string }> {
   const { period } = input;
@@ -402,7 +412,7 @@ export async function BuildDebitCollectionsReportPdf(
     cards([
       { label: 'Open Debit', value: money(debit.openDebit), foot: data.salesperson.id === ALL_SALESPERSONS_ID ? 'All customers balances' : 'His share of the balances', accent: C.gold },
       { label: 'Overdue', value: money(debit.overdue), foot: `${debit.overduePct.toFixed(1)}% of open debit`, accent: C.red },
-      { label: 'Over 90 Days', value: money(debit.over90), foot: `${debit.over90Pct.toFixed(1)}% of open debit`, accent: C.ink },
+      { label: 'Over 120 Days', value: money(over120Of(debit)), foot: `${(debit.openDebit ? (over120Of(debit) / debit.openDebit) * 100 : 0).toFixed(1)}% of open debit`, accent: C.ink },
       { label: 'Customers with Debit', value: whole(debit.customersCount), accent: C.prev },
     ]);
     sectionTitle('Debit Aging');
@@ -493,7 +503,7 @@ export async function BuildDebitCollectionsReportPdf(
     cards([
       { label: 'Open Debit', value: money(t.openDebit), foot: `${whole(t.debitCustomers)} customers`, accent: C.gold },
       { label: 'Overdue', value: money(t.overdue), foot: `${t.overduePct.toFixed(1)}% of open debit`, accent: C.red },
-      { label: 'Over 90 Days', value: money(t.over90), foot: `${t.over90Pct.toFixed(1)}% of open debit`, accent: C.ink },
+      { label: 'Over 120 Days', value: money(t.over120), foot: `${t.over120Pct.toFixed(1)}% of open debit`, accent: C.ink },
       { label: 'Net Collected', value: money(t.netCollected), change: Change(t.netCollected, t.prevNetCollected), foot: `LY ${money(t.prevNetCollected)}`, accent: C.gold },
       { label: 'Payments', value: whole(t.payments), foot: `${whole(t.payingCustomers)} paying customers`, accent: C.ink },
       { label: 'Collection Rate', value: rateText(t.collectionRate), foot: 'Net collected / net sales', accent: C.prev },
@@ -501,18 +511,18 @@ export async function BuildDebitCollectionsReportPdf(
     table({
       title: 'By Salesperson',
       sub: 'Sorted by open debit',
-      head: ['#', 'Salesperson', 'Open Debit', 'Overdue', 'Over 90', 'Net Collected', 'Payments', 'Coll. Rate'],
+      head: ['#', 'Salesperson', 'Open Debit', 'Overdue', 'Over 120', 'Net Collected', 'Payments', 'Coll. Rate'],
       body: rows.map((r, i) => [
         i + 1,
         r.name,
         money(r.t.openDebit),
         money(r.t.overdue),
-        money(r.t.over90),
+        money(r.t.over120),
         money(r.t.netCollected),
         whole(r.t.payments),
         rateText(r.t.collectionRate),
       ]),
-      foot: ['', 'Total', money(t.openDebit), money(t.overdue), money(t.over90), money(t.netCollected), whole(t.payments), rateText(t.collectionRate)],
+      foot: ['', 'Total', money(t.openDebit), money(t.overdue), money(t.over120), money(t.netCollected), whole(t.payments), rateText(t.collectionRate)],
       nameCols: [1],
       boldCols: [2, 5],
       colWidths: { 0: 7, 1: 42 },
@@ -525,7 +535,7 @@ export async function BuildDebitCollectionsReportPdf(
   }
 
   // ════════════ one section per salesperson ════════════
-  for (const d of sections) drawSection(d);
+  if (input.includeSections !== false) for (const d of sections) drawSection(d);
 
   if (!started) {
     y = newPage(input.sections[0]?.salesperson.name || 'Debit & Collections', 'Debit');

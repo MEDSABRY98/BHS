@@ -21,7 +21,16 @@ async function salespersonNames(): Promise<Map<string, string>> {
 /** scope: what this copy covers ("All salespersons" or the salesperson's name) — shown in the log. */
 export type BuiltReport =
   | { scope: string; skip: string }
-  | { scope: string; fileName: string; pdf: Buffer; subject: string; html: string; text: string };
+  | {
+      scope: string;
+      fileName: string;
+      pdf: Buffer;
+      /** more PDFs after the first one (same email) */
+      extraPdfs?: { fileName: string; pdf: Buffer }[];
+      subject: string;
+      html: string;
+      text: string;
+    };
 
 /** salespersonId null = every salesperson; otherwise only that salesperson's sales. */
 type Builder = (range: { start: string; end: string }, reportName: string, salespersonId: string | null) => Promise<BuiltReport>;
@@ -134,6 +143,9 @@ function sharedInputs() {
   return inputsCache.promise;
 }
 
+// debit aging: invoice month + payment term (months), from the 1st of the next month
+const DEBIT_AGING_MODE = 'months' as const;
+
 const salespersonDebitCollections: Builder = async (range, reportName, salespersonId) => {
   const period = { start: range.start, end: range.end };
   const inputs = await sharedInputs();
@@ -151,15 +163,28 @@ const salespersonDebitCollections: Builder = async (range, reportName, salespers
   sections = sections.filter((d) => d.ledger.length);
   if (!sections.length) return { scope, skip: 'No debit or collections data' };
 
-  const { doc, fileName } = await BuildDebitCollectionsReportPdf({ period, sections, allSalespersons: !salespersonId }, addArabicFontServer);
-  const pdf = Buffer.from(doc.output('arraybuffer') as ArrayBuffer);
+  // all salespersons: first PDF = summary + company, then one PDF per salesperson (A-Z), all in the same email
+  const toPdf = (doc: any) => Buffer.from(doc.output('arraybuffer') as ArrayBuffer);
+  const { doc, fileName } = await BuildDebitCollectionsReportPdf(
+    { period, sections, allSalespersons: !salespersonId, agingMode: DEBIT_AGING_MODE, includeSections: !!salespersonId },
+    addArabicFontServer,
+  );
+  const pdf = toPdf(doc);
+  const extraPdfs: { fileName: string; pdf: Buffer }[] = [];
+  if (!salespersonId) {
+    const az = [...sections].sort((a, b) => a.salesperson.name.localeCompare(b.salesperson.name, undefined, { sensitivity: 'base' }));
+    for (const d of az) {
+      const one = await BuildDebitCollectionsReportPdf({ period, sections: [d], allSalespersons: false, agingMode: DEBIT_AGING_MODE }, addArabicFontServer);
+      extraPdfs.push({ fileName: one.fileName, pdf: toPdf(one.doc) });
+    }
+  }
 
   // short summary in the email body
-  const t = DebitCollectionsTotals(salespersonId ? sections[0] : MergeSalespersonData(sections, period));
+  const t = DebitCollectionsTotals(salespersonId ? sections[0] : MergeSalespersonData(sections, period), DEBIT_AGING_MODE);
   const top = salespersonId
     ? []
     : sections
-        .map((d) => ({ name: d.salesperson.name, t: DebitCollectionsTotals(d) }))
+        .map((d) => ({ name: d.salesperson.name, t: DebitCollectionsTotals(d, DEBIT_AGING_MODE) }))
         .sort((a, b) => b.t.openDebit - a.t.openDebit)
         .slice(0, 5);
   const when = periodText(range);
@@ -180,7 +205,7 @@ const salespersonDebitCollections: Builder = async (range, reportName, salespers
     <table style="width:100%;border-collapse:collapse">
       ${row('Open debit', `AED ${money(t.openDebit)}`, `${t.debitCustomers} customers`)}
       ${row('Overdue', `AED ${money(t.overdue)}`, `${t.overduePct.toFixed(1)}%`)}
-      ${row('Over 90 days', `AED ${money(t.over90)}`, `${t.over90Pct.toFixed(1)}%`)}
+      ${row('Over 120 days', `AED ${money(t.over120)}`, `${t.over120Pct.toFixed(1)}%`)}
     </table>
     <div style="margin:14px 12px 6px;font-size:12px;font-weight:700;color:#64748b;letter-spacing:1px">COLLECTIONS (${esc(when.toUpperCase())})</div>
     <table style="width:100%;border-collapse:collapse">
@@ -192,22 +217,22 @@ const salespersonDebitCollections: Builder = async (range, reportName, salespers
     <table style="width:100%;border-collapse:collapse">
       ${top.map((r, i) => row(`${i + 1}. ${esc(r.name)}`, `AED ${money(r.t.openDebit)}`, `Collected ${money(r.t.netCollected)}`)).join('')}
     </table>` : ''}
-    <p style="margin:16px 12px 4px;font-size:12px;color:#94a3b8">The full report is attached (PDF). Collections are compared with the same period last year.</p>
+    <p style="margin:16px 12px 4px;font-size:12px;color:#94a3b8">${extraPdfs.length ? `Attached: the summary PDF and one PDF per salesperson (${extraPdfs.length}).` : 'The full report is attached (PDF).'} Collections are compared with the same period last year.</p>
   </div>
 </div>`;
   const text = [
     `${title} — ${when}`,
     `Open debit: AED ${money(t.openDebit)}`,
     `Overdue: AED ${money(t.overdue)} (${t.overduePct.toFixed(1)}%)`,
-    `Over 90 days: AED ${money(t.over90)}`,
+    `Over 120 days: AED ${money(t.over120)}`,
     `Net collected: AED ${money(t.netCollected)}`,
     `Payments: ${t.payments}`,
     `Collection rate: ${rate}`,
     '',
-    'The full report is attached (PDF).',
+    extraPdfs.length ? `Attached: the summary PDF and one PDF per salesperson (${extraPdfs.length}).` : 'The full report is attached (PDF).',
   ].join('\n');
 
-  return { scope, fileName, pdf, subject: `${title} — ${when}`, html, text };
+  return { scope, fileName, pdf, extraPdfs, subject: `${title} — ${when}`, html, text };
 };
 
 export const REPORT_BUILDERS: Record<string, Builder> = {

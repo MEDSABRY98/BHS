@@ -183,10 +183,14 @@ export async function runReport(
         subject: built.subject,
         html: built.html,
         text: built.text,
-        attachments: [{ filename: built.fileName, content: built.pdf, contentType: 'application/pdf' }],
+        attachments: [
+          { filename: built.fileName, content: built.pdf, contentType: 'application/pdf' },
+          ...(built.extraPdfs || []).map((x) => ({ filename: x.fileName, content: x.pdf, contentType: 'application/pdf' })),
+        ],
       });
       sent++;
-      await log(emails, scope, 'sent', `${built.fileName} → ${emails.length} recipient${emails.length === 1 ? '' : 's'}`);
+      const files = 1 + (built.extraPdfs?.length || 0);
+      await log(emails, scope, 'sent', `${files > 1 ? `${files} PDFs (${built.fileName} + ${files - 1})` : built.fileName} → ${emails.length} recipient${emails.length === 1 ? '' : 's'}`);
     } catch (e: unknown) {
       failed++;
       const message = e instanceof Error ? e.message : String(e);
