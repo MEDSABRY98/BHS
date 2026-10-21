@@ -113,6 +113,8 @@ function groupBy(lines: DailySalesLine[], keyOf: (l: DailySalesLine) => string):
 export async function buildDailySalesReportPdf(
   data: DailySalesReportData,
   addFont: (doc: any) => Promise<void>,
+  /** includeSalespersonSections=false: all salespersons without the per-salesperson sections (each one in his own PDF) */
+  opts: { includeSalespersonSections?: boolean } = {},
 ): Promise<{ doc: any; fileName: string }> {
   const { period, prevPeriod, lines, showCosts } = data;
   const oneDay = period.start === period.end;
@@ -410,8 +412,19 @@ export async function buildDailySalesReportPdf(
     cards(kpis);
   };
 
-  // ── top customers / top products ──
-  const topTables = (ls: DailySalesLine[], tot: ReturnType<typeof totalsOf>, withSp: boolean, productsOnNewPage?: string) => {
+  // ── the four breakdowns (city → customers → category → products) ──
+  const cityTable = (ls: DailySalesLine[], tot: ReturnType<typeof totalsOf>) => {
+    const byCity = groupBy(ls, (l) => custCity(l.customerId));
+    table({
+      title: 'Sales by City',
+      head: ['City', 'Customers', 'Invoices', 'Net', 'Share'],
+      body: byCity.slice(0, 12).map((g) => [g.key, whole(g.customers), whole(g.invoices), money(g.net), share(g.net, tot.net)]),
+      nameCols: [0],
+      boldCols: [3],
+    });
+  };
+
+  const customersTable = (ls: DailySalesLine[], tot: ReturnType<typeof totalsOf>, withSp: boolean) => {
     const byCustomer = groupBy(ls, (l) => l.customerId);
     table({
       title: 'Top Customers',
@@ -430,9 +443,22 @@ export async function buildDailySalesReportPdf(
       boldCols: [withSp ? 5 : 4],
       colWidths: { 0: 7 },
     });
+  };
 
-    // ── top products ──
-    if (productsOnNewPage) newPage(productsOnNewPage);
+  const categoryTable = (ls: DailySalesLine[], tot: ReturnType<typeof totalsOf>) => {
+    const byCategory = groupBy(ls, (l) => shortCategory(data.products[l.productId]?.category || 'Uncategorized'));
+    table({
+      title: 'Sales by Category',
+      head: ['Category', 'Products', 'Qty', 'Net', 'Share'],
+      body: byCategory
+        .slice(0, 12)
+        .map((g) => [g.key, whole(new Set(g.lines.map((l) => l.productId)).size), whole(g.qty), money(g.net), share(g.net, tot.net)]),
+      nameCols: [0],
+      boldCols: [3],
+    });
+  };
+
+  const productsTable = (ls: DailySalesLine[], tot: ReturnType<typeof totalsOf>) => {
     const byProduct = groupBy(ls, (l) => l.productId);
     table({
       title: 'Top Products',
@@ -451,33 +477,9 @@ export async function buildDailySalesReportPdf(
       colWidths: { 0: 7, 1: 26 },
       didParseCell: negCell([6, 7]),
     });
-
   };
 
-  // ── by city / by category ──
-  const placeTables = (ls: DailySalesLine[], tot: ReturnType<typeof totalsOf>) => {
-    const byCity = groupBy(ls, (l) => custCity(l.customerId));
-    table({
-      title: 'Sales by City',
-      head: ['City', 'Customers', 'Invoices', 'Net', 'Share'],
-      body: byCity.slice(0, 12).map((g) => [g.key, whole(g.customers), whole(g.invoices), money(g.net), share(g.net, tot.net)]),
-      nameCols: [0],
-      boldCols: [3],
-    });
-    const byCategory = groupBy(ls, (l) => shortCategory(data.products[l.productId]?.category || 'Uncategorized'));
-    table({
-      title: 'Sales by Category',
-      head: ['Category', 'Products', 'Qty', 'Net', 'Share'],
-      body: byCategory
-        .slice(0, 12)
-        .map((g) => [g.key, whole(new Set(g.lines.map((l) => l.productId)).size), whole(g.qty), money(g.net), share(g.net, tot.net)]),
-      nameCols: [0],
-      boldCols: [3],
-    });
-
-  };
-
-  // ── one salesperson: cards → tops → city & category → invoices (each part starts a new page) ──
+  // ── one salesperson: cards → city & customers → category & products → invoices (each part starts a new page) ──
   const salespersonSection = (g: Group) => {
     const name = spName(g.key);
     const t = totalsOf(g.lines);
@@ -489,9 +491,11 @@ export async function buildDailySalesReportPdf(
     newPage(name);
     kpiCards(t, pv);
     newPage(name);
-    topTables(g.lines, t, false);
+    cityTable(g.lines, t);
+    customersTable(g.lines, t, false);
     newPage(name);
-    placeTables(g.lines, t);
+    categoryTable(g.lines, t);
+    productsTable(g.lines, t);
     newPage(name);
     invoicesTable(g, t);
   };
@@ -570,9 +574,13 @@ export async function buildDailySalesReportPdf(
 
     // each part on its own page so the sections never run into each other
     newPage('All Salespersons');
-    topTables(lines, total, true, 'All Salespersons');
+    cityTable(lines, total);
     newPage('All Salespersons');
-    placeTables(lines, total);
+    customersTable(lines, total, true);
+    newPage('All Salespersons');
+    categoryTable(lines, total);
+    newPage('All Salespersons');
+    productsTable(lines, total);
 
     // ── returns ──
     const returns = lines.filter((l) => l.amount < 0).sort((a, b) => a.amount - b.amount);
@@ -606,7 +614,7 @@ export async function buildDailySalesReportPdf(
     }
 
     // ════════════════ ONE SECTION PER SALESPERSON (same layout as a salesperson's own report) ════════════════
-    for (const g of bySp) salespersonSection(g);
+    if (opts.includeSalespersonSections !== false) for (const g of bySp) salespersonSection(g);
 
   }
 

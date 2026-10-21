@@ -58,8 +58,31 @@ const salespersonDaily: Builder = async (range, reportName, salespersonId) => {
   }
   if (!data.lines.length) return { scope, skip: 'No sales in this period' };
 
-  const { doc, fileName } = await buildDailySalesReportPdf(data, addArabicFontServer);
-  const pdf = Buffer.from(doc.output('arraybuffer') as ArrayBuffer);
+  // all salespersons: first PDF = the company part, then one PDF per salesperson (A-Z), all in the same email
+  const toPdf = (d: any) => Buffer.from(d.output('arraybuffer') as ArrayBuffer);
+  const { doc, fileName } = await buildDailySalesReportPdf(data, addArabicFontServer, { includeSalespersonSections: !!salespersonId });
+  const pdf = toPdf(doc);
+  const extraPdfs: { fileName: string; pdf: Buffer }[] = [];
+  if (!salespersonId) {
+    const spIds = [...new Set(data.lines.map((l) => l.salespersonId))].sort((a, b) =>
+      (data.salespersons[a] || a).localeCompare(data.salespersons[b] || b, undefined, { sensitivity: 'base' }),
+    );
+    const baseName = fileName.replace(/\.pdf$/i, '');
+    for (const id of spIds) {
+      const spName = data.salespersons[id] || id;
+      const one = await buildDailySalesReportPdf(
+        {
+          ...data,
+          allSalespersons: false,
+          lines: data.lines.filter((l) => l.salespersonId === id),
+          prevTotals: data.prevTotalsBySalesperson?.[id] || { gross: 0, returns: 0, net: data.prevNetBySalesperson[id] || 0, invoices: 0, customers: 0, qty: 0, profit: 0, costedSales: 0 },
+        },
+        addArabicFontServer,
+      );
+      const safeName = spName.replace(/[\\/:*?"<>|]+/g, ' ').trim().replace(/\s+/g, '_') || id;
+      extraPdfs.push({ fileName: `${baseName}_${safeName}.pdf`, pdf: toPdf(one.doc) });
+    }
+  }
 
   // short summary in the email body
   let gross = 0;
@@ -101,7 +124,7 @@ const salespersonDaily: Builder = async (range, reportName, salespersonId) => {
     <table style="width:100%;border-collapse:collapse">
       ${top.map(([id, v], i) => row(`${i + 1}. ${esc(data.salespersons[id] || id)}`, `AED ${money(v)}`)).join('')}
     </table>`}
-    <p style="margin:16px 12px 4px;font-size:12px;color:#94a3b8">The full report is attached (PDF). Compared with ${esc(periodText(data.prevPeriod))}.</p>
+    <p style="margin:16px 12px 4px;font-size:12px;color:#94a3b8">${extraPdfs.length ? `Attached: the company PDF and one PDF per salesperson (${extraPdfs.length}).` : 'The full report is attached (PDF).'} Compared with ${esc(periodText(data.prevPeriod))}.</p>
   </div>
 </div>`;
   const text = [
@@ -112,10 +135,10 @@ const salespersonDaily: Builder = async (range, reportName, salespersonId) => {
     `Invoices: ${invoices.size}`,
     `Active customers: ${customers.size}`,
     '',
-    'The full report is attached (PDF).',
+    extraPdfs.length ? `Attached: the company PDF and one PDF per salesperson (${extraPdfs.length}).` : 'The full report is attached (PDF).',
   ].join('\n');
 
-  return { scope, fileName, pdf, subject: `${title} — ${when}`, html, text };
+  return { scope, fileName, pdf, extraPdfs, subject: `${title} — ${when}`, html, text };
 };
 
 /** Runs fn over the list, a few at a time (each salesperson loads his own debit scope). */
