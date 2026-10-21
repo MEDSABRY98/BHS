@@ -1,10 +1,10 @@
 'use client';
 
-// PDF export of the lines shown in Intercompany Entries (same look as the other BHS statements).
+// Intercompany Reconciliation form — the analysis PDF (same look as the old Intercompany module).
 
 import { addArabicFont } from '@/app/Components/Pdf/shared';
 import { saveTrackedPdf } from '@/app/AdminControl/Code/Audit/TrackedDownload';
-import { formatAmount, formatDate, round2, type IntercompanyEntry } from './IntercompanyTypes';
+import { formatAmount, formatDate, round2, type IntercompanyLine } from './IntercompanyTypes';
 
 const COLORS = {
   gold: [184, 134, 11] as [number, number, number],
@@ -23,10 +23,9 @@ const COLORS = {
 export interface IntercompanyPdfOptions {
   dateFrom?: string;
   dateTo?: string;
-  filterLabel?: string; // e.g. "Unmatched" when a status filter is on
 }
 
-function drawHeader(doc: any, rows: IntercompanyEntry[], opts: IntercompanyPdfOptions, margin: number, pageWidth: number): number {
+function drawHeader(doc: any, rows: IntercompanyLine[], opts: IntercompanyPdfOptions, margin: number, pageWidth: number): number {
   const contentWidth = pageWidth - margin * 2;
   let y = 12;
 
@@ -143,7 +142,7 @@ function addPageNumbers(doc: any, pageWidth: number, margin: number) {
   }
 }
 
-export async function exportIntercompanyPdf(rows: IntercompanyEntry[], opts: IntercompanyPdfOptions = {}) {
+export async function exportIntercompanyPdf(rows: IntercompanyLine[], opts: IntercompanyPdfOptions = {}) {
   const jsPDF = (await import('jspdf')).default;
   const autoTableModule: any = await import('jspdf-autotable');
   const autoTable = autoTableModule.default || autoTableModule;
@@ -166,7 +165,6 @@ export async function exportIntercompanyPdf(rows: IntercompanyEntry[], opts: Int
     r.LABEL || '-',
     r.DEBIT ? formatAmount(r.DEBIT) : '-',
     r.CREDIT ? formatAmount(r.CREDIT) : '-',
-    String(r.ATTACHMENTS_COUNT || 0),
   ]);
 
   const totalDebit = round2(rows.reduce((s, r) => s + r.DEBIT, 0));
@@ -175,9 +173,9 @@ export async function exportIntercompanyPdf(rows: IntercompanyEntry[], opts: Int
   const tableOptions = {
     startY,
     margin: { left: margin, right: margin, bottom: 14 },
-    head: [['#', 'DATE', 'ACCOUNT', 'AL AIN ENTRY', 'DUBAI ENTRY', 'LABEL', 'DEBIT', 'CREDIT', 'FILES']],
+    head: [['#', 'DATE', 'ACCOUNT', 'AL AIN ENTRY', 'DUBAI ENTRY', 'LABEL', 'DEBIT', 'CREDIT']],
     body,
-    foot: [['', '', '', '', '', 'TOTAL', formatAmount(totalDebit), formatAmount(totalCredit), '']],
+    foot: [['', '', '', '', '', 'TOTAL', formatAmount(totalDebit), formatAmount(totalCredit)]],
     showFoot: 'lastPage',
     theme: 'plain' as const,
     styles: {
@@ -201,7 +199,6 @@ export async function exportIntercompanyPdf(rows: IntercompanyEntry[], opts: Int
       5: { font: 'Amiri' },
       6: { cellWidth: 28, textColor: COLORS.green, fontStyle: 'bold' },
       7: { cellWidth: 28, textColor: COLORS.red, fontStyle: 'bold' },
-      8: { cellWidth: 14 },
     },
     didParseCell: (data: any) => {
       if (data.section !== 'body') return;
@@ -218,5 +215,5 @@ export async function exportIntercompanyPdf(rows: IntercompanyEntry[], opts: Int
 
   drawSignatures(doc, pageWidth, margin);
   addPageNumbers(doc, pageWidth, margin);
-  saveTrackedPdf(doc, `Intercompany_Entries_${new Date().toISOString().slice(0, 10)}.pdf`);
+  saveTrackedPdf(doc, `Intercompany_Reconciliation_${new Date().toISOString().slice(0, 10)}.pdf`);
 }

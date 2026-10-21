@@ -30,4 +30,10 @@ export const FORMS: FormDefinition[] = [
     description: 'Print file spine labels at their real size, the name fitted to each label.',
     path: '/Forms/FileLabels',
   },
+  {
+    id: 'intercompany',
+    title: 'Intercompany Reconciliation',
+    description: 'Al Ain ↔ Dubai: download the Excel template, upload it and download the analysis PDF (nothing is saved).',
+    path: '/Forms/Intercompany',
+  },
 ];

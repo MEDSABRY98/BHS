@@ -205,7 +205,6 @@ export const SYSTEMS = [
     { id: 'roi', label: 'ROI' },
     { id: 'financial-model', label: 'Financial Model' },
     { id: 'suppliers-analysis', label: 'Suppliers Analysis' },
-    { id: 'intercompany-reconciliation', label: 'Intercompany Reconciliation' },
     { id: 'transfer-requests', label: 'Transfer Requests' },
     { id: 'petty-cash', label: 'Petty Cash' },
     { id: 'debit-notes', label: 'Debit Notes' },
@@ -305,10 +304,7 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
         { id: 'employee-charge', label: 'Employee Charge' },
         { id: 'letterhead', label: 'Company Letter' },
         { id: 'file-labels', label: 'File Labels' },
-    ],
-    'intercompany-reconciliation': [
-        { id: 'entries', label: 'Entries' },
-        { id: 'summary', label: 'Monthly Summary' },
+        { id: 'intercompany', label: 'Intercompany Reconciliation' },
     ],
     'suppliers-analysis': [
         { id: 'suppliers', label: 'Suppliers Analysis' },
@@ -385,10 +381,6 @@ const SYSTEM_ACTIONS: Record<string, { id: string; label: string; icon: string }
     'inventory-scrap': [
         { id: 'delete', label: 'Delete Reports', icon: '🗑️' }
     ],
-    'intercompany-reconciliation': [
-        { id: 'edit', label: 'Upload Excel / Dubai No / Attachments', icon: '✏️' },
-        { id: 'delete', label: 'Delete Lines & Attachments', icon: '🗑️' }
-    ],
 };
 
 const getSystemIcon = (id: string) => {
@@ -409,7 +401,6 @@ const getSystemIcon = (id: string) => {
         case 'customers-discounts': return <Shield className="w-5 h-5 text-amber-500" />;
         case 'financial-model': return <BarChart3 className="w-5 h-5 text-emerald-500" />;
         case 'suppliers-analysis': return <Truck className="w-5 h-5 text-indigo-400" />;
-        case 'intercompany-reconciliation': return <Layers className="w-5 h-5 text-cyan-500" />;
         case 'transfer-requests': return <CreditCard className="w-5 h-5 text-emerald-500" />;
         case 'debit-notes': return <FileCheck className="w-5 h-5 text-indigo-500" />;
         case 'credit-notes': return <FileCheck className="w-5 h-5 text-emerald-500" />;

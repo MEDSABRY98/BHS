@@ -162,7 +162,6 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
     { id: 'database', title: 'Database', path: '/DataBase', color: 'sky' },
     { id: 'customers-discounts', title: 'Customers Discounts', path: '/CustomersDiscounts', color: 'yellow' },
     { id: 'financial-model', title: 'Financial Model', path: '/FinancialModel', color: 'pink' },
-    { id: 'intercompany-reconciliation', title: 'Intercompany Reconciliation', path: '/IntercompanyReconciliation', color: 'cyan' },
     { id: 'transfer-requests', title: 'Transfer Requests', path: '/TransferRequests', color: 'emerald' },
     { id: 'petty-cash', title: 'Petty Cash', path: '/PettyCash', color: 'teal' },
     { id: 'debit-notes', title: 'Debit Notes', path: '/DebitNotes', color: 'indigo' },

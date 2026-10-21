@@ -1,36 +1,20 @@
 'use client';
 
-// Excel template / export / upload parsing for Intercompany Reconciliation (browser only).
+// Intercompany Reconciliation form — Excel template and reading the uploaded file (browser only).
 
 import ExcelJS from 'exceljs';
 import { saveTrackedAs } from '@/app/AdminControl/Code/Audit/TrackedDownload';
-import {
-  cleanText,
-  compareEntries,
-  isValidIsoDate,
-  baseKey,
-  sameNumber,
-  round2,
-  type ImportLine,
-  type IntercompanyEntry,
-} from './IntercompanyTypes';
+import { cleanText, isValidIsoDate, round2, type IntercompanyLine } from './IntercompanyTypes';
 
-export const TEMPLATE_HEADERS = ['Date', 'Account Name', 'Al Ain Entry No', 'Dubai Entry No', 'Label', 'Debit', 'Credit', 'Line ID'] as const;
-// Exported lines carry their saved ID: uploading the same file again updates those lines in place.
-const ID_HEADER = 'Line ID (do not edit)';
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-// Same look as the other BHS Excel exports (app/Components/Export/ExcelExport.ts)
+// Same look as the other BHS Excel exports
 const HEADER_FILL = 'FF000000';
 const HEADER_TEXT = 'FFFFFFFF';
 const GOLD_BORDER = 'FFC9A84C';
-const LIGHT_ROW_BORDER = 'FFEEEEEE';
 const NUM_FMT = '#,##0.00;-#,##0.00;"-"';
 
 // Header names accepted when reading (the template's and Odoo's own export names)
-type ReadField = keyof ImportLine | 'ID';
+type ReadField = keyof IntercompanyLine;
 const HEADER_ALIASES: Record<ReadField, string[]> = {
-  ID: ['lineiddonotedit', 'lineid'],
   ENTRY_DATE: ['date', 'entrydate', 'accountingdate'],
   ACCOUNT_NAME: ['accountname', 'account', 'accounttitle'],
   AIN_ENTRY_NUMBER: ['alainentryno', 'alainentrynumber', 'alainentry', 'ainentryno', 'ainentrynumber', 'entryno', 'entrynumber', 'number', 'journalentry', 'journalentrynumber'],
@@ -44,14 +28,11 @@ function headerKey(value: unknown): string {
   return cleanText(value).toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
-// ─────────────────────────────────────────────────────────────
-//  Download: template (empty) or current data in the same layout
-// ─────────────────────────────────────────────────────────────
-export async function downloadIntercompanyExcel(entries: IntercompanyEntry[] = [], fileName = 'Intercompany_Template.xlsx') {
+/** The empty template. */
+export async function downloadIntercompanyTemplate() {
   const wb = new ExcelJS.Workbook();
   wb.creator = 'BHS Analysis';
   const ws = wb.addWorksheet('Entries', { views: [{ state: 'frozen', ySplit: 1, showGridLines: false }] });
-
   ws.columns = [
     { header: 'Date', key: 'date', width: 14 },
     { header: 'Account Name', key: 'account', width: 30 },
@@ -60,9 +41,7 @@ export async function downloadIntercompanyExcel(entries: IntercompanyEntry[] = [
     { header: 'Label', key: 'label', width: 55 },
     { header: 'Debit', key: 'debit', width: 16 },
     { header: 'Credit', key: 'credit', width: 16 },
-    { header: ID_HEADER, key: 'id', width: 40 },
   ];
-
   const header = ws.getRow(1);
   header.height = 25;
   header.eachCell((cell) => {
@@ -71,42 +50,16 @@ export async function downloadIntercompanyExcel(entries: IntercompanyEntry[] = [
     cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
     cell.border = { bottom: { style: 'medium', color: { argb: GOLD_BORDER } } };
   });
-
-  const sorted = [...entries].sort(compareEntries);
-  for (const e of sorted) {
-    const [y, m, d] = e.ENTRY_DATE.split('-').map(Number);
-    ws.addRow({
-      date: new Date(Date.UTC(y, m - 1, d)),
-      account: e.ACCOUNT_NAME || '',
-      ain: e.AIN_ENTRY_NUMBER || '',
-      dubai: e.DUBAI_ENTRY_NUMBER || '',
-      label: e.LABEL || '',
-      debit: e.DEBIT || 0,
-      credit: e.CREDIT || 0,
-      id: e.ID,
-    });
-  }
-
-  // Formats for the filled rows plus some empty rows ready for typing
-  const lastRow = Math.max(sorted.length + 1, 200);
-  for (let r = 2; r <= lastRow; r++) {
+  for (let r = 2; r <= 200; r++) {
     const row = ws.getRow(r);
-    const filled = r <= sorted.length + 1;
-    if (filled) row.height = 25;
-    for (let c = 1; c <= 8; c++) {
-      const cell = row.getCell(c);
-      cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
-      if (filled) cell.border = { bottom: { style: 'thin', color: { argb: LIGHT_ROW_BORDER } } };
-    }
+    for (let c = 1; c <= 7; c++) row.getCell(c).alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
     row.getCell(1).numFmt = 'dd/mm/yyyy';
     row.getCell(6).numFmt = NUM_FMT;
     row.getCell(7).numFmt = NUM_FMT;
-    row.getCell(8).font = { color: { argb: 'FF9CA3AF' }, size: 9 };
   }
-  ws.autoFilter = { from: 'A1', to: 'H1' };
-
+  ws.autoFilter = { from: 'A1', to: 'G1' };
   const buffer = await wb.xlsx.writeBuffer();
-  saveTrackedAs(new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), fileName);
+  saveTrackedAs(new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), 'Intercompany_Template.xlsx');
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -174,12 +127,12 @@ function toText(raw: any): string {
 }
 
 export interface ParsedExcel {
-  lines: (ImportLine & { ROW: number; ID?: string })[];
+  lines: (IntercompanyLine & { ROW: number })[];
   errors: { row: number; message: string }[];
   sheetName: string;
 }
 
-export async function readIntercompanyExcel(file: File): Promise<ParsedExcel> {
+export async function readIntercompanyFile(file: File): Promise<ParsedExcel> {
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.load(await file.arrayBuffer());
 
@@ -206,7 +159,6 @@ export async function readIntercompanyExcel(file: File): Promise<ParsedExcel> {
     const lines: ParsedExcel['lines'] = [];
     const errors: ParsedExcel['errors'] = [];
     const get = (row: ExcelJS.Row, field: ReadField) => (cols[field] ? row.getCell(cols[field]!).value : null);
-    const seenIds = new Set<string>();
 
     for (let r = headerRow + 1; r <= ws.rowCount; r++) {
       const row = ws.getRow(r);
@@ -218,7 +170,6 @@ export async function readIntercompanyExcel(file: File): Promise<ParsedExcel> {
       const date = toIsoDate(rawDate);
       const debit = toAmount(get(row, 'DEBIT'));
       const credit = toAmount(get(row, 'CREDIT'));
-      const id = toText(get(row, 'ID'));
 
       // Empty rows and total rows (no date and no entry number) are skipped
       if (!toText(rawDate) && !ain && !dubai) continue;
@@ -228,13 +179,9 @@ export async function readIntercompanyExcel(file: File): Promise<ParsedExcel> {
       if (debit === null || credit === null) { errors.push({ row: r, message: 'Debit / Credit is not a number' }); continue; }
       if (debit < 0 || credit < 0) { errors.push({ row: r, message: 'Negative debit / credit' }); continue; }
       if (debit === 0 && credit === 0) { errors.push({ row: r, message: 'Debit and credit are both zero' }); continue; }
-      if (id && !UUID_RE.test(id)) { errors.push({ row: r, message: 'The Line ID was changed — leave it as exported' }); continue; }
-      if (id && seenIds.has(id)) { errors.push({ row: r, message: 'The same Line ID is repeated — a copied row? Clear its Line ID to add it as new' }); continue; }
-      if (id) seenIds.add(id);
 
       lines.push({
         ROW: r,
-        ...(id ? { ID: id.toLowerCase() } : {}),
         ENTRY_DATE: date,
         ACCOUNT_NAME: account || null,
         AIN_ENTRY_NUMBER: ain || null,
@@ -248,88 +195,4 @@ export async function readIntercompanyExcel(file: File): Promise<ParsedExcel> {
   }
 
   throw new Error('No sheet with the columns Date, Al Ain / Dubai Entry No, Debit and Credit was found');
-}
-
-// ─────────────────────────────────────────────────────────────
-//  Upload plan: match the file against the saved lines
-//  Same line = same date, label, debit and credit AND
-//    • same Al Ain no  → the Dubai no is set / changed if the file has a different one
-//    • or same Dubai no (and the saved line has no other Al Ain no) → the Al Ain no is filled
-//  The account name from the file is saved on the matched line when it is different.
-//  Identical lines repeated N times are matched one by one.
-//  Anything else → new line. Nothing is ever deleted.
-// ─────────────────────────────────────────────────────────────
-export interface ImportPlan {
-  inserts: ImportLine[];
-  updates: { ID: string; AIN_ENTRY_NUMBER?: string; DUBAI_ENTRY_NUMBER?: string; ACCOUNT_NAME?: string; ROW: number }[];
-  edits: (ImportLine & { ID: string; ROW: number })[]; // exported lines changed in the file (matched by Line ID)
-  unchanged: number;
-  missing: { row: number; message: string }[]; // Line ID not found (the line was deleted)
-}
-
-function sameLine(a: ImportLine, b: ImportLine): boolean {
-  return (
-    a.ENTRY_DATE === b.ENTRY_DATE &&
-    cleanText(a.ACCOUNT_NAME) === cleanText(b.ACCOUNT_NAME) &&
-    cleanText(a.AIN_ENTRY_NUMBER) === cleanText(b.AIN_ENTRY_NUMBER) &&
-    cleanText(a.DUBAI_ENTRY_NUMBER) === cleanText(b.DUBAI_ENTRY_NUMBER) &&
-    cleanText(a.LABEL) === cleanText(b.LABEL) &&
-    round2(a.DEBIT) === round2(b.DEBIT) &&
-    round2(a.CREDIT) === round2(b.CREDIT)
-  );
-}
-
-export function planIntercompanyImport(lines: ParsedExcel['lines'], existing: IntercompanyEntry[]): ImportPlan {
-  const pool = new Map<string, IntercompanyEntry[]>();
-  for (const e of [...existing].sort(compareEntries)) {
-    const k = baseKey(e);
-    pool.set(k, [...(pool.get(k) || []), e]);
-  }
-
-  const byId = new Map(existing.map((e) => [e.ID.toLowerCase(), e]));
-  const plan: ImportPlan = { inserts: [], updates: [], edits: [], unchanged: 0, missing: [] };
-
-  // 1) Lines exported from here: matched by their Line ID → update in place (anything changed)
-  const usedIds = new Set<string>();
-  for (const l of lines) {
-    if (!l.ID) continue;
-    const saved = byId.get(l.ID);
-    if (!saved) {
-      plan.missing.push({ row: l.ROW, message: 'This line was deleted from the system — not added back' });
-      continue;
-    }
-    usedIds.add(saved.ID);
-    const { ROW, ID: _id, ...line } = l;
-    if (sameLine(line, saved)) plan.unchanged++;
-    else plan.edits.push({ ...line, ID: saved.ID, ROW });
-  }
-  // the matched lines can't be matched again by the rules below
-  for (const [k, list] of Array.from(pool.entries())) pool.set(k, list.filter((e) => !usedIds.has(e.ID)));
-
-  // 2) Lines without an ID (template / Odoo export): the matching rules above
-  for (const l of lines) {
-    if (l.ID) continue;
-    const ain = cleanText(l.AIN_ENTRY_NUMBER);
-    const dubai = cleanText(l.DUBAI_ENTRY_NUMBER);
-    const account = cleanText(l.ACCOUNT_NAME);
-    const candidates = pool.get(baseKey(l)) || [];
-
-    let idx = ain ? candidates.findIndex((c) => sameNumber(c.AIN_ENTRY_NUMBER, ain)) : -1;
-    if (idx < 0 && dubai) idx = candidates.findIndex((c) => sameNumber(c.DUBAI_ENTRY_NUMBER, dubai) && (!c.AIN_ENTRY_NUMBER || !ain));
-
-    if (idx < 0) {
-      const { ROW: _row, ID: _id, ...line } = l;
-      plan.inserts.push(line);
-      continue;
-    }
-
-    const match = candidates.splice(idx, 1)[0];
-    const update: ImportPlan['updates'][number] = { ID: match.ID, ROW: l.ROW };
-    if (ain && !match.AIN_ENTRY_NUMBER) update.AIN_ENTRY_NUMBER = ain;
-    if (dubai && !sameNumber(match.DUBAI_ENTRY_NUMBER, dubai)) update.DUBAI_ENTRY_NUMBER = dubai;
-    if (account && !sameNumber(match.ACCOUNT_NAME, account)) update.ACCOUNT_NAME = account;
-    if (update.AIN_ENTRY_NUMBER || update.DUBAI_ENTRY_NUMBER || update.ACCOUNT_NAME) plan.updates.push(update);
-    else plan.unchanged++;
-  }
-  return plan;
 }
