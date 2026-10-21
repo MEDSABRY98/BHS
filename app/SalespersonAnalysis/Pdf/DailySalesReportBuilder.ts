@@ -411,7 +411,7 @@ export async function buildDailySalesReportPdf(
   };
 
   // ── top customers / top products ──
-  const topTables = (ls: DailySalesLine[], tot: ReturnType<typeof totalsOf>, withSp: boolean) => {
+  const topTables = (ls: DailySalesLine[], tot: ReturnType<typeof totalsOf>, withSp: boolean, productsOnNewPage?: string) => {
     const byCustomer = groupBy(ls, (l) => l.customerId);
     table({
       title: 'Top Customers',
@@ -432,6 +432,7 @@ export async function buildDailySalesReportPdf(
     });
 
     // ── top products ──
+    if (productsOnNewPage) newPage(productsOnNewPage);
     const byProduct = groupBy(ls, (l) => l.productId);
     table({
       title: 'Top Products',
@@ -556,6 +557,7 @@ export async function buildDailySalesReportPdf(
 
     // ── by day (several days only; the full report only) ──
     if (!oneDay && data.allSalespersons) {
+      newPage('All Salespersons');
       const byDay = groupBy(lines, (l) => l.date).sort((a, b) => a.key.localeCompare(b.key));
       table({
         title: 'Sales by Day',
@@ -566,12 +568,16 @@ export async function buildDailySalesReportPdf(
       });
     }
 
-    topTables(lines, total, true);
+    // each part on its own page so the sections never run into each other
+    newPage('All Salespersons');
+    topTables(lines, total, true, 'All Salespersons');
+    newPage('All Salespersons');
     placeTables(lines, total);
 
     // ── returns ──
     const returns = lines.filter((l) => l.amount < 0).sort((a, b) => a.amount - b.amount);
     if (returns.length) {
+      newPage('All Salespersons');
       const head = ['Invoice', ...(oneDay ? [] : ['Date']), 'Customer', ...(data.allSalespersons ? ['Salesperson'] : []), 'Product', 'Qty', 'Amount'];
       table({
         title: 'Returns',

@@ -58,7 +58,7 @@ export default function ReportModal({ report, canEdit, onClose, onSaved, onSent 
   const spName = (id: string | null) => (id ? salespersons.find((s) => s.id === id)?.name || id : 'All salespersons');
   const scopeOptions: NiceOption[] = [
     { value: '', label: 'All salespersons', hint: 'The full report', icon: <Users className="w-4 h-4 text-slate-500 shrink-0" /> },
-    ...salespersons.map((sp) => ({ value: sp.id, label: sp.name, hint: 'Only his own sales', icon: <UserRound className="w-4 h-4 text-amber-600 shrink-0" /> })),
+    ...salespersons.map((sp) => ({ value: sp.id, label: sp.name, hint: 'Only his own data', icon: <UserRound className="w-4 h-4 text-amber-600 shrink-0" /> })),
   ];
   const scopeTone = (v: string) => (v ? ('accent' as const) : ('default' as const));
 

@@ -24,43 +24,45 @@ export async function exportPettyCashExcel(items: PettyCash[], opts: { period?: 
 
   // Account column: admin exports only
   const withAccount = !!opts.showAccount && items.some((p) => p.LINES.some((l) => String(l.ACCOUNT || '').trim()));
+  // Same column order as the PDF, then the extra Excel columns
   const headers = [
     '#',
-    'Claim No.',
-    'Employee',
+    ...(single ? [] : ['Claim No.']),
     'Invoice Date',
     'Description',
-    ...(withAccount ? ['Account'] : []),
     'Beneficiary',
-    'Tax Invoice',
-    'Has Invoice',
     'Amount (AED)',
+    'Has Invoice',
+    'Employee',
+    'Tax Invoice',
+    ...(withAccount ? ['Account'] : []),
   ];
-  const widths = [8, 14, 22, 16, 42, ...(withAccount ? [26] : []), 28, 14, 14, 18];
+  const widths = [8, ...(single ? [] : [14]), 16, 42, 28, 18, 14, 22, 14, ...(withAccount ? [26] : [])];
   ws.columns = headers.map((h, i) => ({ header: h, width: widths[i] }));
   const lastCol = headers.length;
+  const amountCol = headers.indexOf('Amount (AED)') + 1;
 
   const allRows = items.flatMap((p) => p.LINES.map((l) => ({ p, l }))).sort((a, b) => compareLines(a.l, b.l));
   allRows.forEach(({ p, l }, i) => {
     ws.addRow([
       i + 1,
-      p.ID,
-      p.EMPLOYEE_NAME || p.CREATED_BY,
+      ...(single ? [] : [p.ID]),
       formatDate(l.INVOICE_DATE),
       l.DESCRIPTION,
-      ...(withAccount ? [String(l.ACCOUNT || '').trim()] : []),
       l.BENEFICIARY,
-      l.IS_TAX_INVOICE ? 'Yes' : 'No',
-      l.HAS_INVOICE ? 'Yes' : 'No',
       l.AMOUNT,
+      l.HAS_INVOICE ? 'Yes' : 'No',
+      p.EMPLOYEE_NAME || p.CREATED_BY,
+      l.IS_TAX_INVOICE ? 'Yes' : 'No',
+      ...(withAccount ? [String(l.ACCOUNT || '').trim()] : []),
     ]);
   });
   const lastData = ws.lastRow!.number;
-  const amountLetter = ws.getColumn(lastCol).letter;
+  const amountLetter = ws.getColumn(amountCol).letter;
 
   const total = ws.addRow([]);
   total.getCell(1).value = 'TOTAL';
-  total.getCell(lastCol).value = { formula: `SUM(${amountLetter}2:${amountLetter}${lastData})` } as any;
+  total.getCell(amountCol).value = { formula: `SUM(${amountLetter}2:${amountLetter}${lastData})` } as any;
 
   ws.eachRow((row, rowNumber) => {
     row.height = 25;
@@ -73,7 +75,7 @@ export async function exportPettyCashExcel(items: PettyCash[], opts: { period?: 
         cell.border = { bottom: { style: 'medium', color: { argb: GOLD_BORDER } } };
         continue;
       }
-      if (c === lastCol) cell.numFmt = NUM_FMT;
+      if (c === amountCol) cell.numFmt = NUM_FMT;
       if (row.number === total.number) {
         cell.font = { bold: true };
         cell.border = { top: { style: 'medium', color: { argb: GOLD_BORDER } } };

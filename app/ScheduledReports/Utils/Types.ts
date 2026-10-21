@@ -48,6 +48,12 @@ export const REPORT_TYPES: { id: string; label: string; module: string; descript
     module: 'Salesperson Analysis',
     description: 'All salespersons: totals, by day, top customers & products, one section per salesperson (PDF).',
   },
+  {
+    id: 'salesperson-debit-collections',
+    label: 'Debit & Collections Report',
+    module: 'Salesperson Analysis',
+    description: 'Debit aging (as of today) and collections in the period vs last year: summary by salesperson, then one section per salesperson (PDF).',
+  },
 ];
 
 export const REPORT_PERIODS: { id: ReportPeriodId; label: string }[] = [
