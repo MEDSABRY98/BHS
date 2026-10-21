@@ -277,10 +277,14 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
         { id: 'sessions', label: 'View Sessions' },
         { id: 'history', label: 'Saved Reports' },
     ],
+    // same ids as app/FinancialModel/Utils/Sidebar.tsx
     'financial-model': [
-        { id: 'dashboard', label: 'Dashboard' },
-        { id: 'income_statement', label: 'Income Statement' },
-        { id: 'data_entry', label: 'Data Entry' },
+        { id: 'dashboard', label: 'P&L Dashboard' },
+        { id: 'income_statement', label: 'P&L Statement' },
+        { id: 'break_even', label: 'Break-Even Point' },
+        { id: 'data_entry', label: 'P&L Data Entry' },
+        { id: 'cf_statement', label: 'Cash Flow Statement' },
+        { id: 'cf_data_entry', label: 'Cash Flow Data Entry' },
     ],
     'transfer-requests': [
         { id: 'new', label: 'New Request' },

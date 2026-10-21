@@ -8,9 +8,11 @@ interface SidebarProps {
   isCollapsed: boolean;
   onToggleCollapse: () => void;
   onCloseMobile?: () => void;
+  /** tabs the user may open (Admin Control); undefined = all */
+  allowedTabs?: string[];
 }
 
-export function Sidebar({ activeTab, setActiveTab, isCollapsed, onToggleCollapse, onCloseMobile }: SidebarProps) {
+export function Sidebar({ activeTab, setActiveTab, isCollapsed, onToggleCollapse, onCloseMobile, allowedTabs }: SidebarProps) {
   const [hoveredTab, setHoveredTab] = useState<{ label: string; top: number } | null>(null);
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
   const { selectedYear, setSelectedYear, startMonth, setStartMonth, endMonth, setEndMonth } = useFinancialModel();
@@ -44,7 +46,7 @@ export function Sidebar({ activeTab, setActiveTab, isCollapsed, onToggleCollapse
     setIsFilterModalOpen(false);
   };
 
-  const tabs = [
+  const allTabs = [
     { id: 'dashboard', label: 'P&L Dashboard', icon: LineChart },
     { id: 'income_statement', label: 'P&L Statement', icon: FileSpreadsheet },
     { id: 'break_even', label: 'Break-Even Point', icon: Target },
@@ -52,6 +54,7 @@ export function Sidebar({ activeTab, setActiveTab, isCollapsed, onToggleCollapse
     { id: 'cf_statement', label: 'Cash Flow Statement', icon: FileSpreadsheet },
     { id: 'cf_data_entry', label: 'Cash Flow Data Entry', icon: PencilLine },
   ];
+  const tabs = allowedTabs ? allTabs.filter((t) => allowedTabs.includes(t.id)) : allTabs;
 
   return (
     <aside

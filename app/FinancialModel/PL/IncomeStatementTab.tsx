@@ -442,11 +442,10 @@ export function IncomeStatementTab() {
             pushAccounts(list, type);
           } else {
             cats.forEach(cat => {
-              const isExpanded = expandedSections.includes(`${type}-${cat}`);
-                rows.push({ kind: 'categoryHeader', label: cat, section: type, count: g[cat].length });
-                if (isExpanded) {
-                  pushAccounts(g[cat], type);
-                }
+              // the Excel always shows every account of the category (open), whatever is collapsed on screen;
+              // accounts hidden on screen ("hide zero accounts") are not in visibleAccounts, so they never appear
+              rows.push({ kind: 'categoryHeader', label: cat, section: type, count: g[cat].length });
+              pushAccounts(g[cat], type);
               modes.forEach(mode => {
                 const { values, total } = build(m => calculateCategoryTotal(type, cat, m, mode), () => calculateCategoryYearTotal(type, cat, mode), mode);
                 rows.push({ kind: 'categoryTotal', label: cat + sfx(mode), section: type, values, total, percent: isPct });

@@ -53,6 +53,23 @@ async function requireFinancialAccess(write = false) {
   return user;
 }
 
+/** Every tab of the module (same ids as Utils/Sidebar.tsx and Admin Control). */
+const ALL_TABS = ['dashboard', 'income_statement', 'break_even', 'data_entry', 'cf_statement', 'cf_data_entry'];
+
+/** Tabs the logged-in user may open (Admin Control → Financial Model). Admins: all. No list saved: all. */
+export async function getFinancialModelTabs(): Promise<string[]> {
+  const user = await requireFinancialAccess();
+  if (isAdminUser(user, SYSTEM_ID)) return ALL_TABS;
+  let perms: any = {};
+  try {
+    perms = JSON.parse(String(user.role || '').trim() || '{}') || {};
+  } catch {
+    return ALL_TABS;
+  }
+  const tabs = perms[SYSTEM_ID];
+  return Array.isArray(tabs) ? ALL_TABS.filter((id) => tabs.includes(id)) : ALL_TABS;
+}
+
 /** Reads every matching row, 1000 at a time, with a fixed order. */
 async function fetchAllRows<T>(build: () => any, orderBy: string): Promise<T[]> {
   const out: T[] = [];

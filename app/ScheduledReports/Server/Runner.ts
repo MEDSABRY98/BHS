@@ -7,6 +7,7 @@ import { EMAIL_RE, TIME_RE, type Recipient, type ReportLogRow, type ScheduledRep
 import { dubaiNow, periodRange, toMinutes } from './Dubai';
 import { REPORT_BUILDERS } from './Builders';
 import { mailStatus, sendMail } from './Mailer';
+import { listAllSalespersons } from '@/app/SalespersonAnalysis/Service/DailyReportData';
 
 export const REPORTS_TABLE = 'app_SCHEDULED_REPORTS';
 export const LOG_TABLE = 'app_SCHEDULED_REPORTS_LOG';
@@ -15,6 +16,15 @@ export const LOG_TABLE = 'app_SCHEDULED_REPORTS_LOG';
 const LATE_WINDOW_MIN = 180;
 /** Failed automatic sends are retried on the next runs, at most this many times a day. */
 const MAX_TRIES_PER_DAY = 3;
+/**
+ * One timer call may run 60 seconds at most (route maxDuration). A report with many copies
+ * (one per salesperson) doesn't fit in one call, so no new copy is started after this time:
+ * the next call (5 minutes later) sends the copies that were not sent yet today.
+ */
+const RUN_BUDGET_MS = 40_000;
+
+/** Same copy = same scope and same emails (to know what was already sent today). */
+const copyKey = (scope: string, emails: string[]) => `${scope.trim().toUpperCase()}|${[...emails].map((e) => e.trim().toLowerCase()).sort().join(',')}`;
 
 export function recipientsFromRow(r: any): Recipient[] {
   const list: Recipient[] = Array.isArray(r.RECIPIENTS) && r.RECIPIENTS.length
@@ -100,8 +110,16 @@ async function writeLog(entry: {
  */
 export async function runReport(
   report: ScheduledReport,
-  opts: { trigger: 'schedule' | 'manual'; sentBy?: string | null; today?: string },
-): Promise<{ status: ReportLogRow['status']; message: string | null }> {
+  opts: {
+    trigger: 'schedule' | 'manual';
+    sentBy?: string | null;
+    today?: string;
+    /** copies already sent / skipped today (copyKey) — not sent again */
+    done?: Set<string>;
+    /** Date.now() after which no new copy is started */
+    deadline?: number;
+  },
+): Promise<{ status: ReportLogRow['status']; message: string | null; partial?: boolean }> {
   const today = opts.today || dubaiNow().date;
   const range = periodRange(report.period, today);
   const log = (emails: string[], scope: string | null, status: ReportLogRow['status'], message: string | null) =>
@@ -127,13 +145,30 @@ export async function runReport(
   if (!groups.size) return fail('No email addresses');
   if (!(await mailStatus()).ready) return fail('Email is not set up yet');
 
+  // salesperson names (the scope written in the log), to know which copies were already sent today
+  let names = new Map<string, string>();
+  if (opts.done?.size) {
+    try {
+      names = new Map((await listAllSalespersons()).map((s) => [s.id.trim().toUpperCase(), s.name]));
+    } catch {
+      // without names a copy may be sent twice rather than not at all
+    }
+  }
+
   let sent = 0;
   let failed = 0;
   let skipped = 0;
+  let partial = false;
   const notes: string[] = [];
   for (const [key, set] of groups) {
     const emails = [...set];
     let scope: string | null = key ? key : 'All salespersons';
+    const knownScope = key ? names.get(key.trim().toUpperCase()) || key : 'All salespersons';
+    if (opts.done?.has(copyKey(knownScope, emails))) continue; // sent earlier today
+    if (opts.deadline && Date.now() > opts.deadline) {
+      partial = true; // the rest goes out on the next run
+      break;
+    }
     try {
       const built = await builder(range, report.name, key || null);
       scope = built.scope;
@@ -163,18 +198,19 @@ export async function runReport(
 
   // "failed" only when nothing went out (then the automatic run may try again without sending twice)
   const status: ReportLogRow['status'] = sent ? 'sent' : failed ? 'failed' : 'skipped';
-  const parts = [sent && `${sent} sent`, skipped && `${skipped} skipped`, failed && `${failed} failed`].filter(Boolean).join(' · ');
-  return { status, message: [parts, ...notes].filter(Boolean).join(' — ') || null };
+  const parts = [sent && `${sent} sent`, skipped && `${skipped} skipped`, failed && `${failed} failed`, partial && 'the rest on the next run'].filter(Boolean).join(' · ');
+  return { status, message: [parts, ...notes].filter(Boolean).join(' — ') || null, partial };
 }
 
 /** Sends every enabled report whose day and time have come and that was not sent today (Dubai time). */
 export async function runDueReports(at: Date = new Date()) {
+  const startedAt = Date.now();
   const now = dubaiNow(at);
   const db = getSupabaseAdmin();
   const { data, error } = await db.from(REPORTS_TABLE).select('*').eq('ENABLED', true);
   if (error) throw new Error(error.message);
 
-  const result = { now: `${now.date} ${now.hhmm}`, checked: 0, sent: 0, failed: 0, skipped: 0 };
+  const result = { now: `${now.date} ${now.hhmm}`, checked: 0, sent: 0, failed: 0, skipped: 0, partial: 0 };
   for (const row of data || []) {
     const report = reportFromRow(row);
     result.checked++;
@@ -192,8 +228,25 @@ export async function runDueReports(at: Date = new Date()) {
       .select('ID');
     if (claimError || !claimed?.length) continue;
 
-    const out = await runReport(report, { trigger: 'schedule', today: now.date });
+    // copies already sent (or skipped) by the timer today — an earlier run stopped half way
+    const { data: todayLogs } = await db
+      .from(LOG_TABLE)
+      .select('SCOPE, EMAILS, STATUS')
+      .eq('REPORT_ID', report.id)
+      .eq('TRIGGER', 'schedule')
+      .in('STATUS', ['sent', 'skipped'])
+      .gte('CREATED_AT', `${now.date}T00:00:00+04:00`);
+    const done = new Set((todayLogs || []).map((l: any) => copyKey(String(l.SCOPE || ''), Array.isArray(l.EMAILS) ? l.EMAILS.map(String) : [])));
+
+    const out = await runReport(report, { trigger: 'schedule', today: now.date, done, deadline: startedAt + RUN_BUDGET_MS });
     result[out.status]++;
+
+    if (out.partial) {
+      // not every copy went out in this run: let the next run send the rest
+      result.partial++;
+      await db.from(REPORTS_TABLE).update({ LAST_RUN_DATE: report.lastRunDate }).eq('ID', report.id);
+      continue;
+    }
 
     if (out.status === 'failed') {
       // let the next run try again (a few times a day at most)
