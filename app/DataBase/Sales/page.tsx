@@ -377,7 +377,7 @@ export default function SalesDBPage() {
       while (fetchMoreProd) {
         const { data, error } = await bhs_supabas
           .from('bhs_PRODUCTS')
-          .select('"PRODUCT ID", "PRODUCT BARCODE", "PRODUCT NAME"')
+          .select('"PRODUCT ID", "PRODUCT PARENT ID", "PRODUCT BARCODE", "PRODUCT NAME"')
           .range(pageProd * limit, (pageProd + 1) * limit - 1);
         if (error) throw error;
         if (data && data.length > 0) {
@@ -386,9 +386,10 @@ export default function SalesDBPage() {
           else pageProd++;
         } else fetchMoreProd = false;
       }
-      const prodMap = new Map<string, { barcode: string; name: string }>();
+      const prodMap = new Map<string, { parentId: string; barcode: string; name: string }>();
       allProducts.forEach(p =>
         prodMap.set(normalizeExcelId(p['PRODUCT ID']) || '', {
+          parentId: p['PRODUCT PARENT ID'] != null ? String(p['PRODUCT PARENT ID']) : '',
           barcode: p['PRODUCT BARCODE'] != null ? String(p['PRODUCT BARCODE']) : '',
           name: p['PRODUCT NAME'] || '',
         })
@@ -397,7 +398,7 @@ export default function SalesDBPage() {
       const headers = [
         'ID', '#', 'INVOICE DATE', 'INVOICE NUMBER',
         'CUSTOMER ID', 'CUSTOMER MAIN NAME', 'CUSTOMER SUB NAME',
-        'PRODUCT ID', 'PRODUCT BARCODE', 'PRODUCT NAME',
+        'PRODUCT ID', 'PRODUCT PARENT ID', 'PRODUCT BARCODE', 'PRODUCT NAME',
         'PRICE COST', 'PRICE SALES', 'QTY', 'AMOUNT',
       ];
       const rows = allSales.map((s, i) => [
@@ -409,6 +410,7 @@ export default function SalesDBPage() {
         custMap.get(normalizeExcelId(s['CUSTOMER ID']) || '')?.main || '',
         custMap.get(normalizeExcelId(s['CUSTOMER ID']) || '')?.sub || '',
         s['PRODUCT ID'] || '',
+        prodMap.get(normalizeExcelId(s['PRODUCT ID']) || '')?.parentId || '',
         prodMap.get(normalizeExcelId(s['PRODUCT ID']) || '')?.barcode || '',
         prodMap.get(normalizeExcelId(s['PRODUCT ID']) || '')?.name || '',
         s['PRODUCT COST'] || 0,

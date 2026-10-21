@@ -10,6 +10,8 @@ export interface IntercompanyLine {
   LABEL: string | null;
   DEBIT: number;
   CREDIT: number;
+  /** YES = the entry has its attachment; NO (or empty) = no attachment */
+  ATTACHMENT: boolean;
 }
 
 export function round2(n: number): number {

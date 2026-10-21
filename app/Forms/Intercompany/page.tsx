@@ -150,9 +150,10 @@ function IntercompanyTool() {
   const credit = round2((lines || []).reduce((s, l) => s + l.CREDIT, 0));
   const dates = (lines || []).map((l) => l.ENTRY_DATE).sort();
   const missing = (lines || []).filter((l) => !l.AIN_ENTRY_NUMBER || !l.DUBAI_ENTRY_NUMBER).length;
+  const noAttachment = (lines || []).filter((l) => !l.ATTACHMENT).length;
   const hasLines = !!lines?.length;
 
-  const step = (n: number, title: string, text: string, icon: React.ReactNode, button: React.ReactNode, disabled = false) => (
+  const step = (n: number, title: string, icon: React.ReactNode, button: React.ReactNode, disabled = false) => (
     <div className={`${CARD} p-6 flex flex-col gap-4 ${disabled ? 'opacity-60' : ''}`}>
       <div className="flex items-center gap-3">
         <span className="w-11 h-11 rounded-2xl bg-[#0a0f1d] text-[#D4AF37] flex items-center justify-center shrink-0">{icon}</span>
@@ -161,7 +162,7 @@ function IntercompanyTool() {
           <p className="text-base font-black text-slate-900">{title}</p>
         </div>
       </div>
-      <p className="text-sm font-semibold text-slate-500 flex-1">{text}</p>
+      <div className="flex-1" />
       {button}
     </div>
   );
@@ -175,7 +176,6 @@ function IntercompanyTool() {
         {step(
           1,
           'Excel Template',
-          'Download the empty template and fill in the lines (or use the Odoo export with the same columns).',
           <FileSpreadsheet className="w-5 h-5" />,
           <button type="button" onClick={downloadTemplate} disabled={!!busy} className={`${btn} border border-slate-200 bg-white text-slate-700 hover:bg-slate-50`}>
             {busy === 'template' ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />} Download Template
@@ -184,7 +184,6 @@ function IntercompanyTool() {
         {step(
           2,
           'Upload Excel',
-          hasLines ? `${fileName}` : 'Upload the filled file. It is only read here — nothing is saved.',
           <Upload className="w-5 h-5" />,
           <>
             <input ref={fileRef} type="file" accept=".xlsx" className="hidden" onChange={(e) => void onFile(e.target.files?.[0])} />
@@ -196,7 +195,6 @@ function IntercompanyTool() {
         {step(
           3,
           'Analysis PDF',
-          hasLines ? `${lines!.length} line${lines!.length === 1 ? '' : 's'} ready.` : 'Upload the Excel file first.',
           <FileText className="w-5 h-5" />,
           <button
             type="button"
@@ -238,6 +236,11 @@ function IntercompanyTool() {
           {missing > 0 && (
             <p className="text-xs font-bold text-amber-700">
               {missing} line{missing === 1 ? '' : 's'} without an Al Ain or Dubai entry number (marked MISSING in the PDF).
+            </p>
+          )}
+          {noAttachment > 0 && (
+            <p className="text-xs font-bold text-rose-700">
+              {noAttachment} line{noAttachment === 1 ? '' : 's'} without an attachment (highlighted in red in the PDF).
             </p>
           )}
           {errors.length > 0 && (

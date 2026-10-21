@@ -18,6 +18,7 @@ const COLORS = {
   amberBg: [254, 243, 199] as [number, number, number],
   green: [4, 120, 87] as [number, number, number],
   red: [190, 18, 60] as [number, number, number],
+  redSoft: [254, 226, 226] as [number, number, number],
 };
 
 export interface IntercompanyPdfOptions {
@@ -165,6 +166,7 @@ export async function exportIntercompanyPdf(rows: IntercompanyLine[], opts: Inte
     r.LABEL || '-',
     r.DEBIT ? formatAmount(r.DEBIT) : '-',
     r.CREDIT ? formatAmount(r.CREDIT) : '-',
+    r.ATTACHMENT ? 'YES' : 'NO',
   ]);
 
   const totalDebit = round2(rows.reduce((s, r) => s + r.DEBIT, 0));
@@ -173,9 +175,9 @@ export async function exportIntercompanyPdf(rows: IntercompanyLine[], opts: Inte
   const tableOptions = {
     startY,
     margin: { left: margin, right: margin, bottom: 14 },
-    head: [['#', 'DATE', 'ACCOUNT', 'AL AIN ENTRY', 'DUBAI ENTRY', 'LABEL', 'DEBIT', 'CREDIT']],
+    head: [['#', 'DATE', 'ACCOUNT', 'AL AIN ENTRY', 'DUBAI ENTRY', 'LABEL', 'DEBIT', 'CREDIT', 'ATTACHMENT']],
     body,
-    foot: [['', '', '', '', '', 'TOTAL', formatAmount(totalDebit), formatAmount(totalCredit)]],
+    foot: [['', '', '', '', '', 'TOTAL', formatAmount(totalDebit), formatAmount(totalCredit), '']],
     showFoot: 'lastPage',
     theme: 'plain' as const,
     styles: {
@@ -199,10 +201,14 @@ export async function exportIntercompanyPdf(rows: IntercompanyLine[], opts: Inte
       5: { font: 'Amiri' },
       6: { cellWidth: 28, textColor: COLORS.green, fontStyle: 'bold' },
       7: { cellWidth: 28, textColor: COLORS.red, fontStyle: 'bold' },
+      8: { cellWidth: 27, fontStyle: 'bold' },
     },
     didParseCell: (data: any) => {
       if (data.section !== 'body') return;
-      data.cell.styles.fillColor = data.row.index % 2 === 1 ? COLORS.lightGray : COLORS.white;
+      // no attachment → the whole entry in light red
+      const noAttachment = !rows[data.row.index]?.ATTACHMENT;
+      data.cell.styles.fillColor = noAttachment ? COLORS.redSoft : data.row.index % 2 === 1 ? COLORS.lightGray : COLORS.white;
+      if (data.column.index === 8) data.cell.styles.textColor = noAttachment ? COLORS.red : COLORS.green;
       if ((data.column.index === 3 || data.column.index === 4) && data.cell.raw === MISSING) {
         data.cell.styles.textColor = COLORS.amber;
         data.cell.styles.fontSize = 7;

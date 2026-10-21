@@ -22,7 +22,14 @@ const HEADER_ALIASES: Record<ReadField, string[]> = {
   LABEL: ['label', 'description', 'memo', 'narration'],
   DEBIT: ['debit'],
   CREDIT: ['credit'],
+  ATTACHMENT: ['attachment', 'attachments', 'attached', 'hasattachment'],
 };
+
+/** YES / Y / TRUE / 1 / نعم = has an attachment; anything else (NO, empty) = no attachment. */
+function toYes(raw: any): boolean {
+  const v = cleanText(cellPlain(raw)).toLowerCase();
+  return ['yes', 'y', 'true', '1', 'نعم'].includes(v);
+}
 
 function headerKey(value: unknown): string {
   return cleanText(value).toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -41,6 +48,7 @@ export async function downloadIntercompanyTemplate() {
     { header: 'Label', key: 'label', width: 55 },
     { header: 'Debit', key: 'debit', width: 16 },
     { header: 'Credit', key: 'credit', width: 16 },
+    { header: 'Attachment', key: 'attachment', width: 14 },
   ];
   const header = ws.getRow(1);
   header.height = 25;
@@ -52,12 +60,14 @@ export async function downloadIntercompanyTemplate() {
   });
   for (let r = 2; r <= 200; r++) {
     const row = ws.getRow(r);
-    for (let c = 1; c <= 7; c++) row.getCell(c).alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+    for (let c = 1; c <= 8; c++) row.getCell(c).alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
     row.getCell(1).numFmt = 'dd/mm/yyyy';
     row.getCell(6).numFmt = NUM_FMT;
     row.getCell(7).numFmt = NUM_FMT;
+    // Attachment: pick YES or NO
+    row.getCell(8).dataValidation = { type: 'list', allowBlank: true, formulae: ['"YES,NO"'] };
   }
-  ws.autoFilter = { from: 'A1', to: 'G1' };
+  ws.autoFilter = { from: 'A1', to: 'H1' };
   const buffer = await wb.xlsx.writeBuffer();
   saveTrackedAs(new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), 'Intercompany_Template.xlsx');
 }
@@ -189,6 +199,7 @@ export async function readIntercompanyFile(file: File): Promise<ParsedExcel> {
         LABEL: label || null,
         DEBIT: debit,
         CREDIT: credit,
+        ATTACHMENT: toYes(get(row, 'ATTACHMENT')),
       });
     }
     return { lines, errors, sheetName: ws.name };
