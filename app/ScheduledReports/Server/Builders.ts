@@ -4,6 +4,7 @@
 import { buildDailySalesReportData } from '@/app/SalespersonAnalysis/Service/DailyReportData';
 import { buildDailySalesReportPdf } from '@/app/SalespersonAnalysis/Pdf/DailySalesReportBuilder';
 import { addArabicFontServer } from './ServerFont';
+import { dubaiNow } from './Dubai';
 import { listAllSalespersons } from '@/app/SalespersonAnalysis/Service/DailyReportData';
 import { BuildSalespersonData, LoadSalespersonInputs } from '@/app/SalespersonAnalysis/Service/SalespersonData';
 import {
@@ -16,6 +17,12 @@ import type { SalespersonData } from '@/app/SalespersonAnalysis/Utils/Types';
 async function salespersonNames(): Promise<Map<string, string>> {
   const list = await listAllSalespersons();
   return new Map(list.map((s) => [s.id.trim().toUpperCase(), s.name]));
+}
+
+/** Email attachment name: "<salesperson>_<send date>_<report>.pdf" (e.g. Ahmed_Ali_2026-10-22_Daily_Sales.pdf). */
+function attachmentName(who: string, report: string): string {
+  const safe = (v: string) => v.replace(/[\\/:*?"<>|]+/g, ' ').trim().replace(/\s+/g, '_');
+  return `${safe(who) || 'Salesperson'}_${dubaiNow().date}_${report}.pdf`;
 }
 
 /** scope: what this copy covers ("All salespersons" or the salesperson's name) — shown in the log. */
@@ -60,14 +67,14 @@ const salespersonDaily: Builder = async (range, reportName, salespersonId) => {
 
   // all salespersons: first PDF = the company part, then one PDF per salesperson (A-Z), all in the same email
   const toPdf = (d: any) => Buffer.from(d.output('arraybuffer') as ArrayBuffer);
-  const { doc, fileName } = await buildDailySalesReportPdf(data, addArabicFontServer, { includeSalespersonSections: !!salespersonId });
+  const { doc } = await buildDailySalesReportPdf(data, addArabicFontServer, { includeSalespersonSections: !!salespersonId });
+  const fileName = attachmentName(salespersonId ? scope : 'All Salespersons', 'Daily_Sales');
   const pdf = toPdf(doc);
   const extraPdfs: { fileName: string; pdf: Buffer }[] = [];
   if (!salespersonId) {
     const spIds = [...new Set(data.lines.map((l) => l.salespersonId))].sort((a, b) =>
       (data.salespersons[a] || a).localeCompare(data.salespersons[b] || b, undefined, { sensitivity: 'base' }),
     );
-    const baseName = fileName.replace(/\.pdf$/i, '');
     for (const id of spIds) {
       const spName = data.salespersons[id] || id;
       const one = await buildDailySalesReportPdf(
@@ -79,8 +86,7 @@ const salespersonDaily: Builder = async (range, reportName, salespersonId) => {
         },
         addArabicFontServer,
       );
-      const safeName = spName.replace(/[\\/:*?"<>|]+/g, ' ').trim().replace(/\s+/g, '_') || id;
-      extraPdfs.push({ fileName: `${baseName}_${safeName}.pdf`, pdf: toPdf(one.doc) });
+      extraPdfs.push({ fileName: attachmentName(spName, 'Daily_Sales'), pdf: toPdf(one.doc) });
     }
   }
 
@@ -188,17 +194,18 @@ const salespersonDebitCollections: Builder = async (range, reportName, salespers
 
   // all salespersons: first PDF = summary + company, then one PDF per salesperson (A-Z), all in the same email
   const toPdf = (doc: any) => Buffer.from(doc.output('arraybuffer') as ArrayBuffer);
-  const { doc, fileName } = await BuildDebitCollectionsReportPdf(
+  const { doc } = await BuildDebitCollectionsReportPdf(
     { period, sections, allSalespersons: !salespersonId, agingMode: DEBIT_AGING_MODE, includeSections: !!salespersonId },
     addArabicFontServer,
   );
   const pdf = toPdf(doc);
+  const fileName = attachmentName(salespersonId ? scope : 'All Salespersons', 'Debit_Collections');
   const extraPdfs: { fileName: string; pdf: Buffer }[] = [];
   if (!salespersonId) {
     const az = [...sections].sort((a, b) => a.salesperson.name.localeCompare(b.salesperson.name, undefined, { sensitivity: 'base' }));
     for (const d of az) {
       const one = await BuildDebitCollectionsReportPdf({ period, sections: [d], allSalespersons: false, agingMode: DEBIT_AGING_MODE }, addArabicFontServer);
-      extraPdfs.push({ fileName: one.fileName, pdf: toPdf(one.doc) });
+      extraPdfs.push({ fileName: attachmentName(d.salesperson.name, 'Debit_Collections'), pdf: toPdf(one.doc) });
     }
   }
 

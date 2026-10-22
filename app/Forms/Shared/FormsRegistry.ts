@@ -36,4 +36,10 @@ export const FORMS: FormDefinition[] = [
     description: 'Al Ain ↔ Dubai: download the Excel template, upload it and download the analysis PDF (nothing is saved).',
     path: '/Forms/Intercompany',
   },
+  {
+    id: 'supplier-payment',
+    title: 'Supplier Payment',
+    description: 'Payment to a supplier by cheque or bank transfer: fill the form and download the PDF (nothing is saved).',
+    path: '/Forms/SupplierPayment',
+  },
 ];

@@ -343,37 +343,16 @@ export async function buildDailySalesReportPdf(
     if (String(d.cell.raw ?? '').startsWith('-')) d.cell.styles.textColor = C.red;
   };
 
-  // ── one salesperson's invoices ──
-  const invoicesTable = (g: Group, t: ReturnType<typeof totalsOf>) => {
-  const byInvoice = groupBy(g.lines, (l) => `${l.invoice}|${l.customerId}|${l.date}`).sort(
-    (a, b) => a.lines[0].date.localeCompare(b.lines[0].date) || a.lines[0].invoice.localeCompare(b.lines[0].invoice, undefined, { numeric: true }),
-  );
-  table({
-    title: 'Invoices',
-    sub: `${byInvoice.length} invoice${byInvoice.length === 1 ? '' : 's'} (returns included)`,
-    head: ['#', 'Invoice', ...(oneDay ? [] : ['Date']), 'Customer', 'City', 'Lines', 'Gross', 'Returns', 'Net'],
-    body: byInvoice.map((iv, i) => {
-      const l0 = iv.lines[0];
-      return [
-        String(i + 1),
-        l0.invoice || '-',
-        ...(oneDay ? [] : [fmtDay(l0.date)]),
-        custName(l0.customerId),
-        custCity(l0.customerId),
-        whole(iv.lines.length),
-        money(iv.gross),
-        iv.returns ? `-${money(iv.returns)}` : '0.00',
-        money(iv.net),
-      ];
-    }),
-    foot: ['', 'Total', ...(oneDay ? [] : ['']), '', '', whole(g.lines.length), money(t.gross), t.returns ? `-${money(t.returns)}` : '0.00', money(t.net)],
-    nameCols: [oneDay ? 2 : 3, oneDay ? 3 : 4],
-    boldCols: [oneDay ? 7 : 8],
-    colWidths: { 0: 7 },
-    fontSize: 7.2,
-    didParseCell: negCell([oneDay ? 6 : 7]),
-  });
-
+  // ── sales by day (several days only) ──
+  const byDayTable = (ls: DailySalesLine[]) => {
+    const byDay = groupBy(ls, (l) => l.date).sort((a, b) => a.key.localeCompare(b.key));
+    table({
+      title: 'Sales by Day',
+      head: ['Date', 'Day', 'Invoices', 'Customers', 'Gross', 'Returns', 'Net'],
+      body: byDay.map((g) => [fmtDay(g.key), weekday(g.key), whole(g.invoices), whole(g.customers), money(g.gross), g.returns ? `-${money(g.returns)}` : '0.00', money(g.net)]),
+      boldCols: [6],
+      didParseCell: negCell([5]),
+    });
   };
 
   // ── KPI cards of a set of lines vs its previous period ──
@@ -479,7 +458,37 @@ export async function buildDailySalesReportPdf(
     });
   };
 
-  // ── one salesperson: cards → city & customers → category & products → invoices (each part starts a new page) ──
+  // ── returns (biggest 25 lines) ──
+  const returnsTable = (ls: DailySalesLine[], tot: ReturnType<typeof totalsOf>, withSp: boolean) => {
+    const returns = ls.filter((l) => l.amount < 0).sort((a, b) => a.amount - b.amount);
+    const head = ['Invoice', ...(oneDay ? [] : ['Date']), 'Customer', ...(withSp ? ['Salesperson'] : []), 'Product', 'Qty', 'Amount'];
+    table({
+      title: 'Returns',
+      sub: `${returns.length} return line${returns.length === 1 ? '' : 's'} • AED ${money(tot.returns)}${returns.length > 25 ? ' • biggest 25' : ''}`,
+      head,
+      body: returns
+        .slice(0, 25)
+        .map((l) => [
+          l.invoice || '-',
+          ...(oneDay ? [] : [fmtDay(l.date)]),
+          custName(l.customerId),
+          ...(withSp ? [spName(l.salespersonId)] : []),
+          prodName(l.productId),
+          whole(Math.abs(l.qty)),
+          `-${money(Math.abs(l.amount))}`,
+        ]),
+      nameCols: ['Customer', 'Salesperson', 'Product'].map((h) => head.indexOf(h)).filter((i) => i >= 0),
+      fontSize: 7,
+      didParseCell: (d) => {
+        if (d.section === 'body' && d.column.index === head.length - 1) {
+          d.cell.styles.textColor = C.red;
+          d.cell.styles.fontStyle = 'bold';
+        }
+      },
+    });
+  };
+
+  // ── one salesperson: cards → by day → city → customers → category → products → returns (each part starts a new page) ──
   const salespersonSection = (g: Group) => {
     const name = spName(g.key);
     const t = totalsOf(g.lines);
@@ -490,14 +499,22 @@ export async function buildDailySalesReportPdf(
         : prev);
     newPage(name);
     kpiCards(t, pv);
+    if (!oneDay) {
+      newPage(name);
+      byDayTable(g.lines);
+    }
     newPage(name);
     cityTable(g.lines, t);
+    newPage(name);
     customersTable(g.lines, t, false);
     newPage(name);
     categoryTable(g.lines, t);
-    productsTable(g.lines, t);
     newPage(name);
-    invoicesTable(g, t);
+    productsTable(g.lines, t);
+    if (g.lines.some((l) => l.amount < 0)) {
+      newPage(name);
+      returnsTable(g.lines, t, false);
+    }
   };
 
   const bySp = groupBy(lines, (l) => l.salespersonId);
@@ -559,17 +576,10 @@ export async function buildDailySalesReportPdf(
       }
     }
 
-    // ── by day (several days only; the full report only) ──
-    if (!oneDay && data.allSalespersons) {
+    // ── by day (several days only) ──
+    if (!oneDay) {
       newPage('All Salespersons');
-      const byDay = groupBy(lines, (l) => l.date).sort((a, b) => a.key.localeCompare(b.key));
-      table({
-        title: 'Sales by Day',
-        head: ['Date', 'Day', 'Invoices', 'Customers', 'Gross', 'Returns', 'Net'],
-        body: byDay.map((g) => [fmtDay(g.key), weekday(g.key), whole(g.invoices), whole(g.customers), money(g.gross), g.returns ? `-${money(g.returns)}` : '0.00', money(g.net)]),
-        boldCols: [6],
-        didParseCell: negCell([5]),
-      });
+      byDayTable(lines);
     }
 
     // each part on its own page so the sections never run into each other
@@ -583,34 +593,9 @@ export async function buildDailySalesReportPdf(
     productsTable(lines, total);
 
     // ── returns ──
-    const returns = lines.filter((l) => l.amount < 0).sort((a, b) => a.amount - b.amount);
-    if (returns.length) {
+    if (lines.some((l) => l.amount < 0)) {
       newPage('All Salespersons');
-      const head = ['Invoice', ...(oneDay ? [] : ['Date']), 'Customer', ...(data.allSalespersons ? ['Salesperson'] : []), 'Product', 'Qty', 'Amount'];
-      table({
-        title: 'Returns',
-        sub: `${returns.length} return line${returns.length === 1 ? '' : 's'} • AED ${money(total.returns)}${returns.length > 25 ? ' • biggest 25' : ''}`,
-        head,
-        body: returns
-          .slice(0, 25)
-          .map((l) => [
-            l.invoice || '-',
-            ...(oneDay ? [] : [fmtDay(l.date)]),
-            custName(l.customerId),
-            ...(data.allSalespersons ? [spName(l.salespersonId)] : []),
-            prodName(l.productId),
-            whole(Math.abs(l.qty)),
-            `-${money(Math.abs(l.amount))}`,
-          ]),
-        nameCols: ['Customer', 'Salesperson', 'Product'].map((h) => head.indexOf(h)).filter((i) => i >= 0),
-        fontSize: 7,
-        didParseCell: (d) => {
-          if (d.section === 'body' && d.column.index === head.length - 1) {
-            d.cell.styles.textColor = C.red;
-            d.cell.styles.fontStyle = 'bold';
-          }
-        },
-      });
+      returnsTable(lines, total, true);
     }
 
     // ════════════════ ONE SECTION PER SALESPERSON (same layout as a salesperson's own report) ════════════════

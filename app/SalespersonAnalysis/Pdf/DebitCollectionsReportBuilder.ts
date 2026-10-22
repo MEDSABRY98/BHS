@@ -426,9 +426,10 @@ export async function BuildDebitCollectionsReportPdf(
     });
     table({
       title: 'Customers Debit',
-      sub: `Top ${TOP} by balance`,
+      sub: `All ${debit.customers.length} customer${debit.customers.length === 1 ? '' : 's'} with a balance, by balance`,
       head: ['#', 'Customer', 'Balance', ...AGING_BUCKETS.map((b) => b.label), 'Last Pay'],
-      body: debit.customers.slice(0, TOP).map((c, i) => [
+      foot: ['', 'Total', money(debit.openDebit), ...debit.buckets.map((b) => (Math.abs(b.amount) < 0.01 ? '-' : shortMoney(b.amount))), ''],
+      body: debit.customers.map((c, i) => [
         i + 1,
         c.name,
         money(c.balance),

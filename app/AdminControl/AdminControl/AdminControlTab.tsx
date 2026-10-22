@@ -309,6 +309,7 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
         { id: 'letterhead', label: 'Company Letter' },
         { id: 'file-labels', label: 'File Labels' },
         { id: 'intercompany', label: 'Intercompany Reconciliation' },
+        { id: 'supplier-payment', label: 'Supplier Payment' },
     ],
     'suppliers-analysis': [
         { id: 'suppliers', label: 'Suppliers Analysis' },
