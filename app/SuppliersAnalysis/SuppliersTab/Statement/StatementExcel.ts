@@ -12,6 +12,7 @@ export async function generateSupplierStatementExcel(supplierName: string, rows:
     Debit: r.debit,
     Credit: r.credit,
     'Net Balance': r.net,
+    Note: r.partial ? 'Partly paid - Net Balance = remaining' : '',
   }));
 
   data.push({
@@ -21,6 +22,7 @@ export async function generateSupplierStatementExcel(supplierName: string, rows:
     Debit: round2(rows.reduce((s, r) => s + r.debit, 0)),
     Credit: round2(rows.reduce((s, r) => s + r.credit, 0)),
     'Net Balance': round2(rows.reduce((s, r) => s + r.net, 0)),
+    Note: '',
   });
 
   await exportStyledExcel(data, `${safeFileName(supplierName)}_Statement`, {

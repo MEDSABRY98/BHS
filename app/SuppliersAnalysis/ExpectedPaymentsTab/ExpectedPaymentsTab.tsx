@@ -53,8 +53,10 @@ export default function ExpectedPaymentsTab() {
             const invDate = new Date(Number(year), Number(month) - 1, Number(day));
             if (!isNaN(invDate.getTime())) {
               dueDate = invDate;
-              const monthsToAdd = Math.round(paymentTerm / 30);
-              dueDate = new Date(invDate.getFullYear(), invDate.getMonth() + monthsToAdd + 1, 1);
+              // no payment term → due in the invoice's own month;
+              // otherwise invoice month + payment term (months), from the 1st of the next month
+              const monthsToAdd = paymentTerm > 0 ? Math.round(paymentTerm / 30) + 1 : 0;
+              dueDate = new Date(invDate.getFullYear(), invDate.getMonth() + monthsToAdd, 1);
               dueDate.setHours(0, 0, 0, 0);
             }
           }

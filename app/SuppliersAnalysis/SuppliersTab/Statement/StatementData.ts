@@ -7,10 +7,13 @@ export interface SupplierStatementRow {
   debit: number;   // payments / debit notes (positive residual)
   credit: number;  // invoices (negative residual)
   net: number;     // credit - debit  (amount payable to supplier)
+  /** open items only: partly paid / partly applied — debit + credit show the full amounts, net = what is left */
+  partial?: boolean;
   _residual?: number;
 }
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
+const toNum = (v: unknown) => Number(String(v ?? 0).replace(/,/g, '')) || 0;
 
 /**
  * Builds the open-items statement for a supplier based on RESIDUAL AMOUNT only.
@@ -27,18 +30,34 @@ export function buildSupplierStatement(
 
   let rows = filteredTx.map(t => {
     const residual = round2(Number(t['RESIDUAL AMOUNT']) || 0);
-    const dbDebit = round2(Number(t['DEBIT']) || 0);
-    const dbCredit = round2(Number(t['CREDIT']) || 0);
-    
+    const dbDebit = round2(toNum(t['DEBIT']));
+    const dbCredit = round2(toNum(t['CREDIT']));
+
     if (filterType === 'open') {
-      return {
+      const base = {
         date: t.DATE ? String(t.DATE).split('T')[0] : '',
         number: String(t.NUMBER || '').trim().split(/\s+/)[0] || '',
         reference: String(t.REFERENCE || (t as any).REF || '').trim(),
+        _residual: residual,
+      };
+      const original = round2(dbCredit - dbDebit); // + invoice, - payment / debit note
+      const open = -residual;                       // what is still open, same sign
+      const settled = round2(original - open);      // the part already paid / applied
+      const isPartial =
+        Math.abs(open) > 0.005 && Math.abs(settled) > 0.005 && Math.sign(original) === Math.sign(open) && Math.abs(open) < Math.abs(original);
+
+      if (isPartial) {
+        // partly paid invoice: credit = invoice, debit = paid part, net = left
+        // partly applied payment: debit = payment, credit = applied part, net = left
+        return original > 0
+          ? { ...base, debit: settled, credit: original, net: open, partial: true }
+          : { ...base, debit: -original, credit: -settled, net: open, partial: true };
+      }
+      return {
+        ...base,
         debit: residual > 0 ? residual : 0,
         credit: residual < 0 ? -residual : 0,
         net: -residual,
-        _residual: residual
       };
     } else {
       return {
