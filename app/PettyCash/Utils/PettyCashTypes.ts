@@ -120,12 +120,17 @@ export function accountsSet(lines: { ACCOUNT?: string | null }[]): number {
 
 /** Display / export order: beneficiary (A→Z), then invoice date (oldest first), then entry order. */
 export function compareLines(
-  a: { BENEFICIARY: string; INVOICE_DATE: string; LINE_NO?: number },
-  b: { BENEFICIARY: string; INVOICE_DATE: string; LINE_NO?: number },
+  a: { BENEFICIARY?: string | null; INVOICE_DATE?: string | null; LINE_NO?: number | null },
+  b: { BENEFICIARY?: string | null; INVOICE_DATE?: string | null; LINE_NO?: number | null },
 ): number {
+  // null-safe: a row saved without a beneficiary / date must not break the whole list
+  const ba = String(a.BENEFICIARY ?? '').trim();
+  const bb = String(b.BENEFICIARY ?? '').trim();
+  const da = String(a.INVOICE_DATE ?? '');
+  const db = String(b.INVOICE_DATE ?? '');
   return (
-    a.BENEFICIARY.trim().localeCompare(b.BENEFICIARY.trim(), undefined, { sensitivity: 'base' }) ||
-    (a.INVOICE_DATE < b.INVOICE_DATE ? -1 : a.INVOICE_DATE > b.INVOICE_DATE ? 1 : 0) ||
-    (a.LINE_NO ?? 0) - (b.LINE_NO ?? 0)
+    ba.localeCompare(bb, undefined, { sensitivity: 'base' }) ||
+    (da < db ? -1 : da > db ? 1 : 0) ||
+    (Number(a.LINE_NO) || 0) - (Number(b.LINE_NO) || 0)
   );
 }
