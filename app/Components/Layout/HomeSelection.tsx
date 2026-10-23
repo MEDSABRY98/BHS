@@ -150,6 +150,7 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
     { id: 'payment-analysis', title: 'Payments Analysis', path: '/PaymentAnalysis', color: 'emerald' },
     { id: 'salesperson-analysis', title: 'Salesperson Analysis', path: '/SalespersonAnalysis', color: 'violet' },
     { id: 'roi', title: 'ROI', path: '/ROI', color: 'emerald' },
+    { id: 'price-margin', title: 'Price Margin', path: '/PriceMargin', color: 'yellow' },
     { id: 'customers-documents', title: 'Customers Documents', path: '/CustomersDocuments', color: 'indigo' },
 
     { id: 'inventory-item-code', title: 'Inventory Item Code', path: '/InventoryItemCode', color: 'blue' },

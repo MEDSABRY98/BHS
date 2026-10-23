@@ -18,6 +18,7 @@ const MODULE_ROUTES: { prefix: string; name: string }[] = [
   { prefix: '/InventoryCounting', name: 'Inventory Counting' },
   { prefix: '/InventoryScrap', name: 'Inventory Scrap' },
   { prefix: '/PurchasePriceTracking', name: 'Purchase Price Tracking' },
+  { prefix: '/PriceMargin', name: 'Price Margin' },
   { prefix: '/Sales', name: 'Sales Analysis' },
   { prefix: '/InvoicesTracking', name: 'Invoices Tracking' },
   { prefix: '/DataBase', name: 'Database' },
