@@ -2,6 +2,8 @@ export interface InvoiceRow {
   id?: string | number;
   date: string;
   dueDate?: string;
+  /** when a payment (cheque) is actually collected; empty = DATE */
+  paymentDate?: string;
   number: string;
   customerId?: string;
   customerName: string;

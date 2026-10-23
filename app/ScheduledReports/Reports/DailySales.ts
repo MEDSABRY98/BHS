@@ -1,14 +1,16 @@
 // ════════════════════════════════════════════════════════════════
-//  Salesperson Analysis — Daily Sales PDF (sidebar button + Scheduled Reports email)
-//  Builds the document only (works in the browser and on the server);
-//  DailySalesReport.ts downloads it, the scheduled reports runner emails it.
-//  Page 1+: the whole company for the chosen day(s) compared with the period
-//  of the same length right before; then one section per salesperson.
+//  Scheduled Reports — Daily Sales report (one file: the PDF + the email).
+//  PDF: page 1 = the whole company for the chosen day(s) compared with the period
+//  of the same length right before, then one section per salesperson (the email
+//  sends the company part and one PDF per salesperson). Each part starts a new page.
 //  Same sales rules as the Sales tab (returns = negative lines, profit only on
-//  lines that have a cost).
+//  lines that have a cost). Data: SalespersonAnalysis/Service/DailyReportData.ts
 // ════════════════════════════════════════════════════════════════
 
-import type { DailySalesLine, DailySalesReportData, DailyTotals } from '../Utils/DailyTypes';
+import type { DailySalesLine, DailySalesReportData, DailyTotals } from '@/app/SalespersonAnalysis/Utils/DailyTypes';
+import { buildDailySalesReportData } from '@/app/SalespersonAnalysis/Service/DailyReportData';
+import { addArabicFontServer } from '../Server/ServerFont';
+import { attachmentName, change as changeText, esc, money as moneyText, periodText, salespersonNames, type Builder } from './Shared';
 
 type RGB = [number, number, number];
 const C = {
@@ -39,6 +41,11 @@ const fmtDay = (iso: string) => {
   if (!iso) return '-';
   const [y, m, d] = iso.split('-');
   return `${d}/${m}/${y}`;
+};
+const dayDiff = (a: string, b: string) => {
+  const [y1, m1, d1] = a.split('-').map(Number);
+  const [y2, m2, d2] = b.split('-').map(Number);
+  return Math.round((Date.UTC(y2, m2 - 1, d2) - Date.UTC(y1, m1 - 1, d1)) / 86_400_000);
 };
 const weekday = (iso: string) => {
   const [y, m, d] = iso.split('-').map(Number);
@@ -488,7 +495,71 @@ export async function buildDailySalesReportPdf(
     });
   };
 
-  // ── one salesperson: cards → by day → city → customers → category → products → returns (each part starts a new page) ──
+  // ── declining customers: bought in both periods, less now (top 10 by the drop) ──
+  const decliningTable = (ls: DailySalesLine[], spId: string | null, withSp: boolean) => {
+    const stats = data.customerStats || {};
+    const rows = groupBy(ls, (l) => l.customerId)
+      .map((g) => ({ id: g.key, cur: g.net, prev: stats[g.key]?.prevNet || 0, sp: g.lines[0].salespersonId }))
+      .filter((r) => r.prev > 0 && r.cur > 0 && r.cur < r.prev && (!spId || r.sp === spId))
+      .sort((a, b) => b.prev - b.cur - (a.prev - a.cur));
+    const drop = rows.reduce((sum, r) => sum + (r.prev - r.cur), 0);
+    table({
+      title: 'Declining Customers',
+      sub: `Bought less than in ${prevText} • ${rows.length} customer${rows.length === 1 ? '' : 's'} • AED ${money(drop)} less${rows.length > 10 ? ' • biggest 10' : ''}`,
+      head: ['#', 'Customer', 'City', ...(withSp ? ['Salesperson'] : []), 'Previous', 'This Period', 'Change', 'Change %'],
+      body: rows.slice(0, 10).map((r, i) => [
+        String(i + 1),
+        custName(r.id),
+        custCity(r.id),
+        ...(withSp ? [spName(r.sp)] : []),
+        money(r.prev),
+        money(r.cur),
+        `-${money(r.prev - r.cur)}`,
+        pctText(change(r.cur, r.prev)),
+      ]),
+      nameCols: withSp ? [1, 3] : [1],
+      boldCols: [withSp ? 5 : 4],
+      colWidths: { 0: 7 },
+      didParseCell: (d) => {
+        negCell([withSp ? 6 : 5])(d);
+        growthCell(withSp ? 7 : 6)(d);
+      },
+    });
+  };
+
+  // ── missed customers: regular buyers whose usual gap has passed twice (top 10 by their average order) ──
+  const missedTable = (spId: string | null, withSp: boolean) => {
+    const rows = Object.entries(data.customerStats || {})
+      .map(([id, st]) => ({ id, st, since: st.lastPurchase ? dayDiff(st.lastPurchase, period.end) : 0 }))
+      .filter((r) => (!spId || r.st.salespersonId === spId) && r.st.purchaseDays >= 3 && r.st.avgGapDays > 0 && r.since > Math.max(2 * r.st.avgGapDays, 7))
+      .sort((a, b) => b.st.avgOrder - a.st.avgOrder);
+    table({
+      title: 'Missed Customers',
+      sub: `Buy regularly but no order for more than twice their usual gap (to ${fmtDay(period.end)}) • ${rows.length} customer${rows.length === 1 ? '' : 's'}${rows.length > 10 ? ' • top 10 by average order' : ''}`,
+      head: ['#', 'Customer', 'City', ...(withSp ? ['Salesperson'] : []), 'Last Purchase', 'Days Since', 'Usually Every', 'Avg Order'],
+      body: rows.slice(0, 10).map((r, i) => [
+        String(i + 1),
+        custName(r.id),
+        custCity(r.id),
+        ...(withSp ? [spName(r.st.salespersonId)] : []),
+        fmtDay(r.st.lastPurchase),
+        whole(r.since),
+        `${Math.max(1, Math.round(r.st.avgGapDays))} days`,
+        money(r.st.avgOrder),
+      ]),
+      nameCols: withSp ? [1, 3] : [1],
+      boldCols: [withSp ? 8 : 7],
+      colWidths: { 0: 7 },
+      didParseCell: (d) => {
+        if (d.section === 'body' && d.column.index === (withSp ? 5 : 4)) {
+          d.cell.styles.textColor = C.red;
+          d.cell.styles.fontStyle = 'bold';
+        }
+      },
+    });
+  };
+
+  // ── one salesperson: cards → by day → city → customers → declining → missed → category → products → returns (each part starts a new page) ──
   const salespersonSection = (g: Group) => {
     const name = spName(g.key);
     const t = totalsOf(g.lines);
@@ -507,6 +578,10 @@ export async function buildDailySalesReportPdf(
     cityTable(g.lines, t);
     newPage(name);
     customersTable(g.lines, t, false);
+    newPage(name);
+    decliningTable(g.lines, g.key, false);
+    newPage(name);
+    missedTable(g.key, false);
     newPage(name);
     categoryTable(g.lines, t);
     newPage(name);
@@ -588,6 +663,10 @@ export async function buildDailySalesReportPdf(
     newPage('All Salespersons');
     customersTable(lines, total, true);
     newPage('All Salespersons');
+    decliningTable(lines, null, true);
+    newPage('All Salespersons');
+    missedTable(null, true);
+    newPage('All Salespersons');
     categoryTable(lines, total);
     newPage('All Salespersons');
     productsTable(lines, total);
@@ -619,3 +698,96 @@ export async function buildDailySalesReportPdf(
   const name = oneDay ? `Daily_Sales_${period.start}` : `Sales_${period.start}_to_${period.end}`;
   return { doc, fileName: `${name}.pdf` };
 }
+
+// ════════════════ EMAIL ════════════════
+export const DailySalesReport: Builder = async (range, reportName, salespersonId) => {
+  // a salesperson's own copy: his sales only, without the profit cards / columns (the product Margin columns still show)
+  const data = await buildDailySalesReportData({ start: range.start, end: range.end, onlySalespersonId: salespersonId, showCosts: !salespersonId });
+  let scope = 'All salespersons';
+  if (salespersonId) {
+    const names = await salespersonNames();
+    scope = names.get(salespersonId.trim().toUpperCase()) || salespersonId;
+  }
+  if (!data.lines.length) return { scope, skip: 'No sales in this period' };
+
+  // all salespersons: first PDF = the company part, then one PDF per salesperson (A-Z), all in the same email
+  const toPdf = (d: any) => Buffer.from(d.output('arraybuffer') as ArrayBuffer);
+  const { doc } = await buildDailySalesReportPdf(data, addArabicFontServer, { includeSalespersonSections: !!salespersonId });
+  const fileName = attachmentName(salespersonId ? scope : 'All Salespersons', 'Daily_Sales');
+  const pdf = toPdf(doc);
+  const extraPdfs: { fileName: string; pdf: Buffer }[] = [];
+  if (!salespersonId) {
+    const spIds = [...new Set(data.lines.map((l) => l.salespersonId))].sort((a, b) =>
+      (data.salespersons[a] || a).localeCompare(data.salespersons[b] || b, undefined, { sensitivity: 'base' }),
+    );
+    for (const id of spIds) {
+      const spName = data.salespersons[id] || id;
+      const one = await buildDailySalesReportPdf(
+        {
+          ...data,
+          allSalespersons: false,
+          lines: data.lines.filter((l) => l.salespersonId === id),
+          prevTotals: data.prevTotalsBySalesperson?.[id] || { gross: 0, returns: 0, net: data.prevNetBySalesperson[id] || 0, invoices: 0, customers: 0, qty: 0, profit: 0, costedSales: 0 },
+        },
+        addArabicFontServer,
+      );
+      extraPdfs.push({ fileName: attachmentName(spName, 'Daily_Sales'), pdf: toPdf(one.doc) });
+    }
+  }
+
+  // short summary in the email body
+  let gross = 0;
+  let returns = 0;
+  const invoices = new Set<string>();
+  const customers = new Set<string>();
+  const bySp = new Map<string, number>();
+  for (const l of data.lines) {
+    if (l.amount > 0) {
+      gross += l.amount;
+      if (l.invoice) invoices.add(l.invoice);
+      if (l.customerId) customers.add(l.customerId);
+    } else returns += -l.amount;
+    bySp.set(l.salespersonId, (bySp.get(l.salespersonId) || 0) + l.amount);
+  }
+  const net = gross - returns;
+  const top = [...bySp.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
+  const when = periodText(range);
+  const title = salespersonId ? `${reportName} — ${scope}` : reportName;
+
+  const row = (label: string, value: string, extra = '') =>
+    `<tr><td style="padding:6px 12px;color:#64748b;font-size:13px">${label}</td><td style="padding:6px 12px;font-weight:700;font-size:14px;color:#0f172a;text-align:right">${value}</td><td style="padding:6px 12px;font-size:12px;color:#64748b;text-align:right">${extra}</td></tr>`;
+  const html = `
+<div style="font-family:Segoe UI,Arial,sans-serif;max-width:620px;margin:0 auto;color:#0f172a">
+  <div style="background:#0a0f1d;color:#fff;padding:18px 22px;border-radius:14px 14px 0 0">
+    <div style="font-size:12px;letter-spacing:2px;color:#D4AF37;font-weight:700">BHS · SCHEDULED REPORT</div>
+    <div style="font-size:20px;font-weight:700;margin-top:4px">${esc(title)}</div>
+    <div style="font-size:13px;color:#cbd5e1;margin-top:2px">${esc(when)}</div>
+  </div>
+  <div style="border:1px solid #e2e8f0;border-top:none;border-radius:0 0 14px 14px;padding:16px 10px">
+    <table style="width:100%;border-collapse:collapse">
+      ${row('Net sales', `AED ${moneyText(net)}`, changeText(net, data.prevTotals.net))}
+      ${row('Gross sales', `AED ${moneyText(gross)}`)}
+      ${row('Returns', `AED ${moneyText(returns)}`)}
+      ${row('Invoices', String(invoices.size), changeText(invoices.size, data.prevTotals.invoices))}
+      ${row('Active customers', String(customers.size), changeText(customers.size, data.prevTotals.customers))}
+    </table>
+    ${salespersonId ? '' : `<div style="margin:14px 12px 6px;font-size:12px;font-weight:700;color:#64748b;letter-spacing:1px">TOP SALESPERSONS (NET)</div>
+    <table style="width:100%;border-collapse:collapse">
+      ${top.map(([id, v], i) => row(`${i + 1}. ${esc(data.salespersons[id] || id)}`, `AED ${moneyText(v)}`)).join('')}
+    </table>`}
+    <p style="margin:16px 12px 4px;font-size:12px;color:#94a3b8">${extraPdfs.length ? `Attached: the company PDF and one PDF per salesperson (${extraPdfs.length}).` : 'The full report is attached (PDF).'} Compared with ${esc(periodText(data.prevPeriod))}.</p>
+  </div>
+</div>`;
+  const text = [
+    `${title} — ${when}`,
+    `Net sales: AED ${moneyText(net)}`,
+    `Gross sales: AED ${moneyText(gross)}`,
+    `Returns: AED ${moneyText(returns)}`,
+    `Invoices: ${invoices.size}`,
+    `Active customers: ${customers.size}`,
+    '',
+    extraPdfs.length ? `Attached: the company PDF and one PDF per salesperson (${extraPdfs.length}).` : 'The full report is attached (PDF).',
+  ].join('\n');
+
+  return { scope, fileName, pdf, extraPdfs, subject: `${title} — ${when}`, html, text };
+};

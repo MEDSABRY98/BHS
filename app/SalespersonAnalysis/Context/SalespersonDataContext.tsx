@@ -2,7 +2,7 @@
 
 // Selected salesperson + period + loaded data, shared by the three sections.
 
-import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { GetSalespersonData, ListSalespersons } from '../Service/SalespersonService';
 import { DefaultPeriod } from '../Utils/SalespersonAggregations';
 import type { AgingMode, Period, SalespersonData, SalespersonOption } from '../Utils/Types';
@@ -17,7 +17,19 @@ type SalespersonDataContextValue = {
   setPeriod: (p: Period) => void;
   agingMode: AgingMode;
   setAgingMode: (m: AgingMode) => void;
+  /** the loaded data with the Tag / Class filters applied (what every tab shows) */
   data: SalespersonData | null;
+  /** tags / classes of the salesperson's customers (filter options) */
+  tagOptions: string[];
+  classOptions: string[];
+  /** '' = all, NO_VALUE = customers without a tag / class */
+  tagFilter: string;
+  setTagFilter: (v: string) => void;
+  classFilter: string;
+  setClassFilter: (v: string) => void;
+  /** Debit tab: only customers with open debit older than this many days (0 = all) */
+  minDays: number;
+  setMinDays: (v: number) => void;
   loading: boolean;
   isRefreshing: boolean;
   error: string | null;
@@ -26,6 +38,12 @@ type SalespersonDataContextValue = {
 
 const SalespersonDataContext = createContext<SalespersonDataContextValue | null>(null);
 
+/** filter value for "customers without a tag / class" */
+export const NO_VALUE = '__NONE__';
+
+const norm = (v: unknown) => String(v ?? '').trim().toUpperCase();
+const sortAz = (list: string[]) => [...list].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+
 export function SalespersonDataProvider({ children }: { children: React.ReactNode }) {
   const [salespersons, setSalespersons] = useState<SalespersonOption[]>([]);
   const [canChoose, setCanChoose] = useState(false);
@@ -33,7 +51,10 @@ export function SalespersonDataProvider({ children }: { children: React.ReactNod
   const [selectedId, setSelectedId] = useState('');
   const [period, setPeriod] = useState<Period>(DefaultPeriod);
   const [agingMode, setAgingMode] = useState<AgingMode>('days');
-  const [data, setData] = useState<SalespersonData | null>(null);
+  const [rawData, setData] = useState<SalespersonData | null>(null);
+  const [tagFilter, setTagFilter] = useState('');
+  const [classFilter, setClassFilter] = useState('');
+  const [minDays, setMinDays] = useState(0);
   const [loading, setLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -86,6 +107,27 @@ export function SalespersonDataProvider({ children }: { children: React.ReactNod
     void load(false);
   }, [load]);
 
+  // another salesperson → the filters start again
+  useEffect(() => {
+    setTagFilter('');
+    setClassFilter('');
+  }, [selectedId]);
+
+  const tagOptions = useMemo(() => sortAz([...new Set(Object.values(rawData?.customerMeta || {}).map((m) => m.tag).filter(Boolean))]), [rawData]);
+  const classOptions = useMemo(() => sortAz([...new Set(Object.values(rawData?.customerMeta || {}).map((m) => m.cls).filter(Boolean))]), [rawData]);
+
+  // Tag / Class filters: keep only the sales lines and ledger rows of the matching customers
+  const data = useMemo(() => {
+    if (!rawData || (!tagFilter && !classFilter)) return rawData;
+    const meta = rawData.customerMeta || {};
+    const match = (value: string, filter: string) => !filter || (filter === NO_VALUE ? !value : value === filter);
+    const keep = (customerId: string) => {
+      const m = meta[norm(customerId)] || { tag: '', cls: '' };
+      return match(m.tag, tagFilter) && match(m.cls, classFilter);
+    };
+    return { ...rawData, sales: rawData.sales.filter((l) => keep(l.customerId)), ledger: rawData.ledger.filter((r) => keep(r.customerId)) };
+  }, [rawData, tagFilter, classFilter]);
+
   return (
     <SalespersonDataContext.Provider
       value={{
@@ -99,6 +141,14 @@ export function SalespersonDataProvider({ children }: { children: React.ReactNod
         agingMode,
         setAgingMode,
         data,
+        tagOptions,
+        classOptions,
+        tagFilter,
+        setTagFilter,
+        classFilter,
+        setClassFilter,
+        minDays,
+        setMinDays,
         loading,
         isRefreshing,
         error,

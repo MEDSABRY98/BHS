@@ -247,6 +247,7 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
         { id: 'sales', label: 'Sales' },
         { id: 'debit', label: 'Debit' },
         { id: 'collections', label: 'Collections' },
+        { id: 'quality', label: 'Collection Quality' },
     ],
     'roi': [
         { id: 'overview', label: 'Overview' },

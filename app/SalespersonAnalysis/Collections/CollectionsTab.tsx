@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   BarChart,
   Bar,
@@ -15,13 +15,21 @@ import {
 } from 'recharts';
 import { Banknote, CreditCard, Users, Percent } from 'lucide-react';
 import { UseSalespersonData } from '../Context/SalespersonDataContext';
-import { Change, ComputeCollections, DaysSince } from '../Utils/SalespersonAggregations';
+import { Change, ComputeCollections, ComputeCollectionsByClass, DaysSince } from '../Utils/SalespersonAggregations';
 import { FmtDay, GOLD, INK, KpiCard, Money, Panel, SLATE, ShortMoney, SimpleTable, Whole } from '../Utils/Cards';
+import { TagViewTable, TagViewToggle, type TagView } from '../Utils/TagViews';
+import { CustomerLink, CustomerPopup } from '../Utils/CustomerPopup';
 
 export default function CollectionsTab() {
   const { data } = UseSalespersonData();
   const c = useMemo(() => (data ? ComputeCollections(data) : null), [data]);
+  const byClass = useMemo(() => (data ? ComputeCollectionsByClass(data) : []), [data]);
   const [view, setView] = useState<'customers' | 'unpaid'>('customers');
+  // Default / No Tags / Tags Only (bhs_CUSTOMERS "CUSTOMER TAG")
+  const [tagView, setTagView] = useState<TagView>('DEFAULT');
+  const [popup, setPopup] = useState<string | null>(null);
+  const tagsOf = useCallback((name: string) => data?.tagsByCustomer?.[name] || [], [data]);
+  const nameOf = useCallback((r: { name: string }) => r.name, []);
 
   if (!data || !c) return null;
 
@@ -96,6 +104,38 @@ export default function CollectionsTab() {
         </Panel>
       </div>
 
+      <Panel title="Collections by Class" subtitle="Net collected in the period by customer class, vs same period last year">
+        <SimpleTable
+          rows={byClass}
+          columns={[
+            { header: 'Class', cell: (r) => <span className="font-bold text-slate-900">{r.cls}</span> },
+            { header: 'Net Collected', cell: (r) => <span className="font-mono font-bold">{Money(r.net)}</span> },
+            { header: 'Share', cell: (r) => `${r.share.toFixed(1)}%` },
+            { header: 'Payments', cell: (r) => Whole(r.payments) },
+            { header: 'Paying Customers', cell: (r) => Whole(r.customers) },
+            { header: 'Last Year', cell: (r) => <span className="font-mono text-slate-500">{Money(r.previous)}</span> },
+            {
+              header: 'Change',
+              cell: (r) => {
+                const ch = Change(r.net, r.previous);
+                if (ch === null) return <span className="text-amber-600 font-bold">NEW</span>;
+                return <span className={`font-bold ${ch >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{`${ch > 0 ? '+' : ''}${ch.toFixed(1)}%`}</span>;
+              },
+            },
+          ]}
+          footer={[
+            'TOTAL',
+            Money(byClass.reduce((s, r) => s + r.net, 0)),
+            '100%',
+            Whole(byClass.reduce((s, r) => s + r.payments, 0)),
+            '',
+            Money(byClass.reduce((s, r) => s + r.previous, 0)),
+            '',
+          ]}
+          empty="No collections in this period"
+        />
+      </Panel>
+
       <Panel
         title={view === 'customers' ? 'Collections per Customer' : 'Customers Who Did Not Pay'}
         subtitle={
@@ -104,6 +144,8 @@ export default function CollectionsTab() {
             : 'Balance and no payment in the period'
         }
         right={
+          <div className="flex flex-wrap items-center justify-end gap-2">
+          <TagViewToggle view={tagView} onChange={setTagView} />
           <div className="flex bg-slate-100 rounded-xl p-1 gap-1">
             {(
               [
@@ -120,28 +162,35 @@ export default function CollectionsTab() {
               </button>
             ))}
           </div>
+          </div>
         }
       >
         {view === 'customers' ? (
-          <SimpleTable
+          <TagViewTable
+            view={tagView}
             rows={c.customers}
+            nameOf={nameOf}
+            tagsOf={tagsOf}
             columns={[
               { header: '#', cell: (_, i) => <span className="text-slate-400">{i + 1}</span> },
-              { header: 'Customer', cell: (r) => <span className="font-bold text-slate-900">{r.name}</span> },
+              { header: 'Customer', cell: (r) => <CustomerLink name={r.name} onOpen={setPopup} /> },
               { header: 'City', cell: (r) => r.city },
               { header: 'Net Collection', cell: (r) => <span className="font-mono font-bold">{Money(r.net)}</span> },
               { header: 'Payments', cell: (r) => Whole(r.payments) },
               { header: 'Last Payment', cell: (r) => FmtDay(r.last) },
             ]}
-            footer={['', 'TOTAL', '', Money(c.customers.reduce((s, r) => s + r.net, 0)), Whole(c.cur.payments), '']}
+            totals={(list) => ['', 'TOTAL', '', Money(list.reduce((s, r) => s + r.net, 0)), Whole(list.reduce((s, r) => s + r.payments, 0)), '']}
           />
         ) : (
-          <SimpleTable
+          <TagViewTable
+            view={tagView}
             rows={c.unpaid}
+            nameOf={nameOf}
+            tagsOf={tagsOf}
             empty="Every customer with a balance paid in this period"
             columns={[
               { header: '#', cell: (_, i) => <span className="text-slate-400">{i + 1}</span> },
-              { header: 'Customer', cell: (r) => <span className="font-bold text-slate-900">{r.name}</span> },
+              { header: 'Customer', cell: (r) => <CustomerLink name={r.name} onOpen={setPopup} /> },
               { header: 'City', cell: (r) => r.city },
               { header: 'Balance', cell: (r) => <span className="font-mono font-bold">{Money(r.balance)}</span> },
               {
@@ -157,10 +206,11 @@ export default function CollectionsTab() {
                 },
               },
             ]}
-            footer={['', 'TOTAL', '', Money(c.unpaid.reduce((s, r) => s + r.balance, 0)), '', '']}
+            totals={(list) => ['', 'TOTAL', '', Money(list.reduce((s, r) => s + r.balance, 0)), '', '']}
           />
         )}
       </Panel>
+      <CustomerPopup name={popup} onClose={() => setPopup(null)} mode="debit" />
     </div>
   );
 }

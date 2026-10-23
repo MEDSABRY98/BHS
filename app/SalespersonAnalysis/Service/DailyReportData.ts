@@ -1,13 +1,13 @@
 // ════════════════════════════════════════════════════════════════
 //  Salesperson Analysis — daily sales report data (server only).
-//  Used by the sidebar button (SalespersonService.GetDailySalesReport)
-//  and by Scheduled Reports (emailed PDF). No 'use server' on purpose:
+//  Used by Scheduled Reports (ScheduledReports/Reports/DailySales.ts, emailed PDF);
+//  loadUsers / loadCustomers are also used by the module. No 'use server' on purpose:
 //  these functions must not be callable from the browser.
 // ════════════════════════════════════════════════════════════════
 
 import { getSupabaseAdmin } from '@/lib/supabaseAdmin';
 import { getSalesDataServer } from '@/app/Sales/Cache/SalesCache';
-import type { DailySalesLine, DailySalesReportData, DailyTotals } from '../Utils/DailyTypes';
+import type { CustomerStats, DailySalesLine, DailySalesReportData, DailyTotals } from '../Utils/DailyTypes';
 
 const norm = (v: unknown) => String(v ?? '').trim().toUpperCase();
 const dayOf = (v: unknown) => String(v ?? '').split('T')[0].trim();
@@ -30,7 +30,7 @@ export async function loadUsers() {
   return { idByKey, nameById };
 }
 
-export type CustomerRow = { id: string; subName: string; mainName: string; city: string; rep: string };
+export type CustomerRow = { id: string; subName: string; mainName: string; city: string; rep: string; tag: string; cls: string };
 
 export async function loadCustomers(): Promise<Map<string, CustomerRow>> {
   const map = new Map<string, CustomerRow>();
@@ -39,7 +39,7 @@ export async function loadCustomers(): Promise<Map<string, CustomerRow>> {
   while (true) {
     const { data, error } = await getSupabaseAdmin()
       .from('bhs_CUSTOMERS')
-      .select('"CUSTOMER ID", "CUSTOMER SUB NAME", "CUSTOMER MAIN NAME", "CUSTOMER CITY", "SALES_REP"')
+      .select('"CUSTOMER ID", "CUSTOMER SUB NAME", "CUSTOMER MAIN NAME", "CUSTOMER CITY", "SALES_REP", "CUSTOMER TAG", "CUSTOMER CLASS"')
       .order('CUSTOMER ID', { ascending: true })
       .range(from, from + pageSize - 1);
     if (error) throw error;
@@ -53,6 +53,8 @@ export async function loadCustomers(): Promise<Map<string, CustomerRow>> {
         mainName: String(r['CUSTOMER MAIN NAME'] || r['CUSTOMER SUB NAME'] || id).trim(),
         city: String(r['CUSTOMER CITY'] || '').trim(),
         rep: norm(r['SALES_REP']),
+        tag: String(r['CUSTOMER TAG'] || '').trim(),
+        cls: String(r['CUSTOMER CLASS'] || '').trim(),
       });
     }
     if (rows.length < pageSize) break;
@@ -64,6 +66,8 @@ export async function loadCustomers(): Promise<Map<string, CustomerRow>> {
 
 const UNASSIGNED = 'UNASSIGNED';
 const MAX_REPORT_DAYS = 93;
+/** buying pattern window for the Missed Customers table */
+const HISTORY_DAYS = 180;
 
 function addDays(iso: string, days: number): string {
   const [y, m, d] = iso.split('-').map(Number);
@@ -109,14 +113,42 @@ export async function buildDailySalesReportData(opts: {
   const prev = newAcc();
   const prevBySp = new Map<string, Acc>();
   const prevNetBySalesperson: Record<string, number> = {};
+  // per customer: previous period net + purchase days / invoices of the last HISTORY_DAYS (up to the period end)
+  const historyStart = addDays(end, -(HISTORY_DAYS - 1));
+  type Hist = { spId: string; prevNet: number; days: Set<string>; invoices: Set<string>; gross: number };
+  const hist = new Map<string, Hist>();
 
   const salesAll = (await getSalesDataServer()) as any[];
   for (const s of salesAll) {
     const date = dayOf(s.invoiceDate);
-    if (!date || date < prevStart || date > end) continue;
+    if (!date || date > end || (date < prevStart && date < historyStart)) continue;
     const cust = customers.get(norm(s.customerId));
     const spId = cust?.rep ? idByKey.get(cust.rep) || cust.rep : UNASSIGNED;
     if (!allSalespersons && spId !== ownId) continue;
+
+    // buying pattern (all lines from historyStart to the end)
+    const histId = cust ? cust.id : String(s.customerId ?? '').trim();
+    if (histId) {
+      const h = hist.get(histId) || { spId, prevNet: 0, days: new Set<string>(), invoices: new Set<string>(), gross: 0 };
+      const amt = Number(s.amount) || 0;
+      if (date >= historyStart && amt > 0) {
+        h.days.add(date);
+        h.gross += amt;
+        const inv = String(s.invoiceNumber ?? '').trim();
+        if (inv) h.invoices.add(inv);
+      }
+      if (date >= prevStart && date <= prevEnd) h.prevNet += amt;
+      hist.set(histId, h);
+      if (!customerInfo[histId]) {
+        customerInfo[histId] = {
+          name: cust?.subName || String(s.customerName || histId).trim(),
+          mainName: cust?.mainName || String(s.customerMainName || s.customerName || histId).trim(),
+          city: cust?.city || '',
+        };
+      }
+      if (!salespersons[spId]) salespersons[spId] = spId === UNASSIGNED ? 'Unassigned' : nameById.get(spId) || spId;
+    }
+    if (date < prevStart) continue; // history only
 
     const amount = Number(s.amount) || 0;
     const qty = Number(s.qty) || 0;
@@ -183,6 +215,20 @@ export async function buildDailySalesReportData(opts: {
     prevTotals: totalsFrom(prev),
     prevNetBySalesperson,
     prevTotalsBySalesperson: Object.fromEntries([...prevBySp].map(([id, acc]) => [id, totalsFrom(acc)])),
+    customerStats: Object.fromEntries(
+      [...hist].map(([id, h]) => {
+        const days = [...h.days].sort();
+        const stats: CustomerStats = {
+          salespersonId: h.spId,
+          prevNet: h.prevNet,
+          lastPurchase: days[days.length - 1] || '',
+          purchaseDays: days.length,
+          avgGapDays: days.length > 1 ? daysBetween(days[0], days[days.length - 1]) / (days.length - 1) : 0,
+          avgOrder: h.invoices.size ? h.gross / h.invoices.size : 0,
+        };
+        return [id, stats];
+      }),
+    ),
   };
 }
 

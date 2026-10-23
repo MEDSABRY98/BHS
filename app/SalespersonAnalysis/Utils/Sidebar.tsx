@@ -1,15 +1,15 @@
 'use client';
 
 import { useState } from 'react';
-import { ArrowLeft, ChevronLeft, ChevronRight, X, RefreshCcw, UserRound, ShoppingCart, Wallet, CreditCard, FileDown, Loader2 } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, X, RefreshCcw, UserRound, ShoppingCart, Wallet, CreditCard, FileDown, Loader2, Filter, Gauge } from 'lucide-react';
 import { UseSalespersonData } from '../Context/SalespersonDataContext';
 import { toast } from '@/app/Components/Notification';
-import DailyReportButton from './DailyReportButton';
 
 export const SALESPERSON_TABS = [
   { id: 'sales', label: 'Sales', icon: ShoppingCart },
   { id: 'debit', label: 'Debit', icon: Wallet },
   { id: 'collections', label: 'Collections', icon: CreditCard },
+  { id: 'quality', label: 'Collection Quality', icon: Gauge },
 ] as const;
 
 export type SalespersonTabId = (typeof SALESPERSON_TABS)[number]['id'];
@@ -21,6 +21,8 @@ interface SidebarProps {
   isCollapsed: boolean;
   onToggleCollapse: () => void;
   onCloseMobile?: () => void;
+  /** opens the Filters popup (salesperson + period) */
+  onOpenFilters: () => void;
 }
 
 export default function SalespersonSidebar({
@@ -30,6 +32,7 @@ export default function SalespersonSidebar({
   isCollapsed,
   onToggleCollapse,
   onCloseMobile,
+  onOpenFilters,
 }: SidebarProps) {
   const [hoveredTab, setHoveredTab] = useState<{ label: string; top: number } | null>(null);
   const { refresh, isRefreshing, selectedId, data, agingMode } = UseSalespersonData();
@@ -125,6 +128,18 @@ export default function SalespersonSidebar({
           {isCollapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
         </button>
         <button
+          onClick={() => {
+            onOpenFilters();
+            if (onCloseMobile) onCloseMobile();
+          }}
+          title="Filters (salesperson and period)"
+          className={`flex items-center justify-center w-10 h-10 rounded-xl border shrink-0 ${
+            selectedId ? 'hover:bg-slate-100 text-slate-500 border-slate-200' : 'bg-gradient-to-br from-[#D4AF37] to-[#B8860B] text-white border-transparent shadow-lg shadow-[#D4AF37]/30'
+          }`}
+        >
+          <Filter className="w-5 h-5" />
+        </button>
+        <button
           onClick={() => void refresh()}
           disabled={isRefreshing || !selectedId}
           title={isRefreshing ? 'Refreshing...' : 'Refresh Data'}
@@ -140,7 +155,6 @@ export default function SalespersonSidebar({
         >
           {isExporting ? <Loader2 className="w-5 h-5 animate-spin text-[#D4AF37]" /> : <FileDown className="w-5 h-5" />}
         </button>
-        <DailyReportButton />
       </div>
 
       {hoveredTab && isCollapsed && (

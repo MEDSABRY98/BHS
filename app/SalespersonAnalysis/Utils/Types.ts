@@ -31,6 +31,8 @@ export type LedgerRow = {
   id: string;
   date: string;
   dueDate: string;
+  /** payments: when the money is actually collected (cheque due date); '' = date */
+  paymentDate?: string;
   number: string;
   customerId: string;
   customerName: string; // main customer name
@@ -54,6 +56,10 @@ export type SalespersonData = {
   ledger: LedgerRow[];
   /** last payment date per main customer name (all history) */
   lastPaymentByCustomer: Record<string, string>;
+  /** tags per main customer name (bhs_CUSTOMERS "CUSTOMER TAG" of its customers; none = no tags) */
+  tagsByCustomer?: Record<string, string[]>;
+  /** tag + class per customer id (upper-cased), for the Tag / Class filters */
+  customerMeta?: Record<string, { tag: string; cls: string }>;
 };
 
 export type AgingMode = 'days' | 'months';

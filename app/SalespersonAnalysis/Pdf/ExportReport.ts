@@ -1,7 +1,7 @@
 'use client';
 
 // ════════════════════════════════════════════════════════════════
-//  Salesperson Analysis — PDF report (Sales → Debit → Collections)
+//  Salesperson Analysis — PDF report (Sales → Debit → Collections → Collection Quality)
 //  Same numbers as the screens (SalespersonAggregations); each table
 //  shows its top 10 rows.
 // ════════════════════════════════════════════════════════════════
@@ -11,10 +11,12 @@ import { saveTrackedPdf } from '@/app/AdminControl/Code/Audit/TrackedDownload';
 import {
   AGING_BUCKETS,
   Change,
+  ComputeCollectionQuality,
   ComputeCollections,
   ComputeDebit,
   ComputeSales,
   DaysSince,
+  LATENESS_BUCKETS,
   ShiftYear,
 } from '../Utils/SalespersonAggregations';
 import type { AgingMode, SalespersonData } from '../Utils/Types';
@@ -75,6 +77,7 @@ export async function ExportSalespersonReport(data: SalespersonData, agingMode: 
   const sales = ComputeSales(data);
   const debit = ComputeDebit(data, agingMode);
   const coll = ComputeCollections(data);
+  const quality = ComputeCollectionQuality(data);
   const { period } = data;
   const prevEnd = ShiftYear(period.end, -1);
 
@@ -513,6 +516,55 @@ export async function ExportSalespersonReport(data: SalespersonData, agingMode: 
         if (days > 90) d.cell.styles.textColor = C.red;
         else if (days > 30) d.cell.styles.textColor = C.goldDark;
       }
+    },
+  });
+
+  // ════════════ COLLECTION QUALITY ════════════
+  const qc = quality.cur;
+  const qp = quality.prev;
+  const daysText = (v: number | null) => (v === null ? '-' : `${v.toFixed(1)} days`);
+  const pctText = (v: number | null) => (v === null ? '-' : `${v.toFixed(1)}%`);
+  y = newPage('Collection Quality');
+  sectionTitle('Collection Quality Overview', 'Aged by months (invoice month + payment term) on the payment date');
+  cards([
+    {
+      label: 'Avg Days Late',
+      value: daysText(qc.avgDaysLate),
+      change: qc.avgDaysLate !== null && qp.avgDaysLate !== null ? Change(qc.avgDaysLate, qp.avgDaysLate) : undefined,
+      invert: true,
+      foot: `LY ${daysText(qp.avgDaysLate)}`,
+      accent: C.red,
+    },
+    { label: 'Paid On Time', value: pctText(qc.onTimePct), foot: `LY ${pctText(qp.onTimePct)}`, accent: C.green },
+    { label: 'Unapplied Payments', value: pctText(qc.unappliedPct), foot: `${money(qc.unapplied)} not matched`, accent: C.prev },
+    { label: 'Collected', value: money(qc.total), change: Change(qc.total, qp.total), foot: `${money(qc.applied)} matched`, accent: C.gold },
+  ]);
+  sectionTitle('Collected by Lateness', 'Money matched to invoices, by days late');
+  bucketBars(LATENESS_BUCKETS.map((b) => ({ label: b.label, amount: qc.buckets[b.key] })));
+  sectionTitle('Avg Days Late per Month', 'This period vs same months last year (lower is better)');
+  bars(quality.monthly.map((m) => ({ label: m.month, a: m.current ?? 0, b: m.previous ?? 0 })), 'This period', 'Last year', C.gold, C.prev, 52);
+  table({
+    title: 'Customers',
+    sub: `Top ${TOP} by collected`,
+    head: ['#', 'Customer', 'Payments', 'Collected', 'Avg Days Late', 'On Time', 'Unapplied'],
+    body: quality.customers.slice(0, TOP).map((c, i) => [
+      i + 1,
+      c.name,
+      whole(c.payments),
+      money(c.collected),
+      c.avgDaysLate === null ? '-' : whole(c.avgDaysLate),
+      pctText(c.onTimePct),
+      c.unapplied > 0.01 ? money(c.unapplied) : '-',
+    ]),
+    nameCols: [1],
+    boldCols: [3],
+    colWidths: { 0: 8, 1: 60 },
+    didParseCell: (d) => {
+      if (d.section !== 'body' || d.column.index !== 4) return;
+      const n = Number(String(d.cell.raw).replace(/,/g, ''));
+      if (n > 60) d.cell.styles.textColor = C.red;
+      else if (n > 30) d.cell.styles.textColor = C.goldDark;
+      else if (Number.isFinite(n)) d.cell.styles.textColor = C.green;
     },
   });
 

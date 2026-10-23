@@ -293,6 +293,9 @@ export async function getLuluEmails() {
 
 // --- MIX_DEBIT ---
 const MIX_DEBIT_COLUMNS =
+  'ID, DATE, "DUE DATE", "PAYMENT DATE", NUMBER, "CUSTOMER ID", DEBIT, CREDIT, "RESIDUAL AMOUNT", MATCHING';
+// same without "PAYMENT DATE" (used if the column is not in the table yet)
+const MIX_DEBIT_COLUMNS_OLD =
   'ID, DATE, "DUE DATE", NUMBER, "CUSTOMER ID", DEBIT, CREDIT, "RESIDUAL AMOUNT", MATCHING';
 
 export async function getMixDebit() {
@@ -301,8 +304,12 @@ export async function getMixDebit() {
   let debitError = null;
   try {
     debitData = await fetchAllData(() => bhs_supabase.from('mix_DEBIT').select(MIX_DEBIT_COLUMNS), 'ID');
-  } catch (err) {
-    debitError = err;
+  } catch {
+    try {
+      debitData = await fetchAllData(() => bhs_supabase.from('mix_DEBIT').select(MIX_DEBIT_COLUMNS_OLD), 'ID');
+    } catch (err) {
+      debitError = err;
+    }
   }
   if (debitError) {
     console.error('Error fetching mix_DEBIT:', debitError);
@@ -359,6 +366,7 @@ export async function getMixDebit() {
       id: row.ID,
       date: row.DATE,
       dueDate: row['DUE DATE'],
+      paymentDate: row['PAYMENT DATE'] || undefined,
       number: row.NUMBER || '',
       customerId: custId,
       customerName: mappedName, // Mapped from bhs_CUSTOMERS

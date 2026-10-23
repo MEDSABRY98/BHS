@@ -1,11 +1,10 @@
 // ════════════════════════════════════════════════════════════════
-//  Salesperson Analysis — Debit & Collections PDF (Scheduled Reports email)
-//  Builds the document only (works in the browser and on the server).
-//  Same numbers and layout as the Debit / Collections pages of the
-//  salesperson PDF (ExportReport.ts), each table shows its top 10 rows.
+//  Scheduled Reports — Debit & Collections report (one file: the PDF + the email).
+//  Same numbers and layout as the Debit / Collections pages of the salesperson PDF.
 //  • one salesperson  → his Debit page + his Collections page
-//  • all salespersons → summary (one row per salesperson), the company
-//    Debit + Collections, then one Debit + Collections section per salesperson
+//  • all salespersons → summary (one row per salesperson) + the company Debit and
+//    Collections, then one PDF per salesperson in the same email
+//  Data: SalespersonAnalysis/Service/SalespersonData.ts
 // ════════════════════════════════════════════════════════════════
 
 import {
@@ -15,8 +14,12 @@ import {
   ComputeDebit,
   DaysSince,
   ShiftYear,
-} from '../Utils/SalespersonAggregations';
-import type { AgingMode, Period, SalespersonData } from '../Utils/Types';
+} from '@/app/SalespersonAnalysis/Utils/SalespersonAggregations';
+import type { AgingMode, Period, SalespersonData } from '@/app/SalespersonAnalysis/Utils/Types';
+import { BuildSalespersonData, LoadSalespersonInputs } from '@/app/SalespersonAnalysis/Service/SalespersonData';
+import { listAllSalespersons } from '@/app/SalespersonAnalysis/Service/DailyReportData';
+import { addArabicFontServer } from '../Server/ServerFont';
+import { attachmentName, change, esc, money as moneyText, periodText, type Builder } from './Shared';
 
 const TOP = 10;
 export const ALL_SALESPERSONS_ID = '__ALL__';
@@ -562,3 +565,122 @@ export async function BuildDebitCollectionsReportPdf(
   const when = period.start === period.end ? period.start : `${period.start}_to_${period.end}`;
   return { doc, fileName: `Debit_Collections_${who.replace(/\s+/g, '_')}_${when}.pdf` };
 }
+
+// ════════════════ EMAIL ════════════════
+/** Runs fn over the list, a few at a time (each salesperson loads his own debit scope). */
+async function mapLimit<T, R>(list: T[], limit: number, fn: (x: T) => Promise<R>): Promise<R[]> {
+  const out: R[] = new Array(list.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < list.length) {
+      const i = next++;
+      out[i] = await fn(list[i]);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, list.length) }, worker));
+  return out;
+}
+
+// one run sends several copies (all salespersons + one per salesperson): read the ledger / sales once
+let inputsCache: { at: number; promise: ReturnType<typeof LoadSalespersonInputs> } | null = null;
+function sharedInputs() {
+  if (!inputsCache || Date.now() - inputsCache.at > 2 * 60_000) {
+    const promise = LoadSalespersonInputs();
+    inputsCache = { at: Date.now(), promise };
+    promise.catch(() => (inputsCache = null));
+  }
+  return inputsCache.promise;
+}
+
+// debit aging: invoice month + payment term (months), from the 1st of the next month
+const DEBIT_AGING_MODE = 'months' as const;
+
+export const DebitCollectionsReport: Builder = async (range, reportName, salespersonId) => {
+  const period = { start: range.start, end: range.end };
+  const inputs = await sharedInputs();
+  const everyone = await listAllSalespersons();
+
+  let scope = 'All salespersons';
+  let sections: SalespersonData[];
+  if (salespersonId) {
+    const id = salespersonId.trim().toUpperCase();
+    scope = everyone.find((s) => s.id.trim().toUpperCase() === id)?.name || inputs.nameById.get(id) || salespersonId;
+    sections = [await BuildSalespersonData({ salespersonId, period, showCosts: false, inputs })];
+  } else {
+    sections = await mapLimit(everyone, 4, (sp) => BuildSalespersonData({ salespersonId: sp.id, period, showCosts: false, inputs }));
+  }
+  sections = sections.filter((d) => d.ledger.length);
+  if (!sections.length) return { scope, skip: 'No debit or collections data' };
+
+  // all salespersons: first PDF = summary + company, then one PDF per salesperson (A-Z), all in the same email
+  const toPdf = (doc: any) => Buffer.from(doc.output('arraybuffer') as ArrayBuffer);
+  const { doc } = await BuildDebitCollectionsReportPdf(
+    { period, sections, allSalespersons: !salespersonId, agingMode: DEBIT_AGING_MODE, includeSections: !!salespersonId },
+    addArabicFontServer,
+  );
+  const pdf = toPdf(doc);
+  const fileName = attachmentName(salespersonId ? scope : 'All Salespersons', 'Debit_Collections');
+  const extraPdfs: { fileName: string; pdf: Buffer }[] = [];
+  if (!salespersonId) {
+    const az = [...sections].sort((a, b) => a.salesperson.name.localeCompare(b.salesperson.name, undefined, { sensitivity: 'base' }));
+    for (const d of az) {
+      const one = await BuildDebitCollectionsReportPdf({ period, sections: [d], allSalespersons: false, agingMode: DEBIT_AGING_MODE }, addArabicFontServer);
+      extraPdfs.push({ fileName: attachmentName(d.salesperson.name, 'Debit_Collections'), pdf: toPdf(one.doc) });
+    }
+  }
+
+  // short summary in the email body
+  const t = DebitCollectionsTotals(salespersonId ? sections[0] : MergeSalespersonData(sections, period), DEBIT_AGING_MODE);
+  const top = salespersonId
+    ? []
+    : sections
+        .map((d) => ({ name: d.salesperson.name, t: DebitCollectionsTotals(d, DEBIT_AGING_MODE) }))
+        .sort((a, b) => b.t.openDebit - a.t.openDebit)
+        .slice(0, 5);
+  const when = periodText(range);
+  const title = salespersonId ? `${reportName} — ${scope}` : reportName;
+  const rate = t.collectionRate === null || !Number.isFinite(t.collectionRate) ? '-' : `${t.collectionRate.toFixed(1)}%`;
+
+  const row = (label: string, value: string, extra = '') =>
+    `<tr><td style="padding:6px 12px;color:#64748b;font-size:13px">${label}</td><td style="padding:6px 12px;font-weight:700;font-size:14px;color:#0f172a;text-align:right">${value}</td><td style="padding:6px 12px;font-size:12px;color:#64748b;text-align:right">${extra}</td></tr>`;
+  const html = `
+<div style="font-family:Segoe UI,Arial,sans-serif;max-width:620px;margin:0 auto;color:#0f172a">
+  <div style="background:#0a0f1d;color:#fff;padding:18px 22px;border-radius:14px 14px 0 0">
+    <div style="font-size:12px;letter-spacing:2px;color:#D4AF37;font-weight:700">BHS · SCHEDULED REPORT</div>
+    <div style="font-size:20px;font-weight:700;margin-top:4px">${esc(title)}</div>
+    <div style="font-size:13px;color:#cbd5e1;margin-top:2px">${esc(when)}</div>
+  </div>
+  <div style="border:1px solid #e2e8f0;border-top:none;border-radius:0 0 14px 14px;padding:16px 10px">
+    <div style="margin:0 12px 6px;font-size:12px;font-weight:700;color:#64748b;letter-spacing:1px">DEBIT (AS OF TODAY)</div>
+    <table style="width:100%;border-collapse:collapse">
+      ${row('Open debit', `AED ${moneyText(t.openDebit)}`, `${t.debitCustomers} customers`)}
+      ${row('Overdue', `AED ${moneyText(t.overdue)}`, `${t.overduePct.toFixed(1)}%`)}
+      ${row('Over 120 days', `AED ${moneyText(t.over120)}`, `${t.over120Pct.toFixed(1)}%`)}
+    </table>
+    <div style="margin:14px 12px 6px;font-size:12px;font-weight:700;color:#64748b;letter-spacing:1px">COLLECTIONS (${esc(when.toUpperCase())})</div>
+    <table style="width:100%;border-collapse:collapse">
+      ${row('Net collected', `AED ${moneyText(t.netCollected)}`, change(t.netCollected, t.prevNetCollected))}
+      ${row('Payments', String(t.payments), `${t.payingCustomers} customers`)}
+      ${row('Collection rate', rate)}
+    </table>
+    ${top.length ? `<div style="margin:14px 12px 6px;font-size:12px;font-weight:700;color:#64748b;letter-spacing:1px">TOP SALESPERSONS (OPEN DEBIT)</div>
+    <table style="width:100%;border-collapse:collapse">
+      ${top.map((r, i) => row(`${i + 1}. ${esc(r.name)}`, `AED ${moneyText(r.t.openDebit)}`, `Collected ${moneyText(r.t.netCollected)}`)).join('')}
+    </table>` : ''}
+    <p style="margin:16px 12px 4px;font-size:12px;color:#94a3b8">${extraPdfs.length ? `Attached: the summary PDF and one PDF per salesperson (${extraPdfs.length}).` : 'The full report is attached (PDF).'} Collections are compared with the same period last year.</p>
+  </div>
+</div>`;
+  const text = [
+    `${title} — ${when}`,
+    `Open debit: AED ${moneyText(t.openDebit)}`,
+    `Overdue: AED ${moneyText(t.overdue)} (${t.overduePct.toFixed(1)}%)`,
+    `Over 120 days: AED ${moneyText(t.over120)}`,
+    `Net collected: AED ${moneyText(t.netCollected)}`,
+    `Payments: ${t.payments}`,
+    `Collection rate: ${rate}`,
+    '',
+    extraPdfs.length ? `Attached: the summary PDF and one PDF per salesperson (${extraPdfs.length}).` : 'The full report is attached (PDF).',
+  ].join('\n');
+
+  return { scope, fileName, pdf, extraPdfs, subject: `${title} — ${when}`, html, text };
+};

@@ -31,10 +31,11 @@ export default function DebitDatabasePage() {
     }
   };
 
-  const COLUMNS = ['DATE', 'DUE DATE', 'NUMBER', 'CUSTOMER NAME', 'DEBIT', 'CREDIT', 'RESIDUAL AMOUNT', 'MATCHING'];
+  // PAYMENT DATE: when the cheque is actually collected (its due date); empty = same as DATE
+  const COLUMNS = ['DATE', 'DUE DATE', 'PAYMENT DATE', 'NUMBER', 'CUSTOMER NAME', 'DEBIT', 'CREDIT', 'RESIDUAL AMOUNT', 'MATCHING'];
 
   const handleDownloadTemplate = async () => {
-    const sampleRow = ['2026-06-12', '2026-07-12', 'INV-001', 'Sample Customer', 1000, 0, 1000, 'Matched'];
+    const sampleRow = ['2026-06-12', '2026-07-12', '', 'INV-001', 'Sample Customer', 1000, 0, 1000, 'Matched'];
     await exportDatabaseExcelTable(COLUMNS, [sampleRow], 'mix_DEBIT_Template.xlsx');
   };
 
@@ -78,7 +79,8 @@ export default function DebitDatabasePage() {
 
         // Format dates correctly (DD/MM/YYYY -> YYYY-MM-DD)
         data = data.map((row: any) => {
-          ['DATE', 'DUE DATE'].forEach(dateCol => {
+          if (row['PAYMENT DATE'] === '') row['PAYMENT DATE'] = null;
+          ['DATE', 'DUE DATE', 'PAYMENT DATE'].forEach(dateCol => {
              if (row[dateCol]) {
                if (typeof row[dateCol] === 'string') {
                  // Match DD/MM/YYYY or DD-MM-YYYY

@@ -12,8 +12,7 @@
 import { getSessionUser, isAdminUser, UnauthorizedError, type SessionUserRecord } from '@/lib/session';
 import { hasFullDebitAccess } from '@/app/CustomersAnalysis/Service/debit_scope';
 import type { Period, SalespersonData, SalespersonOption } from '../Utils/Types';
-import type { DailySalesReportData } from '../Utils/DailyTypes';
-import { buildDailySalesReportData, loadCustomers, loadUsers } from './DailyReportData';
+import { loadCustomers, loadUsers } from './DailyReportData';
 import { BuildSalespersonData, LoadSalespersonInputs, ResolveSalespersonId } from './SalespersonData';
 
 const norm = (v: unknown) => String(v ?? '').trim().toUpperCase();
@@ -93,25 +92,4 @@ export async function GetSalespersonData(input: { salespersonId: string; period:
     throw new UnauthorizedError("You can only see your own analysis.");
   }
   return BuildSalespersonData({ salespersonId: input.salespersonId, period: { start, end }, showCosts: canSeeCosts(user), inputs });
-}
-
-// ════════════════════════════════════════════════════════════════
-//  Daily sales report: every salesperson (or only himself) for a short period,
-//  plus the totals of the period of the same length right before it.
-//  The work is in DailyReportData.ts (also used by Scheduled Reports).
-// ════════════════════════════════════════════════════════════════
-export async function GetDailySalesReport(input: { start: string; end: string }): Promise<DailySalesReportData> {
-  const user = await requireUser();
-  const allSalespersons = hasFullDebitAccess(user, 'salesperson-analysis');
-  let onlySalespersonId: string | null = null;
-  if (!allSalespersons) {
-    const { idByKey } = await loadUsers();
-    onlySalespersonId = idByKey.get(norm(user.id)) || norm(user.id);
-  }
-  return buildDailySalesReportData({
-    start: String(input?.start || ''),
-    end: String(input?.end || ''),
-    onlySalespersonId,
-    showCosts: canSeeCosts(user),
-  });
 }

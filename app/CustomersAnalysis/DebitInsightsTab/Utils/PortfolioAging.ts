@@ -39,7 +39,7 @@ function addToBucket(breakdown: AgingBreakdown, daysOverdue: number, amount: num
   else breakdown.older += amount;
 }
 
-function computeDaysOverdue(
+export function computeDaysOverdue(
   dueDate: string | null | undefined,
   invoiceDate: string | null | undefined,
   referenceDate: Date,

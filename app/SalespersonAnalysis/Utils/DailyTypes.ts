@@ -1,4 +1,4 @@
-// Daily sales report (Salesperson Analysis → sidebar → Daily Sales PDF)
+// Daily sales report data (Scheduled Reports → Reports/DailySales.ts)
 
 import type { Period } from './Types';
 
@@ -41,4 +41,15 @@ export type DailySalesReportData = {
   prevNetBySalesperson: Record<string, number>;
   /** previous period totals per salesperson (for his own cards) */
   prevTotalsBySalesperson?: Record<string, DailyTotals>;
+  /** per customer: previous period net + buying pattern of the last 180 days (Declining / Missed tables) */
+  customerStats?: Record<string, CustomerStats>;
+};
+
+export type CustomerStats = {
+  salespersonId: string;
+  prevNet: number; // net in the previous period (same length)
+  lastPurchase: string; // last day with a sale, up to the period end (YYYY-MM-DD)
+  purchaseDays: number; // days with a sale in the last 180 days
+  avgGapDays: number; // average days between those purchase days (0 = one day only)
+  avgOrder: number; // gross / invoices in the last 180 days
 };

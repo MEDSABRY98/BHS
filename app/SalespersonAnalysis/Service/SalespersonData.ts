@@ -124,6 +124,8 @@ export async function BuildSalespersonData(opts: {
 
   // last payment per main customer (all history)
   const lastPaymentByCustomer: Record<string, string> = {};
+  // tags per main customer name (every tag of its customers, like Customers Analysis)
+  const tagsOf = new Map<string, Set<string>>();
   // closed matching groups entirely before the window don't change balances / aging.
   // A group is dropped only as a whole: dropping just its old rows would leave a fake
   // residual and make the Debit numbers depend on the selected period.
@@ -135,6 +137,13 @@ export async function BuildSalespersonData(opts: {
       groupNet.set(key, (groupNet.get(key) || 0) + (Number(r.debit) || 0) - (Number(r.credit) || 0));
       const d = dayOf(r.date);
       if (d > (groupLastDate.get(key) || '')) groupLastDate.set(key, d);
+    }
+    const tag = customers.get(norm(r.customerId))?.tag || '';
+    if (tag) {
+      const name = r.customerName || '';
+      const set = tagsOf.get(name) || new Set<string>();
+      set.add(tag);
+      tagsOf.set(name, set);
     }
     if (getInvoiceType(r) === 'Payment') {
       const d = dayOf(r.date);
@@ -153,6 +162,7 @@ export async function BuildSalespersonData(opts: {
       id: String(r.id),
       date,
       dueDate: dayOf(r.dueDate),
+      paymentDate: dayOf(r.paymentDate) || undefined,
       number: r.number || '',
       customerId: r.customerId || '',
       customerName: r.customerName || '',
@@ -175,5 +185,14 @@ export async function BuildSalespersonData(opts: {
     products: productInfo,
     ledger,
     lastPaymentByCustomer,
+    tagsByCustomer: Object.fromEntries([...tagsOf].map(([name, set]) => [name, [...set].sort()])),
+    customerMeta: Object.fromEntries(
+      [...new Set([...sales.map((l) => norm(l.customerId)), ...ledger.map((r) => norm(r.customerId))])]
+        .filter(Boolean)
+        .map((id) => {
+          const c = customers.get(id);
+          return [id, { tag: c?.tag || '', cls: c?.cls || '' }];
+        }),
+    ),
   };
 }
