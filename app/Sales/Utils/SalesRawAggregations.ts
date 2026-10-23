@@ -1,3 +1,4 @@
+import { isSalesInvoiceNo, isReturnInvoiceNo } from '@/app/Sales/Utils/InvoiceNumber';
 const formatDate = (dateString: string) => {
   if (!dateString) return '';
   try {
@@ -99,8 +100,8 @@ export function buildDailySalesFromRaw(globallyFilteredData: any[], invoiceTypeF
   if (invoiceTypeFilter && invoiceTypeFilter !== 'all') {
     filteredInvoices = allInvoices.filter(inv => {
       const num = inv.invoiceNumber.trim().toUpperCase();
-      if (invoiceTypeFilter === 'sales') return num.startsWith('SAL');
-      if (invoiceTypeFilter === 'returns') return num.startsWith('RSAL');
+      if (invoiceTypeFilter === 'sales') return isSalesInvoiceNo(num);
+      if (invoiceTypeFilter === 'returns') return isReturnInvoiceNo(num);
       return true;
     });
   }
@@ -128,7 +129,7 @@ export function buildDailySalesFromRaw(globallyFilteredData: any[], invoiceTypeF
 
     if (item.invoiceNumber) {
       existing.invoiceNumbers.add(item.invoiceNumber);
-      if (item.invoiceNumber.trim().toUpperCase().startsWith('SAL')) {
+      if (isSalesInvoiceNo(item.invoiceNumber)) {
         existing.salInvoiceNumbers.add(item.invoiceNumber);
         const pKey = item.productId || item.barcode || item.product;
         if (pKey) existing.salProducts.add(pKey);

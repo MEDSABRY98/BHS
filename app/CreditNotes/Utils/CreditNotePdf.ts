@@ -137,8 +137,8 @@ export async function generateCreditNotePdf(note: CreditNote) {
       py += 4.1;
     });
   };
-  party('From (Issued By)', ISSUED_BY, M);
-  party('To (Credited Party)', ISSUED_TO, M + half + 5);
+  party('From', ISSUED_BY, M);
+  party('To', ISSUED_TO, M + half + 5);
   y += cardH + 9;
 
   // ── Letter ──────────────────────────────────────────────

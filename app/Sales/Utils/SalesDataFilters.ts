@@ -1,3 +1,4 @@
+import { isSalesInvoiceNo, isReturnInvoiceNo } from '@/app/Sales/Utils/InvoiceNumber';
 // Common Sales filters, applied in ONE pass over the rows.
 // The same invoice date appears on thousands of rows, so each distinct date string is
 // parsed once and reused (same results as `new Date(item.invoiceDate)` on every row).
@@ -61,7 +62,7 @@ export function applySalesCommonFilters(data: any[], filters: any): any[] {
   for (const item of data) {
     if (byType) {
       const num = item.invoiceNumber?.trim().toUpperCase() || '';
-      if (invoiceType === 'sales' ? !num.startsWith('SAL') : !num.startsWith('RSAL')) continue;
+      if (invoiceType === 'sales' ? !isSalesInvoiceNo(num) : !isReturnInvoiceNo(num)) continue;
     }
     if (productTag && !inSel(item.productTag, productTag)) continue;
     if (product && !inSel(item.product, product)) continue;

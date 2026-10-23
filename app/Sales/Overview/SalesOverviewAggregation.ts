@@ -1,3 +1,4 @@
+import { isSalesInvoiceNo, isReturnInvoiceNo } from '@/app/Sales/Utils/InvoiceNumber';
 import { inSel } from '@/app/Sales/Utils/MultiSelect';
 export function buildOverviewFromFilteredData(augmentedData: any[], filters: any, targetMap: Map<string, number> = new Map(), targetUserIds: string[] | null = null) {
   const augmentedWithDates = augmentedData.map((item) => {
@@ -25,8 +26,8 @@ export function buildOverviewFromFilteredData(augmentedData: any[], filters: any
     if (invoiceType && invoiceType !== 'all') {
       globallyFilteredData = globallyFilteredData.filter((item) => {
         const num = item.invoiceNumber?.trim().toUpperCase() || '';
-        if (invoiceType === 'sales') return num.startsWith('SAL');
-        if (invoiceType === 'returns') return num.startsWith('RSAL');
+        if (invoiceType === 'sales') return isSalesInvoiceNo(num);
+        if (invoiceType === 'returns') return isReturnInvoiceNo(num);
         return true;
       });
     }

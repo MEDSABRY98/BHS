@@ -337,13 +337,13 @@ export default function CreditNoteForm({ editNote = null, onSaved, onCancelEdit 
             <section>
               <SectionHint text="Fixed for every credit note" />
               <div className="flex flex-col md:flex-row items-stretch gap-3">
-                <PartyCard tag="From (Issued By)" p={ISSUED_BY} />
+                <PartyCard tag="From" p={ISSUED_BY} />
                 <div className="hidden md:flex items-center">
                   <span className="w-9 h-9 rounded-full bg-[#C4A052]/15 text-[#C4A052] flex items-center justify-center">
                     <ArrowRight className="w-4 h-4" />
                   </span>
                 </div>
-                <PartyCard tag="To (Credited Party)" p={ISSUED_TO} />
+                <PartyCard tag="To" p={ISSUED_TO} />
               </div>
             </section>
             )}

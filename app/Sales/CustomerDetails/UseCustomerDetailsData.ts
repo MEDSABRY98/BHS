@@ -1,4 +1,5 @@
 ﻿'use client';
+import { isSalesInvoiceNo, isReturnInvoiceNo } from '@/app/Sales/Utils/InvoiceNumber';
 
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { SalesInvoice } from '@/lib/supabase';
@@ -141,8 +142,8 @@ export function useCustomerDetailsData({
         existing.amount += item.amount;
         existing.qty += item.qty;
 
-        // Add invoice number for transaction count (only invoices starting with "SAL")
-        if (item.invoiceNumber && item.invoiceNumber.trim().toUpperCase().startsWith('SAL')) {
+        // Add invoice number for transaction count (only sales invoices: SAL / INV)
+        if (item.invoiceNumber && isSalesInvoiceNo(item.invoiceNumber)) {
           existing.invoiceNumbers.add(item.invoiceNumber);
         }
 
@@ -298,8 +299,8 @@ export function useCustomerDetailsData({
         existing.priceCount += 1;
       }
 
-      // Add invoice number if available (only invoices starting with "SAL")
-      if (item.invoiceNumber && item.invoiceNumber.trim().toUpperCase().startsWith('SAL')) {
+      // Add invoice number if available (only sales invoices: SAL / INV)
+      if (item.invoiceNumber && isSalesInvoiceNo(item.invoiceNumber)) {
         existing.invoiceNumbers.add(item.invoiceNumber);
       }
 
@@ -483,8 +484,8 @@ export function useCustomerDetailsData({
     const filteredByFilter = allInvoices.filter(inv => {
       if (invoiceTypeFilter === 'all') return true;
       const num = inv.invoiceNumber.trim().toUpperCase();
-      if (invoiceTypeFilter === 'sales') return num.startsWith('SAL');
-      if (invoiceTypeFilter === 'returns') return num.startsWith('RSAL');
+      if (invoiceTypeFilter === 'sales') return isSalesInvoiceNo(num);
+      if (invoiceTypeFilter === 'returns') return isReturnInvoiceNo(num);
       return true;
     });
 

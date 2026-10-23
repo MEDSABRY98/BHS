@@ -1,4 +1,5 @@
 'use server';
+import { isSalesInvoiceNo, isReturnInvoiceNo } from '@/app/Sales/Utils/InvoiceNumber';
 import { inSel } from '@/app/Sales/Utils/MultiSelect';
 import { requireSession } from '@/lib/session';
 
@@ -58,8 +59,8 @@ async function getCustomersDataUncached(userId: string, filters: any, activeTab:
     if (invoiceType && invoiceType !== 'all') {
       globallyFilteredData = globallyFilteredData.filter(item => {
         const num = item.invoiceNumber?.trim().toUpperCase() || '';
-        if (invoiceType === 'sales') return num.startsWith('SAL');
-        if (invoiceType === 'returns') return num.startsWith('RSAL');
+        if (invoiceType === 'sales') return isSalesInvoiceNo(num);
+        if (invoiceType === 'returns') return isReturnInvoiceNo(num);
         return true;
       });
     }
@@ -148,7 +149,7 @@ async function getCustomersDataUncached(userId: string, filters: any, activeTab:
     existing.totalAmount += Number(item.amount) || 0;
     existing.totalQty += Number(item.qty) || 0;
 
-    if (item.invoiceNumber && item.invoiceNumber.trim().toUpperCase().startsWith('SAL')) {
+    if (item.invoiceNumber && isSalesInvoiceNo(item.invoiceNumber)) {
       existing.invoiceNumbers.add(item.invoiceNumber);
       const productKey = item.productId || item.barcode || item.product;
       existing.barcodes.add(productKey);
@@ -225,8 +226,8 @@ async function getCustomerDetailsDataUncached(userId: string, filters: any, cust
     if (invoiceType && invoiceType !== 'all') {
       allData = allData.filter(item => {
         const num = item.invoiceNumber?.trim().toUpperCase() || '';
-        if (invoiceType === 'sales') return num.startsWith('SAL');
-        if (invoiceType === 'returns') return num.startsWith('RSAL');
+        if (invoiceType === 'sales') return isSalesInvoiceNo(num);
+        if (invoiceType === 'returns') return isReturnInvoiceNo(num);
         return true;
       });
     }
@@ -303,8 +304,8 @@ function buildMainGroupDataForSub(
     if (invoiceType && invoiceType !== 'all') {
       mainGroupData = mainGroupData.filter((item) => {
         const num = item.invoiceNumber?.trim().toUpperCase() || '';
-        if (invoiceType === 'sales') return num.startsWith('SAL');
-        if (invoiceType === 'returns') return num.startsWith('RSAL');
+        if (invoiceType === 'sales') return isSalesInvoiceNo(num);
+        if (invoiceType === 'returns') return isReturnInvoiceNo(num);
         return true;
       });
     }
@@ -356,8 +357,8 @@ async function getCustomersComparisonDataUncached(userId: string, filters: any, 
     if (invoiceType && invoiceType !== 'all') {
       globallyFilteredData = globallyFilteredData.filter(item => {
         const num = item.invoiceNumber?.trim().toUpperCase() || '';
-        if (invoiceType === 'sales') return num.startsWith('SAL');
-        if (invoiceType === 'returns') return num.startsWith('RSAL');
+        if (invoiceType === 'sales') return isSalesInvoiceNo(num);
+        if (invoiceType === 'returns') return isReturnInvoiceNo(num);
         return true;
       });
     }
@@ -586,8 +587,8 @@ async function getInactiveCustomersDataUncached(userId: string, filters: any, da
     if (invoiceType && invoiceType !== 'all') {
       globallyFilteredData = globallyFilteredData.filter(item => {
         const num = item.invoiceNumber?.trim().toUpperCase() || '';
-        if (invoiceType === 'sales') return num.startsWith('SAL');
-        if (invoiceType === 'returns') return num.startsWith('RSAL');
+        if (invoiceType === 'sales') return isSalesInvoiceNo(num);
+        if (invoiceType === 'returns') return isReturnInvoiceNo(num);
         return true;
       });
     }
@@ -652,7 +653,7 @@ async function getInactiveCustomersDataUncached(userId: string, filters: any, da
       customerMap.set(key, existing);
     }
 
-    if (item.invoiceNumber && item.invoiceNumber.trim().toUpperCase().startsWith('SAL')) {
+    if (item.invoiceNumber && isSalesInvoiceNo(item.invoiceNumber)) {
       existing.totalAmount += Number(item.amount) || 0;
       existing.invoiceNumbers.add(item.invoiceNumber);
 

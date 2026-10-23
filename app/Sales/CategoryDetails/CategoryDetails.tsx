@@ -1,4 +1,5 @@
 'use client';
+import { isSalesInvoiceNo } from '@/app/Sales/Utils/InvoiceNumber';
 
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { SalesInvoice } from '@/lib/supabase';
@@ -141,8 +142,8 @@ export default function SalesCategoryDetails({ category, userId, onBack, initial
         existing.amount += item.amount;
         existing.qty += item.qty;
 
-        // Add invoice number for transaction count (only invoices starting with "SAL")
-        if (item.invoiceNumber && item.invoiceNumber.trim().toUpperCase().startsWith('SAL')) {
+        // Add invoice number for transaction count (only sales invoices: SAL / INV)
+        if (item.invoiceNumber && isSalesInvoiceNo(item.invoiceNumber)) {
           existing.invoiceNumbers.add(item.invoiceNumber);
         }
 

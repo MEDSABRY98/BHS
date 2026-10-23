@@ -1,4 +1,5 @@
 'use client';
+import { isSalesInvoiceNo } from '@/app/Sales/Utils/InvoiceNumber';
 
 import { useMemo } from 'react';
 import { SalesInvoice } from '@/lib/supabase';
@@ -34,7 +35,7 @@ export default function SalespersonsTab({ productData, productId }: Salespersons
       row.qty += Number(item.qty) || 0;
       const customerKey = item.customerId || item.customerName;
       if (customerKey) row.customers.add(customerKey);
-      if (item.invoiceNumber && item.invoiceNumber.trim().toUpperCase().startsWith('SAL')) {
+      if (item.invoiceNumber && isSalesInvoiceNo(item.invoiceNumber)) {
         row.invoiceNumbers.add(item.invoiceNumber);
       }
       if (item.invoiceDate) {

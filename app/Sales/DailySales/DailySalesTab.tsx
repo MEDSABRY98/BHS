@@ -1,4 +1,5 @@
 'use client';
+import { isSalesInvoiceNo, isReturnInvoiceNo } from '@/app/Sales/Utils/InvoiceNumber';
 
 import { useState, useMemo, useEffect } from 'react';
 import { FileSpreadsheet } from 'lucide-react';
@@ -39,8 +40,8 @@ export default function SalesDailySalesTab({ userId, showCosts = true }: SalesDa
   }, [activeSubTab]);
 
   const allInvoicesStats = useMemo(() => {
-    const salesInvoices = dailySalesData.filter((inv: any) => inv.invoiceNumber.toUpperCase().startsWith('SAL'));
-    const returnInvoices = dailySalesData.filter((inv: any) => inv.invoiceNumber.toUpperCase().startsWith('RSAL'));
+    const salesInvoices = dailySalesData.filter((inv: any) => isSalesInvoiceNo(inv.invoiceNumber));
+    const returnInvoices = dailySalesData.filter((inv: any) => isReturnInvoiceNo(inv.invoiceNumber));
 
     const totalSales = salesInvoices.reduce((sum: number, inv: any) => sum + inv.amount, 0);
     const totalReturns = returnInvoices.reduce((sum: number, inv: any) => sum + Math.abs(inv.amount), 0);

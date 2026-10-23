@@ -1,4 +1,5 @@
 'use server';
+import { isSalesInvoiceNo, isReturnInvoiceNo } from '@/app/Sales/Utils/InvoiceNumber';
 import { inSel } from '@/app/Sales/Utils/MultiSelect';
 import { requireSession } from '@/lib/session';
 
@@ -19,8 +20,8 @@ async function getProductsDataUncached(userId: string, filters: any) {
     if (invoiceType && invoiceType !== 'all') {
       globallyFilteredData = globallyFilteredData.filter(item => {
         const num = item.invoiceNumber?.trim().toUpperCase() || '';
-        if (invoiceType === 'sales') return num.startsWith('SAL');
-        if (invoiceType === 'returns') return num.startsWith('RSAL');
+        if (invoiceType === 'sales') return isSalesInvoiceNo(num);
+        if (invoiceType === 'returns') return isReturnInvoiceNo(num);
         return true;
       });
     }
@@ -120,7 +121,7 @@ async function getProductsDataUncached(userId: string, filters: any) {
     if (item.product) existing.allNames.add(item.product.toLowerCase());
     if (item.barcode) existing.allBarcodes.add(item.barcode.toLowerCase());
 
-    if (item.invoiceNumber && item.invoiceNumber.trim().toUpperCase().startsWith('SAL')) {
+    if (item.invoiceNumber && isSalesInvoiceNo(item.invoiceNumber)) {
       existing.invoiceNumbers.add(item.invoiceNumber);
     }
   });
@@ -163,8 +164,8 @@ async function getDetailsDataUncached(userId: string, filters: any, match: (item
     if (invoiceType && invoiceType !== 'all') {
       allData = allData.filter(item => {
         const num = item.invoiceNumber?.trim().toUpperCase() || '';
-        if (invoiceType === 'sales') return num.startsWith('SAL');
-        if (invoiceType === 'returns') return num.startsWith('RSAL');
+        if (invoiceType === 'sales') return isSalesInvoiceNo(num);
+        if (invoiceType === 'returns') return isReturnInvoiceNo(num);
         return true;
       });
     }
@@ -239,8 +240,8 @@ async function getCategoriesDataUncached(userId: string, filters: any) {
     if (invoiceType && invoiceType !== 'all') {
       globallyFilteredData = globallyFilteredData.filter(item => {
         const num = item.invoiceNumber?.trim().toUpperCase() || '';
-        if (invoiceType === 'sales') return num.startsWith('SAL');
-        if (invoiceType === 'returns') return num.startsWith('RSAL');
+        if (invoiceType === 'sales') return isSalesInvoiceNo(num);
+        if (invoiceType === 'returns') return isReturnInvoiceNo(num);
         return true;
       });
     }

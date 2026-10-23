@@ -1,4 +1,5 @@
 'use client';
+import { isReturnInvoiceNo } from '@/app/Sales/Utils/InvoiceNumber';
 
 import { FileSpreadsheet } from 'lucide-react';
 import NoData from '@/app/Components/DataState/NoDataTab';
@@ -99,7 +100,7 @@ export default function InvoicesTab({
                 {groupedInvoicesData
                   .slice((invoicesPage - 1) * invoicesPerPage, invoicesPage * invoicesPerPage)
                   .map((item, index) => {
-                    const isRSAL = item.invoiceNumber.trim().toUpperCase().startsWith('RSAL');
+                    const isRSAL = isReturnInvoiceNo(item.invoiceNumber);
                     return (
                       <tr
                         key={index}

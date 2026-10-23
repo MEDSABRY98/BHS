@@ -82,7 +82,7 @@ export async function ExportRoiSummary(
 
   // ── three summary cards ──
   const cards: [string, string, RGB][] = [
-    ['Customers', String(rows.length), INK],
+    ['Outlets', String(rows.length), INK],
     ['Total support (AED)', money(sum((r) => r.totalSupport)), GOLD_DARK],
     ['Net sales - last 3 months', money(sum((r) => r.net)), INK],
   ];

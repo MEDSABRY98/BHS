@@ -1,4 +1,5 @@
 'use server';
+import { isSalesInvoiceNo, isReturnInvoiceNo } from '@/app/Sales/Utils/InvoiceNumber';
 import { inSel } from '@/app/Sales/Utils/MultiSelect';
 import { requireSession, getSessionUser, isAdminUser, UnauthorizedError } from '@/lib/session';
 
@@ -343,8 +344,8 @@ async function getTop10DataUncached(userId: string, filters: any) {
     if (invoiceType && invoiceType !== 'all') {
       globallyFilteredData = globallyFilteredData.filter(item => {
         const num = item.invoiceNumber?.trim().toUpperCase() || '';
-        if (invoiceType === 'sales') return num.startsWith('SAL');
-        if (invoiceType === 'returns') return num.startsWith('RSAL');
+        if (invoiceType === 'sales') return isSalesInvoiceNo(num);
+        if (invoiceType === 'returns') return isReturnInvoiceNo(num);
         return true;
       });
     }
@@ -456,7 +457,7 @@ function _normListingId(value: any): string {
 
 function _isSalesInvoiceNumber(invoiceNumber: any): boolean {
   const inv = String(invoiceNumber || '').trim().toUpperCase();
-  return inv.startsWith('SAL') && !inv.startsWith('RSAL');
+  return isSalesInvoiceNo(inv) && !isReturnInvoiceNo(inv);
 }
 
 function _parseInvoiceTime(invoiceDate: any): number {

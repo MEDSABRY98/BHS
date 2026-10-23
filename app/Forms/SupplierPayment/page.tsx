@@ -4,6 +4,7 @@
 // Nothing is saved in the database.
 
 import { useCallback, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { ArrowLeft, Banknote, CalendarDays, FileDown, Landmark, Loader2, RotateCcw } from 'lucide-react';
 import Login from '@/app/Components/Auth/Login';
 import MainLoader from '@/app/Components/Loading/MainLoader';
@@ -24,6 +25,7 @@ export default function SupplierPaymentPage() {
   const [, setCurrentUser] = useState<any>(null);
   useSyncLiveUser(setCurrentUser);
   useModuleTabAudit('Supplier Payment');
+  const [actionsEl, setActionsEl] = useState<HTMLDivElement | null>(null);
   const [allowed, setAllowed] = useState<boolean | null>(null);
 
   const loadAccess = useCallback(async () => {
@@ -74,13 +76,15 @@ export default function SupplierPaymentPage() {
             <ArrowLeft className="w-4 h-4" />
           </button>
           <h1 className="text-2xl sm:text-3xl font-normal text-black tracking-tighter">Supplier Payment</h1>
+          {/* the form puts its Clear / Download icons here */}
+          <div ref={setActionsEl} className="flex items-center gap-2" />
         </div>
         {allowed === null ? (
           <TabLoader className="!min-h-[60vh]" />
         ) : !allowed ? (
           <div className="p-20 text-center font-bold text-slate-400">You don&apos;t have permission to use this form.</div>
         ) : (
-          <SupplierPaymentForm />
+          <SupplierPaymentForm actionsEl={actionsEl} />
         )}
       </div>
     </div>
@@ -103,7 +107,7 @@ const field =
   'w-full rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-4 focus:ring-[#C4A052]/15 focus:border-[#C4A052] transition-all';
 const labelCls = 'block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2';
 
-function SupplierPaymentForm() {
+function SupplierPaymentForm({ actionsEl }: { actionsEl: HTMLDivElement | null }) {
   const [date, setDate] = useState(uaeToday());
   const [supplier, setSupplier] = useState('');
   const [suppliers, setSuppliers] = useState<PaymentSupplier[] | null>(null);
@@ -190,25 +194,32 @@ function SupplierPaymentForm() {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end gap-2">
-        <button
-          type="button"
-          onClick={reset}
-          disabled={busy}
-          className="w-10 h-10 rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-800 flex items-center justify-center disabled:opacity-40"
-          title="Clear"
-        >
-          <RotateCcw className="w-4 h-4" />
-        </button>
-        <button
-          type="button"
-          onClick={() => void download()}
-          disabled={busy}
-          className="h-10 px-4 rounded-xl bg-gradient-to-r from-amber-600 to-yellow-600 text-white text-sm font-black shadow-lg shadow-amber-900/20 hover:brightness-105 inline-flex items-center gap-2 disabled:opacity-50"
-        >
-          {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />} Download PDF
-        </button>
-      </div>
+      {actionsEl &&
+        createPortal(
+          <>
+            <button
+              type="button"
+              onClick={() => void download()}
+              disabled={busy}
+              className="w-10 h-10 rounded-xl bg-gradient-to-r from-amber-600 to-yellow-600 text-white shadow-lg shadow-amber-900/20 hover:brightness-105 flex items-center justify-center disabled:opacity-50"
+              title="Download PDF"
+              aria-label="Download PDF"
+            >
+              {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
+            </button>
+            <button
+              type="button"
+              onClick={reset}
+              disabled={busy}
+              className="w-10 h-10 rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-800 flex items-center justify-center disabled:opacity-40"
+              title="Clear"
+              aria-label="Clear"
+            >
+              <RotateCcw className="w-4 h-4" />
+            </button>
+          </>,
+          actionsEl,
+        )}
 
       <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
         <div className="h-1.5 bg-[#182E56]" />

@@ -48,18 +48,18 @@ export function cleanSigners(list: unknown): string[] {
   return OPTIONAL_SIGNERS.filter((s) => chosen.has(s));
 }
 
-// ── Fixed parties (Al Marai Al Ain → Al Marai Dubai FMCG) ─────────
-// Credit notes go the other way: Al Ain issues, Dubai FMCG is credited.
+// ── Fixed parties (Al Marai Dubai FMCG → Al Marai Al Ain) ─────────
+// ALMARAI ALARABIA TRADING (Dubai FMCG) issues the credit note; the Al Ain sole proprietorship is credited.
 export const ISSUED_BY = {
-  name: 'ALMARAI ALARABIA TRADING - SOLE PROPRIETORSHIP L.L.C',
-  branch: 'Al Marai – Al Ain',
-  license: 'CN-1130585',
-};
-
-export const ISSUED_TO = {
   name: 'ALMARAI ALARABIA TRADING',
   branch: 'Al Marai – Dubai FMCG',
   license: '811080',
+};
+
+export const ISSUED_TO = {
+  name: 'ALMARAI ALARABIA TRADING - SOLE PROPRIETORSHIP L.L.C',
+  branch: 'Al Marai – Al Ain',
+  license: 'CN-1130585',
 };
 
 /** Company name in the PDF header (BHS rule: always this short name). */

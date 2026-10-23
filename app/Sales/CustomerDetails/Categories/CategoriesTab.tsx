@@ -1,4 +1,5 @@
 'use client';
+import { isSalesInvoiceNo } from '@/app/Sales/Utils/InvoiceNumber';
 
 import { useMemo } from 'react';
 import { SalesInvoice } from '@/lib/supabase';
@@ -48,7 +49,7 @@ export default function CategoriesTab({
       existing.amount += item.amount;
       existing.qty += item.qty;
 
-      if (item.invoiceNumber && item.invoiceNumber.trim().toUpperCase().startsWith('SAL')) {
+      if (item.invoiceNumber && isSalesInvoiceNo(item.invoiceNumber)) {
         existing.invoiceNumbers.add(item.invoiceNumber);
       }
 
