@@ -102,6 +102,60 @@ export async function mergeCustomersAction(body: MergeCustomerBody) {
 }
 
 // ------------------------------------------------------------------------------------------------
+// SUPPLIER MERGE ACTIONS
+// ------------------------------------------------------------------------------------------------
+
+type MergeSupplierBody = {
+  survivorSupplierId?: string;
+  sourceSupplierIds?: string[];
+  targetName?: string;
+  targetPaymentTerm?: string | number | null;
+};
+
+const SUPPLIER_MERGE_SQL_MISSING =
+  'The supplier merge function is not installed yet. Run sql/MergeSuppliers.sql in Supabase (SQL Editor) once, then try again.';
+
+/**
+ * Merges suppliers in ONE database transaction (bhs_merge_suppliers):
+ * every table with a SUPPLIER ID / SUPPLIER_ID column is moved to the survivor,
+ * the survivor gets the final name / payment term, then the source suppliers are deleted.
+ * Any error -> nothing is changed.
+ */
+export async function mergeSuppliersAction(body: MergeSupplierBody) {
+  await requireSession();
+  try {
+    const survivorSupplierId = normalizeId(body.survivorSupplierId);
+    const sourceSupplierIds = Array.from(new Set((body.sourceSupplierIds || []).map(normalizeId).filter(Boolean)));
+    const targetName = String(body.targetName ?? '').trim();
+    const termRaw = String(body.targetPaymentTerm ?? '').trim();
+
+    if (!survivorSupplierId) throw new Error('survivorSupplierId is required');
+    if (sourceSupplierIds.length < 1) throw new Error('At least one source supplier ID is required');
+    if (!targetName) throw new Error('targetName is required');
+    if (sourceSupplierIds.includes(survivorSupplierId)) throw new Error('Source IDs must not include the survivor ID');
+    if (termRaw && Number.isNaN(Number(termRaw))) throw new Error('Payment term must be a number');
+
+    const { data, error } = await getSupabaseAdmin().rpc('bhs_merge_suppliers', {
+      p_survivor: survivorSupplierId,
+      p_sources: sourceSupplierIds,
+      p_name: targetName,
+      p_term: termRaw || null,
+    });
+    if (error) throw new Error(isMissingFunction(error) ? SUPPLIER_MERGE_SQL_MISSING : mergeErrorMessage(error));
+
+    return {
+      success: true,
+      survivorSupplierId,
+      mergedCount: sourceSupplierIds.length,
+      updateSummary: (data || {}) as Record<string, number>,
+    };
+  } catch (error: any) {
+    console.error('mergeSuppliersAction error:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+// ------------------------------------------------------------------------------------------------
 // PRODUCT MERGE ACTIONS
 // ------------------------------------------------------------------------------------------------
 

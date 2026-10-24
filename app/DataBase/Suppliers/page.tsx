@@ -17,6 +17,7 @@ import {
   Upload,
   ChevronLeft,
   ChevronRight,
+  GitMerge,
 } from 'lucide-react';
 import { toast } from '@/app/Components/Notification';
 import * as XLSX from 'xlsx';
@@ -27,6 +28,8 @@ import { exportDatabaseExcel } from '../Utils/ExcelExport';
 import { downloadUploadIssuesReport, normalizeExcelId } from '../Utils/ExcelUploadUtils';
 import TabLoader from '@/app/Components/Loading/TabLoader';
 import TabFetchError from '@/app/Components/DataState/TabFetchError';
+import { useMergeSuppliers } from './Hooks/UseMergeSuppliers';
+import MergeSuppliersModal from './Components/MergeSuppliersModal';
 
 export default function SuppliersPage() {
   const { canEdit, canDelete } = usePermissions();
@@ -208,6 +211,13 @@ export default function SuppliersPage() {
     if (type === 'success') toast.success(text);
     else toast.error(text);
   };
+
+  // merge 2+ suppliers (the selection is kept across searches and pages)
+  const merge = useMergeSuppliers(
+    suppliers,
+    () => fetchSuppliers(searchTerm, currentPage),
+    (msg, type = 'success') => triggerMessage(type, msg)
+  );
 
   const downloadSuppliersExcel = async () => {
     setIsSaving(true);
@@ -446,6 +456,24 @@ export default function SuppliersPage() {
               </label>
 
               <button
+                onClick={merge.handleMergeTrigger}
+                disabled={merge.isMerging || merge.selectedInternalIds.length < 2}
+                className="relative p-4 bg-white border border-gray-200 text-purple-600 rounded-2xl shadow-sm hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center disabled:opacity-50"
+                title={
+                  merge.selectedInternalIds.length < 2
+                    ? 'Select at least 2 suppliers to merge'
+                    : `Merge ${merge.selectedInternalIds.length} suppliers`
+                }
+              >
+                {merge.isMerging ? <Loader2 className="w-6 h-6 animate-spin" /> : <GitMerge className="w-6 h-6" />}
+                {merge.selectedInternalIds.length > 0 && (
+                  <span className="absolute -top-2 -right-2 min-w-[22px] h-[22px] px-1 rounded-full bg-purple-600 text-white text-[11px] font-black flex items-center justify-center">
+                    {merge.selectedInternalIds.length}
+                  </span>
+                )}
+              </button>
+
+              <button
                 onClick={() => handleOpenModal()}
                 className="p-4 bg-black text-[#D4AF37] rounded-2xl shadow-xl shadow-black/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center"
                 title="New Supplier"
@@ -483,16 +511,32 @@ export default function SuppliersPage() {
               ? supplier["SUPPLIER NAME"].split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase() 
               : '?';
 
+            const isSelected = merge.selectedInternalIds.includes(supplier.ID);
+
             return (
               <div
                 key={supplier.ID}
                 onClick={() => canEdit && handleOpenModal(supplier)}
-                className={`group bg-white border border-gray-100 rounded-[2.5rem] p-6 transition-all duration-300 flex flex-col justify-between min-h-[220px] ${canEdit ? 'hover:shadow-xl hover:border-black/5 cursor-pointer' : ''}`}
+                className={`group bg-white border rounded-[2.5rem] p-6 transition-all duration-300 flex flex-col justify-between min-h-[220px] ${
+                  isSelected ? 'border-[#D4AF37] ring-2 ring-[#D4AF37]/20' : 'border-gray-100'
+                } ${canEdit ? 'hover:shadow-xl hover:border-black/5 cursor-pointer' : ''}`}
               >
                 <div>
                   <div className="flex items-start justify-between gap-2">
-                    <div className="w-12 h-12 rounded-2xl bg-black text-[#D4AF37] flex items-center justify-center font-black text-base shadow-lg shadow-black/10">
-                      {initials}
+                    <div className="flex items-start gap-3">
+                      {canEdit && (
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={() => merge.handleToggleSelect(supplier.ID)}
+                          className="mt-3 w-4 h-4 rounded border-gray-300"
+                          title="Select for merge"
+                        />
+                      )}
+                      <div className="w-12 h-12 rounded-2xl bg-black text-[#D4AF37] flex items-center justify-center font-black text-base shadow-lg shadow-black/10">
+                        {initials}
+                      </div>
                     </div>
                     <span className="text-xs font-bold text-gray-300 uppercase tracking-widest">{supplier.ID}</span>
                   </div>
@@ -659,6 +703,22 @@ export default function SuppliersPage() {
         isLoading={isSaving}
         title="Confirm Deletion"
         message="Are you sure you want to delete this supplier? This action cannot be undone."
+      />
+
+      <MergeSuppliersModal
+        isOpen={merge.showMergeModal}
+        isConfirmingMerge={merge.isConfirmingMerge}
+        isMerging={merge.isMerging}
+        selectedSuppliers={merge.selectedSuppliers}
+        mergeTargetName={merge.mergeTargetName}
+        mergeTargetTerm={merge.mergeTargetTerm}
+        survivorSupplierId={merge.survivorSupplierId}
+        onClose={merge.closeMergeModal}
+        onConfirm={merge.handleConfirmMerge}
+        onBackFromConfirm={() => merge.setIsConfirmingMerge(false)}
+        setMergeTargetName={merge.setMergeTargetName}
+        setMergeTargetTerm={merge.setMergeTargetTerm}
+        chooseSurvivor={merge.chooseSurvivor}
       />
     </div>
   );
