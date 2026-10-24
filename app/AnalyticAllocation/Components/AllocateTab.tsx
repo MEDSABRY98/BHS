@@ -295,19 +295,19 @@ export default function AllocateTab({ people, accountNames, editAllocation, onSa
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <h2 className="font-black text-slate-900">Analysis by Analytic Account</h2>
           <div className="flex flex-wrap gap-2">
-            <button onClick={() => void run('excel')} disabled={!canUse || !!busy} className="h-10 px-4 rounded-xl border border-slate-200 text-sm font-bold text-emerald-700 hover:bg-emerald-50 flex items-center gap-1.5 disabled:opacity-40">
+            <button onClick={() => void run('excel')} disabled={!canUse || !!busy} className="h-10 w-32 px-3 rounded-xl border border-slate-200 text-sm font-bold text-emerald-700 hover:bg-emerald-50 flex items-center justify-center gap-1.5 disabled:opacity-40">
               {busy === 'excel' ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4" />} Excel
             </button>
-            <button onClick={() => void run('pdf')} disabled={!canUse || !!busy} className="h-10 px-4 rounded-xl border border-slate-200 text-sm font-bold text-red-600 hover:bg-red-50 flex items-center gap-1.5 disabled:opacity-40">
+            <button onClick={() => void run('pdf')} disabled={!canUse || !!busy} className="h-10 w-32 px-3 rounded-xl border border-slate-200 text-sm font-bold text-red-600 hover:bg-red-50 flex items-center justify-center gap-1.5 disabled:opacity-40">
               {busy === 'pdf' ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />} PDF
             </button>
             {!editAllocation && (
-              <button onClick={clear} disabled={!!busy} className="h-10 px-4 rounded-xl border border-slate-200 text-sm font-bold text-slate-500 hover:bg-slate-50">
-                Clear
+              <button onClick={clear} disabled={!!busy} className="h-10 w-32 px-3 rounded-xl border border-slate-200 text-sm font-bold text-slate-500 hover:bg-slate-50 flex items-center justify-center gap-1.5">
+                <RotateCcw className="w-4 h-4" /> Clear
               </button>
             )}
-            <button onClick={() => void save()} disabled={!canUse || !title.trim() || !!busy} className="h-10 px-5 rounded-xl bg-black text-[#C4A052] text-sm font-bold flex items-center gap-1.5 disabled:opacity-40">
-              {busy === 'save' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} {editAllocation ? 'Save Changes' : 'Save to Archive'}
+            <button onClick={() => void save()} disabled={!canUse || !title.trim() || !!busy} className="h-10 w-32 px-3 rounded-xl bg-black text-[#C4A052] text-sm font-bold flex items-center justify-center gap-1.5 disabled:opacity-40">
+              {busy === 'save' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} {editAllocation ? 'Save Changes' : 'Save'}
             </button>
           </div>
         </div>

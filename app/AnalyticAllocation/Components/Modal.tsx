@@ -15,7 +15,7 @@ export default function Modal({ open, title, subtitle, onClose, children, footer
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={onClose}>
-      <div className="w-full max-w-4xl max-h-[90vh] bg-white rounded-3xl shadow-2xl flex flex-col animate-in fade-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+      <div className="w-full max-w-6xl max-h-[90vh] bg-white rounded-3xl shadow-2xl flex flex-col animate-in fade-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
         <div className="px-6 py-4 border-b border-slate-100 flex items-start justify-between gap-4 shrink-0">
           <div className="min-w-0">
             <h3 className="text-lg font-black text-slate-900 truncate">{title}</h3>

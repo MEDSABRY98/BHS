@@ -70,32 +70,34 @@ export default function SplitEditor({ accounts, value, onChange, amount }: Split
           return (
             <div
               key={name}
-              className={`rounded-xl border px-3 py-2.5 flex items-center gap-2 transition-colors ${
+              className={`rounded-xl border px-3 py-2.5 flex flex-col gap-2 transition-colors ${
                 fixed ? 'border-violet-300 bg-violet-50' : on ? 'border-[#C4A052] bg-[#C4A052]/10' : 'border-slate-200 bg-slate-50/60 hover:bg-slate-50'
               }`}
             >
-              <button type="button" onClick={() => toggle(name)} className="flex items-center gap-2 min-w-0 flex-1 text-left">
+              <button type="button" onClick={() => toggle(name)} className="flex items-center gap-2 min-w-0 text-left">
                 <span className={`w-5 h-5 rounded-md border flex items-center justify-center shrink-0 ${on ? 'bg-black border-black' : 'bg-white border-slate-300'}`}>
                   {on && <Check className="w-3.5 h-3.5 text-[#C4A052]" />}
                 </span>
-                <span className="text-[13px] font-bold text-slate-800 truncate" title={name}>
+                <span className="text-[13px] font-bold text-slate-800 break-words" title={name}>
                   {name}
                 </span>
               </button>
-              <div className="flex items-center gap-1 shrink-0">
-                <input
-                  key={`${name}-${on ? pcts[i] : ''}-${fixed}`}
-                  defaultValue={on ? pcts[i].toFixed(2) : ''}
-                  disabled={!on}
-                  inputMode="decimal"
-                  onBlur={(e) => on && e.target.value !== pcts[i].toFixed(2) && setPct(name, e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
-                  className={`w-[68px] h-8 rounded-lg border text-center text-[13px] font-bold tabular-nums disabled:opacity-30 ${fixed ? 'border-violet-400 text-violet-700' : 'border-slate-200 text-slate-700'}`}
-                  aria-label={`${name} %`}
-                />
-                <span className="text-xs text-slate-400">%</span>
+              <div className="flex items-center justify-between gap-2 pl-7">
+                <div className="flex items-center gap-1">
+                  <input
+                    key={`${name}-${on ? pcts[i] : ''}-${fixed}`}
+                    defaultValue={on ? pcts[i].toFixed(2) : ''}
+                    disabled={!on}
+                    inputMode="decimal"
+                    onBlur={(e) => on && e.target.value !== pcts[i].toFixed(2) && setPct(name, e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+                    className={`w-[76px] h-8 rounded-lg border text-center text-[13px] font-bold tabular-nums disabled:opacity-30 ${fixed ? 'border-violet-400 text-violet-700' : 'border-slate-200 text-slate-700'}`}
+                    aria-label={`${name} %`}
+                  />
+                  <span className="text-xs text-slate-400">%</span>
+                </div>
+                {amount !== undefined && on && <span className="text-[12px] font-semibold text-slate-500 tabular-nums">AED {formatAmount(amounts[i])}</span>}
               </div>
-              {amount !== undefined && <span className="w-[76px] text-right text-[12px] font-semibold text-slate-500 tabular-nums shrink-0">{on ? formatAmount(amounts[i]) : ''}</span>}
             </div>
           );
         })}
