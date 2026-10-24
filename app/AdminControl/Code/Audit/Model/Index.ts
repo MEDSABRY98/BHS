@@ -8,6 +8,7 @@ export * from './DebitInsightsTabAudit';
 export * from './DebitTabAudit';
 export * from './DebitNotesTabAudit';
 export * from './CreditNotesTabAudit';
+export * from './AnalyticAllocationTabAudit';
 export * from './DocumentsTrackingTabAudit';
 export * from './InventoryCountingTabAudit';
 export * from './InventoryItemCodeTabAudit';
