@@ -6,9 +6,9 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, FileSpreadsheet, Loader2, Search, TrendingDown, TrendingUp } from 'lucide-react';
 import { toast } from '@/app/Components/Notification';
 import NoData from '@/app/Components/DataState/NoDataTab';
-import { UsePriceMargin } from '../Context/PriceMarginContext';
-import { ExportPriceMarginExcel } from '../Utils/PriceMarginExcel';
-import { CostChange, CostDateLabel, FormatDate, Margin, Money, PRICE_MODES, type ParentView, type PriceMarginRow } from '../Utils/Types';
+import { UseValueChain } from '../Context/ValueChainContext';
+import { ExportValueChainExcel } from '../Utils/ValueChainExcel';
+import { CostChange, CostDateLabel, FormatDate, Margin, Money, PRICE_MODES, type ParentView, type ValueChainRow } from '../Utils/Types';
 
 const PAGE = 250;
 type SortKey = 'code' | 'barcode' | 'name' | 'unit' | 'supplier' | 'oldCost' | 'newCost' | 'change' | 'price' | 'profit' | 'pct';
@@ -24,7 +24,7 @@ function Kpi({ label, value, hint, tone = 'slate' }: { label: string; value: str
   );
 }
 
-function CostCell({ point, change }: { point: PriceMarginRow['oldCost']; change?: number | null }) {
+function CostCell({ point, change }: { point: ValueChainRow['oldCost']; change?: number | null }) {
   if (!point) return <span className="text-slate-300">-</span>;
   const up = change !== undefined && change !== null && change > 0.005;
   const down = change !== undefined && change !== null && change < -0.005;
@@ -41,7 +41,7 @@ function CostCell({ point, change }: { point: PriceMarginRow['oldCost']; change?
 }
 
 export default function ProductsTable() {
-  const { data, priceMode, profitFilter, supplier, category, countableOnly, periods, setFiltersOpen, setSelected } = UsePriceMargin();
+  const { data, priceMode, profitFilter, supplier, category, countableOnly, periods, setFiltersOpen, setSelected } = UseValueChain();
   const [query, setQuery] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('name');
   const [asc, setAsc] = useState(true);
@@ -70,7 +70,7 @@ export default function ProductsTable() {
     const q = query.trim().toLowerCase();
     if (q) list = list.filter((r) => r.name.toLowerCase().includes(q) || r.productId.toLowerCase().includes(q) || r.barcode.toLowerCase().includes(q));
 
-    const val = (r: PriceMarginRow): number | string | null => {
+    const val = (r: ValueChainRow): number | string | null => {
       const m = Margin(r, priceMode);
       switch (sortKey) {
         case 'code':
@@ -108,12 +108,12 @@ export default function ProductsTable() {
     });
     if (parentView !== 'withParent') {
       // Normal / No Parent: grouped by product category, categories A-Z, the chosen sort inside each one
-      const byCat = new Map<string, PriceMarginRow[]>();
+      const byCat = new Map<string, ValueChainRow[]>();
       for (const r of sorted) byCat.set(r.category, [...(byCat.get(r.category) || []), r]);
       return [...byCat].sort(([a], [b]) => a.localeCompare(b, undefined, { sensitivity: 'base' })).flatMap(([, rs]) => rs);
     }
     // With Parent: grouped by PRODUCT PARENT ID, groups A-Z by the parent's name, the chosen sort inside each group
-    const groups = new Map<string, PriceMarginRow[]>();
+    const groups = new Map<string, ValueChainRow[]>();
     for (const r of sorted) groups.set(r.parentId, [...(groups.get(r.parentId) || []), r]);
     const byName = (a: string, b: string) => a.localeCompare(b, undefined, { sensitivity: 'base', numeric: true });
     return [...groups.values()]
@@ -165,7 +165,7 @@ export default function ProductsTable() {
   const exportExcel = async () => {
     setExporting(true);
     try {
-      await ExportPriceMarginExcel(filtered, priceMode, periods, parentView);
+      await ExportValueChainExcel(filtered, priceMode, periods, parentView);
     } catch (e: any) {
       toast.error(e?.message || 'Could not create the Excel file');
     } finally {

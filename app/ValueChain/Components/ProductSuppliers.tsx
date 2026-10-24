@@ -4,7 +4,7 @@
 // and the margin of the chosen selling price on each supplier's last price.
 
 import NoData from '@/app/Components/DataState/NoDataTab';
-import { UsePriceMargin } from '../Context/PriceMarginContext';
+import { UseValueChain } from '../Context/ValueChainContext';
 import { FormatDate, Money, PRICE_MODES, PassProfit, SalePrice, type ProductSupplierRow } from '../Utils/Types';
 
 const th = 'px-3 py-3 text-[11px] font-bold uppercase tracking-wider text-center whitespace-nowrap';
@@ -20,7 +20,7 @@ function PriceDate({ price, date }: { price: number; date: string }) {
 
 /** rows are loaded by ProductDetails together with the customers (one loading screen for both tabs) */
 export default function ProductSuppliers({ rows }: { rows: ProductSupplierRow[] }) {
-  const { selected, priceMode, profitFilter } = UsePriceMargin();
+  const { selected, priceMode, profitFilter } = UseValueChain();
 
   if (!selected) return null;
   if (!rows.length) return <NoData message="No purchase invoices for this product" />;

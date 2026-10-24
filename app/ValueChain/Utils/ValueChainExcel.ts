@@ -1,9 +1,9 @@
-// Price Margin — Excel export of the table as shown (same filters and order).
+// Value Chain — Excel export of the table as shown (same filters and order).
 
 import { exportStyledExcel } from '@/app/Components/Export/ExcelExport';
-import { CostChange, CostDateLabel, FormatDate, Margin, PRICE_MODES, round2, round3, type ParentView, type PriceMarginPeriods, type PriceMarginRow, type PriceMode } from './Types';
+import { CostChange, CostDateLabel, FormatDate, Margin, PRICE_MODES, round2, round3, type ParentView, type ValueChainPeriods, type ValueChainRow, type PriceMode } from './Types';
 
-export async function ExportPriceMarginExcel(rows: PriceMarginRow[], mode: PriceMode, periods: PriceMarginPeriods, view: ParentView = 'all') {
+export async function ExportValueChainExcel(rows: ValueChainRow[], mode: PriceMode, periods: ValueChainPeriods, view: ParentView = 'all') {
   if (!rows.length) return;
   const priceLabel = `${PRICE_MODES.find((m) => m.id === mode)?.label || 'Highest'} Selling Price`;
 
@@ -30,8 +30,8 @@ export async function ExportPriceMarginExcel(rows: PriceMarginRow[], mode: Price
   });
 
   const stamp = `${periods.saleFrom}_${periods.saleTo}`;
-  await exportStyledExcel(data, `Price_Margin_${stamp}`, {
-    sheetName: 'Price Margin',
+  await exportStyledExcel(data, `Value_Chain_${stamp}`, {
+    sheetName: 'Value Chain',
     columnWidth: 18,
     numericColumns: ['Old Cost', 'New Cost', 'Cost Change %', priceLabel, 'Gross Profit', 'Margin %'],
     highlightNegativeInColumns: ['Gross Profit', 'Margin %'],

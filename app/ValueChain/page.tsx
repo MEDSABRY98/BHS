@@ -1,7 +1,7 @@
 'use client';
 
-// Price Margin: purchase cost (old / new) vs selling price per product.
-// Admin Control → 'price-margin'. One section; filters open from the sidebar.
+// Value Chain: purchase cost (old / new) vs selling price per product.
+// Admin Control → 'value-chain'. One section; filters open from the sidebar.
 
 import { Suspense, useState } from 'react';
 import { Menu } from 'lucide-react';
@@ -9,26 +9,27 @@ import TabLoader from '../Components/Loading/TabLoader';
 import MainLoader from '../Components/Loading/MainLoader';
 import TabFetchError from '../Components/DataState/TabFetchError';
 import { useModuleTabAudit } from '../AdminControl/Code/Audit/useModuleTabAudit';
-import { PriceMarginProvider, UsePriceMargin } from './Context/PriceMarginContext';
-import PriceMarginSidebar from './Utils/Sidebar';
+import { ValueChainProvider, UseValueChain } from './Context/ValueChainContext';
+import ValueChainSidebar from './Utils/Sidebar';
 import FiltersModal from './Components/FiltersModal';
 import ProductsTable from './Components/ProductsTable';
 import ProductDetails from './Components/ProductDetails';
 import SuppliersTab from './Components/SuppliersTab';
+import MultiSupplierTab from './Components/MultiSupplierTab';
 import CustomersTab from './Components/CustomersTab';
 
-function PriceMarginShell() {
+function ValueChainShell() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
-  const { data, loading, error, refresh, selected, tab } = UsePriceMargin();
-  useModuleTabAudit(selected ? 'Product Details' : tab === 'suppliers' ? 'Suppliers' : tab === 'customers' ? 'Customers' : 'Products');
+  const { data, loading, error, refresh, selected, tab } = UseValueChain();
+  useModuleTabAudit(selected ? 'Product Details' : tab === 'multi' ? 'Multi Supplier' : tab === 'suppliers' ? 'Suppliers' : tab === 'customers' ? 'Customers' : 'Products');
 
   return (
     <div className="flex min-h-screen bg-slate-50 text-slate-900">
       <aside
         className={`hidden lg:flex flex-col ${isSidebarCollapsed ? 'w-20' : 'w-72'} bg-white border-r border-slate-200 shadow-2xl fixed h-screen left-0 top-0 z-50 transition-all duration-300`}
       >
-        <PriceMarginSidebar isCollapsed={isSidebarCollapsed} onToggleCollapse={() => setIsSidebarCollapsed((v) => !v)} />
+        <ValueChainSidebar isCollapsed={isSidebarCollapsed} onToggleCollapse={() => setIsSidebarCollapsed((v) => !v)} />
       </aside>
 
       {isMobileSidebarOpen && (
@@ -37,7 +38,7 @@ function PriceMarginShell() {
       <aside
         className={`fixed inset-y-0 left-0 z-50 w-72 bg-white border-r border-slate-200 transition-transform duration-300 transform lg:hidden ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'} flex flex-col`}
       >
-        <PriceMarginSidebar isCollapsed={false} onToggleCollapse={() => {}} onCloseMobile={() => setIsMobileSidebarOpen(false)} />
+        <ValueChainSidebar isCollapsed={false} onToggleCollapse={() => {}} onCloseMobile={() => setIsMobileSidebarOpen(false)} />
       </aside>
 
       <div className={`flex-1 flex flex-col min-w-0 ${isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-72'} transition-all duration-300`}>
@@ -45,7 +46,7 @@ function PriceMarginShell() {
           <button type="button" onClick={() => setIsMobileSidebarOpen(true)} className="p-2.5 text-slate-500 hover:text-slate-900 rounded-xl hover:bg-slate-100">
             <Menu className="w-6 h-6" />
           </button>
-          <span className="ml-3 font-bold text-slate-900 tracking-wide">Price Margin</span>
+          <span className="ml-3 font-bold text-slate-900 tracking-wide">Value Chain</span>
         </div>
 
         {loading && !(error && !data) ? (
@@ -58,8 +59,12 @@ function PriceMarginShell() {
               <>
                 {/* the table stays mounted (page, search, sort kept) while a product is open */}
                 <div className={selected || tab !== 'products' ? 'hidden' : 'space-y-6'}>
-                  <h2 className="text-2xl font-black text-slate-900 tracking-tight">Price Margin</h2>
+                  <h2 className="text-2xl font-black text-slate-900 tracking-tight">Value Chain</h2>
                   <ProductsTable />
+                </div>
+                <div className={selected || tab !== 'multi' ? 'hidden' : 'space-y-6'}>
+                  <h2 className="text-2xl font-black text-slate-900 tracking-tight">Multi Supplier</h2>
+                  <MultiSupplierTab />
                 </div>
                 {/* stays mounted too, so the chosen supplier is kept */}
                 <div className={selected || tab !== 'suppliers' ? 'hidden' : 'space-y-6'}>
@@ -82,12 +87,12 @@ function PriceMarginShell() {
   );
 }
 
-export default function PriceMarginPage() {
+export default function ValueChainPage() {
   return (
     <Suspense fallback={<MainLoader />}>
-      <PriceMarginProvider>
-        <PriceMarginShell />
-      </PriceMarginProvider>
+      <ValueChainProvider>
+        <ValueChainShell />
+      </ValueChainProvider>
     </Suspense>
   );
 }

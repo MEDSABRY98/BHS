@@ -1,6 +1,6 @@
-// Price Margin — shared types and small helpers (browser + server).
+// Value Chain — shared types and small helpers (browser + server).
 
-export const PRICE_MARGIN_SYSTEM_ID = 'price-margin';
+export const VALUE_CHAIN_SYSTEM_ID = 'value-chain';
 
 export type PriceMode = 'max' | 'min' | 'avg';
 
@@ -37,7 +37,7 @@ export const PRICE_MODES: { id: PriceMode; label: string; hint: string }[] = [
 ];
 
 /** Server filters: changing them reloads the data. */
-export type PriceMarginPeriods = {
+export type ValueChainPeriods = {
   /** the OLD cost = the oldest purchase price in this range */
   oldFrom: string;
   oldTo: string;
@@ -49,7 +49,10 @@ export type PriceMarginPeriods = {
 /** source 'products' = no purchase invoice, the cost comes from Data Base → Products (PRODUCT COST), no date */
 export type CostPoint = { price: number; date: string; supplierId: string; supplierName: string; source?: 'purchase' | 'products' };
 
-export type PriceMarginRow = {
+/** one supplier's last purchase of a product */
+export type SupplierCost = { supplierId: string; name: string; price: number; date: string; qty: number };
+
+export type ValueChainRow = {
   productId: string;
   barcode: string;
   name: string;
@@ -61,6 +64,8 @@ export type PriceMarginRow = {
   parentName: string;
   /** Data Base → Products: Is Countable? */
   countable: boolean;
+  /** only when bought from 2+ suppliers: each supplier's last purchase (Multi Supplier tab), newest first */
+  supplierCosts?: SupplierCost[];
   /** oldest purchase price inside the old-cost range */
   oldCost: CostPoint | null;
   /** latest purchase price up to today */
@@ -69,9 +74,9 @@ export type PriceMarginRow = {
   sale: { max: number; min: number; avg: number; lines: number } | null;
 };
 
-export type PriceMarginData = {
-  periods: PriceMarginPeriods;
-  rows: PriceMarginRow[];
+export type ValueChainData = {
+  periods: ValueChainPeriods;
+  rows: ValueChainRow[];
   suppliers: string[];
   /** every supplier with purchase invoices (Suppliers tab) */
   purchaseSuppliers: { id: string; name: string }[];
@@ -92,7 +97,7 @@ export function uaeToday(): string {
  * old cost → from the 1st of the month 3 months before the current one (in October: 1 July) to today;
  * sales → 1 Jan of last year to today.
  */
-export function DefaultPeriods(): PriceMarginPeriods {
+export function DefaultPeriods(): ValueChainPeriods {
   const today = uaeToday();
   const y = Number(today.slice(0, 4));
   const m = Number(today.slice(5, 7)) - 3; // 3 months back, may cross the year
@@ -121,13 +126,13 @@ export function Money(n: number | null | undefined, digits = 2): string {
 }
 
 /** Selling price of a row for the chosen mode (null = no sales in the period). */
-export function SalePrice(row: PriceMarginRow, mode: PriceMode): number | null {
+export function SalePrice(row: ValueChainRow, mode: PriceMode): number | null {
   if (!row.sale) return null;
   return mode === 'max' ? row.sale.max : mode === 'min' ? row.sale.min : row.sale.avg;
 }
 
 /** Profit / margin on the NEW cost. */
-export function Margin(row: PriceMarginRow, mode: PriceMode): { price: number | null; profit: number | null; pct: number | null } {
+export function Margin(row: ValueChainRow, mode: PriceMode): { price: number | null; profit: number | null; pct: number | null } {
   const price = SalePrice(row, mode);
   const cost = row.newCost?.price ?? null;
   if (price === null || cost === null) return { price, profit: null, pct: null };
@@ -136,7 +141,7 @@ export function Margin(row: PriceMarginRow, mode: PriceMode): { price: number | 
 }
 
 /** New cost vs old cost, in % (null when one is missing). */
-export function CostChange(row: PriceMarginRow): number | null {
+export function CostChange(row: ValueChainRow): number | null {
   const o = row.oldCost?.price;
   const n = row.newCost?.price;
   if (!o || n === undefined || n === null) return null;
@@ -198,7 +203,7 @@ export type SupplierProductRow = {
   amount: number;
 };
 
-export type PriceMarginTab = 'products' | 'suppliers' | 'customers';
+export type ValueChainTab = 'products' | 'multi' | 'suppliers' | 'customers';
 
 /**
  * Customers grouping (same rule everywhere in this module):

@@ -203,7 +203,7 @@ export const SYSTEMS = [
     { id: 'payment-analysis', label: 'Payment Analysis' },
     { id: 'salesperson-analysis', label: 'Salesperson Analysis' },
     { id: 'roi', label: 'ROI' },
-    { id: 'price-margin', label: 'Price Margin' },
+    { id: 'value-chain', label: 'Value Chain' },
     { id: 'financial-model', label: 'Financial Model' },
     { id: 'suppliers-analysis', label: 'Suppliers Analysis' },
     { id: 'transfer-requests', label: 'Transfer Requests' },

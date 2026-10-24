@@ -12,11 +12,11 @@ import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import { toast } from '@/app/Components/Notification';
 import { exportStyledExcel } from '@/app/Components/Export/ExcelExport';
-import { UsePriceMargin } from '../Context/PriceMarginContext';
-import { GetSupplierProducts } from '../Service/PriceMarginService';
-import { FormatDate, Money, PRICE_MODES, PassProfit, SalePrice, round2, round3, type PriceMarginRow, type SupplierProductRow } from '../Utils/Types';
+import { UseValueChain } from '../Context/ValueChainContext';
+import { GetSupplierProducts } from '../Service/ValueChainService';
+import { FormatDate, Money, PRICE_MODES, PassProfit, SalePrice, round2, round3, type ValueChainRow, type SupplierProductRow } from '../Utils/Types';
 
-type Row = SupplierProductRow & { product: PriceMarginRow; sale: number | null; profit: number | null; pct: number | null; change: number | null };
+type Row = SupplierProductRow & { product: ValueChainRow; sale: number | null; profit: number | null; pct: number | null; change: number | null };
 type SortKey = 'code' | 'name' | 'unit' | 'last' | 'first' | 'change' | 'purchases' | 'qty' | 'amount' | 'sale' | 'profit' | 'pct' | 'lastDate';
 
 const COLS = 12;
@@ -41,7 +41,7 @@ function PriceDate({ price, date }: { price: number; date: string }) {
 }
 
 export default function SuppliersTab() {
-  const { data, priceMode, profitFilter, setSelected } = UsePriceMargin();
+  const { data, priceMode, profitFilter, setSelected } = UseValueChain();
   const [supplierId, setSupplierId] = useState('');
   const [lines, setLines] = useState<SupplierProductRow[] | null>(null);
   const [loading, setLoading] = useState(false);

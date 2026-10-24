@@ -4,19 +4,19 @@
 // Periods reload the data from the server; price mode and supplier filter on the page only.
 
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { GetPriceMarginData } from '../Service/PriceMarginService';
-import { DefaultPeriods, type PriceMarginData, type PriceMarginPeriods, type PriceMarginRow, type PriceMode, type ProfitFilter, type PriceMarginTab, type PriceBasis } from '../Utils/Types';
+import { GetValueChainData } from '../Service/ValueChainService';
+import { DefaultPeriods, type ValueChainData, type ValueChainPeriods, type ValueChainRow, type PriceMode, type ProfitFilter, type ValueChainTab, type PriceBasis } from '../Utils/Types';
 
-type PriceMarginContextValue = {
-  data: PriceMarginData | null;
+type ValueChainContextValue = {
+  data: ValueChainData | null;
   loading: boolean;
   isRefreshing: boolean;
   error: string | null;
   refresh: () => Promise<void>;
-  periods: PriceMarginPeriods;
-  setPeriods: (p: PriceMarginPeriods) => void;
-  tab: PriceMarginTab;
-  setTab: (t: PriceMarginTab) => void;
+  periods: ValueChainPeriods;
+  setPeriods: (p: ValueChainPeriods) => void;
+  tab: ValueChainTab;
+  setTab: (t: ValueChainTab) => void;
   priceBasis: PriceBasis;
   setPriceBasis: (b: PriceBasis) => void;
   priceMode: PriceMode;
@@ -31,30 +31,30 @@ type PriceMarginContextValue = {
   countableOnly: boolean;
   setCountableOnly: (v: boolean) => void;
   /** product details view (null = the products table) */
-  selected: PriceMarginRow | null;
-  setSelected: (r: PriceMarginRow | null) => void;
+  selected: ValueChainRow | null;
+  setSelected: (r: ValueChainRow | null) => void;
   filtersOpen: boolean;
   setFiltersOpen: (v: boolean) => void;
 };
 
 // kept on globalThis so a hot reload of this file in dev doesn't create a second context
-// (that is what throws "UsePriceMargin must be used within PriceMarginProvider" after an edit)
-const g = globalThis as unknown as { __PriceMarginCtx?: React.Context<PriceMarginContextValue | null> };
-const Ctx = g.__PriceMarginCtx ?? (g.__PriceMarginCtx = createContext<PriceMarginContextValue | null>(null));
+// (that is what throws "UseValueChain must be used within ValueChainProvider" after an edit)
+const g = globalThis as unknown as { __ValueChainCtx?: React.Context<ValueChainContextValue | null> };
+const Ctx = g.__ValueChainCtx ?? (g.__ValueChainCtx = createContext<ValueChainContextValue | null>(null));
 
-export function PriceMarginProvider({ children }: { children: React.ReactNode }) {
-  const [periods, setPeriods] = useState<PriceMarginPeriods>(DefaultPeriods);
-  const [tab, setTab] = useState<PriceMarginTab>('products');
+export function ValueChainProvider({ children }: { children: React.ReactNode }) {
+  const [periods, setPeriods] = useState<ValueChainPeriods>(DefaultPeriods);
+  const [tab, setTab] = useState<ValueChainTab>('products');
   const [priceBasis, setPriceBasis] = useState<PriceBasis>('customer');
   const [priceMode, setPriceMode] = useState<PriceMode>('max');
   const [profitFilter, setProfitFilter] = useState<ProfitFilter>('all');
   const [supplier, setSupplier] = useState('');
   const [category, setCategory] = useState('');
   const [countableOnly, setCountableOnly] = useState(false);
-  const [selected, setSelectedState] = useState<PriceMarginRow | null>(null);
+  const [selected, setSelectedState] = useState<ValueChainRow | null>(null);
   // where the products list was scrolled when a product was opened → restored on Back
   const listScroll = useRef(0);
-  const setSelected = useCallback((r: PriceMarginRow | null) => {
+  const setSelected = useCallback((r: ValueChainRow | null) => {
     setSelectedState((prev) => {
       if (r && !prev) listScroll.current = window.scrollY;
       return r;
@@ -71,7 +71,7 @@ export function PriceMarginProvider({ children }: { children: React.ReactNode })
     requestAnimationFrame(() => requestAnimationFrame(() => window.scrollTo({ top: y })));
   }, [selected]);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [data, setData] = useState<PriceMarginData | null>(null);
+  const [data, setData] = useState<ValueChainData | null>(null);
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -82,9 +82,9 @@ export function PriceMarginProvider({ children }: { children: React.ReactNode })
       else setLoading(true);
       setError(null);
       try {
-        setData(await GetPriceMarginData(periods));
+        setData(await GetValueChainData(periods));
       } catch (e: any) {
-        setError(e?.message || 'Failed to load the price margin data');
+        setError(e?.message || 'Failed to load the value chain data');
       } finally {
         setLoading(false);
         setIsRefreshing(false);
@@ -134,8 +134,8 @@ export function PriceMarginProvider({ children }: { children: React.ReactNode })
   );
 }
 
-export function UsePriceMargin() {
+export function UseValueChain() {
   const ctx = useContext(Ctx);
-  if (!ctx) throw new Error('UsePriceMargin must be used within PriceMarginProvider');
+  if (!ctx) throw new Error('UseValueChain must be used within ValueChainProvider');
   return ctx;
 }

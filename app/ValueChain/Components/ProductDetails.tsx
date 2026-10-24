@@ -8,8 +8,8 @@ import { ArrowLeft, ChevronRight, Search } from 'lucide-react';
 import TabLoader from '@/app/Components/Loading/TabLoader';
 import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import NoData from '@/app/Components/DataState/NoDataTab';
-import { UsePriceMargin } from '../Context/PriceMarginContext';
-import { GetProductCustomers, GetProductSuppliers } from '../Service/PriceMarginService';
+import { UseValueChain } from '../Context/ValueChainContext';
+import { GetProductCustomers, GetProductSuppliers } from '../Service/ValueChainService';
 import ProductSuppliers from './ProductSuppliers';
 import { CostDateLabel, FormatDate, Margin, Money, PRICE_MODES, PassProfit, SalePrice, type ProductCustomerRow, type ProductSupplierRow } from '../Utils/Types';
 
@@ -80,7 +80,7 @@ function Stat({ label, value, sub }: { label: string; value: string; sub?: strin
 }
 
 export default function ProductDetails() {
-  const { selected, setSelected, periods, priceMode, priceBasis, profitFilter } = UsePriceMargin();
+  const { selected, setSelected, periods, priceMode, priceBasis, profitFilter } = UseValueChain();
   const [rows, setRows] = useState<ProductCustomerRow[] | null>(null);
   const [supplierRows, setSupplierRows] = useState<ProductSupplierRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);

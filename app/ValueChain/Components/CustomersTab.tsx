@@ -12,11 +12,11 @@ import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import { toast } from '@/app/Components/Notification';
 import { exportStyledExcel } from '@/app/Components/Export/ExcelExport';
-import { UsePriceMargin } from '../Context/PriceMarginContext';
-import { GetCustomerProducts } from '../Service/PriceMarginService';
-import { CostDateLabel, FormatDate, Money, PRICE_MODES, PassProfit, SalePrice, round2, round3, type CustomerProductRow, type PriceMarginRow } from '../Utils/Types';
+import { UseValueChain } from '../Context/ValueChainContext';
+import { GetCustomerProducts } from '../Service/ValueChainService';
+import { CostDateLabel, FormatDate, Money, PRICE_MODES, PassProfit, SalePrice, round2, round3, type CustomerProductRow, type ValueChainRow } from '../Utils/Types';
 
-type Row = CustomerProductRow & { product: PriceMarginRow; price: number; cost: number | null; profit: number | null; pct: number | null };
+type Row = CustomerProductRow & { product: ValueChainRow; price: number; cost: number | null; profit: number | null; pct: number | null };
 type SortKey = 'code' | 'name' | 'unit' | 'price' | 'cost' | 'profit' | 'pct' | 'qty' | 'amount' | 'share' | 'lastDate';
 
 function Kpi({ label, value, hint, tone = 'slate' }: { label: string; value: string; hint?: string; tone?: 'slate' | 'gold' }) {
@@ -33,7 +33,7 @@ const COLS = 13;
 const KIND_LABEL = { main: 'Main name', tag: 'Tag', customer: 'Customer' } as const;
 
 export default function CustomersTab() {
-  const { data, priceMode, priceBasis, profitFilter, periods, setSelected } = UsePriceMargin();
+  const { data, priceMode, priceBasis, profitFilter, periods, setSelected } = UseValueChain();
   const [groupKey, setGroupKey] = useState('');
   const [lines, setLines] = useState<CustomerProductRow[] | null>(null);
   const [loading, setLoading] = useState(false);

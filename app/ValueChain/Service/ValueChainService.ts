@@ -1,7 +1,7 @@
 'use server';
 
 // ════════════════════════════════════════════════════════════════
-//  Price Margin — server side
+//  Value Chain — server side
 //  • costs: purchase invoice lines (web_Suppliers_Purchase, same data as Purchase Price Tracking)
 //      NEW cost = latest purchase price up to today
 //      OLD cost = oldest purchase price inside the chosen old-cost range
@@ -16,13 +16,13 @@ import { isSalesInvoiceNo } from '@/app/Sales/Utils/InvoiceNumber';
 import {
   CleanParentId,
   CustomerGroupOf,
-  PRICE_MARGIN_SYSTEM_ID,
+  VALUE_CHAIN_SYSTEM_ID,
   round3,
   uaeToday,
   type CostPoint,
-  type PriceMarginData,
-  type PriceMarginPeriods,
-  type PriceMarginRow,
+  type ValueChainData,
+  type ValueChainPeriods,
+  type ValueChainRow,
   type ProductCustomerRow,
   type ProductSupplierRow,
   type SupplierProductRow,
@@ -37,17 +37,17 @@ const id = (v: unknown) => String(v ?? '').trim();
 const dayOf = (v: unknown) => String(v ?? '').split('T')[0].trim().slice(0, 10);
 const num = (v: unknown) => Number(String(v ?? 0).replace(/,/g, '')) || 0;
 
-/** Admin Control -> 'price-margin' must be enabled for the user (admins always). */
+/** Admin Control -> 'value-chain' must be enabled for the user (admins always). */
 async function requireUser(): Promise<SessionUserRecord> {
   const user = await getSessionUser();
   if (!user) throw new UnauthorizedError('Your session has expired. Please log in again.');
-  if (isAdminUser(user, PRICE_MARGIN_SYSTEM_ID)) return user;
+  if (isAdminUser(user, VALUE_CHAIN_SYSTEM_ID)) return user;
   try {
     const roleStr = String(user.role || '').trim();
     if (!roleStr || roleStr === 'Admin') return user;
     const perms = JSON.parse(roleStr);
-    if (Array.isArray(perms.systems) && !perms.systems.includes(PRICE_MARGIN_SYSTEM_ID)) {
-      throw new UnauthorizedError("You don't have access to Price Margin.");
+    if (Array.isArray(perms.systems) && !perms.systems.includes(VALUE_CHAIN_SYSTEM_ID)) {
+      throw new UnauthorizedError("You don't have access to Value Chain.");
     }
   } catch (e) {
     if (e instanceof UnauthorizedError) throw e;
@@ -68,7 +68,7 @@ async function fetchAll(table: string, select: string, orderBy: string): Promise
   return out;
 }
 
-function checkPeriods(p: PriceMarginPeriods): PriceMarginPeriods {
+function checkPeriods(p: ValueChainPeriods): ValueChainPeriods {
   const v = {
     oldFrom: dayOf(p?.oldFrom),
     oldTo: dayOf(p?.oldTo),
@@ -81,13 +81,13 @@ function checkPeriods(p: PriceMarginPeriods): PriceMarginPeriods {
   return v;
 }
 
-export async function GetPriceMarginData(periodsInput: PriceMarginPeriods): Promise<PriceMarginData> {
+export async function GetValueChainData(periodsInput: ValueChainPeriods): Promise<ValueChainData> {
   await requireUser();
   const periods = checkPeriods(periodsInput);
   const today = uaeToday();
 
   const [purchases, products, suppliers, sales, customers] = await Promise.all([
-    fetchAll('web_Suppliers_Purchase', 'ID, DATE, "SUPPLIER ID", "PRODUCT ID", "UNIT PRICE"', 'ID'),
+    fetchAll('web_Suppliers_Purchase', 'ID, DATE, "SUPPLIER ID", "PRODUCT ID", "UNIT PRICE", QTY', 'ID'),
     fetchAll('bhs_PRODUCTS', '"PRODUCT ID", "PRODUCT NAME", "PRODUCT BARCODE", "PRODUCT CATEGORY", "PRODUCT PARENT ID", "PRODUCT COST", "UNIT", IS_ACTIVE, IS_COUNTABLE', 'PRODUCT ID'),
     fetchAll('bhs_SUPPLIERS', '"SUPPLIER ID", "SUPPLIER NAME"', 'SUPPLIER ID'),
     getSalesDataServer() as Promise<any[]>,
@@ -114,7 +114,7 @@ export async function GetPriceMarginData(periodsInput: PriceMarginPeriods): Prom
   for (const s of suppliers) supplierName.set(id(s['SUPPLIER ID']), id(s['SUPPLIER NAME']) || id(s['SUPPLIER ID']));
 
   // ── costs ──
-  type Buy = { id: number; date: string; price: number; supplierId: string };
+  type Buy = { id: number; date: string; price: number; supplierId: string; qty: number };
   const buysByProduct = new Map<string, Buy[]>();
   const purchaseSuppliers = new Map<string, string>();
   for (const r of purchases) {
@@ -123,7 +123,7 @@ export async function GetPriceMarginData(periodsInput: PriceMarginPeriods): Prom
     const date = dayOf(r.DATE);
     if (!pid || !productById.has(pid) || !(price > 0) || !ISO_DAY.test(date) || date > today) continue;
     const list = buysByProduct.get(pid) || [];
-    list.push({ id: Number(r.ID) || 0, date, price, supplierId: id(r['SUPPLIER ID']) });
+    list.push({ id: Number(r.ID) || 0, date, price, supplierId: id(r['SUPPLIER ID']), qty: Math.max(0, num(r.QTY)) });
     buysByProduct.set(pid, list);
     const sid = id(r['SUPPLIER ID']);
     if (sid) purchaseSuppliers.set(sid, supplierName.get(sid) || sid);
@@ -161,7 +161,7 @@ export async function GetPriceMarginData(periodsInput: PriceMarginPeriods): Prom
   }
 
   // ── one row per product that was bought or sold ──
-  const rows: PriceMarginRow[] = [];
+  const rows: ValueChainRow[] = [];
   const usedSuppliers = new Set<string>();
   for (const pid of new Set([...buysByProduct.keys(), ...saleByProduct.keys()])) {
     const p = productById.get(pid);
@@ -169,7 +169,7 @@ export async function GetPriceMarginData(periodsInput: PriceMarginPeriods): Prom
     const latest = buys.length ? buys[buys.length - 1] : null;
     const oldest = buys.find((b) => b.date >= periods.oldFrom && b.date <= periods.oldTo) || null;
     const agg = saleByProduct.get(pid);
-    const row: PriceMarginRow = {
+    const row: ValueChainRow = {
       productId: pid,
       barcode: id(p?.['PRODUCT BARCODE']),
       name: id(p?.['PRODUCT NAME']) || pid,
@@ -189,6 +189,17 @@ export async function GetPriceMarginData(periodsInput: PriceMarginPeriods): Prom
         ? { max: round3(agg.max), min: round3(agg.min), avg: round3(agg.qty ? agg.amount / agg.qty : 0), lines: agg.lines }
         : null,
     };
+    // bought from 2+ suppliers → each supplier's last purchase (buys are oldest → newest)
+    const bySupp = new Map<string, { last: Buy; qty: number }>();
+    for (const b of buys) {
+      const cur = bySupp.get(b.supplierId);
+      bySupp.set(b.supplierId, { last: b, qty: (cur?.qty || 0) + b.qty });
+    }
+    if (bySupp.size >= 2) {
+      row.supplierCosts = [...bySupp]
+        .map(([sid, v]) => ({ supplierId: sid, name: supplierName.get(sid) || sid || 'Unknown supplier', price: round3(v.last.price), date: v.last.date, qty: v.qty }))
+        .sort((a, b) => b.date.localeCompare(a.date) || a.price - b.price);
+    }
     if (row.newCost?.supplierName) usedSuppliers.add(row.newCost.supplierName);
     rows.push(row);
   }

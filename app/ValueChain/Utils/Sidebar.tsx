@@ -3,15 +3,16 @@
 // Same look as the ROI sidebar: Back Home, app icon, Products / Suppliers, Collapse / Filters / Refresh.
 
 import { useState } from 'react';
-import { ArrowLeft, ChevronLeft, ChevronRight, X, RefreshCcw, Percent, Table2, SlidersHorizontal, Truck, Users } from 'lucide-react';
-import type { PriceMarginTab } from './Types';
+import { ArrowLeft, ChevronLeft, ChevronRight, X, RefreshCcw, Percent, Table2, SlidersHorizontal, Split, Truck, Users } from 'lucide-react';
+import type { ValueChainTab } from './Types';
 
-const TABS: { id: PriceMarginTab; label: string; icon: typeof Table2 }[] = [
+const TABS: { id: ValueChainTab; label: string; icon: typeof Table2 }[] = [
   { id: 'products', label: 'Products', icon: Table2 },
+  { id: 'multi', label: 'Multi Supplier', icon: Split },
   { id: 'suppliers', label: 'Suppliers', icon: Truck },
   { id: 'customers', label: 'Customers', icon: Users },
 ];
-import { UsePriceMargin } from '../Context/PriceMarginContext';
+import { UseValueChain } from '../Context/ValueChainContext';
 
 interface SidebarProps {
   isCollapsed: boolean;
@@ -19,9 +20,9 @@ interface SidebarProps {
   onCloseMobile?: () => void;
 }
 
-export default function PriceMarginSidebar({ isCollapsed, onToggleCollapse, onCloseMobile }: SidebarProps) {
+export default function ValueChainSidebar({ isCollapsed, onToggleCollapse, onCloseMobile }: SidebarProps) {
   const [hovered, setHovered] = useState<{ label: string; top: number } | null>(null);
-  const { refresh, isRefreshing, setFiltersOpen, tab, setTab, setSelected } = UsePriceMargin();
+  const { refresh, isRefreshing, setFiltersOpen, tab, setTab, setSelected } = UseValueChain();
 
   const hover = (label: string) => (e: React.MouseEvent<HTMLButtonElement>) => {
     if (!isCollapsed) return;
@@ -56,7 +57,7 @@ export default function PriceMarginSidebar({ isCollapsed, onToggleCollapse, onCl
           <div className="w-12 h-12 bg-gradient-to-br from-[#D4AF37] to-[#B8860B] rounded-2xl flex items-center justify-center mb-3 shadow-lg shadow-[#D4AF37]/30">
             <Percent className="w-6 h-6 text-white" />
           </div>
-          {!isCollapsed && <h2 className="text-lg font-bold tracking-tight text-slate-900 animate-in fade-in duration-300">Price Margin</h2>}
+          {!isCollapsed && <h2 className="text-lg font-bold tracking-tight text-slate-900 animate-in fade-in duration-300">Value Chain</h2>}
         </div>
       </div>
 

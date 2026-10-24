@@ -6,8 +6,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Boxes, CalendarDays, History, Layers, Scale, Tag, Truck, X } from 'lucide-react';
 import NiceSelect from '@/app/ScheduledReports/Components/NiceSelect';
-import { UsePriceMargin } from '../Context/PriceMarginContext';
-import { PRICE_BASES, PRICE_MODES, PROFIT_FILTERS, type PriceBasis, type PriceMarginPeriods, type PriceMode, type ProfitFilter } from '../Utils/Types';
+import { UseValueChain } from '../Context/ValueChainContext';
+import { PRICE_BASES, PRICE_MODES, PROFIT_FILTERS, type PriceBasis, type ValueChainPeriods, type PriceMode, type ProfitFilter } from '../Utils/Types';
 
 const label = 'text-[10px] font-black uppercase tracking-[0.18em] text-slate-400';
 const dateCls =
@@ -24,8 +24,8 @@ function Range({ from, to, onChange }: { from: string; to: string; onChange: (fr
 }
 
 export default function FiltersModal() {
-  const { filtersOpen, setFiltersOpen, periods, setPeriods, priceBasis, setPriceBasis, priceMode, setPriceMode, profitFilter, setProfitFilter, supplier, setSupplier, category, setCategory, countableOnly, setCountableOnly, data } = UsePriceMargin();
-  const [draft, setDraft] = useState<PriceMarginPeriods>(periods);
+  const { filtersOpen, setFiltersOpen, periods, setPeriods, priceBasis, setPriceBasis, priceMode, setPriceMode, profitFilter, setProfitFilter, supplier, setSupplier, category, setCategory, countableOnly, setCountableOnly, data } = UseValueChain();
+  const [draft, setDraft] = useState<ValueChainPeriods>(periods);
   const [mode, setMode] = useState<PriceMode>(priceMode);
   const [basis, setBasis] = useState<PriceBasis>(priceBasis);
   const [profit, setProfit] = useState<ProfitFilter>(profitFilter);
