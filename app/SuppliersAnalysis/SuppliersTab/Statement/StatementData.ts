@@ -15,6 +15,13 @@ export interface SupplierStatementRow {
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const toNum = (v: unknown) => Number(String(v ?? 0).replace(/,/g, '')) || 0;
 
+/** "Bil0/2026/09/0025 PP-SS-26-1489" → number "Bil0/2026/09/0025", reference "PP-SS-26-1489" (the rest of the text) */
+function splitNumber(v: unknown): { number: string; reference: string } {
+  const text = String(v ?? '').trim();
+  const cut = text.search(/\s/);
+  return cut < 0 ? { number: text, reference: '' } : { number: text.slice(0, cut), reference: text.slice(cut).trim() };
+}
+
 /**
  * Builds the open-items statement for a supplier based on RESIDUAL AMOUNT only.
  * In the raw Odoo export invoices are negative and payments are positive.
@@ -36,8 +43,8 @@ export function buildSupplierStatement(
     if (filterType === 'open') {
       const base = {
         date: t.DATE ? String(t.DATE).split('T')[0] : '',
-        number: String(t.NUMBER || '').trim().split(/\s+/)[0] || '',
-        reference: String(t.REFERENCE || (t as any).REF || '').trim(),
+        number: splitNumber(t.NUMBER).number,
+        reference: String(t.REFERENCE || (t as any).REF || '').trim() || splitNumber(t.NUMBER).reference,
         _residual: residual,
       };
       const original = round2(dbCredit - dbDebit); // + invoice, - payment / debit note
@@ -62,8 +69,8 @@ export function buildSupplierStatement(
     } else {
       return {
         date: t.DATE ? String(t.DATE).split('T')[0] : '',
-        number: String(t.NUMBER || '').trim().split(/\s+/)[0] || '',
-        reference: String(t.REFERENCE || (t as any).REF || '').trim(),
+        number: splitNumber(t.NUMBER).number,
+        reference: String(t.REFERENCE || (t as any).REF || '').trim() || splitNumber(t.NUMBER).reference,
         debit: dbDebit,
         credit: dbCredit,
         net: dbCredit - dbDebit,
