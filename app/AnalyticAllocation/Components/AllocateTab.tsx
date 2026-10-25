@@ -8,7 +8,7 @@ import Modal from './Modal';
 import SplitEditor from './SplitEditor';
 import { saveAllocation } from '../Service/AnalyticService';
 import { exportAllocationExcel, exportAllocationPdf } from '../Utils/AnalyticExport';
-import { computeAllocation, formatAmount, formatPct, isFull, resolvePcts, round2, uaeToday, type Allocation, type AllocationPerson, type AnalyticPerson } from '../Utils/AnalyticTypes';
+import { shortId, computeAllocation, formatAmount, formatPct, isFull, resolvePcts, round2, uaeToday, type Allocation, type AllocationPerson, type AnalyticPerson } from '../Utils/AnalyticTypes';
 
 interface AllocateTabProps {
   people: AnalyticPerson[];
@@ -36,7 +36,12 @@ export default function AllocateTab({ people, accountNames, editAllocation, onSa
   const [chosen, setChosen] = useState<AllocationPerson[]>(() => {
     if (!editAllocation) return [];
     const old = computeAllocation(editAllocation.AMOUNT, editAllocation.PEOPLE);
-    return editAllocation.PEOPLE.map((p, i) => ({ ...p, PCT: null, AMOUNT: p.AMOUNT ?? old.persons[i]?.AMOUNT ?? 0 }));
+    return editAllocation.PEOPLE.map((p, i) => ({
+      ...p,
+      PERSON_ID: p.PERSON_ID ?? people.find((x) => x.NAME === p.NAME)?.ID ?? null, // old allocations: link by name
+      PCT: null,
+      AMOUNT: p.AMOUNT ?? old.persons[i]?.AMOUNT ?? 0,
+    }));
   });
   const [amountTexts, setAmountTexts] = useState<Record<string, string>>(() =>
     Object.fromEntries(chosen.map((c) => [c.NAME, c.AMOUNT ? typing(String(c.AMOUNT)) : ''])),
@@ -58,7 +63,9 @@ export default function AllocateTab({ people, accountNames, editAllocation, onSa
       return next;
     });
   const byName = useMemo(() => new Map(people.map((p) => [p.NAME, p])), [people]);
-  const isChosen = (name: string) => chosen.some((c) => c.NAME === name);
+  const byId = useMemo(() => new Map(people.map((p) => [p.ID, p])), [people]);
+  const personOf = (c: AllocationPerson) => (c.PERSON_ID ? byId.get(c.PERSON_ID) : byName.get(c.NAME));
+  const isChosen = (p: AnalyticPerson) => chosen.some((c) => (c.PERSON_ID ? c.PERSON_ID === p.ID : c.NAME === p.NAME));
 
   const [pending, setPending] = useState<string[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -74,7 +81,7 @@ export default function AllocateTab({ people, accountNames, editAllocation, onSa
   // Active people not added yet
   const pickable = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return people.filter((p) => p.IS_ACTIVE && !isChosen(p.NAME) && (!q || p.NAME.toLowerCase().includes(q) || p.NOTES.toLowerCase().includes(q)));
+    return people.filter((p) => p.IS_ACTIVE && !isChosen(p) && (!q || p.NAME.toLowerCase().includes(q) || p.NOTES.toLowerCase().includes(q)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [people, search, chosen]);
 
@@ -82,7 +89,7 @@ export default function AllocateTab({ people, accountNames, editAllocation, onSa
   /** Adds the ticked people (or the only match when nothing is ticked). */
   const addPending = () => {
     const names = pending.length ? pending : pickable.length === 1 ? [pickable[0].NAME] : [];
-    const add = people.filter((p) => names.includes(p.NAME) && !isChosen(p.NAME)).map((p) => ({ NAME: p.NAME, PCT: null, AMOUNT: null, SPLIT: p.ACCOUNTS }));
+    const add = people.filter((p) => names.includes(p.NAME) && !isChosen(p)).map((p) => ({ PERSON_ID: p.ID, NAME: p.NAME, PCT: null, AMOUNT: null, SPLIT: p.ACCOUNTS }));
     if (!add.length) return;
     setChosen((prev) => sortChosen([...prev, ...add]));
     setPending([]);
@@ -137,7 +144,7 @@ export default function AllocateTab({ people, accountNames, editAllocation, onSa
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <h1 className="text-3xl sm:text-4xl font-normal text-black tracking-tighter">{editAllocation ? `Edit Allocation #${editAllocation.ID}` : 'Allocate'}</h1>
+        <h1 className="text-3xl sm:text-4xl font-normal text-black tracking-tighter">{editAllocation ? `Edit Allocation #${shortId(editAllocation.ID)}` : 'Allocate'}</h1>
         {editAllocation && onCancelEdit && (
           <button onClick={onCancelEdit} className="self-start h-10 px-4 rounded-xl border border-slate-200 bg-white text-sm font-bold text-slate-600 hover:bg-slate-50 flex items-center gap-1.5">
             <X className="w-4 h-4" /> Cancel Edit
@@ -229,7 +236,7 @@ export default function AllocateTab({ people, accountNames, editAllocation, onSa
               {chosen.map((c, i) => {
                 const r = calc.persons[i];
                 const split = resolvePcts(c.SPLIT);
-                const def = byName.get(c.NAME);
+                const def = personOf(c);
                 const changed = def && JSON.stringify(def.ACCOUNTS) !== JSON.stringify(c.SPLIT);
                 const isOpen = openAccounts.has(c.NAME);
                 const splitOk = c.SPLIT.length > 0 && isFull(split.total);
@@ -345,7 +352,7 @@ export default function AllocateTab({ people, accountNames, editAllocation, onSa
               </button>
             )}
             <button onClick={() => void save()} disabled={!canUse || !title.trim() || !!busy} className="h-10 w-32 px-3 rounded-xl bg-black text-[#C4A052] text-sm font-bold flex items-center justify-center gap-1.5 disabled:opacity-40">
-              {busy === 'save' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} {editAllocation ? 'Save Changes' : 'Save'}
+              {busy === 'save' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Save
             </button>
           </div>
         </div>

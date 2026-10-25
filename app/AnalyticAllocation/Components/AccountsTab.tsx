@@ -18,9 +18,9 @@ interface AccountsTabProps {
 export default function AccountsTab({ accounts, people, onChange, onRenamed }: AccountsTabProps) {
   const [search, setSearch] = useState('');
   const [newName, setNewName] = useState('');
-  const [editId, setEditId] = useState<number | null>(null);
+  const [editId, setEditId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
-  const [busyId, setBusyId] = useState<number | 'new' | null>(null);
+  const [busyId, setBusyId] = useState<string | 'new' | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AnalyticAccount | null>(null);
 
   const usage = useMemo(() => {

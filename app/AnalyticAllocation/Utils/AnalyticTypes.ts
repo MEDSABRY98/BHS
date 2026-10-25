@@ -17,13 +17,13 @@ export interface SplitItem {
 }
 
 export interface AnalyticAccount {
-  ID: number;
+  ID: string; // uuid
   NAME: string;
   IS_ACTIVE: boolean;
 }
 
 export interface AnalyticPerson {
-  ID: number;
+  ID: string; // uuid
   NAME: string;
   NOTES: string;
   ACCOUNTS: SplitItem[]; // default split
@@ -35,6 +35,7 @@ export interface AnalyticPerson {
  * Old allocations have no AMOUNT: they split one total by PCT (null = equal share).
  */
 export interface AllocationPerson {
+  PERSON_ID?: string | null; // web_ANALYTIC_PEOPLE.ID (the link to the person; NAME is the name at save time, kept in step on rename)
   NAME: string;
   PCT: number | null;
   AMOUNT?: number | null;
@@ -49,7 +50,7 @@ export interface AllocationLine {
 }
 
 export interface Allocation {
-  ID: number;
+  ID: string; // uuid
   TITLE: string;
   ALLOC_DATE: string; // yyyy-mm-dd
   AMOUNT: number;
@@ -63,7 +64,7 @@ export interface Allocation {
 }
 
 export type AllocationInput = {
-  ID?: number; // set = edit
+  ID?: string; // set = edit
   TITLE: string;
   ALLOC_DATE: string;
   AMOUNT?: number; // old style only; with per-person amounts the total is their sum
@@ -89,6 +90,15 @@ export function uaeToday(): string {
 }
 
 export const byName = (a: string, b: string) => a.localeCompare(b, 'en', { sensitivity: 'base' });
+
+/** short reference of a uuid for the screen (first 8 characters) */
+export const shortId = (id: string | null | undefined) => String(id || '').slice(0, 8).toUpperCase();
+
+/** uuid or null */
+export const toUuid = (v: unknown): string | null => {
+  const s = String(v ?? '').trim().toLowerCase();
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(s) ? s : null;
+};
 
 /**
  * Final percentages (2 decimals). Fixed values stay as typed; the rest of 100 is shared equally

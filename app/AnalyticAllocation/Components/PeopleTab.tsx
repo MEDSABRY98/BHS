@@ -16,7 +16,7 @@ interface PeopleTabProps {
   onChange: (next: AnalyticPerson[]) => void;
 }
 
-type Draft = { ID?: number; NAME: string; NOTES: string; ACCOUNTS: SplitItem[]; IS_ACTIVE: boolean };
+type Draft = { ID?: string; NAME: string; NOTES: string; ACCOUNTS: SplitItem[]; IS_ACTIVE: boolean };
 const EMPTY: Draft = { NAME: '', NOTES: '', ACCOUNTS: [], IS_ACTIVE: true };
 
 export default function PeopleTab({ people, accountNames, onChange }: PeopleTabProps) {

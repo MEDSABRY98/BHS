@@ -1,27 +1,26 @@
 'use client';
 
-import { Fragment, useMemo, useState } from 'react';
-import { ChevronDown, FileSpreadsheet, FileText, Loader2, Pencil, Search, Trash2, X } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { FileSpreadsheet, FileText, Loader2, Pencil, Search, Trash2, X } from 'lucide-react';
 import { toast } from '@/app/Components/Notification';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import ConfirmDialog from './ConfirmDialog';
 import { deleteAllocation } from '../Service/AnalyticService';
 import { exportAllocationExcel, exportAllocationPdf } from '../Utils/AnalyticExport';
-import { computeAllocation, formatAmount, formatDate, round2, type Allocation } from '../Utils/AnalyticTypes';
+import { shortId, formatAmount, formatDate, round2, type Allocation } from '../Utils/AnalyticTypes';
 
 interface ArchiveTabProps {
   allocations: Allocation[];
   admin: boolean;
   canEdit: boolean;
   onEdit: (a: Allocation) => void;
-  onDeleted: (id: number) => void;
+  onDeleted: (id: string) => void;
 }
 
 export default function ArchiveTab({ allocations, admin, canEdit, onEdit, onDeleted }: ArchiveTabProps) {
   const [search, setSearch] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
-  const [openId, setOpenId] = useState<number | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Allocation | null>(null);
 
@@ -96,21 +95,19 @@ export default function ArchiveTab({ allocations, admin, canEdit, onEdit, onDele
 
       <div className="space-y-3">
         {rows.map((a) => {
-          const open = openId === a.ID;
-          const calc = open ? computeAllocation(a.AMOUNT, a.PEOPLE) : null;
           return (
             <div key={a.ID} className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
               <div className="p-4 sm:p-5 flex flex-col md:flex-row md:items-center gap-3">
-                <button onClick={() => setOpenId(open ? null : a.ID)} className="flex items-center gap-3 min-w-0 flex-1 text-left">
-                  <ChevronDown className={`w-5 h-5 text-slate-400 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+                <div className="flex items-center gap-3 min-w-0 flex-1 text-left">
                   <div className="min-w-0">
                     <p className="font-black text-slate-900 truncate" dir="auto">{a.TITLE}</p>
                     <p className="text-xs font-semibold text-slate-400">
-                      #{a.ID} · {formatDate(a.ALLOC_DATE)} · {a.PEOPLE.length} people · {new Set(a.LINES.map((l) => l.ACCOUNT)).size} accounts
+                      #{shortId(a.ID)} · {formatDate(a.ALLOC_DATE)} · {a.PEOPLE.length} people · {new Set(a.LINES.map((l) => l.ACCOUNT)).size} accounts
                       {admin && a.CREATED_BY_NAME ? ` · ${a.CREATED_BY_NAME}` : ''}
                     </p>
+                    {a.NOTES && <p className="text-xs text-slate-500 truncate mt-0.5" dir="auto">{a.NOTES}</p>}
                   </div>
-                </button>
+                </div>
                 <span className="font-black text-lg text-slate-900 tabular-nums md:mr-3">AED {formatAmount(a.AMOUNT)}</span>
                 <div className="flex items-center gap-1">
                   <button onClick={() => void run(a, 'excel')} disabled={!!busy} className="w-9 h-9 flex items-center justify-center rounded-lg text-emerald-600 hover:bg-emerald-50 disabled:opacity-50" title="Excel">
@@ -132,59 +129,6 @@ export default function ArchiveTab({ allocations, admin, canEdit, onEdit, onDele
                 </div>
               </div>
 
-              {calc && (
-                <div className="border-t border-slate-100 p-4 sm:p-5 grid grid-cols-1 lg:grid-cols-2 gap-5">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="text-[11px] font-black uppercase tracking-[0.15em] text-slate-400 text-center border-b border-slate-100">
-                        <th className="py-2 px-2">Analytic Account</th>
-                        <th className="py-2 px-2">Amount (AED)</th>
-                        <th className="py-2 px-2">%</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-50">
-                      {calc.accounts.map((x) => (
-                        <Fragment key={x.ACCOUNT}>
-                          <tr className="text-center bg-slate-50/70">
-                            <td className="py-2 px-2 font-black text-slate-900">{x.ACCOUNT}</td>
-                            <td className="py-2 px-2 font-black tabular-nums">{formatAmount(x.AMOUNT)}</td>
-                            <td className="py-2 px-2 font-black tabular-nums">{x.PCT.toFixed(2)}%</td>
-                          </tr>
-                          {x.PEOPLE.map((p) => (
-                            <tr key={`${x.ACCOUNT}|${p.NAME}`} className="text-center text-[13px] text-slate-500">
-                              <td className="py-1.5 px-2" dir="auto">
-                                <span className="text-[#C4A052] mr-1.5">↳</span>
-                                {p.NAME}
-                              </td>
-                              <td className="py-1.5 px-2 tabular-nums">{formatAmount(p.AMOUNT)}</td>
-                              <td className="py-1.5 px-2 tabular-nums">{p.PCT.toFixed(2)}%</td>
-                            </tr>
-                          ))}
-                        </Fragment>
-                      ))}
-                    </tbody>
-                  </table>
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="text-[11px] font-black uppercase tracking-[0.15em] text-slate-400 text-center border-b border-slate-100">
-                        <th className="py-2 px-2">Person</th>
-                        <th className="py-2 px-2">%</th>
-                        <th className="py-2 px-2">Amount (AED)</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-50">
-                      {calc.persons.map((p) => (
-                        <tr key={p.NAME} className="text-center">
-                          <td className="py-2 px-2 font-bold text-slate-800" dir="auto">{p.NAME}</td>
-                          <td className="py-2 px-2 tabular-nums">{p.PCT.toFixed(2)}%</td>
-                          <td className="py-2 px-2 tabular-nums">{formatAmount(p.AMOUNT)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  {a.NOTES && <p className="lg:col-span-2 text-sm text-slate-500" dir="auto">{a.NOTES}</p>}
-                </div>
-              )}
             </div>
           );
         })}

@@ -16,6 +16,7 @@ import {
   cleanSplit,
   computeAllocation,
   round2,
+  toUuid,
   type AnalyticAccount,
   type AnalyticPermissions,
   type AnalyticPerson,
@@ -76,10 +77,10 @@ export async function listAnalyticAccounts(): Promise<AnalyticAccount[]> {
   await requireTab(...ALL_TABS);
   const { data, error } = await getSupabaseAdmin().from(ACCOUNTS).select('ID, NAME, IS_ACTIVE');
   if (error) throw new Error(error.message);
-  return (data || []).map((r: any) => ({ ID: Number(r.ID), NAME: String(r.NAME), IS_ACTIVE: r.IS_ACTIVE !== false })).sort((a, b) => byName(a.NAME, b.NAME));
+  return (data || []).map((r: any) => ({ ID: String(r.ID), NAME: String(r.NAME), IS_ACTIVE: r.IS_ACTIVE !== false })).sort((a, b) => byName(a.NAME, b.NAME));
 }
 
-export async function saveAnalyticAccount(input: { ID?: number; NAME: string; IS_ACTIVE?: boolean }): Promise<AnalyticAccount> {
+export async function saveAnalyticAccount(input: { ID?: string; NAME: string; IS_ACTIVE?: boolean }): Promise<AnalyticAccount> {
   await requireTab('accounts');
   const db = getSupabaseAdmin();
   const NAME = cleanName(input?.NAME, 80);
@@ -89,7 +90,7 @@ export async function saveAnalyticAccount(input: { ID?: number; NAME: string; IS
   if (!input?.ID) {
     const { data, error } = await db.from(ACCOUNTS).insert({ NAME, IS_ACTIVE }).select('ID, NAME, IS_ACTIVE').single();
     if (error) throw dupError(error, `Account "${NAME}"`);
-    return { ID: Number(data.ID), NAME: data.NAME, IS_ACTIVE: data.IS_ACTIVE !== false };
+    return { ID: String(data.ID), NAME: data.NAME, IS_ACTIVE: data.IS_ACTIVE !== false };
   }
 
   const { data: old, error: oldErr } = await db.from(ACCOUNTS).select('NAME').eq('ID', input.ID).single();
@@ -106,10 +107,10 @@ export async function saveAnalyticAccount(input: { ID?: number; NAME: string; IS
       await db.from(PEOPLE).update({ ACCOUNTS: cleanSplit(split.map((s) => (s.ACCOUNT === old.NAME ? { ...s, ACCOUNT: NAME } : s))) }).eq('ID', p.ID);
     }
   }
-  return { ID: Number(data.ID), NAME: data.NAME, IS_ACTIVE: data.IS_ACTIVE !== false };
+  return { ID: String(data.ID), NAME: data.NAME, IS_ACTIVE: data.IS_ACTIVE !== false };
 }
 
-export async function deleteAnalyticAccount(id: number): Promise<{ success: true }> {
+export async function deleteAnalyticAccount(id: string): Promise<{ success: true }> {
   await requireTab('accounts');
   const db = getSupabaseAdmin();
   const { data: acc } = await db.from(ACCOUNTS).select('NAME').eq('ID', id).single();
@@ -127,7 +128,7 @@ export async function deleteAnalyticAccount(id: number): Promise<{ success: true
 //  People
 // ─────────────────────────────────────────────────────────────
 const toPerson = (r: any): AnalyticPerson => ({
-  ID: Number(r.ID),
+  ID: String(r.ID),
   NAME: String(r.NAME),
   NOTES: String(r.NOTES || ''),
   ACCOUNTS: cleanSplit(r.ACCOUNTS),
@@ -141,7 +142,7 @@ export async function listAnalyticPeople(): Promise<AnalyticPerson[]> {
   return (data || []).map(toPerson).sort((a, b) => byName(a.NAME, b.NAME));
 }
 
-export async function saveAnalyticPerson(input: { ID?: number; NAME: string; NOTES?: string; ACCOUNTS: unknown; IS_ACTIVE?: boolean }): Promise<AnalyticPerson> {
+export async function saveAnalyticPerson(input: { ID?: string; NAME: string; NOTES?: string; ACCOUNTS: unknown; IS_ACTIVE?: boolean }): Promise<AnalyticPerson> {
   await requireTab('people');
   const NAME = cleanName(input?.NAME);
   if (!NAME) throw new Error('Name is required');
@@ -158,15 +159,42 @@ export async function saveAnalyticPerson(input: { ID?: number; NAME: string; NOT
     throw new Error(`The percentages add up to ${round2(fixed)}%, not 100%`);
 
   const db = getSupabaseAdmin();
+  const old = input?.ID ? (await db.from(PEOPLE).select('NAME').eq('ID', input.ID).single()).data : null;
   const q = input?.ID ? db.from(PEOPLE).update(record).eq('ID', input.ID) : db.from(PEOPLE).insert(record);
   const { data, error } = await q.select('ID, NAME, NOTES, ACCOUNTS, IS_ACTIVE').single();
   if (error) throw dupError(error, `"${NAME}"`);
+
+  // Renamed: the saved allocations of this person (linked by ID) take the new name
+  if (old && old.NAME !== NAME) {
+    const { data: allocs } = await db.from(ALLOCATIONS).select('ID, PEOPLE, LINES').contains('PEOPLE', [{ PERSON_ID: String(input.ID) }]);
+    for (const a of allocs || []) {
+      const people = (Array.isArray(a.PEOPLE) ? a.PEOPLE : []) as any[];
+      const oldNames = new Set(people.filter((p) => String(p.PERSON_ID) === String(input.ID)).map((p) => String(p.NAME)));
+      await db
+        .from(ALLOCATIONS)
+        .update({
+          PEOPLE: people.map((p) => (String(p.PERSON_ID) === String(input.ID) ? { ...p, NAME } : p)),
+          LINES: ((Array.isArray(a.LINES) ? a.LINES : []) as any[]).map((l) => (oldNames.has(String(l.PERSON)) ? { ...l, PERSON: NAME } : l)),
+        })
+        .eq('ID', a.ID);
+    }
+  }
   return toPerson(data);
 }
 
-export async function deleteAnalyticPerson(id: number): Promise<{ success: true }> {
+export async function deleteAnalyticPerson(id: string): Promise<{ success: true }> {
   await requireTab('people');
-  const { error } = await getSupabaseAdmin().from(PEOPLE).delete().eq('ID', id);
+  const db = getSupabaseAdmin();
+  // Not allowed while the person is in a saved allocation (linked by ID; old allocations by name)
+  const { data: person } = await db.from(PEOPLE).select('NAME').eq('ID', id).single();
+  const [byId, byNameRes] = await Promise.all([
+    db.from(ALLOCATIONS).select('ID', { count: 'exact', head: true }).contains('PEOPLE', [{ PERSON_ID: String(id) }]),
+    person ? db.from(ALLOCATIONS).select('ID', { count: 'exact', head: true }).contains('PEOPLE', [{ NAME: person.NAME }]) : Promise.resolve({ count: 0, error: null }),
+  ]);
+  if (byId.error) throw new Error(byId.error.message);
+  const used = Math.max(byId.count || 0, byNameRes.count || 0);
+  if (used > 0) throw new Error(`${person?.NAME || 'This person'} is in ${used} saved allocation${used === 1 ? '' : 's'} in the archive. Make him inactive instead.`);
+  const { error } = await db.from(PEOPLE).delete().eq('ID', id);
   if (error) throw new Error(error.message);
   return { success: true };
 }
@@ -182,12 +210,13 @@ async function userNames(ids: string[]): Promise<Map<string, string>> {
 }
 
 const toAllocation = (r: any, names: Map<string, string>): Allocation => ({
-  ID: Number(r.ID),
+  ID: String(r.ID),
   TITLE: String(r.TITLE || ''),
   ALLOC_DATE: String(r.ALLOC_DATE || '').slice(0, 10),
   AMOUNT: Number(r.AMOUNT) || 0,
   NOTES: String(r.NOTES || ''),
   PEOPLE: (Array.isArray(r.PEOPLE) ? r.PEOPLE : []).map((p: any) => ({
+    PERSON_ID: toUuid(p.PERSON_ID),
     NAME: String(p.NAME),
     PCT: p.PCT === null || p.PCT === undefined ? null : Number(p.PCT),
     ...(p.AMOUNT !== undefined && p.AMOUNT !== null ? { AMOUNT: Number(p.AMOUNT) || 0 } : {}), // per-person amount (new style)
@@ -207,7 +236,7 @@ export async function listAllocations(): Promise<Allocation[]> {
   for (let from = 0; ; from += 1000) {
     let q = db.from(ALLOCATIONS).select('*');
     if (!perms.admin) q = q.eq('CREATED_BY', String(user.id));
-    const { data, error } = await q.order('ALLOC_DATE', { ascending: false }).order('ID', { ascending: false }).range(from, from + 999);
+    const { data, error } = await q.order('ALLOC_DATE', { ascending: false }).order('CREATED_AT', { ascending: false }).range(from, from + 999);
     if (error) throw new Error(error.message);
     rows.push(...(data || []));
     if (!data || data.length < 1000) break;
@@ -225,6 +254,7 @@ export async function saveAllocation(input: AllocationInput): Promise<Allocation
   const perPerson = Array.isArray(input?.PEOPLE) && input.PEOPLE.some((p: any) => p?.AMOUNT !== undefined);
   const PEOPLE: AllocationPerson[] = (Array.isArray(input?.PEOPLE) ? input.PEOPLE : [])
     .map((p: any) => ({
+      PERSON_ID: toUuid(p?.PERSON_ID),
       NAME: cleanName(p?.NAME),
       PCT: perPerson ? null : p?.PCT === null || p?.PCT === undefined ? null : Math.min(100, Math.max(0, round2(Number(p.PCT)))),
       ...(perPerson ? { AMOUNT: Math.max(0, round2(Number(p?.AMOUNT) || 0)) } : {}),
@@ -263,7 +293,7 @@ export async function saveAllocation(input: AllocationInput): Promise<Allocation
   return toAllocation(data, new Map([[String(user.id), String(user.name || '')]]));
 }
 
-export async function deleteAllocation(id: number): Promise<{ success: true }> {
+export async function deleteAllocation(id: string): Promise<{ success: true }> {
   const user = await requireUser();
   if (!isAdminUser(user, ANALYTIC_SYSTEM_ID, 'delete')) throw new UnauthorizedError('Only the admin can delete a saved allocation.');
   const { error } = await getSupabaseAdmin().from(ALLOCATIONS).delete().eq('ID', id);

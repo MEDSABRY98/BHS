@@ -19,7 +19,7 @@ import { getAnalyticPermissions, listAllocations, listAnalyticAccounts, listAnal
 import type { Allocation, AnalyticAccount, AnalyticPermissions, AnalyticPerson, AnalyticTabId } from './Utils/AnalyticTypes';
 
 const NO_ACCESS: AnalyticPermissions = { tabs: [], admin: false };
-const newestFirst = (a: Allocation, b: Allocation) => (a.ALLOC_DATE !== b.ALLOC_DATE ? (a.ALLOC_DATE < b.ALLOC_DATE ? 1 : -1) : b.ID - a.ID);
+const newestFirst = (a: Allocation, b: Allocation) => (a.ALLOC_DATE !== b.ALLOC_DATE ? (a.ALLOC_DATE < b.ALLOC_DATE ? 1 : -1) : String(b.CREATED_AT).localeCompare(String(a.CREATED_AT)));
 
 export default function AnalyticAllocationPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);

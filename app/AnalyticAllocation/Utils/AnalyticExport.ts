@@ -202,26 +202,10 @@ export async function exportAllocationPdf(a: ExportSource) {
       (i) => !!isSub[i],
     ) + 9;
 
-  if (y > PH - 50) {
-    doc.addPage();
-    y = 22;
-  }
-  y = heading(doc, y, 'By Person');
-  y = table(doc, y, ['Person', '% of Amount', 'Amount (AED)'], [...c.persons.map((p) => [p.NAME, `${p.PCT.toFixed(2)}%`, formatAmount(p.AMOUNT)]), ['Total', '100.00%', formatAmount(c.allocated)]], [84, 40, 50]) + 9;
-
-  if (y > PH - 50) {
-    doc.addPage();
-    y = 22;
-  }
-  y = heading(doc, y, 'Detail: Person × Analytic Account');
-  let prev = '';
-  const body = c.lines.map((l) => {
-    const first = l.PERSON !== prev;
-    prev = l.PERSON;
-    return [first ? l.PERSON : '', l.ACCOUNT, `${l.PCT.toFixed(2)}%`, formatAmount(l.AMOUNT)];
-  });
-  body.push(['Total', '', '', formatAmount(c.allocated)]);
-  table(doc, y, ['Person', 'Analytic Account', '% of Person', 'Amount (AED)'], body, [58, 54, 28, 34], (i) => c.lines[i + 1] !== undefined && c.lines[i + 1].PERSON !== c.lines[i].PERSON);
+  // By Person always starts on its own page
+  doc.addPage();
+  y = heading(doc, 26, 'By Person');
+  table(doc, y, ['Person', '% of Amount', 'Amount (AED)'], [...c.persons.map((p) => [p.NAME, `${p.PCT.toFixed(2)}%`, formatAmount(p.AMOUNT)]), ['Total', '100.00%', formatAmount(c.allocated)]], [84, 40, 50]);
 
   // Header band + page numbers on every page
   const n = doc.getNumberOfPages();
