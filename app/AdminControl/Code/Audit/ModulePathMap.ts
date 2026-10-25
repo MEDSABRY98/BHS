@@ -23,6 +23,7 @@ const MODULE_ROUTES: { prefix: string; name: string }[] = [
   { prefix: '/Sales', name: 'Sales Analysis' },
   { prefix: '/InvoicesTracking', name: 'Invoices Tracking' },
   { prefix: '/DataBase', name: 'Database' },
+  { prefix: '/DataUpdate', name: 'Data Update' },
   { prefix: '/CustomersDiscounts', name: 'Customers Discounts' },
   { prefix: '/ScheduledReports', name: 'Scheduled Reports' },
 ];

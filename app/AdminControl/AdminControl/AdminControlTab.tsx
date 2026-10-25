@@ -214,6 +214,7 @@ export const SYSTEMS = [
     { id: 'forms', label: 'Forms' },
     { id: 'scheduled-reports', label: 'Scheduled Reports' },
     { id: 'database', label: 'Database' },
+    { id: 'data-update', label: 'Data Update' },
 ];
 
 const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
@@ -305,6 +306,10 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
     'credit-notes': [
         { id: 'new', label: 'New Credit Note' },
         { id: 'notes', label: 'Credit Notes' },
+    ],
+    // Data Update: each sub-tab is one dataset (app/DataUpdate/Utils/DataUpdateTypes.ts)
+    'data-update': [
+        { id: 'inventory', label: 'Inventory' },
     ],
     'analytic-allocation': [
         { id: 'accounts', label: 'Analytic Accounts' },
@@ -422,6 +427,7 @@ const getSystemIcon = (id: string) => {
         case 'analytic-allocation': return <BarChart3 className="w-5 h-5 text-amber-500" />;
         case 'forms': return <ClipboardList className="w-5 h-5 text-violet-500" />;
         case 'database': return <Database className="w-5 h-5 text-slate-500" />;
+        case 'data-update': return <Database className="w-5 h-5 text-sky-500" />;
         default: return <Settings className="w-5 h-5 text-slate-500" />;
     }
 };
