@@ -147,7 +147,7 @@ function drawStatementFooter(doc: any, transactionCount: number, totalNetDebt: n
   doc.setFontSize(11);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(COLORS.black[0], COLORS.black[1], COLORS.black[2]);
-  doc.text('accounting@marae.ae', margin + 6, yPosition + 16);
+  doc.text('finance@swiftline.ae', margin + 6, yPosition + 16);
 
   // Summary Right (Total Due)
   const rightX = margin + summaryLeftWidth;
