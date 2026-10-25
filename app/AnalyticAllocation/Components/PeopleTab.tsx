@@ -81,7 +81,8 @@ export default function PeopleTab({ people, accountNames, onChange }: PeopleTabP
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
         {rows.map((p) => {
-          const { pcts, total } = resolvePcts(p.ACCOUNTS);
+          // the card shows only the status; the accounts are seen when the person is opened
+          const { total } = resolvePcts(p.ACCOUNTS);
           const ok = p.ACCOUNTS.length > 0 && isFull(total);
           return (
             <button
@@ -102,13 +103,6 @@ export default function PeopleTab({ people, accountNames, onChange }: PeopleTabP
                 <span className={`shrink-0 px-2.5 py-1 rounded-full text-[11px] font-bold ${!p.ACCOUNTS.length ? 'bg-slate-100 text-slate-500' : ok ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}`}>
                   {!p.ACCOUNTS.length ? 'No accounts' : ok ? '100% ✓' : formatPct(total)}
                 </span>
-              </div>
-              <div className="mt-4 flex flex-wrap gap-1.5">
-                {p.ACCOUNTS.map((a, i) => (
-                  <span key={a.ACCOUNT} className={`px-2 py-1 rounded-lg text-[11px] font-bold ${a.PCT !== null ? 'bg-violet-50 text-violet-700' : 'bg-[#C4A052]/10 text-slate-700'}`}>
-                    {a.ACCOUNT} · {pcts[i].toFixed(2)}%
-                  </span>
-                ))}
               </div>
             </button>
           );

@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Check, FileSpreadsheet, FileText, Loader2, Pencil, Plus, RotateCcw, Save, Search, Trash2, X } from 'lucide-react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { Check, ChevronDown, FileSpreadsheet, FileText, Layers, Loader2, Pencil, Plus, RotateCcw, Save, Search, Trash2, X } from 'lucide-react';
 import { toast } from '@/app/Components/Notification';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import Modal from './Modal';
@@ -41,6 +41,15 @@ export default function AllocateTab({ people, accountNames, editAllocation, onSa
 
   const amount = round2(Number(amountText.replace(/,/g, '')) || 0);
   const calc = useMemo(() => computeAllocation(amount, chosen), [amount, chosen]);
+  // people whose analytic accounts are shown (the accounts column is an icon that opens / closes them)
+  const [openAccounts, setOpenAccounts] = useState<Set<string>>(new Set());
+  const toggleAccounts = (name: string) =>
+    setOpenAccounts((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
   const byName = useMemo(() => new Map(people.map((p) => [p.NAME, p])), [people]);
   const isChosen = (name: string) => chosen.some((c) => c.NAME === name);
 
@@ -217,8 +226,11 @@ export default function AllocateTab({ people, accountNames, editAllocation, onSa
                 const split = resolvePcts(c.SPLIT);
                 const def = byName.get(c.NAME);
                 const changed = def && JSON.stringify(def.ACCOUNTS) !== JSON.stringify(c.SPLIT);
+                const isOpen = openAccounts.has(c.NAME);
+                const splitOk = c.SPLIT.length > 0 && isFull(split.total);
                 return (
-                  <tr key={c.NAME} className="text-center align-middle">
+                  <Fragment key={c.NAME}>
+                  <tr className="text-center align-middle">
                     <td className="py-3 px-3 font-bold text-slate-800" dir="auto">{c.NAME}</td>
                     <td className="py-3 px-3">
                       <div className="flex items-center justify-center gap-1">
@@ -234,20 +246,23 @@ export default function AllocateTab({ people, accountNames, editAllocation, onSa
                       </div>
                     </td>
                     <td className="py-3 px-3 font-black text-slate-900 tabular-nums">{formatAmount(r?.AMOUNT)}</td>
-                    <td className="py-3 px-3 max-w-[360px]">
-                      <div className="flex flex-wrap justify-center gap-1">
-                        {c.SPLIT.length ? (
-                          c.SPLIT.map((s, k) => (
-                            <span key={s.ACCOUNT} className={`px-2 py-0.5 rounded-md text-[11px] font-bold ${s.PCT !== null ? 'bg-violet-50 text-violet-700' : 'bg-[#C4A052]/10 text-slate-700'}`}>
-                              {s.ACCOUNT} {split.pcts[k].toFixed(2)}%
-                            </span>
-                          ))
-                        ) : (
-                          <span className="text-xs font-bold text-red-500">No accounts</span>
-                        )}
-                        {c.SPLIT.length > 0 && !isFull(split.total) && <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-red-50 text-red-600">{formatPct(split.total)}</span>}
-                      </div>
-                      {changed && <p className="text-[10px] font-bold text-violet-500 mt-1">Changed for this allocation only</p>}
+                    <td className="py-3 px-3">
+                      <button
+                        type="button"
+                        onClick={() => toggleAccounts(c.NAME)}
+                        className={`inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border text-xs font-bold transition-colors ${
+                          !splitOk
+                            ? 'border-red-200 bg-red-50 text-red-600'
+                            : changed
+                              ? 'border-violet-200 bg-violet-50 text-violet-700'
+                              : 'border-slate-200 bg-white text-slate-600 hover:border-[#C4A052] hover:text-black'
+                        }`}
+                        title={isOpen ? 'Hide the analytic accounts' : 'Show the analytic accounts'}
+                      >
+                        <Layers className="w-4 h-4" />
+                        {c.SPLIT.length ? c.SPLIT.length : '!'}
+                        <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                      </button>
                     </td>
                     <td className="py-3 px-3">
                       <div className="flex items-center justify-center gap-1">
@@ -272,6 +287,26 @@ export default function AllocateTab({ people, accountNames, editAllocation, onSa
                       </div>
                     </td>
                   </tr>
+                  {isOpen && (
+                    <tr className="bg-slate-50/70">
+                      <td colSpan={5} className="px-4 py-3">
+                        <div className="flex flex-wrap items-center justify-center gap-1.5">
+                          {c.SPLIT.length ? (
+                            c.SPLIT.map((s, k) => (
+                              <span key={s.ACCOUNT} className={`px-2 py-0.5 rounded-md text-[11px] font-bold ${s.PCT !== null ? 'bg-violet-50 text-violet-700' : 'bg-[#C4A052]/10 text-slate-700'}`}>
+                                {s.ACCOUNT} {split.pcts[k].toFixed(2)}%
+                              </span>
+                            ))
+                          ) : (
+                            <span className="text-xs font-bold text-red-500">No accounts</span>
+                          )}
+                          {c.SPLIT.length > 0 && !isFull(split.total) && <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-red-50 text-red-600">{formatPct(split.total)}</span>}
+                        </div>
+                        {changed && <p className="text-[10px] font-bold text-violet-500 mt-1.5 text-center">Changed for this allocation only</p>}
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
                 );
               })}
               {!chosen.length && <NoData isTable colSpan={5} title="NO PEOPLE ADDED" message="Search above and press Add" />}
@@ -331,11 +366,24 @@ export default function AllocateTab({ people, accountNames, editAllocation, onSa
             </thead>
             <tbody className="divide-y divide-slate-50">
               {calc.accounts.map((a) => (
-                <tr key={a.ACCOUNT} className="text-center">
-                  <td className="py-2.5 px-3 font-bold text-slate-800">{a.ACCOUNT}</td>
-                  <td className="py-2.5 px-3 font-semibold tabular-nums">{formatAmount(a.AMOUNT)}</td>
-                  <td className="py-2.5 px-3 font-semibold tabular-nums">{a.PCT.toFixed(2)}%</td>
-                </tr>
+                <Fragment key={a.ACCOUNT}>
+                  <tr className="text-center bg-slate-50/70">
+                    <td className="py-2.5 px-3 font-black text-slate-900">{a.ACCOUNT}</td>
+                    <td className="py-2.5 px-3 font-black tabular-nums">{formatAmount(a.AMOUNT)}</td>
+                    <td className="py-2.5 px-3 font-black tabular-nums">{a.PCT.toFixed(2)}%</td>
+                  </tr>
+                  {/* the beneficiaries under the account, its % split between them */}
+                  {a.PEOPLE.map((p) => (
+                    <tr key={`${a.ACCOUNT}|${p.NAME}`} className="text-center text-[13px] text-slate-500">
+                      <td className="py-2 px-3" dir="auto">
+                        <span className="text-[#C4A052] mr-1.5">↳</span>
+                        {p.NAME}
+                      </td>
+                      <td className="py-2 px-3 tabular-nums">{formatAmount(p.AMOUNT)}</td>
+                      <td className="py-2 px-3 tabular-nums">{p.PCT.toFixed(2)}%</td>
+                    </tr>
+                  ))}
+                </Fragment>
               ))}
               {!calc.accounts.length && <NoData isTable colSpan={3} title="NO ALLOCATION YET" message="Enter an amount and choose people" />}
             </tbody>

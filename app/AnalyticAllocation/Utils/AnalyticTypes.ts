@@ -138,7 +138,9 @@ export function sharesOf(values: number[]): number[] {
 }
 
 export type PersonResult = { NAME: string; PCT: number; AMOUNT: number; splitTotal: number };
-export type AccountResult = { ACCOUNT: string; AMOUNT: number; PCT: number };
+/** a beneficiary inside an analytic account: his amount and his % of that account (the people of an account = 100%) */
+export type AccountPerson = { NAME: string; AMOUNT: number; PCT: number };
+export type AccountResult = { ACCOUNT: string; AMOUNT: number; PCT: number; PEOPLE: AccountPerson[] };
 
 /** Full calculation of an allocation: people amounts, person × account lines and the summary by account. */
 export function computeAllocation(amount: number, people: AllocationPerson[]) {
@@ -156,7 +158,20 @@ export function computeAllocation(amount: number, people: AllocationPerson[]) {
   lines.forEach((l) => map.set(l.ACCOUNT, round2((map.get(l.ACCOUNT) || 0) + l.AMOUNT)));
   const names = Array.from(map.keys()).sort(byName);
   const shares = sharesOf(names.map((n) => map.get(n) || 0));
-  const accounts: AccountResult[] = names.map((n, i) => ({ ACCOUNT: n, AMOUNT: map.get(n) || 0, PCT: shares[i] }));
+  const accounts: AccountResult[] = names.map((n, i) => {
+    // the people under the account: their amounts and their % OF THE ACCOUNT (each account = 100% on its own)
+    const own = lines.filter((l) => l.ACCOUNT === n && l.AMOUNT !== 0);
+    const byPerson = new Map<string, number>();
+    own.forEach((l) => byPerson.set(l.PERSON, round2((byPerson.get(l.PERSON) || 0) + l.AMOUNT)));
+    const people = Array.from(byPerson.keys()).sort(byName);
+    const pcts = sharesOf(people.map((p) => byPerson.get(p) || 0)); // adds up to exactly 100
+    return {
+      ACCOUNT: n,
+      AMOUNT: map.get(n) || 0,
+      PCT: shares[i],
+      PEOPLE: people.map((p, k) => ({ NAME: p, AMOUNT: byPerson.get(p) || 0, PCT: pcts[k] })),
+    };
+  });
   const allocated = round2(lines.reduce((s, l) => s + l.AMOUNT, 0));
   const problems: string[] = [];
   if (people.length && !isFull(peopleTotal)) problems.push(`People shares add up to ${formatPct(peopleTotal)}, not 100%`);

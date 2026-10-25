@@ -42,4 +42,10 @@ export const FORMS: FormDefinition[] = [
     description: 'Payment to a supplier by cheque or bank transfer: fill the form and download the PDF (nothing is saved).',
     path: '/Forms/SupplierPayment',
   },
+  {
+    id: 'vehicle-expenses',
+    title: 'Vehicle Expenses',
+    description: 'Fuel and maintenance per vehicle: download the Excel template, upload it and download the analysis PDF (nothing is saved).',
+    path: '/Forms/VehicleExpenses',
+  },
 ];

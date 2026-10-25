@@ -49,12 +49,12 @@ export default function SplitEditor({ accounts, value, onChange, amount }: Split
         </div>
         <div className="flex items-center gap-2 text-xs font-bold">
           {value.length > 0 && (
-            <button type="button" onClick={() => set(value.map((v) => ({ ...v, PCT: null })))} className="h-10 px-3 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50">
+            <button type="button" onClick={() => set(value.map((v) => ({ ...v, PCT: null })))} className="h-10 w-32 px-3 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 whitespace-nowrap flex items-center justify-center">
               Split Equally
             </button>
           )}
           {value.length > 0 && (
-            <span className={`h-10 px-3 rounded-xl flex items-center ${isFull(total) ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}`}>
+            <span className={`h-10 w-32 px-3 rounded-xl flex items-center justify-center whitespace-nowrap ${isFull(total) ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}`}>
               {formatPct(total)}
               {isFull(total) ? ' ✓' : ''}
             </span>

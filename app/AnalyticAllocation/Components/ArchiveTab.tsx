@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import { ChevronDown, FileSpreadsheet, FileText, Loader2, Pencil, Search, Trash2, X } from 'lucide-react';
 import { toast } from '@/app/Components/Notification';
 import NoData from '@/app/Components/DataState/NoDataTab';
@@ -144,11 +144,23 @@ export default function ArchiveTab({ allocations, admin, canEdit, onEdit, onDele
                     </thead>
                     <tbody className="divide-y divide-slate-50">
                       {calc.accounts.map((x) => (
-                        <tr key={x.ACCOUNT} className="text-center">
-                          <td className="py-2 px-2 font-bold text-slate-800">{x.ACCOUNT}</td>
-                          <td className="py-2 px-2 tabular-nums">{formatAmount(x.AMOUNT)}</td>
-                          <td className="py-2 px-2 tabular-nums">{x.PCT.toFixed(2)}%</td>
-                        </tr>
+                        <Fragment key={x.ACCOUNT}>
+                          <tr className="text-center bg-slate-50/70">
+                            <td className="py-2 px-2 font-black text-slate-900">{x.ACCOUNT}</td>
+                            <td className="py-2 px-2 font-black tabular-nums">{formatAmount(x.AMOUNT)}</td>
+                            <td className="py-2 px-2 font-black tabular-nums">{x.PCT.toFixed(2)}%</td>
+                          </tr>
+                          {x.PEOPLE.map((p) => (
+                            <tr key={`${x.ACCOUNT}|${p.NAME}`} className="text-center text-[13px] text-slate-500">
+                              <td className="py-1.5 px-2" dir="auto">
+                                <span className="text-[#C4A052] mr-1.5">↳</span>
+                                {p.NAME}
+                              </td>
+                              <td className="py-1.5 px-2 tabular-nums">{formatAmount(p.AMOUNT)}</td>
+                              <td className="py-1.5 px-2 tabular-nums">{p.PCT.toFixed(2)}%</td>
+                            </tr>
+                          ))}
+                        </Fragment>
                       ))}
                     </tbody>
                   </table>

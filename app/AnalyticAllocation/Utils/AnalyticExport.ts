@@ -17,7 +17,11 @@ const fileBase = (a: ExportSource) => `AnalyticAllocation_${safe(a.TITLE)}_${a.A
 export async function exportAllocationExcel(a: ExportSource) {
   const c = computeAllocation(a.AMOUNT, a.PEOPLE);
   const summary = [
-    ...c.accounts.map((x) => ({ 'Analytic Account': x.ACCOUNT, 'Amount (AED)': x.AMOUNT, '%': `${x.PCT.toFixed(2)}%` })),
+    // each account, then its beneficiaries under it (the account's % split between them)
+    ...c.accounts.flatMap((x) => [
+      { 'Analytic Account': x.ACCOUNT, 'Amount (AED)': x.AMOUNT, '%': `${x.PCT.toFixed(2)}%` },
+      ...x.PEOPLE.map((p) => ({ 'Analytic Account': `   ↳ ${p.NAME}`, 'Amount (AED)': p.AMOUNT, '%': `${p.PCT.toFixed(2)}%` })),
+    ]),
     { 'Analytic Account': 'TOTAL', 'Amount (AED)': c.allocated, '%': '100.00%' },
   ];
   const people = [
@@ -59,7 +63,7 @@ const PH = 297;
 const CW = PW - 2 * M;
 const ARABIC = /[؀-ۿݐ-ݿࢠ-ࣿﭐ-﷿ﹰ-﻿]/;
 
-const table = (doc: jsPDF, y: number, head: string[], body: string[][], widths: number[], groupBreak?: (i: number) => boolean) => {
+const table = (doc: jsPDF, y: number, head: string[], body: string[][], widths: number[], groupBreak?: (i: number) => boolean, subRow?: (i: number) => boolean) => {
   autoTable(doc, {
     theme: 'plain',
     startY: y,
@@ -78,6 +82,15 @@ const table = (doc: jsPDF, y: number, head: string[], body: string[][], widths: 
       if (d.row.index === body.length - 1) {
         d.cell.styles.fillColor = C.goldL;
         d.cell.styles.fontStyle = 'bold';
+      } else if (subRow) {
+        // grouped table: the group row bold on a light panel, its sub rows smaller and grey
+        if (subRow(d.row.index)) {
+          d.cell.styles.textColor = C.grey;
+          d.cell.styles.fontSize = 8;
+        } else {
+          d.cell.styles.fillColor = C.zebra;
+          if (d.cell.styles.font !== 'Amiri') d.cell.styles.fontStyle = 'bold';
+        }
       } else if (d.row.index % 2 === 1) d.cell.styles.fillColor = C.zebra;
     },
     didDrawCell: (d) => {
@@ -166,7 +179,28 @@ export async function exportAllocationPdf(a: ExportSource) {
   }
 
   y = heading(doc, y + 2, 'By Analytic Account');
-  y = table(doc, y, ['Analytic Account', 'Amount (AED)', '% of Total'], [...c.accounts.map((x) => [x.ACCOUNT, formatAmount(x.AMOUNT), `${x.PCT.toFixed(2)}%`]), ['Total', formatAmount(c.allocated), '100.00%']], [84, 50, 40]) + 9;
+  // each account, then its beneficiaries (the account's % split between them)
+  const accRows: string[][] = [];
+  const isSub: boolean[] = [];
+  c.accounts.forEach((x) => {
+    accRows.push([x.ACCOUNT, formatAmount(x.AMOUNT), `${x.PCT.toFixed(2)}%`]);
+    isSub.push(false);
+    x.PEOPLE.forEach((p) => {
+      accRows.push([p.NAME, formatAmount(p.AMOUNT), `${p.PCT.toFixed(2)}%`]);
+      isSub.push(true);
+    });
+  });
+  accRows.push(['Total', formatAmount(c.allocated), '100.00%']);
+  y =
+    table(
+      doc,
+      y,
+      ['Analytic Account / Beneficiary', 'Amount (AED)', '% of Total'],
+      accRows,
+      [84, 50, 40],
+      (i) => i + 1 < isSub.length && !isSub[i + 1], // gold line before the next account
+      (i) => !!isSub[i],
+    ) + 9;
 
   if (y > PH - 50) {
     doc.addPage();

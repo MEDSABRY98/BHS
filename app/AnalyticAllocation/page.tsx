@@ -181,7 +181,9 @@ export default function AnalyticAllocationPage() {
                 <AccountsTab accounts={accounts} people={people} onChange={setAccounts} onRenamed={() => void listAnalyticPeople().then(setPeople).catch(() => {})} />
               )}
               {activeTab === 'people' && visibleTabs.includes('people') && <PeopleTab people={people} accountNames={activeAccountNames} onChange={setPeople} />}
-              {activeTab === 'allocate' && visibleTabs.includes('allocate') && (
+              {/* Allocate stays mounted (only hidden) so what was typed is still there after visiting another tab */}
+              {visibleTabs.includes('allocate') && (
+                <div className={activeTab === 'allocate' ? '' : 'hidden'}>
                 <AllocateTab
                   key={editAllocation ? `edit-${editAllocation.ID}` : `new-${formKey}`}
                   people={people}
@@ -199,6 +201,7 @@ export default function AnalyticAllocationPage() {
                     }
                   }}
                 />
+                </div>
               )}
               {activeTab === 'archive' && canSeeArchive && (
                 <ArchiveTab
