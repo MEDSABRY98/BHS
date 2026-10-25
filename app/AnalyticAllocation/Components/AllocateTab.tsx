@@ -31,15 +31,22 @@ const typing = (raw: string) => {
 export default function AllocateTab({ people, accountNames, editAllocation, onSaved, onCancelEdit }: AllocateTabProps) {
   const [title, setTitle] = useState(editAllocation?.TITLE || '');
   const [date, setDate] = useState(editAllocation?.ALLOC_DATE || uaeToday());
-  const [amountText, setAmountText] = useState(editAllocation ? typing(String(editAllocation.AMOUNT)) : '');
   const [notes, setNotes] = useState(editAllocation?.NOTES || '');
-  const [chosen, setChosen] = useState<AllocationPerson[]>(editAllocation?.PEOPLE || []);
+  // each person has his own amount; an old allocation (one total split by %) gets its amounts filled in
+  const [chosen, setChosen] = useState<AllocationPerson[]>(() => {
+    if (!editAllocation) return [];
+    const old = computeAllocation(editAllocation.AMOUNT, editAllocation.PEOPLE);
+    return editAllocation.PEOPLE.map((p, i) => ({ ...p, PCT: null, AMOUNT: p.AMOUNT ?? old.persons[i]?.AMOUNT ?? 0 }));
+  });
+  const [amountTexts, setAmountTexts] = useState<Record<string, string>>(() =>
+    Object.fromEntries(chosen.map((c) => [c.NAME, c.AMOUNT ? typing(String(c.AMOUNT)) : ''])),
+  );
   const [search, setSearch] = useState('');
   const [splitFor, setSplitFor] = useState<number | null>(null);
   const [splitDraft, setSplitDraft] = useState<AllocationPerson['SPLIT']>([]);
   const [busy, setBusy] = useState<'save' | 'pdf' | 'excel' | null>(null);
 
-  const amount = round2(Number(amountText.replace(/,/g, '')) || 0);
+  const amount = round2(chosen.reduce((s, c) => s + (Number(c.AMOUNT) || 0), 0));
   const calc = useMemo(() => computeAllocation(amount, chosen), [amount, chosen]);
   // people whose analytic accounts are shown (the accounts column is an icon that opens / closes them)
   const [openAccounts, setOpenAccounts] = useState<Set<string>>(new Set());
@@ -75,20 +82,23 @@ export default function AllocateTab({ people, accountNames, editAllocation, onSa
   /** Adds the ticked people (or the only match when nothing is ticked). */
   const addPending = () => {
     const names = pending.length ? pending : pickable.length === 1 ? [pickable[0].NAME] : [];
-    const add = people.filter((p) => names.includes(p.NAME) && !isChosen(p.NAME)).map((p) => ({ NAME: p.NAME, PCT: null, SPLIT: p.ACCOUNTS }));
+    const add = people.filter((p) => names.includes(p.NAME) && !isChosen(p.NAME)).map((p) => ({ NAME: p.NAME, PCT: null, AMOUNT: null, SPLIT: p.ACCOUNTS }));
     if (!add.length) return;
     setChosen((prev) => sortChosen([...prev, ...add]));
     setPending([]);
     setSearch('');
     setPickerOpen(false);
   };
-  const setPct = (name: string, raw: string) => {
-    const t = raw.trim();
-    const n = t === '' ? null : Math.min(100, Math.max(0, Number(t.replace(/,/g, '')) || 0));
-    setChosen((prev) => prev.map((c) => (c.NAME === name ? { ...c, PCT: n } : c)));
+  const setAmount = (name: string, raw: string) => {
+    const text = typing(raw);
+    const n = text === '' ? null : round2(Number(text.replace(/,/g, '')) || 0);
+    setAmountTexts((prev) => ({ ...prev, [name]: text }));
+    setChosen((prev) => prev.map((c) => (c.NAME === name ? { ...c, AMOUNT: n } : c)));
   };
 
   const source = () => ({ TITLE: title.trim() || 'Analytic Allocation', ALLOC_DATE: date, AMOUNT: amount, NOTES: notes, PEOPLE: chosen });
+  // a missing amount is already shown by the red input, so it is not listed in the warning box
+  const shownProblems = calc.problems.filter((p) => !p.endsWith(': enter the amount'));
   const canUse = amount > 0 && chosen.length > 0 && !calc.problems.length;
 
   const save = async () => {
@@ -119,12 +129,10 @@ export default function AllocateTab({ people, accountNames, editAllocation, onSa
   const clear = () => {
     setTitle('');
     setDate(uaeToday());
-    setAmountText('');
+    setAmountTexts({});
     setNotes('');
     setChosen([]);
   };
-
-  const peoplePcts = resolvePcts(chosen).pcts;
 
   return (
     <div className="space-y-6">
@@ -137,8 +145,8 @@ export default function AllocateTab({ people, accountNames, editAllocation, onSa
         )}
       </div>
 
-      {/* Details: date, title, amount, notes */}
-      <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-5 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+      {/* Details: date, title, notes (the amount is typed per person below) */}
+      <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-5 grid grid-cols-1 sm:grid-cols-3 gap-4">
         <label className="space-y-1">
           <span className="text-[11px] font-black uppercase tracking-wider text-slate-400">Date</span>
           <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={field} />
@@ -146,10 +154,6 @@ export default function AllocateTab({ people, accountNames, editAllocation, onSa
         <label className="space-y-1">
           <span className="text-[11px] font-black uppercase tracking-wider text-slate-400">Title</span>
           <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Mobile Bills – September 2026" dir="auto" className={field} />
-        </label>
-        <label className="space-y-1">
-          <span className="text-[11px] font-black uppercase tracking-wider text-slate-400">Amount (AED)</span>
-          <input value={amountText} onChange={(e) => setAmountText(typing(e.target.value))} inputMode="decimal" placeholder="0.00" className={`${field} text-right tabular-nums text-base`} />
         </label>
         <label className="space-y-1">
           <span className="text-[11px] font-black uppercase tracking-wider text-slate-400">Notes</span>
@@ -213,9 +217,10 @@ export default function AllocateTab({ people, accountNames, editAllocation, onSa
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-black text-[11px] font-black uppercase tracking-[0.15em] text-white text-center border-b-2 border-[#C4A052]">
+                <th className="py-4 px-3 w-12">#</th>
                 <th className="py-4 px-3">Person</th>
-                <th className="py-4 px-3">% of Amount</th>
                 <th className="py-4 px-3">Amount (AED)</th>
+                <th className="py-4 px-3">% of Total</th>
                 <th className="py-4 px-3">Analytic Accounts</th>
                 <th className="py-4 px-3">Actions</th>
               </tr>
@@ -231,21 +236,18 @@ export default function AllocateTab({ people, accountNames, editAllocation, onSa
                 return (
                   <Fragment key={c.NAME}>
                   <tr className="text-center align-middle">
+                    <td className="py-3 px-3 text-xs font-bold text-slate-400 tabular-nums">{i + 1}</td>
                     <td className="py-3 px-3 font-bold text-slate-800" dir="auto">{c.NAME}</td>
                     <td className="py-3 px-3">
-                      <div className="flex items-center justify-center gap-1">
-                        <input
-                          key={`${c.NAME}-${peoplePcts[i]}-${c.PCT !== null}`}
-                          defaultValue={peoplePcts[i].toFixed(2)}
-                          inputMode="decimal"
-                          onBlur={(e) => e.target.value !== peoplePcts[i].toFixed(2) && setPct(c.NAME, e.target.value)}
-                          onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
-                          className={`w-[76px] h-9 rounded-lg border text-center font-bold tabular-nums ${c.PCT !== null ? 'border-violet-400 text-violet-700 bg-violet-50' : 'border-slate-200 text-slate-700'}`}
-                        />
-                        <span className="text-xs text-slate-400">%</span>
-                      </div>
+                      <input
+                        value={amountTexts[c.NAME] ?? ''}
+                        onChange={(e) => setAmount(c.NAME, e.target.value)}
+                        inputMode="decimal"
+                        placeholder="0.00"
+                        className={`w-[130px] h-9 px-3 rounded-lg border text-center font-black tabular-nums focus:outline-none focus:ring-4 focus:ring-[#C4A052]/15 focus:border-[#C4A052] ${c.AMOUNT ? 'border-slate-200 text-slate-900' : 'border-red-200 bg-red-50/40'}`}
+                      />
                     </td>
-                    <td className="py-3 px-3 font-black text-slate-900 tabular-nums">{formatAmount(r?.AMOUNT)}</td>
+                    <td className="py-3 px-3 font-bold text-slate-500 tabular-nums">{c.AMOUNT ? `${(r?.PCT ?? 0).toFixed(2)}%` : '-'}</td>
                     <td className="py-3 px-3">
                       <button
                         type="button"
@@ -289,7 +291,7 @@ export default function AllocateTab({ people, accountNames, editAllocation, onSa
                   </tr>
                   {isOpen && (
                     <tr className="bg-slate-50/70">
-                      <td colSpan={5} className="px-4 py-3">
+                      <td colSpan={6} className="px-4 py-3">
                         <div className="flex flex-wrap items-center justify-center gap-1.5">
                           {c.SPLIT.length ? (
                             c.SPLIT.map((s, k) => (
@@ -309,14 +311,15 @@ export default function AllocateTab({ people, accountNames, editAllocation, onSa
                   </Fragment>
                 );
               })}
-              {!chosen.length && <NoData isTable colSpan={5} title="NO PEOPLE ADDED" message="Search above and press Add" />}
+              {!chosen.length && <NoData isTable colSpan={6} title="NO PEOPLE ADDED" message="Search above and press Add" />}
             </tbody>
             {chosen.length > 0 && (
               <tfoot>
                 <tr className="text-center font-black border-t-2 border-[#C4A052] bg-[#C4A052]/5">
+                  <td className="py-3 px-3" />
                   <td className="py-3 px-3">Total</td>
-                  <td className={`py-3 px-3 tabular-nums ${isFull(calc.peopleTotal) ? '' : 'text-red-600'}`}>{formatPct(calc.peopleTotal)}</td>
-                  <td className="py-3 px-3 tabular-nums">{formatAmount(calc.persons.reduce((s, p) => s + p.AMOUNT, 0))}</td>
+                  <td className="py-3 px-3 tabular-nums">{formatAmount(amount)}</td>
+                  <td className="py-3 px-3 tabular-nums">{amount > 0 ? '100.00%' : '-'}</td>
                   <td colSpan={2} />
                 </tr>
               </tfoot>
@@ -347,9 +350,9 @@ export default function AllocateTab({ people, accountNames, editAllocation, onSa
           </div>
         </div>
 
-        {calc.problems.length > 0 && chosen.length > 0 && (
+        {shownProblems.length > 0 && chosen.length > 0 && (
           <div className="rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm font-semibold text-red-600 space-y-0.5">
-            {calc.problems.map((p) => (
+            {shownProblems.map((p) => (
               <p key={p}>{p}</p>
             ))}
           </div>
@@ -385,7 +388,7 @@ export default function AllocateTab({ people, accountNames, editAllocation, onSa
                   ))}
                 </Fragment>
               ))}
-              {!calc.accounts.length && <NoData isTable colSpan={3} title="NO ALLOCATION YET" message="Enter an amount and choose people" />}
+              {!calc.accounts.length && <NoData isTable colSpan={3} title="NO ALLOCATION YET" message="Choose people and enter their amounts" />}
             </tbody>
             {calc.accounts.length > 0 && (
               <tfoot>

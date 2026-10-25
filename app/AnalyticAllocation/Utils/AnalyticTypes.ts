@@ -30,10 +30,14 @@ export interface AnalyticPerson {
   IS_ACTIVE: boolean;
 }
 
-/** A person inside an allocation. PCT null = equal share of the amount. */
+/**
+ * A person inside an allocation. AMOUNT = his own amount (typed per person; the allocation total is their sum).
+ * Old allocations have no AMOUNT: they split one total by PCT (null = equal share).
+ */
 export interface AllocationPerson {
   NAME: string;
   PCT: number | null;
+  AMOUNT?: number | null;
   SPLIT: SplitItem[];
 }
 
@@ -62,7 +66,7 @@ export type AllocationInput = {
   ID?: number; // set = edit
   TITLE: string;
   ALLOC_DATE: string;
-  AMOUNT: number;
+  AMOUNT?: number; // old style only; with per-person amounts the total is their sum
   NOTES?: string;
   PEOPLE: AllocationPerson[];
 };
@@ -143,9 +147,22 @@ export type AccountPerson = { NAME: string; AMOUNT: number; PCT: number };
 export type AccountResult = { ACCOUNT: string; AMOUNT: number; PCT: number; PEOPLE: AccountPerson[] };
 
 /** Full calculation of an allocation: people amounts, person × account lines and the summary by account. */
+/** true when the people carry their own amounts (new style) */
+export const hasPersonAmounts = (people: AllocationPerson[]) => people.some((p) => p.AMOUNT !== undefined);
+
 export function computeAllocation(amount: number, people: AllocationPerson[]) {
-  const { pcts, total: peopleTotal } = resolvePcts(people);
-  const amounts = splitAmount(amount, pcts);
+  const perPerson = hasPersonAmounts(people);
+  let pcts: number[];
+  let peopleTotal: number;
+  let amounts: number[];
+  if (perPerson) {
+    amounts = people.map((p) => round2(Number(p.AMOUNT) || 0));
+    pcts = sharesOf(amounts);
+    peopleTotal = amounts.some((a) => a > 0) ? 100 : 0;
+  } else {
+    ({ pcts, total: peopleTotal } = resolvePcts(people));
+    amounts = splitAmount(amount, pcts);
+  }
   const persons: PersonResult[] = [];
   const lines: AllocationLine[] = [];
   people.forEach((p, i) => {
@@ -174,8 +191,12 @@ export function computeAllocation(amount: number, people: AllocationPerson[]) {
   });
   const allocated = round2(lines.reduce((s, l) => s + l.AMOUNT, 0));
   const problems: string[] = [];
-  if (people.length && !isFull(peopleTotal)) problems.push(`People shares add up to ${formatPct(peopleTotal)}, not 100%`);
+  if (!perPerson && people.length && !isFull(peopleTotal)) problems.push(`People shares add up to ${formatPct(peopleTotal)}, not 100%`);
   persons.forEach((p) => {
+    if (perPerson && !(p.AMOUNT > 0)) {
+      problems.push(`${p.NAME}: enter the amount`);
+      return;
+    }
     if (!people.find((x) => x.NAME === p.NAME)?.SPLIT.length) problems.push(`${p.NAME}: no analytic accounts`);
     else if (!isFull(p.splitTotal)) problems.push(`${p.NAME}: accounts add up to ${formatPct(p.splitTotal)}, not 100%`);
   });

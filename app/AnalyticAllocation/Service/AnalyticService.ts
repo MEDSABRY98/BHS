@@ -187,7 +187,12 @@ const toAllocation = (r: any, names: Map<string, string>): Allocation => ({
   ALLOC_DATE: String(r.ALLOC_DATE || '').slice(0, 10),
   AMOUNT: Number(r.AMOUNT) || 0,
   NOTES: String(r.NOTES || ''),
-  PEOPLE: (Array.isArray(r.PEOPLE) ? r.PEOPLE : []).map((p: any) => ({ NAME: String(p.NAME), PCT: p.PCT === null || p.PCT === undefined ? null : Number(p.PCT), SPLIT: cleanSplit(p.SPLIT) })),
+  PEOPLE: (Array.isArray(r.PEOPLE) ? r.PEOPLE : []).map((p: any) => ({
+    NAME: String(p.NAME),
+    PCT: p.PCT === null || p.PCT === undefined ? null : Number(p.PCT),
+    ...(p.AMOUNT !== undefined && p.AMOUNT !== null ? { AMOUNT: Number(p.AMOUNT) || 0 } : {}), // per-person amount (new style)
+    SPLIT: cleanSplit(p.SPLIT),
+  })),
   LINES: (Array.isArray(r.LINES) ? r.LINES : []).map((l: any) => ({ PERSON: String(l.PERSON), ACCOUNT: String(l.ACCOUNT), PCT: Number(l.PCT) || 0, AMOUNT: Number(l.AMOUNT) || 0 })),
   CREATED_BY: String(r.CREATED_BY || ''),
   CREATED_BY_NAME: names.get(String(r.CREATED_BY)) || '',
@@ -216,14 +221,21 @@ export async function saveAllocation(input: AllocationInput): Promise<Allocation
   if (!TITLE) throw new Error('Title is required');
   const ALLOC_DATE = String(input?.ALLOC_DATE || '').trim();
   if (!DATE_RE.test(ALLOC_DATE)) throw new Error('Date is required');
-  const AMOUNT = round2(Number(input?.AMOUNT));
-  if (!(AMOUNT > 0)) throw new Error('Amount must be greater than zero');
-
   const seen = new Set<string>();
+  const perPerson = Array.isArray(input?.PEOPLE) && input.PEOPLE.some((p: any) => p?.AMOUNT !== undefined);
   const PEOPLE: AllocationPerson[] = (Array.isArray(input?.PEOPLE) ? input.PEOPLE : [])
-    .map((p: any) => ({ NAME: cleanName(p?.NAME), PCT: p?.PCT === null || p?.PCT === undefined ? null : Math.min(100, Math.max(0, round2(Number(p.PCT)))), SPLIT: cleanSplit(p?.SPLIT) }))
+    .map((p: any) => ({
+      NAME: cleanName(p?.NAME),
+      PCT: perPerson ? null : p?.PCT === null || p?.PCT === undefined ? null : Math.min(100, Math.max(0, round2(Number(p.PCT)))),
+      ...(perPerson ? { AMOUNT: Math.max(0, round2(Number(p?.AMOUNT) || 0)) } : {}),
+      SPLIT: cleanSplit(p?.SPLIT),
+    }))
     .filter((p) => p.NAME && !seen.has(p.NAME.toLowerCase()) && seen.add(p.NAME.toLowerCase()));
   if (!PEOPLE.length) throw new Error('Choose at least one person');
+
+  // the total is the sum of the people's amounts (old style: the typed total)
+  const AMOUNT = perPerson ? round2(PEOPLE.reduce((s, p) => s + (p.AMOUNT || 0), 0)) : round2(Number(input?.AMOUNT));
+  if (!(AMOUNT > 0)) throw new Error('Amount must be greater than zero');
 
   // Recalculated here so the archive always matches the rules
   const calc = computeAllocation(AMOUNT, PEOPLE);
