@@ -616,6 +616,18 @@ export default function AdminControlTab() {
         setSelectedUser({ ...selectedUser, role: JSON.stringify({ ...perms, [key]: newActions }) });
     };
 
+    /** Value Chain: the user sees the costs lower by this % (empty / 0 = real costs) — read on the server by ValueChainService */
+    const VALUE_CHAIN_COST_KEY = 'value-chain-cost-discount';
+    const handleSetCostDiscount = (raw: string) => {
+        if (!selectedUser) return;
+        const perms = parsePermissions(selectedUser.role);
+        const n = Number(String(raw).replace(/[^\d.]/g, ''));
+        const next: Record<string, any> = { ...perms };
+        if (raw.trim() === '' || !Number.isFinite(n) || n <= 0) delete next[VALUE_CHAIN_COST_KEY];
+        else next[VALUE_CHAIN_COST_KEY] = Math.min(99, Math.round(n * 100) / 100);
+        setSelectedUser({ ...selectedUser, role: JSON.stringify(next) });
+    };
+
     const handleEnableAllSystems = () => {
         if (!selectedUser) return;
         const perms = parsePermissions(selectedUser.role);
@@ -1029,7 +1041,29 @@ export default function AdminControlTab() {
                                         </p>
 
                                         <div className="mt-auto pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
-                                            {hasSubTabs ? (
+                                            {system.id === 'value-chain' && isEnabled ? (
+                                                <label
+                                                    onClick={(e) => e.stopPropagation()}
+                                                    className="w-full flex items-center justify-between gap-2"
+                                                    title="The costs this user sees are lower by this %. Empty = real costs. Admins always see the real costs."
+                                                >
+                                                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Cost −%</span>
+                                                    <span className="relative">
+                                                        <input
+                                                            key={`${selectedUser.name}-${permissions[VALUE_CHAIN_COST_KEY] ?? ''}`}
+                                                            defaultValue={permissions[VALUE_CHAIN_COST_KEY] ?? ''}
+                                                            inputMode="decimal"
+                                                            placeholder="0"
+                                                            onBlur={(e) => handleSetCostDiscount(e.target.value)}
+                                                            onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+                                                            className={`w-20 h-8 pl-2 pr-6 rounded-lg border text-sm font-black text-center tabular-nums focus:outline-none focus:ring-2 focus:ring-slate-900/15 ${
+                                                                permissions[VALUE_CHAIN_COST_KEY] ? 'border-amber-300 bg-amber-50 text-amber-800' : 'border-slate-200 text-slate-700'
+                                                            }`}
+                                                        />
+                                                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">%</span>
+                                                    </span>
+                                                </label>
+                                            ) : hasSubTabs ? (
                                                 <>
                                                     <span className="text-[10px] font-black text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md uppercase tracking-wider">
                                                         {enabledTabsCount}/{subTabs.length} tabs

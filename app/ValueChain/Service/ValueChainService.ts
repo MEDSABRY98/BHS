@@ -28,6 +28,7 @@ import {
   type SupplierProductRow,
   type CustomerGroup,
   type CustomerProductRow,
+  COST_DISCOUNT_KEY,
 } from '../Utils/Types';
 
 const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
@@ -56,6 +57,21 @@ async function requireUser(): Promise<SessionUserRecord> {
   return user;
 }
 
+/**
+ * The costs this user sees: real cost × (1 − discount %), the % set for him in Admin Control (Value Chain card).
+ * Admins (and users with no %) see the real costs. Applied here on the server, so the page never gets the real cost.
+ */
+function costFactorOf(user: SessionUserRecord): number {
+  if (isAdminUser(user, VALUE_CHAIN_SYSTEM_ID)) return 1;
+  try {
+    const perms = JSON.parse(String(user.role || '').trim() || '{}');
+    const pct = Number(perms?.[COST_DISCOUNT_KEY]);
+    return Number.isFinite(pct) && pct > 0 && pct < 100 ? 1 - pct / 100 : 1;
+  } catch {
+    return 1;
+  }
+}
+
 async function fetchAll(table: string, select: string, orderBy: string): Promise<any[]> {
   const db = getSupabaseAdmin();
   const out: any[] = [];
@@ -82,7 +98,7 @@ function checkPeriods(p: ValueChainPeriods): ValueChainPeriods {
 }
 
 export async function GetValueChainData(periodsInput: ValueChainPeriods): Promise<ValueChainData> {
-  await requireUser();
+  const costFactor = costFactorOf(await requireUser());
   const periods = checkPeriods(periodsInput);
   const today = uaeToday();
 
@@ -119,7 +135,7 @@ export async function GetValueChainData(periodsInput: ValueChainPeriods): Promis
   const purchaseSuppliers = new Map<string, string>();
   for (const r of purchases) {
     const pid = id(r['PRODUCT ID']);
-    const price = num(r['UNIT PRICE']);
+    const price = num(r['UNIT PRICE']) * costFactor;
     const date = dayOf(r.DATE);
     if (!pid || !productById.has(pid) || !(price > 0) || !ISO_DAY.test(date) || date > today) continue;
     const list = buysByProduct.get(pid) || [];
@@ -183,7 +199,7 @@ export async function GetValueChainData(periodsInput: ValueChainPeriods): Promis
       newCost: latest
         ? point(latest)
         : num(p?.['PRODUCT COST']) > 0
-          ? { price: round3(num(p?.['PRODUCT COST'])), date: '', supplierId: '', supplierName: '', source: 'products' }
+          ? { price: round3(num(p?.['PRODUCT COST']) * costFactor), date: '', supplierId: '', supplierName: '', source: 'products' }
           : null,
       sale: agg
         ? { max: round3(agg.max), min: round3(agg.min), avg: round3(agg.qty ? agg.amount / agg.qty : 0), lines: agg.lines }
@@ -291,7 +307,7 @@ export async function GetProductCustomers(productId: string, saleFrom: string, s
 
 /** Product details → Suppliers: every supplier the product was bought from (all purchase history up to today). */
 export async function GetProductSuppliers(productId: string): Promise<ProductSupplierRow[]> {
-  await requireUser();
+  const costFactor = costFactorOf(await requireUser());
   const pid = id(productId);
   if (!pid) throw new Error('Choose a product');
   const today = uaeToday();
@@ -317,7 +333,7 @@ export async function GetProductSuppliers(productId: string): Promise<ProductSup
   const bySupplier = new Map<string, Buy[]>();
   let totalQty = 0;
   for (const r of lines) {
-    const price = num(r['UNIT PRICE']);
+    const price = num(r['UNIT PRICE']) * costFactor;
     const date = dayOf(r.DATE);
     if (!(price > 0) || !ISO_DAY.test(date) || date > today) continue;
     const sid = id(r['SUPPLIER ID']);
@@ -351,7 +367,7 @@ export async function GetProductSuppliers(productId: string): Promise<ProductSup
 
 /** Suppliers tab: every product bought from one supplier, with its purchase prices (all history up to today). */
 export async function GetSupplierProducts(supplierId: string): Promise<SupplierProductRow[]> {
-  await requireUser();
+  const costFactor = costFactorOf(await requireUser());
   const sid = id(supplierId);
   if (!sid) throw new Error('Choose a supplier');
   const today = uaeToday();
@@ -373,7 +389,7 @@ export async function GetSupplierProducts(supplierId: string): Promise<SupplierP
   type Buy = { id: number; date: string; price: number; qty: number };
   const byProduct = new Map<string, Buy[]>();
   for (const r of lines) {
-    const price = num(r['UNIT PRICE']);
+    const price = num(r['UNIT PRICE']) * costFactor;
     const date = dayOf(r.DATE);
     const pid = id(r['PRODUCT ID']);
     if (!pid || !(price > 0) || !ISO_DAY.test(date) || date > today) continue;

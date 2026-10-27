@@ -1,6 +1,11 @@
 // Value Chain — shared types and small helpers (browser + server).
 
 export const VALUE_CHAIN_SYSTEM_ID = 'value-chain';
+/**
+ * Admin Control → Value Chain card: per user, the costs are shown lower by this % (role JSON key).
+ * Empty / 0 = the real costs. Admins always see the real costs.
+ */
+export const COST_DISCOUNT_KEY = 'value-chain-cost-discount';
 
 export type PriceMode = 'max' | 'min' | 'avg';
 
