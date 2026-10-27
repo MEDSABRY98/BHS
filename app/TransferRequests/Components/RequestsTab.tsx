@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, FileText, Pencil, Search, Trash2, X } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { ChevronLeft, ChevronRight, FileText, MessageSquareText, Pencil, Search, Trash2, X } from 'lucide-react';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import { toast } from '@/app/Components/Notification';
 import ConfirmDialog from './ConfirmDialog';
@@ -47,6 +48,14 @@ export default function RequestsTab({ requests, banks, beneficiaries, viewAll, c
   const [pdfId, setPdfId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<TransferRequest | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [reasonOf, setReasonOf] = useState<TransferRequest | null>(null);
+
+  useEffect(() => {
+    if (!reasonOf) return;
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setReasonOf(null);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [reasonOf]);
 
   const bankById = useMemo(() => new Map(banks.map((b) => [b.ID, b])), [banks]);
   const benById = useMemo(() => new Map(beneficiaries.map((b) => [b.ID, b])), [beneficiaries]);
@@ -236,9 +245,21 @@ export default function RequestsTab({ requests, banks, beneficiaries, viewAll, c
                         <span className="text-slate-400 text-xs mr-1">{r.CURRENCY}</span>
                         {formatAmount(r.AMOUNT)}
                       </td>
-                      <td className="py-3 px-3 text-slate-500 max-w-[240px] truncate" dir="auto" title={r.REASON}>
-                        {r.REASON}
-                      </td>
+                      {viewAll ? (
+                        <td className="py-3 px-3">
+                          {r.REASON ? (
+                            <button onClick={() => setReasonOf(r)} className="w-8 h-8 mx-auto flex items-center justify-center rounded-lg text-amber-600 hover:bg-amber-50" title="View reason">
+                              <MessageSquareText className="w-4 h-4" />
+                            </button>
+                          ) : (
+                            <span className="text-slate-300">—</span>
+                          )}
+                        </td>
+                      ) : (
+                        <td className="py-3 px-3 text-slate-500 min-w-[200px] max-w-[340px] whitespace-pre-line break-words leading-6 text-start align-top" dir="auto">
+                          {r.REASON}
+                        </td>
+                      )}
                       {viewAll && <td className="py-3 px-3 text-slate-600 font-semibold whitespace-nowrap">{r.CREATED_BY_NAME || '—'}</td>}
                       <td className="py-3 px-3">
                         <div className="flex items-center justify-center gap-1">
@@ -292,6 +313,30 @@ export default function RequestsTab({ requests, banks, beneficiaries, viewAll, c
           </div>
         )}
       </div>
+
+      {reasonOf &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={() => setReasonOf(null)}>
+            <div className="w-full max-w-lg bg-white rounded-3xl shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between gap-3 px-6 py-4 border-b border-slate-100">
+                <div className="min-w-0">
+                  <p className="font-black text-slate-900">Reason · {reasonOf.REQUEST_NO}</p>
+                  <p className="text-xs font-semibold text-slate-400 truncate" dir="auto">
+                    {benById.get(reasonOf.BENEFICIARY_ID)?.NAME || '—'} · {reasonOf.CURRENCY} {formatAmount(reasonOf.AMOUNT)} · {formatDate(reasonOf.REQUEST_DATE)}
+                  </p>
+                </div>
+                <button onClick={() => setReasonOf(null)} className="w-9 h-9 shrink-0 flex items-center justify-center rounded-xl text-slate-400 hover:text-black hover:bg-slate-100" title="Close">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="px-6 py-5 max-h-[60vh] overflow-y-auto text-sm text-slate-700 whitespace-pre-line break-words leading-7 text-start" dir="auto">
+                {reasonOf.REASON}
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
 
       <ConfirmDialog
         open={!!deleteTarget}

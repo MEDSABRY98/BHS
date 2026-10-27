@@ -8,7 +8,9 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { addArabicFont } from '@/app/Components/Pdf/shared';
 import { saveTrackedPdf } from '@/app/AdminControl/Code/Audit/TrackedDownload';
-import { ISSUED_BY, ISSUED_TO, SUPPORTING_TEXT, FIXED_SIGNERS, cleanSigners, formatAmount, formatLongDate, type DebitNote } from './DebitNoteTypes';
+import { ISSUED_BY, ISSUED_TO, SUPPORTING_TEXT, formatAmount, formatLongDate, type DebitNote } from './DebitNoteTypes';
+import { pickSignatures } from '@/app/Components/Signatures/SignaturePicker';
+import { drawSignatures } from '@/app/Components/Signatures/DrawSignatures';
 
 type RGB = [number, number, number];
 const C = {
@@ -31,6 +33,10 @@ const M = 16;
 const CW = W - M * 2;
 
 export async function generateDebitNotePdf(note: DebitNote) {
+  // who signs (Data Base → Signatories DB); cancelled = no PDF, nobody = no signature part
+  const signers = await pickSignatures('debit-note', { title: 'Debit Note' });
+  if (!signers) return null;
+
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   if ([note.BODY_TEXT, ...note.LINES.map((l) => l.description)].some(hasArabic)) {
     try {
@@ -233,27 +239,8 @@ export async function generateDebitNotePdf(note: DebitNote) {
   doc.setTextColor(...C.grey);
   doc.text(SUPPORTING_TEXT, M + 4 + doc.getTextWidth('ATTACHMENTS') + 10, y);
 
-  // ── Signatures: chosen optional ones + Accounts Department · CEO (bottom of the page) ──
-  const PH = 297;
-  let sy = Math.max(y + 22, PH - 48);
-  if (sy > PH - 30) {
-    doc.addPage();
-    sy = 40;
-  }
-  const signers = [...cleanSigners(note.EXTRA_SIGNERS), ...FIXED_SIGNERS];
-  const gap = signers.length > 2 ? 10 : 24;
-  const sw = (CW - gap * (signers.length - 1)) / signers.length;
-  signers.forEach((title, i) => {
-    const x = M + i * (sw + gap);
-    label(title, x, sy, C.navy, 7);
-    doc.setDrawColor(...C.ink);
-    doc.setLineWidth(0.35);
-    doc.line(x, sy + 20, x + sw, sy + 20);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7.4);
-    doc.setTextColor(...C.grey);
-    doc.text('Signature & Date', x, sy + 25);
-  });
+  // ── Signatures: the people chosen when exporting (bottom of the page) ──
+  drawSignatures(doc, signers, { y, margin: M, bottom: true, footer: 20 });
 
   const fileName = `${note.ID}_Debit_Note.pdf`;
   saveTrackedPdf(doc, fileName);

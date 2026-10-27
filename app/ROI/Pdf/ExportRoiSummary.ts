@@ -6,6 +6,8 @@ import { addArabicFont } from '@/app/Components/Pdf/shared';
 import { saveTrackedPdf } from '@/app/AdminControl/Code/Audit/TrackedDownload';
 import { PeriodLabel, bySalespersonThenCustomer } from '../Utils/RoiCalc';
 import type { RoiResult } from '../Utils/Types';
+import { pickSignatures } from '@/app/Components/Signatures/SignaturePicker';
+import { drawSignatures } from '@/app/Components/Signatures/DrawSignatures';
 
 type RGB = [number, number, number];
 const INK: RGB = [15, 23, 42];
@@ -28,6 +30,8 @@ export async function ExportRoiSummary(
   opts: { title: string; subtitle?: string; fileName?: string },
 ): Promise<void> {
   if (!results.length) return;
+  const signers = await pickSignatures('roi-summary', { title: 'ROI Summary' });
+  if (!signers) return; // cancelled
   const jsPDF = (await import('jspdf')).default;
   const autoTableModule: any = await import('jspdf-autotable');
   const autoTable = autoTableModule.default || autoTableModule;
@@ -156,36 +160,9 @@ export async function ExportRoiSummary(
     },
   });
 
-  // signatures: sales manager, accounts department, CEO
+  // signatures: the people chosen when exporting (bottom of the last page)
   const H = doc.internal.pageSize.getHeight();
-  // at the very bottom of the last page (a new page when the table leaves no room)
-  let sy = H - 26;
-  if (doc.lastAutoTable.finalY > sy - 18) {
-    doc.addPage();
-    sy = H - 26;
-  }
-  const labels = ['Sales Manager', 'Accounts Department', 'CEO'];
-  const colW = (W - M * 2) / labels.length;
-  doc.setFillColor(...GOLD);
-  doc.roundedRect(M, sy - 13, 1.6, 5, 0.8, 0.8, 'F');
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9);
-  doc.setTextColor(...INK);
-  doc.text('Approvals', M + 4, sy - 9);
-  labels.forEach((label, i) => {
-    const cx = M + colW * i + colW / 2;
-    doc.setDrawColor(...INK);
-    doc.setLineWidth(0.3);
-    doc.line(cx - 34, sy, cx + 34, sy);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
-    doc.setTextColor(...INK);
-    doc.text(label, cx, sy + 5.5, { align: 'center' });
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(6.8);
-    doc.setTextColor(...MUTED);
-    doc.text('Name / Signature / Date', cx, sy + 9.5, { align: 'center' });
-  });
+  drawSignatures(doc, signers, { y: doc.lastAutoTable.finalY, margin: M, bottom: true, heading: 'Approvals', footer: 12 });
 
   // page numbers
   const pages = doc.getNumberOfPages();

@@ -18,6 +18,7 @@ import {
   kindLabel,
   tagsOf,
   resolveDateMode,
+  unwrap,
   type AttachmentSpec,
   type MailCustomer,
   type MailLogRow,
@@ -109,7 +110,7 @@ export default function ComposeTab({ status, customers, suppliers, templates, on
   const send = async () => {
     setSending(true);
     try {
-      const row = await sendMailDraft({ to, cc, bcc, subject, body, attachments, templateId: templateId || null });
+      const row = unwrap(await sendMailDraft({ to, cc, bcc, subject, body, attachments, templateId: templateId || null }));
       toast.success(`Sent to ${row.TO_EMAILS.join(', ')}`);
       onSent(row);
       setConfirm(false);
@@ -126,9 +127,9 @@ export default function ComposeTab({ status, customers, suppliers, templates, on
 
   return (
     <div className="space-y-5">
-      {status && !status.connected && (
+      {status && (status.problem || !status.connected) && (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-800 flex items-center gap-2">
-          <AlertTriangle className="w-4 h-4 shrink-0" /> The finance mailbox is not connected yet. The admin connects it from Settings.
+          <AlertTriangle className="w-4 h-4 shrink-0" /> {status?.problem || 'The finance mailbox is not connected yet. The admin connects it from Settings.'}
         </div>
       )}
 

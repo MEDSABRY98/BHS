@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { FileText, Loader2, Pencil, Search, Trash2, X } from 'lucide-react';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import { toast } from '@/app/Components/Notification';
@@ -10,6 +10,13 @@ import { generateDebitNotePdf } from '../Utils/DebitNotePdf';
 import { formatAmount, formatDate, round2, type DebitNote } from '../Utils/DebitNoteTypes';
 
 const PAGE_SIZE = 50;
+
+const userOf = (n: { CREATED_BY_NAME?: string; CREATED_BY: string }) => n.CREATED_BY_NAME || n.CREATED_BY || '—';
+const monthKey = (d: string) => String(d || '').slice(0, 7); // yyyy-mm
+const monthLabel = (k: string) => {
+  const [y, m] = k.split('-').map(Number);
+  return y && m ? new Date(y, m - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : '—';
+};
 
 interface DebitNotesListProps {
   notes: DebitNote[];
@@ -44,13 +51,40 @@ export default function DebitNotesList({ notes, admin, canEdit, onEdit, onDelete
     });
   }, [notes, search, dateFrom, dateTo]);
 
+  // grouped by month (newest first), then by user
+  const sorted = useMemo(
+    () =>
+      [...filtered].sort(
+        (a, b) =>
+          monthKey(b.NOTE_DATE).localeCompare(monthKey(a.NOTE_DATE)) ||
+          userOf(a).localeCompare(userOf(b)) ||
+          b.NOTE_DATE.localeCompare(a.NOTE_DATE) ||
+          b.ID.localeCompare(a.ID),
+      ),
+    [filtered],
+  );
+  const groupTotals = useMemo(() => {
+    const m = new Map<string, { count: number; amount: number }>();
+    const add = (k: string, v: number) => {
+      const t = m.get(k) || { count: 0, amount: 0 };
+      t.count++;
+      t.amount = round2(t.amount + v);
+      m.set(k, t);
+    };
+    for (const n of filtered) {
+      add(monthKey(n.NOTE_DATE), n.TOTAL);
+      add(`${monthKey(n.NOTE_DATE)}|${userOf(n)}`, n.TOTAL);
+    }
+    return m;
+  }, [filtered]);
+
   const total = round2(filtered.reduce((s, n) => s + n.TOTAL, 0));
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   useEffect(() => setPage(1), [search, dateFrom, dateTo]);
   useEffect(() => {
     if (page > pageCount) setPage(pageCount);
   }, [page, pageCount]);
-  const rows = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const rows = sorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   const filtersActive = !!(search || dateFrom || dateTo);
 
   const pdf = async (n: DebitNote) => {
@@ -139,42 +173,77 @@ export default function DebitNotesList({ notes, admin, canEdit, onEdit, onDelete
               {rows.length === 0 ? (
                 <NoData isTable colSpan={colCount} title={notes.length ? 'NO MATCHING DEBIT NOTES' : 'NO DEBIT NOTES YET'} />
               ) : (
-                rows.map((n) => (
-                  <tr key={n.ID} className="text-center hover:bg-slate-50/70 transition-colors">
-                    <td className="py-3 px-3 font-black text-[#1F3864] whitespace-nowrap">{n.ID}</td>
-                    <td className="py-3 px-3 font-semibold text-slate-600 whitespace-nowrap">{formatDate(n.NOTE_DATE)}</td>
-                    <td className="py-3 px-3 max-w-[380px]">
-                      <p className="font-bold text-slate-800 truncate" dir="auto" title={n.LINES.map((l) => l.description).join(' · ')}>
-                        {n.LINES[0]?.description || '—'}
-                      </p>
-                      {n.LINES.length > 1 && <p className="text-[11px] font-semibold text-slate-400">+ {n.LINES.length - 1} more line{n.LINES.length > 2 ? 's' : ''}</p>}
-                    </td>
-                    <td className="py-3 px-3 font-black text-slate-900 whitespace-nowrap">{formatAmount(n.TOTAL)}</td>
-                    {admin && <td className="py-3 px-3 text-slate-600 font-semibold whitespace-nowrap">{n.CREATED_BY_NAME || n.CREATED_BY}</td>}
-                    <td className="py-3 px-3">
-                      <div className="flex items-center justify-center gap-1">
-                        <button
-                          onClick={() => void pdf(n)}
-                          disabled={pdfId === n.ID}
-                          className="w-8 h-8 flex items-center justify-center rounded-lg text-red-500 hover:bg-red-50 disabled:opacity-50"
-                          title="Download PDF"
-                        >
-                          {pdfId === n.ID ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
-                        </button>
-                        {canEdit && (
-                          <button onClick={() => onEdit(n)} className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-[#1F3864] hover:bg-slate-100" title="Edit">
-                            <Pencil className="w-4 h-4" />
-                          </button>
-                        )}
-                        {admin && (
-                          <button onClick={() => setDeleteTarget(n)} className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50" title="Delete">
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                rows.map((n, i) => {
+                  const mk = monthKey(n.NOTE_DATE);
+                  const uk = `${mk}|${userOf(n)}`;
+                  const prev = rows[i - 1];
+                  const newMonth = !prev || monthKey(prev.NOTE_DATE) !== mk;
+                  const newUser = newMonth || userOf(prev) !== userOf(n);
+                  const mt = groupTotals.get(mk);
+                  const ut = groupTotals.get(uk);
+                  return (
+                    <Fragment key={n.ID}>
+                      {newMonth && (
+                        <tr className="bg-slate-100/80">
+                          <td colSpan={colCount} className="py-2.5 px-4">
+                            <div className="flex items-center justify-between gap-3">
+                              <span className="font-black text-[#1F3864] uppercase tracking-wide text-xs">{monthLabel(mk)}</span>
+                              <span className="text-xs font-bold text-slate-600">
+                                <span className="text-slate-400 mr-1">{mt?.count} ·</span>AED {formatAmount(mt?.amount || 0)}
+                              </span>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                      {newUser && (
+                        <tr className="bg-slate-50/60">
+                          <td colSpan={colCount} className="py-2 px-4 pl-8">
+                            <div className="flex items-center justify-between gap-3">
+                              <span className="font-bold text-slate-700 text-xs" dir="auto">{userOf(n)}</span>
+                              <span className="text-[11px] font-semibold text-slate-500">
+                                <span className="text-slate-400 mr-1">{ut?.count} ·</span>AED {formatAmount(ut?.amount || 0)}
+                              </span>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                      <tr className="text-center hover:bg-slate-50/70 transition-colors">
+                        <td className="py-3 px-3 font-black text-[#1F3864] whitespace-nowrap">{n.ID}</td>
+                        <td className="py-3 px-3 font-semibold text-slate-600 whitespace-nowrap">{formatDate(n.NOTE_DATE)}</td>
+                        <td className="py-3 px-3 max-w-[380px]">
+                          <p className="font-bold text-slate-800 truncate" dir="auto" title={n.LINES.map((l) => l.description).join(' · ')}>
+                            {n.LINES[0]?.description || '—'}
+                          </p>
+                          {n.LINES.length > 1 && <p className="text-[11px] font-semibold text-slate-400">+ {n.LINES.length - 1} more line{n.LINES.length > 2 ? 's' : ''}</p>}
+                        </td>
+                        <td className="py-3 px-3 font-black text-slate-900 whitespace-nowrap">{formatAmount(n.TOTAL)}</td>
+                        {admin && <td className="py-3 px-3 text-slate-600 font-semibold whitespace-nowrap">{n.CREATED_BY_NAME || n.CREATED_BY}</td>}
+                        <td className="py-3 px-3">
+                          <div className="flex items-center justify-center gap-1">
+                            <button
+                              onClick={() => void pdf(n)}
+                              disabled={pdfId === n.ID}
+                              className="w-8 h-8 flex items-center justify-center rounded-lg text-red-500 hover:bg-red-50 disabled:opacity-50"
+                              title="Download PDF"
+                            >
+                              {pdfId === n.ID ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
+                            </button>
+                            {canEdit && (
+                              <button onClick={() => onEdit(n)} className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-[#1F3864] hover:bg-slate-100" title="Edit">
+                                <Pencil className="w-4 h-4" />
+                              </button>
+                            )}
+                            {admin && (
+                              <button onClick={() => setDeleteTarget(n)} className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50" title="Delete">
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    </Fragment>
+                  );
+                })
               )}
             </tbody>
           </table>

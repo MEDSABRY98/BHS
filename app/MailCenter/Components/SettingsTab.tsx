@@ -7,7 +7,7 @@ import { CheckCircle2, Link2, Loader2, Unlink } from 'lucide-react';
 import { toast } from '@/app/Components/Notification';
 import Modal from './Modal';
 import { connectMail, disconnectMail } from '../Service/MailService';
-import type { MailStatus } from '../Utils/MailTypes';
+import { unwrap, type MailStatus } from '../Utils/MailTypes';
 
 export default function SettingsTab({ status, onChange }: { status: MailStatus | null; onChange: (s: MailStatus) => void }) {
   const [code, setCode] = useState('');
@@ -17,7 +17,7 @@ export default function SettingsTab({ status, onChange }: { status: MailStatus |
   const connect = async () => {
     setBusy(true);
     try {
-      const s = await connectMail(code);
+      const s = unwrap(await connectMail(code));
       onChange(s);
       setCode('');
       toast.success(`Connected as ${s.from}`);
@@ -31,7 +31,7 @@ export default function SettingsTab({ status, onChange }: { status: MailStatus |
   const disconnect = async () => {
     setBusy(true);
     try {
-      onChange(await disconnectMail());
+      onChange(unwrap(await disconnectMail()));
       setConfirmOff(false);
       toast.success('Disconnected');
     } catch (e: any) {
@@ -57,11 +57,7 @@ export default function SettingsTab({ status, onChange }: { status: MailStatus |
             <span className="px-3 py-1.5 rounded-full bg-amber-50 text-amber-700 text-xs font-black">Not connected</span>
           )}
         </div>
-        {!status?.clientReady && (
-          <p className="rounded-xl bg-red-50 text-red-700 text-sm font-semibold px-4 py-3">
-            The Zoho client is not set on the server. Add MAIL_ZOHO_CLIENT_ID and MAIL_ZOHO_CLIENT_SECRET in Vercel → Environment Variables, then redeploy.
-          </p>
-        )}
+        {status?.problem && <p className="rounded-xl bg-red-50 text-red-700 text-sm font-semibold px-4 py-3">{status.problem}</p>}
         {status?.connected && (
           <button onClick={() => setConfirmOff(true)} disabled={busy} className="h-10 px-4 rounded-xl border border-red-200 text-sm font-bold text-red-600 hover:bg-red-50 flex items-center gap-1.5">
             <Unlink className="w-4 h-4" /> Disconnect

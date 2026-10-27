@@ -13,11 +13,19 @@ export interface MailPermissions {
   admin: boolean; // sees everyone's sent emails, connects the mailbox
 }
 
+/** Server actions return errors as values: production builds hide the message of a thrown error. */
+export type ActionResult<T> = { ok: true; data: T } | { ok: false; error: string };
+export function unwrap<T>(r: ActionResult<T>): T {
+  if (!r || !r.ok) throw new Error((r as any)?.error || 'Something went wrong');
+  return r.data;
+}
+
 export interface MailStatus {
   connected: boolean;
   from: string | null;
   clientReady: boolean; // ZOHO client id / secret are set on the server
   scopes: string;
+  problem: string | null; // why sending is blocked
 }
 
 export type AttachmentFormat = 'pdf' | 'excel' | 'both';

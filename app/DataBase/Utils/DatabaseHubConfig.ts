@@ -11,6 +11,7 @@ import {
   LayoutDashboard,
   MapPin,
   Smartphone,
+  PenLine,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -103,7 +104,7 @@ export const DATABASE_CATEGORIES: DatabaseCategory[] = [
     href: '/DataBase/Personnel',
     icon: Users,
     color: 'from-gray-700 to-gray-900',
-    tables: ['Users DB', 'App Versions DB'],
+    tables: ['Users DB', 'App Versions DB', 'Signatories DB'],
   },
 ];
 
@@ -189,6 +190,14 @@ export const DATABASE_NAV_ITEMS: DatabaseNavItem[] = [
     label: 'Suppliers Analysis DB',
     category: 'SUPPLIERS_PURCHASES',
     source: { table: 'web_SUPPLIERS_ANALYSIS', kind: 'transactional', dateColumn: 'DATE' },
+  },
+  {
+    id: 'db-signatories',
+    href: '/DataBase/Signatories',
+    icon: PenLine,
+    label: 'Signatories DB',
+    category: 'SYSTEM_ADMIN',
+    source: { table: 'web_SIGNATORIES', kind: 'reference' },
   },
   {
     id: 'db-users',

@@ -15,6 +15,8 @@ import {
   sumTotals,
 } from './ReportTypes';
 import { exportInventoryCountingExcelTable } from '../Export/ExcelExport';
+import { pickSignatures } from '@/app/Components/Signatures/SignaturePicker';
+import { drawSignatures } from '@/app/Components/Signatures/DrawSignatures';
 
 type RGB = [number, number, number];
 const INK: RGB = [15, 23, 42];
@@ -44,6 +46,15 @@ export async function downloadTemplate() {
 
 export async function exportCountReportPdf(rows: CountRow[], cover: CoverInfo): Promise<void> {
   if (!rows.length) return;
+  // who signs: the count committee + the CEO name of the cover, and the people of Data Base → Signatories DB
+  const signers = await pickSignatures('inventory-count', {
+    title: 'Inventory Count Report',
+    suggested: [
+      ...cover.committee.filter((m) => m.name.trim() || m.role.trim()).map((m) => ({ title: m.role.trim() || 'Committee Member', name: m.name.trim() })),
+      ...(cover.ceoName.trim() ? [{ title: 'CEO', name: cover.ceoName.trim() }] : []),
+    ],
+  });
+  if (!signers) return; // cancelled
   const jsPDF = (await import('jspdf')).default;
   const autoTableModule: any = await import('jspdf-autotable');
   const autoTable = autoTableModule.default || autoTableModule;
@@ -274,46 +285,8 @@ export async function exportCountReportPdf(rows: CountRow[], cover: CoverInfo): 
     },
   });
 
-  // ───────────── signatures (end of the report) ─────────────
-  const signers: { name: string; role: string }[] = [
-    ...members.map((m) => ({ name: m.name.trim(), role: m.role.trim() })),
-    { name: cover.ceoName.trim(), role: 'CEO' },
-  ];
-  const perRow = 4;
-  const rowH = 30;
-  const rowsNeeded = Math.ceil(signers.length / perRow);
-  const blockH = 14 + rowsNeeded * rowH;
-  let y = doc.lastAutoTable.finalY + 14;
-  if (y + blockH > H - 14) {
-    doc.addPage();
-    y = 30;
-  }
-  doc.setFillColor(...GOLD);
-  doc.roundedRect(M, y - 5, 1.8, 6, 0.9, 0.9, 'F');
-  doc.setFontSize(11);
-  doc.setTextColor(...INK);
-  put('Approvals', M + 5, y, {}, true);
-  y += 10;
-
-  const colW = (W - M * 2) / perRow;
-  signers.forEach((s, i) => {
-    const r = Math.floor(i / perRow);
-    const c = i % perRow;
-    // centre a short last row
-    const inRow = Math.min(perRow, signers.length - r * perRow);
-    const offset = ((perRow - inRow) * colW) / 2;
-    const cx = M + offset + c * colW + colW / 2;
-    const ly = y + r * rowH + 14;
-    doc.setDrawColor(...INK);
-    doc.setLineWidth(0.3);
-    doc.line(cx - colW / 2 + 8, ly, cx + colW / 2 - 8, ly);
-    doc.setFontSize(10);
-    doc.setTextColor(...INK);
-    put(s.name || ' ', cx, ly + 5.5, { align: 'center' }, true);
-    doc.setFontSize(8);
-    doc.setTextColor(...MUTED);
-    put(s.role || ' ', cx, ly + 10, { align: 'center' });
-  });
+  // ───────────── signatures: the people chosen when exporting ─────────────
+  drawSignatures(doc, signers, { y: doc.lastAutoTable.finalY + 8, margin: M, heading: 'Approvals', footer: 14 });
 
   // footer on every page
   const pages = doc.getNumberOfPages();

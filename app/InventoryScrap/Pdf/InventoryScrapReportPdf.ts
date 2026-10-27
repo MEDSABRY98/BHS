@@ -1,5 +1,7 @@
 import autoTable from 'jspdf-autotable';
 import { saveTrackedPdf } from '@/app/AdminControl/Code/Audit/TrackedDownload';
+import { pickSignatures } from '@/app/Components/Signatures/SignaturePicker';
+import { drawSignatures } from '@/app/Components/Signatures/DrawSignatures';
 
 export type ScrapReportPdfItem = {
   barcode?: string;
@@ -27,6 +29,8 @@ export async function downloadInventoryScrapReportPDF(
   reportNo: string,
   disposalMethod: string = '',
 ) {
+  const signers = await pickSignatures('inventory-scrap', { title: 'Inventory Scrap Report' });
+  if (!signers) return; // cancelled
   const jsPDFModule = await import('jspdf');
   const doc = new jsPDFModule.default({
     orientation: 'portrait',
@@ -212,29 +216,8 @@ export async function downloadInventoryScrapReportPDF(
     y += notesHeight + 10;
   }
 
-  y += 4;
-  y = ensureSpace(y, 36); // keep the signatures together on one page
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(...gold);
-  doc.setFontSize(8);
-  doc.text('AUTHORIZED SIGNATURES', M, y);
-  y += 8;
-
-  const roles = ['Warehouse Department', 'Supply Chain Department', 'Accounts Department', 'CEO'];
-  const sigGap = 6;
-  const sigWidth = (W - M * 2 - sigGap * (roles.length - 1)) / roles.length;
-  roles.forEach((role, i) => {
-    const x = M + i * (sigWidth + sigGap);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(...gray);
-    doc.setFontSize(7);
-    doc.text(role.toUpperCase(), x + sigWidth / 2, y, { align: 'center' });
-    doc.setDrawColor(...black);
-    doc.line(x + 2, y + 22, x + sigWidth - 2, y + 22);
-    doc.setFontSize(6);
-    doc.setTextColor(136, 136, 136);
-    doc.text('Signature & Date', x + sigWidth / 2, y + 26, { align: 'center' });
-  });
+  // ── Signatures: the people chosen when exporting ──
+  y = drawSignatures(doc, signers, { y: y + 4, margin: M, heading: 'Authorized Signatures', footer: 14 });
 
   // ── Footer: page X of Y on every page ───────────────────
   const pages = doc.getNumberOfPages();

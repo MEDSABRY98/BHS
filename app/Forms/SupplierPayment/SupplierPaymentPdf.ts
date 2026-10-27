@@ -9,6 +9,8 @@ import { addArabicFont } from '@/app/Components/Pdf/shared';
 import { saveTrackedPdf } from '@/app/AdminControl/Code/Audit/TrackedDownload';
 import { COMPANY_NAME, amountToWords, formatAmount, formatDate, formatLongDate } from '../Shared/FormsUtils';
 import { methodLabel, type SupplierPayment } from './SupplierPaymentTypes';
+import { pickSignatures } from '@/app/Components/Signatures/SignaturePicker';
+import { drawSignatures } from '@/app/Components/Signatures/DrawSignatures';
 
 type RGB = [number, number, number];
 const C = {
@@ -31,6 +33,9 @@ const M = 16;
 const CW = W - M * 2;
 
 export async function generateSupplierPaymentPdf(form: SupplierPayment) {
+  const signers = await pickSignatures('supplier-payment', { title: 'Supplier Payment' });
+  if (!signers) return null; // cancelled
+
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   if ([form.SUPPLIER_NAME, form.NOTES].some(hasArabic)) {
     try {
@@ -197,26 +202,8 @@ export async function generateSupplierPaymentPdf(form: SupplierPayment) {
     y += notesH + 7;
   }
 
-  // ── Signatures: Accounts Department · CEO (bottom of the page) ──
-  let sy = Math.max(y + 18, PH - 48);
-  if (sy > PH - 30) {
-    doc.addPage();
-    sy = 40;
-  }
-  const signers = ['Accounts Department', 'CEO'];
-  const sgap = 30;
-  const sw = (CW - sgap * (signers.length - 1)) / signers.length;
-  signers.forEach((title, i) => {
-    const x = M + i * (sw + sgap);
-    label(title, x, sy, C.navy, 7);
-    doc.setDrawColor(...C.ink);
-    doc.setLineWidth(0.35);
-    doc.line(x, sy + 20, x + sw, sy + 20);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7.4);
-    doc.setTextColor(...C.grey);
-    doc.text('Signature & Date', x, sy + 25);
-  });
+  // ── Signatures: the people chosen when exporting (bottom of the page) ──
+  drawSignatures(doc, signers, { y, margin: M, bottom: true, footer: 16 });
 
   // ── Page numbers ────────────────────────────────────────
   const pages = doc.getNumberOfPages();

@@ -38,8 +38,8 @@ export type CreditNoteInput = {
   EXTRA_SIGNERS?: string[];
 };
 
-// ── Signatures on the PDF: the optional ones (chosen per note) + the fixed ones ──
-export const OPTIONAL_SIGNERS = ['Salah', 'Tarek Hassan'] as const;
+// ── Signatures on the PDF: Accounts Department · CEO (no optional signers any more) ──
+export const OPTIONAL_SIGNERS: readonly string[] = [];
 export const FIXED_SIGNERS = ['Accounts Department', 'CEO'] as const;
 
 /** Keeps only known optional signers, in their fixed order. */

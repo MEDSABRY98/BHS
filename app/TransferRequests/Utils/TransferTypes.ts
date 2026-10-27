@@ -79,6 +79,17 @@ export function cleanText(value: unknown): string {
   return String(value ?? '').replace(/\s+/g, ' ').trim();
 }
 
+/** Like cleanText but keeps the new lines (one empty line at most between paragraphs). */
+export function cleanMultiline(value: unknown): string {
+  return String(value ?? '')
+    .replace(/\r\n?/g, '\n')
+    .split('\n')
+    .map((l) => l.replace(/[ \t]+/g, ' ').trim())
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 export function cleanIban(value: unknown): string {
   return String(value ?? '').replace(/\s+/g, '').toUpperCase();
 }

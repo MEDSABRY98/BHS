@@ -10,6 +10,7 @@ import {
   CURRENCIES,
   TRANSFER_SYSTEM_ID,
   cleanIban,
+  cleanMultiline,
   cleanText,
   round2,
   type TransferBank,
@@ -179,7 +180,7 @@ export async function saveTransferRequest(input: TransferRequestInput): Promise<
   const amount = round2(Number(input?.AMOUNT));
   if (!(amount > 0)) throw new Error('Amount must be greater than zero');
   const currency = CURRENCIES.some((c) => c.code === input?.CURRENCY) ? input.CURRENCY : 'AED';
-  const reason = cleanText(input?.REASON);
+  const reason = cleanMultiline(input?.REASON).slice(0, 2000); // keeps the lines
   if (!reason) throw new Error('Reason for the transfer is required');
 
   const record = {

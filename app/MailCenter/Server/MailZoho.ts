@@ -32,6 +32,19 @@ async function readSettings(): Promise<Record<string, string>> {
   return out;
 }
 
+/** Why sending is not possible right now (null = ready). */
+export async function mailProblem(): Promise<string | null> {
+  if (!mailClientReady()) return 'The Zoho client is not set on the server — add MAIL_ZOHO_CLIENT_ID and MAIL_ZOHO_CLIENT_SECRET in Vercel, then redeploy.';
+  let s: Record<string, string>;
+  try {
+    s = await readSettings();
+  } catch (e: any) {
+    return `The settings table can't be read (${e?.message || 'error'}) — run sql/MailCenter.sql in Supabase, then notify pgrst, 'reload schema'.`;
+  }
+  if (!s.ZOHO_REFRESH_TOKEN || !s.ZOHO_ACCOUNT_ID || !s.ZOHO_FROM) return 'The finance mailbox is not connected yet — the admin pastes the Zoho code in Settings and presses Connect.';
+  return null;
+}
+
 export async function getMailConnection(): Promise<MailConnection | null> {
   let s: Record<string, string>;
   try {

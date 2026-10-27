@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeftRight, CalendarDays, Landmark, Loader2, Printer, X } from 'lucide-react';
 import { toast } from '@/app/Components/Notification';
 import SearchSelect from './SearchSelect';
@@ -41,6 +41,14 @@ export default function RequestForm({ editRequest, banks, beneficiaries, onSaved
   const [amount, setAmount] = useState(editRequest ? String(editRequest.AMOUNT) : '');
   const [currency, setCurrency] = useState(editRequest?.CURRENCY || 'AED');
   const [reason, setReason] = useState(editRequest?.REASON || '');
+  // the reason box grows with its lines (Enter = new line)
+  const reasonRef = useRef<HTMLTextAreaElement>(null);
+  useLayoutEffect(() => {
+    const el = reasonRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight + 2}px`;
+  }, [reason]);
   const [saving, setSaving] = useState(false);
   const [newBeneficiary, setNewBeneficiary] = useState<string | null>(null);
   const [newBank, setNewBank] = useState<string | null>(null);
@@ -216,7 +224,14 @@ export default function RequestForm({ editRequest, banks, beneficiaries, onSaved
           </div>
 
           <Field label="Reason for Transfer" required>
-            <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} dir="auto" className={`${inputClass} h-auto py-2.5 resize-none leading-relaxed`} />
+            <textarea
+              ref={reasonRef}
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              rows={3}
+              dir="auto"
+              className={`${inputClass} h-auto min-h-[96px] py-3 resize-none leading-7 overflow-hidden`}
+            />
           </Field>
         </div>
 

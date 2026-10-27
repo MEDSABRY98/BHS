@@ -11,7 +11,7 @@ import { getSupabaseAdmin } from '@/lib/supabaseAdmin';
 import { getSessionUser, isAdminUser, UnauthorizedError, type SessionUserRecord } from '@/lib/session';
 import { resolveCustomerEmailTargets, splitEmails as splitStoredEmails, getAllCustomerEmailsStrict } from '@/lib/supabase';
 import { buildAttachment, ledgerFor, type MailFile } from '../Server/Attachments';
-import { connectMailbox, disconnectMailbox, getMailConnection, mailClientReady, mailScopes, sendFromMailbox } from '../Server/MailZoho';
+import { connectMailbox, disconnectMailbox, getMailConnection, mailClientReady, mailProblem, mailScopes, sendFromMailbox } from '../Server/MailZoho';
 import {
   EMAIL_RE,
   MAIL_PERMISSION_TABS,
@@ -27,6 +27,7 @@ import {
   type MailLogRow,
   type MailPermissions,
   type MailStatus,
+  type ActionResult,
   type MailSupplier,
   type MailTabId,
   type MailTemplate,
@@ -98,10 +99,10 @@ export async function getMailPermissions(): Promise<MailPermissions> {
 export async function getMailStatus(): Promise<MailStatus> {
   await requireUser();
   const conn = await getMailConnection();
-  return { connected: !!conn, from: conn?.fromEmail || null, clientReady: mailClientReady(), scopes: mailScopes() };
+  return { connected: !!conn, from: conn?.fromEmail || null, clientReady: mailClientReady(), scopes: mailScopes(), problem: await mailProblem() };
 }
 
-export async function connectMail(code: string): Promise<MailStatus> {
+async function connectMailImpl(code: string): Promise<MailStatus> {
   const { user, perms } = await requireTab('settings');
   if (!perms.admin) throw new UnauthorizedError('Only the admin can connect the mailbox.');
   if (!String(code || '').trim()) throw new Error('Paste the code from Zoho first');
@@ -109,11 +110,31 @@ export async function connectMail(code: string): Promise<MailStatus> {
   return getMailStatus();
 }
 
-export async function disconnectMail(): Promise<MailStatus> {
+async function disconnectMailImpl(): Promise<MailStatus> {
   const { perms } = await requireTab('settings');
   if (!perms.admin) throw new UnauthorizedError('Only the admin can disconnect the mailbox.');
   await disconnectMailbox();
   return getMailStatus();
+}
+
+async function asResult<T>(fn: () => Promise<T>): Promise<ActionResult<T>> {
+  try {
+    return { ok: true, data: await fn() };
+  } catch (e: any) {
+    return { ok: false, error: String(e?.message || 'Something went wrong') };
+  }
+}
+
+export async function connectMail(code: string): Promise<ActionResult<MailStatus>> {
+  return asResult(() => connectMailImpl(code));
+}
+
+export async function disconnectMail(): Promise<ActionResult<MailStatus>> {
+  return asResult(() => disconnectMailImpl());
+}
+
+export async function sendMailDraft(draft: MailDraft): Promise<ActionResult<MailLogRow>> {
+  return asResult(() => sendMailDraftImpl(draft));
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -268,7 +289,7 @@ async function sendOne(
 }
 
 /** Compose: one email. */
-export async function sendMailDraft(draft: MailDraft): Promise<MailLogRow> {
+async function sendMailDraftImpl(draft: MailDraft): Promise<MailLogRow> {
   const { user } = await requireTab('compose');
   const to = cleanList(draft?.to);
   const cc = cleanList(draft?.cc).filter((e) => !to.includes(e));

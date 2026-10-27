@@ -1,7 +1,7 @@
 'use client';
 
 // Transfer Request form PDF — same house style as the Vouchers PDF.
-// Signatures (on paper): Prepared By · Accounts Department · CEO
+// Signatures (on paper): chosen when exporting (Data Base → Signatories DB)
 
 import { addArabicFont } from '@/app/Components/Pdf/shared';
 import { saveTrackedPdf, trackFileDownload } from '@/app/AdminControl/Code/Audit/TrackedDownload';
@@ -14,6 +14,8 @@ import {
   type TransferBeneficiary,
   type TransferRequest,
 } from './TransferTypes';
+import { pickSignatures } from '@/app/Components/Signatures/SignaturePicker';
+import { drawSignatures } from '@/app/Components/Signatures/DrawSignatures';
 
 type RGB = [number, number, number];
 const C = {
@@ -84,6 +86,9 @@ export interface TransferPdfData {
 }
 
 export async function generateTransferPdf({ request: r, beneficiary, beneficiaryBank, transferBank, mode = 'download' }: TransferPdfData) {
+  // who signs: the one who prepared it + the people of Data Base → Signatories DB
+  const signers = await pickSignatures('transfer-request', { title: 'Transfer Request', suggested: [{ title: 'Prepared By', name: r.CREATED_BY_NAME || '' }] });
+  if (!signers) return; // cancelled
   const jsPDF = (await import('jspdf')).default;
   const doc: any = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   doc.setProperties({ title: `Transfer Request ${r.REQUEST_NO}` });
@@ -184,43 +189,28 @@ export async function generateTransferPdf({ request: r, beneficiary, beneficiary
   // ── Reason ───────────────────────────────────────────────
   label(doc, 'Reason for Transfer', M, y, C.goldDark);
   y += 3;
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(10);
-  const arabicReason = hasArabic(r.REASON);
-  const reasonLines = arabicReason ? null : (doc.splitTextToSize(r.REASON || '-', CW - 10) as string[]);
-  const lineCount = reasonLines ? reasonLines.length : Math.ceil((r.REASON || '').length / 85) + 1;
-  const boxH = Math.max(16, lineCount * 5 + 8);
+  // the reason keeps its lines (Enter); long lines wrap; 6 mm between the lines
+  const LINE = 6;
+  const reasonText = r.REASON || '-';
+  const arabicReason = hasArabic(reasonText);
+  doc.setFont(arabicReason ? 'Amiri' : 'helvetica', 'normal');
+  doc.setFontSize(arabicReason ? 11 : 10);
+  const reasonLines = reasonText
+    .split(/\r?\n/)
+    .flatMap((para) => (para.trim() ? (doc.splitTextToSize(para, CW - 10) as string[]) : ['']));
+  const boxH = Math.max(16, reasonLines.length * LINE + 8);
   doc.setFillColor(...C.slate100);
   doc.roundedRect(M, y, CW, boxH, 2, 2, 'F');
   doc.setTextColor(...C.ink2);
-  if (reasonLines) doc.text(reasonLines, M + 5, y + 7);
-  else smartText(doc, r.REASON, M + 5, y + 7, CW - 10, 10, false);
+  reasonLines.forEach((line, i) => {
+    if (!line) return;
+    if (arabicReason) doc.text(line, M + CW - 5, y + 8 + i * LINE, { align: 'right' });
+    else doc.text(line, M + 5, y + 8 + i * LINE);
+  });
   y += boxH + 10;
 
-  // ── Signatures: Prepared By · Accounts Department · CEO ─────────────
-  const sigH = 34;
-  if (y > H - 24 - sigH) {
-    doc.addPage();
-    y = 30;
-  }
-  const sy = Math.max(y, H - 24 - sigH);
-  const sGap = 10;
-  const sw = (CW - sGap * 2) / 3;
-  const sign = (title: string, name: string, x: number) => {
-    label(doc, title, x, sy);
-    doc.setDrawColor(...C.ink);
-    doc.setLineWidth(0.35);
-    doc.line(x, sy + 22, x + sw, sy + 22);
-    doc.setTextColor(...C.ink);
-    if (name) smartText(doc, name, x, sy + 27.5, sw, 9.5);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7.5);
-    doc.setTextColor(...C.slate500);
-    doc.text('Signature / Date', x, sy + (name ? 32 : 27.5));
-  };
-  sign('Prepared By', r.CREATED_BY_NAME || '', M);
-  sign('Accounts Department', '', M + sw + sGap);
-  sign('CEO', '', M + (sw + sGap) * 2);
+  // ── Signatures: the people chosen when exporting (bottom of the page) ──
+  drawSignatures(doc, signers, { y, margin: M, bottom: true, footer: 22 });
 
   // ── Footer on every page ─────────────────────────────────
   const pages = doc.getNumberOfPages();

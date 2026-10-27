@@ -15,6 +15,8 @@ import {
   type PettyCash,
   type PettyCashLine,
 } from './PettyCashTypes';
+import { pickSignatures } from '@/app/Components/Signatures/SignaturePicker';
+import { drawSignatures } from '@/app/Components/Signatures/DrawSignatures';
 
 type RGB = [number, number, number];
 const C = {
@@ -94,6 +96,10 @@ export async function generatePettyCashPdf(items: PettyCash[], opts: { printedBy
   const taxTotal = round2(rows.reduce((s, l) => s + (l.IS_TAX_INVOICE ? l.AMOUNT : 0), 0));
   const noInvoice = missingInvoices(rows);
   const employees = Array.from(new Set(items.map((p) => p.EMPLOYEE_NAME || p.CREATED_BY).filter(Boolean)));
+
+  // who signs: the employee (from this petty cash) + the people of Data Base → Signatories DB
+  const signers = await pickSignatures('petty-cash', { title: 'Petty Cash', suggested: [{ title: 'Employee', name: employees.length === 1 ? employees[0] : '' }] });
+  if (!signers) return; // cancelled
 
   // ── Header band ──────────────────────────────────────────
   doc.setFillColor(...C.ink);
@@ -224,25 +230,8 @@ export async function generatePettyCashPdf(items: PettyCash[], opts: { printedBy
   });
   y = (doc as any).lastAutoTable.finalY + 12;
 
-  // ── Signatures (right after the table) ───────────────────
-  const sigH = 34;
-  if (y > H - 22 - sigH) {
-    doc.addPage();
-    y = 20;
-  }
-  const sy = y;
-  const sw = (CW - 16) / 3;
-  const sign = (title: string, name: string, x: number) => {
-    label(doc, title, x, sy);
-    doc.setDrawColor(...C.ink);
-    doc.setLineWidth(0.35);
-    doc.line(x, sy + 18, x + sw, sy + 18);
-    doc.setTextColor(...C.ink);
-    smartText(doc, name || ' ', x, sy + 23.5, sw, 9);
-  };
-  sign('Employee', employees.length === 1 ? employees[0] : '', M);
-  sign('Accounts Department', '', M + sw + 8);
-  sign('CEO', '', M + (sw + 8) * 2);
+  // ── Signatures: the people chosen when exporting (right after the table) ──
+  drawSignatures(doc, signers, { y: y - 6, margin: M, footer: 20 });
 
   // ── Footer on every page ─────────────────────────────────
   const pages = doc.getNumberOfPages();
