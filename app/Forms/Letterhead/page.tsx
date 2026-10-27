@@ -2,19 +2,21 @@
 
 // Company Letter: write the letter like in Word, then print it on a plain white A4 page
 // that fits the company letterhead paper (top / bottom space left empty on every page).
-// Nothing is saved in the database: the draft and the margins stay in this browser only.
+// Save puts the letter in the archive (DATA = { HTML, DIR, SIGNATURES, ALIGN }); the draft and
+// the margins also stay in this browser.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   AlignCenter,
   AlignJustify,
   AlignLeft,
   AlignRight,
-  ArrowLeft,
   Bold,
   Check,
   ChevronDown,
   Eraser,
+  FileSignature,
   Italic,
   Languages,
   List,
@@ -31,13 +33,10 @@ import {
   X,
   type LucideIcon,
 } from 'lucide-react';
-import Login from '@/app/Components/Auth/Login';
-import MainLoader from '@/app/Components/Loading/MainLoader';
-import TabLoader from '@/app/Components/Loading/TabLoader';
-import { restoreSessionUser } from '@/app/Components/Auth/sessionClient';
-import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
-import { useModuleTabAudit } from '@/app/AdminControl/Code/Audit/useModuleTabAudit';
-import { getAllowedForms } from '../Shared/FormsAccess';
+import { toast } from '@/app/Components/Notification';
+import FormShell from '../Shared/FormShell';
+import { uaeToday } from '../Shared/FormsUtils';
+import type { FormEditorContext } from '../Shared/FormsArchiveTypes';
 import {
   DEFAULT_MARGINS,
   FIXED_TOP_MM,
@@ -58,6 +57,8 @@ const FONT_SIZES = [9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 32];
 const FONTS = ['Arial', 'Tahoma', 'Times New Roman', 'Calibri', 'Segoe UI'];
 
 type Draft = { html: string; dir: 'rtl' | 'ltr'; signatures: LetterSignature[]; align: SignatureAlign };
+/** what is saved in the archive */
+type LetterData = { HTML: string; DIR: 'rtl' | 'ltr'; SIGNATURES: LetterSignature[]; ALIGN: SignatureAlign };
 
 const readJson = <T,>(key: string): T | null => {
   try {
@@ -77,83 +78,40 @@ const writeJson = (key: string, value: unknown) => {
 const clampMm = (v: number, max: number) => (Number.isFinite(v) ? Math.min(Math.max(Math.round(v), 0), max) : 0);
 const newId = () => Math.random().toString(36).slice(2, 10);
 
+/** first words of the letter, for the archive list ('' when empty) */
+const letterTitle = (html: string) => {
+  if (typeof document === 'undefined') return '';
+  const div = document.createElement('div');
+  div.innerHTML = html;
+  const text = (div.innerText || div.textContent || '').replace(/\s+/g, ' ').trim();
+  return text.length > 90 ? `${text.slice(0, 90)}…` : text;
+};
+
 export default function CompanyLetterPage() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isChecking, setIsChecking] = useState(true);
-  const [, setCurrentUser] = useState<any>(null);
-  useSyncLiveUser(setCurrentUser);
-  useModuleTabAudit('Company Letter');
-  const [allowed, setAllowed] = useState<boolean | null>(null);
-
-  const loadAccess = useCallback(async () => {
-    try {
-      setAllowed((await getAllowedForms()).includes(LETTERHEAD_FORM_ID));
-    } catch {
-      setAllowed(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const user = await restoreSessionUser();
-        if (user) {
-          setCurrentUser(user);
-          setIsAuthenticated(true);
-          await loadAccess();
-        }
-      } finally {
-        setIsChecking(false);
-      }
-    })();
-  }, [loadAccess]);
-
-  if (isChecking) return <MainLoader message="Loading Company Letter..." />;
-  if (!isAuthenticated)
-    return (
-      <Login
-        onLogin={async (user: any) => {
-          setIsAuthenticated(true);
-          setCurrentUser(user);
-          localStorage.setItem('currentUser', JSON.stringify(user));
-          await loadAccess();
-        }}
-      />
-    );
-
   return (
-    <div className="min-h-screen bg-[#F8F9FA] text-black">
-      <div className="max-w-[1100px] mx-auto px-4 sm:px-6 py-6 space-y-5">
-        {allowed !== true && <PageHeader />}
-        {allowed === null ? (
-          <TabLoader className="!min-h-[60vh]" />
-        ) : !allowed ? (
-          <div className="p-20 text-center font-bold text-slate-400">You don&apos;t have permission to use this form.</div>
-        ) : (
-          <LetterEditor />
-        )}
-      </div>
-    </div>
+    <FormShell<LetterData>
+      formId={LETTERHEAD_FORM_ID}
+      title="Company Letter"
+      icon={FileSignature}
+      renderNew={(ctx) => <LetterEditor ctx={ctx} />}
+      downloadLabel="Print / Save PDF"
+      onDownload={async (r) => {
+        const m = readJson<LetterMargins>(MARGINS_KEY); // this browser's paper margins
+        printLetter({
+          html: r.DATA.HTML || '',
+          dir: r.DATA.DIR === 'ltr' ? 'ltr' : 'rtl',
+          margins: m ? { ...DEFAULT_MARGINS, ...m, top: FIXED_TOP_MM } : DEFAULT_MARGINS,
+          signatures: Array.isArray(r.DATA.SIGNATURES) ? r.DATA.SIGNATURES : [],
+          signatureAlign: r.DATA.ALIGN || 'end',
+          title: r.REF_NO || 'Company Letter',
+        });
+      }}
+    />
   );
 }
 
-function PageHeader({ children }: { children?: React.ReactNode }) {
-  return (
-    <div className="flex items-center gap-4">
-      <button
-        onClick={() => (window.location.href = '/Forms')}
-        className="w-10 h-10 rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-900 flex items-center justify-center transition-colors"
-        title="All Forms"
-      >
-        <ArrowLeft className="w-4 h-4" />
-      </button>
-      <h1 className="text-2xl sm:text-3xl font-normal text-black tracking-tighter">Company Letter</h1>
-      {children && <div className="flex items-center gap-2 ml-2">{children}</div>}
-    </div>
-  );
-}
-
-function LetterEditor() {
+function LetterEditor({ ctx }: { ctx: FormEditorContext<LetterData> }) {
+  const saved = ctx.editing?.DATA; // a saved letter opened for edit (the browser draft is left as it is)
   const editorRef = useRef<HTMLDivElement>(null);
   const [dir, setDir] = useState<'rtl' | 'ltr'>('rtl');
   const [margins, setMargins] = useState<LetterMargins>(DEFAULT_MARGINS);
@@ -170,7 +128,12 @@ function LetterEditor() {
   useEffect(() => {
     const m = readJson<LetterMargins>(MARGINS_KEY);
     if (m) setMargins({ ...DEFAULT_MARGINS, ...m, top: FIXED_TOP_MM });
-    const d = readJson<Draft>(DRAFT_KEY);
+    if (ctx.startEmpty) writeJson(DRAFT_KEY, null); // just saved: start a new letter
+    const d: Draft | null = saved
+      ? { html: saved.HTML || '', dir: saved.DIR, signatures: saved.SIGNATURES || [], align: saved.ALIGN || 'end' }
+      : ctx.startEmpty
+        ? null
+        : readJson<Draft>(DRAFT_KEY);
     if (d) {
       if (editorRef.current) editorRef.current.innerHTML = d.html || '';
       setDir(d.dir === 'ltr' ? 'ltr' : 'rtl');
@@ -187,10 +150,11 @@ function LetterEditor() {
 
   const saveDraft = useCallback(() => {
     if (saveTimer.current) clearTimeout(saveTimer.current);
+    if (saved) return; // editing a saved letter: keep the browser draft
     saveTimer.current = setTimeout(() => {
       writeJson(DRAFT_KEY, { html: editorRef.current?.innerHTML ?? '', dir, signatures, align } satisfies Draft);
     }, 400);
-  }, [dir, signatures, align]);
+  }, [dir, signatures, align, saved]);
 
   useEffect(() => {
     if (ready) saveDraft();
@@ -244,6 +208,24 @@ function LetterEditor() {
       title: 'Company Letter',
     });
 
+  // Save (shell header button)
+  useEffect(() => {
+    ctx.registerSave(() => {
+      const html = editorRef.current?.innerHTML ?? '';
+      const title = letterTitle(html);
+      if (!title) {
+        toast.error('Write the letter first');
+        return null;
+      }
+      return {
+        TITLE: title,
+        DOC_DATE: ctx.editing?.DOC_DATE || uaeToday(),
+        AMOUNT: null,
+        DATA: { HTML: html, DIR: dir, SIGNATURES: signatures, ALIGN: align },
+      };
+    });
+  });
+
   const contentH = Math.max(PAGE_H - margins.top - margins.bottom, 20);
   const tool = 'w-9 h-9 inline-flex items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors';
   const keep = (e: React.MouseEvent) => e.preventDefault(); // keep the text selection
@@ -252,7 +234,7 @@ function LetterEditor() {
 
   return (
     <div className="space-y-5">
-      <PageHeader>
+      {ctx.actionsEl && createPortal(<>
         <button
           type="button"
           onClick={() => setDir((d) => (d === 'rtl' ? 'ltr' : 'rtl'))}
@@ -272,7 +254,7 @@ function LetterEditor() {
         <button type="button" onClick={print} className={`${iconBtn} bg-[#0f0f0f] text-[#D4AF37] hover:bg-black shadow`} title="Print / Save PDF">
           <Printer className="w-5 h-5" />
         </button>
-      </PageHeader>
+      </>, ctx.actionsEl)}
       <style>{`${LETTER_CONTENT_CSS}
 .lh-editor:empty:before { content: attr(data-placeholder); color: #94a3b8; pointer-events: none; }
 .lh-editor:focus { outline: none; }`}</style>

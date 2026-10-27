@@ -1,93 +1,31 @@
 'use client';
 
-// Supplier Payment (cheque or bank transfer): fill the form and download the PDF.
-// Nothing is saved in the database.
+// Supplier Payment (cheque or bank transfer): fill the form, download the PDF and save it to the archive.
 
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowLeft, Banknote, CalendarDays, FileDown, Landmark, Loader2, RotateCcw } from 'lucide-react';
-import Login from '@/app/Components/Auth/Login';
-import MainLoader from '@/app/Components/Loading/MainLoader';
-import TabLoader from '@/app/Components/Loading/TabLoader';
+import { Banknote, CalendarDays, FileDown, Landmark, Loader2, RotateCcw } from 'lucide-react';
 import { toast } from '@/app/Components/Notification';
-import { restoreSessionUser } from '@/app/Components/Auth/sessionClient';
-import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
-import { useModuleTabAudit } from '@/app/AdminControl/Code/Audit/useModuleTabAudit';
-import { getAllowedForms } from '../Shared/FormsAccess';
-import { amountToWords, formatAmount, round2, uaeToday } from '../EmployeeCharge/Utils/EmployeeChargeTypes';
-import { PAYMENT_METHODS, SUPPLIER_PAYMENT_FORM_ID, type PaymentMethod } from './SupplierPaymentTypes';
+import FormShell from '../Shared/FormShell';
+import { amountToWords, formatAmount, formatDate, round2, uaeToday } from '../Shared/FormsUtils';
+import type { FormEditorContext } from '../Shared/FormsArchiveTypes';
+import { PAYMENT_METHODS, SUPPLIER_PAYMENT_FORM_ID, type PaymentMethod, type SupplierPayment } from './SupplierPaymentTypes';
 import { listPaymentSuppliers, type PaymentSupplier } from './Service/SupplierPaymentService';
 import NiceSelect from '@/app/ScheduledReports/Components/NiceSelect';
 
 export default function SupplierPaymentPage() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isChecking, setIsChecking] = useState(true);
-  const [, setCurrentUser] = useState<any>(null);
-  useSyncLiveUser(setCurrentUser);
-  useModuleTabAudit('Supplier Payment');
-  const [actionsEl, setActionsEl] = useState<HTMLDivElement | null>(null);
-  const [allowed, setAllowed] = useState<boolean | null>(null);
-
-  const loadAccess = useCallback(async () => {
-    try {
-      setAllowed((await getAllowedForms()).includes(SUPPLIER_PAYMENT_FORM_ID));
-    } catch {
-      setAllowed(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const user = await restoreSessionUser();
-        if (user) {
-          setCurrentUser(user);
-          setIsAuthenticated(true);
-          await loadAccess();
-        }
-      } finally {
-        setIsChecking(false);
-      }
-    })();
-  }, [loadAccess]);
-
-  if (isChecking) return <MainLoader message="Loading Supplier Payment..." />;
-  if (!isAuthenticated)
-    return (
-      <Login
-        onLogin={async (user: any) => {
-          setIsAuthenticated(true);
-          setCurrentUser(user);
-          localStorage.setItem('currentUser', JSON.stringify(user));
-          await loadAccess();
-        }}
-      />
-    );
-
   return (
-    <div className="min-h-screen bg-[#F8F9FA] text-black">
-      <div className="max-w-[1000px] mx-auto px-4 sm:px-6 py-6 space-y-5">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => (window.location.href = '/Forms')}
-            className="w-10 h-10 rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-900 flex items-center justify-center transition-colors"
-            title="All Forms"
-          >
-            <ArrowLeft className="w-4 h-4" />
-          </button>
-          <h1 className="text-2xl sm:text-3xl font-normal text-black tracking-tighter">Supplier Payment</h1>
-          {/* the form puts its Clear / Download icons here */}
-          <div ref={setActionsEl} className="flex items-center gap-2" />
-        </div>
-        {allowed === null ? (
-          <TabLoader className="!min-h-[60vh]" />
-        ) : !allowed ? (
-          <div className="p-20 text-center font-bold text-slate-400">You don&apos;t have permission to use this form.</div>
-        ) : (
-          <SupplierPaymentForm actionsEl={actionsEl} />
-        )}
-      </div>
-    </div>
+    <FormShell<SupplierPayment>
+      formId={SUPPLIER_PAYMENT_FORM_ID}
+      title="Supplier Payment"
+      icon={Banknote}
+      maxWidth="max-w-[1000px]"
+      renderNew={(ctx) => <SupplierPaymentForm ctx={ctx} />}
+      onDownload={async (r) => {
+        const { generateSupplierPaymentPdf } = await import('./SupplierPaymentPdf');
+        await generateSupplierPaymentPdf(r.DATA);
+      }}
+    />
   );
 }
 
@@ -107,17 +45,19 @@ const field =
   'w-full rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-4 focus:ring-[#C4A052]/15 focus:border-[#C4A052] transition-all';
 const labelCls = 'block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2';
 
-function SupplierPaymentForm({ actionsEl }: { actionsEl: HTMLDivElement | null }) {
-  const [date, setDate] = useState(uaeToday());
-  const [supplier, setSupplier] = useState('');
+function SupplierPaymentForm({ ctx }: { ctx: FormEditorContext<SupplierPayment> }) {
+  const { actionsEl } = ctx;
+  const init = ctx.editing?.DATA; // a saved form opened for edit
+  const [date, setDate] = useState(init?.DATE || uaeToday());
+  const [supplier, setSupplier] = useState(init?.SUPPLIER_NAME || '');
   const [suppliers, setSuppliers] = useState<PaymentSupplier[] | null>(null);
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
-  const [amount, setAmount] = useState('');
-  const [paymentTerm, setPaymentTerm] = useState('');
-  const [method, setMethod] = useState<PaymentMethod>('cheque');
-  const [dueDate, setDueDate] = useState('');
-  const [notes, setNotes] = useState('');
+  const [from, setFrom] = useState(init?.PERIOD_FROM || '');
+  const [to, setTo] = useState(init?.PERIOD_TO || '');
+  const [amount, setAmount] = useState(init?.AMOUNT ? formatAmount(init.AMOUNT) : '');
+  const [paymentTerm, setPaymentTerm] = useState(init?.PAYMENT_TERM || '');
+  const [method, setMethod] = useState<PaymentMethod>(init?.METHOD || 'cheque');
+  const [dueDate, setDueDate] = useState(init?.DUE_DATE || '');
+  const [notes, setNotes] = useState(init?.NOTES || '');
   const [errors, setErrors] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState(false);
 
@@ -157,7 +97,8 @@ function SupplierPaymentForm({ actionsEl }: { actionsEl: HTMLDivElement | null }
     setErrors({});
   };
 
-  const download = async () => {
+  /** the filled form, or null (fields highlighted) */
+  const read = (): SupplierPayment | null => {
     const errs: Record<string, boolean> = {};
     if (!date) errs.date = true;
     if (!supplier.trim()) errs.supplier = true;
@@ -168,23 +109,36 @@ function SupplierPaymentForm({ actionsEl }: { actionsEl: HTMLDivElement | null }
     setErrors(errs);
     if (Object.keys(errs).length) {
       toast.error(errs.to && from && to && to < from ? 'The period end must be on or after its start' : 'Fill the highlighted fields');
-      return;
+      return null;
     }
+    return {
+      DATE: date,
+      SUPPLIER_NAME: supplier.trim(),
+      PERIOD_FROM: from,
+      PERIOD_TO: to,
+      AMOUNT: value,
+      PAYMENT_TERM: paymentTerm.trim(),
+      METHOD: method,
+      DUE_DATE: isCheque ? dueDate : null,
+      NOTES: notes.trim(),
+    };
+  };
 
+  // Save (shell header button)
+  useEffect(() => {
+    ctx.registerSave(() => {
+      const f = read();
+      return f && { TITLE: `${f.SUPPLIER_NAME} · ${formatDate(f.PERIOD_FROM)} – ${formatDate(f.PERIOD_TO)}`, DOC_DATE: f.DATE, AMOUNT: f.AMOUNT, DATA: f };
+    });
+  });
+
+  const download = async () => {
+    const f = read();
+    if (!f) return;
     setBusy(true);
     try {
       const { generateSupplierPaymentPdf } = await import('./SupplierPaymentPdf');
-      await generateSupplierPaymentPdf({
-        DATE: date,
-        SUPPLIER_NAME: supplier.trim(),
-        PERIOD_FROM: from,
-        PERIOD_TO: to,
-        AMOUNT: value,
-        PAYMENT_TERM: paymentTerm.trim(),
-        METHOD: method,
-        DUE_DATE: isCheque ? dueDate : null,
-        NOTES: notes.trim(),
-      });
+      await generateSupplierPaymentPdf(f);
     } catch (e: any) {
       toast.error(e?.message || 'Could not create the PDF');
     } finally {

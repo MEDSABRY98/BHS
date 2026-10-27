@@ -7,7 +7,7 @@
 import jsPDF from 'jspdf';
 import { addArabicFont } from '@/app/Components/Pdf/shared';
 import { saveTrackedPdf } from '@/app/AdminControl/Code/Audit/TrackedDownload';
-import { COMPANY_NAME, amountToWords, formatAmount, formatDate, formatLongDate } from '../EmployeeCharge/Utils/EmployeeChargeTypes';
+import { COMPANY_NAME, amountToWords, formatAmount, formatDate, formatLongDate } from '../Shared/FormsUtils';
 import { methodLabel, type SupplierPayment } from './SupplierPaymentTypes';
 
 type RGB = [number, number, number];

@@ -391,7 +391,7 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
       const emlLines = [
         `Date: ${new Date().toUTCString()}`,
         `To: ${targetEmail}`,
-        'From: accounting@marae.ae',
+        'From: finance@swiftline.ae',
         'Subject: ' + subject,
         'MIME-Version: 1.0',
         'X-Unsent: 1',

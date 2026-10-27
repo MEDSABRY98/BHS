@@ -1,5 +1,5 @@
 import { InvoiceRow } from '@/types';
-import { getInvoiceType } from './CstomersUtils';
+import { getInvoiceType } from './ExportInvoiceType';
 import { sortInvoicesByDateThenNumber } from '@/app/CustomersAnalysis/CustomerDetailsTab/Utils';
 
 export const generateSingleCustomerExcelBlob = async (customerName: string, invoices: InvoiceRow[], isShortInvoiceId: boolean = true): Promise<Blob> => {

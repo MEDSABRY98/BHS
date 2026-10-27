@@ -1,96 +1,41 @@
 'use client';
 
 // Vehicle Expenses: download the Excel template (vehicle, driver, fuel, maintenance), upload the filled file,
-// download the analysis PDF. Nothing is saved in the database — the lines stay in this page only.
+// download the analysis PDF and save it to the archive (DATA = { FILE_NAME, LINES }).
 
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowLeft, CheckCircle2, FileDown, FileSpreadsheet, FileText, Loader2, Upload, X } from 'lucide-react';
-import Login from '@/app/Components/Auth/Login';
-import MainLoader from '@/app/Components/Loading/MainLoader';
-import TabLoader from '@/app/Components/Loading/TabLoader';
+import { useEffect, useRef, useState } from 'react';
+import { CheckCircle2, Car, FileDown, FileSpreadsheet, FileText, Loader2, Upload, X } from 'lucide-react';
 import { toast } from '@/app/Components/Notification';
-import { restoreSessionUser } from '@/app/Components/Auth/sessionClient';
-import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
-import { useModuleTabAudit } from '@/app/AdminControl/Code/Audit/useModuleTabAudit';
-import { getAllowedForms } from '../Shared/FormsAccess';
+import FormShell from '../Shared/FormShell';
+import { uaeToday } from '../Shared/FormsUtils';
+import type { FormEditorContext } from '../Shared/FormsArchiveTypes';
 import { GroupByVehicle, Totals, formatAmount, type VehicleExpenseLine } from './VehicleExpensesTypes';
 
 const FORM_ID = 'vehicle-expenses';
 
+type VehicleExpensesData = { FILE_NAME: string; LINES: VehicleExpenseLine[] };
+
 export default function VehicleExpensesFormPage() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isChecking, setIsChecking] = useState(true);
-  const [, setCurrentUser] = useState<any>(null);
-  useSyncLiveUser(setCurrentUser);
-  useModuleTabAudit('Vehicle Expenses');
-  const [allowed, setAllowed] = useState<boolean | null>(null);
-
-  const loadAccess = useCallback(async () => {
-    try {
-      setAllowed((await getAllowedForms()).includes(FORM_ID));
-    } catch {
-      setAllowed(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const user = await restoreSessionUser();
-        if (user) {
-          setCurrentUser(user);
-          setIsAuthenticated(true);
-          await loadAccess();
-        }
-      } finally {
-        setIsChecking(false);
-      }
-    })();
-  }, [loadAccess]);
-
-  if (isChecking) return <MainLoader message="Loading Vehicle Expenses..." />;
-  if (!isAuthenticated)
-    return (
-      <Login
-        onLogin={async (user: any) => {
-          setIsAuthenticated(true);
-          setCurrentUser(user);
-          localStorage.setItem('currentUser', JSON.stringify(user));
-          await loadAccess();
-        }}
-      />
-    );
-
   return (
-    <div className="min-h-screen bg-[#F8F9FA] text-black">
-      <div className="max-w-[1100px] mx-auto px-4 sm:px-6 py-6 space-y-5">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => (window.location.href = '/Forms')}
-            className="w-10 h-10 rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-900 flex items-center justify-center transition-colors"
-            title="All Forms"
-          >
-            <ArrowLeft className="w-4 h-4" />
-          </button>
-          <h1 className="text-2xl sm:text-3xl font-normal text-black tracking-tighter">Vehicle Expenses</h1>
-        </div>
-        {allowed === null ? (
-          <TabLoader className="!min-h-[60vh]" />
-        ) : !allowed ? (
-          <div className="p-20 text-center font-bold text-slate-400">You don&apos;t have permission to use this form.</div>
-        ) : (
-          <VehicleExpensesTool />
-        )}
-      </div>
-    </div>
+    <FormShell<VehicleExpensesData>
+      formId={FORM_ID}
+      title="Vehicle Expenses"
+      icon={Car}
+      renderNew={(ctx) => <VehicleExpensesTool ctx={ctx} />}
+      onDownload={async (r) => {
+        const { exportVehicleExpensesPdf } = await import('./VehicleExpensesPdf');
+        await exportVehicleExpensesPdf(r.DATA.LINES || []);
+      }}
+    />
   );
 }
 
 const CARD = 'bg-white rounded-3xl border border-slate-200/60 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)]';
 
-function VehicleExpensesTool() {
-  const [lines, setLines] = useState<VehicleExpenseLine[] | null>(null);
-  const [fileName, setFileName] = useState('');
+function VehicleExpensesTool({ ctx }: { ctx: FormEditorContext<VehicleExpensesData> }) {
+  const init = ctx.editing?.DATA;
+  const [lines, setLines] = useState<VehicleExpenseLine[] | null>(init?.LINES?.length ? init.LINES : null);
+  const [fileName, setFileName] = useState(init?.FILE_NAME || '');
   const [busy, setBusy] = useState<'template' | 'upload' | 'pdf' | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -142,6 +87,23 @@ function VehicleExpensesTool() {
     setLines(null);
     setFileName('');
   };
+
+  // Save (shell header button)
+  useEffect(() => {
+    ctx.registerSave(() => {
+      if (!lines?.length) {
+        toast.error('Upload the Excel file first');
+        return null;
+      }
+      const t = Totals(lines);
+      return {
+        TITLE: `${fileName.replace(/\.xlsx$/i, '') || 'Vehicle Expenses'} · ${GroupByVehicle(lines).length} vehicles`,
+        DOC_DATE: ctx.editing?.DOC_DATE || uaeToday(),
+        AMOUNT: t.total,
+        DATA: { FILE_NAME: fileName, LINES: lines },
+      };
+    });
+  });
 
   const totals = Totals(lines || []);
   const vehicleCount = GroupByVehicle(lines || []).length;

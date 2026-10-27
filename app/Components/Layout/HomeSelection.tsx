@@ -162,6 +162,7 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
     { id: 'lpo-management', title: 'Invoices Tracking', path: '/InvoicesTracking', color: 'yellow' },
     { id: 'database', title: 'Database', path: '/DataBase', color: 'sky' },
     { id: 'data-update', title: 'Data Update', path: '/DataUpdate', color: 'sky' },
+    { id: 'mail-center', title: 'Mail Center', path: '/MailCenter', color: 'indigo' },
     { id: 'customers-discounts', title: 'Customers Discounts', path: '/CustomersDiscounts', color: 'yellow' },
     { id: 'financial-model', title: 'Financial Model', path: '/FinancialModel', color: 'pink' },
     { id: 'transfer-requests', title: 'Transfer Requests', path: '/TransferRequests', color: 'emerald' },

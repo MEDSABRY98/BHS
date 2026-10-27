@@ -1,6 +1,6 @@
 'use client';
 
-// Forms home: one card per form the user can open. Each form lives in its own folder (e.g. ./EmployeeCharge).
+// Forms home: one card per form the user can open. Each form lives in its own folder (e.g. ./SupplierPayment).
 
 import { useCallback, useEffect, useState } from 'react';
 import { ArrowLeft, ArrowRight, ClipboardList } from 'lucide-react';

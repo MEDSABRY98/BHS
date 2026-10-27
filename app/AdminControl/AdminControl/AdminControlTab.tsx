@@ -5,7 +5,7 @@ import { useState, useEffect, useMemo } from 'react';
 import {
     Shield, Check, X, Search, Settings, Save, AlertCircle, ChevronRight, Layers,
     CreditCard, Wallet, BarChart3, TrendingUp, Package, Truck, FileCheck,
-    ClipboardList, ShoppingCart, Database, Users, Sparkles, Trash2, ListChecks, FileSpreadsheet, ArrowLeft, CheckCheck, Ban, Hash
+    ClipboardList, ShoppingCart, Database, Users, Sparkles, Trash2, ListChecks, FileSpreadsheet, ArrowLeft, CheckCheck, Ban, Hash, Mail
 } from 'lucide-react';
 import TabLoader from '@/app/Components/Loading/TabLoader';
 import TabFetchError from '@/app/Components/DataState/TabFetchError';
@@ -215,6 +215,7 @@ export const SYSTEMS = [
     { id: 'scheduled-reports', label: 'Scheduled Reports' },
     { id: 'database', label: 'Database' },
     { id: 'data-update', label: 'Data Update' },
+    { id: 'mail-center', label: 'Mail Center' },
 ];
 
 const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
@@ -308,6 +309,11 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
         { id: 'notes', label: 'Credit Notes' },
     ],
     // Data Update: each sub-tab is one dataset (app/DataUpdate/Utils/DataUpdateTypes.ts)
+    'mail-center': [
+        { id: 'compose', label: 'Compose' },
+        { id: 'templates', label: 'Templates' },
+        { id: 'sent', label: 'Sent' },
+    ],
     'data-update': [
         { id: 'inventory', label: 'Inventory' },
     ],
@@ -317,14 +323,18 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
         { id: 'allocate', label: 'Allocate' },
         { id: 'archive', label: 'Archive' },
     ],
-    // Forms: each sub-tab is one form (app/Forms/Shared/FormsRegistry.ts)
+    // Forms: each form id opens the form, '<id>-archive' its saved forms (app/Forms/Shared/FormsRegistry.ts)
     'forms': [
-        { id: 'employee-charge', label: 'Employee Charge' },
         { id: 'letterhead', label: 'Company Letter' },
+        { id: 'letterhead-archive', label: 'Company Letter · Archive' },
         { id: 'file-labels', label: 'File Labels' },
+        { id: 'file-labels-archive', label: 'File Labels · Archive' },
         { id: 'intercompany', label: 'Intercompany Reconciliation' },
+        { id: 'intercompany-archive', label: 'Intercompany Reconciliation · Archive' },
         { id: 'supplier-payment', label: 'Supplier Payment' },
+        { id: 'supplier-payment-archive', label: 'Supplier Payment · Archive' },
         { id: 'vehicle-expenses', label: 'Vehicle Expenses' },
+        { id: 'vehicle-expenses-archive', label: 'Vehicle Expenses · Archive' },
     ],
     'suppliers-analysis': [
         { id: 'suppliers', label: 'Suppliers Analysis' },
@@ -428,6 +438,7 @@ const getSystemIcon = (id: string) => {
         case 'forms': return <ClipboardList className="w-5 h-5 text-violet-500" />;
         case 'database': return <Database className="w-5 h-5 text-slate-500" />;
         case 'data-update': return <Database className="w-5 h-5 text-sky-500" />;
+        case 'mail-center': return <Mail className="w-5 h-5 text-indigo-500" />;
         default: return <Settings className="w-5 h-5 text-slate-500" />;
     }
 };

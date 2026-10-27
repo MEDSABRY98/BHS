@@ -1,96 +1,41 @@
 'use client';
 
 // Intercompany Reconciliation (Al Ain ↔ Dubai): download the Excel template, upload the filled file,
-// download the analysis PDF. Nothing is saved in the database — the lines stay in this page only.
+// download the analysis PDF and save it to the archive (DATA = { FILE_NAME, LINES }).
 
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { AlertTriangle, ArrowLeft, CheckCircle2, FileDown, FileSpreadsheet, FileText, Loader2, Upload, X } from 'lucide-react';
-import Login from '@/app/Components/Auth/Login';
-import MainLoader from '@/app/Components/Loading/MainLoader';
-import TabLoader from '@/app/Components/Loading/TabLoader';
+import { useEffect, useRef, useState } from 'react';
+import { AlertTriangle, ArrowLeftRight, CheckCircle2, FileDown, FileSpreadsheet, FileText, Loader2, Upload, X } from 'lucide-react';
 import { toast } from '@/app/Components/Notification';
-import { restoreSessionUser } from '@/app/Components/Auth/sessionClient';
-import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
-import { useModuleTabAudit } from '@/app/AdminControl/Code/Audit/useModuleTabAudit';
-import { getAllowedForms } from '../Shared/FormsAccess';
+import FormShell from '../Shared/FormShell';
+import { uaeToday } from '../Shared/FormsUtils';
+import type { FormEditorContext } from '../Shared/FormsArchiveTypes';
 import { compareEntries, formatAmount, formatDate, round2, type IntercompanyLine } from './IntercompanyTypes';
 
 const FORM_ID = 'intercompany';
 
+type IntercompanyData = { FILE_NAME: string; LINES: IntercompanyLine[] };
+
 export default function IntercompanyFormPage() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isChecking, setIsChecking] = useState(true);
-  const [, setCurrentUser] = useState<any>(null);
-  useSyncLiveUser(setCurrentUser);
-  useModuleTabAudit('Intercompany Reconciliation');
-  const [allowed, setAllowed] = useState<boolean | null>(null);
-
-  const loadAccess = useCallback(async () => {
-    try {
-      setAllowed((await getAllowedForms()).includes(FORM_ID));
-    } catch {
-      setAllowed(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const user = await restoreSessionUser();
-        if (user) {
-          setCurrentUser(user);
-          setIsAuthenticated(true);
-          await loadAccess();
-        }
-      } finally {
-        setIsChecking(false);
-      }
-    })();
-  }, [loadAccess]);
-
-  if (isChecking) return <MainLoader message="Loading Intercompany Reconciliation..." />;
-  if (!isAuthenticated)
-    return (
-      <Login
-        onLogin={async (user: any) => {
-          setIsAuthenticated(true);
-          setCurrentUser(user);
-          localStorage.setItem('currentUser', JSON.stringify(user));
-          await loadAccess();
-        }}
-      />
-    );
-
   return (
-    <div className="min-h-screen bg-[#F8F9FA] text-black">
-      <div className="max-w-[1100px] mx-auto px-4 sm:px-6 py-6 space-y-5">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => (window.location.href = '/Forms')}
-            className="w-10 h-10 rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-900 flex items-center justify-center transition-colors"
-            title="All Forms"
-          >
-            <ArrowLeft className="w-4 h-4" />
-          </button>
-          <h1 className="text-2xl sm:text-3xl font-normal text-black tracking-tighter">Intercompany Reconciliation</h1>
-        </div>
-        {allowed === null ? (
-          <TabLoader className="!min-h-[60vh]" />
-        ) : !allowed ? (
-          <div className="p-20 text-center font-bold text-slate-400">You don&apos;t have permission to use this form.</div>
-        ) : (
-          <IntercompanyTool />
-        )}
-      </div>
-    </div>
+    <FormShell<IntercompanyData>
+      formId={FORM_ID}
+      title="Intercompany Reconciliation"
+      icon={ArrowLeftRight}
+      renderNew={(ctx) => <IntercompanyTool ctx={ctx} />}
+      onDownload={async (r) => {
+        const { exportIntercompanyPdf } = await import('./IntercompanyPdf');
+        await exportIntercompanyPdf(r.DATA.LINES || []);
+      }}
+    />
   );
 }
 
 const CARD = 'bg-white rounded-3xl border border-slate-200/60 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)]';
 
-function IntercompanyTool() {
-  const [lines, setLines] = useState<IntercompanyLine[] | null>(null);
-  const [fileName, setFileName] = useState('');
+function IntercompanyTool({ ctx }: { ctx: FormEditorContext<IntercompanyData> }) {
+  const init = ctx.editing?.DATA;
+  const [lines, setLines] = useState<IntercompanyLine[] | null>(init?.LINES?.length ? init.LINES : null);
+  const [fileName, setFileName] = useState(init?.FILE_NAME || '');
   const [errors, setErrors] = useState<{ row: number; message: string }[]>([]);
   const [busy, setBusy] = useState<'template' | 'upload' | 'pdf' | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -145,6 +90,24 @@ function IntercompanyTool() {
     setErrors([]);
     setFileName('');
   };
+
+  // Save (shell header button)
+  useEffect(() => {
+    ctx.registerSave(() => {
+      if (!lines?.length) {
+        toast.error('Upload the Excel file first');
+        return null;
+      }
+      const ds = lines.map((l) => l.ENTRY_DATE).sort();
+      const period = ds.length ? (ds[0] === ds[ds.length - 1] ? formatDate(ds[0]) : `${formatDate(ds[0])} – ${formatDate(ds[ds.length - 1])}`) : '';
+      return {
+        TITLE: `${fileName.replace(/\.xlsx$/i, '') || 'Intercompany'}${period ? ` · ${period}` : ''}`,
+        DOC_DATE: ctx.editing?.DOC_DATE || uaeToday(),
+        AMOUNT: round2(lines.reduce((s, l) => s + l.DEBIT - l.CREDIT, 0)),
+        DATA: { FILE_NAME: fileName, LINES: lines },
+      };
+    });
+  });
 
   const debit = round2((lines || []).reduce((s, l) => s + l.DEBIT, 0));
   const credit = round2((lines || []).reduce((s, l) => s + l.CREDIT, 0));

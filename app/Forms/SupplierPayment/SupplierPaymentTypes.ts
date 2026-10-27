@@ -1,4 +1,4 @@
-// Supplier Payment form: shared types. Nothing is saved in the database — the form is filled and printed as a PDF.
+// Supplier Payment form: shared types. Saved forms go to the shared forms archive (DATA = SupplierPayment).
 
 export const SUPPLIER_PAYMENT_FORM_ID = 'supplier-payment';
 

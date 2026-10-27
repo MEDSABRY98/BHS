@@ -1,12 +1,12 @@
 'use client';
 
 // File Labels: type the file names, pick a label size, print them on A4 at their real size
-// (the name is fitted to each label). No preview and nothing saved in the database:
-// the list and the sizes stay in this browser only.
+// (the name is fitted to each label). Save puts the list in the archive (DATA = the draft);
+// the list and the sizes also stay in this browser.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
-  ArrowLeft,
   Check,
   ChevronDown,
   Minus,
@@ -17,13 +17,10 @@ import {
   Tag,
   X,
 } from 'lucide-react';
-import Login from '@/app/Components/Auth/Login';
-import MainLoader from '@/app/Components/Loading/MainLoader';
-import TabLoader from '@/app/Components/Loading/TabLoader';
-import { restoreSessionUser } from '@/app/Components/Auth/sessionClient';
-import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
-import { useModuleTabAudit } from '@/app/AdminControl/Code/Audit/useModuleTabAudit';
-import { getAllowedForms } from '../Shared/FormsAccess';
+import { toast } from '@/app/Components/Notification';
+import FormShell from '../Shared/FormShell';
+import { uaeToday } from '../Shared/FormsUtils';
+import type { FormEditorContext } from '../Shared/FormsArchiveTypes';
 import { expandLabels, printFileLabels, type LabelRow, type LabelSize } from './FileLabelsPrint';
 
 const FORM_ID = 'file-labels';
@@ -70,78 +67,18 @@ function readDraft(): Draft | null {
 }
 
 export default function FileLabelsPage() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isChecking, setIsChecking] = useState(true);
-  const [, setCurrentUser] = useState<any>(null);
-  useSyncLiveUser(setCurrentUser);
-  useModuleTabAudit('File Labels');
-  const [allowed, setAllowed] = useState<boolean | null>(null);
-
-  const loadAccess = useCallback(async () => {
-    try {
-      setAllowed((await getAllowedForms()).includes(FORM_ID));
-    } catch {
-      setAllowed(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const user = await restoreSessionUser();
-        if (user) {
-          setCurrentUser(user);
-          setIsAuthenticated(true);
-          await loadAccess();
-        }
-      } finally {
-        setIsChecking(false);
-      }
-    })();
-  }, [loadAccess]);
-
-  if (isChecking) return <MainLoader message="Loading File Labels..." />;
-  if (!isAuthenticated)
-    return (
-      <Login
-        onLogin={async (user: any) => {
-          setIsAuthenticated(true);
-          setCurrentUser(user);
-          localStorage.setItem('currentUser', JSON.stringify(user));
-          await loadAccess();
-        }}
-      />
-    );
-
   return (
-    <div className="min-h-screen bg-[#F8F9FA] text-black">
-      <div className="max-w-[1100px] mx-auto px-4 sm:px-6 py-6 space-y-5">
-        {allowed !== true && <PageHeader />}
-        {allowed === null ? (
-          <TabLoader className="!min-h-[60vh]" />
-        ) : !allowed ? (
-          <div className="p-20 text-center font-bold text-slate-400">You don&apos;t have permission to use this form.</div>
-        ) : (
-          <FileLabelsEditor />
-        )}
-      </div>
-    </div>
-  );
-}
-
-function PageHeader({ children }: { children?: React.ReactNode }) {
-  return (
-    <div className="flex items-center gap-4">
-      <button
-        onClick={() => (window.location.href = '/Forms')}
-        className="w-10 h-10 rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-900 flex items-center justify-center transition-colors"
-        title="All Forms"
-      >
-        <ArrowLeft className="w-4 h-4" />
-      </button>
-      <h1 className="text-2xl sm:text-3xl font-normal text-black tracking-tighter">File Labels</h1>
-      {children && <div className="flex items-center gap-2 ml-auto">{children}</div>}
-    </div>
+    <FormShell<Draft>
+      formId={FORM_ID}
+      title="File Labels"
+      icon={Tag}
+      renderNew={(ctx) => <FileLabelsEditor ctx={ctx} />}
+      downloadLabel="Print"
+      onDownload={async (r) => {
+        const d = { ...DEFAULT_DRAFT, ...r.DATA };
+        printFileLabels({ sizes: d.sizes, rows: d.rows, cutLines: d.cutLines, font: d.font, bold: d.bold });
+      }}
+    />
   );
 }
 
@@ -150,21 +87,31 @@ const INPUT =
   'w-full h-10 px-3 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-[#D4AF37] focus:ring-4 focus:ring-[#D4AF37]/15';
 const LABEL = 'text-[11px] font-black text-slate-400 uppercase tracking-widest';
 
-function FileLabelsEditor() {
-  const [draft, setDraft] = useState<Draft>(DEFAULT_DRAFT);
+function FileLabelsEditor({ ctx }: { ctx: FormEditorContext<Draft> }) {
+  const saved = ctx.editing?.DATA; // a saved list opened for edit (the browser draft is left as it is)
+  const [draft, setDraft] = useState<Draft>(saved ? { ...DEFAULT_DRAFT, ...saved } : DEFAULT_DRAFT);
   const [ready, setReady] = useState(false);
   const [showSizes, setShowSizes] = useState(false);
   const lastInputRef = useRef<HTMLInputElement | null>(null);
   const focusLast = useRef(false);
 
   useEffect(() => {
-    const d = readDraft();
-    if (d) setDraft(d);
+    if (ctx.startEmpty) {
+      try {
+        localStorage.removeItem(STORAGE_KEY); // just saved: start a new list
+      } catch {
+        // storage not available
+      }
+    } else if (!saved) {
+      const d = readDraft();
+      if (d) setDraft(d);
+    }
     setReady(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    if (!ready) return;
+    if (!ready || saved) return;
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(draft));
     } catch {
@@ -198,12 +145,30 @@ function FileLabelsEditor() {
 
   const print = () => printFileLabels({ sizes, rows, cutLines, font, bold });
 
+  // Save (shell header button)
+  useEffect(() => {
+    ctx.registerSave(() => {
+      const names = rows.map((r) => r.text.trim()).filter(Boolean);
+      if (!names.length) {
+        toast.error('Type a file name first');
+        return null;
+      }
+      const first = names.slice(0, 3).join(' · ');
+      return {
+        TITLE: `${first}${names.length > 3 ? ` +${names.length - 3}` : ''} (${total} label${total === 1 ? '' : 's'})`,
+        DOC_DATE: ctx.editing?.DOC_DATE || uaeToday(),
+        AMOUNT: null,
+        DATA: draft,
+      };
+    });
+  });
+
   const iconBtn = 'w-10 h-10 rounded-xl flex items-center justify-center transition-colors';
   const sizeOptions = sizes.map((s) => ({ value: s.id, label: s.name || 'Unnamed', hint: `${s.width} × ${s.length} cm` }));
 
   return (
     <div className="space-y-5">
-      <PageHeader>
+      {ctx.actionsEl && createPortal(<>
         <button
           type="button"
           onClick={() => setShowSizes((v) => !v)}
@@ -221,7 +186,7 @@ function FileLabelsEditor() {
         >
           <Printer className="w-5 h-5" />
         </button>
-      </PageHeader>
+      </>, ctx.actionsEl)}
 
       {/* ── sizes ── */}
       {showSizes && (
