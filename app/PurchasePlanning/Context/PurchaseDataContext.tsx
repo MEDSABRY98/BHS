@@ -185,7 +185,13 @@ export function PurchaseDataProvider({ children }: { children: React.ReactNode }
 
       // 4. Build Product Rows
       const processedProducts: ProductPurchaseRow[] = (rawProducts || [])
-        .filter(p => p['IS_COUNTABLE'] === true && p['IS_ACTIVE'] !== false)
+        // countable and active only: IS_ACTIVE false (also 'false' / 0) or a cancelled name (ملغي / ملغى) is left out
+        .filter(p => {
+          if (p['IS_COUNTABLE'] !== true) return false;
+          const active = p['IS_ACTIVE'];
+          if (active === false || active === 0 || String(active ?? '').trim().toLowerCase() === 'false') return false;
+          return !/ملغ[يى]/.test(String(p['PRODUCT NAME'] ?? ''));
+        })
         .map(p => {
         const pId = p['PRODUCT ID'] || p['ID'] || '';
         const monthly = salesMap.get(pId) || {};

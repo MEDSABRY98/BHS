@@ -172,6 +172,7 @@ export default function SalesDBPage() {
       const { data, error } = await bhs_supabas
         .from(table)
         .select(`"${column}"`)
+        .order(column, { ascending: true }) // fixed order: pages never skip or repeat a row
         .range(from, from + pageSize - 1);
 
       if (error) throw error;
@@ -517,6 +518,39 @@ export default function SalesDBPage() {
     }
   };
 
+  /**
+   * After a failed insert: tries the rows again in halves to find exactly the ones the database refuses
+   * (wrong product / customer, bad date or number …). Rows that go in during the test are deleted again.
+   */
+  const MAX_REJECTED = 300;
+  const findRejectedRows = async <T extends { ID: string }>(rows: T[]): Promise<{ row: T; message: string }[]> => {
+    const bad: { row: T; message: string }[] = [];
+    const probe: string[] = [];
+    const test = async (part: T[]): Promise<void> => {
+      if (!part.length || bad.length >= MAX_REJECTED) return;
+      const { error } = await bhs_supabas.from('web_Sales_DB').insert(part);
+      if (!error) {
+        probe.push(...part.map((r) => r.ID));
+        return;
+      }
+      if (part.length === 1) {
+        bad.push({ row: part[0], message: error.details || error.message || 'refused' });
+        return;
+      }
+      const mid = Math.ceil(part.length / 2);
+      await test(part.slice(0, mid));
+      await test(part.slice(mid));
+    };
+    try {
+      await test(rows);
+    } finally {
+      for (let i = 0; i < probe.length; i += 500) {
+        await bhs_supabas.from('web_Sales_DB').delete().in('ID', probe.slice(i, i + 500));
+      }
+    }
+    return bad;
+  };
+
   const handleSalesUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -741,9 +775,10 @@ export default function SalesDBPage() {
         }
       }
       const firstNum = parseInt(String(allFormattedRows[0]?.ID || '').replace(/\D/g, ''), 10) || 1;
-      const uploadRows = formattedRows
-        .filter((r) => !existingInvoices.has(r['INVOICE NUMBER']))
-        .map((r, i) => ({ ...r, ID: `R-${String(firstNum + i).padStart(5, '0')}` })); // keep the row numbers continuous
+      const excelRowOf = new Map(allFormattedRows.map((row, index) => [row, index + 2]));
+      const newRows = formattedRows.filter((r) => !existingInvoices.has(r['INVOICE NUMBER']));
+      const uploadRows = newRows.map((r, i) => ({ ...r, ID: `R-${String(firstNum + i).padStart(5, '0')}` })); // keep the row numbers continuous
+      const uploadExcelRow = new Map(uploadRows.map((r, i) => [r.ID, excelRowOf.get(newRows[i]) || 0]));
 
       // Invoices in the database inside the file's period (first → last invoice date) that are no longer
       // in the file = removed from the accounting system after they were uploaded → delete them (after asking).
@@ -789,6 +824,7 @@ export default function SalesDBPage() {
       // Insert in chunks; if any chunk fails, remove what this upload already added
       const chunkSize = 500;
       const insertedIds: string[] = [];
+      let failedFrom = -1;
       try {
         for (let i = 0; i < uploadRows.length; i += chunkSize) {
           const chunk = uploadRows.slice(i, i + chunkSize);
@@ -796,12 +832,37 @@ export default function SalesDBPage() {
             .from('web_Sales_DB')
             .insert(chunk);
 
-          if (insertErr) throw insertErr;
+          if (insertErr) {
+            failedFrom = i;
+            throw insertErr;
+          }
           insertedIds.push(...chunk.map((r) => r.ID));
         }
-      } catch (insertError) {
+      } catch (insertError: any) {
         for (let i = 0; i < insertedIds.length; i += 500) {
           await bhs_supabas.from('web_Sales_DB').delete().in('ID', insertedIds.slice(i, i + 500));
+        }
+        // Find exactly which rows the database refused, and give them as a text file (product ID first)
+        const bad = failedFrom >= 0 ? await findRejectedRows(uploadRows.slice(failedFrom)) : [];
+        if (bad.length) {
+          const products = Array.from(new Set(bad.map((b) => String(b.row['PRODUCT ID'])))).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+          downloadUploadIssuesReport(
+            `Sales_Upload_Problems_${new Date().toISOString().split('T')[0]}.txt`,
+            'Sales Upload - Rows Refused By The Database (nothing was uploaded)',
+            [
+              { heading: `=== PRODUCT IDs WITH A PROBLEM (${products.length}) ===`, lines: products },
+              {
+                heading: `=== ROWS (${bad.length}${bad.length >= MAX_REJECTED ? '+, first ones only' : ''}) ===`,
+                lines: bad.map(
+                  ({ row, message }) =>
+                    `Excel row ${uploadExcelRow.get(row.ID) || '?'}: product="${row['PRODUCT ID']}" invoice="${row['INVOICE NUMBER']}" customer="${row['CUSTOMER ID']}" date="${row['INVOICE DATE']}" → ${message}`,
+                ),
+              },
+            ],
+          );
+          throw new Error(
+            `${bad.length}${bad.length >= MAX_REJECTED ? '+' : ''} row(s) refused (product ID${products.length === 1 ? '' : 's'}: ${products.slice(0, 5).join(', ')}${products.length > 5 ? ' …' : ''}). A text file with the details has been downloaded.`,
+          );
         }
         throw insertError;
       }

@@ -10,7 +10,6 @@ import {
   SortingState,
 } from '@tanstack/react-table';
 import { ArrowDown, ArrowUp, Search, Download, Package, Upload, X } from 'lucide-react';
-import { exportStyledExcel } from '@/app/Components/Export/ExcelExport';
 import TabLoader from '@/app/Components/Loading/TabLoader';
 import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import NoData from '@/app/Components/DataState/NoDataTab';
@@ -51,11 +50,9 @@ export function PlanningTab() {
   const [parentView, setParentView] = useState<'all' | 'noParent' | 'withParent'>('all');
   const [barcodeFilter, setBarcodeFilter] = useState<Set<string>>(new Set());
 
-  const filteredProducts = useMemo(() => {
+  /** every filter except the All / No Parent / With Parent view (the Excel makes one sheet per view) */
+  const baseProducts = useMemo(() => {
     let result = products;
-
-    if (parentView === 'noParent') result = result.filter(p => !p.parentId);
-    else if (parentView === 'withParent') result = result.filter(p => !!p.parentId);
 
     if (barcodeFilter.size > 0) {
       result = result.filter(p => barcodeFilter.has((p.barcode || '').trim()));
@@ -79,7 +76,12 @@ export function PlanningTab() {
     }
 
     return result;
-  }, [products, parentView, searchTerm, globalFilters.categories, showOrderedOnly, orderQuantities, barcodeFilter]);
+  }, [products, searchTerm, globalFilters.categories, showOrderedOnly, orderQuantities, barcodeFilter]);
+
+  const filteredProducts = useMemo(
+    () => (parentView === 'noParent' ? baseProducts.filter(p => !p.parentId) : parentView === 'withParent' ? baseProducts.filter(p => !!p.parentId) : baseProducts),
+    [baseProducts, parentView],
+  );
 
   // "With Parent": 2+ products under the same parent with the SAME unit -> their names are shown in red
   const unitKey = (p: { parentId: string; unit: string }) => `${p.parentId}|${(p.unit || '').trim().toUpperCase()}`;
@@ -217,7 +219,6 @@ export function PlanningTab() {
       .sort((a, b) => byName(a.parentName || a.parentId, b.parentName || b.parentId));
   }, [parentView, sortedRows, products]);
 
-  const orderedRows = parentGroups ? parentGroups.flatMap(g => g.rows) : sortedRows;
 
   const totals = useMemo(() => {
     let stock = 0;
@@ -239,33 +240,35 @@ export function PlanningTab() {
     return { stock, monthlyTotals, average, orderQty };
   }, [filteredProducts, months, orderQuantities]);
 
+  // Excel: three sheets like the page (All / No Parent / With Parent), the same filters, order and box view
   const handleExport = async () => {
-    const dataToExport = orderedRows.map((r, index) => {
-      const p = r.original;
-      const noBox = showInBoxes && (!p.qtyInBox || p.qtyInBox <= 0);
-      const row: any = {
-        '#': index + 1,
-        ...(parentView === 'withParent' ? { 'Parent ID': p.parentId } : {}),
-        'Product ID': p.productId,
-        'Barcode': p.barcode || '-',
-        'Product Name': p.name,
-        'Unit': p.unit || '-',
-        'Qty in Box': p.qtyInBox || '-',
-        'Stock': noBox ? 'No Box Qty' : (showInBoxes ? Number(((p.stockQuantity || 0) / p.qtyInBox).toFixed(1)) : (p.stockQuantity || 0)),
-      };
-      months.forEach(m => {
-        row[m.label] = noBox ? 'No Box Qty' : (showInBoxes ? Number((((p.monthlySales[m.key] || 0)) / p.qtyInBox).toFixed(1)) : (p.monthlySales[m.key] || 0));
+    const sortRows = (list: typeof baseProducts) => {
+      const s = sorting[0];
+      if (!s) return list;
+      const value = (p: (typeof baseProducts)[number]): string | number =>
+        s.id === 'name' || s.id === 'barcode' || s.id === 'unit'
+          ? String((p as any)[s.id] || '')
+          : s.id === 'monthlyAverage' || s.id === 'stockQuantity' || s.id === 'qtyInBox'
+            ? Number((p as any)[s.id]) || 0
+            : Number(p.monthlySales[s.id]) || 0;
+      return [...list].sort((a, b) => {
+        const x = value(a);
+        const y = value(b);
+        const c = typeof x === 'number' && typeof y === 'number' ? x - y : String(x).localeCompare(String(y), undefined, { sensitivity: 'base', numeric: true });
+        return s.desc ? -c : c;
       });
-      row['Average'] = noBox ? 'No Box Qty' : (showInBoxes ? Number(((p.monthlyAverage || 0) / p.qtyInBox).toFixed(1)) : Number((p.monthlyAverage || 0).toFixed(1)));
-      const oq = orderQuantities.get(p.productId) || 0;
-      row['Order Qty'] = noBox ? 'No Box Qty' : (showInBoxes ? Number((oq / p.qtyInBox).toFixed(1)) : oq);
-      return row;
-    });
-
-    await exportStyledExcel(dataToExport, `Purchase_Planning_${new Date().toISOString().split('T')[0]}.xlsx`, {
-      sheetName: 'Planning',
-      numericColumns: ['Stock', ...months.map(m => m.label), 'Average', 'Order Qty'],
-      columnWidth: 15
+    };
+    const { exportPlanningExcel } = await import('../Utils/PlanningExcel');
+    await exportPlanningExcel({
+      sheets: [
+        { name: 'All', rows: sortRows(baseProducts), grouped: false },
+        { name: 'No Parent', rows: sortRows(baseProducts.filter(p => !p.parentId)), grouped: false },
+        { name: 'With Parent', rows: baseProducts.filter(p => !!p.parentId), grouped: true },
+      ],
+      months,
+      showInBoxes,
+      orderQuantities,
+      nameOf: new Map(products.map(p => [p.productId, p.name])),
     });
   };
 
@@ -328,7 +331,7 @@ export function PlanningTab() {
 
           <button
             onClick={handleExport}
-            title="Export to Excel"
+            title="Export to Excel (All / No Parent / With Parent)"
             className="flex items-center justify-center w-10 h-10 bg-green-50 hover:bg-green-100 text-green-600 rounded-xl transition-colors border border-green-200 shadow-sm"
           >
             <Download className="w-5 h-5" />
