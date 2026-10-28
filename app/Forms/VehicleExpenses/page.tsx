@@ -23,6 +23,7 @@ export default function VehicleExpensesFormPage() {
       icon={Car}
       renderNew={(ctx) => <VehicleExpensesTool ctx={ctx} />}
       archiveShowTitle={false}
+      saveLabel="Save & PDF"
       onDownload={async (r) => {
         const { exportVehicleExpensesPdf } = await import('./VehicleExpensesPdf');
         await exportVehicleExpensesPdf(r.DATA.LINES || [], r.DATA.PDF_TITLE || '');
@@ -38,7 +39,7 @@ function VehicleExpensesTool({ ctx }: { ctx: FormEditorContext<VehicleExpensesDa
   const [lines, setLines] = useState<VehicleExpenseLine[] | null>(init?.LINES?.length ? init.LINES : null);
   const [fileName, setFileName] = useState(init?.FILE_NAME || '');
   const [pdfTitle, setPdfTitle] = useState(init?.PDF_TITLE || '');
-  const [busy, setBusy] = useState<'template' | 'upload' | 'pdf' | null>(null);
+  const [busy, setBusy] = useState<'template' | 'upload' | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const downloadTemplate = async () => {
@@ -72,19 +73,6 @@ function VehicleExpensesTool({ ctx }: { ctx: FormEditorContext<VehicleExpensesDa
     }
   };
 
-  const downloadPdf = async () => {
-    if (!lines?.length) return;
-    setBusy('pdf');
-    try {
-      const { exportVehicleExpensesPdf } = await import('./VehicleExpensesPdf');
-      await exportVehicleExpensesPdf(lines, pdfTitle);
-    } catch (err: any) {
-      toast.error(err?.message || 'Could not create the PDF');
-    } finally {
-      setBusy(null);
-    }
-  };
-
   const clear = () => {
     setLines(null);
     setFileName('');
@@ -104,6 +92,10 @@ function VehicleExpensesTool({ ctx }: { ctx: FormEditorContext<VehicleExpensesDa
         DOC_DATE: ctx.editing?.DOC_DATE || uaeToday(),
         AMOUNT: t.total,
         DATA: { FILE_NAME: fileName, LINES: lines, PDF_TITLE: pdfTitle.trim() },
+        afterSave: async () => {
+          const { exportVehicleExpensesPdf } = await import('./VehicleExpensesPdf');
+          await exportVehicleExpensesPdf(lines, pdfTitle);
+        },
       };
     });
   });
@@ -154,27 +146,17 @@ function VehicleExpensesTool({ ctx }: { ctx: FormEditorContext<VehicleExpensesDa
         )}
         {step(
           3,
-          'Analysis PDF',
+          'PDF Title',
           <FileText className="w-5 h-5" />,
-          <>
           <input
             value={pdfTitle}
             onChange={(e) => setPdfTitle(e.target.value)}
             disabled={!hasLines}
             maxLength={120}
             dir="auto"
-            placeholder="PDF title (optional)"
+            placeholder="Optional — Save downloads the PDF"
             className="h-11 w-full px-4 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-4 focus:ring-[#D4AF37]/15 focus:border-[#D4AF37] disabled:bg-slate-50"
-          />
-          <button
-            type="button"
-            onClick={downloadPdf}
-            disabled={!hasLines || !!busy}
-            className={`${btn} bg-gradient-to-r from-[#D4AF37] to-[#B8860B] text-white shadow-lg shadow-[#D4AF37]/25 hover:shadow-xl`}
-          >
-            {busy === 'pdf' ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />} Download PDF
-          </button>
-          </>,
+          />,
           !hasLines,
         )}
       </div>

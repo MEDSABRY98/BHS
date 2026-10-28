@@ -28,6 +28,8 @@ export interface FormSavePayload<T = any> {
   DOC_DATE: string | null;
   AMOUNT: number | null;
   DATA: T;
+  /** runs right after a successful save (download the PDF / print) */
+  afterSave?: (saved: FormRecord<T>) => void | Promise<void>;
 }
 
 /** what the shell gives to the form editor */

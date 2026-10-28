@@ -11,7 +11,6 @@ import {
   ChevronDown,
   Minus,
   Plus,
-  Printer,
   Ruler,
   Scissors,
   Tag,
@@ -73,6 +72,7 @@ export default function FileLabelsPage() {
       title="File Labels"
       icon={Tag}
       renderNew={(ctx) => <FileLabelsEditor ctx={ctx} />}
+      saveLabel="Save & Print"
       downloadLabel="Print"
       onDownload={async (r) => {
         const d = { ...DEFAULT_DRAFT, ...r.DATA };
@@ -143,8 +143,6 @@ function FileLabelsEditor({ ctx }: { ctx: FormEditorContext<Draft> }) {
 
   const total = useMemo(() => expandLabels({ sizes, rows }).length, [sizes, rows]);
 
-  const print = () => printFileLabels({ sizes, rows, cutLines, font, bold });
-
   // Save (shell header button)
   useEffect(() => {
     ctx.registerSave(() => {
@@ -159,6 +157,7 @@ function FileLabelsEditor({ ctx }: { ctx: FormEditorContext<Draft> }) {
         DOC_DATE: ctx.editing?.DOC_DATE || uaeToday(),
         AMOUNT: null,
         DATA: draft,
+        afterSave: () => printFileLabels({ sizes, rows, cutLines, font, bold }),
       };
     });
   });
@@ -176,15 +175,6 @@ function FileLabelsEditor({ ctx }: { ctx: FormEditorContext<Draft> }) {
           title="Label sizes"
         >
           <Ruler className="w-5 h-5" />
-        </button>
-        <button
-          type="button"
-          onClick={print}
-          disabled={total === 0}
-          className={`${iconBtn} bg-[#0f0f0f] text-[#D4AF37] hover:bg-black shadow disabled:opacity-40 disabled:cursor-not-allowed`}
-          title={total ? `Print ${total} label${total === 1 ? '' : 's'}` : 'Type a file name first'}
-        >
-          <Printer className="w-5 h-5" />
         </button>
       </>, ctx.actionsEl)}
 

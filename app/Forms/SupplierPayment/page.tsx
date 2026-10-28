@@ -4,7 +4,7 @@
 
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Banknote, CalendarDays, FileDown, Landmark, Loader2, RotateCcw } from 'lucide-react';
+import { Banknote, CalendarDays, Landmark, RotateCcw } from 'lucide-react';
 import { toast } from '@/app/Components/Notification';
 import FormShell from '../Shared/FormShell';
 import { amountToWords, formatAmount, formatDate, round2, uaeToday } from '../Shared/FormsUtils';
@@ -20,6 +20,7 @@ export default function SupplierPaymentPage() {
       title="Supplier Payment"
       icon={Banknote}
       maxWidth="max-w-[1000px]"
+      saveLabel="Save & PDF"
       renderNew={(ctx) => <SupplierPaymentForm ctx={ctx} />}
       onDownload={async (r) => {
         const { generateSupplierPaymentPdf } = await import('./SupplierPaymentPdf');
@@ -59,7 +60,6 @@ function SupplierPaymentForm({ ctx }: { ctx: FormEditorContext<SupplierPayment> 
   const [dueDate, setDueDate] = useState(init?.DUE_DATE || '');
   const [notes, setNotes] = useState(init?.NOTES || '');
   const [errors, setErrors] = useState<Record<string, boolean>>({});
-  const [busy, setBusy] = useState(false);
 
   // suppliers dropdown (Data Base → Suppliers)
   useEffect(() => {
@@ -128,23 +128,20 @@ function SupplierPaymentForm({ ctx }: { ctx: FormEditorContext<SupplierPayment> 
   useEffect(() => {
     ctx.registerSave(() => {
       const f = read();
-      return f && { TITLE: `${f.SUPPLIER_NAME} · ${formatDate(f.PERIOD_FROM)} – ${formatDate(f.PERIOD_TO)}`, DOC_DATE: f.DATE, AMOUNT: f.AMOUNT, DATA: f };
+      return (
+        f && {
+          TITLE: `${f.SUPPLIER_NAME} · ${formatDate(f.PERIOD_FROM)} – ${formatDate(f.PERIOD_TO)}`,
+          DOC_DATE: f.DATE,
+          AMOUNT: f.AMOUNT,
+          DATA: f,
+          afterSave: async () => {
+            const { generateSupplierPaymentPdf } = await import('./SupplierPaymentPdf');
+            await generateSupplierPaymentPdf(f);
+          },
+        }
+      );
     });
   });
-
-  const download = async () => {
-    const f = read();
-    if (!f) return;
-    setBusy(true);
-    try {
-      const { generateSupplierPaymentPdf } = await import('./SupplierPaymentPdf');
-      await generateSupplierPaymentPdf(f);
-    } catch (e: any) {
-      toast.error(e?.message || 'Could not create the PDF');
-    } finally {
-      setBusy(false);
-    }
-  };
 
   return (
     <div className="space-y-4">
@@ -153,18 +150,7 @@ function SupplierPaymentForm({ ctx }: { ctx: FormEditorContext<SupplierPayment> 
           <>
             <button
               type="button"
-              onClick={() => void download()}
-              disabled={busy}
-              className="w-10 h-10 rounded-xl bg-gradient-to-r from-amber-600 to-yellow-600 text-white shadow-lg shadow-amber-900/20 hover:brightness-105 flex items-center justify-center disabled:opacity-50"
-              title="Download PDF"
-              aria-label="Download PDF"
-            >
-              {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
-            </button>
-            <button
-              type="button"
               onClick={reset}
-              disabled={busy}
               className="w-10 h-10 rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-800 flex items-center justify-center disabled:opacity-40"
               title="Clear"
               aria-label="Clear"

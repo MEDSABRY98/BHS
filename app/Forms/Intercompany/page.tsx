@@ -4,7 +4,7 @@
 // download the analysis PDF and save it to the archive (DATA = { FILE_NAME, LINES }).
 
 import { useEffect, useRef, useState } from 'react';
-import { AlertTriangle, ArrowLeftRight, CheckCircle2, FileDown, FileSpreadsheet, FileText, Loader2, Upload, X } from 'lucide-react';
+import { AlertTriangle, ArrowLeftRight, CheckCircle2, FileDown, FileSpreadsheet, Loader2, Upload, X } from 'lucide-react';
 import { toast } from '@/app/Components/Notification';
 import FormShell from '../Shared/FormShell';
 import { uaeToday } from '../Shared/FormsUtils';
@@ -22,6 +22,7 @@ export default function IntercompanyFormPage() {
       title="Intercompany Reconciliation"
       icon={ArrowLeftRight}
       renderNew={(ctx) => <IntercompanyTool ctx={ctx} />}
+      saveLabel="Save & PDF"
       onDownload={async (r) => {
         const { exportIntercompanyPdf } = await import('./IntercompanyPdf');
         await exportIntercompanyPdf(r.DATA.LINES || []);
@@ -37,7 +38,7 @@ function IntercompanyTool({ ctx }: { ctx: FormEditorContext<IntercompanyData> })
   const [lines, setLines] = useState<IntercompanyLine[] | null>(init?.LINES?.length ? init.LINES : null);
   const [fileName, setFileName] = useState(init?.FILE_NAME || '');
   const [errors, setErrors] = useState<{ row: number; message: string }[]>([]);
-  const [busy, setBusy] = useState<'template' | 'upload' | 'pdf' | null>(null);
+  const [busy, setBusy] = useState<'template' | 'upload' | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const downloadTemplate = async () => {
@@ -72,19 +73,6 @@ function IntercompanyTool({ ctx }: { ctx: FormEditorContext<IntercompanyData> })
     }
   };
 
-  const downloadPdf = async () => {
-    if (!lines?.length) return;
-    setBusy('pdf');
-    try {
-      const { exportIntercompanyPdf } = await import('./IntercompanyPdf');
-      await exportIntercompanyPdf(lines);
-    } catch (err: any) {
-      toast.error(err?.message || 'Could not create the PDF');
-    } finally {
-      setBusy(null);
-    }
-  };
-
   const clear = () => {
     setLines(null);
     setErrors([]);
@@ -105,6 +93,10 @@ function IntercompanyTool({ ctx }: { ctx: FormEditorContext<IntercompanyData> })
         DOC_DATE: ctx.editing?.DOC_DATE || uaeToday(),
         AMOUNT: round2(lines.reduce((s, l) => s + l.DEBIT - l.CREDIT, 0)),
         DATA: { FILE_NAME: fileName, LINES: lines },
+        afterSave: async () => {
+          const { exportIntercompanyPdf } = await import('./IntercompanyPdf');
+          await exportIntercompanyPdf(lines);
+        },
       };
     });
   });
@@ -135,7 +127,7 @@ function IntercompanyTool({ ctx }: { ctx: FormEditorContext<IntercompanyData> })
 
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {step(
           1,
           'Excel Template',
@@ -154,20 +146,6 @@ function IntercompanyTool({ ctx }: { ctx: FormEditorContext<IntercompanyData> })
               {busy === 'upload' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />} {hasLines ? 'Upload Another File' : 'Upload Excel'}
             </button>
           </>,
-        )}
-        {step(
-          3,
-          'Analysis PDF',
-          <FileText className="w-5 h-5" />,
-          <button
-            type="button"
-            onClick={downloadPdf}
-            disabled={!hasLines || !!busy}
-            className={`${btn} bg-gradient-to-r from-[#D4AF37] to-[#B8860B] text-white shadow-lg shadow-[#D4AF37]/25 hover:shadow-xl`}
-          >
-            {busy === 'pdf' ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />} Download PDF
-          </button>,
-          !hasLines,
         )}
       </div>
 

@@ -30,11 +30,13 @@ interface FormShellProps<T> {
   maxWidth?: string;
   /** show the Title column in the archive (default true) */
   archiveShowTitle?: boolean;
+  /** the header Save button text (e.g. "Save & PDF" when saving also downloads the file) */
+  saveLabel?: string;
 }
 
 const NO_ACCESS: FormAccess = { use: false, archive: false, admin: false };
 
-export default function FormShell<T = any>({ formId, title, icon, renderNew, onDownload, downloadLabel, maxWidth = 'max-w-[1100px]', archiveShowTitle = true }: FormShellProps<T>) {
+export default function FormShell<T = any>({ formId, title, icon, renderNew, onDownload, downloadLabel, maxWidth = 'max-w-[1100px]', archiveShowTitle = true, saveLabel = 'Save' }: FormShellProps<T>) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
   const [, setCurrentUser] = useState<any>(null);
@@ -140,7 +142,8 @@ export default function FormShell<T = any>({ formId, title, icon, renderNew, onD
     if (!payload) return;
     setSaving(true);
     try {
-      const saved = (await saveFormRecord(formId, payload, editing?.ID)) as FormRecord<T>;
+      const { afterSave, ...record } = payload;
+      const saved = (await saveFormRecord(formId, record, editing?.ID)) as FormRecord<T>;
       if (loaded) setRecords((prev) => (editing ? prev.map((x) => (x.ID === saved.ID ? saved : x)) : [saved, ...prev]));
       if (editing) {
         toast.success(`${saved.REF_NO} updated`);
@@ -148,6 +151,14 @@ export default function FormShell<T = any>({ formId, title, icon, renderNew, onD
         setActiveTab(access?.archive ? 'archive' : 'new');
       } else {
         toast.success(`Saved as ${saved.REF_NO}`);
+      }
+      // one button: saved, now the PDF / print
+      if (afterSave) {
+        try {
+          await afterSave(saved);
+        } catch (e: any) {
+          toast.error(`Saved, but the file could not be made: ${e?.message || 'error'}`);
+        }
       }
       // a fresh empty form
       setStartEmpty(true);
@@ -209,7 +220,7 @@ export default function FormShell<T = any>({ formId, title, icon, renderNew, onD
           </div>
         </header>
 
-        <div className={`${maxWidth} mx-auto px-4 sm:px-6 pt-6 pb-12 flex-1 w-full flex flex-col space-y-5`}>
+        <div className={`${activeTab === 'archive' ? 'max-w-[1500px]' : maxWidth} mx-auto px-4 sm:px-6 pt-6 pb-12 flex-1 w-full flex flex-col space-y-5`}>
           {!access ? (
             <TabLoader className="!min-h-[70vh] flex-1" />
           ) : visibleTabs.length === 0 ? (
@@ -230,9 +241,9 @@ export default function FormShell<T = any>({ formId, title, icon, renderNew, onD
                       onClick={() => void save()}
                       disabled={saving}
                       className="h-10 px-4 rounded-xl bg-black text-[#C4A052] text-sm font-bold flex items-center gap-1.5 shadow-sm disabled:opacity-50"
-                      title={editing ? 'Save the changes' : 'Save to the archive'}
+                      title={editing ? `${saveLabel} (the changes)` : `${saveLabel} (to the archive)`}
                     >
-                      {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Save
+                      {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} {saveLabel}
                     </button>
                     {editing && (
                       <button

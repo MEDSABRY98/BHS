@@ -23,7 +23,6 @@ import {
   ListOrdered,
   Minus,
   PenLine,
-  Printer,
   Redo2,
   Ruler,
   Trash2,
@@ -94,6 +93,7 @@ export default function CompanyLetterPage() {
       title="Company Letter"
       icon={FileSignature}
       renderNew={(ctx) => <LetterEditor ctx={ctx} />}
+      saveLabel="Save & Print"
       downloadLabel="Print / Save PDF"
       onDownload={async (r) => {
         const m = readJson<LetterMargins>(MARGINS_KEY); // this browser's paper margins
@@ -198,16 +198,6 @@ function LetterEditor({ ctx }: { ctx: FormEditorContext<LetterData> }) {
     saveDraft();
   };
 
-  const print = () =>
-    printLetter({
-      html: editorRef.current?.innerHTML ?? '',
-      dir,
-      margins,
-      signatures,
-      signatureAlign: align,
-      title: 'Company Letter',
-    });
-
   // Save (shell header button)
   useEffect(() => {
     ctx.registerSave(() => {
@@ -222,6 +212,8 @@ function LetterEditor({ ctx }: { ctx: FormEditorContext<LetterData> }) {
         DOC_DATE: ctx.editing?.DOC_DATE || uaeToday(),
         AMOUNT: null,
         DATA: { HTML: html, DIR: dir, SIGNATURES: signatures, ALIGN: align },
+        afterSave: (saved) =>
+          printLetter({ html, dir, margins, signatures, signatureAlign: align, title: saved.REF_NO || 'Company Letter' }),
       };
     });
   });
@@ -250,9 +242,6 @@ function LetterEditor({ ctx }: { ctx: FormEditorContext<LetterData> }) {
           title="Paper margins"
         >
           <Ruler className="w-5 h-5" />
-        </button>
-        <button type="button" onClick={print} className={`${iconBtn} bg-[#0f0f0f] text-[#D4AF37] hover:bg-black shadow`} title="Print / Save PDF">
-          <Printer className="w-5 h-5" />
         </button>
       </>, ctx.actionsEl)}
       <style>{`${LETTER_CONTENT_CSS}
