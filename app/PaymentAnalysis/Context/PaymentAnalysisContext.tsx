@@ -8,6 +8,8 @@ import { getInvoiceType } from '@/app/CustomersAnalysis/Utils/InvoiceType';
 interface PaymentAnalysisContextType {
   data: InvoiceRow[];
   paymentsData: InvoiceRow[]; // ONLY payments and r-payments
+  /** Same as paymentsData but WITHOUT the date filter (tags/classes/cities still applied) — used for year-over-year comparison. */
+  paymentsAllDates: InvoiceRow[];
   loading: boolean;
   isRefreshing: boolean;
   error: string | null;
@@ -110,10 +112,33 @@ export function PaymentAnalysisProvider({ children, enabled = true }: { children
     });
   }, [data, dateRange, selectedTags, selectedClasses, selectedCities]);
 
+  const paymentsAllDates = useMemo(() => {
+    return data.filter(row => {
+      const t = getInvoiceType(row);
+      if (t !== 'Payment' && t !== 'R-Payment') return false;
+
+      if (selectedTags.length > 0) {
+        if (!row.customerTag) return false;
+        const rowTags = row.customerTag.split(',').map(t => t.trim()).filter(Boolean);
+        if (!rowTags.some(tag => selectedTags.includes(tag))) return false;
+      }
+      if (selectedClasses.length > 0) {
+        if (!row.customerClass) return false;
+        if (!selectedClasses.includes(row.customerClass.trim())) return false;
+      }
+      if (selectedCities.length > 0) {
+        if (!row.city) return false;
+        if (!selectedCities.includes(row.city.trim())) return false;
+      }
+      return true;
+    });
+  }, [data, selectedTags, selectedClasses, selectedCities]);
+
   return (
     <PaymentAnalysisContext.Provider value={{ 
       data,
       paymentsData,
+      paymentsAllDates,
       loading, 
       isRefreshing,
       error, 

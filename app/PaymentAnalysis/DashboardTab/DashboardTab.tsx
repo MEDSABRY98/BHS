@@ -6,78 +6,113 @@ import {
 } from 'recharts';
 import { Wallet, TrendingUp, TrendingDown, CreditCard, Activity } from 'lucide-react';
 
-export default function DashboardTab() {
-  const { paymentsData } = usePaymentAnalysis();
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const pad2 = (n: number) => String(n).padStart(2, '0');
+const isoDay = (d: Date) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+const dayOf = (v: unknown) => String(v ?? '').split('T')[0];
+/** Same calendar day one year earlier (keeps 29 Feb valid). */
+function shiftYear(iso: string, years: number): string {
+  const [y, m, d] = iso.split('-').map(Number);
+  const last = new Date(y + years, m, 0).getDate();
+  return `${y + years}-${pad2(m)}-${pad2(Math.min(d, last))}`;
+}
 
-  const { stats, yoyData, currentYearTotal, previousYearYTD } = useMemo(() => {
+export default function DashboardTab() {
+  const { paymentsData, paymentsAllDates, dateRange } = usePaymentAnalysis();
+
+  // All-time totals for the cards (follow the date filter, like before)
+  const stats = useMemo(() => {
     let collected = 0;
     let refunded = 0;
-    
-    let currentTotal = 0;
-    let prevYTD = 0;
-
-    const today = new Date();
-    const currentYear = today.getFullYear();
-    const previousYear = currentYear - 1;
-    const currentMonth = today.getMonth();
-    const currentDay = today.getDate();
-
-    // Initialize monthly data for YoY chart
-    const monthlyMap = new Map<number, { month: string, current: number, previous: number }>();
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    
-    months.forEach((m, i) => {
-      monthlyMap.set(i, { month: m, current: 0, previous: 0 });
-    });
-
     paymentsData.forEach(row => {
       const category = getPaymentCategory(row);
-      if (category === 'Other') return; // Skip non-payments
-      const isRefund = category === 'Refund';
-      const amount = isRefund ? -(Number(row.debit) || 0) : (Number(row.credit) || 0);
-
-      // Global Stats
+      if (category === 'Other') return;
+      const amount = category === 'Refund' ? -(Number(row.debit) || 0) : (Number(row.credit) || 0);
       if (amount > 0) collected += amount;
       else refunded += Math.abs(amount);
+    });
+    return { collected, refunded, net: collected - refunded };
+  }, [paymentsData]);
 
-      // YoY Data
-      if (row.date) {
-        const d = new Date(row.date);
-        if (!isNaN(d.getTime())) {
-          const m = d.getMonth();
-          const y = d.getFullYear();
-          
-          if (y === currentYear) {
-            const currentData = monthlyMap.get(m)!;
-            currentData.current += amount; // net amount for the month
-            currentTotal += amount;
-          } else if (y === previousYear) {
-            const currentData = monthlyMap.get(m)!;
-            currentData.previous += amount;
-            
-            // Compare YTD up to today's date in previous year
-            if (m < currentMonth || (m === currentMonth && d.getDate() <= currentDay)) {
-              prevYTD += amount;
-            }
-          }
-        }
+  // Period vs same period last year. Uses the data WITHOUT the date filter, otherwise last year's
+  // rows are filtered out as soon as a date range is selected and the comparison disappears.
+  const { yoyData, currentYearTotal, previousYearYTD, isFiltered, curLabel, prevLabel } = useMemo(() => {
+    const today = new Date();
+    const isFiltered = !!(dateRange.start || dateRange.end);
+    const start = dateRange.start || `${today.getFullYear()}-01-01`;
+    const end = dateRange.end || isoDay(today);
+    const pStart = shiftYear(start, -1);
+    const pEnd = shiftYear(end, -1);
+    const [sy, sm] = start.split('-').map(Number);
+    const [ey, em] = end.split('-').map(Number);
+
+    // chart months: whole calendar year when there is no filter, otherwise the months of the range
+    const lastY = isFiltered ? ey : sy;
+    const lastM = isFiltered ? em : 12;
+    const monthKeys: { key: string; label: string }[] = [];
+    const multiYear = lastY !== sy;
+    for (let y = sy, m = isFiltered ? sm : 1; y < lastY || (y === lastY && m <= lastM); ) {
+      monthKeys.push({
+        key: `${y}-${pad2(m)}`,
+        label: multiYear ? `${MONTHS[m - 1]} ${String(y).slice(2)}` : MONTHS[m - 1],
+      });
+      m += 1;
+      if (m > 12) {
+        m = 1;
+        y += 1;
       }
+    }
+
+    const curByMonth = new Map<string, number>();
+    const prevByMonth = new Map<string, number>();
+    let curTotal = 0;
+    let prevTotal = 0;
+
+    paymentsAllDates.forEach(row => {
+      const category = getPaymentCategory(row);
+      if (category === 'Other') return;
+      const amount = category === 'Refund' ? -(Number(row.debit) || 0) : (Number(row.credit) || 0);
+      const d = dayOf(row.date);
+      if (!d) return;
+      const key = d.slice(0, 7);
+
+      if (d >= start && d <= end) {
+        curTotal += amount;
+        curByMonth.set(key, (curByMonth.get(key) || 0) + amount);
+      }
+      if (d >= pStart && d <= pEnd) {
+        prevTotal += amount; // same dates last year (YTD when there is no filter)
+      }
+      // chart: last year's months — the full previous year when there is no filter
+      const inPrevChart = isFiltered ? d >= pStart && d <= pEnd : d.slice(0, 4) === String(sy - 1);
+      if (inPrevChart) prevByMonth.set(key, (prevByMonth.get(key) || 0) + amount);
+    });
+
+    const yoyData = monthKeys.map(({ key, label }) => {
+      const [y, m] = key.split('-');
+      return {
+        month: label,
+        current: curByMonth.get(key) || 0,
+        previous: prevByMonth.get(`${Number(y) - 1}-${m}`) || 0,
+      };
     });
 
     return {
-      stats: {
-        collected,
-        refunded,
-        net: collected - refunded
-      },
-      yoyData: Array.from(monthlyMap.values()),
-      currentYearTotal: currentTotal,
-      previousYearYTD: prevYTD
+      yoyData,
+      currentYearTotal: curTotal,
+      previousYearYTD: prevTotal,
+      isFiltered,
+      curLabel: multiYear ? 'This period' : String(sy),
+      prevLabel: multiYear ? 'Last year' : String(sy - 1),
     };
-  }, [paymentsData]);
+  }, [paymentsAllDates, dateRange]);
 
-  // Calculate year-to-date growth
-  const yearGrowth = previousYearYTD ? ((currentYearTotal - previousYearYTD) / previousYearYTD) * 100 : 0;
+  // Growth vs the same period last year (null when there is nothing to compare with)
+  const yearGrowth: number | null = previousYearYTD
+    ? ((currentYearTotal - previousYearYTD) / Math.abs(previousYearYTD)) * 100
+    : null;
+  const growthText = yearGrowth === null ? 'N/A' : `${yearGrowth > 0 ? '+' : ''}${yearGrowth.toFixed(1)}%`;
+  const growthUp = (yearGrowth ?? 0) >= 0;
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -99,7 +134,7 @@ export default function DashboardTab() {
               <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center">
                 <Wallet className="w-5 h-5" />
               </div>
-              <h3 className="font-bold text-slate-500 uppercase tracking-wider text-xs">Collected This Year</h3>
+              <h3 className="font-bold text-slate-500 uppercase tracking-wider text-xs">{isFiltered ? 'Collected (Period)' : 'Collected This Year'}</h3>
             </div>
             <div className="flex items-baseline gap-2">
               <div className="font-mono font-black text-3xl text-slate-800">
@@ -107,10 +142,10 @@ export default function DashboardTab() {
               </div>
             </div>
             <div className="mt-2 flex items-center gap-2">
-              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${yearGrowth >= 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
-                {yearGrowth > 0 ? '+' : ''}{yearGrowth.toFixed(1)}%
+              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${growthUp ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                {growthText}
               </span>
-              <span className="text-xs font-medium text-slate-400">vs YTD Last Year</span>
+              <span className="text-xs font-medium text-slate-400">{isFiltered ? 'vs same period last year' : 'vs YTD Last Year'}</span>
             </div>
           </div>
         </div>
@@ -192,8 +227,8 @@ export default function DashboardTab() {
               <h3 className="text-lg font-bold text-slate-800">Year-Over-Year Comparison</h3>
               <p className="text-sm text-slate-500 mt-1">Comparing net collections per month</p>
             </div>
-            <div className={`px-3 py-1 rounded-full text-xs font-bold ${yearGrowth >= 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
-              {yearGrowth > 0 ? '+' : ''}{yearGrowth.toFixed(1)}% vs Last Year
+            <div className={`px-3 py-1 rounded-full text-xs font-bold ${growthUp ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+              {growthText} vs Last Year
             </div>
           </div>
           <div className="h-80">
@@ -224,14 +259,14 @@ export default function DashboardTab() {
                 <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px' }} />
                 <Bar 
                   dataKey="previous" 
-                  name={`${new Date().getFullYear() - 1}`} 
+                  name={prevLabel} 
                   fill="#CBD5E1" 
                   radius={[4, 4, 0, 0]} 
                   maxBarSize={40}
                 />
                 <Bar 
                   dataKey="current" 
-                  name={`${new Date().getFullYear()}`} 
+                  name={curLabel} 
                   fill="#0F172A" 
                   radius={[4, 4, 0, 0]} 
                   maxBarSize={40}

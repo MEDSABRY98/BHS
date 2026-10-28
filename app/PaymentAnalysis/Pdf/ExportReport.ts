@@ -5,8 +5,9 @@
 //   Page 1 : KPI cards (net collected vs last year, paying customers,
 //            number of payments) + monthly chart (this period vs last year)
 //   Page 2 : Sales reps collections — each rep with his cities under him
-//   Next   : Customers collections table
-//   Last   : Customers who did not pay in the period (with balance)
+//   Before : Customer classes analysis (share, YoY, pay rate, unpaid exposure)
+//   Last   : Customers paid / not paid — untagged first (paid rows green),
+//            then tagged customers grouped by tag (the TAG row is green when it paid)
 //  Period  : the global filter dates (no filter → 1 Jan this year … today),
 //            compared with the same dates one year earlier.
 // ════════════════════════════════════════════════════════════════
@@ -237,16 +238,23 @@ function buildReport(input: PaymentsReportInput) {
 
   // customers with a balance who did not pay in the period (same rule as the Unpaid tab)
   const payingIds = new Set(current.filter((r) => getPaymentCategory(r) === 'Payment').map((r) => r.customerId));
-  const balMap = new Map<string, { id: string; name: string; city: string; balance: number; last: string }>();
+  const balMap = new Map<
+    string,
+    { id: string; name: string; city: string; tag: string; cls: string; balance: number; last: string }
+  >();
   for (const r of filtered) {
     if (!r.customerId) continue;
     const e = balMap.get(r.customerId) || {
       id: r.customerId,
       name: r.customerName || 'Unknown',
       city: r.city || '',
+      tag: '',
+      cls: '',
       balance: 0,
       last: '',
     };
+    if (!e.cls && r.customerClass && r.customerClass.trim()) e.cls = r.customerClass.trim();
+    if (!e.tag && r.customerTag && r.customerTag.trim()) e.tag = r.customerTag.trim();
     e.balance += (Number(r.debit) || 0) - (Number(r.credit) || 0);
     if (getInvoiceType(r) === 'Payment') {
       const d = dayOf(r.date);
@@ -258,7 +266,118 @@ function buildReport(input: PaymentsReportInput) {
     .filter((c) => c.balance > 1 && !payingIds.has(c.id))
     .sort((a, b) => b.balance - a.balance);
 
-  return { period, cur, prev, months, reps, customers, unpaid };
+  // ── one list for all customers: who paid in the period and who did not ──
+  // A customer is listed if he paid in the period, or still has a balance.
+  type DirRow = {
+    id: string;
+    name: string;
+    city: string;
+    tag: string;
+    cls: string;
+    net: number;
+    payments: number;
+    last: string;
+    balance: number;
+    paid: boolean;
+  };
+  const dirRows: DirRow[] = [];
+  for (const b of balMap.values()) {
+    const c = custMap.get(b.id);
+    const paid = !!c && c.payments > 0;
+    if (!paid && b.balance <= 1) continue;
+    dirRows.push({
+      id: b.id,
+      name: b.name,
+      city: b.city,
+      tag: b.tag,
+      cls: b.cls || 'No Class',
+      net: c ? c.collected - c.refunded : 0,
+      payments: c ? c.payments : 0,
+      last: b.last,
+      balance: b.balance,
+      paid,
+    });
+  }
+  const byPaidThenAmount = (a: DirRow, b: DirRow) =>
+    Number(b.paid) - Number(a.paid) || (b.paid ? b.net - a.net : b.balance - a.balance);
+
+  const untagged = dirRows.filter((r) => !r.tag).sort(byPaidThenAmount);
+
+  const tagMap = new Map<string, DirRow[]>();
+  for (const r of dirRows) {
+    if (!r.tag) continue;
+    const list = tagMap.get(r.tag) || [];
+    list.push(r);
+    tagMap.set(r.tag, list);
+  }
+  // a tag counts as paid when at least one of its customers paid in the period
+  const tagGroups = Array.from(tagMap.entries())
+    .map(([tag, rows]) => ({
+      tag,
+      rows: rows.sort(byPaidThenAmount),
+      paid: rows.some((r) => r.paid),
+      net: rows.reduce((s, r) => s + r.net, 0),
+      payments: rows.reduce((s, r) => s + r.payments, 0),
+      balance: rows.reduce((s, r) => s + r.balance, 0),
+      last: rows.reduce((m, r) => (r.last > m ? r.last : m), ''),
+      paidCount: rows.filter((r) => r.paid).length,
+    }))
+    .sort((a, b) => Number(b.paid) - Number(a.paid) || (b.paid ? b.net - a.net : b.balance - a.balance));
+
+  // ── payments by customer class (A / B / C / KA ... whatever the data holds) ──
+  const clsOf = (v?: string | null) => (v || '').trim() || 'No Class';
+  type ClassStat = {
+    cls: string;
+    net: number;
+    prevNet: number;
+    payments: number;
+    payers: Set<string>;
+    active: number;
+    paidCustomers: number;
+    unpaidCustomers: number;
+    unpaidBalance: number;
+    openBalance: number;
+  };
+  const classMap = new Map<string, ClassStat>();
+  const classGet = (k: string) => {
+    let s = classMap.get(k);
+    if (!s) {
+      s = { cls: k, net: 0, prevNet: 0, payments: 0, payers: new Set(), active: 0, paidCustomers: 0, unpaidCustomers: 0, unpaidBalance: 0, openBalance: 0 };
+      classMap.set(k, s);
+    }
+    return s;
+  };
+  for (const r of current) {
+    const cat = getPaymentCategory(r);
+    if (cat === 'Other') continue;
+    const s = classGet(clsOf(r.customerClass));
+    s.net += netAmount(r);
+    if (cat === 'Payment') {
+      s.payments += 1;
+      if (r.customerId) s.payers.add(r.customerId);
+    }
+  }
+  for (const r of previous) {
+    if (getPaymentCategory(r) === 'Other') continue;
+    classGet(clsOf(r.customerClass)).prevNet += netAmount(r);
+  }
+  for (const d of dirRows) {
+    const s = classGet(d.cls);
+    s.active += 1;
+    if (d.balance > 0) s.openBalance += d.balance;
+    if (d.paid) s.paidCustomers += 1;
+    else {
+      s.unpaidCustomers += 1;
+      s.unpaidBalance += d.balance;
+    }
+  }
+  const classStats = Array.from(classMap.values()).sort((a, b) => {
+    if (a.cls === 'No Class') return 1;
+    if (b.cls === 'No Class') return -1;
+    return a.cls.localeCompare(b.cls, undefined, { numeric: true, sensitivity: 'base' });
+  });
+
+  return { period, cur, prev, months, reps, customers, unpaid, untagged, tagGroups, classStats };
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -290,7 +409,7 @@ const daysSince = (iso: string) => {
 // ─────────────────────────────────────────────────────────────
 export async function exportPaymentsReport(input: PaymentsReportInput): Promise<void> {
   const report = buildReport(input);
-  const { period, cur, prev, months, reps, customers, unpaid } = report;
+  const { period, cur, prev, months, reps, untagged, tagGroups, classStats } = report;
 
   const jsPDF = (await import('jspdf')).default;
   const autoTableModule: any = await import('jspdf-autotable');
@@ -645,83 +764,290 @@ export async function exportPaymentsReport(input: PaymentsReportInput): Promise<
     },
   });
 
-  // ════════════ customers ════════════
+  // ════════════ customer classes analysis ════════════
   doc.addPage();
-  const custHeader = () => header('Customers Collections', `${customers.length} paying customers  •  ${whole(cur.payments)} payments`);
-  custHeader();
-  const custStart = doc.internal.getCurrentPageInfo().pageNumber;
+  header('Customer Classes Analysis', `${classStats.length} classes  •  net collected ${money(cur.net)}  •  vs ${prevText}`);
+  const classColors: RGB[] = [C.gold, C.ink, C.green, [59, 130, 246], [168, 85, 247], [244, 114, 182], [20, 184, 166], [249, 115, 22]];
+  const colorOfClass = (i: number): RGB => (classStats[i]?.cls === 'No Class' ? C.prev : classColors[i % classColors.length]);
+  const classNet = classStats.reduce((s, c) => s + Math.max(c.net, 0), 0);
+  const classShare = (v: number) => (classNet ? (Math.max(v, 0) / classNet) * 100 : 0);
+
+  // 1) share of collections — one stacked bar
+  let cy = 44;
+  sectionTitle('Share of Collections by Class', cy);
+  const barY = cy + 6;
+  const barFullW = W - M * 2;
+  let bx0 = M;
+  classStats.forEach((c, i) => {
+    const w = classNet ? (Math.max(c.net, 0) / classNet) * barFullW : 0;
+    if (w <= 0.2) return;
+    setFill(colorOfClass(i));
+    doc.rect(bx0, barY, w, 10, 'F');
+    if (w > 14) {
+      font('bold', 8);
+      setText(colorOfClass(i) === C.ink ? C.white : C.ink);
+      doc.text(`${classShare(c.net).toFixed(1)}%`, bx0 + w / 2, barY + 6.4, { align: 'center' });
+    }
+    bx0 += w;
+  });
+  // legend
+  let lx = M;
+  const ly = barY + 17;
+  classStats.forEach((c, i) => {
+    setFill(colorOfClass(i));
+    doc.roundedRect(lx, ly - 3.2, 3.6, 3.6, 0.8, 0.8, 'F');
+    doc.setFont(nameFont, 'normal');
+    doc.setFontSize(8.5);
+    setText(C.text);
+    const label = `${c.cls}  ${classShare(c.net).toFixed(1)}%`;
+    doc.text(label, lx + 5, ly);
+    lx += 5 + doc.getTextWidth(label) + 8;
+  });
+
+  // 2) grouped bars — this period vs last year per class
+  cy = ly + 12;
+  sectionTitle('Net Collected: This Period vs Last Year', cy);
+  const gLegend = (x: number, color: RGB, label: string) => {
+    setFill(color);
+    doc.roundedRect(x, cy - 3.2, 4, 4, 1, 1, 'F');
+    font('normal', 8);
+    setText(C.text);
+    doc.text(label, x + 5.5, cy);
+  };
+  gLegend(W - M - 62, C.gold, 'This period');
+  gLegend(W - M - 30, C.prev, 'Last year');
+  const gx = M + 16;
+  const gy = cy + 8;
+  const gw = W - M - gx;
+  const gh = 58;
+  const gVals = classStats.flatMap((c) => [c.net, c.prevNet]);
+  const gMax = Math.max(0, ...gVals);
+  const gMin = Math.min(0, ...gVals);
+  const gStepRaw = (gMax - gMin) / 4 || 1;
+  const gPow = Math.pow(10, Math.floor(Math.log10(gStepRaw)));
+  const gN = gStepRaw / gPow;
+  const gStep = (gN <= 1 ? 1 : gN <= 2 ? 2 : gN <= 5 ? 5 : 10) * gPow;
+  const gTop = Math.ceil(gMax / gStep) * gStep || gStep;
+  const gBottom = Math.floor(gMin / gStep) * gStep;
+  const gYof = (v: number) => gy + gh - ((v - gBottom) / (gTop - gBottom)) * gh;
+  doc.setLineWidth(0.2);
+  for (let v = gBottom; v <= gTop + gStep / 2; v += gStep) {
+    const yy = gYof(v);
+    setDraw(v === 0 ? [148, 163, 184] : C.line);
+    doc.line(gx, yy, gx + gw, yy);
+    font('normal', 6.5);
+    setText(C.muted);
+    doc.text(shortMoney(v), gx - 2, yy + 1, { align: 'right' });
+  }
+  const gSlot = gw / Math.max(classStats.length, 1);
+  const gBarW = Math.min(16, gSlot * 0.34);
+  const gZero = gYof(0);
+  classStats.forEach((c, i) => {
+    const cx = gx + gSlot * i + gSlot / 2;
+    const drawBar = (x: number, v: number, color: RGB) => {
+      if (!v) return;
+      const y1 = gYof(v);
+      const h = Math.abs(gZero - y1);
+      if (h < 0.2) return;
+      setFill(color);
+      doc.rect(x, Math.min(y1, gZero), gBarW, h, 'F');
+    };
+    drawBar(cx - gBarW - 0.4, c.net, C.gold);
+    drawBar(cx + 0.4, c.prevNet, C.prev);
+    const valueLabel = (v: number, x: number, color: RGB) => {
+      if (!v) return;
+      font('bold', 11);
+      setText(color);
+      const ly2 = v >= 0 ? gYof(v) - 2 : gYof(v) + 5;
+      doc.text(shortMoney(v), x, ly2, { align: 'center' });
+    };
+    valueLabel(c.net, cx - gBarW / 2 - 0.4, C.goldDark);
+    valueLabel(c.prevNet, cx + gBarW / 2 + 0.4, C.text);
+    doc.setFont(nameFont, 'normal');
+    doc.setFontSize(8);
+    setText(C.text);
+    doc.text(c.cls, cx, gy + gh + 5, { align: 'center' });
+  });
+
+  // 3) table
+  const tTop = gy + gh + 12;
+  sectionTitle('Class Details', tTop);
+  const sum = (f: (c: (typeof classStats)[number]) => number) => classStats.reduce((s, c) => s + f(c), 0);
+  const totActive = sum((c) => c.active);
+  const totPaid = sum((c) => c.paidCustomers);
+  const totNet = sum((c) => c.net);
+  const totPrev = sum((c) => c.prevNet);
+  const pctTxt = (v: number | null) => (v === null ? 'NEW' : `${v >= 0 ? '+' : ''}${v.toFixed(1)}%`);
   autoTable(doc, {
     ...tableBase,
-    startY: 40,
-    head: [['#', 'Customer', 'City', 'Net Collection', 'Payments', 'Last Payment']],
-    body: customers.map((c, i) => [
-      i + 1,
-      c.name,
-      c.city,
+    startY: tTop + 4,
+    margin: { left: M, right: M, top: 40, bottom: 16 },
+    head: [['Class', 'Active Cust.', 'Paid', 'Net Collected', 'Share', 'vs Last Year', 'Avg Payment', 'Unpaid Cust.', 'Unpaid Balance']],
+    body: classStats.map((c) => [
+      c.cls,
+      whole(c.active),
+      whole(c.paidCustomers),
       money(c.net),
-      whole(c.payments),
-      fmtDay(c.last),
+      `${classShare(c.net).toFixed(1)}%`,
+      pctTxt(change(c.net, c.prevNet)),
+      money(c.payments ? c.net / c.payments : 0),
+      whole(c.unpaidCustomers),
+      money(c.unpaidBalance),
     ]),
-    foot: [
-      [
-        '',
-        'TOTAL',
-        '',
-        money(customers.reduce((s, c) => s + c.net, 0)),
-        whole(customers.reduce((s, c) => s + c.payments, 0)),
-        '',
-      ],
-    ],
-    columnStyles: {
-      0: { halign: 'center', cellWidth: 9, textColor: C.muted },
-      1: { halign: 'center', font: nameFont, textColor: C.ink, cellWidth: 74 },
-      2: { halign: 'center', cellWidth: 26 },
-      3: { halign: 'center', fontStyle: 'bold', textColor: C.ink },
-      4: { halign: 'center', cellWidth: 20 },
-      5: { halign: 'center', cellWidth: 26 },
-    },
-    didDrawPage: () => {
-      if (doc.internal.getCurrentPageInfo().pageNumber !== custStart) custHeader();
+    foot: [[
+      'TOTAL',
+      whole(totActive),
+      whole(totPaid),
+      money(totNet),
+      '100%',
+      pctTxt(change(totNet, totPrev)),
+      money(cur.payments ? cur.net / cur.payments : 0),
+      whole(sum((c) => c.unpaidCustomers)),
+      money(sum((c) => c.unpaidBalance)),
+    ]],
+    styles: { ...tableBase.styles, fontSize: 7.5, cellPadding: 2.2 },
+    columnStyles: { 0: { font: nameFont, fontStyle: 'normal', textColor: C.ink, cellWidth: 20 } },
+    didParseCell: (d: any) => {
+      tableBase.didParseCell(d);
+      if (d.section !== 'body') return;
+      const idx = d.column.index;
+      const raw = String(d.cell.raw);
+      if (idx === 5) {
+        d.cell.styles.fontStyle = 'bold';
+        d.cell.styles.textColor = raw.startsWith('-') ? C.red : C.green;
+      }
+      if (idx === 3) d.cell.styles.fontStyle = 'bold';
     },
   });
 
-  // ════════════ customers who did not pay ════════════
+  // 4) auto insights
+  const tbl: any = (doc as any).lastAutoTable;
+  let iy = (tbl?.finalY ?? tTop + 40) + 9;
+  const insights: string[] = [];
+  const byNet = [...classStats].sort((a, b) => b.net - a.net);
+  if (byNet[0] && classNet > 0) {
+    insights.push(`Class ${byNet[0].cls} brings ${classShare(byNet[0].net).toFixed(1)}% of net collections (${money(byNet[0].net)}).`);
+  }
+  const growth = classStats
+    .map((c) => ({ c, p: change(c.net, c.prevNet) }))
+    .filter((x): x is { c: (typeof classStats)[number]; p: number } => x.p !== null);
+  if (growth.length) {
+    const best = [...growth].sort((a, b) => b.p - a.p)[0];
+    const worst = [...growth].sort((a, b) => a.p - b.p)[0];
+    insights.push(`Best growth vs last year: class ${best.c.cls} (${pctTxt(best.p)}).`);
+    if (worst.c.cls !== best.c.cls && worst.p < 0) insights.push(`Biggest decline: class ${worst.c.cls} (${pctTxt(worst.p)}).`);
+  }
+  const mostUnpaid = [...classStats].sort((a, b) => b.unpaidBalance - a.unpaidBalance)[0];
+  if (mostUnpaid && mostUnpaid.unpaidBalance > 0) {
+    insights.push(
+      `Highest unpaid exposure: class ${mostUnpaid.cls} - ${whole(mostUnpaid.unpaidCustomers)} customers owe ${money(mostUnpaid.unpaidBalance)} with no payment in the period.`,
+    );
+  }
+  if (insights.length && iy < H - 40) {
+    const boxH = 8 + insights.length * 6;
+    setFill(C.soft);
+    setDraw(C.line);
+    doc.roundedRect(M, iy, W - M * 2, boxH, 3, 3, 'FD');
+    font('bold', 8);
+    setText(C.goldDark);
+    doc.text('KEY TAKEAWAYS', M + 5, iy + 6);
+    insights.forEach((t, i) => {
+      font('normal', 8.5);
+      setText(C.text);
+      doc.text(`•  ${doc.splitTextToSize(t, W - M * 2 - 12)[0]}`, M + 5, iy + 12 + i * 6);
+    });
+  }
+
+  // ════════════ customers: paid / not paid, untagged first then tags ════════════
   doc.addPage();
-  const unpaidTotal = unpaid.reduce((s, c) => s + c.balance, 0);
-  const unpaidHeader = () =>
-    header('Customers Who Did Not Pay', `${unpaid.length} customers with a balance and no payment in the period  •  ${money(unpaidTotal)}`);
-  unpaidHeader();
-  const unpaidStart = doc.internal.getCurrentPageInfo().pageNumber;
+  const allRows = [...untagged, ...tagGroups.flatMap((g) => g.rows)];
+  const paidCount = allRows.filter((r) => r.paid).length;
+  const totalNet = allRows.reduce((s, r) => s + r.net, 0);
+  const totalBal = allRows.reduce((s, r) => s + r.balance, 0);
+  const totalPays = allRows.reduce((s, r) => s + r.payments, 0);
+  const custHeader = () =>
+    header(
+      'Customers - Paid / Not Paid',
+      `${allRows.length} customers  •  ${paidCount} paid in the period  •  ${allRows.length - paidCount} did not pay`,
+    );
+  custHeader();
+  const custStart = doc.internal.getCurrentPageInfo().pageNumber;
+
+  type RowKind = 'banner' | 'tag' | 'paid' | 'unpaid' | 'tagCustomer';
+  const kinds: { kind: RowKind; tagPaid?: boolean }[] = [];
+  const body: any[] = [];
+  const banner = (text: string, soft: RGB) => {
+    kinds.push({ kind: 'banner' });
+    body.push([{ content: text, colSpan: 7, styles: { fillColor: soft, textColor: C.ink, fontStyle: 'bold', halign: 'left', fontSize: 9 } }]);
+  };
+  const lastCell = (c: { last: string }) => (c.last ? fmtDay(c.last) : 'Never');
+  let n = 0;
+
+  // 1) customers without a tag — the ones who paid get a green row
+  banner(`CUSTOMERS WITHOUT TAG  (${untagged.length})`, C.goldSoft);
+  untagged.forEach((c) => {
+    kinds.push({ kind: c.paid ? 'paid' : 'unpaid' });
+    body.push([++n, c.name, c.city, c.paid ? money(c.net) : '-', c.paid ? whole(c.payments) : '-', lastCell(c), money(c.balance)]);
+  });
+
+  // 2) tagged customers — the green is on the TAG row (when the tag paid), not on its customers
+  banner(`CUSTOMERS WITH TAG  (${tagGroups.length} tags)`, C.goldSoft);
+  tagGroups.forEach((g) => {
+    kinds.push({ kind: 'tag', tagPaid: g.paid });
+    body.push([
+      '',
+      `${g.tag}  (${g.paidCount}/${g.rows.length} paid)`,
+      '',
+      g.paid ? money(g.net) : '-',
+      g.paid ? whole(g.payments) : '-',
+      lastCell(g),
+      money(g.balance),
+    ]);
+    g.rows.forEach((c) => {
+      kinds.push({ kind: 'tagCustomer' });
+      body.push([++n, c.name, c.city, c.paid ? money(c.net) : '-', c.paid ? whole(c.payments) : '-', lastCell(c), money(c.balance)]);
+    });
+  });
+
   autoTable(doc, {
     ...tableBase,
     startY: 40,
-    head: [['#', 'Customer', 'City', 'Balance', 'Last Payment', 'Days Since']],
-    body: unpaid.map((c, i) => {
-      const days = daysSince(c.last);
-      return [i + 1, c.name, c.city, money(c.balance), c.last ? fmtDay(c.last) : 'Never', days === null ? '-' : whole(days)];
-    }),
-    foot: [['', 'TOTAL', '', money(unpaidTotal), '', '']],
+    head: [['#', 'Customer / Tag', 'City', 'Net Collected', 'Payments', 'Last Payment', 'Balance']],
+    body,
+    foot: [['', 'TOTAL', '', money(totalNet), whole(totalPays), '', money(totalBal)]],
+    alternateRowStyles: {},
     columnStyles: {
       0: { halign: 'center', cellWidth: 10, textColor: C.muted },
       1: { halign: 'center', font: nameFont, textColor: C.ink, cellWidth: 70 },
       2: { halign: 'center', cellWidth: 24 },
-      3: { halign: 'center', fontStyle: 'bold', textColor: C.ink },
-      4: { halign: 'center', cellWidth: 26 },
-      5: { halign: 'center', cellWidth: 22 },
+      3: { halign: 'center', fontStyle: 'bold' },
+      4: { halign: 'center', cellWidth: 18 },
+      5: { halign: 'center', cellWidth: 24 },
+      6: { halign: 'center' },
     },
     didParseCell: (d: any) => {
       tableBase.didParseCell(d);
-      if (d.section === 'body' && d.column.index === 5) {
-        const days = Number(String(d.cell.raw).replace(/,/g, ''));
-        if (!Number.isNaN(days) && days > 90) d.cell.styles.textColor = C.red;
-        else if (!Number.isNaN(days) && days > 30) d.cell.styles.textColor = C.goldDark;
+      if (d.section !== 'body') return;
+      const k = kinds[d.row.index];
+      if (!k || k.kind === 'banner') return;
+      if (k.kind === 'paid') {
+        d.cell.styles.fillColor = C.greenSoft;
+        d.cell.styles.textColor = C.ink;
+      } else if (k.kind === 'tag') {
+        d.cell.styles.fillColor = k.tagPaid ? C.greenSoft : C.soft;
+        d.cell.styles.textColor = C.ink;
+        d.cell.styles.fontStyle = 'bold';
+        d.cell.styles.lineWidth = { top: 0.3, bottom: 0.15 };
+        d.cell.styles.lineColor = k.tagPaid ? C.green : C.line;
+      } else if (k.kind === 'tagCustomer') {
+        d.cell.styles.fillColor = C.white;
+        d.cell.styles.fontSize = 7.5;
       }
-      if (d.section === 'body' && d.column.index === 4 && d.cell.raw === 'Never') {
-        d.cell.styles.textColor = C.red;
-      }
+      // "Never" in red
+      if (d.column.index === 5 && d.cell.raw === 'Never') d.cell.styles.textColor = C.red;
     },
     didDrawPage: () => {
-      if (doc.internal.getCurrentPageInfo().pageNumber !== unpaidStart) unpaidHeader();
+      if (doc.internal.getCurrentPageInfo().pageNumber !== custStart) custHeader();
     },
   });
 
@@ -734,7 +1060,6 @@ export async function exportPaymentsReport(input: PaymentsReportInput): Promise<
     doc.line(M, H - 10, W - M, H - 10);
     font('normal', 7);
     setText(C.muted);
-    doc.text('Payments Analysis Report', M, H - 6);
     doc.text(`Page ${p} of ${pages}`, W - M, H - 6, { align: 'right' });
   }
 
