@@ -28,11 +28,13 @@ interface FormShellProps<T> {
   onDownload?: (r: FormRecord<T>) => Promise<void>;
   downloadLabel?: string;
   maxWidth?: string;
+  /** show the Title column in the archive (default true) */
+  archiveShowTitle?: boolean;
 }
 
 const NO_ACCESS: FormAccess = { use: false, archive: false, admin: false };
 
-export default function FormShell<T = any>({ formId, title, icon, renderNew, onDownload, downloadLabel, maxWidth = 'max-w-[1100px]' }: FormShellProps<T>) {
+export default function FormShell<T = any>({ formId, title, icon, renderNew, onDownload, downloadLabel, maxWidth = 'max-w-[1100px]', archiveShowTitle = true }: FormShellProps<T>) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
   const [, setCurrentUser] = useState<any>(null);
@@ -212,6 +214,9 @@ export default function FormShell<T = any>({ formId, title, icon, renderNew, onD
             <TabLoader className="!min-h-[70vh] flex-1" />
           ) : visibleTabs.length === 0 ? (
             <div className="p-20 text-center font-bold text-slate-400">You don&apos;t have permission to use this form.</div>
+          ) : activeTab === 'archive' && access.archive && !loaded && !loadError ? (
+            // the archive is loading: the loader alone, no title
+            <TabLoader className="!min-h-[70vh] flex-1" />
           ) : (
             <>
               <div className="flex flex-wrap items-center gap-3">
@@ -252,9 +257,7 @@ export default function FormShell<T = any>({ formId, title, icon, renderNew, onD
               )}
 
               {activeTab === 'archive' && access.archive &&
-                (loading && !loaded ? (
-                  <TabLoader className="!min-h-[60vh] flex-1" />
-                ) : loadError && !loaded ? (
+                (loadError && !loaded ? (
                   <TabFetchError message={loadError} onRetry={() => void loadRecords()} />
                 ) : (
                   <FormArchiveList
@@ -269,6 +272,7 @@ export default function FormShell<T = any>({ formId, title, icon, renderNew, onD
                     onDeleted={(id) => setRecords((prev) => prev.filter((x) => x.ID !== id))}
                     onDownload={onDownload as ((r: FormRecord) => Promise<void>) | undefined}
                     downloadLabel={downloadLabel}
+                    showTitle={archiveShowTitle}
                   />
                 ))}
             </>

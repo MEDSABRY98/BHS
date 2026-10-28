@@ -192,7 +192,14 @@ export default function CustomersDocumentsPage() {
   if (isChecking) return <MainLoader />;
   if (!isAuthenticated) return <Login onLogin={handleLogin} />;
   // Loader only (no header / search) until the documents are loaded
-  if (loading && data.length === 0) return <TabLoader />;
+  if (loading && data.length === 0)
+    return (
+      <div className="min-h-screen bg-[#F8F9FA] flex flex-col">
+        <div className="w-full mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-12 flex-1 flex flex-col">
+          <TabLoader className="!min-h-[70vh] flex-1" />
+        </div>
+      </div>
+    );
   if (loadError && data.length === 0) return <TabFetchError message={loadError} onRetry={() => void fetchData()} className="min-h-[70vh]" />;
 
   // (Old toggleFilter removed)

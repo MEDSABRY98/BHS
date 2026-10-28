@@ -20,6 +20,8 @@ interface FormArchiveListProps {
   onDeleted: (id: string) => void;
   onDownload?: (r: FormRecord) => Promise<void>;
   downloadLabel?: string;
+  /** show the Title column (default true) */
+  showTitle?: boolean;
 }
 
 const savedAt = (iso: string) => {
@@ -29,7 +31,7 @@ const savedAt = (iso: string) => {
     : new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Dubai', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(d);
 };
 
-export default function FormArchiveList({ formId, records, admin, canEdit, onEdit, onDeleted, onDownload, downloadLabel = 'Download PDF' }: FormArchiveListProps) {
+export default function FormArchiveList({ formId, records, admin, canEdit, onEdit, onDeleted, onDownload, downloadLabel = 'Download PDF', showTitle = true }: FormArchiveListProps) {
   const [search, setSearch] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -47,7 +49,7 @@ export default function FormArchiveList({ formId, records, admin, canEdit, onEdi
     });
   }, [records, search, dateFrom, dateTo]);
   const hasAmount = records.some((r) => r.AMOUNT !== null);
-  const cols = 5 + (hasAmount ? 1 : 0) + (admin ? 1 : 0);
+  const cols = 4 + (showTitle ? 1 : 0) + (hasAmount ? 1 : 0) + (admin ? 1 : 0);
 
   const download = async (r: FormRecord) => {
     if (!onDownload) return;
@@ -103,7 +105,7 @@ export default function FormArchiveList({ formId, records, admin, canEdit, onEdi
                 <th className="py-4 px-3 w-12">#</th>
                 <th className="py-4 px-3">Number</th>
                 <th className="py-4 px-3">Date</th>
-                <th className="py-4 px-3">Title</th>
+                {showTitle && <th className="py-4 px-3">Title</th>}
                 {hasAmount && <th className="py-4 px-3">Amount (AED)</th>}
                 {admin && <th className="py-4 px-3">Saved By</th>}
                 <th className="py-4 px-3">Actions</th>
@@ -115,7 +117,7 @@ export default function FormArchiveList({ formId, records, admin, canEdit, onEdi
                   <td className="py-3 px-3 text-xs font-bold text-slate-400 tabular-nums">{i + 1}</td>
                   <td className="py-3 px-3 font-black text-slate-900 whitespace-nowrap">{r.REF_NO}</td>
                   <td className="py-3 px-3 tabular-nums whitespace-nowrap">{r.DOC_DATE ? formatDate(r.DOC_DATE) : '-'}</td>
-                  <td className="py-3 px-3 text-slate-700 max-w-[380px] truncate" dir="auto" title={r.TITLE}>{r.TITLE || '-'}</td>
+                  {showTitle && <td className="py-3 px-3 text-slate-700 max-w-[380px] truncate" dir="auto" title={r.TITLE}>{r.TITLE || '-'}</td>}
                   {hasAmount && <td className="py-3 px-3 font-bold tabular-nums">{r.AMOUNT !== null ? formatAmount(r.AMOUNT) : '-'}</td>}
                   {admin && (
                     <td className="py-3 px-3 text-xs text-slate-500 whitespace-nowrap">

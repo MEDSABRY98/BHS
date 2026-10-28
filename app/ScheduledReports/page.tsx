@@ -147,7 +147,7 @@ export default function ScheduledReportsPage() {
           ) : error && !reports ? (
             <TabFetchError message={error} onRetry={() => void loadAll()} className="min-h-[60vh]" />
           ) : !reports || !access || !log ? (
-            <TabLoader className="-mt-6 -mb-12 !min-h-screen" />
+            <TabLoader className="!min-h-[70vh] flex-1" />
           ) : activeTab === 'reports' ? (
             <ReportsTab
               reports={reports}

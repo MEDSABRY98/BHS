@@ -80,7 +80,7 @@ export default function SettingsTab({ status, onChange }: { status: MailStatus |
           <li>Copy the code, paste it here and press Connect.</li>
         </ol>
         <div className="flex flex-col sm:flex-row gap-3">
-          <input value={code} onChange={(e) => setCode(e.target.value)} placeholder="1000.xxxxxxxx.xxxxxxxx" className="flex-1 h-11 px-4 rounded-xl border border-slate-200 text-sm font-mono focus:outline-none focus:ring-4 focus:ring-[#C4A052]/15 focus:border-[#C4A052]" />
+          <input value={code} onChange={(e) => setCode(e.target.value)} placeholder="1000.xxxxxxxx.xxxxxxxx  (or paste the whole downloaded JSON)" className="flex-1 h-11 px-4 rounded-xl border border-slate-200 text-sm font-mono focus:outline-none focus:ring-4 focus:ring-[#C4A052]/15 focus:border-[#C4A052]" />
           <button onClick={() => void connect()} disabled={busy || !code.trim() || !status?.clientReady} className="h-11 px-6 rounded-xl bg-black text-[#C4A052] text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-40">
             {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Link2 className="w-4 h-4" />} Connect
           </button>

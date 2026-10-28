@@ -48,34 +48,50 @@ function ensureSpace(doc: any, y: number, need: number): number {
   return y;
 }
 
-function drawHeader(doc: any, margin: number, pageWidth: number): number {
+function drawHeader(doc: any, margin: number, pageWidth: number, title = ''): number {
   const contentWidth = pageWidth - margin * 2;
+  const right = margin + contentWidth;
   let y = 12;
   doc.setDrawColor(...COLORS.gold);
   doc.setLineWidth(0.7);
-  doc.line(margin, y, margin + contentWidth, y);
-  y += 10;
+  doc.line(margin, y, right, y);
+  y += 9;
 
+  // one line: report name · company · date
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(19);
+  doc.setFontSize(16);
   doc.setTextColor(...COLORS.black);
   doc.text('VEHICLE EXPENSES ANALYSIS', margin, y);
-  y += 6;
-
-  doc.setFontSize(11);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(...COLORS.gray);
-  doc.text('ALMARAI ALARABIA TRADING', margin, y);
 
   const value = today();
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(10);
   doc.setTextColor(...COLORS.black);
-  doc.text(value, margin + contentWidth, y, { align: 'right' });
-  const vw = doc.getTextWidth(value);
+  doc.text(value, right, y, { align: 'right' });
+  let x = right - doc.getTextWidth(value) - 2;
   doc.setFontSize(7.5);
   doc.setTextColor(...COLORS.gray);
-  doc.text('DATE', margin + contentWidth - vw - 2, y, { align: 'right' });
+  doc.text('DATE', x, y, { align: 'right' });
+  x -= doc.getTextWidth('DATE') + 6;
+  doc.setDrawColor(...COLORS.border);
+  doc.setLineWidth(0.3);
+  doc.line(x + 3, y - 3.5, x + 3, y + 0.8);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(10);
+  doc.setTextColor(...COLORS.gray);
+  doc.text('ALMARAI ALARABIA TRADING', x, y, { align: 'right' });
+
+  // the user's own title (optional): second line, centered
+  if (title) {
+    y += 9;
+    const arabic = /[\u0600-\u06FF]/.test(title);
+    doc.setFont(arabic ? 'Amiri' : 'helvetica', arabic ? 'normal' : 'bold');
+    doc.setFontSize(13);
+    doc.setTextColor(...COLORS.navy);
+    const lines = doc.splitTextToSize(title, contentWidth) as string[];
+    lines.forEach((l, i) => doc.text(l, margin + contentWidth / 2, y + i * 6, { align: 'center' }));
+    y += (lines.length - 1) * 6;
+  }
   return y + 7;
 }
 
@@ -172,7 +188,7 @@ function addPageNumbers(doc: any, pageWidth: number, margin: number) {
   }
 }
 
-export async function exportVehicleExpensesPdf(lines: VehicleExpenseLine[]) {
+export async function exportVehicleExpensesPdf(lines: VehicleExpenseLine[], title = '') {
   const jsPDF = (await import('jspdf')).default;
   const autoTableModule: any = await import('jspdf-autotable');
   const autoTable = autoTableModule.default || autoTableModule;
@@ -187,7 +203,9 @@ export async function exportVehicleExpensesPdf(lines: VehicleExpenseLine[]) {
   const vehicles = GroupByVehicle(lines);
   const t = Totals(lines);
 
-  let y = drawHeader(doc, margin, pageWidth);
+  const pdfTitle = String(title || '').trim();
+  if (pdfTitle) doc.setProperties({ title: pdfTitle });
+  let y = drawHeader(doc, margin, pageWidth, pdfTitle);
   y = drawKpis(doc, lines, vehicles.length, y, margin, pageWidth);
 
   // ── 1 · by vehicle ──

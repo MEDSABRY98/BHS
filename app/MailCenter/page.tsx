@@ -43,7 +43,7 @@ export default function MailCenterPage() {
   const [suppliers, setSuppliers] = useState<MailSupplier[] | null>(null);
   const [log, setLog] = useState<MailLogRow[]>([]);
   const [logLoaded, setLogLoaded] = useState(false);
-  const [logLoading, setLogLoading] = useState(false);
+  const [, setLogLoading] = useState(false);
   const [logError, setLogError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [opened, setOpened] = useState<Set<MailTabId>>(new Set());
@@ -176,6 +176,7 @@ export default function MailCenterPage() {
     refreshing,
   };
   const show = (tab: MailTabId) => (activeTab === tab ? '' : 'hidden');
+  const tabLoading = (activeTab === 'sent' && !logLoaded && !logError) || (activeTab === 'statements' && !customers);
 
   return (
     <div className="flex min-h-screen bg-[#F8F9FA] text-black">
@@ -205,8 +206,9 @@ export default function MailCenterPage() {
             <div className="p-20 text-center font-bold text-slate-400">You don&apos;t have permission to use Mail Center.</div>
           ) : (
             <>
-              {/* the title row waits until the tab has its data */}
-              <div className={`flex flex-wrap items-center gap-4 ${(activeTab === 'sent' && !logLoaded) || (activeTab === 'statements' && !customers) ? 'hidden' : ''}`}>
+              {/* a tab still loading its data: only the loader (same place as every module), no title */}
+              {tabLoading && <TabLoader className="!min-h-[70vh] flex-1 !mt-0" />}
+              <div className={`flex flex-wrap items-center gap-4 ${tabLoading || (activeTab === 'sent' && !logLoaded) ? 'hidden' : ''}`}>
                 <h1 className="text-3xl sm:text-4xl font-normal text-black tracking-tighter">{TITLES[activeTab]}</h1>
                 {/* Compose (tabs, Send) and Templates (New Template) put their buttons here */}
                 <div ref={setHeaderEl} className="flex flex-1 flex-wrap items-center gap-3 min-w-0" />
@@ -228,9 +230,7 @@ export default function MailCenterPage() {
               )}
               {tabs.includes('sent') && (
                 <div className={show('sent')}>
-                  {logLoading && !logLoaded ? (
-                    <TabLoader className="!min-h-[60vh]" />
-                  ) : logError && !logLoaded ? (
+                  {!logLoaded && !logError ? null : logError && !logLoaded ? (
                     <TabFetchError message={logError} onRetry={() => void loadLog()} />
                   ) : (
                     <SentTab rows={log} admin={permissions.admin} />

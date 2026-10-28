@@ -73,7 +73,6 @@ export default function CreditNotesList({ notes, admin, canEdit, onEdit, onDelet
     };
     for (const n of filtered) {
       add(monthKey(n.NOTE_DATE), n.TOTAL);
-      add(`${monthKey(n.NOTE_DATE)}|${userOf(n)}`, n.TOTAL);
     }
     return m;
   }, [filtered]);
@@ -175,12 +174,10 @@ export default function CreditNotesList({ notes, admin, canEdit, onEdit, onDelet
               ) : (
                 rows.map((n, i) => {
                   const mk = monthKey(n.NOTE_DATE);
-                  const uk = `${mk}|${userOf(n)}`;
                   const prev = rows[i - 1];
                   const newMonth = !prev || monthKey(prev.NOTE_DATE) !== mk;
                   const newUser = newMonth || userOf(prev) !== userOf(n);
                   const mt = groupTotals.get(mk);
-                  const ut = groupTotals.get(uk);
                   return (
                     <Fragment key={n.ID}>
                       {newMonth && (
@@ -200,9 +197,6 @@ export default function CreditNotesList({ notes, admin, canEdit, onEdit, onDelet
                           <td colSpan={colCount} className="py-2 px-4 pl-8">
                             <div className="flex items-center justify-between gap-3">
                               <span className="font-bold text-slate-700 text-xs" dir="auto">{userOf(n)}</span>
-                              <span className="text-[11px] font-semibold text-slate-500">
-                                <span className="text-slate-400 mr-1">{ut?.count} ·</span>AED {formatAmount(ut?.amount || 0)}
-                              </span>
                             </div>
                           </td>
                         </tr>

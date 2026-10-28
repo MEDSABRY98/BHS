@@ -338,6 +338,8 @@ export async function sendBulkOne(input: {
 export async function sendCustomerStatement(input: {
   customerName: string;
   customerId?: string | null;
+  /** a tag: one email to all its customers, with the group statement */
+  tag?: string | null;
   format: AttachmentFormat;
   scope: StatementScope;
   dateTo: string | null;
@@ -351,10 +353,10 @@ export async function sendCustomerStatement(input: {
       batchId: null,
       customerName: String(input?.customerName || ''),
       customerId: input?.customerId || null,
-      tag: null,
+      tag: String(input?.tag || '').trim() || null,
       subject: 'Statement of Account – {Name}',
       body: DEFAULT_BODY,
-      attachment: { kind: 'customer-statement', format, scope, dateMode: 'none' },
+      attachment: { kind: String(input?.tag || '').trim() ? 'group-statement' : 'customer-statement', format, scope, dateMode: 'none' },
       dateTo,
     });
   });

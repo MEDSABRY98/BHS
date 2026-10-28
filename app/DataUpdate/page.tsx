@@ -122,6 +122,16 @@ export default function DataUpdatePage() {
       />
     );
 
+  // still loading: the loader alone, in the same place as every module
+  if (allowed === null && !loadError)
+    return (
+      <div className="min-h-screen bg-[#F8F9FA] flex flex-col">
+        <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-12 flex-1 w-full flex flex-col">
+          <TabLoader className="!min-h-[70vh] flex-1" />
+        </div>
+      </div>
+    );
+
   const sets = DATA_SETS.filter((d) => allowed?.includes(d.id));
 
   return (

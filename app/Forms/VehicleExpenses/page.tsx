@@ -13,7 +13,7 @@ import { GroupByVehicle, Totals, formatAmount, type VehicleExpenseLine } from '.
 
 const FORM_ID = 'vehicle-expenses';
 
-type VehicleExpensesData = { FILE_NAME: string; LINES: VehicleExpenseLine[] };
+type VehicleExpensesData = { FILE_NAME: string; LINES: VehicleExpenseLine[]; PDF_TITLE?: string };
 
 export default function VehicleExpensesFormPage() {
   return (
@@ -22,9 +22,10 @@ export default function VehicleExpensesFormPage() {
       title="Vehicle Expenses"
       icon={Car}
       renderNew={(ctx) => <VehicleExpensesTool ctx={ctx} />}
+      archiveShowTitle={false}
       onDownload={async (r) => {
         const { exportVehicleExpensesPdf } = await import('./VehicleExpensesPdf');
-        await exportVehicleExpensesPdf(r.DATA.LINES || []);
+        await exportVehicleExpensesPdf(r.DATA.LINES || [], r.DATA.PDF_TITLE || '');
       }}
     />
   );
@@ -36,6 +37,7 @@ function VehicleExpensesTool({ ctx }: { ctx: FormEditorContext<VehicleExpensesDa
   const init = ctx.editing?.DATA;
   const [lines, setLines] = useState<VehicleExpenseLine[] | null>(init?.LINES?.length ? init.LINES : null);
   const [fileName, setFileName] = useState(init?.FILE_NAME || '');
+  const [pdfTitle, setPdfTitle] = useState(init?.PDF_TITLE || '');
   const [busy, setBusy] = useState<'template' | 'upload' | 'pdf' | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -75,7 +77,7 @@ function VehicleExpensesTool({ ctx }: { ctx: FormEditorContext<VehicleExpensesDa
     setBusy('pdf');
     try {
       const { exportVehicleExpensesPdf } = await import('./VehicleExpensesPdf');
-      await exportVehicleExpensesPdf(lines);
+      await exportVehicleExpensesPdf(lines, pdfTitle);
     } catch (err: any) {
       toast.error(err?.message || 'Could not create the PDF');
     } finally {
@@ -86,6 +88,7 @@ function VehicleExpensesTool({ ctx }: { ctx: FormEditorContext<VehicleExpensesDa
   const clear = () => {
     setLines(null);
     setFileName('');
+    setPdfTitle('');
   };
 
   // Save (shell header button)
@@ -97,10 +100,10 @@ function VehicleExpensesTool({ ctx }: { ctx: FormEditorContext<VehicleExpensesDa
       }
       const t = Totals(lines);
       return {
-        TITLE: `${fileName.replace(/\.xlsx$/i, '') || 'Vehicle Expenses'} · ${GroupByVehicle(lines).length} vehicles`,
+        TITLE: `${pdfTitle.trim() || fileName.replace(/\.xlsx$/i, '') || 'Vehicle Expenses'} · ${GroupByVehicle(lines).length} vehicles`,
         DOC_DATE: ctx.editing?.DOC_DATE || uaeToday(),
         AMOUNT: t.total,
-        DATA: { FILE_NAME: fileName, LINES: lines },
+        DATA: { FILE_NAME: fileName, LINES: lines, PDF_TITLE: pdfTitle.trim() },
       };
     });
   });
@@ -153,6 +156,16 @@ function VehicleExpensesTool({ ctx }: { ctx: FormEditorContext<VehicleExpensesDa
           3,
           'Analysis PDF',
           <FileText className="w-5 h-5" />,
+          <>
+          <input
+            value={pdfTitle}
+            onChange={(e) => setPdfTitle(e.target.value)}
+            disabled={!hasLines}
+            maxLength={120}
+            dir="auto"
+            placeholder="PDF title (optional)"
+            className="h-11 w-full px-4 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-4 focus:ring-[#D4AF37]/15 focus:border-[#D4AF37] disabled:bg-slate-50"
+          />
           <button
             type="button"
             onClick={downloadPdf}
@@ -160,7 +173,8 @@ function VehicleExpensesTool({ ctx }: { ctx: FormEditorContext<VehicleExpensesDa
             className={`${btn} bg-gradient-to-r from-[#D4AF37] to-[#B8860B] text-white shadow-lg shadow-[#D4AF37]/25 hover:shadow-xl`}
           >
             {busy === 'pdf' ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />} Download PDF
-          </button>,
+          </button>
+          </>,
           !hasLines,
         )}
       </div>

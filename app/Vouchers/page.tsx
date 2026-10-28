@@ -165,9 +165,9 @@ export default function VouchersPage() {
         </header>
 
         {/* Main Content */}
-        <div className="max-w-[1500px] mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-12 flex-1 w-full">
+        <div className="max-w-[1500px] mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-12 flex-1 w-full flex flex-col">
           {!permissions ? (
-            <TabLoader />
+            <TabLoader className="!min-h-[70vh] flex-1" />
           ) : visibleTabs.length === 0 ? (
             <div className="p-20 text-center font-bold text-slate-400">You don&apos;t have permission to use Vouchers.</div>
           ) : (

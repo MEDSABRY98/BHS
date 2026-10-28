@@ -162,7 +162,7 @@ export default function TemplatesTab({ templates, onChange, headerEl, active }: 
                   </div>
                   <div>
                     <span className={label}>Transactions</span>
-                    <Choice value={a.scope} options={SCOPES} onChange={(scope) => setA({ scope })} />
+                    <Choice value={a.scope} options={SCOPES} full onChange={(scope) => setA({ scope })} />
                   </div>
                   <div>
                     <span className={label}>Up To</span>

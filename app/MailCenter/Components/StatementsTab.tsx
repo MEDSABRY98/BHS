@@ -9,7 +9,6 @@ import { createPortal } from 'react-dom';
 import { AlertTriangle, Loader2, Mail, Paperclip, Search, Send, SlidersHorizontal } from 'lucide-react';
 import { toast } from '@/app/Components/Notification';
 import NoData from '@/app/Components/DataState/NoDataTab';
-import TabLoader from '@/app/Components/Loading/TabLoader';
 import Choice from './Choice';
 import Modal from './Modal';
 import { sendCustomerStatement } from '../Service/MailService';
@@ -201,13 +200,7 @@ export default function StatementsTab({ status, customers, onSent, headerEl, act
         )
       : null;
 
-  if (!customers)
-    return (
-      <>
-        {header}
-        <TabLoader className="!min-h-[60vh]" />
-      </>
-    );
+  if (!customers) return null; // the page shows the loader
 
   const th = 'py-4 px-3 text-center';
   const td = 'py-3 px-3 text-center align-middle';
@@ -352,13 +345,14 @@ export default function StatementsTab({ status, customers, onSent, headerEl, act
       </Modal>
 
       {/* emails of the customer */}
-      <Modal open={!!emailsOf} title={emailsOf?.name || ''} subtitle={emailsOf?.lulu ? 'Lulu emails' : 'Saved emails'} width="max-w-md" onClose={() => setEmailsOf(null)}>
+      <Modal open={!!emailsOf} title={emailsOf?.name || ''} subtitle={emailsOf?.lulu ? 'Lulu emails' : emailsOf?.tag ? 'One email to all of them, with the group statement' : 'Saved emails'} width="max-w-md" onClose={() => setEmailsOf(null)}>
         {emailsOf && (
           <div className="space-y-4">
             {(
               [
                 ['To', emailsOf.emails],
                 ['CC', emailsOf.cc || []],
+                ...(emailsOf.tag ? [['Customers in this group', emailsOf.members]] : []),
               ] as [string, string[]][]
             )
               .filter(([, list]) => list.length)
@@ -425,7 +419,7 @@ export default function StatementsTab({ status, customers, onSent, headerEl, act
       <Modal
         open={confirm}
         title={`Send ${chosen.length} statement${chosen.length === 1 ? '' : 's'}?`}
-        subtitle="One email per customer, to his saved emails"
+        subtitle="One email per customer · one email per group with the group statement"
         width="max-w-lg"
         onClose={() => setConfirm(false)}
         footer={
