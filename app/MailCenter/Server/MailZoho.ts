@@ -11,18 +11,19 @@ import { getSupabaseAdmin } from '@/lib/supabaseAdmin';
 
 const SETTINGS_TABLE = 'web_MAIL_SETTINGS';
 const SCOPES = 'ZohoMail.messages.CREATE,ZohoMail.accounts.READ';
-const KEYS = ['ZOHO_REFRESH_TOKEN', 'ZOHO_ACCOUNT_ID', 'ZOHO_FROM', 'ZOHO_CONNECTED_BY', 'ZOHO_CONNECTED_AT'];
+const KEYS = ['ZOHO_REFRESH_TOKEN', 'ZOHO_ACCOUNT_ID', 'ZOHO_FROM', 'ZOHO_DC', 'ZOHO_CONNECTED_BY', 'ZOHO_CONNECTED_AT'];
+const DCS = ['com', 'eu', 'in', 'sa', 'com.au', 'jp', 'ca', 'com.cn'];
 
 const clientId = () => (process.env.MAIL_ZOHO_CLIENT_ID || process.env.ZOHO_CLIENT_ID || '').trim();
 const clientSecret = () => (process.env.MAIL_ZOHO_CLIENT_SECRET || process.env.ZOHO_CLIENT_SECRET || '').trim();
-const dc = () => (process.env.ZOHO_DC || 'com').trim().replace(/^\./, '') || 'com';
-const accountsUrl = () => `https://accounts.zoho.${dc()}`;
-const mailUrl = () => `https://mail.zoho.${dc()}`;
+const envDc = () => (process.env.MAIL_ZOHO_DC || process.env.ZOHO_DC || 'com').trim().replace(/^\./, '') || 'com';
+const accountsUrl = (dc: string) => `https://accounts.zoho.${dc}`;
+const mailUrl = (dc: string) => `https://mail.zoho.${dc}`;
 
 export const mailScopes = () => SCOPES;
 export const mailClientReady = () => !!(clientId() && clientSecret());
 
-export type MailConnection = { refreshToken: string; accountId: string; fromEmail: string; connectedBy?: string | null; connectedAt?: string | null };
+export type MailConnection = { refreshToken: string; accountId: string; fromEmail: string; dc: string; connectedBy?: string | null; connectedAt?: string | null };
 
 async function readSettings(): Promise<Record<string, string>> {
   const { data, error } = await getSupabaseAdmin().from(SETTINGS_TABLE).select('KEY, VALUE');
@@ -53,12 +54,12 @@ export async function getMailConnection(): Promise<MailConnection | null> {
     return null; // table not created yet
   }
   if (!s.ZOHO_REFRESH_TOKEN || !s.ZOHO_ACCOUNT_ID || !s.ZOHO_FROM) return null;
-  return { refreshToken: s.ZOHO_REFRESH_TOKEN, accountId: s.ZOHO_ACCOUNT_ID, fromEmail: s.ZOHO_FROM, connectedBy: s.ZOHO_CONNECTED_BY || null, connectedAt: s.ZOHO_CONNECTED_AT || null };
+  return { refreshToken: s.ZOHO_REFRESH_TOKEN, accountId: s.ZOHO_ACCOUNT_ID, fromEmail: s.ZOHO_FROM, dc: s.ZOHO_DC || envDc(), connectedBy: s.ZOHO_CONNECTED_BY || null, connectedAt: s.ZOHO_CONNECTED_AT || null };
 }
 
-async function tokenRequest(params: Record<string, string>): Promise<any> {
+async function tokenRequest(dc: string, params: Record<string, string>): Promise<any> {
   const body = new URLSearchParams({ client_id: clientId(), client_secret: clientSecret(), ...params });
-  const res = await fetch(`${accountsUrl()}/oauth/v2/token`, {
+  const res = await fetch(`${accountsUrl(dc)}/oauth/v2/token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body,
@@ -73,14 +74,14 @@ let tokenCache: { token: string; refreshToken: string; expires: number } | null 
 
 async function accessToken(conn: MailConnection): Promise<string> {
   if (tokenCache && tokenCache.refreshToken === conn.refreshToken && tokenCache.expires > Date.now() + 60_000) return tokenCache.token;
-  const json = await tokenRequest({ refresh_token: conn.refreshToken, grant_type: 'refresh_token' });
+  const json = await tokenRequest(conn.dc, { refresh_token: conn.refreshToken, grant_type: 'refresh_token' });
   if (!json.access_token) throw new Error('Zoho did not return an access token — connect the mailbox again');
   tokenCache = { token: json.access_token, refreshToken: conn.refreshToken, expires: Date.now() + (Number(json.expires_in) || 3600) * 1000 };
   return tokenCache.token;
 }
 
-async function zohoFetch(token: string, path: string, init: RequestInit = {}): Promise<any> {
-  const res = await fetch(`${mailUrl()}${path}`, {
+async function zohoFetch(dc: string, token: string, path: string, init: RequestInit = {}): Promise<any> {
+  const res = await fetch(`${mailUrl(dc)}${path}`, {
     ...init,
     headers: { Accept: 'application/json', Authorization: `Zoho-oauthtoken ${token}`, ...(init.headers || {}) },
     cache: 'no-store',
@@ -96,10 +97,39 @@ async function zohoFetch(token: string, path: string, init: RequestInit = {}): P
 /** Exchanges the code from api-console.zoho.com (Self Client → Generate Code) and saves the connection. */
 export async function connectMailbox(code: string, by: string): Promise<{ fromEmail: string }> {
   if (!mailClientReady()) throw new Error('Add MAIL_ZOHO_CLIENT_ID and MAIL_ZOHO_CLIENT_SECRET in Vercel first, then redeploy');
-  const json = await tokenRequest({ code: code.trim(), grant_type: 'authorization_code' });
+  // accepts the code alone or the whole JSON downloaded from the Self Client
+  let raw = String(code || '').trim();
+  if (raw.startsWith('{')) {
+    try {
+      raw = String(JSON.parse(raw)?.code || '').trim();
+    } catch {
+      // not JSON — use as typed
+    }
+  }
+  if (!/^1000\.[\w.]+$/.test(raw)) throw new Error('This is not a Zoho code — copy the "code" value (starts with 1000.)');
+
+  // the code only works in the data center of the account: try the configured one first, then the others
+  const order = [envDc(), ...DCS.filter((d) => d !== envDc())];
+  let json: any = null;
+  let dc = order[0];
+  let firstError = '';
+  for (const d of order) {
+    try {
+      json = await tokenRequest(d, { code: raw, grant_type: 'authorization_code' });
+      dc = d;
+      break;
+    } catch (e: any) {
+      const msg = String(e?.message || '');
+      if (!firstError) firstError = msg; // the error of the configured data center
+    }
+  }
+  if (!json)
+    throw new Error(
+      `${firstError || 'Zoho: invalid_code'} — the code is expired / already used, or it was generated by a different Self Client than MAIL_ZOHO_CLIENT_ID on the server`,
+    );
   if (!json.refresh_token) throw new Error('Zoho did not return a refresh token — generate a new code and try again');
 
-  const accounts = await zohoFetch(json.access_token, '/api/accounts');
+  const accounts = await zohoFetch(dc, json.access_token, '/api/accounts');
   const list: any[] = Array.isArray(accounts?.data) ? accounts.data : [];
   const acc = list.find((a) => a?.accountId) || null;
   if (!acc) throw new Error('No Zoho Mail account found for this login');
@@ -111,6 +141,7 @@ export async function connectMailbox(code: string, by: string): Promise<{ fromEm
     ['ZOHO_REFRESH_TOKEN', json.refresh_token],
     ['ZOHO_ACCOUNT_ID', String(acc.accountId)],
     ['ZOHO_FROM', fromEmail],
+    ['ZOHO_DC', dc],
     ['ZOHO_CONNECTED_BY', by],
     ['ZOHO_CONNECTED_AT', now],
   ].map(([KEY, VALUE]) => ({ KEY, VALUE, UPDATED_BY: by, UPDATED_AT: now }));
@@ -145,7 +176,7 @@ export async function sendFromMailbox(mail: OutgoingMail): Promise<{ from: strin
 
   const attachments: { storeName: string; attachmentPath: string; attachmentName: string }[] = [];
   for (const a of mail.attachments || []) {
-    const up = await zohoFetch(token, `${base}/messages/attachments?fileName=${encodeURIComponent(a.filename)}`, {
+    const up = await zohoFetch(conn.dc, token, `${base}/messages/attachments?fileName=${encodeURIComponent(a.filename)}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/octet-stream' },
       body: new Uint8Array(a.content),
@@ -155,7 +186,7 @@ export async function sendFromMailbox(mail: OutgoingMail): Promise<{ from: strin
     attachments.push({ storeName: d.storeName, attachmentPath: d.attachmentPath, attachmentName: d.attachmentName || a.filename });
   }
 
-  await zohoFetch(token, `${base}/messages`, {
+  await zohoFetch(conn.dc, token, `${base}/messages`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({

@@ -4,9 +4,9 @@
 
 export const MAIL_SYSTEM_ID = 'mail-center';
 
-export type MailTabId = 'compose' | 'bulk' | 'templates' | 'sent' | 'settings';
+export type MailTabId = 'compose' | 'statements' | 'bulk' | 'templates' | 'sent' | 'settings';
 /** tabs given in Admin Control; 'settings' (the mailbox) is admin only; 'bulk' is not shown any more */
-export const MAIL_PERMISSION_TABS: MailTabId[] = ['compose', 'templates', 'sent'];
+export const MAIL_PERMISSION_TABS: MailTabId[] = ['compose', 'statements', 'templates', 'sent'];
 
 export interface MailPermissions {
   tabs: MailTabId[];
@@ -116,6 +116,8 @@ export interface MailCustomer {
   tag: string;
   emails: string[];
   balance: number;
+  lulu: boolean; // emails come from the Lulu list (TO + CC)
+  cc: string[]; // Lulu CC
 }
 
 export interface MailSupplier {

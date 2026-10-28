@@ -152,13 +152,13 @@ export default function TemplatesTab({ templates, onChange, headerEl, active }: 
               </label>
               {a && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pl-6">
-                  <div>
+                  <div className="sm:col-span-2">
                     <span className={label}>Statement</span>
-                    <Choice value={a.kind} options={ATTACHMENT_KINDS} width="w-48" onChange={(kind: AttachmentKind) => setA({ kind })} />
+                    <Choice value={a.kind} options={ATTACHMENT_KINDS} full onChange={(kind: AttachmentKind) => setA({ kind })} />
                   </div>
-                  <div>
+                  <div className="sm:col-span-2">
                     <span className={label}>File</span>
-                    <Choice value={a.format} options={FORMATS} onChange={(format) => setA({ format })} />
+                    <Choice value={a.format} options={FORMATS} full onChange={(format) => setA({ format })} />
                   </div>
                   <div>
                     <span className={label}>Transactions</span>

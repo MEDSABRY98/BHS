@@ -15,13 +15,14 @@ import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
 import { useModuleTabAudit } from '@/app/AdminControl/Code/Audit/useModuleTabAudit';
 import MailSidebar from './Utils/Sidebar';
 import ComposeTab from './Components/ComposeTab';
+import StatementsTab from './Components/StatementsTab';
 import TemplatesTab from './Components/TemplatesTab';
 import SentTab from './Components/SentTab';
 import SettingsTab from './Components/SettingsTab';
 import { getMailPermissions, getMailStatus, listMailCustomers, listMailLog, listMailSuppliers, listMailTemplates } from './Service/MailService';
 import type { MailCustomer, MailLogRow, MailPermissions, MailStatus, MailSupplier, MailTabId, MailTemplate } from './Utils/MailTypes';
 
-const TITLES: Record<MailTabId, string> = { compose: 'Compose', bulk: 'Bulk Send', templates: 'Templates', sent: 'Sent', settings: 'Settings' };
+const TITLES: Record<MailTabId, string> = { compose: 'Compose', statements: 'Customer Statement', bulk: 'Bulk Send', templates: 'Templates', sent: 'Sent', settings: 'Settings' };
 const NO_ACCESS: MailPermissions = { tabs: [], admin: false };
 
 export default function MailCenterPage() {
@@ -137,7 +138,7 @@ export default function MailCenterPage() {
   useEffect(() => {
     if (!tabs.includes(activeTab) || opened.has(activeTab)) return;
     setOpened((p) => new Set(p).add(activeTab));
-    if (activeTab === 'compose' && !customers) void loadPickers();
+    if ((activeTab === 'compose' || activeTab === 'statements') && !customers) void loadPickers();
     if (activeTab === 'sent' && !logLoaded) void loadLog();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, tabs.join(',')]);
@@ -146,7 +147,7 @@ export default function MailCenterPage() {
     setRefreshing(true);
     try {
       await loadBase();
-      if (activeTab === 'compose') await loadPickers();
+      if (activeTab === 'compose' || activeTab === 'statements') await loadPickers();
       if (activeTab === 'sent') await loadLog();
     } finally {
       setRefreshing(false);
@@ -204,7 +205,8 @@ export default function MailCenterPage() {
             <div className="p-20 text-center font-bold text-slate-400">You don&apos;t have permission to use Mail Center.</div>
           ) : (
             <>
-              <div className="flex flex-wrap items-center gap-4">
+              {/* the title row waits until the tab has its data */}
+              <div className={`flex flex-wrap items-center gap-4 ${(activeTab === 'sent' && !logLoaded) || (activeTab === 'statements' && !customers) ? 'hidden' : ''}`}>
                 <h1 className="text-3xl sm:text-4xl font-normal text-black tracking-tighter">{TITLES[activeTab]}</h1>
                 {/* Compose (tabs, Send) and Templates (New Template) put their buttons here */}
                 <div ref={setHeaderEl} className="flex flex-1 flex-wrap items-center gap-3 min-w-0" />
@@ -212,6 +214,11 @@ export default function MailCenterPage() {
               {tabs.includes('compose') && (
                 <div className={show('compose')}>
                   <ComposeTab status={status} customers={customers} suppliers={suppliers} templates={templates} onSent={(r) => onSent([r])} headerEl={headerEl} active={activeTab === 'compose'} />
+                </div>
+              )}
+              {tabs.includes('statements') && (
+                <div className={show('statements')}>
+                  <StatementsTab status={status} customers={customers} onSent={(r) => onSent([r])} headerEl={headerEl} active={activeTab === 'statements'} />
                 </div>
               )}
               {tabs.includes('templates') && (

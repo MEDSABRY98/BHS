@@ -311,6 +311,7 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
     // Data Update: each sub-tab is one dataset (app/DataUpdate/Utils/DataUpdateTypes.ts)
     'mail-center': [
         { id: 'compose', label: 'Compose' },
+        { id: 'statements', label: 'Customer Statement' },
         { id: 'templates', label: 'Templates' },
         { id: 'sent', label: 'Sent' },
     ],

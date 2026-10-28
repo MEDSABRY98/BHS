@@ -9,10 +9,11 @@
 
 import { getSupabaseAdmin } from '@/lib/supabaseAdmin';
 import { getSessionUser, isAdminUser, UnauthorizedError, type SessionUserRecord } from '@/lib/session';
-import { resolveCustomerEmailTargets, splitEmails as splitStoredEmails, getAllCustomerEmailsStrict } from '@/lib/supabase';
+import { resolveCustomerEmailTargets, splitEmails as splitStoredEmails, getAllCustomerEmailsStrict, getLuluEmailsStrict } from '@/lib/supabase';
 import { buildAttachment, ledgerFor, type MailFile } from '../Server/Attachments';
 import { connectMailbox, disconnectMailbox, getMailConnection, mailClientReady, mailProblem, mailScopes, sendFromMailbox } from '../Server/MailZoho';
 import {
+  DEFAULT_BODY,
   EMAIL_RE,
   MAIL_PERMISSION_TABS,
   MAIL_SYSTEM_ID,
@@ -21,7 +22,9 @@ import {
   resolveDateMode,
   formatDate,
   uaeToday,
+  type AttachmentFormat,
   type AttachmentSpec,
+  type StatementScope,
   type MailCustomer,
   type MailDraft,
   type MailLogRow,
@@ -142,14 +145,14 @@ export async function sendMailDraft(draft: MailDraft): Promise<ActionResult<Mail
 // ─────────────────────────────────────────────────────────────
 /** Customers the user may see, with their saved emails and balance. */
 export async function listMailCustomers(): Promise<MailCustomer[]> {
-  const { user } = await requireTab('compose', 'bulk');
+  const { user } = await requireTab('compose', 'statements', 'bulk');
   if (!moduleAllowed(user, 'customers-analysis')) return [];
   const rows = await ledgerFor(user);
   const map = new Map<string, MailCustomer>();
   for (const r of rows) {
     const name = String(r.customerName || '').trim();
     if (!name) continue;
-    const c = map.get(name) || { name, id: String(r.customerId || '').trim(), tag: String(r.customerTag || '').trim(), emails: [], balance: 0 };
+    const c = map.get(name) || { name, id: String(r.customerId || '').trim(), tag: String(r.customerTag || '').trim(), emails: [], balance: 0, lulu: false, cc: [] };
     if (!c.id && r.customerId) c.id = String(r.customerId).trim();
     c.balance += (Number(r.debit) || 0) - (Number(r.credit) || 0);
     map.set(name, c);
@@ -161,12 +164,18 @@ export async function listMailCustomers(): Promise<MailCustomer[]> {
     emails = [];
   }
   const byId = new Map(emails.map((e) => [String(e.customerId).trim().toLowerCase(), e.email]));
+  const lulu = await luluMap();
   return Array.from(map.values())
-    .map((c) => ({
-      ...c,
-      balance: Math.round(c.balance * 100) / 100,
-      emails: splitStoredEmails(byId.get(c.id.toLowerCase()) || byId.get(c.name.toLowerCase()) || ''),
-    }))
+    .map((c) => {
+      const l = lulu.get(c.id.toLowerCase()) || lulu.get(c.name.toLowerCase());
+      return {
+        ...c,
+        balance: Math.round(c.balance * 100) / 100,
+        lulu: !!l,
+        emails: l ? l.to : splitStoredEmails(byId.get(c.id.toLowerCase()) || byId.get(c.name.toLowerCase()) || ''),
+        cc: l ? l.cc.filter((e) => !l.to.includes(e)) : [],
+      };
+    })
     .sort((a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }));
 }
 
@@ -322,17 +331,78 @@ export async function sendBulkOne(input: {
   cc?: string[];
 }): Promise<MailLogRow> {
   const { user } = await requireTab('bulk');
+  return bulkOne(user, input);
+}
+
+/** Customer Statement tab: one customer, to his saved emails, with his statement. */
+export async function sendCustomerStatement(input: {
+  customerName: string;
+  customerId?: string | null;
+  format: AttachmentFormat;
+  scope: StatementScope;
+  dateTo: string | null;
+}): Promise<ActionResult<MailLogRow>> {
+  return asResult(async () => {
+    const { user } = await requireTab('statements');
+    const format: AttachmentFormat = ['pdf', 'excel', 'both'].includes(input?.format) ? input.format : 'pdf';
+    const scope: StatementScope = input?.scope === 'all' ? 'all' : 'open';
+    const dateTo = /^\d{4}-\d{2}-\d{2}$/.test(String(input?.dateTo || '')) ? String(input.dateTo) : null;
+    return bulkOne(user, {
+      batchId: null,
+      customerName: String(input?.customerName || ''),
+      customerId: input?.customerId || null,
+      tag: null,
+      subject: 'Statement of Account – {Name}',
+      body: DEFAULT_BODY,
+      attachment: { kind: 'customer-statement', format, scope, dateMode: 'none' },
+      dateTo,
+    });
+  });
+}
+
+/** Lulu customers (debit_EMILS_LULU): TO and CC per customer, keyed by lower-case customer id */
+async function luluMap(): Promise<Map<string, { to: string[]; cc: string[] }>> {
+  const out = new Map<string, { to: string[]; cc: string[] }>();
+  let rows: { customerId: unknown; to: unknown; cc: unknown }[] = [];
+  try {
+    rows = await getLuluEmailsStrict();
+  } catch {
+    return out;
+  }
+  for (const r of rows) {
+    const key = String(r.customerId ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+    if (!key) continue;
+    const e = out.get(key) || { to: [], cc: [] };
+    e.to = cleanList([...e.to, ...splitStoredEmails(r.to)]);
+    e.cc = cleanList([...e.cc, ...splitStoredEmails(r.cc)]);
+    if (e.to.length || e.cc.length) out.set(key, e);
+  }
+  return out;
+}
+
+async function bulkOne(
+  user: SessionUserRecord,
+  input: { batchId: string | null; customerName: string; customerId?: string | null; tag?: string | null; subject: string; body: string; attachment: TemplateAttachment | null; dateTo: string | null; cc?: string[] },
+): Promise<MailLogRow> {
   const tag = String(input?.tag || '').trim();
   const name = tag || String(input?.customerName || '').trim();
   if (!name) throw new Error('Customer is missing');
   let to: string[] = [];
+  let luluCc: string[] = [];
   if (tag) {
     // every customer of the tag (only the ones this user may see)
     const ids: string[] = Array.from(new Set<string>((await ledgerFor(user)).filter((r) => String(r.customerTag || '').trim() === tag).map((r) => String(r.customerId || '').trim()).filter(Boolean)));
     for (const id of ids) to.push(...cleanList((await resolveCustomerEmailTargets(id)).emails));
     to = cleanList(to);
   } else {
-    if (input.customerId) to = cleanList((await resolveCustomerEmailTargets(String(input.customerId))).emails);
+    // Lulu customers: their TO / CC from debit_EMILS_LULU
+    const lulu = await luluMap();
+    const l = lulu.get(String(input.customerId || '').trim().toLowerCase()) || lulu.get(name.toLowerCase().replace(/\s+/g, ' '));
+    if (l) {
+      to = cleanList(l.to);
+      luluCc = cleanList(l.cc);
+    }
+    if (!to.length && input.customerId) to = cleanList((await resolveCustomerEmailTargets(String(input.customerId))).emails);
     if (!to.length) to = cleanList((await resolveCustomerEmailTargets(name)).emails);
   }
   if (!to.length) {
@@ -345,7 +415,7 @@ export async function sendBulkOne(input: {
     throw new Error(message);
   }
   checkEmails(name, to);
-  const cc = cleanList(input.cc).filter((e) => !to.includes(e));
+  const cc = cleanList([...luluCc, ...cleanList(input.cc)]).filter((e) => !to.includes(e));
   checkEmails('CC', cc);
   const attachments: AttachmentSpec[] = !input.attachment
     ? []
