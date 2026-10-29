@@ -4,7 +4,13 @@ import React, { useState, useEffect } from 'react';
 import { Download, Upload, Trash2, AlertTriangle } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { toast } from '@/app/Components/Notification';
-import { deleteSuppliersTransactionsData, uploadSuppliersTransactionsData } from '@/app/SuppliersAnalysis/Service/UploadService';
+import {
+  deleteSuppliersTransactionsData,
+  getSuppliersUploadContext,
+  insertSuppliersChunk,
+  rollbackSuppliersUpload,
+} from '@/app/SuppliersAnalysis/Service/UploadService';
+import { chunkRows, resolveReferences } from '../Utils/UploadBatch';
 import { bhs_supabas } from '@/lib/secureDb';
 import { exportDatabaseExcelTable } from '@/app/DataBase/Utils/ExcelExport';
 import { downloadUploadIssuesReport } from '@/app/DataBase/Utils/ExcelUploadUtils';
@@ -13,6 +19,7 @@ export default function SuppliersAnalysisDBPage() {
   const [loading, setLoading] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [totalCount, setTotalCount] = useState<number>(0);
+  const [progress, setProgress] = useState('');
 
   useEffect(() => {
     fetchCount();
@@ -104,26 +111,65 @@ export default function SuppliersAnalysisDBPage() {
           return;
         }
 
-        const payloadString = JSON.stringify(data);
-        const result = await uploadSuppliersTransactionsData(payloadString);
-        
-        if (result.success) {
-          toast.success(result.message || 'Data uploaded successfully');
-          fetchCount();
-        } else {
+        // Validate in the browser, then send in small batches (one big request gets rejected by the host)
+        const reportFailure = (message: string, details?: string) => {
           toast.error('Upload failed. Downloading error report...');
-          const lines = [result.error || 'Failed to upload data'];
-          if (result.details) {
-            lines.push(...result.details.split('\n'));
-          }
+          const lines = [message];
+          if (details) lines.push(...details.split('\n'));
           downloadUploadIssuesReport('Suppliers_Upload_Issues.txt', 'Suppliers Upload Error', [
-            { heading: 'Error Details:', lines }
+            { heading: 'Error Details:', lines },
           ]);
+        };
+
+        setProgress('Checking...');
+        const ctx = await getSuppliersUploadContext();
+        if (!ctx.success) {
+          reportFailure(ctx.error || 'Failed to prepare the upload');
+          return;
+        }
+
+        const invalid = resolveReferences(data, 'SUPPLIER ID', 'SUPPLIER NAME', ctx.suppliers);
+        if (invalid.length > 0) {
+          reportFailure(
+            'Upload stopped! Some Supplier Names/IDs do not exist in the Suppliers database.',
+            `Invalid Entries:\n${invalid.join('\n')}`,
+          );
+          return;
+        }
+
+        const batches = chunkRows(data);
+        const insertedIds: (string | number)[] = [];
+        let done = 0;
+        try {
+          for (const batch of batches) {
+            setProgress(`Uploading ${done.toLocaleString()} / ${data.length.toLocaleString()}`);
+            const res = await insertSuppliersChunk(JSON.stringify(batch));
+            if (!res.success) throw new Error(res.error);
+            insertedIds.push(...res.ids);
+            done += batch.length;
+          }
+          toast.success(`${data.length} rows inserted successfully.`);
+          fetchCount();
+        } catch (err: any) {
+          setProgress('Rolling back...');
+          let rolledBack = false;
+          try {
+            rolledBack = (await rollbackSuppliersUpload(insertedIds)).success;
+          } catch {
+            rolledBack = false;
+          }
+          reportFailure(
+            `${err?.message || 'Upload failed'} (stopped after ${done.toLocaleString()} of ${data.length.toLocaleString()} rows)`,
+            rolledBack
+              ? 'The rows already uploaded were removed, so the database is unchanged.'
+              : 'WARNING: could not remove the rows already uploaded. Check the database before uploading again.',
+          );
         }
       } catch (error: any) {
         toast.error('Error parsing file: ' + error.message);
       } finally {
         setLoading(false);
+        setProgress('');
         e.target.value = '';
       }
     };
@@ -184,7 +230,7 @@ export default function SuppliersAnalysisDBPage() {
             />
             <div className="w-full py-4 bg-black text-[#D4AF37] hover:bg-slate-900 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-black/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2 pointer-events-none">
               <Upload className="w-4 h-4" />
-              Select File
+              {progress || 'Select File'}
             </div>
           </div>
         </div>

@@ -663,6 +663,92 @@ export async function uploadDebitData(payload: any[] | string) {
 }
 
 // ------------------------------------------------------------------------------------------------
+// DEBIT UPLOAD IN BATCHES
+// The browser validates the file and sends it in small batches, so one request never gets too big
+// or too slow (the old single-request upload failed with "An unexpected response was received
+// from the server" on large files).
+// ------------------------------------------------------------------------------------------------
+
+/** Everything the browser needs before uploading: known customers + the highest R-#### number. */
+export async function getDebitUploadContext() {
+  await requireSession();
+  try {
+    const pageSize = 1000;
+
+    const customers: { id: string; name: string }[] = [];
+    for (let from = 0; ; from += pageSize) {
+      const { data, error } = await bhs_supabase
+        .from('bhs_CUSTOMERS')
+        .select('"CUSTOMER ID", "CUSTOMER MAIN NAME"')
+        .order('CUSTOMER ID')
+        .range(from, from + pageSize - 1);
+      if (error) throw new Error('Failed to fetch customers for validation: ' + error.message);
+      if (!data || data.length === 0) break;
+      for (const c of data as any[]) {
+        customers.push({ id: String(c['CUSTOMER ID'] ?? ''), name: String(c['CUSTOMER MAIN NAME'] ?? '') });
+      }
+      if (data.length < pageSize) break;
+    }
+
+    // all existing IDs (paged: one query is capped at 1000 rows, which gave wrong "max" numbers)
+    let maxId = 0;
+    for (let from = 0; ; from += pageSize) {
+      const { data, error } = await bhs_supabase
+        .from('mix_DEBIT')
+        .select('ID')
+        .order('ID')
+        .range(from, from + pageSize - 1);
+      if (error) throw new Error('Failed to read existing IDs: ' + error.message);
+      if (!data || data.length === 0) break;
+      for (const row of data as any[]) {
+        const match = String(row.ID ?? '').match(/R-(\d+)/);
+        if (match) maxId = Math.max(maxId, parseInt(match[1], 10));
+      }
+      if (data.length < pageSize) break;
+    }
+
+    return { success: true as const, customers, maxId };
+  } catch (error: any) {
+    console.error('Upload context error:', error);
+    return { success: false as const, error: error.message as string };
+  }
+}
+
+/** Inserts one batch. IDs are R-<startNumber>, R-<startNumber+1>, ... */
+export async function insertDebitChunk(payload: string, startNumber: number, uploadTimestamp: string) {
+  await requireSession();
+  try {
+    const rows = JSON.parse(payload);
+    if (!Array.isArray(rows)) throw new Error('Invalid data format');
+    let n = startNumber;
+    const chunk = rows.map((row: any) => {
+      const { ID, id, ...rest } = row;
+      const newId = `R-${String(n++).padStart(4, '0')}`;
+      return { ...rest, ID: newId, CREATED_AT: uploadTimestamp };
+    });
+    const { error } = await bhs_supabase.from('mix_DEBIT').insert(chunk);
+    if (error) throw error;
+    return { success: true as const, inserted: chunk.length };
+  } catch (error: any) {
+    console.error('Insert chunk error:', error);
+    return { success: false as const, error: (error?.message as string) || 'Insert failed' };
+  }
+}
+
+/** Undo a failed upload: removes every row written with this upload timestamp. */
+export async function rollbackDebitUpload(uploadTimestamp: string) {
+  await requireSession();
+  try {
+    const { error } = await bhs_supabase.from('mix_DEBIT').delete().eq('CREATED_AT', uploadTimestamp);
+    if (error) throw error;
+    return { success: true as const };
+  } catch (error: any) {
+    console.error('Rollback error:', error);
+    return { success: false as const, error: (error?.message as string) || 'Rollback failed' };
+  }
+}
+
+// ------------------------------------------------------------------------------------------------
 // USERS ACTIONS (bhs_USERS)
 // ------------------------------------------------------------------------------------------------
 // All user/auth actions run with the server-only key (getSupabaseAdmin) and

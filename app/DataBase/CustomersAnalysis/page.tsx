@@ -4,7 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { Download, Upload, Trash2, AlertTriangle, CheckCircle, FileSpreadsheet } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { toast } from '@/app/Components/Notification';
-import { deleteDebitData, uploadDebitData } from '../Service/database_service';
+import { deleteDebitData, getDebitUploadContext, insertDebitChunk, rollbackDebitUpload } from '../Service/database_service';
+import { chunkRows, resolveReferences } from '../Utils/UploadBatch';
 import { bhs_supabas } from '@/lib/secureDb';
 import { exportDatabaseExcelTable } from '../Utils/ExcelExport';
 import { downloadUploadIssuesReport } from '../Utils/ExcelUploadUtils';
@@ -13,6 +14,7 @@ export default function DebitDatabasePage() {
   const [loading, setLoading] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [totalCount, setTotalCount] = useState<number>(0);
+  const [progress, setProgress] = useState('');
 
   useEffect(() => {
     fetchCount();
@@ -111,26 +113,66 @@ export default function DebitDatabasePage() {
           return;
         }
 
-        // Send to API
-        const payloadString = JSON.stringify(data);
-        const result = await uploadDebitData(payloadString);
-        
-        if (result.success) {
-          toast.success(result.message || 'Data uploaded successfully');
-        } else {
+        // Validate in the browser, then send in small batches (one big request gets rejected by the host)
+        const reportFailure = (message: string, details?: string) => {
           toast.error('Upload failed. Downloading error report...');
-          const lines = [result.error || 'Failed to upload data'];
-          if (result.details) {
-            lines.push(...result.details.split('\n'));
-          }
+          const lines = [message];
+          if (details) lines.push(...details.split('\n'));
           downloadUploadIssuesReport('Debit_Upload_Issues.txt', 'Debit Upload Error', [
-            { heading: 'Error Details:', lines }
+            { heading: 'Error Details:', lines },
           ]);
+        };
+
+        setProgress('Checking...');
+        const ctx = await getDebitUploadContext();
+        if (!ctx.success) {
+          reportFailure(ctx.error || 'Failed to prepare the upload');
+          return;
+        }
+
+        const invalid = resolveReferences(data, 'CUSTOMER ID', 'CUSTOMER NAME', ctx.customers);
+        if (invalid.length > 0) {
+          reportFailure(
+            'Upload stopped! Some Customer Names/IDs do not exist in the Customers database.',
+            `Invalid Entries:\n${invalid.join('\n')}`,
+          );
+          return;
+        }
+
+        const stamp = new Date().toISOString();
+        const batches = chunkRows(data);
+        let nextNumber = ctx.maxId + 1;
+        let done = 0;
+        try {
+          for (const batch of batches) {
+            setProgress(`Uploading ${done.toLocaleString()} / ${data.length.toLocaleString()}`);
+            const res = await insertDebitChunk(JSON.stringify(batch), nextNumber, stamp);
+            if (!res.success) throw new Error(res.error);
+            nextNumber += batch.length;
+            done += batch.length;
+          }
+          toast.success(`${data.length} rows inserted successfully.`);
+          fetchCount();
+        } catch (err: any) {
+          setProgress('Rolling back...');
+          let rolledBack = false;
+          try {
+            rolledBack = (await rollbackDebitUpload(stamp)).success;
+          } catch {
+            rolledBack = false;
+          }
+          reportFailure(
+            `${err?.message || 'Upload failed'} (stopped after ${done.toLocaleString()} of ${data.length.toLocaleString()} rows)`,
+            rolledBack
+              ? 'The rows already uploaded were removed, so the database is unchanged.'
+              : 'WARNING: could not remove the rows already uploaded. Check the database before uploading again.',
+          );
         }
       } catch (error: any) {
         toast.error('Error parsing file: ' + error.message);
       } finally {
         setLoading(false);
+        setProgress('');
         e.target.value = ''; // Reset file input
       }
     };
@@ -191,7 +233,7 @@ export default function DebitDatabasePage() {
             />
             <div className="w-full py-4 bg-black text-[#D4AF37] hover:bg-gray-900 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-black/20 hover:shadow-2xl hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2 pointer-events-none">
               <Upload className="w-4 h-4" />
-              Select File
+              {progress || 'Select File'}
             </div>
           </div>
         </div>

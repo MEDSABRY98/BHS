@@ -114,3 +114,68 @@ export async function uploadSuppliersTransactionsData(payload: any[] | string) {
     return { success: false, error: error.message };
   }
 }
+
+
+// ------------------------------------------------------------------------------------------------
+// UPLOAD IN BATCHES (browser validates the file, then sends small batches — a single big request
+// fails with "An unexpected response was received from the server" on large files)
+// ------------------------------------------------------------------------------------------------
+
+export async function getSuppliersUploadContext() {
+  await requireSession();
+  try {
+    const pageSize = 1000;
+    const suppliers: { id: string; name: string }[] = [];
+    for (let from = 0; ; from += pageSize) {
+      const { data, error } = await bhs_supabase
+        .from('bhs_SUPPLIERS')
+        .select('"SUPPLIER ID", "SUPPLIER NAME"')
+        .order('SUPPLIER ID')
+        .range(from, from + pageSize - 1);
+      if (error) throw new Error('Failed to fetch suppliers for validation: ' + error.message);
+      if (!data || data.length === 0) break;
+      for (const s of data as any[]) {
+        suppliers.push({ id: String(s['SUPPLIER ID'] ?? ''), name: String(s['SUPPLIER NAME'] ?? '') });
+      }
+      if (data.length < pageSize) break;
+    }
+    return { success: true as const, suppliers };
+  } catch (error: any) {
+    console.error('Upload context error:', error);
+    return { success: false as const, error: error.message as string };
+  }
+}
+
+/** Inserts one batch and returns the new row IDs (so a failed upload can be rolled back). */
+export async function insertSuppliersChunk(payload: string) {
+  await requireSession();
+  try {
+    const rows = JSON.parse(payload);
+    if (!Array.isArray(rows)) throw new Error('Invalid data format');
+    const chunk = rows.map((row: any) => {
+      const { ID, id, ...rest } = row;
+      return rest;
+    });
+    const { data, error } = await bhs_supabase.from('web_SUPPLIERS_ANALYSIS').insert(chunk).select('ID');
+    if (error) throw error;
+    const ids = ((data as any[]) || []).map((r) => r.ID);
+    return { success: true as const, inserted: chunk.length, ids };
+  } catch (error: any) {
+    console.error('Insert chunk error:', error);
+    return { success: false as const, error: (error?.message as string) || 'Insert failed' };
+  }
+}
+
+export async function rollbackSuppliersUpload(ids: (string | number)[]) {
+  await requireSession();
+  try {
+    for (let i = 0; i < ids.length; i += 200) {
+      const { error } = await bhs_supabase.from('web_SUPPLIERS_ANALYSIS').delete().in('ID', ids.slice(i, i + 200));
+      if (error) throw error;
+    }
+    return { success: true as const };
+  } catch (error: any) {
+    console.error('Rollback error:', error);
+    return { success: false as const, error: (error?.message as string) || 'Rollback failed' };
+  }
+}
