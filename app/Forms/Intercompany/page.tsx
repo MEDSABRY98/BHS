@@ -4,7 +4,7 @@
 // download the analysis PDF and save it to the archive (DATA = { FILE_NAME, LINES }).
 
 import { useEffect, useRef, useState } from 'react';
-import { AlertTriangle, ArrowLeftRight, CheckCircle2, FileDown, FileSpreadsheet, Loader2, Upload, X } from 'lucide-react';
+import { ArrowLeftRight, CheckCircle2, FileDown, FileSpreadsheet, Loader2, Upload, X } from 'lucide-react';
 import { toast } from '@/app/Components/Notification';
 import FormShell from '../Shared/FormShell';
 import { uaeToday } from '../Shared/FormsUtils';
@@ -37,7 +37,6 @@ function IntercompanyTool({ ctx }: { ctx: FormEditorContext<IntercompanyData> })
   const init = ctx.editing?.DATA;
   const [lines, setLines] = useState<IntercompanyLine[] | null>(init?.LINES?.length ? init.LINES : null);
   const [fileName, setFileName] = useState(init?.FILE_NAME || '');
-  const [errors, setErrors] = useState<{ row: number; message: string }[]>([]);
   const [busy, setBusy] = useState<'template' | 'upload' | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -61,10 +60,9 @@ function IntercompanyTool({ ctx }: { ctx: FormEditorContext<IntercompanyData> })
       const parsed = await readIntercompanyFile(file);
       const list = parsed.lines.map(({ ROW: _row, ...l }) => l).sort(compareEntries);
       setLines(list);
-      setErrors(parsed.errors);
       setFileName(file.name);
       if (!list.length) toast.warning('No valid lines in this file');
-      else toast.success(`${list.length} line${list.length === 1 ? '' : 's'} loaded${parsed.errors.length ? ` — ${parsed.errors.length} skipped` : ''}`);
+      else toast.success(`${list.length} line${list.length === 1 ? '' : 's'} loaded`);
     } catch (err: any) {
       toast.error(err?.message || 'Could not read the file');
     } finally {
@@ -75,7 +73,6 @@ function IntercompanyTool({ ctx }: { ctx: FormEditorContext<IntercompanyData> })
 
   const clear = () => {
     setLines(null);
-    setErrors([]);
     setFileName('');
   };
 
@@ -183,20 +180,6 @@ function IntercompanyTool({ ctx }: { ctx: FormEditorContext<IntercompanyData> })
             <p className="text-xs font-bold text-rose-700">
               {noAttachment} line{noAttachment === 1 ? '' : 's'} without an attachment (highlighted in red in the PDF).
             </p>
-          )}
-          {errors.length > 0 && (
-            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
-              <p className="flex items-center gap-2 text-sm font-black text-amber-800">
-                <AlertTriangle className="w-4 h-4" /> {errors.length} row{errors.length === 1 ? '' : 's'} skipped
-              </p>
-              <ul className="mt-2 space-y-0.5 max-h-40 overflow-y-auto text-xs font-semibold text-amber-900">
-                {errors.map((e) => (
-                  <li key={e.row}>
-                    Row {e.row}: {e.message}
-                  </li>
-                ))}
-              </ul>
-            </div>
           )}
         </div>
       )}

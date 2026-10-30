@@ -32,11 +32,13 @@ interface FormShellProps<T> {
   archiveShowTitle?: boolean;
   /** the header Save button text (e.g. "Save & PDF" when saving also downloads the file) */
   saveLabel?: string;
+  /** forms that only produce a file (no archive record): no Save button */
+  hideSave?: boolean;
 }
 
 const NO_ACCESS: FormAccess = { use: false, archive: false, admin: false };
 
-export default function FormShell<T = any>({ formId, title, icon, renderNew, onDownload, downloadLabel, maxWidth = 'max-w-[1100px]', archiveShowTitle = true, saveLabel = 'Save' }: FormShellProps<T>) {
+export default function FormShell<T = any>({ formId, title, icon, renderNew, onDownload, downloadLabel, maxWidth = 'max-w-[1100px]', archiveShowTitle = true, saveLabel = 'Save', hideSave = false }: FormShellProps<T>) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
   const [, setCurrentUser] = useState<any>(null);
@@ -236,6 +238,7 @@ export default function FormShell<T = any>({ formId, title, icon, renderNew, onD
                   <div className="flex items-center gap-2 ml-auto">
                     {/* the form puts its own icons here */}
                     <div ref={setActionsEl} className="flex items-center gap-2" />
+                    {!hideSave && (
                     <button
                       type="button"
                       onClick={() => void save()}
@@ -245,6 +248,7 @@ export default function FormShell<T = any>({ formId, title, icon, renderNew, onD
                     >
                       {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} {saveLabel}
                     </button>
+                    )}
                     {editing && (
                       <button
                         type="button"

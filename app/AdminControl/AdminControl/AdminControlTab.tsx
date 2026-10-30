@@ -213,6 +213,7 @@ export const SYSTEMS = [
     { id: 'analytic-allocation', label: 'Analytic Allocation' },
     { id: 'forms', label: 'Forms' },
     { id: 'scheduled-reports', label: 'Scheduled Reports' },
+    { id: 'reports', label: 'Reports' },
     { id: 'database', label: 'Database' },
     { id: 'data-update', label: 'Data Update' },
     { id: 'mail-center', label: 'Mail Center' },
@@ -336,6 +337,10 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
         { id: 'supplier-payment-archive', label: 'Supplier Payment · Archive' },
         { id: 'vehicle-expenses', label: 'Vehicle Expenses' },
         { id: 'vehicle-expenses-archive', label: 'Vehicle Expenses · Archive' },
+    ],
+    // Reports: each id is a ready report (app/Reports/Utils/ReportsList.ts)
+    'reports': [
+        { id: 'products-cost', label: 'Products Cost' },
     ],
     'suppliers-analysis': [
         { id: 'suppliers', label: 'Suppliers Analysis' },

@@ -11,6 +11,7 @@ import TabFetchError from '../Components/DataState/TabFetchError';
 
 import DashboardTab from './DashboardTab/DashboardTab';
 import CitiesTab from './CitiesTab/CitiesTab';
+import SalespersonsTab from './SalespersonsTab/SalespersonsTab';
 import CollectionsTab from './CollectionsTab/CollectionsTab';
 import UnpaidCustomersTab from './UnpaidCustomersTab/UnpaidCustomersTab';
 import PeriodsTab from './PeriodsTab/PeriodsTab';
@@ -58,6 +59,7 @@ function PaymentAnalysisShell({
       <div className="max-w-[92%] 2xl:max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-12 flex-1 w-full relative">
         {activeTab === 'dashboard' && <DashboardTab />}
         {activeTab === 'cities' && <CitiesTab />}
+        {activeTab === 'salespersons' && <SalespersonsTab />}
         {activeTab === 'collections' && <CollectionsTab />}
         {activeTab === 'unpaid-customers' && <UnpaidCustomersTab />}
         {activeTab === 'periods' && <PeriodsTab />}

@@ -172,6 +172,7 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
     { id: 'analytic-allocation', title: 'Analytic Allocation', path: '/AnalyticAllocation', color: 'yellow' },
     { id: 'forms', title: 'Forms', path: '/Forms', color: 'violet' },
     { id: 'scheduled-reports', title: 'Scheduled Reports', path: '/ScheduledReports', color: 'yellow' },
+    { id: 'reports', title: 'Reports', path: '/Reports', color: 'sky' },
   ];
 
   const allowedSystems = useMemo(

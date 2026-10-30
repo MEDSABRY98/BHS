@@ -68,6 +68,53 @@ export async function exportCitiesExcel(data: CityExportRow[]) {
 }
 
 // ─────────────────────────────────────────────────────────────
+//  Salespersons tab
+// ─────────────────────────────────────────────────────────────
+export type SalespersonExportRow = {
+  rep: string;
+  netCollection: number;
+  share: number; // % of the total
+  payments: number;
+  customers: number;
+  averagePayment: number;
+  monthlyAverage: number;
+};
+
+export async function exportSalespersonsExcel(data: SalespersonExportRow[]) {
+  const sorted = [...data].sort((a, b) => b.netCollection - a.netCollection);
+  const rows: Record<string, unknown>[] = sorted.map((r, i) => ({
+    '#': i + 1,
+    Salesperson: r.rep,
+    'Net Collection': round2(r.netCollection),
+    'Share %': round2(r.share),
+    Payments: r.payments,
+    Customers: r.customers,
+    'Average Payment': round2(r.averagePayment),
+    'Monthly Average': round2(r.monthlyAverage),
+  }));
+  if (rows.length > 0) {
+    rows.push({
+      '#': '',
+      Salesperson: 'TOTAL',
+      'Net Collection': round2(sorted.reduce((s, r) => s + r.netCollection, 0)),
+      'Share %': 100,
+      Payments: '',
+      Customers: '',
+      'Average Payment': '',
+      'Monthly Average': '',
+    });
+  }
+  await writeSheet(rows, 'Salesperson_Collections', 'Salespersons', [
+    'Net Collection',
+    'Share %',
+    'Payments',
+    'Customers',
+    'Average Payment',
+    'Monthly Average',
+  ]);
+}
+
+// ─────────────────────────────────────────────────────────────
 //  Collections tab (per customer)
 // ─────────────────────────────────────────────────────────────
 export type CollectionExportRow = {

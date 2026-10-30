@@ -27,6 +27,7 @@ const MODULE_ROUTES: { prefix: string; name: string }[] = [
   { prefix: '/MailCenter', name: 'Mail Center' },
   { prefix: '/CustomersDiscounts', name: 'Customers Discounts' },
   { prefix: '/ScheduledReports', name: 'Scheduled Reports' },
+  { prefix: '/Reports', name: 'Reports' },
 ];
 
 const SORTED_ROUTES = [...MODULE_ROUTES].sort((a, b) => b.prefix.length - a.prefix.length);

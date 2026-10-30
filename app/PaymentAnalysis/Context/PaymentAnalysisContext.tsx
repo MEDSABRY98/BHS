@@ -1,15 +1,23 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, ReactNode, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useMemo, useRef, useCallback } from 'react';
 import { InvoiceRow } from '@/types';
-import { getDebitData } from '@/app/CustomersAnalysis/Service/debit_service';
+import { getDebitData, getPaymentRepAllocation } from '@/app/CustomersAnalysis/Service/debit_service';
 import { getInvoiceType } from '@/app/CustomersAnalysis/Utils/InvoiceType';
+
+/** How each payment / refund row is split between sales reps (same rules as Salesperson Analysis). */
+export type RepAllocation = Awaited<ReturnType<typeof getPaymentRepAllocation>>;
 
 interface PaymentAnalysisContextType {
   data: InvoiceRow[];
   paymentsData: InvoiceRow[]; // ONLY payments and r-payments
   /** Same as paymentsData but WITHOUT the date filter (tags/classes/cities still applied) — used for year-over-year comparison. */
   paymentsAllDates: InvoiceRow[];
+  /** Loaded on demand by the Salespersons tab (null until loaded). */
+  repAllocation: RepAllocation | null;
+  repAllocationLoading: boolean;
+  repAllocationError: string | null;
+  loadRepAllocation: () => Promise<void>;
   loading: boolean;
   isRefreshing: boolean;
   error: string | null;
@@ -35,6 +43,30 @@ export function PaymentAnalysisProvider({ children, enabled = true }: { children
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [selectedClasses, setSelectedClasses] = useState<string[]>([]);
   const [selectedCities, setSelectedCities] = useState<string[]>([]);
+
+  // Rep allocation (loaded the first time the Salespersons tab opens, reset on refresh)
+  const [repAllocation, setRepAllocation] = useState<RepAllocation | null>(null);
+  const [repAllocationLoading, setRepAllocationLoading] = useState(false);
+  const [repAllocationError, setRepAllocationError] = useState<string | null>(null);
+  const repAllocationRequest = useRef<Promise<void> | null>(null);
+
+  const loadRepAllocation = useCallback(async () => {
+    if (repAllocationRequest.current) return repAllocationRequest.current;
+    const request = (async () => {
+      setRepAllocationLoading(true);
+      setRepAllocationError(null);
+      try {
+        setRepAllocation(await getPaymentRepAllocation());
+      } catch (err: any) {
+        setRepAllocationError(err?.message || 'Failed to load the sales reps split');
+      } finally {
+        setRepAllocationLoading(false);
+        repAllocationRequest.current = null;
+      }
+    })();
+    repAllocationRequest.current = request;
+    return request;
+  }, []);
 
   const loadData = async (silent = false) => {
     try {
@@ -68,6 +100,7 @@ export function PaymentAnalysisProvider({ children, enabled = true }: { children
   const silentRefresh = async () => {
     if (isRefreshing) return;
     await loadData(true);
+    setRepAllocation(null); // the split depends on the data: load it again when needed
   };
 
   useEffect(() => {
@@ -139,6 +172,10 @@ export function PaymentAnalysisProvider({ children, enabled = true }: { children
       data,
       paymentsData,
       paymentsAllDates,
+      repAllocation,
+      repAllocationLoading,
+      repAllocationError,
+      loadRepAllocation,
       loading, 
       isRefreshing,
       error, 

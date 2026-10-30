@@ -14,6 +14,7 @@ import {
   Wallet,
   Filter,
   MapPin,
+  UserCheck,
   UserX,
   CalendarClock,
   FileDown,
@@ -36,6 +37,7 @@ interface SidebarProps {
 const navItems = [
   { id: 'dashboard', label: 'Collections Overview', icon: LayoutDashboard },
   { id: 'cities', label: 'Cities Collections', icon: MapPin },
+  { id: 'salespersons', label: 'Salesperson Collections', icon: UserCheck },
   { id: 'collections', label: 'Customer Collections', icon: Users },
   { id: 'unpaid-customers', label: 'Unpaid Customers', icon: UserX },
   { id: 'periods', label: 'Periods Analysis', icon: CalendarDays },
