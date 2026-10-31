@@ -202,6 +202,21 @@ export async function exportAllocationPdf(a: ExportSource) {
       (i) => !!isSub[i],
     ) + 9;
 
+  // the accounts once more, short: only the account rows (no beneficiaries under them)
+  if (y > 235) {
+    doc.addPage();
+    y = 26;
+  }
+  y = heading(doc, y + 2, 'Analytic Accounts Summary');
+  y =
+    table(
+      doc,
+      y,
+      ['Analytic Account', 'Amount (AED)', '% of Total'],
+      [...c.accounts.map((x) => [lineLabel(x.ACCOUNT, x.PROJECT), formatAmount(x.AMOUNT), `${x.PCT.toFixed(2)}%`]), ['Total', formatAmount(c.allocated), '100.00%']],
+      [84, 50, 40],
+    ) + 9;
+
   // By Person always starts on its own page
   doc.addPage();
   y = heading(doc, 26, 'By Person');
