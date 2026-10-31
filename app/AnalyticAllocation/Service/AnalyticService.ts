@@ -3,6 +3,7 @@
 // Analytic Allocation
 // Tables (RLS on, no public access — only reachable through these actions):
 //   web_ANALYTIC_ACCOUNTS     analytic accounts
+//   web_ANALYTIC_PROJECTS     projects (optional, chosen next to an account in a split)
 //   web_ANALYTIC_PEOPLE       people + their default split (ACCOUNTS jsonb)
 //   web_ANALYTIC_ALLOCATIONS  saved allocations (archive) with PEOPLE + LINES jsonb snapshots
 // Accounts and people are shared by everyone with the tab. Archive: each user sees his own, the admin sees all;
@@ -18,6 +19,7 @@ import {
   round2,
   toUuid,
   type AnalyticAccount,
+  type AnalyticProject,
   type AnalyticPermissions,
   type AnalyticPerson,
   type AnalyticTabId,
@@ -27,6 +29,7 @@ import {
 } from '../Utils/AnalyticTypes';
 
 const ACCOUNTS = 'web_ANALYTIC_ACCOUNTS';
+const PROJECTS = 'web_ANALYTIC_PROJECTS';
 const PEOPLE = 'web_ANALYTIC_PEOPLE';
 const ALLOCATIONS = 'web_ANALYTIC_ALLOCATIONS';
 const ALL_TABS: AnalyticTabId[] = ['accounts', 'people', 'allocate', 'archive'];
@@ -120,6 +123,65 @@ export async function deleteAnalyticAccount(id: string): Promise<{ success: true
     if (users.length) throw new Error(`"${acc.NAME}" is used by ${users.slice(0, 3).join(', ')}${users.length > 3 ? ` +${users.length - 3}` : ''}. Remove it from them or make it inactive.`);
   }
   const { error } = await db.from(ACCOUNTS).delete().eq('ID', id);
+  if (error) throw new Error(error.message);
+  return { success: true };
+}
+
+// ─────────────────────────────────────────────────────────────
+//  Projects (managed in the Accounts tab; a split line can be an account + a project)
+// ─────────────────────────────────────────────────────────────
+const projectError = (error: any, name: string) =>
+  error?.code === '42P01' || /does not exist|schema cache/i.test(String(error?.message || ''))
+    ? new Error('The projects table is not created yet (web_ANALYTIC_PROJECTS). Run the SQL for it first.')
+    : dupError(error, `Project "${name}"`);
+
+export async function listAnalyticProjects(): Promise<AnalyticProject[]> {
+  await requireTab(...ALL_TABS);
+  const { data, error } = await getSupabaseAdmin().from(PROJECTS).select('ID, NAME, IS_ACTIVE');
+  if (error) return []; // no projects table yet: the module works as before
+  return (data || []).map((r: any) => ({ ID: String(r.ID), NAME: String(r.NAME), IS_ACTIVE: r.IS_ACTIVE !== false })).sort((a, b) => byName(a.NAME, b.NAME));
+}
+
+export async function saveAnalyticProject(input: { ID?: string; NAME: string; IS_ACTIVE?: boolean }): Promise<AnalyticProject> {
+  await requireTab('accounts');
+  const db = getSupabaseAdmin();
+  const NAME = cleanName(input?.NAME, 80);
+  if (!NAME) throw new Error('Project name is required');
+  const IS_ACTIVE = input?.IS_ACTIVE !== false;
+
+  if (!input?.ID) {
+    const { data, error } = await db.from(PROJECTS).insert({ NAME, IS_ACTIVE }).select('ID, NAME, IS_ACTIVE').single();
+    if (error) throw projectError(error, NAME);
+    return { ID: String(data.ID), NAME: data.NAME, IS_ACTIVE: data.IS_ACTIVE !== false };
+  }
+
+  const { data: old, error: oldErr } = await db.from(PROJECTS).select('NAME').eq('ID', input.ID).single();
+  if (oldErr) throw projectError(oldErr, NAME);
+  const { data, error } = await db.from(PROJECTS).update({ NAME, IS_ACTIVE }).eq('ID', input.ID).select('ID, NAME, IS_ACTIVE').single();
+  if (error) throw projectError(error, NAME);
+
+  // Renamed: carry the new name into the people's default splits (saved allocations keep their snapshot)
+  if (old.NAME !== NAME) {
+    const { data: people } = await db.from(PEOPLE).select('ID, ACCOUNTS');
+    for (const p of people || []) {
+      const split = cleanSplit(p.ACCOUNTS);
+      if (!split.some((x) => x.PROJECT === old.NAME)) continue;
+      await db.from(PEOPLE).update({ ACCOUNTS: cleanSplit(split.map((x) => (x.PROJECT === old.NAME ? { ...x, PROJECT: NAME } : x))) }).eq('ID', p.ID);
+    }
+  }
+  return { ID: String(data.ID), NAME: data.NAME, IS_ACTIVE: data.IS_ACTIVE !== false };
+}
+
+export async function deleteAnalyticProject(id: string): Promise<{ success: true }> {
+  await requireTab('accounts');
+  const db = getSupabaseAdmin();
+  const { data: pr } = await db.from(PROJECTS).select('NAME').eq('ID', id).single();
+  if (pr) {
+    const { data: people } = await db.from(PEOPLE).select('NAME, ACCOUNTS');
+    const users = (people || []).filter((p: any) => cleanSplit(p.ACCOUNTS).some((x) => x.PROJECT === pr.NAME)).map((p: any) => p.NAME);
+    if (users.length) throw new Error(`"${pr.NAME}" is used by ${users.slice(0, 3).join(', ')}${users.length > 3 ? ` +${users.length - 3}` : ''}. Remove it from them or make it inactive.`);
+  }
+  const { error } = await db.from(PROJECTS).delete().eq('ID', id);
   if (error) throw new Error(error.message);
   return { success: true };
 }
@@ -222,7 +284,7 @@ const toAllocation = (r: any, names: Map<string, string>): Allocation => ({
     ...(p.AMOUNT !== undefined && p.AMOUNT !== null ? { AMOUNT: Number(p.AMOUNT) || 0 } : {}), // per-person amount (new style)
     SPLIT: cleanSplit(p.SPLIT),
   })),
-  LINES: (Array.isArray(r.LINES) ? r.LINES : []).map((l: any) => ({ PERSON: String(l.PERSON), ACCOUNT: String(l.ACCOUNT), PCT: Number(l.PCT) || 0, AMOUNT: Number(l.AMOUNT) || 0 })),
+  LINES: (Array.isArray(r.LINES) ? r.LINES : []).map((l: any) => ({ PERSON: String(l.PERSON), ACCOUNT: String(l.ACCOUNT), ...(l.PROJECT ? { PROJECT: String(l.PROJECT) } : {}), PCT: Number(l.PCT) || 0, AMOUNT: Number(l.AMOUNT) || 0 })),
   CREATED_BY: String(r.CREATED_BY || ''),
   CREATED_BY_NAME: names.get(String(r.CREATED_BY)) || '',
   CREATED_AT: String(r.CREATED_AT || ''),

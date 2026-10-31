@@ -173,6 +173,7 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
     { id: 'forms', title: 'Forms', path: '/Forms', color: 'violet' },
     { id: 'scheduled-reports', title: 'Scheduled Reports', path: '/ScheduledReports', color: 'yellow' },
     { id: 'reports', title: 'Reports', path: '/Reports', color: 'sky' },
+    { id: 'todo-list', title: 'To Do List', path: '/ToDoList', color: 'emerald' },
   ];
 
   const allowedSystems = useMemo(

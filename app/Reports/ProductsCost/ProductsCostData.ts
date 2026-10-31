@@ -5,7 +5,7 @@ import { bhs_supabas } from '@/lib/secureDb';
 
 export interface ProductCostRow {
   productId: string;
-  /** empty when the product has no parent (or is its own parent) */
+  /** empty when the product has no parent (empty, 0, or its own ID) */
   parentId: string;
   barcode: string;
   name: string;
@@ -44,7 +44,7 @@ export async function fetchProductsForCost(): Promise<ProductCostRow[]> {
       const parent = String(p['PRODUCT PARENT ID'] ?? '').trim();
       rows.push({
         productId,
-        parentId: parent && parent !== productId ? parent : '',
+        parentId: parent && Number(parent) !== 0 && parent !== productId ? parent : '', // 0 / empty = no parent
         barcode: String(p['PRODUCT BARCODE'] ?? ''),
         name: String(p['PRODUCT NAME'] ?? ''),
         cost: roundCost(p['PRODUCT COST']),

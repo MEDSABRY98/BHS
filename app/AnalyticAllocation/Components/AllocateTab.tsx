@@ -8,11 +8,12 @@ import Modal from './Modal';
 import SplitEditor from './SplitEditor';
 import { saveAllocation } from '../Service/AnalyticService';
 import { exportAllocationExcel, exportAllocationPdf } from '../Utils/AnalyticExport';
-import { shortId, computeAllocation, formatAmount, formatPct, isFull, resolvePcts, round2, uaeToday, type Allocation, type AllocationPerson, type AnalyticPerson } from '../Utils/AnalyticTypes';
+import { shortId, computeAllocation, formatAmount, formatPct, isFull, lineLabel, resolvePcts, round2, splitKey, uaeToday, type Allocation, type AllocationPerson, type AnalyticPerson } from '../Utils/AnalyticTypes';
 
 interface AllocateTabProps {
   people: AnalyticPerson[];
   accountNames: string[];
+  projectNames: string[];
   editAllocation?: Allocation | null; // admin edit from the archive
   onSaved: (a: Allocation, isEdit: boolean) => void;
   onCancelEdit?: () => void;
@@ -28,7 +29,7 @@ const typing = (raw: string) => {
   return dec !== undefined ? `${intFmt}.${dec}` : intFmt;
 };
 
-export default function AllocateTab({ people, accountNames, editAllocation, onSaved, onCancelEdit }: AllocateTabProps) {
+export default function AllocateTab({ people, accountNames, projectNames, editAllocation, onSaved, onCancelEdit }: AllocateTabProps) {
   const [title, setTitle] = useState(editAllocation?.TITLE || '');
   const [date, setDate] = useState(editAllocation?.ALLOC_DATE || uaeToday());
   const [notes, setNotes] = useState(editAllocation?.NOTES || '');
@@ -302,8 +303,8 @@ export default function AllocateTab({ people, accountNames, editAllocation, onSa
                         <div className="flex flex-wrap items-center justify-center gap-1.5">
                           {c.SPLIT.length ? (
                             c.SPLIT.map((s, k) => (
-                              <span key={s.ACCOUNT} className={`px-2 py-0.5 rounded-md text-[11px] font-bold ${s.PCT !== null ? 'bg-violet-50 text-violet-700' : 'bg-[#C4A052]/10 text-slate-700'}`}>
-                                {s.ACCOUNT} {split.pcts[k].toFixed(2)}%
+                              <span key={splitKey(s)} className={`px-2 py-0.5 rounded-md text-[11px] font-bold ${s.PCT !== null ? 'bg-violet-50 text-violet-700' : 'bg-[#C4A052]/10 text-slate-700'}`}>
+                                {lineLabel(s.ACCOUNT, s.PROJECT)} {split.pcts[k].toFixed(2)}%
                               </span>
                             ))
                           ) : (
@@ -376,15 +377,15 @@ export default function AllocateTab({ people, accountNames, editAllocation, onSa
             </thead>
             <tbody className="divide-y divide-slate-50">
               {calc.accounts.map((a) => (
-                <Fragment key={a.ACCOUNT}>
+                <Fragment key={splitKey(a)}>
                   <tr className="text-center bg-slate-50/70">
-                    <td className="py-2.5 px-3 font-black text-slate-900">{a.ACCOUNT}</td>
+                    <td className="py-2.5 px-3 font-black text-slate-900">{lineLabel(a.ACCOUNT, a.PROJECT)}</td>
                     <td className="py-2.5 px-3 font-black tabular-nums">{formatAmount(a.AMOUNT)}</td>
                     <td className="py-2.5 px-3 font-black tabular-nums">{a.PCT.toFixed(2)}%</td>
                   </tr>
                   {/* the beneficiaries under the account, its % split between them */}
                   {a.PEOPLE.map((p) => (
-                    <tr key={`${a.ACCOUNT}|${p.NAME}`} className="text-center text-[13px] text-slate-500">
+                    <tr key={`${splitKey(a)}|${p.NAME}`} className="text-center text-[13px] text-slate-500">
                       <td className="py-2 px-3" dir="auto">
                         <span className="text-[#C4A052] mr-1.5">↳</span>
                         {p.NAME}
@@ -435,7 +436,7 @@ export default function AllocateTab({ people, accountNames, editAllocation, onSa
           </>
         }
       >
-        {splitFor !== null && <SplitEditor accounts={accountNames} value={splitDraft} onChange={setSplitDraft} amount={calc.persons[splitFor]?.AMOUNT} />}
+        {splitFor !== null && <SplitEditor accounts={accountNames} projects={projectNames} value={splitDraft} onChange={setSplitDraft} amount={calc.persons[splitFor]?.AMOUNT} />}
       </Modal>
     </div>
   );

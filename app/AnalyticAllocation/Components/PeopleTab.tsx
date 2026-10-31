@@ -13,13 +13,14 @@ import { byName, formatPct, isFull, resolvePcts, type AnalyticPerson, type Split
 interface PeopleTabProps {
   people: AnalyticPerson[];
   accountNames: string[]; // active
+  projectNames: string[]; // active
   onChange: (next: AnalyticPerson[]) => void;
 }
 
 type Draft = { ID?: string; NAME: string; NOTES: string; ACCOUNTS: SplitItem[]; IS_ACTIVE: boolean };
 const EMPTY: Draft = { NAME: '', NOTES: '', ACCOUNTS: [], IS_ACTIVE: true };
 
-export default function PeopleTab({ people, accountNames, onChange }: PeopleTabProps) {
+export default function PeopleTab({ people, accountNames, projectNames, onChange }: PeopleTabProps) {
   const [search, setSearch] = useState('');
   const [draft, setDraft] = useState<Draft | null>(null);
   const [saving, setSaving] = useState(false);
@@ -27,7 +28,7 @@ export default function PeopleTab({ people, accountNames, onChange }: PeopleTabP
 
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return people.filter((p) => !q || p.NAME.toLowerCase().includes(q) || p.NOTES.toLowerCase().includes(q) || p.ACCOUNTS.some((a) => a.ACCOUNT.toLowerCase().includes(q)));
+    return people.filter((p) => !q || p.NAME.toLowerCase().includes(q) || p.NOTES.toLowerCase().includes(q) || p.ACCOUNTS.some((a) => a.ACCOUNT.toLowerCase().includes(q) || (a.PROJECT || '').toLowerCase().includes(q)));
   }, [people, search]);
 
   const save = async () => {
@@ -155,7 +156,7 @@ export default function PeopleTab({ people, accountNames, onChange }: PeopleTabP
                 </button>
               </label>
             </div>
-            <SplitEditor accounts={accountNames} value={draft.ACCOUNTS} onChange={(ACCOUNTS) => setDraft({ ...draft, ACCOUNTS })} />
+            <SplitEditor accounts={accountNames} projects={projectNames} value={draft.ACCOUNTS} onChange={(ACCOUNTS) => setDraft({ ...draft, ACCOUNTS })} />
           </div>
         )}
       </Modal>

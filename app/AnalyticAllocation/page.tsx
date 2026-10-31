@@ -15,8 +15,8 @@ import AccountsTab from './Components/AccountsTab';
 import PeopleTab from './Components/PeopleTab';
 import AllocateTab from './Components/AllocateTab';
 import ArchiveTab from './Components/ArchiveTab';
-import { getAnalyticPermissions, listAllocations, listAnalyticAccounts, listAnalyticPeople } from './Service/AnalyticService';
-import type { Allocation, AnalyticAccount, AnalyticPermissions, AnalyticPerson, AnalyticTabId } from './Utils/AnalyticTypes';
+import { getAnalyticPermissions, listAllocations, listAnalyticAccounts, listAnalyticPeople, listAnalyticProjects } from './Service/AnalyticService';
+import type { Allocation, AnalyticAccount, AnalyticPermissions, AnalyticPerson, AnalyticProject, AnalyticTabId } from './Utils/AnalyticTypes';
 
 const NO_ACCESS: AnalyticPermissions = { tabs: [], admin: false };
 const newestFirst = (a: Allocation, b: Allocation) => (a.ALLOC_DATE !== b.ALLOC_DATE ? (a.ALLOC_DATE < b.ALLOC_DATE ? 1 : -1) : String(b.CREATED_AT).localeCompare(String(a.CREATED_AT)));
@@ -33,6 +33,7 @@ export default function AnalyticAllocationPage() {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   const [accounts, setAccounts] = useState<AnalyticAccount[]>([]);
+  const [projects, setProjects] = useState<AnalyticProject[]>([]);
   const [people, setPeople] = useState<AnalyticPerson[]>([]);
   const [allocations, setAllocations] = useState<Allocation[]>([]);
   const [loading, setLoading] = useState(false);
@@ -95,8 +96,9 @@ export default function AnalyticAllocationPage() {
       if (silent) setRefreshing(true);
       else setLoading(true);
       try {
-        const [acc, ppl, arc] = await Promise.all([listAnalyticAccounts(), listAnalyticPeople(), canSeeArchive ? listAllocations() : Promise.resolve([])]);
+        const [acc, prj, ppl, arc] = await Promise.all([listAnalyticAccounts(), listAnalyticProjects(), listAnalyticPeople(), canSeeArchive ? listAllocations() : Promise.resolve([])]);
         setAccounts(acc);
+        setProjects(prj);
         setPeople(ppl);
         setAllocations(arc);
         setLoadError(null);
@@ -129,6 +131,7 @@ export default function AnalyticAllocationPage() {
   };
 
   const activeAccountNames = useMemo(() => accounts.filter((a) => a.IS_ACTIVE).map((a) => a.NAME), [accounts]);
+  const activeProjectNames = useMemo(() => projects.filter((p) => p.IS_ACTIVE).map((p) => p.NAME), [projects]);
 
   if (isChecking) return <MainLoader message="Loading Analytic Allocation..." />;
   if (!isAuthenticated) return <Login onLogin={handleLogin} />;
@@ -178,9 +181,9 @@ export default function AnalyticAllocationPage() {
           ) : (
             <>
               {activeTab === 'accounts' && visibleTabs.includes('accounts') && (
-                <AccountsTab accounts={accounts} people={people} onChange={setAccounts} onRenamed={() => void listAnalyticPeople().then(setPeople).catch(() => {})} />
+                <AccountsTab accounts={accounts} people={people} projects={projects} onProjectsChange={setProjects} onChange={setAccounts} onRenamed={() => void listAnalyticPeople().then(setPeople).catch(() => {})} />
               )}
-              {activeTab === 'people' && visibleTabs.includes('people') && <PeopleTab people={people} accountNames={activeAccountNames} onChange={setPeople} />}
+              {activeTab === 'people' && visibleTabs.includes('people') && <PeopleTab people={people} accountNames={activeAccountNames} projectNames={activeProjectNames} onChange={setPeople} />}
               {/* Allocate stays mounted (only hidden) so what was typed is still there after visiting another tab */}
               {visibleTabs.includes('allocate') && (
                 <div className={activeTab === 'allocate' ? '' : 'hidden'}>
@@ -188,6 +191,7 @@ export default function AnalyticAllocationPage() {
                   key={editAllocation ? `edit-${editAllocation.ID}` : `new-${formKey}`}
                   people={people}
                   accountNames={activeAccountNames}
+                  projectNames={activeProjectNames}
                   editAllocation={editAllocation}
                   onCancelEdit={() => {
                     setEditAllocation(null);

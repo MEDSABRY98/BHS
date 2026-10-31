@@ -214,6 +214,7 @@ export const SYSTEMS = [
     { id: 'forms', label: 'Forms' },
     { id: 'scheduled-reports', label: 'Scheduled Reports' },
     { id: 'reports', label: 'Reports' },
+    { id: 'todo-list', label: 'To Do List' },
     { id: 'database', label: 'Database' },
     { id: 'data-update', label: 'Data Update' },
     { id: 'mail-center', label: 'Mail Center' },
@@ -337,6 +338,12 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
         { id: 'supplier-payment-archive', label: 'Supplier Payment · Archive' },
         { id: 'vehicle-expenses', label: 'Vehicle Expenses' },
         { id: 'vehicle-expenses-archive', label: 'Vehicle Expenses · Archive' },
+    ],
+    // To Do List: tasks of the day and the history
+    'todo-list': [
+        { id: 'add', label: 'Add Tasks' },
+        { id: 'tasks', label: 'Tasks' },
+        { id: 'history', label: 'History' },
     ],
     // Reports: each id is a ready report (app/Reports/Utils/ReportsList.ts)
     'reports': [

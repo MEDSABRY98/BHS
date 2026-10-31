@@ -5,17 +5,20 @@ import { Check, Loader2, Pencil, Plus, Search, Trash2, X } from 'lucide-react';
 import { toast } from '@/app/Components/Notification';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import ConfirmDialog from './ConfirmDialog';
+import ProjectsPanel from './ProjectsPanel';
 import { deleteAnalyticAccount, saveAnalyticAccount } from '../Service/AnalyticService';
-import { byName, type AnalyticAccount, type AnalyticPerson } from '../Utils/AnalyticTypes';
+import { byName, type AnalyticAccount, type AnalyticPerson, type AnalyticProject } from '../Utils/AnalyticTypes';
 
 interface AccountsTabProps {
   accounts: AnalyticAccount[];
   people: AnalyticPerson[];
+  projects: AnalyticProject[];
+  onProjectsChange: (next: AnalyticProject[]) => void;
   onChange: (next: AnalyticAccount[]) => void;
   onRenamed: () => void; // people splits changed on the server
 }
 
-export default function AccountsTab({ accounts, people, onChange, onRenamed }: AccountsTabProps) {
+export default function AccountsTab({ accounts, people, projects, onProjectsChange, onChange, onRenamed }: AccountsTabProps) {
   const [search, setSearch] = useState('');
   const [newName, setNewName] = useState('');
   const [editId, setEditId] = useState<string | null>(null);
@@ -186,6 +189,8 @@ export default function AccountsTab({ accounts, people, onChange, onRenamed }: A
           </table>
         </div>
       </div>
+
+      <ProjectsPanel projects={projects} people={people} onChange={onProjectsChange} onRenamed={onRenamed} />
 
       <ConfirmDialog
         open={!!deleteTarget}

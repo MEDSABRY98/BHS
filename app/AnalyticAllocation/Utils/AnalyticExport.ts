@@ -7,7 +7,7 @@ import autoTable from 'jspdf-autotable';
 import { exportStyledExcelWorkbook } from '@/app/Components/Export/ExcelExport';
 import { addArabicFont } from '@/app/Components/Pdf/shared';
 import { saveTrackedPdf } from '@/app/AdminControl/Code/Audit/TrackedDownload';
-import { COMPANY_NAME, computeAllocation, formatAmount, formatDate, round2, type AllocationPerson } from './AnalyticTypes';
+import { COMPANY_NAME, computeAllocation, formatAmount, formatDate, lineLabel, round2, type AllocationPerson } from './AnalyticTypes';
 
 export type ExportSource = { TITLE: string; ALLOC_DATE: string; AMOUNT: number; NOTES?: string; PEOPLE: AllocationPerson[] };
 
@@ -19,10 +19,10 @@ export async function exportAllocationExcel(a: ExportSource) {
   const summary = [
     // each account, then its beneficiaries under it (the account's % split between them)
     ...c.accounts.flatMap((x) => [
-      { 'Analytic Account': x.ACCOUNT, 'Amount (AED)': x.AMOUNT, '%': `${x.PCT.toFixed(2)}%` },
-      ...x.PEOPLE.map((p) => ({ 'Analytic Account': `   ↳ ${p.NAME}`, 'Amount (AED)': p.AMOUNT, '%': `${p.PCT.toFixed(2)}%` })),
+      { 'Analytic Account': x.ACCOUNT, Project: x.PROJECT, 'Amount (AED)': x.AMOUNT, '%': `${x.PCT.toFixed(2)}%` },
+      ...x.PEOPLE.map((p) => ({ 'Analytic Account': `   ↳ ${p.NAME}`, Project: '', 'Amount (AED)': p.AMOUNT, '%': `${p.PCT.toFixed(2)}%` })),
     ]),
-    { 'Analytic Account': 'TOTAL', 'Amount (AED)': c.allocated, '%': '100.00%' },
+    { 'Analytic Account': 'TOTAL', Project: '', 'Amount (AED)': c.allocated, '%': '100.00%' },
   ];
   const people = [
     ...c.persons.map((p) => ({ Person: p.NAME, '% of Amount': `${p.PCT.toFixed(2)}%`, 'Amount (AED)': p.AMOUNT })),
@@ -32,9 +32,9 @@ export async function exportAllocationExcel(a: ExportSource) {
   const detail = c.lines.map((l) => {
     const first = l.PERSON !== prev;
     prev = l.PERSON;
-    return { Person: first ? l.PERSON : '', 'Analytic Account': l.ACCOUNT, '% of Person': `${l.PCT.toFixed(2)}%`, 'Amount (AED)': l.AMOUNT };
+    return { Person: first ? l.PERSON : '', 'Analytic Account': l.ACCOUNT, Project: l.PROJECT || '', '% of Person': `${l.PCT.toFixed(2)}%`, 'Amount (AED)': l.AMOUNT };
   });
-  detail.push({ Person: 'TOTAL', 'Analytic Account': '', '% of Person': '', 'Amount (AED)': c.allocated });
+  detail.push({ Person: 'TOTAL', 'Analytic Account': '', Project: '', '% of Person': '', 'Amount (AED)': c.allocated });
 
   await exportStyledExcelWorkbook(
     [
@@ -183,7 +183,7 @@ export async function exportAllocationPdf(a: ExportSource) {
   const accRows: string[][] = [];
   const isSub: boolean[] = [];
   c.accounts.forEach((x) => {
-    accRows.push([x.ACCOUNT, formatAmount(x.AMOUNT), `${x.PCT.toFixed(2)}%`]);
+    accRows.push([lineLabel(x.ACCOUNT, x.PROJECT), formatAmount(x.AMOUNT), `${x.PCT.toFixed(2)}%`]);
     isSub.push(false);
     x.PEOPLE.forEach((p) => {
       accRows.push([p.NAME, formatAmount(p.AMOUNT), `${p.PCT.toFixed(2)}%`]);

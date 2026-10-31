@@ -14,6 +14,14 @@ export interface AnalyticPermissions {
 export interface SplitItem {
   ACCOUNT: string;
   PCT: number | null;
+  /** optional project: the same account can be listed twice, with and without a project (like Odoo) */
+  PROJECT?: string;
+}
+
+export interface AnalyticProject {
+  ID: string; // uuid
+  NAME: string;
+  IS_ACTIVE: boolean;
 }
 
 export interface AnalyticAccount {
@@ -47,6 +55,7 @@ export interface AllocationLine {
   ACCOUNT: string;
   PCT: number;    // share of the person's amount
   AMOUNT: number;
+  PROJECT?: string;
 }
 
 export interface Allocation {
@@ -90,6 +99,16 @@ export function uaeToday(): string {
 }
 
 export const byName = (a: string, b: string) => a.localeCompare(b, 'en', { sensitivity: 'base' });
+
+/** one line of a split = an account, with or without a project */
+export const splitKey = (s: { ACCOUNT: string; PROJECT?: string }) => `${s.ACCOUNT}\u0001${s.PROJECT || ''}`;
+/** "Account" or "Account · Project" */
+export const lineLabel = (account: string, project?: string) => (project ? `${account} · ${project}` : account);
+/** account name, then the line without a project first, then the projects by name */
+export const byAccountProject = (a: { ACCOUNT: string; PROJECT?: string }, b: { ACCOUNT: string; PROJECT?: string }) =>
+  byName(a.ACCOUNT, b.ACCOUNT) || byName(a.PROJECT || '', b.PROJECT || '');
+/** a split item (the key order stays the same so saved JSON compares equal) */
+export const mkSplitItem = (ACCOUNT: string, PCT: number | null, PROJECT?: string): SplitItem => (PROJECT ? { ACCOUNT, PCT, PROJECT } : { ACCOUNT, PCT });
 
 /** short reference of a uuid for the screen (first 8 characters) */
 export const shortId = (id: string | null | undefined) => String(id || '').slice(0, 8).toUpperCase();
@@ -154,7 +173,7 @@ export function sharesOf(values: number[]): number[] {
 export type PersonResult = { NAME: string; PCT: number; AMOUNT: number; splitTotal: number };
 /** a beneficiary inside an analytic account: his amount and his % of that account (the people of an account = 100%) */
 export type AccountPerson = { NAME: string; AMOUNT: number; PCT: number };
-export type AccountResult = { ACCOUNT: string; AMOUNT: number; PCT: number; PEOPLE: AccountPerson[] };
+export type AccountResult = { ACCOUNT: string; PROJECT: string; AMOUNT: number; PCT: number; PEOPLE: AccountPerson[] };
 
 /** Full calculation of an allocation: people amounts, person × account lines and the summary by account. */
 /** true when the people carry their own amounts (new style) */
@@ -179,21 +198,28 @@ export function computeAllocation(amount: number, people: AllocationPerson[]) {
     const split = resolvePcts(p.SPLIT);
     const parts = splitAmount(amounts[i], split.pcts);
     persons.push({ NAME: p.NAME, PCT: pcts[i], AMOUNT: amounts[i], splitTotal: split.total });
-    p.SPLIT.forEach((s, k) => lines.push({ PERSON: p.NAME, ACCOUNT: s.ACCOUNT, PCT: split.pcts[k], AMOUNT: parts[k] }));
+    p.SPLIT.forEach((s, k) => lines.push({ PERSON: p.NAME, ACCOUNT: s.ACCOUNT, ...(s.PROJECT ? { PROJECT: s.PROJECT } : {}), PCT: split.pcts[k], AMOUNT: parts[k] }));
   });
+  // one row per account + project (the same account with and without a project are two rows, like Odoo)
   const map = new Map<string, number>();
-  lines.forEach((l) => map.set(l.ACCOUNT, round2((map.get(l.ACCOUNT) || 0) + l.AMOUNT)));
-  const names = Array.from(map.keys()).sort(byName);
+  const heads = new Map<string, { ACCOUNT: string; PROJECT: string }>();
+  lines.forEach((l) => {
+    const k = splitKey(l);
+    map.set(k, round2((map.get(k) || 0) + l.AMOUNT));
+    heads.set(k, { ACCOUNT: l.ACCOUNT, PROJECT: l.PROJECT || '' });
+  });
+  const names = Array.from(map.keys()).sort((a, b) => byAccountProject(heads.get(a)!, heads.get(b)!));
   const shares = sharesOf(names.map((n) => map.get(n) || 0));
   const accounts: AccountResult[] = names.map((n, i) => {
     // the people under the account: their amounts and their % OF THE ACCOUNT (each account = 100% on its own)
-    const own = lines.filter((l) => l.ACCOUNT === n && l.AMOUNT !== 0);
+    const own = lines.filter((l) => splitKey(l) === n && l.AMOUNT !== 0);
     const byPerson = new Map<string, number>();
     own.forEach((l) => byPerson.set(l.PERSON, round2((byPerson.get(l.PERSON) || 0) + l.AMOUNT)));
     const people = Array.from(byPerson.keys()).sort(byName);
     const pcts = sharesOf(people.map((p) => byPerson.get(p) || 0)); // adds up to exactly 100
     return {
-      ACCOUNT: n,
+      ACCOUNT: heads.get(n)!.ACCOUNT,
+      PROJECT: heads.get(n)!.PROJECT,
       AMOUNT: map.get(n) || 0,
       PCT: shares[i],
       PEOPLE: people.map((p, k) => ({ NAME: p, AMOUNT: byPerson.get(p) || 0, PCT: pcts[k] })),
@@ -219,10 +245,12 @@ export function cleanSplit(raw: unknown): SplitItem[] {
   const out: SplitItem[] = [];
   (Array.isArray(raw) ? raw : []).forEach((s: any) => {
     const ACCOUNT = String(s?.ACCOUNT ?? '').trim();
-    if (!ACCOUNT || seen.has(ACCOUNT.toLowerCase())) return;
-    seen.add(ACCOUNT.toLowerCase());
+    const PROJECT = String(s?.PROJECT ?? '').replace(/\s+/g, ' ').trim().slice(0, 80);
+    const key = splitKey({ ACCOUNT, PROJECT }).toLowerCase();
+    if (!ACCOUNT || seen.has(key)) return;
+    seen.add(key);
     const n = s?.PCT === null || s?.PCT === undefined || s?.PCT === '' ? null : Number(s.PCT);
-    out.push({ ACCOUNT, PCT: n === null || !Number.isFinite(n) ? null : Math.min(100, Math.max(0, round2(n))) });
+    out.push(mkSplitItem(ACCOUNT, n === null || !Number.isFinite(n) ? null : Math.min(100, Math.max(0, round2(n))), PROJECT));
   });
-  return out.sort((a, b) => byName(a.ACCOUNT, b.ACCOUNT));
+  return out.sort(byAccountProject);
 }

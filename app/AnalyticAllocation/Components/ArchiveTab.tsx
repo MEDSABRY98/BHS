@@ -35,7 +35,7 @@ export default function ArchiveTab({ allocations, admin, canEdit, onEdit, onDele
         a.NOTES.toLowerCase().includes(q) ||
         formatAmount(a.AMOUNT).includes(q) ||
         a.PEOPLE.some((p) => p.NAME.toLowerCase().includes(q)) ||
-        a.LINES.some((l) => l.ACCOUNT.toLowerCase().includes(q))
+        a.LINES.some((l) => l.ACCOUNT.toLowerCase().includes(q) || (l.PROJECT || '').toLowerCase().includes(q))
       );
     });
   }, [allocations, search, dateFrom, dateTo]);
