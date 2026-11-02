@@ -55,6 +55,9 @@ export function resolveReferences(
       if (matched) row[idKey] = matched;
       else invalid.add(id);
     }
+    // the NAME column is only used to find the ID: it must never reach the database table
+    // (an empty NAME cell used to stay in the row and the insert failed: "Could not find the 'CUSTOMER NAME' column")
+    delete row[nameKey];
   }
   return Array.from(invalid);
 }

@@ -722,7 +722,7 @@ export async function insertDebitChunk(payload: string, startNumber: number, upl
     if (!Array.isArray(rows)) throw new Error('Invalid data format');
     let n = startNumber;
     const chunk = rows.map((row: any) => {
-      const { ID, id, ...rest } = row;
+      const { ID, id, 'CUSTOMER NAME': _name, ...rest } = row; // the name was only used to find the CUSTOMER ID
       const newId = `R-${String(n++).padStart(4, '0')}`;
       return { ...rest, ID: newId, CREATED_AT: uploadTimestamp };
     });
