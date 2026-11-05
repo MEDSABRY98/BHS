@@ -108,12 +108,12 @@ export default function SalespersonsTab() {
 
   if (repAllocationError && !repAllocation) {
     return (
-      <div className="flex items-center justify-center min-h-[50vh]">
+      <div className="flex items-center justify-center min-h-screen -mt-6 -mb-12">
         <TabFetchError message={repAllocationError} onRetry={() => void loadRepAllocation()} isRetrying={repAllocationLoading} />
       </div>
     );
   }
-  if (!repAllocation) return <TabLoader className="!min-h-[50vh]" />;
+  if (!repAllocation) return <TabLoader className="!min-h-screen -mt-6 -mb-12" />;
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">

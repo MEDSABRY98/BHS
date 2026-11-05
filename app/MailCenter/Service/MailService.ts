@@ -343,21 +343,36 @@ export async function sendCustomerStatement(input: {
   format: AttachmentFormat;
   scope: StatementScope;
   dateTo: string | null;
+  /** a saved template: its subject and text are used instead of the default email */
+  templateId?: string | null;
+  /** group (tag) email: also one statement per customer of the group, after the group statement */
+  perCustomer?: boolean;
 }): Promise<ActionResult<MailLogRow>> {
   return asResult(async () => {
     const { user } = await requireTab('statements');
     const format: AttachmentFormat = ['pdf', 'excel', 'both'].includes(input?.format) ? input.format : 'pdf';
     const scope: StatementScope = input?.scope === 'all' ? 'all' : 'open';
     const dateTo = /^\d{4}-\d{2}-\d{2}$/.test(String(input?.dateTo || '')) ? String(input.dateTo) : null;
+    let subject = 'Statement of Account – {Name}';
+    let body = DEFAULT_BODY;
+    const templateId = String(input?.templateId || '').trim();
+    if (templateId) {
+      const { data, error } = await getSupabaseAdmin().from(TEMPLATES).select('SUBJECT, BODY').eq('ID', templateId).maybeSingle();
+      if (error) throw new Error(error.message);
+      if (!data) throw new Error('The template was not found — it may have been deleted');
+      subject = String(data.SUBJECT || subject);
+      body = String(data.BODY ?? '');
+    }
     return bulkOne(user, {
       batchId: null,
       customerName: String(input?.customerName || ''),
       customerId: input?.customerId || null,
       tag: String(input?.tag || '').trim() || null,
-      subject: 'Statement of Account – {Name}',
-      body: DEFAULT_BODY,
+      subject,
+      body,
       attachment: { kind: String(input?.tag || '').trim() ? 'group-statement' : 'customer-statement', format, scope, dateMode: 'none' },
       dateTo,
+      perCustomer: input?.perCustomer !== false,
     });
   });
 }
@@ -384,16 +399,26 @@ async function luluMap(): Promise<Map<string, { to: string[]; cc: string[] }>> {
 
 async function bulkOne(
   user: SessionUserRecord,
-  input: { batchId: string | null; customerName: string; customerId?: string | null; tag?: string | null; subject: string; body: string; attachment: TemplateAttachment | null; dateTo: string | null; cc?: string[] },
+  input: { batchId: string | null; customerName: string; customerId?: string | null; tag?: string | null; subject: string; body: string; attachment: TemplateAttachment | null; dateTo: string | null; cc?: string[]; perCustomer?: boolean },
 ): Promise<MailLogRow> {
   const tag = String(input?.tag || '').trim();
   const name = tag || String(input?.customerName || '').trim();
   if (!name) throw new Error('Customer is missing');
   let to: string[] = [];
   let luluCc: string[] = [];
+  const members: { name: string; id: string }[] = [];
   if (tag) {
     // every customer of the tag (only the ones this user may see)
-    const ids: string[] = Array.from(new Set<string>((await ledgerFor(user)).filter((r) => String(r.customerTag || '').trim() === tag).map((r) => String(r.customerId || '').trim()).filter(Boolean)));
+    const tagRows = (await ledgerFor(user)).filter((r) => String(r.customerTag || '').trim() === tag);
+    const seen = new Set<string>();
+    for (const r of tagRows) {
+      const n = String(r.customerName || '').trim();
+      if (n && !seen.has(n)) {
+        seen.add(n);
+        members.push({ name: n, id: String(r.customerId || '').trim() });
+      }
+    }
+    const ids: string[] = Array.from(new Set<string>(tagRows.map((r) => String(r.customerId || '').trim()).filter(Boolean)));
     for (const id of ids) to.push(...cleanList((await resolveCustomerEmailTargets(id)).emails));
     to = cleanList(to);
   } else {
@@ -422,7 +447,10 @@ async function bulkOne(
   const attachments: AttachmentSpec[] = !input.attachment
     ? []
     : tag
-      ? [{ kind: 'group-statement', tag, format: input.attachment.format, scope: input.attachment.scope, dateTo: input.dateTo }]
+      ? [
+          { kind: 'group-statement', tag, format: input.attachment.format, scope: input.attachment.scope, dateTo: input.dateTo },
+          ...(input.perCustomer ? members.map((m): AttachmentSpec => ({ kind: 'customer-statement', customerName: m.name, customerId: m.id || null, format: input.attachment!.format, scope: input.attachment!.scope, dateTo: input.dateTo })) : []),
+        ]
       : [{ kind: 'customer-statement', customerName: name, customerId: input.customerId || null, format: input.attachment.format, scope: input.attachment.scope, dateTo: input.dateTo }];
   return sendOne(user, { to, cc, bcc: [], subject: String(input.subject || '').trim().slice(0, 250) || 'Statement of Account', body: String(input.body || ''), attachments, batchId: input.batchId });
 }
@@ -461,7 +489,7 @@ const toTemplate = (r: any, names: Map<string, string>): MailTemplate => ({
 });
 
 export async function listMailTemplates(): Promise<MailTemplate[]> {
-  await requireTab('compose', 'bulk', 'templates');
+  await requireTab('compose', 'bulk', 'templates', 'statements');
   const { data, error } = await getSupabaseAdmin().from(TEMPLATES).select('*').order('NAME', { ascending: true });
   if (error) throw new Error(error.message);
   const names = await userNames((data || []).map((r: any) => String(r.CREATED_BY)));

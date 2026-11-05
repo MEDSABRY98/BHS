@@ -17,6 +17,7 @@ import {
   SCOPES,
   formatAmount,
   formatDate,
+  resolveDateMode,
   tagsOf,
   uaeToday,
   unwrap,
@@ -24,10 +25,11 @@ import {
   type MailCustomer,
   type MailLogRow,
   type MailStatus,
+  type MailTemplate,
   type StatementScope,
 } from '../Utils/MailTypes';
 
-type Setup = { format: AttachmentFormat; scope: StatementScope; dateTo: string };
+type Setup = { format: AttachmentFormat; scope: StatementScope; dateTo: string; templateId: string; perCustomer: boolean }; // templateId '' = the default email
 type Group = 'normal' | 'tags' | 'lulu';
 
 /** one row: a customer (normal / Lulu) or a tag (one group statement to all its customers) */
@@ -47,6 +49,8 @@ type Item = {
 interface StatementsTabProps {
   status: MailStatus | null;
   customers: MailCustomer[] | null;
+  /** saved email templates (Templates tab) */
+  templates: MailTemplate[];
   onSent: (row: MailLogRow) => void;
   /** the page title row: Send and Filters go there (createPortal) */
   headerEl: HTMLDivElement | null;
@@ -55,11 +59,36 @@ interface StatementsTabProps {
 
 const label = 'block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2';
 const FORMAT_SHORT: Record<AttachmentFormat, string> = { pdf: 'PDF', excel: 'Excel', both: 'PDF + Excel' };
-const describe = (s: Setup) => `${FORMAT_SHORT[s.format]} · ${s.scope === 'open' ? 'Open' : 'All'} · ${s.dateTo ? formatDate(s.dateTo) : 'Every date'}`;
+const describe = (s: Setup, templates: MailTemplate[]) => `${s.templateId ? `${templates.find((t) => t.ID === s.templateId)?.NAME || 'Template'} · ` : ''}${FORMAT_SHORT[s.format]} · ${s.scope === 'open' ? 'Open' : 'All'} · ${s.dateTo ? formatDate(s.dateTo) : 'Every date'}`;
 
-function SetupFields({ value, onChange }: { value: Setup; onChange: (s: Setup) => void }) {
+function SetupFields({ value, onChange, templates }: { value: Setup; onChange: (s: Setup) => void; templates: MailTemplate[] }) {
+  // choosing a template also fills the file / transactions / date it was saved with
+  const pickTemplate = (id: string) => {
+    const t = templates.find((x) => x.ID === id);
+    const a = t?.ATTACHMENT;
+    if (!t) return onChange({ ...value, templateId: '' });
+    if (a && (a.kind === 'customer-statement' || a.kind === 'group-statement')) {
+      onChange({ ...value, templateId: id, format: a.format, scope: a.scope, dateTo: resolveDateMode(a.dateMode) || '' });
+    } else onChange({ ...value, templateId: id });
+  };
   return (
     <div className="space-y-5">
+      <div>
+        <span className={label}>Template</span>
+        <select
+          value={value.templateId}
+          onChange={(e) => pickTemplate(e.target.value)}
+          className="w-full h-11 px-3 rounded-xl border border-slate-200 bg-white text-sm font-semibold focus:outline-none focus:ring-4 focus:ring-[#C4A052]/15 focus:border-[#C4A052]"
+        >
+          <option value="">Default statement email</option>
+          {templates.map((t) => (
+            <option key={t.ID} value={t.ID}>
+              {t.NAME}
+            </option>
+          ))}
+        </select>
+        {value.templateId && <p className="mt-1 text-[11px] font-semibold text-slate-400">The email subject and text come from this template.</p>}
+      </div>
       <div>
         <span className={label}>File</span>
         <Choice full value={value.format} options={FORMATS} onChange={(format) => onChange({ ...value, format })} />
@@ -78,14 +107,21 @@ function SetupFields({ value, onChange }: { value: Setup; onChange: (s: Setup) =
         />
         <p className="mt-1 text-[11px] font-semibold text-slate-400">Empty = every date.</p>
       </div>
+      <label className="flex items-start gap-3 cursor-pointer">
+        <input type="checkbox" checked={value.perCustomer} onChange={(e) => onChange({ ...value, perCustomer: e.target.checked })} className="mt-0.5 w-4 h-4 accent-[#C4A052]" />
+        <span>
+          <span className="block text-sm font-bold text-slate-700">Groups: also a statement for each customer</span>
+          <span className="block text-[11px] font-semibold text-slate-400">The group email carries the group statement plus one file per customer of the group.</span>
+        </span>
+      </label>
     </div>
   );
 }
 
-export default function StatementsTab({ status, customers, onSent, headerEl, active }: StatementsTabProps) {
+export default function StatementsTab({ status, customers, templates, onSent, headerEl, active }: StatementsTabProps) {
   const [search, setSearch] = useState('');
   const [group, setGroup] = useState<Group>('normal');
-  const [main, setMain] = useState<Setup>({ format: 'pdf', scope: 'open', dateTo: uaeToday() });
+  const [main, setMain] = useState<Setup>({ format: 'pdf', scope: 'open', dateTo: uaeToday(), templateId: '', perCustomer: true });
   const [mainDraft, setMainDraft] = useState<Setup | null>(null);
   const [own, setOwn] = useState<Record<string, Setup>>({}); // customers whose attachment was changed
   const [picked, setPicked] = useState<Set<string>>(new Set());
@@ -157,7 +193,7 @@ export default function StatementsTab({ status, customers, onSent, headerEl, act
       const c = chosen[i];
       const s = setupOf(c.key);
       try {
-        const row = unwrap(await sendCustomerStatement({ customerName: c.name, customerId: c.customerId || null, tag: c.tag, format: s.format, scope: s.scope, dateTo: s.dateTo || null }));
+        const row = unwrap(await sendCustomerStatement({ customerName: c.name, customerId: c.customerId || null, tag: c.tag, format: s.format, scope: s.scope, dateTo: s.dateTo || null, templateId: s.templateId || null, perCustomer: s.perCustomer }));
         onSent(row);
         ok++;
         setSent((p) => ({ ...p, [c.key]: 'ok' }));
@@ -193,7 +229,7 @@ export default function StatementsTab({ status, customers, onSent, headerEl, act
               className="h-11 px-4 rounded-xl border border-slate-200 bg-white text-sm font-bold text-slate-600 hover:bg-slate-50 flex items-center gap-2"
               title="Main settings"
             >
-              <SlidersHorizontal className="w-4 h-4" /> {describe(main)}
+              <SlidersHorizontal className="w-4 h-4" /> {describe(main, templates)}
             </button>
           </div>,
           headerEl,
@@ -305,7 +341,7 @@ export default function StatementsTab({ status, customers, onSent, headerEl, act
                           className={`h-9 px-3 mx-auto flex items-center gap-1.5 rounded-lg border text-xs font-bold whitespace-nowrap hover:bg-slate-50 ${own[c.key] ? 'border-[#C4A052] text-slate-800' : 'border-slate-200 text-slate-500'}`}
                           title={own[c.key] ? 'Own settings for this customer' : 'Main settings'}
                         >
-                          <Paperclip className="w-4 h-4 text-[#C4A052]" /> {describe(s)}
+                          <Paperclip className="w-4 h-4 text-[#C4A052]" /> {describe(s, templates)}
                         </button>
                       </td>
                     </tr>
@@ -341,7 +377,7 @@ export default function StatementsTab({ status, customers, onSent, headerEl, act
           </div>
         }
       >
-        {mainDraft && <SetupFields value={mainDraft} onChange={setMainDraft} />}
+        {mainDraft && <SetupFields value={mainDraft} onChange={setMainDraft} templates={templates} />}
       </Modal>
 
       {/* emails of the customer */}
@@ -412,7 +448,7 @@ export default function StatementsTab({ status, customers, onSent, headerEl, act
           </div>
         }
       >
-        {editing && <SetupFields value={editing.setup} onChange={(setup) => setEditing({ ...editing, setup })} />}
+        {editing && <SetupFields value={editing.setup} onChange={(setup) => setEditing({ ...editing, setup })} templates={templates} />}
       </Modal>
 
       {/* confirm */}
@@ -439,7 +475,7 @@ export default function StatementsTab({ status, customers, onSent, headerEl, act
               <span className="font-bold text-slate-800 truncate" dir="auto">
                 {c.name}
               </span>
-              <span className="text-xs font-semibold text-slate-400 whitespace-nowrap">{describe(setupOf(c.key))}</span>
+              <span className="text-xs font-semibold text-slate-400 whitespace-nowrap">{describe(setupOf(c.key), templates)}</span>
             </li>
           ))}
         </ul>

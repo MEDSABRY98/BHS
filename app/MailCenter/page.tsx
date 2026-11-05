@@ -95,7 +95,7 @@ export default function MailCenterPage() {
 
   const loadBase = useCallback(async () => {
     const jobs: Promise<unknown>[] = [getMailStatus().then(setStatus)];
-    if (canPick || tabs.includes('templates')) jobs.push(listMailTemplates().then(setTemplates));
+    if (canPick || tabs.includes('templates') || tabs.includes('statements')) jobs.push(listMailTemplates().then(setTemplates));
     await Promise.all(jobs.map((j) => j.catch((e: any) => toast.error(e?.message || 'Could not load the data'))));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canPick, tabs.join(',')]);
@@ -220,7 +220,7 @@ export default function MailCenterPage() {
               )}
               {tabs.includes('statements') && (
                 <div className={show('statements')}>
-                  <StatementsTab status={status} customers={customers} onSent={(r) => onSent([r])} headerEl={headerEl} active={activeTab === 'statements'} />
+                  <StatementsTab status={status} customers={customers} templates={templates} onSent={(r) => onSent([r])} headerEl={headerEl} active={activeTab === 'statements'} />
                 </div>
               )}
               {tabs.includes('templates') && (
