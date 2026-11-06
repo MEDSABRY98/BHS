@@ -145,19 +145,22 @@ export function SimpleTable<T>({
   rows,
   empty = 'No data',
   footer,
+  pageSize = PAGE_SIZE,
 }: {
   columns: Column<T>[];
   rows: T[];
   empty?: string;
   footer?: React.ReactNode[];
+  /** rows per page (default 25) */
+  pageSize?: number;
 }) {
   const [page, setPage] = useState(0);
-  const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  const pages = Math.max(1, Math.ceil(rows.length / pageSize));
   // back to the first page when the data changes (other salesperson, period, search…)
   useEffect(() => setPage(0), [rows]);
   const current = Math.min(page, pages - 1);
-  const offset = current * PAGE_SIZE;
-  const pageRows = rows.slice(offset, offset + PAGE_SIZE);
+  const offset = current * pageSize;
+  const pageRows = rows.slice(offset, offset + pageSize);
 
   return (
     <div>
@@ -183,7 +186,7 @@ export function SimpleTable<T>({
             pageRows.map((row, i) => (
               <tr key={offset + i} className="border-b border-slate-100 odd:bg-white even:bg-slate-50/60 hover:bg-amber-50/40">
                 {columns.map((c) => (
-                  <td key={c.header} className={`px-3 py-2 text-center text-slate-700 ${c.className || ''}`}>
+                  <td key={c.header} className={`px-3 py-2 text-center text-slate-700 ${c.header === 'City' ? 'whitespace-nowrap' : ''} ${c.className || ''}`}>
                     {c.cell(row, offset + i)}
                   </td>
                 ))}
@@ -207,7 +210,7 @@ export function SimpleTable<T>({
     {pages > 1 ? (
       <div className="flex items-center justify-between gap-3 mt-3 text-xs font-semibold text-slate-500">
         <span>
-          {offset + 1}-{Math.min(offset + PAGE_SIZE, rows.length)} of {rows.length}
+          {offset + 1}-{Math.min(offset + pageSize, rows.length)} of {rows.length}
         </span>
         <div className="flex items-center gap-1">
           <button

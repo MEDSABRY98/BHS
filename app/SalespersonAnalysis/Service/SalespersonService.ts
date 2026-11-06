@@ -11,6 +11,7 @@
 
 import { getSessionUser, isAdminUser, UnauthorizedError, type SessionUserRecord } from '@/lib/session';
 import { hasFullDebitAccess } from '@/app/CustomersAnalysis/Service/debit_scope';
+import { getManagedReps } from '@/lib/AreaManagers';
 import type { Period, SalespersonData, SalespersonOption } from '../Utils/Types';
 import { loadCustomers, loadUsers } from './DailyReportData';
 import { BuildSalespersonData, LoadSalespersonInputs, ResolveSalespersonId } from './SalespersonData';
@@ -62,7 +63,16 @@ export async function ListSalespersons(): Promise<{ canChoose: boolean; salesper
 
   if (!hasFullDebitAccess(user, 'salesperson-analysis')) {
     const id = idByKey.get(norm(user.id)) || norm(user.id);
-    return { canChoose: false, salespersons: [{ id, name: nameById.get(id) || user.name }] };
+    const me = { id, name: nameById.get(id) || user.name };
+    // area manager: himself + the salespersons he supervises
+    const managed = await getManagedReps(String(user.id));
+    if (!managed.ids.length) return { canChoose: false, salespersons: [me] };
+    const team = new Map<string, SalespersonOption>([[me.id, me]]);
+    for (const rid of managed.ids) {
+      const rep = idByKey.get(rid) || rid;
+      if (!team.has(rep)) team.set(rep, { id: rep, name: nameById.get(rep) || rid });
+    }
+    return { canChoose: true, salespersons: Array.from(team.values()).sort((a, b) => a.name.localeCompare(b.name)) };
   }
 
   const options = new Map<string, SalespersonOption>();
@@ -89,7 +99,9 @@ export async function GetSalespersonData(input: { salespersonId: string; period:
   const ownId = ResolveSalespersonId(inputs, user.id);
   const targetId = ResolveSalespersonId(inputs, input.salespersonId);
   if (!hasFullDebitAccess(user, 'salesperson-analysis') && targetId !== ownId) {
-    throw new UnauthorizedError("You can only see your own analysis.");
+    const managed = await getManagedReps(String(user.id));
+    const allowed = managed.ids.map((rid) => ResolveSalespersonId(inputs, rid));
+    if (!allowed.includes(targetId)) throw new UnauthorizedError("You can only see your own analysis.");
   }
   return BuildSalespersonData({ salespersonId: input.salespersonId, period: { start, end }, showCosts: canSeeCosts(user), inputs });
 }

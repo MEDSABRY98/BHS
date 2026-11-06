@@ -4,13 +4,13 @@ export const PETTY_CASH_SYSTEM_ID = 'petty-cash';
 export const MAX_LINES = 50;        // rows per save
 export const MAX_OPEN_LINES = 200;  // rows in one petty cash
 
-/** OPEN: employee still adding rows · SUBMITTED: handed for settlement · SETTLED: admin settled it */
+/** OPEN: still adding rows · SUBMITTED: closed (one step: "Close Petty Cash") · SETTLED: old records, shown as closed */
 export type PettyCashStatus = 'OPEN' | 'SUBMITTED' | 'SETTLED';
 
 export const STATUS_META: Record<PettyCashStatus, { label: string; badge: string; dot: string }> = {
   OPEN: { label: 'Open', badge: 'bg-amber-100 text-amber-800', dot: 'bg-amber-500' },
-  SUBMITTED: { label: 'Submitted', badge: 'bg-blue-100 text-blue-700', dot: 'bg-blue-500' },
-  SETTLED: { label: 'Settled', badge: 'bg-emerald-100 text-emerald-700', dot: 'bg-emerald-500' },
+  SUBMITTED: { label: 'Closed', badge: 'bg-blue-100 text-blue-700', dot: 'bg-blue-500' },
+  SETTLED: { label: 'Closed', badge: 'bg-blue-100 text-blue-700', dot: 'bg-blue-500' },
 };
 
 export type PettyCashTabId = 'new' | 'records' | 'analysis'; // analysis: admin only

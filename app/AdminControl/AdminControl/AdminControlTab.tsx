@@ -348,6 +348,7 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
     // Reports: each id is a ready report (app/Reports/Utils/ReportsList.ts)
     'reports': [
         { id: 'products-cost', label: 'Products Cost' },
+        { id: 'salespersons-debit', label: 'Salespersons Debit & Collections' },
     ],
     'suppliers-analysis': [
         { id: 'suppliers', label: 'Suppliers Analysis' },

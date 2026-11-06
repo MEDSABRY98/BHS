@@ -1250,6 +1250,40 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
     return summary;
   }, [filteredOverdueInvoices]);
 
+  // Aging chart of the Dashboard = the REAL open debt of the customer: always every open item (never cut by the
+  // filters of this page) and aged the same way as the Ages tab (days from the due date, or months from the
+  // invoice month + payment term when the Ages mode is "months"), so both show the same numbers.
+  const chartAging = useMemo<AgingSummary>(() => {
+    const summary: AgingSummary = { atDate: 0, oneToThirty: 0, thirtyOneToSixty: 0, sixtyOneToNinety: 0, ninetyOneToOneTwenty: 0, older: 0, total: 0 };
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const monthsMode = globalFilters.agingMode === 'months';
+    overdueInvoices.forEach((inv) => {
+      const amount = inv.difference;
+      if (Math.abs(amount) <= 0.01) return;
+      const useInvoiceDate = monthsMode && (inv as any).paymentTerm !== undefined;
+      const base = useInvoiceDate ? parseInvoiceDate(inv.date) || parseInvoiceDate(inv.dueDate) : parseInvoiceDate(inv.dueDate) || parseInvoiceDate(inv.date);
+      let daysOverdue = 0;
+      if (base && !isNaN(base.getTime())) {
+        let target = new Date(base);
+        if (useInvoiceDate) {
+          const monthsToAdd = Math.round(((inv as any).paymentTerm || 0) / 30);
+          target = new Date(target.getFullYear(), target.getMonth() + monthsToAdd + 1, 1);
+        }
+        target.setHours(0, 0, 0, 0);
+        daysOverdue = Math.ceil((today.getTime() - target.getTime()) / (1000 * 60 * 60 * 24));
+      }
+      if (daysOverdue <= 0) summary.atDate += amount;
+      else if (daysOverdue <= 30) summary.oneToThirty += amount;
+      else if (daysOverdue <= 60) summary.thirtyOneToSixty += amount;
+      else if (daysOverdue <= 90) summary.sixtyOneToNinety += amount;
+      else if (daysOverdue <= 120) summary.ninetyOneToOneTwenty += amount;
+      else summary.older += amount;
+      summary.total += amount;
+    });
+    return summary;
+  }, [overdueInvoices, globalFilters.agingMode]);
+
 
   // Invoice columns - Order: CHECKBOX, DATE, NUMBER, DEBIT, CREDIT, Net Debt, Matching, Residual
   const invoiceColumns = useMemo(
@@ -1995,12 +2029,12 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
 
     // Aging Data for Chart
     const pieData = [
-      { name: 'Current', value: agingData.atDate, color: '#10B981' }, // Green
-      { name: '1-30 Days', value: agingData.oneToThirty, color: '#3B82F6' }, // Blue
-      { name: '31-60 Days', value: agingData.thirtyOneToSixty, color: '#8B5CF6' }, // Purple
-      { name: '61-90 Days', value: agingData.sixtyOneToNinety, color: '#F59E0B' }, // Yellow/Amber
-      { name: '91-120 Days', value: agingData.ninetyOneToOneTwenty, color: '#F97316' }, // Orange
-      { name: 'Older', value: agingData.older, color: '#EF4444' }, // Red
+      { name: 'Current', value: chartAging.atDate, color: '#10B981' }, // Green
+      { name: '1-30 Days', value: chartAging.oneToThirty, color: '#3B82F6' }, // Blue
+      { name: '31-60 Days', value: chartAging.thirtyOneToSixty, color: '#8B5CF6' }, // Purple
+      { name: '61-90 Days', value: chartAging.sixtyOneToNinety, color: '#F59E0B' }, // Yellow/Amber
+      { name: '91-120 Days', value: chartAging.ninetyOneToOneTwenty, color: '#F97316' }, // Orange
+      { name: 'Older', value: chartAging.older, color: '#EF4444' }, // Red
     ].filter(d => d.value > 0.01);
 
     // 90 Days Stats for Rating
@@ -2062,7 +2096,7 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
       paymentsCount3m,
       avgPaymentInterval
     };
-  }, [filteredInvoices, filteredOverdueInvoices, agingData]);
+  }, [filteredInvoices, filteredOverdueInvoices, chartAging]);
 
   // Use the sum of pieData to keep chart and pills perfectly aligned
   const agingTotal = useMemo(
@@ -2102,7 +2136,7 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
     monthlyPaymentsTrendData,
     monthlySalesTrendData,
     paymentGradientOffset,
-    agingData,
+    agingData: chartAging, // the Dashboard aging chart shows the real open debt (see chartAging)
     notes,
     dashboardMetrics,
     totalNetDebt,

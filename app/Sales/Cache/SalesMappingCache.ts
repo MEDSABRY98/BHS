@@ -1,6 +1,7 @@
 import { bhs_supabas, hasSalesDataAccessFromDb, parseBoolFlag } from '@/lib/supabase';
 import { getSalesDataServer } from '@/app/Sales/Cache/SalesCache';
 import { getSession } from '@/lib/session';
+import { getManagedReps } from '@/lib/AreaManagers';
 
 let globalMappingCache: Map<string, any> | null = null;
 let cachedUsersList: { id: string; name: string }[] | null = null;
@@ -23,7 +24,7 @@ const userDataCache = new Map<string, { raw: any[]; mappings: Map<string, any>; 
 
 /** Same data -> same key: full-access users share one, others get their own (and no-cost users a separate one). */
 function userDataKey(ctx: SalesUserContext): string {
-  return (ctx.hasSalesDataAccess ? '__ALL__' : `${ctx.cleanUserId}|${ctx.cleanUserName}`) + (ctx.canSeeCosts ? '' : '|NO_COST');
+  return (ctx.hasSalesDataAccess ? '__ALL__' : `${ctx.cleanUserId}|${ctx.cleanUserName}|${ctx.managedKeys.join(',')}`) + (ctx.canSeeCosts ? '' : '|NO_COST');
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -148,6 +149,8 @@ type SalesUserContext = {
   cleanUserId: string;
   cleanUserName: string;
   hasSalesDataAccess: boolean;
+  /** ids + names (upper-case) of the salespersons this user supervises as an area manager */
+  managedKeys: string[];
   /** false -> product costs are never sent to this user (they are set to 0 on the server) */
   canSeeCosts: boolean;
 };
@@ -179,7 +182,8 @@ function hideCost(item: any): any {
 function isMappingAssignedToUser(
   mapping: { userId?: string; salesRep?: string } | undefined,
   cleanUserId: string,
-  cleanUserName: string
+  cleanUserName: string,
+  managedKeys: string[] = []
 ): boolean {
   if (!mapping) return false;
   const repValue = String(mapping.userId || '').trim().toUpperCase();
@@ -187,6 +191,12 @@ function isMappingAssignedToUser(
   if (repValue === cleanUserId) return true;
   if (cleanUserName && repValue === cleanUserName) return true;
   if (cleanUserName && String(mapping.salesRep || '').trim().toUpperCase() === cleanUserName) return true;
+  // area manager: the customers of the salespersons he supervises
+  if (managedKeys.length) {
+    if (managedKeys.includes(repValue)) return true;
+    const repName = String(mapping.salesRep || '').trim().toUpperCase();
+    if (repName && managedKeys.includes(repName)) return true;
+  }
   return false;
 }
 
@@ -227,6 +237,7 @@ async function fetchSalesUserContext(cleanUserId: string): Promise<SalesUserCont
     cleanUserId,
     cleanUserName: String(user.NAME || '').trim().toUpperCase(),
     hasSalesDataAccess: isSalesAdmin || hasSalesDataAccessFromDb(user),
+    managedKeys: (await getManagedReps(String(user.ID ?? cleanUserId))).keys,
     canSeeCosts: isSalesAdmin || canSeeCostsFromDb(user),
   };
 }
@@ -240,7 +251,7 @@ export async function getMappingServer(userId: string): Promise<Map<string, any>
 
   const filtered = new Map<string, any>();
   allMappings.forEach((val, key) => {
-    if (isMappingAssignedToUser(val, userContext.cleanUserId, userContext.cleanUserName)) {
+    if (isMappingAssignedToUser(val, userContext.cleanUserId, userContext.cleanUserName, userContext.managedKeys)) {
       filtered.set(key, val);
     }
   });
@@ -290,7 +301,7 @@ export async function getFilteredSalesData(userId: string): Promise<any[]> {
 
   const rawSales = await getSalesDataServer();
   const allMappings = await getGlobalMappings();
-  const { cleanUserId, cleanUserName, hasSalesDataAccess, canSeeCosts } = userContext;
+  const { cleanUserId, cleanUserName, hasSalesDataAccess, canSeeCosts, managedKeys } = userContext;
 
   // Same sales cache + same mappings -> same result: reuse it.
   const cacheKey = userDataKey(userContext);
@@ -306,7 +317,7 @@ export async function getFilteredSalesData(userId: string): Promise<any[]> {
     const cId = String(item.customerId || '').trim().toUpperCase();
     const mapping = allMappings.get(cId);
 
-    const isAssigned = isMappingAssignedToUser(mapping, cleanUserId, cleanUserName);
+    const isAssigned = isMappingAssignedToUser(mapping, cleanUserId, cleanUserName, managedKeys);
 
     if (hasSalesDataAccess || isAssigned) {
       processed.push({

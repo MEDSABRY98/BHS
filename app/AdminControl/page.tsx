@@ -7,6 +7,7 @@ import { Menu } from 'lucide-react';
 import UserActivityTab from './UserActivity/UserActivityTab';
 import AdminControlTab from './AdminControl/AdminControlTab';
 import ModuleAdminsTab from './ModuleAdmins/ModuleAdminsTab';
+import AreaManagersTab from './AreaManagers/AreaManagersTab';
 import AdminSidebar from './Code/Sidebar';
 import TabPanel from '@/app/Components/Layout/TabPanel';
 import { restoreSessionUser } from '@/app/Components/Auth/sessionClient';
@@ -135,6 +136,9 @@ export default function AdminControlPage() {
           </TabPanel>
           <TabPanel tabId="module-admins" activeTab={activeTab} isVisited={visitedTabs.has('module-admins')}>
             <ModuleAdminsTab />
+          </TabPanel>
+          <TabPanel tabId="area-managers" activeTab={activeTab} isVisited={visitedTabs.has('area-managers')}>
+            <AreaManagersTab />
           </TabPanel>
         </div>
       </div>

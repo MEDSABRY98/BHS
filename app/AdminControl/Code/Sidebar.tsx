@@ -9,6 +9,7 @@ import {
   X,
   Shield,
   ShieldCheck,
+  MapPinned,
 } from 'lucide-react';
 
 interface AdminSidebarProps {
@@ -22,6 +23,7 @@ interface AdminSidebarProps {
 const TABS = [
   { id: 'admin-control', label: 'Admin Control', icon: Shield },
   { id: 'module-admins', label: 'Module Admins', icon: ShieldCheck },
+  { id: 'area-managers', label: 'Area Managers', icon: MapPinned },
   { id: 'user-activity', label: 'User Activity', icon: Activity },
 ];
 

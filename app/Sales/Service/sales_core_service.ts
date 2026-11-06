@@ -636,14 +636,14 @@ export async function getClientSalesData(userId: string, watermark?: string): Pr
   }
 
   const allMappings = await getGlobalMappings();
-  const { cleanUserId, cleanUserName, hasSalesDataAccess, canSeeCosts } = userContext;
+  const { cleanUserId, cleanUserName, hasSalesDataAccess, canSeeCosts, managedKeys } = userContext;
 
   const processed: any[] = [];
   rawSales.forEach((item: any) => {
     const cId = String(item.customerId || '').trim().toUpperCase();
     const mapping = allMappings.get(cId);
 
-    const isAssigned = isMappingAssignedToUser(mapping, cleanUserId, cleanUserName);
+    const isAssigned = isMappingAssignedToUser(mapping, cleanUserId, cleanUserName, managedKeys);
 
     if (hasSalesDataAccess || isAssigned) {
       processed.push({

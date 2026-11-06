@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { BadgeCheck, BarChart3, Check, CheckCheck, FileSpreadsheet, FileText, Loader2, Pencil, RotateCcw, Search, Send, Trash2, X } from 'lucide-react';
+import { BarChart3, Check, CheckCheck, FileSpreadsheet, FileText, Loader2, Pencil, Search, Send, Trash2, X } from 'lucide-react';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import { toast } from '@/app/Components/Notification';
 import EmployeeSelect, { type EmployeeOption } from './EmployeeSelect';
@@ -34,7 +34,7 @@ interface PettyCashCardsProps {
 }
 
 type StatusAction = { p: PettyCash; to: 'SUBMIT' | PettyCashStatus } | null;
-const STATUS_FILTERS: ('' | PettyCashStatus)[] = ['', 'OPEN', 'SUBMITTED', 'SETTLED'];
+const STATUS_FILTERS: ('' | PettyCashStatus)[] = ['', 'OPEN', 'SUBMITTED']; // SUBMITTED = Closed (old SETTLED records count as closed)
 
 type Kind = 'pdf' | 'xlsx' | 'analysis';
 type Busy = { id: string; kind: Kind } | null;
@@ -70,7 +70,7 @@ export default function PettyCashCards({ items, viewAll, canEditTab, onEdit, cur
       const updated = to === 'SUBMIT' ? await submitPettyCash(p.ID) : await setPettyCashStatus(p.ID, to);
       onChanged(updated);
       toast.success(
-        to === 'SUBMIT' ? `${p.ID} submitted for settlement` : to === 'SETTLED' ? `${p.ID} settled` : `${p.ID} is ${STATUS_META[to].label.toLowerCase()} again`,
+        `${p.ID} closed`,
       );
       setStatusAction(null);
     } catch (err: any) {
@@ -134,14 +134,14 @@ export default function PettyCashCards({ items, viewAll, canEditTab, onEdit, cur
 
   const statusCounts = useMemo(() => {
     const c: Record<string, number> = { '': items.length, OPEN: 0, SUBMITTED: 0, SETTLED: 0 };
-    for (const p of items) c[p.STATUS] = (c[p.STATUS] || 0) + 1;
+    for (const p of items) c[p.STATUS === 'SETTLED' ? 'SUBMITTED' : p.STATUS] = (c[p.STATUS === 'SETTLED' ? 'SUBMITTED' : p.STATUS] || 0) + 1;
     return c;
   }, [items]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return items.filter((p) => {
-      if (status && p.STATUS !== status) return false;
+      if (status === 'SUBMITTED' ? p.STATUS === 'OPEN' : status && p.STATUS !== status) return false; // Closed = anything not open
       const day = uaeDateOf(p.CREATED_AT);
       if (dateFrom && day < dateFrom) return false;
       if (dateTo && day > dateTo) return false;
@@ -387,8 +387,8 @@ export default function PettyCashCards({ items, viewAll, canEditTab, onEdit, cur
                     {p.CREATED_BY && p.CREATED_BY !== p.EMPLOYEE_NAME ? ` · recorded by ${p.CREATED_BY}` : ''} · {formatDate(uaeDateOf(p.CREATED_AT))}
                     {p.STATUS === 'SETTLED' && p.SETTLED_AT && (
                       <span className="text-emerald-400">
-                        {' '}· Settled {formatDate(uaeDateOf(p.SETTLED_AT))}
-                        {viewAll && p.SETTLED_BY ? ` by ${p.SETTLED_BY}` : ''}
+                        {' '}· Closed {formatDate(uaeDateOf(p.SETTLED_AT))}
+                        {''}
                       </span>
                     )}
                   </p>
@@ -439,16 +439,16 @@ export default function PettyCashCards({ items, viewAll, canEditTab, onEdit, cur
                       disabled={changing}
                       className="w-full h-11 px-5 rounded-xl justify-center bg-gradient-to-r from-amber-600 to-yellow-600 text-white text-sm font-black shadow-sm hover:brightness-105 flex items-center gap-2 disabled:opacity-50"
                     >
-                      <Send className="w-4 h-4" /> Submit for Settlement
+                      <Send className="w-4 h-4" /> Close Petty Cash
                     </button>
                   )}
-                  {viewAll && p.STATUS === 'SUBMITTED' && (
+                  {viewAll && p.STATUS === 'OPEN' && !p.MINE && (
                     <button
-                      onClick={() => setStatusAction({ p, to: 'SETTLED' })}
+                      onClick={() => setStatusAction({ p, to: 'SUBMITTED' })}
                       disabled={changing}
-                      className="w-full h-11 px-5 rounded-xl justify-center bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-black shadow-sm flex items-center gap-2 disabled:opacity-50"
+                      className="w-full h-11 px-5 rounded-xl justify-center bg-gradient-to-r from-amber-600 to-yellow-600 text-white text-sm font-black shadow-sm hover:brightness-105 flex items-center gap-2 disabled:opacity-50"
                     >
-                      <BadgeCheck className="w-4 h-4" /> Mark as Settled
+                      <Send className="w-4 h-4" /> Close Petty Cash
                     </button>
                   )}
                 <div className="flex gap-2">
@@ -485,16 +485,6 @@ export default function PettyCashCards({ items, viewAll, canEditTab, onEdit, cur
                     className="flex-1 min-w-0 h-10 px-2 rounded-xl border border-slate-200 text-sm font-bold text-amber-700 hover:bg-amber-50 flex items-center justify-center gap-1.5 whitespace-nowrap disabled:opacity-40"
                   >
                     <Pencil className="w-4 h-4" /> Edit
-                  </button>
-                )}
-                {viewAll && p.STATUS !== 'SUBMITTED' && (
-                  <button
-                    onClick={() => setStatusAction({ p, to: 'SUBMITTED' })}
-                    disabled={changing}
-                    className="flex-1 min-w-0 h-10 px-2 rounded-xl border border-slate-200 text-sm font-bold text-blue-600 hover:bg-blue-50 flex items-center justify-center gap-1.5 whitespace-nowrap disabled:opacity-40"
-                    title={p.STATUS === 'SETTLED' ? 'Undo settle (back to Submitted)' : 'Close it (Submitted)'}
-                  >
-                    <RotateCcw className="w-4 h-4" /> {p.STATUS === 'SETTLED' ? 'Undo Settle' : 'Close'}
                   </button>
                 )}
                 {canDelete && (
@@ -563,31 +553,17 @@ export default function PettyCashCards({ items, viewAll, canEditTab, onEdit, cur
 
       <ConfirmDialog
         open={!!statusAction}
-        title={
-          statusAction
-            ? statusAction.to === 'SUBMIT'
-              ? `Submit ${statusAction.p.ID} for settlement?`
-              : statusAction.to === 'SETTLED'
-                ? `Settle ${statusAction.p.ID}?`
-                : `Move ${statusAction.p.ID} back to Submitted?`
-            : ''
-        }
+        title={statusAction ? `Close ${statusAction.p.ID}?` : ''}
         message={
           statusAction ? (
             <>
               {statusAction.p.EMPLOYEE_NAME} · {statusAction.p.LINES_COUNT} row{statusAction.p.LINES_COUNT === 1 ? '' : 's'} · AED {formatAmount(statusAction.p.TOTAL_AMOUNT)}
               <br />
-              {statusAction.to === 'SUBMIT'
-                ? "You won't be able to edit it after submitting. New rows will start a new petty cash."
-                : statusAction.to === 'SETTLED'
-                  ? 'It will be marked as settled with the employee.'
-                  : statusAction.p.STATUS === 'OPEN'
-                    ? "The employee won't be able to add to it anymore."
-                    : 'It will no longer show as settled.'}
+              The petty cash will be closed. New rows will start a new petty cash.
             </>
           ) : null
         }
-        confirmLabel={statusAction?.to === 'SUBMIT' ? 'Submit' : statusAction?.to === 'SETTLED' ? 'Settle' : 'Confirm'}
+        confirmLabel="Close"
         tone="primary"
         busy={changing}
         onConfirm={() => void confirmStatus()}

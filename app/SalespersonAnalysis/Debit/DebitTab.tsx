@@ -47,6 +47,7 @@ export default function DebitTab() {
             { header: '#', cell: (_, i) => <span className="text-slate-400">{i + 1}</span> },
             { header: 'Customer', cell: (r) => <CustomerLink name={r.name} onOpen={setPopup} /> },
             { header: 'City', cell: (r) => r.city },
+            { header: 'Payment Term', cell: (r) => (r.paymentTerm === null ? <span className="text-slate-300">-</span> : <span className="font-semibold">{r.paymentTerm} days</span>) },
             { header: 'Balance', cell: (r) => <span className="font-mono font-black text-slate-900">{Money(r.balance)}</span> },
             ...AGING_BUCKETS.map((b, i) => ({
               header: b.label,
@@ -76,6 +77,7 @@ export default function DebitTab() {
   const totalsRow = (list: CustomerRow[]): React.ReactNode[] => [
             '',
             'TOTAL',
+            '',
             '',
             Money(list.reduce((s, c) => s + c.balance, 0)),
             ...AGING_BUCKETS.map((b) => Money(list.reduce((s, c) => s + (c.aging[b.key] || 0), 0))),
@@ -181,9 +183,9 @@ export default function DebitTab() {
         }
       >
         {view === 'DEFAULT' ? (
-          <SimpleTable rows={customers} columns={customerColumns} footer={totalsRow(customers)} />
+          <SimpleTable rows={customers} columns={customerColumns} footer={totalsRow(customers)} pageSize={50} />
         ) : view === 'NO TAGS' ? (
-          <SimpleTable rows={noTagCustomers} columns={customerColumns} footer={totalsRow(noTagCustomers)} empty="No customers without a tag" />
+          <SimpleTable rows={noTagCustomers} columns={customerColumns} footer={totalsRow(noTagCustomers)} pageSize={50} empty="No customers without a tag" />
         ) : !tagGroups.length ? (
           <div className="text-center text-slate-400 py-10 font-medium">No tagged customers</div>
         ) : (
@@ -205,7 +207,7 @@ export default function DebitTab() {
                     <React.Fragment key={g.tag}>
                       {/* tag header row with the tag's totals */}
                       <tr className="bg-slate-200 text-slate-800">
-                        <td colSpan={3} className="px-3 py-2.5 text-left border-y border-slate-300">
+                        <td colSpan={4} className="px-3 py-2.5 text-left border-y border-slate-300">
                           <span className="inline-flex items-center gap-2">
                             <Tag className="w-4 h-4 text-slate-500" />
                             <span className="font-black">{g.tag}</span>
@@ -214,7 +216,7 @@ export default function DebitTab() {
                             </span>
                           </span>
                         </td>
-                        {tot.slice(3).map((v, i) => (
+                        {tot.slice(4).map((v, i) => (
                           <td key={i} className="px-3 py-2.5 text-center font-mono font-black border-y border-slate-300">
                             {v}
                           </td>
@@ -223,7 +225,7 @@ export default function DebitTab() {
                       {g.list.map((r, i) => (
                         <tr key={`${g.tag}|${r.name}`} className="border-b border-slate-100 odd:bg-white even:bg-slate-50/60 hover:bg-amber-50/40">
                           {customerColumns.map((c) => (
-                            <td key={c.header} className="px-3 py-2 text-center text-slate-700">
+                            <td key={c.header} className={`px-3 py-2 text-center text-slate-700 ${c.header === 'City' ? 'whitespace-nowrap' : ''}`}>
                               {c.cell(r, i)}
                             </td>
                           ))}

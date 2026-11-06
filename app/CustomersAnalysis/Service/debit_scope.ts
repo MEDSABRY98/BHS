@@ -19,6 +19,7 @@
 import { getSupabaseAdmin } from '@/lib/supabaseAdmin';
 import { isAdminUser, type SessionUserRecord } from '@/lib/session';
 import { hasSalesDataAccess } from '@/lib/supabase';
+import { getManagedReps } from '@/lib/AreaManagers';
 import { getSalesDataServer } from '@/app/Sales/Cache/SalesCache';
 import type { InvoiceRow } from '@/types';
 
@@ -86,21 +87,25 @@ async function loadCustomers(): Promise<Map<string, Customer>> {
 }
 
 export async function buildDebitScope(user: SessionUserRecord): Promise<DebitScope> {
-  return buildDebitScopeFor({ id: user.id, name: user.name }, { includeMerchandiser: true });
+  // an area manager also gets the share of every salesperson he supervises
+  const managed = await getManagedReps(String(user.id));
+  return buildDebitScopeFor({ id: user.id, name: user.name, alsoIds: managed.ids }, { includeMerchandiser: true });
 }
 
 /**
  * Same rules for any person (e.g. Salesperson Analysis picks a salesperson).
  * includeMerchandiser=false → only the SALES_REP role counts.
+ * alsoIds: more people counted as "me" (the salespersons of an area manager).
  */
 export async function buildDebitScopeFor(
-  target: { id: string; name: string },
+  target: { id: string; name: string; alsoIds?: string[] },
   options: { includeMerchandiser: boolean },
 ): Promise<DebitScope> {
   const [userIds, customers, sales] = await Promise.all([loadUserIds(), loadCustomers(), getSalesDataServer()]);
   const person = (v: string) => (v ? userIds.get(v) || v : '');
   const meId = person(norm(target.id)) || person(norm(target.name));
-  const isMe = (p: string) => !!p && person(p) === meId;
+  const team = new Set<string>([meId, ...(target.alsoIds || []).map((x) => person(norm(x)))].filter(Boolean));
+  const isMe = (p: string) => !!p && team.has(person(p));
   const withMerch = options.includeMerchandiser;
 
   // People per main customer (deduplicated by user)
@@ -129,8 +134,9 @@ export async function buildDebitScopeFor(
     const cust = customers.get(norm(row.customerId));
     const g = cust ? groups.get(cust.main) : undefined;
     if (!g) return 0;
-    const asRep = g.reps.has(meId) ? 1 / g.reps.size : 0;
-    const asMerch = withMerch && g.merchs.has(meId) ? 1 / g.merchs.size : 0;
+    const inTeam = (set: Set<string>) => (set.size ? Array.from(set).filter((p) => team.has(p)).length / set.size : 0);
+    const asRep = inTeam(g.reps);
+    const asMerch = withMerch ? inTeam(g.merchs) : 0;
     return Math.max(asRep, asMerch);
   };
 

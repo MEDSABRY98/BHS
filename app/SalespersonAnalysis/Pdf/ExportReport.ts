@@ -15,6 +15,7 @@ import {
   ComputeCollections,
   ComputeDebit,
   ComputeSales,
+  LedgerOverdueAbove,
   DaysSince,
   LATENESS_BUCKETS,
   ShiftYear,
@@ -73,9 +74,18 @@ const todayIso = () => {
   return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
 };
 
-export async function ExportSalespersonReport(data: SalespersonData, agingMode: AgingMode): Promise<void> {
+/**
+ * opts.debitCollections: only the Debit + Collections pages (Reports → Salespersons Debit).
+ * opts.minDays: the Debit pages count only the debit older than that many days.
+ * opts.asBlob: return the PDF instead of downloading it.
+ */
+export async function ExportSalespersonReport(
+  data: SalespersonData,
+  agingMode: AgingMode,
+  opts: { debitCollections?: boolean; minDays?: number; asBlob?: boolean } = {},
+): Promise<Blob | void> {
   const sales = ComputeSales(data);
-  const debit = ComputeDebit(data, agingMode);
+  const debit = ComputeDebit(opts.minDays && opts.minDays > 0 ? { ...data, ledger: LedgerOverdueAbove(data, opts.minDays, agingMode) } : data, agingMode);
   const coll = ComputeCollections(data);
   const quality = ComputeCollectionQuality(data);
   const { period } = data;
@@ -107,7 +117,7 @@ export async function ExportSalespersonReport(data: SalespersonData, agingMode: 
   };
 
   // ── page header ──
-  let section = 'Sales';
+  let section = opts.debitCollections ? 'Debit' : 'Sales';
   const header = () => {
     setFill(C.ink);
     doc.rect(0, 0, W, 30, 'F');
@@ -119,10 +129,10 @@ export async function ExportSalespersonReport(data: SalespersonData, agingMode: 
     doc.text(data.salesperson.name, M, 14);
     font('normal', 9);
     setText([203, 213, 225]);
-    doc.text(`${section}  •  compared with ${fmtDay(data.windowStart)} - ${fmtDay(prevEnd)}`, M, 21);
+    doc.text(section === 'Debit' && opts.debitCollections ? `Debit  •  aging by ${agingMode === 'days' ? 'days past the due date' : 'invoice month + payment term'}${opts.minDays ? `  •  older than ${opts.minDays} days` : ''}` : `${section}  •  compared with ${fmtDay(data.windowStart)} - ${fmtDay(prevEnd)}`, M, 21);
     font('bold', 9);
     setText(C.gold);
-    doc.text('SALESPERSON ANALYSIS', W - M, 12, { align: 'right' });
+    doc.text(opts.debitCollections ? 'SALESPERSON DEBIT & COLLECTIONS' : 'SALESPERSON ANALYSIS', W - M, 12, { align: 'right' });
     font('normal', 8);
     setText([203, 213, 225]);
     doc.text(`${fmtDay(period.start)}  -  ${fmtDay(period.end)}`, W - M, 18, { align: 'right' });
@@ -359,6 +369,7 @@ export async function ExportSalespersonReport(data: SalespersonData, agingMode: 
 
   // ════════════ SALES ════════════
   doc.__used = false;
+  if (!opts.debitCollections) {
   y = newPage('Sales');
   sectionTitle('Sales Overview', 'This period vs same period last year');
   cards([
@@ -435,6 +446,8 @@ export async function ExportSalespersonReport(data: SalespersonData, agingMode: 
     boldCols: [5],
     colWidths: { 0: 8, 3: 52 },
   });
+
+  } // end of the Sales block
 
   // ════════════ DEBIT ════════════
   y = newPage('Debit');
@@ -519,6 +532,7 @@ export async function ExportSalespersonReport(data: SalespersonData, agingMode: 
     },
   });
 
+  if (!opts.debitCollections) {
   // ════════════ COLLECTION QUALITY ════════════
   const qc = quality.cur;
   const qp = quality.prev;
@@ -568,6 +582,8 @@ export async function ExportSalespersonReport(data: SalespersonData, agingMode: 
     },
   });
 
+  } // end of the Quality block
+
   // ── footer ──
   const pages = doc.internal.getNumberOfPages();
   for (let pg = 1; pg <= pages; pg++) {
@@ -577,10 +593,11 @@ export async function ExportSalespersonReport(data: SalespersonData, agingMode: 
     doc.line(M, H - 10, W - M, H - 10);
     font('normal', 7);
     setText(C.muted);
-    doc.text('Salesperson Analysis Report', M, H - 6);
+    doc.text(opts.debitCollections ? 'Salesperson Debit & Collections Report' : 'Salesperson Analysis Report', M, H - 6);
     doc.text(`Page ${pg} of ${pages}`, W - M, H - 6, { align: 'right' });
   }
 
   const safeName = data.salesperson.name.replace(/[\\/:*?"<>|]+/g, ' ').trim() || 'Salesperson';
+  if (opts.asBlob) return doc.output('blob') as Blob;
   saveTrackedPdf(doc, `${safeName}_${period.start}_${period.end}.pdf`);
 }

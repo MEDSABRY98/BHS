@@ -4,6 +4,7 @@ import { getSupabaseAdmin } from '@/lib/supabaseAdmin';
 
 import { bhs_supabase, getSheetData } from '@/lib/supabase';
 import { InvoiceRow } from '@/types';
+import { getManagedReps } from '@/lib/AreaManagers';
 import { applyDebitScope, buildDebitScope, buildRepAllocation, hasFullDebitAccess, type DebitScope } from './debit_scope';
 
 export interface DebitMetadata {
@@ -157,7 +158,22 @@ export async function getPaymentRepAllocation(): Promise<
 > {
   const user = await getSessionUser();
   if (!user) throw new UnauthorizedError('Your session has expired. Please log in again.');
-  if (!hasFullDebitAccess(user)) return { mode: 'self', rep: user.name };
+  if (!hasFullDebitAccess(user)) {
+    const managed = await getManagedReps(String(user.id));
+    if (!managed.ids.length) return { mode: 'self', rep: user.name };
+    // area manager: his own share + his salespersons' shares, split per salesperson
+    const scope = await buildDebitScope(user);
+    const mine = applyDebitScope((await getSheetData()) as InvoiceRow[], scope);
+    const team = new Set<string>([String(user.name || '').trim().toUpperCase(), ...managed.keys]);
+    const everyone = await buildRepAllocation(mine);
+    const allocation: Record<string, { rep: string; share: number }[]> = {};
+    for (const [rowId, list] of Object.entries(everyone)) {
+      const inTeam = list.filter((x) => team.has(String(x.rep).trim().toUpperCase()));
+      const total = inTeam.reduce((s, x) => s + x.share, 0);
+      allocation[rowId] = total > 0 ? inTeam.map((x) => ({ rep: x.rep, share: x.share / total })) : [{ rep: user.name, share: 1 }];
+    }
+    return { mode: 'full', allocation };
+  }
   const rows = (await getSheetData()) as InvoiceRow[];
   return { mode: 'full', allocation: await buildRepAllocation(rows) };
 }

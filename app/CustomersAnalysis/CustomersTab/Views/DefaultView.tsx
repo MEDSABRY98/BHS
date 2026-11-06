@@ -125,6 +125,9 @@ const DefaultView: React.FC<DefaultViewProps> = ({
                           >
                             {customer.customerName}
                           </button>
+                          <span className="shrink-0 px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 text-[11px] font-bold whitespace-nowrap" title="Payment term">
+                            {(customer as any).paymentTerm ?? '—'} days
+                          </span>
                           <button
                             onClick={async (e) => {
                               e.stopPropagation();

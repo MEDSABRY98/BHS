@@ -12,4 +12,5 @@ export const REPORTS_SYSTEM_ID = 'reports';
 
 export const REPORT_META: ReportMeta[] = [
   { id: 'products-cost', title: 'Products Cost' },
+  { id: 'salespersons-debit', title: 'Salespersons Debit & Collections' },
 ];

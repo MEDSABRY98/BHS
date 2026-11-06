@@ -396,6 +396,8 @@ export function ComputeDebit(data: SalespersonData, mode: AgingMode) {
   const customers: {
     name: string;
     city: string;
+    /** payment term of the customer (days), null when not set */
+    paymentTerm: number | null;
     balance: number;
     aging: Record<BucketKey, number>;
     overdue: number;
@@ -410,7 +412,8 @@ export function ComputeDebit(data: SalespersonData, mode: AgingMode) {
     AGING_BUCKETS.forEach((b) => (totals[b.key] += aging[b.key] || 0));
     const overdue = res.netDebt - (aging.atDate || 0);
     const city = rows.find((r) => r.city)?.city || 'Unknown';
-    customers.push({ name, city, balance: res.netDebt, aging, overdue, lastPayment: data.lastPaymentByCustomer[name] || '' });
+    const term = rows.find((r) => r.paymentTerm !== undefined && r.paymentTerm !== null)?.paymentTerm;
+    customers.push({ name, city, paymentTerm: term === undefined ? null : Number(term), balance: res.netDebt, aging, overdue, lastPayment: data.lastPaymentByCustomer[name] || '' });
     const c = cityMap.get(city) || { city, balance: 0, customers: 0 };
     c.balance += res.netDebt;
     c.customers += 1;
