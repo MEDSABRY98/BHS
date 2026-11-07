@@ -153,16 +153,26 @@ export async function generateDebitNotePdf(note: DebitNote) {
   doc.setTextColor(...C.ink);
   doc.text('Dear,', M, y);
   y += 5.5;
-  if (hasArabic(note.BODY_TEXT)) doc.setFont('Amiri', 'normal');
+  const arabicBody = hasArabic(note.BODY_TEXT);
+  if (arabicBody) doc.setFont('Amiri', 'normal');
   else doc.setFont('helvetica', 'normal');
   doc.setFontSize(9.2);
   doc.setTextColor(...C.text);
   const body = doc.splitTextToSize(note.BODY_TEXT, CW) as string[];
-  if (hasArabic(note.BODY_TEXT)) doc.text(body, W - M, y, { align: 'right' });
-  else doc.text(body, M, y, { lineHeightFactor: 1.45 });
-  y += body.length * 4.7 + 3;
+  // Arabic glyphs are taller: more space between the lines; each line is aligned by its own language
+  // (Arabic lines start from the right edge, English lines from the left)
+  const lineH = 9.2 * 0.3528 * (arabicBody ? 1.8 : 1.45);
+  body.forEach((ln, i) => {
+    const ar = hasArabic(ln);
+    doc.setFont(ar ? 'Amiri' : 'helvetica', 'normal');
+    doc.text(ln, ar ? W - M : M, y + i * lineH, { align: ar ? 'right' : 'left' });
+  });
+  y += body.length * lineH + 3;
 
   // ── Lines table ─────────────────────────────────────────
+  // Arabic descriptions need more room between their lines (the table reads the document's line height)
+  const arabicLines = note.LINES.some((l) => hasArabic(l.description));
+  if (arabicLines) doc.setLineHeightFactor(1.7);
   autoTable(doc, {
     startY: y,
     margin: { left: M, right: M, bottom: 16 },
@@ -178,6 +188,7 @@ export async function generateDebitNotePdf(note: DebitNote) {
       if (d.column.index === 1 && hasArabic(String(d.cell.raw ?? ''))) {
         d.cell.styles.font = 'Amiri';
         d.cell.styles.fontStyle = 'normal';
+        d.cell.styles.halign = 'right'; // Arabic starts from the right
       }
     },
     didDrawCell: (d) => {
@@ -187,6 +198,7 @@ export async function generateDebitNotePdf(note: DebitNote) {
       d.doc.line(d.cell.x, d.cell.y + d.cell.height, d.cell.x + d.cell.width, d.cell.y + d.cell.height);
     },
   });
+  if (arabicLines) doc.setLineHeightFactor(1.15);
   y = (doc as any).lastAutoTable.finalY + 5;
 
   // ── Amount in words (left) + totals (right) ─────────────

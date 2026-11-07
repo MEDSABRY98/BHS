@@ -353,7 +353,7 @@ export default function DebitNoteForm({ editNote = null, onSaved, onCancelEdit }
                           dir="auto"
                           maxLength={500}
                           placeholder="Description"
-                          className={`${field} px-3.5 py-2.5 min-h-[44px] max-h-40 field-sizing-content resize-none ${errors[l.key]?.description ? '!border-red-400 !bg-red-50/40' : ''}`}
+                          className={`${field} px-3.5 py-2.5 min-h-[44px] max-h-40 field-sizing-content resize-none leading-relaxed ${errors[l.key]?.description ? '!border-red-400 !bg-red-50/40' : ''}`}
                         />
                       </div>
                       <div className="col-start-2 sm:col-start-auto sm:px-2">
