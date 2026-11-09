@@ -1,7 +1,7 @@
 'use client';
 
 import { saveTrackedAs } from '@/app/AdminControl/Code/Audit/TrackedDownload';
-import { compareLines, formatDate, uaeDateOf, type PettyCash } from './PettyCashTypes';
+import { compareByDate, formatDate, uaeDateOf, type PettyCash } from './PettyCashTypes';
 
 // Same look as the other BHS Excel exports (app/Components/Export/ExcelExport.ts)
 const HEADER_FILL = 'FF000000';
@@ -12,7 +12,7 @@ const NUM_FMT = '#,##0.00;-#,##0.00;"-"';
 
 const safe = (s: string) => (s || '').replace(/[^\w؀-ۿ -]+/g, '').trim().slice(0, 40);
 
-/** All rows of the chosen petty cash (beneficiary, then invoice date) + a total row. */
+/** All rows of the chosen petty cash (by invoice date, oldest first) + a total row. */
 export async function exportPettyCashExcel(items: PettyCash[], opts: { period?: string; showAccount?: boolean } = {}) {
   if (!items.length) throw new Error('Nothing to export');
   const single = items.length === 1 ? items[0] : null;
@@ -42,7 +42,7 @@ export async function exportPettyCashExcel(items: PettyCash[], opts: { period?: 
   const lastCol = headers.length;
   const amountCol = headers.indexOf('Amount (AED)') + 1;
 
-  const allRows = items.flatMap((p) => p.LINES.map((l) => ({ p, l }))).sort((a, b) => compareLines(a.l, b.l));
+  const allRows = items.flatMap((p) => p.LINES.map((l) => ({ p, l }))).sort((a, b) => compareByDate({ ...a.l, NO: a.p.ID }, { ...b.l, NO: b.p.ID }));
   allRows.forEach(({ p, l }, i) => {
     ws.addRow([
       i + 1,

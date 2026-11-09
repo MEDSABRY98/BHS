@@ -118,7 +118,21 @@ export function accountsSet(lines: { ACCOUNT?: string | null }[]): number {
   return lines.filter((l) => String(l.ACCOUNT || '').trim()).length;
 }
 
-/** Display / export order: beneficiary (A→Z), then invoice date (oldest first), then entry order. */
+/** Printed / exported order (PDF + Excel): invoice date (oldest first), then the petty cash number, then entry order. */
+export function compareByDate(
+  a: { INVOICE_DATE?: string | null; NO?: string | null; LINE_NO?: number | null },
+  b: { INVOICE_DATE?: string | null; NO?: string | null; LINE_NO?: number | null },
+): number {
+  const da = String(a.INVOICE_DATE ?? '');
+  const db = String(b.INVOICE_DATE ?? '');
+  return (
+    (da < db ? -1 : da > db ? 1 : 0) ||
+    String(a.NO ?? '').localeCompare(String(b.NO ?? ''), undefined, { numeric: true }) ||
+    (Number(a.LINE_NO) || 0) - (Number(b.LINE_NO) || 0)
+  );
+}
+
+/** Display order on screen: beneficiary (A→Z), then invoice date (oldest first), then entry order. */
 export function compareLines(
   a: { BENEFICIARY?: string | null; INVOICE_DATE?: string | null; LINE_NO?: number | null },
   b: { BENEFICIARY?: string | null; INVOICE_DATE?: string | null; LINE_NO?: number | null },

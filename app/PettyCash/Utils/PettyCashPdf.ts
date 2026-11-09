@@ -6,7 +6,7 @@ import { addArabicFont } from '@/app/Components/Pdf/shared';
 import { saveTrackedPdf } from '@/app/AdminControl/Code/Audit/TrackedDownload';
 import {
   COMPANY_NAME,
-  compareLines,
+  compareByDate,
   formatAmount,
   formatDate,
   missingInvoices,
@@ -90,8 +90,8 @@ export async function generatePettyCashPdf(items: PettyCash[], opts: { printedBy
   const M = 14;
   const CW = W - M * 2;
 
-  // all rows together: beneficiary, then invoice date (oldest first)
-  const rows: (PettyCashLine & { NO: string })[] = items.flatMap((p) => p.LINES.map((l) => ({ ...l, NO: p.ID }))).sort(compareLines);
+  // all rows together, by invoice date (oldest first)
+  const rows: (PettyCashLine & { NO: string })[] = items.flatMap((p) => p.LINES.map((l) => ({ ...l, NO: p.ID }))).sort(compareByDate);
   const total = round2(rows.reduce((s, l) => s + l.AMOUNT, 0));
   const taxTotal = round2(rows.reduce((s, l) => s + (l.IS_TAX_INVOICE ? l.AMOUNT : 0), 0));
   const noInvoice = missingInvoices(rows);

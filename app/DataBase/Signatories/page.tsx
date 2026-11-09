@@ -4,13 +4,22 @@
 // When a PDF is exported you choose from this list who signs and in which order.
 
 import { useCallback, useEffect, useState } from 'react';
-import { ArrowDown, ArrowUp, Loader2, Pencil, Plus, Search, Trash2, X } from 'lucide-react';
+import { Loader2, Pencil, Plus, Search, Trash2, X } from 'lucide-react';
 import { toast } from '@/app/Components/Notification';
 import TabLoader from '@/app/Components/Loading/TabLoader';
 import TabFetchError from '@/app/Components/DataState/TabFetchError';
 import NoData from '@/app/Components/DataState/NoDataTab';
-import { canEditSignatories, deleteSignatory, listSignatories, reorderSignatories, saveSignatory } from '@/app/Components/Signatures/SignatureService';
+import { canEditSignatories, deleteSignatory, listSignatories, saveSignatory } from '@/app/Components/Signatures/SignatureService';
 import type { Signatory } from '@/app/Components/Signatures/SignatureTypes';
+
+/** Alphabetical by name (people without a name last, by position) — same as the server list */
+const byNameThenTitle = (a: Signatory, b: Signatory) => {
+  const an = a.NAME.trim();
+  const bn = b.NAME.trim();
+  if (!an !== !bn) return an ? -1 : 1;
+  const cmp = (x: string, y: string) => x.localeCompare(y, undefined, { sensitivity: 'base', numeric: true });
+  return cmp(an, bn) || cmp(a.TITLE, b.TITLE);
+};
 
 type Draft = { ID?: string; TITLE: string; NAME: string; IS_ACTIVE: boolean };
 const field = 'w-full h-11 px-4 rounded-xl border border-slate-200 text-sm font-semibold focus:outline-none focus:ring-4 focus:ring-[#C4A052]/15 focus:border-[#C4A052]';
@@ -44,7 +53,7 @@ export default function SignatoriesPage() {
     setBusy(true);
     try {
       const saved = await saveSignatory(draft);
-      setRows((prev) => (draft.ID ? (prev || []).map((r) => (r.ID === saved.ID ? saved : r)) : [...(prev || []), saved]));
+      setRows((prev) => (draft.ID ? (prev || []).map((r) => (r.ID === saved.ID ? saved : r)) : [...(prev || []), saved]).sort(byNameThenTitle));
       toast.success(`${saved.TITLE} saved`);
       setDraft(null);
     } catch (e: any) {
@@ -66,21 +75,6 @@ export default function SignatoriesPage() {
       toast.error(e?.message || 'Could not delete');
     } finally {
       setBusy(false);
-    }
-  };
-
-  const move = async (i: number, d: -1 | 1) => {
-    if (!rows) return;
-    const j = i + d;
-    if (j < 0 || j >= rows.length) return;
-    const next = [...rows];
-    [next[i], next[j]] = [next[j], next[i]];
-    setRows(next);
-    try {
-      await reorderSignatories(next.map((r) => r.ID));
-    } catch (e: any) {
-      toast.error(e?.message || 'Could not save the order');
-      void load();
     }
   };
 
@@ -136,12 +130,6 @@ export default function SignatoriesPage() {
                     {canEdit && (
                       <td className="py-3 px-3">
                         <div className="flex items-center justify-center gap-1">
-                          <button onClick={() => void move(i, -1)} disabled={!!q || i === 0} className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-black hover:bg-slate-100 disabled:opacity-30" title="Up">
-                            <ArrowUp className="w-4 h-4" />
-                          </button>
-                          <button onClick={() => void move(i, 1)} disabled={!!q || i === rows.length - 1} className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-black hover:bg-slate-100 disabled:opacity-30" title="Down">
-                            <ArrowDown className="w-4 h-4" />
-                          </button>
                           <button onClick={() => setDraft({ ID: r.ID, TITLE: r.TITLE, NAME: r.NAME, IS_ACTIVE: r.IS_ACTIVE })} className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-black hover:bg-slate-100" title="Edit">
                             <Pencil className="w-4 h-4" />
                           </button>

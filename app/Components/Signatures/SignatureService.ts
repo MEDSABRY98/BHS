@@ -37,7 +37,16 @@ const toSignatory = (r: any): Signatory => ({
   SORT_ORDER: Number(r.SORT_ORDER) || 0,
 });
 
-/** Every signatory (active and not), in the list order. */
+/** Alphabetical by name (people without a name last, by position). The natural order of the list. */
+function byNameThenTitle(a: Signatory, b: Signatory): number {
+  const an = a.NAME.trim();
+  const bn = b.NAME.trim();
+  if (!an !== !bn) return an ? -1 : 1;
+  const cmp = (x: string, y: string) => x.localeCompare(y, undefined, { sensitivity: 'base', numeric: true });
+  return cmp(an, bn) || cmp(a.TITLE, b.TITLE);
+}
+
+/** Every signatory (active and not), alphabetical by name. */
 export async function listSignatories(): Promise<Signatory[]> {
   await requireUser();
   const { data, error } = await getSupabaseAdmin().from(TABLE).select('*').order('SORT_ORDER', { ascending: true }).order('TITLE', { ascending: true });
@@ -45,7 +54,7 @@ export async function listSignatories(): Promise<Signatory[]> {
     if (error.code === '42P01') return []; // table not created yet
     throw new Error(error.message);
   }
-  return (data || []).map(toSignatory);
+  return (data || []).map(toSignatory).sort(byNameThenTitle);
 }
 
 export async function saveSignatory(input: { ID?: string; NAME: string; TITLE: string; IS_ACTIVE?: boolean }): Promise<Signatory> {
