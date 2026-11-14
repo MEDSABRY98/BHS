@@ -37,6 +37,8 @@ function IntercompanyTool({ ctx }: { ctx: FormEditorContext<IntercompanyData> })
   const init = ctx.editing?.DATA;
   const [lines, setLines] = useState<IntercompanyLine[] | null>(init?.LINES?.length ? init.LINES : null);
   const [fileName, setFileName] = useState(init?.FILE_NAME || '');
+  // typed by the user (when editing a saved form: its saved title)
+  const [title, setTitle] = useState(ctx.editing?.TITLE || '');
   const [busy, setBusy] = useState<'template' | 'upload' | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -83,10 +85,12 @@ function IntercompanyTool({ ctx }: { ctx: FormEditorContext<IntercompanyData> })
         toast.error('Upload the Excel file first');
         return null;
       }
-      const ds = lines.map((l) => l.ENTRY_DATE).sort();
-      const period = ds.length ? (ds[0] === ds[ds.length - 1] ? formatDate(ds[0]) : `${formatDate(ds[0])} – ${formatDate(ds[ds.length - 1])}`) : '';
+      if (!title.trim()) {
+        toast.error('Write the title first');
+        return null;
+      }
       return {
-        TITLE: `${fileName.replace(/\.xlsx$/i, '') || 'Intercompany'}${period ? ` · ${period}` : ''}`,
+        TITLE: title.trim(),
         DOC_DATE: ctx.editing?.DOC_DATE || uaeToday(),
         AMOUNT: round2(lines.reduce((s, l) => s + l.DEBIT - l.CREDIT, 0)),
         DATA: { FILE_NAME: fileName, LINES: lines },
@@ -124,6 +128,21 @@ function IntercompanyTool({ ctx }: { ctx: FormEditorContext<IntercompanyData> })
 
   return (
     <div className="space-y-5">
+      <div className={`${CARD} p-6 space-y-2`}>
+        <label htmlFor="intercompany-title" className="text-[11px] font-black uppercase tracking-widest text-slate-400">
+          Title <span className="text-red-500">*</span>
+        </label>
+        <input
+          id="intercompany-title"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          maxLength={200}
+          dir="auto"
+          placeholder="e.g. Intercompany Reconciliation – October 2026"
+          className="w-full h-12 px-4 rounded-xl border border-slate-200 bg-white text-sm font-bold text-slate-900 placeholder:text-slate-300 placeholder:font-semibold focus:outline-none focus:ring-4 focus:ring-[#C4A052]/15 focus:border-[#C4A052]"
+        />
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {step(
           1,

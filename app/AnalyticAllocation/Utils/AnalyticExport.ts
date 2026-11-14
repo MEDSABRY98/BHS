@@ -24,6 +24,10 @@ export async function exportAllocationExcel(a: ExportSource) {
     ]),
     { 'Analytic Account': 'TOTAL', Project: '', 'Amount (AED)': c.allocated, '%': '100.00%' },
   ];
+  const accountsOnly = [
+    ...c.accounts.map((x) => ({ 'Analytic Account': x.ACCOUNT, Project: x.PROJECT, 'Amount (AED)': x.AMOUNT, '%': `${x.PCT.toFixed(2)}%` })),
+    { 'Analytic Account': 'TOTAL', Project: '', 'Amount (AED)': c.allocated, '%': '100.00%' },
+  ];
   const people = [
     ...c.persons.map((p) => ({ Person: p.NAME, '% of Amount': `${p.PCT.toFixed(2)}%`, 'Amount (AED)': p.AMOUNT })),
     { Person: 'TOTAL', '% of Amount': '100.00%', 'Amount (AED)': round2(c.persons.reduce((s, p) => s + p.AMOUNT, 0)) },
@@ -39,6 +43,7 @@ export async function exportAllocationExcel(a: ExportSource) {
   await exportStyledExcelWorkbook(
     [
       { name: 'Summary', data: summary, options: { numericColumns: ['Amount (AED)'], columnWidth: 26 } },
+      { name: 'Accounts Summary', data: accountsOnly, options: { numericColumns: ['Amount (AED)'], columnWidth: 26 } },
       { name: 'People', data: people, options: { numericColumns: ['Amount (AED)'], columnWidth: 30 } },
       { name: 'Detail', data: detail, options: { numericColumns: ['Amount (AED)'], columnWidth: 30 } },
     ],
@@ -202,20 +207,42 @@ export async function exportAllocationPdf(a: ExportSource) {
       (i) => !!isSub[i],
     ) + 9;
 
-  // the accounts once more, short: only the account rows (no beneficiaries under them)
-  if (y > 235) {
-    doc.addPage();
-    y = 26;
-  }
-  y = heading(doc, y + 2, 'Analytic Accounts Summary');
-  y =
-    table(
+  // the accounts once more, short: only the account rows (no beneficiaries under them) — on its own page
+  doc.addPage();
+  y = heading(doc, 26, 'Analytic Accounts Summary');
+  table(
       doc,
       y,
       ['Analytic Account', 'Amount (AED)', '% of Total'],
       [...c.accounts.map((x) => [lineLabel(x.ACCOUNT, x.PROJECT), formatAmount(x.AMOUNT), `${x.PCT.toFixed(2)}%`]), ['Total', formatAmount(c.allocated), '100.00%']],
       [84, 50, 40],
-    ) + 9;
+    );
+
+  // each person with the analytic accounts loaded on him — on its own page
+  doc.addPage();
+  y = heading(doc, 26, 'Analytic Accounts by Person');
+  const perRows: string[][] = [];
+  const perSub: boolean[] = [];
+  c.persons.forEach((p) => {
+    perRows.push([p.NAME, '', formatAmount(p.AMOUNT)]);
+    perSub.push(false);
+    c.lines
+      .filter((l) => l.PERSON === p.NAME)
+      .forEach((l) => {
+        perRows.push([lineLabel(l.ACCOUNT, l.PROJECT), `${l.PCT.toFixed(2)}%`, formatAmount(l.AMOUNT)]);
+        perSub.push(true);
+      });
+  });
+  perRows.push(['Total', '', formatAmount(c.allocated)]);
+  table(
+    doc,
+    y,
+    ['Person / Analytic Account', '% of Person', 'Amount (AED)'],
+    perRows,
+    [84, 40, 50],
+    (i) => i + 1 < perSub.length && !perSub[i + 1], // gold line before the next person
+    (i) => !!perSub[i],
+  );
 
   // By Person always starts on its own page
   doc.addPage();

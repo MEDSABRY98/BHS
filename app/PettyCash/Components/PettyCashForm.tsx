@@ -16,6 +16,7 @@ import {
 import {
   MAX_LINES,
   MAX_OPEN_LINES,
+  compareLines,
   formatAmount,
   formatDate,
   round2,
@@ -60,7 +61,7 @@ const emptyRow = (base?: Partial<FormRow>): FormRow => ({
 });
 
 const rowsFrom = (p: PettyCash): FormRow[] =>
-  p.LINES.map((l) =>
+  [...p.LINES].sort(compareLines).map((l) =>
     emptyRow({
       INVOICE_DATE: l.INVOICE_DATE,
       DESCRIPTION: l.DESCRIPTION,

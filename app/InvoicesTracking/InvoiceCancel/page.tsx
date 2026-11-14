@@ -5,7 +5,6 @@ import { useInvoicesTrackingData } from '../Context/InvoicesTrackingDataContext'
 import {
   FileX2,
   Plus,
-  Printer,
   Download,
   Loader2,
   XCircle,
@@ -19,6 +18,7 @@ import {
   generateCancelInvoicePDF,
   CancelInvoicePdfRow,
 } from '@/app/InvoicesTracking/Pdf/CancelInvoicePdf';
+import { saveInvoiceCancellation } from '../Service/invoice_cancel_service';
 
 function getCurrentUserName(): string {
   if (typeof window === 'undefined') return '';
@@ -35,6 +35,7 @@ function getCurrentUserName(): string {
 interface CancelFormEntry {
   tempId: string;
   invoiceId: string;
+  customerId: string;
   customerName: string;
   amount: number;
   orderDate?: string;
@@ -54,6 +55,7 @@ export default function InvoiceCancelPage() {
   const { customers, orders, loading: isLoading } = useInvoicesTrackingData();
   const [entries, setEntries] = useState<CancelFormEntry[]>([]);
   const [notes, setNotes] = useState('');
+  const [reason, setReason] = useState('');
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
   const [formCustomerId, setFormCustomerId] = useState('');
@@ -63,6 +65,8 @@ export default function InvoiceCancelPage() {
   const [invoiceSuggestions, setInvoiceSuggestions] = useState<OrderSuggestion[]>([]);
   const [isSearchingInvoices, setIsSearchingInvoices] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  // the form saved last (same invoices + notes = same form, printing then downloading saves it once)
+  const savedRef = useRef<{ key: string; formId: string } | null>(null);
   const invoiceSearchRef = useRef<HTMLDivElement>(null);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -184,6 +188,7 @@ export default function InvoiceCancelPage() {
       {
         tempId: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
         invoiceId,
+        customerId: formCustomerId,
         customerName,
         amount,
       },
@@ -203,21 +208,44 @@ export default function InvoiceCancelPage() {
       orderDate: e.orderDate,
     }));
 
-  const handleCancelFormPdf = async (action: 'download' | 'print') => {
+  const handleCancelFormPdf = async () => {
     const rows = buildPdfRows();
     if (rows.length === 0) {
       toast.error('Add at least one invoice to the cancellation form.');
       return;
     }
 
+    if (!reason.trim()) {
+      toast.error('Please write the reason for the cancellation.');
+      return;
+    }
+
     setIsGeneratingPdf(true);
     try {
+      // every cancellation form is kept in the database before the PDF is made
+      const key = JSON.stringify([entries.map((e) => [e.invoiceId, e.customerId, e.amount]), notes.trim(), reason.trim()]);
+      let formId = savedRef.current?.key === key ? savedRef.current.formId : '';
+      if (!formId) {
+        const saved = await saveInvoiceCancellation(
+          entries.map((e) => ({ invoiceId: e.invoiceId, customerId: e.customerId, customerName: e.customerName, amount: e.amount })),
+          notes.trim() || undefined,
+          reason.trim(),
+        );
+        if (!saved.ok) {
+          toast.error(saved.error);
+          return;
+        }
+        formId = saved.formId;
+        savedRef.current = { key, formId };
+      }
       await generateCancelInvoicePDF({
+        formId,
         invoices: rows,
         cancelDate: new Date().toISOString(),
         notes: notes.trim() || undefined,
+        reason: reason.trim(),
         printedBy: getCurrentUserName() || undefined,
-        action,
+        action: 'download',
       });
     } catch (err) {
       console.error('Error generating cancel form PDF:', err);
@@ -243,21 +271,13 @@ export default function InvoiceCancelPage() {
         <div className="flex items-center gap-3">
           <button
             type="button"
-            onClick={() => handleCancelFormPdf('print')}
-            disabled={isGeneratingPdf || entries.length === 0}
-            title="Print Form"
-            className="p-3 bg-black text-[#D4AF37] rounded-2xl hover:bg-gray-900 transition-all flex items-center justify-center disabled:opacity-50"
-          >
-            {isGeneratingPdf ? <Loader2 className="w-5 h-5 animate-spin" /> : <Printer className="w-5 h-5" />}
-          </button>
-          <button
-            type="button"
-            onClick={() => handleCancelFormPdf('download')}
-            disabled={isGeneratingPdf || entries.length === 0}
-            title="Download PDF"
-            className="p-3 bg-white border border-gray-200 text-gray-700 rounded-2xl hover:bg-gray-50 transition-all flex items-center justify-center disabled:opacity-50"
+            onClick={() => handleCancelFormPdf()}
+            disabled={isGeneratingPdf || entries.length === 0 || !reason.trim()}
+            title="Save & Download PDF"
+            className="px-6 h-12 bg-black text-[#D4AF37] rounded-2xl font-black text-sm hover:bg-gray-900 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
           >
             {isGeneratingPdf ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
+            Save &amp; Download
           </button>
         </div>
       </div>
@@ -411,6 +431,20 @@ export default function InvoiceCancelPage() {
           </p>
         </div>
       )}
+
+      <div className="bg-white rounded-[3rem] p-8 shadow-sm border border-gray-100">
+        <h2 className="text-lg font-black text-black mb-4">
+          Reason for Cancellation <span className="text-red-500">*</span>
+        </h2>
+        <textarea
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          dir="auto"
+          rows={3}
+          placeholder="Why are these invoices being cancelled? (required)"
+          className="w-full px-6 py-4 bg-gray-50/50 border-2 border-gray-50 rounded-[1.5rem] focus:outline-none focus:border-black/10 focus:bg-white transition-all text-sm font-medium text-black placeholder:text-gray-300 resize-y min-h-[80px]"
+        />
+      </div>
 
       <div className="bg-white rounded-[3rem] p-8 shadow-sm border border-gray-100">
         <div className="flex items-center gap-2 mb-4">
