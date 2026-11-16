@@ -42,6 +42,13 @@ export const FORMS: FormDefinition[] = [
     prefix: 'SP',
   },
   {
+    id: 'supplier-clearance',
+    title: 'Supplier Clearance',
+    description: 'Checkpoints before a supplier is cleared (returns, product quality, deliveries): signed by the Warehouse and Supply Chain managers.',
+    path: '/Forms/SupplierClearance',
+    prefix: 'SC',
+  },
+  {
     id: 'vehicle-expenses',
     title: 'Vehicle Expenses',
     description: 'Fuel and maintenance per vehicle: download the Excel template, upload it and download the analysis PDF.',

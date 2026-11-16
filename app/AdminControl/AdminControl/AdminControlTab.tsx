@@ -336,6 +336,8 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
         { id: 'intercompany-archive', label: 'Intercompany Reconciliation · Archive' },
         { id: 'supplier-payment', label: 'Supplier Payment' },
         { id: 'supplier-payment-archive', label: 'Supplier Payment · Archive' },
+        { id: 'supplier-clearance', label: 'Supplier Clearance' },
+        { id: 'supplier-clearance-archive', label: 'Supplier Clearance · Archive' },
         { id: 'vehicle-expenses', label: 'Vehicle Expenses' },
         { id: 'vehicle-expenses-archive', label: 'Vehicle Expenses · Archive' },
     ],
@@ -348,7 +350,6 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
     // Reports: each id is a ready report (app/Reports/Utils/ReportsList.ts)
     'reports': [
         { id: 'products-cost', label: 'Products Cost' },
-        { id: 'salespersons-debit', label: 'Salespersons Debit & Collections' },
     ],
     'suppliers-analysis': [
         { id: 'suppliers', label: 'Suppliers Analysis' },
