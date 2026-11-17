@@ -27,6 +27,10 @@ export default function IntercompanyFormPage() {
         const { exportIntercompanyPdf } = await import('./IntercompanyPdf');
         await exportIntercompanyPdf(r.DATA.LINES || []);
       }}
+      onDownloadExcel={async (r) => {
+        const { exportIntercompanyLinesExcel } = await import('./IntercompanyExcel');
+        await exportIntercompanyLinesExcel(r.DATA.LINES || [], `Intercompany_${r.REF_NO}`);
+      }}
     />
   );
 }

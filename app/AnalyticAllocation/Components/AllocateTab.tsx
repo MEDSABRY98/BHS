@@ -144,14 +144,38 @@ export default function AllocateTab({ people, accountNames, projectNames, editAl
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
         <h1 className="text-3xl sm:text-4xl font-normal text-black tracking-tighter">{editAllocation ? `Edit Allocation #${shortId(editAllocation.ID)}` : 'Allocate'}</h1>
-        {editAllocation && onCancelEdit && (
-          <button onClick={onCancelEdit} className="self-start h-10 px-4 rounded-xl border border-slate-200 bg-white text-sm font-bold text-slate-600 hover:bg-slate-50 flex items-center gap-1.5">
-            <X className="w-4 h-4" /> Cancel Edit
+        <div className="flex flex-wrap gap-2">
+          <button onClick={() => void run('excel')} disabled={!canUse || !!busy} className="h-10 w-32 px-3 rounded-xl border border-slate-200 bg-white text-sm font-bold text-emerald-700 hover:bg-emerald-50 flex items-center justify-center gap-1.5 disabled:opacity-40">
+            {busy === 'excel' ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4" />} Excel
           </button>
-        )}
+          <button onClick={() => void run('pdf')} disabled={!canUse || !!busy} className="h-10 w-32 px-3 rounded-xl border border-slate-200 bg-white text-sm font-bold text-red-600 hover:bg-red-50 flex items-center justify-center gap-1.5 disabled:opacity-40">
+            {busy === 'pdf' ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />} PDF
+          </button>
+          <button onClick={() => void save()} disabled={!canUse || !title.trim() || !!busy} className="h-10 w-32 px-3 rounded-xl bg-black text-[#C4A052] text-sm font-bold flex items-center justify-center gap-1.5 disabled:opacity-40">
+            {busy === 'save' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Save
+          </button>
+          {!editAllocation && (
+            <button onClick={clear} disabled={!!busy} className="h-10 w-32 px-3 rounded-xl border border-slate-200 bg-white text-sm font-bold text-slate-500 hover:bg-slate-50 flex items-center justify-center gap-1.5">
+              <RotateCcw className="w-4 h-4" /> Clear
+            </button>
+          )}
+          {editAllocation && onCancelEdit && (
+            <button onClick={onCancelEdit} className="h-10 px-4 rounded-xl border border-slate-200 bg-white text-sm font-bold text-slate-600 hover:bg-slate-50 flex items-center gap-1.5">
+              <X className="w-4 h-4" /> Cancel Edit
+            </button>
+          )}
+        </div>
       </div>
+
+      {shownProblems.length > 0 && chosen.length > 0 && (
+        <div className="rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm font-semibold text-red-600 space-y-0.5">
+          {shownProblems.map((p) => (
+            <p key={p}>{p}</p>
+          ))}
+        </div>
+      )}
 
       {/* Details: date, title, notes (the amount is typed per person below) */}
       <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-5 grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -329,81 +353,6 @@ export default function AllocateTab({ people, accountNames, projectNames, editAl
                   <td className="py-3 px-3 tabular-nums">{formatAmount(amount)}</td>
                   <td className="py-3 px-3 tabular-nums">{amount > 0 ? '100.00%' : '-'}</td>
                   <td colSpan={2} />
-                </tr>
-              </tfoot>
-            )}
-          </table>
-        </div>
-      </div>
-
-      {/* Analysis by account */}
-      <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-5 space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <h2 className="font-black text-slate-900">Analysis by Analytic Account</h2>
-          <div className="flex flex-wrap gap-2">
-            <button onClick={() => void run('excel')} disabled={!canUse || !!busy} className="h-10 w-32 px-3 rounded-xl border border-slate-200 text-sm font-bold text-emerald-700 hover:bg-emerald-50 flex items-center justify-center gap-1.5 disabled:opacity-40">
-              {busy === 'excel' ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4" />} Excel
-            </button>
-            <button onClick={() => void run('pdf')} disabled={!canUse || !!busy} className="h-10 w-32 px-3 rounded-xl border border-slate-200 text-sm font-bold text-red-600 hover:bg-red-50 flex items-center justify-center gap-1.5 disabled:opacity-40">
-              {busy === 'pdf' ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />} PDF
-            </button>
-            {!editAllocation && (
-              <button onClick={clear} disabled={!!busy} className="h-10 w-32 px-3 rounded-xl border border-slate-200 text-sm font-bold text-slate-500 hover:bg-slate-50 flex items-center justify-center gap-1.5">
-                <RotateCcw className="w-4 h-4" /> Clear
-              </button>
-            )}
-            <button onClick={() => void save()} disabled={!canUse || !title.trim() || !!busy} className="h-10 w-32 px-3 rounded-xl bg-black text-[#C4A052] text-sm font-bold flex items-center justify-center gap-1.5 disabled:opacity-40">
-              {busy === 'save' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Save
-            </button>
-          </div>
-        </div>
-
-        {shownProblems.length > 0 && chosen.length > 0 && (
-          <div className="rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm font-semibold text-red-600 space-y-0.5">
-            {shownProblems.map((p) => (
-              <p key={p}>{p}</p>
-            ))}
-          </div>
-        )}
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-[11px] font-black uppercase tracking-[0.15em] text-slate-400 text-center border-b border-slate-100">
-                <th className="py-3 px-3">Analytic Account</th>
-                <th className="py-3 px-3">Amount (AED)</th>
-                <th className="py-3 px-3">% of Total</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {calc.accounts.map((a) => (
-                <Fragment key={splitKey(a)}>
-                  <tr className="text-center bg-slate-50/70">
-                    <td className="py-2.5 px-3 font-black text-slate-900">{lineLabel(a.ACCOUNT, a.PROJECT)}</td>
-                    <td className="py-2.5 px-3 font-black tabular-nums">{formatAmount(a.AMOUNT)}</td>
-                    <td className="py-2.5 px-3 font-black tabular-nums">{a.PCT.toFixed(2)}%</td>
-                  </tr>
-                  {/* the beneficiaries under the account, its % split between them */}
-                  {a.PEOPLE.map((p) => (
-                    <tr key={`${splitKey(a)}|${p.NAME}`} className="text-center text-[13px] text-slate-500">
-                      <td className="py-2 px-3" dir="auto">
-                        <span className="text-[#C4A052] mr-1.5">↳</span>
-                        {p.NAME}
-                      </td>
-                      <td className="py-2 px-3 tabular-nums">{formatAmount(p.AMOUNT)}</td>
-                      <td className="py-2 px-3 tabular-nums">{p.PCT.toFixed(2)}%</td>
-                    </tr>
-                  ))}
-                </Fragment>
-              ))}
-              {!calc.accounts.length && <NoData isTable colSpan={3} title="NO ALLOCATION YET" message="Choose people and enter their amounts" />}
-            </tbody>
-            {calc.accounts.length > 0 && (
-              <tfoot>
-                <tr className="text-center font-black border-t-2 border-[#C4A052] bg-[#C4A052]/5">
-                  <td className="py-3 px-3">Total</td>
-                  <td className="py-3 px-3 tabular-nums">{formatAmount(calc.allocated)}</td>
-                  <td className="py-3 px-3 tabular-nums">100.00%</td>
                 </tr>
               </tfoot>
             )}

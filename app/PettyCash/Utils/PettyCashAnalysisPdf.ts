@@ -1,7 +1,7 @@
 'use client';
 
 // Petty Cash Analysis PDF (admin) — same layout as the standalone "Petty Cash Report" tool,
-// built from the saved rows: by Account (set by the admin), Account × Beneficiary, by Beneficiary, line details.
+// built from the saved rows: by Account (set by the admin), Account × Beneficiary, by Beneficiary.
 
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -351,13 +351,7 @@ export async function generatePettyCashAnalysisPdf(items: PettyCash[], opts: { g
   doc.setFontSize(20);
   doc.setTextColor(...C.black);
   doc.text('Petty Cash Analysis', M, y);
-  const sub = [custodian ? 'Custodian: ' + custodian : '', D.dateText ? 'Invoice dates ' + D.dateText : '', 'Amounts in AED'].filter(Boolean).join('  ·  ');
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9.5);
-  doc.setTextColor(...C.grey);
-  doc.text(doc.splitTextToSize(sub, CW) as string[], M, y + 6);
-
-  y += 12;
+  y += 6;
   const kpis: [string, string][] = [
     [fmt(D.total), 'Total Expenses (AED)'],
     [String(D.lines.length), 'Expense Lines'],
@@ -430,10 +424,6 @@ export async function generatePettyCashAnalysisPdf(items: PettyCash[], opts: { g
   const cust = custodian.toLowerCase();
   chart(doc, y + 2, D.per, D.total, (r, i) => (cust ? r.name.toLowerCase() === cust : i < 2) || i === 0);
 
-  // ── Line details ───────────────────────────────────────────
-  doc.addPage();
-  y = heading(doc, 22, 'Line Details');
-  detailsTable(doc, y, D, D.claims.length > 1, groupLabel);
   decorate(doc, D.period);
 
   const safe = (s: string) => (s || '').replace(/[^\w؀-ۿ -]+/g, '').replace(/\s+/g, '').slice(0, 40);

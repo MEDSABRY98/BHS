@@ -32,7 +32,7 @@ const ACCOUNTS = 'web_ANALYTIC_ACCOUNTS';
 const PROJECTS = 'web_ANALYTIC_PROJECTS';
 const PEOPLE = 'web_ANALYTIC_PEOPLE';
 const ALLOCATIONS = 'web_ANALYTIC_ALLOCATIONS';
-const ALL_TABS: AnalyticTabId[] = ['accounts', 'people', 'allocate', 'archive'];
+const ALL_TABS: AnalyticTabId[] = ['accounts', 'projects', 'people', 'allocate', 'archive'];
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 // ─────────────────────────────────────────────────────────────
@@ -50,7 +50,8 @@ function permissionsOf(user: SessionUserRecord): AnalyticPermissions {
   }
   if (Array.isArray(perms.systems) && !perms.systems.includes(ANALYTIC_SYSTEM_ID)) return { tabs: [], admin: false };
   const list = perms[ANALYTIC_SYSTEM_ID];
-  return { tabs: Array.isArray(list) ? ALL_TABS.filter((t) => list.includes(t)) : [...ALL_TABS], admin: false };
+  // 'projects' follows 'accounts' (it used to be a part of that tab), so nobody loses it
+  return { tabs: Array.isArray(list) ? ALL_TABS.filter((t) => list.includes(t) || (t === 'projects' && list.includes('accounts'))) : [...ALL_TABS], admin: false };
 }
 
 async function requireUser(): Promise<SessionUserRecord> {
@@ -143,7 +144,7 @@ export async function listAnalyticProjects(): Promise<AnalyticProject[]> {
 }
 
 export async function saveAnalyticProject(input: { ID?: string; NAME: string; IS_ACTIVE?: boolean }): Promise<AnalyticProject> {
-  await requireTab('accounts');
+  await requireTab('projects');
   const db = getSupabaseAdmin();
   const NAME = cleanName(input?.NAME, 80);
   if (!NAME) throw new Error('Project name is required');
@@ -173,7 +174,7 @@ export async function saveAnalyticProject(input: { ID?: string; NAME: string; IS
 }
 
 export async function deleteAnalyticProject(id: string): Promise<{ success: true }> {
-  await requireTab('accounts');
+  await requireTab('projects');
   const db = getSupabaseAdmin();
   const { data: pr } = await db.from(PROJECTS).select('NAME').eq('ID', id).single();
   if (pr) {

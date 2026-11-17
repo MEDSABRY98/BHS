@@ -12,6 +12,7 @@ import { useSyncLiveUser } from '@/app/Components/Auth/AppSessionProvider';
 import { useAnalyticAllocationTabAudit } from '@/app/AdminControl/Code/Audit/Model/AnalyticAllocationTabAudit';
 import AnalyticSidebar from './Utils/Sidebar';
 import AccountsTab from './Components/AccountsTab';
+import ProjectsPanel from './Components/ProjectsPanel';
 import PeopleTab from './Components/PeopleTab';
 import AllocateTab from './Components/AllocateTab';
 import ArchiveTab from './Components/ArchiveTab';
@@ -181,7 +182,10 @@ export default function AnalyticAllocationPage() {
           ) : (
             <>
               {activeTab === 'accounts' && visibleTabs.includes('accounts') && (
-                <AccountsTab accounts={accounts} people={people} projects={projects} onProjectsChange={setProjects} onChange={setAccounts} onRenamed={() => void listAnalyticPeople().then(setPeople).catch(() => {})} />
+                <AccountsTab accounts={accounts} people={people} onChange={setAccounts} onRenamed={() => void listAnalyticPeople().then(setPeople).catch(() => {})} />
+              )}
+              {activeTab === 'projects' && visibleTabs.includes('projects') && (
+                <ProjectsPanel projects={projects} people={people} onChange={setProjects} onRenamed={() => void listAnalyticPeople().then(setPeople).catch(() => {})} />
               )}
               {activeTab === 'people' && visibleTabs.includes('people') && <PeopleTab people={people} accountNames={activeAccountNames} projectNames={activeProjectNames} onChange={setPeople} />}
               {/* Allocate stays mounted (only hidden) so what was typed is still there after visiting another tab */}

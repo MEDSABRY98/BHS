@@ -27,6 +27,8 @@ interface FormShellProps<T> {
   /** download / print a saved form from the archive */
   onDownload?: (r: FormRecord<T>) => Promise<void>;
   downloadLabel?: string;
+  /** download the saved form's lines as an Excel file (archive) */
+  onDownloadExcel?: (r: FormRecord<T>) => Promise<void>;
   maxWidth?: string;
   /** show the Title column in the archive (default true) */
   archiveShowTitle?: boolean;
@@ -38,7 +40,7 @@ interface FormShellProps<T> {
 
 const NO_ACCESS: FormAccess = { use: false, archive: false, admin: false };
 
-export default function FormShell<T = any>({ formId, title, icon, renderNew, onDownload, downloadLabel, maxWidth = 'max-w-[1100px]', archiveShowTitle = true, saveLabel = 'Save', hideSave = false }: FormShellProps<T>) {
+export default function FormShell<T = any>({ formId, title, icon, renderNew, onDownload, downloadLabel, onDownloadExcel, maxWidth = 'max-w-[1100px]', archiveShowTitle = true, saveLabel = 'Save', hideSave = false }: FormShellProps<T>) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
   const [, setCurrentUser] = useState<any>(null);
@@ -287,6 +289,7 @@ export default function FormShell<T = any>({ formId, title, icon, renderNew, onD
                     onDeleted={(id) => setRecords((prev) => prev.filter((x) => x.ID !== id))}
                     onDownload={onDownload as ((r: FormRecord) => Promise<void>) | undefined}
                     downloadLabel={downloadLabel}
+                    onDownloadExcel={onDownloadExcel as ((r: FormRecord) => Promise<void>) | undefined}
                     showTitle={archiveShowTitle}
                   />
                 ))}

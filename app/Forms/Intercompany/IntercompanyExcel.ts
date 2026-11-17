@@ -4,7 +4,7 @@
 
 import ExcelJS from 'exceljs';
 import { saveTrackedAs } from '@/app/AdminControl/Code/Audit/TrackedDownload';
-import { cleanText, isValidIsoDate, round2, type IntercompanyLine } from './IntercompanyTypes';
+import { cleanText, compareEntries, isValidIsoDate, round2, type IntercompanyLine } from './IntercompanyTypes';
 
 // Same look as the other BHS Excel exports
 const HEADER_FILL = 'FF000000';
@@ -206,4 +206,49 @@ export async function readIntercompanyFile(file: File): Promise<ParsedExcel> {
   }
 
   throw new Error('No sheet with the columns Date, Al Ain / Dubai Entry No, Debit and Credit was found');
+}
+
+/** The lines of a saved form as an Excel file (same columns as the template, so it can be uploaded again). */
+export async function exportIntercompanyLinesExcel(lines: IntercompanyLine[], fileName = 'Intercompany_Lines') {
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'BHS Analysis';
+  const ws = wb.addWorksheet('Entries', { views: [{ state: 'frozen', ySplit: 1, showGridLines: false }] });
+  ws.columns = [
+    { header: 'Date', key: 'date', width: 14 },
+    { header: 'Account Name', key: 'account', width: 30 },
+    { header: 'Al Ain Entry No', key: 'ain', width: 22 },
+    { header: 'Dubai Entry No', key: 'dubai', width: 22 },
+    { header: 'Label', key: 'label', width: 55 },
+    { header: 'Debit', key: 'debit', width: 16 },
+    { header: 'Credit', key: 'credit', width: 16 },
+    { header: 'Attachment', key: 'attachment', width: 14 },
+  ];
+  const header = ws.getRow(1);
+  header.height = 25;
+  header.eachCell((cell) => {
+    cell.font = { bold: true, color: { argb: HEADER_TEXT } };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: HEADER_FILL } };
+    cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+    cell.border = { bottom: { style: 'medium', color: { argb: GOLD_BORDER } } };
+  });
+  [...lines].sort(compareEntries).forEach((l) => {
+    const row = ws.addRow({
+      date: l.ENTRY_DATE ? new Date(`${l.ENTRY_DATE}T00:00:00Z`) : null,
+      account: l.ACCOUNT_NAME || '',
+      ain: l.AIN_ENTRY_NUMBER || '',
+      dubai: l.DUBAI_ENTRY_NUMBER || '',
+      label: l.LABEL || '',
+      debit: round2(l.DEBIT),
+      credit: round2(l.CREDIT),
+      attachment: l.ATTACHMENT ? 'YES' : 'NO',
+    });
+    for (let c = 1; c <= 8; c++) row.getCell(c).alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+    row.getCell(1).numFmt = 'dd/mm/yyyy';
+    row.getCell(6).numFmt = NUM_FMT;
+    row.getCell(7).numFmt = NUM_FMT;
+  });
+  ws.autoFilter = { from: 'A1', to: 'H1' };
+  const buffer = await wb.xlsx.writeBuffer();
+  const safe = fileName.replace(/[\\/:*?"<>|]+/g, ' ').trim() || 'Intercompany_Lines';
+  saveTrackedAs(new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `${safe}.xlsx`);
 }

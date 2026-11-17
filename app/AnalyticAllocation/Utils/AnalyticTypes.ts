@@ -3,7 +3,7 @@
 export const ANALYTIC_SYSTEM_ID = 'analytic-allocation';
 export const COMPANY_NAME = 'ALMARAI ALARABIA TRADING';
 
-export type AnalyticTabId = 'accounts' | 'people' | 'allocate' | 'archive';
+export type AnalyticTabId = 'accounts' | 'projects' | 'people' | 'allocate' | 'archive';
 
 export interface AnalyticPermissions {
   tabs: AnalyticTabId[];

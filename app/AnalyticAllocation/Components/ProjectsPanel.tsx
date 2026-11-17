@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Check, Loader2, Pencil, Plus, Trash2, X } from 'lucide-react';
+import { Check, Loader2, Pencil, Plus, Search, Trash2, X } from 'lucide-react';
 import { toast } from '@/app/Components/Notification';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import ConfirmDialog from './ConfirmDialog';
@@ -15,8 +15,8 @@ interface ProjectsPanelProps {
   onRenamed: () => void; // people splits changed on the server
 }
 
-/** The projects list (Accounts tab). A project is picked next to an account in a person's split or in an allocation. */
 export default function ProjectsPanel({ projects, people, onChange, onRenamed }: ProjectsPanelProps) {
+  const [search, setSearch] = useState('');
   const [newName, setNewName] = useState('');
   const [editId, setEditId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
@@ -29,7 +29,12 @@ export default function ProjectsPanel({ projects, people, onChange, onRenamed }:
     return m;
   }, [people]);
 
-  const put = (p: AnalyticProject) => onChange([...projects.filter((x) => x.ID !== p.ID), p].sort((a, b) => byName(a.NAME, b.NAME)));
+  const rows = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return projects.filter((a) => !q || a.NAME.toLowerCase().includes(q));
+  }, [projects, search]);
+
+  const put = (a: AnalyticProject) => onChange([...projects.filter((x) => x.ID !== a.ID), a].sort((x, y) => byName(x.NAME, y.NAME)));
 
   const add = async () => {
     if (!newName.trim()) return;
@@ -45,12 +50,12 @@ export default function ProjectsPanel({ projects, people, onChange, onRenamed }:
     }
   };
 
-  const save = async (p: AnalyticProject, patch: Partial<AnalyticProject>) => {
-    setBusyId(p.ID);
+  const save = async (a: AnalyticProject, patch: Partial<AnalyticProject>) => {
+    setBusyId(a.ID);
     try {
-      const saved = await saveAnalyticProject({ ID: p.ID, NAME: patch.NAME ?? p.NAME, IS_ACTIVE: patch.IS_ACTIVE ?? p.IS_ACTIVE });
+      const saved = await saveAnalyticProject({ ID: a.ID, NAME: patch.NAME ?? a.NAME, IS_ACTIVE: patch.IS_ACTIVE ?? a.IS_ACTIVE });
       put(saved);
-      if (saved.NAME !== p.NAME) onRenamed();
+      if (saved.NAME !== a.NAME) onRenamed();
       setEditId(null);
     } catch (e: any) {
       toast.error(e?.message || 'Could not save');
@@ -75,10 +80,20 @@ export default function ProjectsPanel({ projects, people, onChange, onRenamed }:
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <h2 className="text-2xl font-normal text-black tracking-tighter">Projects</h2>
-        <div className="flex gap-2 sm:w-[420px]">
+        <h1 className="text-3xl sm:text-4xl font-normal text-black tracking-tighter">Projects</h1>
+        <span className="self-start sm:self-auto px-3.5 py-2 rounded-xl bg-white border border-slate-100 shadow-sm text-sm font-bold text-slate-700">
+          {projects.filter((a) => a.IS_ACTIVE).length} active · {projects.length} total
+        </span>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-3 flex flex-col lg:flex-row gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search projects…" className="w-full h-11 pl-10 pr-4 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-4 focus:ring-[#C4A052]/15 focus:border-[#C4A052]" />
+        </div>
+        <div className="flex gap-2 lg:w-[420px]">
           <input
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
@@ -104,22 +119,22 @@ export default function ProjectsPanel({ projects, people, onChange, onRenamed }:
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              {projects.map((p) => (
-                <tr key={p.ID} className="text-center hover:bg-slate-50/70">
+              {rows.map((a) => (
+                <tr key={a.ID} className="text-center hover:bg-slate-50/70">
                   <td className="py-3 px-3 font-bold text-slate-800">
-                    {editId === p.ID ? (
+                    {editId === a.ID ? (
                       <div className="flex items-center justify-center gap-1">
                         <input
                           autoFocus
                           value={editName}
                           onChange={(e) => setEditName(e.target.value)}
                           onKeyDown={(e) => {
-                            if (e.key === 'Enter') void save(p, { NAME: editName });
+                            if (e.key === 'Enter') void save(a, { NAME: editName });
                             if (e.key === 'Escape') setEditId(null);
                           }}
                           className="h-9 px-3 rounded-lg border border-[#C4A052] text-sm text-center w-64"
                         />
-                        <button onClick={() => void save(p, { NAME: editName })} className="w-8 h-8 rounded-lg text-emerald-600 hover:bg-emerald-50 flex items-center justify-center" title="Save">
+                        <button onClick={() => void save(a, { NAME: editName })} className="w-8 h-8 rounded-lg text-emerald-600 hover:bg-emerald-50 flex items-center justify-center" title="Save">
                           <Check className="w-4 h-4" />
                         </button>
                         <button onClick={() => setEditId(null)} className="w-8 h-8 rounded-lg text-slate-400 hover:bg-slate-100 flex items-center justify-center" title="Cancel">
@@ -127,37 +142,37 @@ export default function ProjectsPanel({ projects, people, onChange, onRenamed }:
                         </button>
                       </div>
                     ) : (
-                      p.NAME
+                      a.NAME
                     )}
                   </td>
-                  <td className="py-3 px-3 text-slate-500 font-semibold">{usage.get(p.NAME) || 0} people</td>
+                  <td className="py-3 px-3 text-slate-500 font-semibold">{usage.get(a.NAME) || 0} people</td>
                   <td className="py-3 px-3">
                     <button
-                      onClick={() => void save(p, { IS_ACTIVE: !p.IS_ACTIVE })}
-                      disabled={busyId === p.ID}
-                      className={`px-3 py-1 rounded-full text-xs font-bold ${p.IS_ACTIVE ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}
+                      onClick={() => void save(a, { IS_ACTIVE: !a.IS_ACTIVE })}
+                      disabled={busyId === a.ID}
+                      className={`px-3 py-1 rounded-full text-xs font-bold ${a.IS_ACTIVE ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}
                       title="Click to change"
                     >
-                      {p.IS_ACTIVE ? 'Active' : 'Inactive'}
+                      {a.IS_ACTIVE ? 'Active' : 'Inactive'}
                     </button>
                   </td>
                   <td className="py-3 px-3">
                     <div className="flex items-center justify-center gap-1">
-                      {busyId === p.ID ? (
+                      {busyId === a.ID ? (
                         <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
                       ) : (
                         <>
                           <button
                             onClick={() => {
-                              setEditId(p.ID);
-                              setEditName(p.NAME);
+                              setEditId(a.ID);
+                              setEditName(a.NAME);
                             }}
                             className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-black hover:bg-slate-100"
                             title="Rename"
                           >
                             <Pencil className="w-4 h-4" />
                           </button>
-                          <button onClick={() => setDeleteTarget(p)} className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50" title="Delete">
+                          <button onClick={() => setDeleteTarget(a)} className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50" title="Delete">
                             <Trash2 className="w-4 h-4" />
                           </button>
                         </>
@@ -166,7 +181,7 @@ export default function ProjectsPanel({ projects, people, onChange, onRenamed }:
                   </td>
                 </tr>
               ))}
-              {!projects.length && <NoData isTable colSpan={4} title="NO PROJECTS YET" />}
+              {!rows.length && <NoData isTable colSpan={4} title={projects.length ? 'NO MATCHING PROJECTS' : 'NO PROJECTS YET'} />}
             </tbody>
           </table>
         </div>

@@ -3,7 +3,7 @@
 // The saved forms of one form: search, date range, download, edit (admin), delete (admin).
 
 import { useMemo, useState } from 'react';
-import { FileDown, Loader2, Pencil, Search, Trash2, X } from 'lucide-react';
+import { FileDown, FileSpreadsheet, Loader2, Pencil, Search, Trash2, X } from 'lucide-react';
 import { toast } from '@/app/Components/Notification';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import ConfirmDialog from './ConfirmDialog';
@@ -20,6 +20,7 @@ interface FormArchiveListProps {
   onDeleted: (id: string) => void;
   onDownload?: (r: FormRecord) => Promise<void>;
   downloadLabel?: string;
+  onDownloadExcel?: (r: FormRecord) => Promise<void>;
   /** show the Title column (default true) */
   showTitle?: boolean;
 }
@@ -31,7 +32,7 @@ const savedAt = (iso: string) => {
     : new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Dubai', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(d);
 };
 
-export default function FormArchiveList({ formId, records, admin, canEdit, onEdit, onDeleted, onDownload, downloadLabel = 'Download PDF', showTitle = true }: FormArchiveListProps) {
+export default function FormArchiveList({ formId, records, admin, canEdit, onEdit, onDeleted, onDownload, downloadLabel = 'Download PDF', onDownloadExcel, showTitle = true }: FormArchiveListProps) {
   const [search, setSearch] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -58,6 +59,18 @@ export default function FormArchiveList({ formId, records, admin, canEdit, onEdi
       await onDownload(r);
     } catch (e: any) {
       toast.error(e?.message || 'Could not create the file');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const downloadExcel = async (r: FormRecord) => {
+    if (!onDownloadExcel) return;
+    setBusy(`xl-${r.ID}`);
+    try {
+      await onDownloadExcel(r);
+    } catch (e: any) {
+      toast.error(e?.message || 'Could not create the Excel file');
     } finally {
       setBusy(null);
     }
@@ -130,6 +143,11 @@ export default function FormArchiveList({ formId, records, admin, canEdit, onEdi
                       {onDownload && (
                         <button onClick={() => void download(r)} disabled={!!busy} className="w-9 h-9 flex items-center justify-center rounded-lg text-red-500 hover:bg-red-50 disabled:opacity-50" title={downloadLabel}>
                           {busy === `dl-${r.ID}` ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
+                        </button>
+                      )}
+                      {onDownloadExcel && (
+                        <button onClick={() => void downloadExcel(r)} disabled={!!busy} className="w-9 h-9 flex items-center justify-center rounded-lg text-emerald-600 hover:bg-emerald-50 disabled:opacity-50" title="Download Excel (lines)">
+                          {busy === `xl-${r.ID}` ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4" />}
                         </button>
                       )}
                       {canEdit && (

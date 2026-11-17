@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { ArrowLeft, PieChart, ChevronLeft, ChevronRight, Tags, Users, Calculator, Archive, X, RefreshCw } from 'lucide-react';
+import { ArrowLeft, PieChart, ChevronLeft, ChevronRight, Tags, Briefcase, Users, Calculator, Archive, X, RefreshCw } from 'lucide-react';
 import type { AnalyticTabId } from './AnalyticTypes';
 
 interface AnalyticSidebarProps {
@@ -16,6 +16,7 @@ interface AnalyticSidebarProps {
 
 const ALL_TABS = [
   { id: 'accounts' as const, label: 'Analytic Accounts', icon: Tags },
+  { id: 'projects' as const, label: 'Projects', icon: Briefcase },
   { id: 'people' as const, label: 'People', icon: Users },
   { id: 'allocate' as const, label: 'Allocate', icon: Calculator },
   { id: 'archive' as const, label: 'Archive', icon: Archive },
