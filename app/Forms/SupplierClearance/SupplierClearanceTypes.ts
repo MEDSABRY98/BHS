@@ -37,7 +37,6 @@ export const CHECKPOINTS: Checkpoint[] = [
   { id: 'd-prices', section: 'Deliveries & Documents', text: 'Invoice prices and terms match the agreed prices and payment terms.' },
   { id: 'd-short', section: 'Deliveries & Documents', text: 'There are no pending shortages or missing items.' },
 
-  { id: 's-recon', section: 'Settlement', text: 'The supplier statement of account is reconciled with our records.' },
   { id: 's-claims', section: 'Settlement', text: 'There are no other claims, deductions or penalties pending against the supplier.' },
 ];
 
@@ -52,9 +51,6 @@ export interface ClearanceItem {
 export interface SupplierClearance {
   DATE: string; // yyyy-mm-dd
   SUPPLIER_NAME: string;
-  PERIOD_FROM: string; // yyyy-mm-dd
-  PERIOD_TO: string; // yyyy-mm-dd
-  REFERENCE: string; // optional: PO / payment number
   ITEMS: ClearanceItem[];
   DECISION: ClearanceDecision;
   NOTES: string;

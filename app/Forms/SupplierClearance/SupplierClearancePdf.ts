@@ -1,7 +1,7 @@
 'use client';
 
 // Supplier Clearance PDF — same look as the Supplier Payment form: navy/gold header, date / period /
-// reference strip, supplier card, the checkpoint table (grouped, Yes / No / N/A + remarks),
+// strip, supplier card, the checkpoint table (grouped, Yes / No / N/A + remarks),
 // the decision, the responsibility statement, notes and signatures.
 
 import jsPDF from 'jspdf';
@@ -9,10 +9,10 @@ import autoTable from 'jspdf-autotable';
 import { addArabicFont } from '@/app/Components/Pdf/shared';
 import { saveTrackedPdf } from '@/app/AdminControl/Code/Audit/TrackedDownload';
 import { pickSignatures } from '@/app/Components/Signatures/SignaturePicker';
-import { drawSignatures } from '@/app/Components/Signatures/DrawSignatures';
+import { drawSignatures, signaturesHeight } from '@/app/Components/Signatures/DrawSignatures';
 import { listSignatories } from '@/app/Components/Signatures/SignatureService';
 import type { Signer } from '@/app/Components/Signatures/SignatureTypes';
-import { COMPANY_NAME, formatDate, formatLongDate } from '../Shared/FormsUtils';
+import { COMPANY_NAME, formatLongDate } from '../Shared/FormsUtils';
 import { answerLabel, decisionLabel, type ClearanceDecision, type SupplierClearance } from './SupplierClearanceTypes';
 
 type RGB = [number, number, number];
@@ -70,7 +70,7 @@ export async function generateSupplierClearancePdf(form: SupplierClearance) {
   if (!signers) return null; // cancelled
 
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-  if ([form.SUPPLIER_NAME, form.REFERENCE, form.NOTES, ...form.ITEMS.map((i) => i.REMARK)].some(hasArabic)) {
+  if ([form.SUPPLIER_NAME, form.NOTES, ...form.ITEMS.map((i) => i.REMARK)].some(hasArabic)) {
     try {
       await addArabicFont(doc);
     } catch {
@@ -121,46 +121,43 @@ export async function generateSupplierClearancePdf(form: SupplierClearance) {
   doc.text(t1, W - M - (doc.getTextWidth(t1) + sp * (t1.length - 1)), 18.5, { charSpace: sp });
   doc.text(t2, W - M - (doc.getTextWidth(t2) + sp * (t2.length - 1)), 25, { charSpace: sp });
 
-  // ── Date / Period / Reference strip ─────────────────────
+  // ── Date + Supplier in one row (the name gets the wider box) ──
   let y = 36;
+  const rowH = 19;
+  const dateW = 50;
+  const gapW = 6;
+  const supW = CW - dateW - gapW;
+
   doc.setDrawColor(...C.border);
   doc.setLineWidth(0.3);
   doc.setFillColor(...C.soft);
-  doc.roundedRect(M, y, CW, 15, 2.5, 2.5, 'FD');
-  const cols: [string, string][] = [
-    ['Date', formatLongDate(form.DATE)],
-    ['Period', `${formatDate(form.PERIOD_FROM)}  –  ${formatDate(form.PERIOD_TO)}`],
-    ['Reference', form.REFERENCE || '-'],
-  ];
-  cols.forEach(([l, v], i) => {
-    const x = M + 6 + (i * CW) / 3;
-    if (i) {
-      doc.setDrawColor(...C.border);
-      doc.line(x - 3.5, y + 3, x - 3.5, y + 12);
-    }
-    label(l, x, y + 6);
-    textFont(v, 'bold');
-    doc.setFontSize(9.4);
-    doc.setTextColor(...C.ink);
-    const shown = doc.splitTextToSize(v, CW / 3 - 9)[0];
-    doc.text(shown, x, y + 11.6);
-  });
+  doc.roundedRect(M, y, dateW, rowH, 2.5, 2.5, 'FD');
+  label('Date', M + 6, y + 6.5);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9.6);
+  doc.setTextColor(...C.ink);
+  doc.text(formatLongDate(form.DATE), M + 6, y + 13.8);
 
-  // ── Supplier card ───────────────────────────────────────
-  y += 15 + 7;
-  const cardH = 19;
+  const sx = M + dateW + gapW;
   doc.setDrawColor(...C.border);
   doc.setFillColor(...C.white);
-  doc.roundedRect(M, y, CW, cardH, 2.5, 2.5, 'FD');
+  doc.roundedRect(sx, y, supW, rowH, 2.5, 2.5, 'FD');
   doc.setFillColor(...C.navy);
-  doc.rect(M, y + 4, 1.4, cardH - 8, 'F');
-  label('Supplier', M + 6, y + 6.5, C.accent, 6.8);
+  doc.rect(sx, y + 4, 1.4, rowH - 8, 'F');
+  label('Supplier', sx + 6, y + 6.5, C.accent, 6.8);
   textFont(form.SUPPLIER_NAME, 'bold');
-  doc.setFontSize(11.5);
   doc.setTextColor(...C.ink);
-  if (hasArabic(form.SUPPLIER_NAME)) doc.text(form.SUPPLIER_NAME, W - M - 6, y + 13.8, { align: 'right' });
-  else doc.text(doc.splitTextToSize(form.SUPPLIER_NAME, CW - 12)[0], M + 6, y + 13.8);
-  y += cardH + 8;
+  // a long name is made smaller to fit on one line (down to 8 pt), then cut
+  let nameSize = 11.5;
+  doc.setFontSize(nameSize);
+  while (nameSize > 8 && doc.getTextWidth(form.SUPPLIER_NAME) > supW - 12) {
+    nameSize -= 0.5;
+    doc.setFontSize(nameSize);
+  }
+  const nameShown = doc.splitTextToSize(form.SUPPLIER_NAME, supW - 12)[0];
+  if (hasArabic(form.SUPPLIER_NAME)) doc.text(nameShown, sx + supW - 6, y + 13.8, { align: 'right' });
+  else doc.text(nameShown, sx + 6, y + 13.8);
+  y += rowH + 8;
 
   // ── Checkpoints table (grouped by section) ──────────────
   const body: any[][] = [];
@@ -182,7 +179,7 @@ export async function generateSupplierClearancePdf(form: SupplierClearance) {
     body,
     styles: { font: 'helvetica', fontSize: 8.4, valign: 'middle', cellPadding: { top: 2.2, bottom: 2.2, left: 2.5, right: 2.5 }, textColor: C.ink, lineColor: C.border },
     headStyles: { fillColor: C.soft, textColor: C.grey, fontStyle: 'bold', fontSize: 7, halign: 'center' },
-    columnStyles: { 0: { cellWidth: 9, halign: 'center' }, 1: { cellWidth: 82 }, 2: { cellWidth: 18, halign: 'center' }, 3: { cellWidth: 'auto' } },
+    columnStyles: { 0: { cellWidth: 9, halign: 'center' }, 1: { cellWidth: 82 }, 2: { cellWidth: 18, halign: 'center' }, 3: { cellWidth: 'auto', halign: 'center' } },
     didParseCell: (d) => {
       if (d.section !== 'body') return;
       const raw = String(d.cell.raw ?? '');
@@ -193,7 +190,7 @@ export async function generateSupplierClearancePdf(form: SupplierClearance) {
       if (d.column.index === 3 && hasArabic(raw)) {
         d.cell.styles.font = 'Amiri';
         d.cell.styles.fontStyle = 'normal';
-        d.cell.styles.halign = 'right';
+        d.cell.styles.halign = 'center';
       }
     },
     didDrawCell: (d) => {
@@ -206,11 +203,27 @@ export async function generateSupplierClearancePdf(form: SupplierClearance) {
   });
   y = ((doc as any).lastAutoTable.finalY as number) + 8;
 
-  // ── Decision ────────────────────────────────────────────
-  if (y > PH - 80) {
+  // ── Closing block: decision + notes + responsibility + signatures stay together ──
+  // (measured first; when they do not fit under the table they all start on a new page)
+  const hasNotes = !!form.NOTES.trim();
+  textFont(form.NOTES);
+  doc.setFontSize(9.2);
+  const noteLines = hasNotes ? (doc.splitTextToSize(form.NOTES.trim(), CW - 12) as string[]) : [];
+  const noteLineH = 9.2 * 1.45 * 0.3528;
+  const notesH = hasNotes ? Math.max(14, 8 + noteLines.length * noteLineH + 3) : 0;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.2);
+  const resp = doc.splitTextToSize(RESPONSIBILITY, CW - 12) as string[];
+  const respH = 12 + resp.length * 3.9;
+  const decisionH = 14 + 7;
+  const notesBlockH = hasNotes ? 3 + notesH + 7 : 0;
+  const closingH = decisionH + notesBlockH + respH + 6 + signaturesHeight(doc, signers) + 6;
+  if (y + closingH > PH - 16) {
     doc.addPage();
     y = 26;
   }
+
+  // Decision
   const tone = DECISION_COLOR[form.DECISION];
   doc.setFillColor(...tone);
   doc.roundedRect(M, y, CW, 14, 2.5, 2.5, 'F');
@@ -219,39 +232,24 @@ export async function generateSupplierClearancePdf(form: SupplierClearance) {
   doc.setFontSize(12);
   doc.setTextColor(...C.white);
   doc.text(decisionLabel(form.DECISION), M + 6, y + 11.2);
-  y += 14 + 7;
+  y += decisionH;
 
-  // ── Notes (only when written) ───────────────────────────
-  if (form.NOTES.trim()) {
+  // Notes (only when written)
+  if (hasNotes) {
     label('Notes', M, y, C.navy, 7);
     y += 3;
     textFont(form.NOTES);
     doc.setFontSize(9.2);
-    const lines = doc.splitTextToSize(form.NOTES.trim(), CW - 12) as string[];
-    const lineH = 9.2 * 1.45 * 0.3528;
-    const notesH = Math.max(14, 8 + lines.length * lineH + 3);
-    if (y + notesH > PH - 60) {
-      doc.addPage();
-      y = 26;
-    }
     doc.setDrawColor(...C.border);
     doc.setFillColor(...C.white);
     doc.roundedRect(M, y, CW, notesH, 2.5, 2.5, 'FD');
     doc.setTextColor(...C.text);
-    if (hasArabic(form.NOTES)) doc.text(lines, W - M - 6, y + 7, { align: 'right', lineHeightFactor: 1.45 });
-    else doc.text(lines, M + 6, y + 7, { lineHeightFactor: 1.45 });
+    if (hasArabic(form.NOTES)) doc.text(noteLines, W - M - 6, y + 7, { align: 'right', lineHeightFactor: 1.45 });
+    else doc.text(noteLines, M + 6, y + 7, { lineHeightFactor: 1.45 });
     y += notesH + 7;
   }
 
-  // ── Responsibility statement ────────────────────────────
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8.2);
-  const resp = doc.splitTextToSize(RESPONSIBILITY, CW - 12) as string[];
-  const respH = 12 + resp.length * 3.9;
-  if (y + respH > PH - 60) {
-    doc.addPage();
-    y = 26;
-  }
+  // Responsibility statement
   doc.setDrawColor(...C.border);
   doc.setFillColor(...C.soft);
   doc.roundedRect(M, y, CW, respH, 2.5, 2.5, 'FD');
@@ -264,7 +262,7 @@ export async function generateSupplierClearancePdf(form: SupplierClearance) {
   doc.text(resp, M + 6, y + 11.2);
   y += respH + 6;
 
-  // ── Signatures: the people chosen when exporting (bottom of the page) ──
+  // Signatures: the people chosen when exporting (bottom of the page)
   drawSignatures(doc, signers, { y, margin: M, bottom: true, footer: 16 });
 
   // ── Page numbers ────────────────────────────────────────

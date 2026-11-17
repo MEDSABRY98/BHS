@@ -58,9 +58,6 @@ function SupplierClearanceForm({ ctx }: { ctx: FormEditorContext<SupplierClearan
   const [date, setDate] = useState(init?.DATE || uaeToday());
   const [supplier, setSupplier] = useState(init?.SUPPLIER_NAME || '');
   const [suppliers, setSuppliers] = useState<ClearanceSupplier[] | null>(null);
-  const [from, setFrom] = useState(init?.PERIOD_FROM || '');
-  const [to, setTo] = useState(init?.PERIOD_TO || '');
-  const [reference, setReference] = useState(init?.REFERENCE || '');
   const [answers, setAnswers] = useState<Record<string, ClearanceAnswer | ''>>(() =>
     Object.fromEntries(CHECKPOINTS.map((c) => [c.id, savedItem(c.id)?.ANSWER || ''])),
   );
@@ -107,9 +104,6 @@ function SupplierClearanceForm({ ctx }: { ctx: FormEditorContext<SupplierClearan
   const reset = () => {
     setDate(uaeToday());
     setSupplier('');
-    setFrom('');
-    setTo('');
-    setReference('');
     setAnswers(Object.fromEntries(CHECKPOINTS.map((c) => [c.id, ''])));
     setRemarks(Object.fromEntries(CHECKPOINTS.map((c) => [c.id, ''])));
     setDecision('');
@@ -122,8 +116,6 @@ function SupplierClearanceForm({ ctx }: { ctx: FormEditorContext<SupplierClearan
     const errs: Record<string, boolean> = {};
     if (!date) errs.date = true;
     if (!supplier.trim()) errs.supplier = true;
-    if (!from) errs.from = true;
-    if (!to || (from && to < from)) errs.to = true;
     CHECKPOINTS.forEach((c) => {
       if (!answers[c.id]) errs[c.id] = true;
       else if (answers[c.id] === 'no' && !remarks[c.id].trim()) errs[`remark-${c.id}`] = true;
@@ -131,8 +123,7 @@ function SupplierClearanceForm({ ctx }: { ctx: FormEditorContext<SupplierClearan
     if (!decision) errs.decision = true;
     setErrors(errs);
     if (Object.keys(errs).length) {
-      if (errs.to && from && to && to < from) toast.error('The period end must be on or after its start');
-      else if (CHECKPOINTS.some((c) => errs[`remark-${c.id}`])) toast.error('Write a remark for every checkpoint answered "No"');
+      if (CHECKPOINTS.some((c) => errs[`remark-${c.id}`])) toast.error('Write a remark for every checkpoint answered "No"');
       else toast.error('Fill the highlighted fields');
       return null;
     }
@@ -144,9 +135,6 @@ function SupplierClearanceForm({ ctx }: { ctx: FormEditorContext<SupplierClearan
     return {
       DATE: date,
       SUPPLIER_NAME: supplier.trim(),
-      PERIOD_FROM: from,
-      PERIOD_TO: to,
-      REFERENCE: reference.trim(),
       ITEMS: CHECKPOINTS.map((c) => ({ ID: c.id, SECTION: c.section, TEXT: c.text, ANSWER: answers[c.id] as ClearanceAnswer, REMARK: remarks[c.id].trim() })),
       DECISION: decision as ClearanceDecision,
       NOTES: notes.trim(),
@@ -218,39 +206,6 @@ function SupplierClearanceForm({ ctx }: { ctx: FormEditorContext<SupplierClearan
                   ]}
                 />
               </div>
-            </div>
-          </div>
-
-          {/* Period · Reference */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div>
-              <label className={labelCls}>Period From *</label>
-              <input
-                type="date"
-                value={from}
-                onChange={(e) => {
-                  setFrom(e.target.value);
-                  clearErr('from');
-                }}
-                className={`${field} h-12 px-4 ${err('from')}`}
-              />
-            </div>
-            <div>
-              <label className={labelCls}>Period To *</label>
-              <input
-                type="date"
-                value={to}
-                min={from || undefined}
-                onChange={(e) => {
-                  setTo(e.target.value);
-                  clearErr('to');
-                }}
-                className={`${field} h-12 px-4 ${err('to')}`}
-              />
-            </div>
-            <div>
-              <label className={labelCls}>Reference</label>
-              <input value={reference} onChange={(e) => setReference(e.target.value)} dir="auto" maxLength={80} placeholder="Optional — PO / payment no." className={`${field} h-12 px-4`} />
             </div>
           </div>
 
