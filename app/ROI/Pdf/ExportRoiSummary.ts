@@ -4,7 +4,7 @@
 
 import { addArabicFont } from '@/app/Components/Pdf/shared';
 import { saveTrackedPdf } from '@/app/AdminControl/Code/Audit/TrackedDownload';
-import { PeriodLabel, bySalespersonThenCustomer } from '../Utils/RoiCalc';
+import { MonthLabel, bySalespersonThenCustomer } from '../Utils/RoiCalc';
 import type { RoiResult } from '../Utils/Types';
 import { pickSignatures } from '@/app/Components/Signatures/SignaturePicker';
 import { drawSignatures } from '@/app/Components/Signatures/DrawSignatures';
@@ -67,11 +67,7 @@ export async function ExportRoiSummary(
   else doc.setFont('helvetica', 'bold');
   doc.setFontSize(17);
   doc.setTextColor(255, 255, 255);
-  doc.text(shape(opts.title), M, 12);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
-  doc.setTextColor(203, 213, 225);
-  doc.text(opts.subtitle || 'ROI support summary', M, 19);
+  doc.text(shape(opts.title), M, 15);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...GOLD);
   doc.text('ROI SUPPORT SUMMARY', W - M, 12, { align: 'right' });
@@ -81,14 +77,21 @@ export async function ExportRoiSummary(
   doc.text(`Generated ${String(t.getDate()).padStart(2, '0')}/${String(t.getMonth() + 1).padStart(2, '0')}/${t.getFullYear()}`, W - M, 19, { align: 'right' });
 
   const sum = (f: (r: RoiResult) => number) => rows.reduce((a, r) => a + f(r), 0);
-  const gross = sum((r) => r.gross);
-  const returns = sum((r) => r.returns);
+  // sales of the month BEFORE the support month (support of October → sales of September), with its GRV % and ROI %
+  const prevMonths = Array.from(new Set(rows.map((r) => r.prevMonth.month).filter(Boolean)));
+  const prevLabel = prevMonths.length === 1 ? MonthLabel(prevMonths[0]) : 'Previous Month';
+  const gross = sum((r) => r.prevMonth.gross);
+  const returns = sum((r) => r.prevMonth.returns);
+  const salesNet = sum((r) => r.prevMonth.net);
+  const totalSupport = sum((r) => r.totalSupport);
+  // ROI % = the support amount as a percentage of the net sales
+  const totalRoi = salesNet > 0 ? (totalSupport / salesNet) * 100 : null;
 
   // ── three summary cards ──
   const cards: [string, string, RGB][] = [
     ['Outlets', String(rows.length), INK],
     ['Total support (AED)', money(sum((r) => r.totalSupport)), GOLD_DARK],
-    ['Net sales - last 3 months', money(sum((r) => r.net)), INK],
+    [`Net sales - ${prevLabel}`, money(salesNet), INK],
   ];
   const gap = 5;
   const cw = (W - M * 2 - gap * 2) / 3;
@@ -112,27 +115,25 @@ export async function ExportRoiSummary(
   const body = rows.map((r, i) => [
     String(i + 1),
     shape(r.support.customerName),
-    r.support.salespersonName,
-    PeriodLabel(r.support),
     money(r.totalSupport),
-    money(r.net),
-    pct(r.returnRate),
+    money(r.prevMonth.net),
+    pct(r.prevMonth.returnRate),
+    pct(r.prevMonth.roiPct),
   ]);
 
   autoTable(doc, {
     startY: 54,
     theme: 'plain',
     margin: { left: M, right: M, top: 30, bottom: 14 },
-    head: [['#', 'Customer', 'Salesperson', 'Support Period', 'Support', 'Net Sales (3 mo)', 'Return %']],
+    head: [['#', 'Customer', 'Support', `Net Sales (${prevLabel})`, 'GRV %', 'ROI %']],
     body,
     foot: [[
       '',
       `Total (${rows.length})`,
-      '',
-      '',
       money(sum((r) => r.totalSupport)),
-      money(sum((r) => r.net)),
+      money(salesNet),
       pct(gross > 0 ? (returns / gross) * 100 : null),
+      pct(totalRoi),
     ]],
     showFoot: 'lastPage',
     styles: { fontSize: 8, cellPadding: 2, textColor: TEXT, halign: 'center', valign: 'middle', lineWidth: 0 },
@@ -141,21 +142,24 @@ export async function ExportRoiSummary(
     footStyles: { fillColor: GOLD_SOFT, textColor: INK, fontStyle: 'bold', fontSize: 8.5, halign: 'center', cellPadding: 3 },
     columnStyles: {
       0: { cellWidth: 12 },
-      1: { fontStyle: 'bold', textColor: INK, cellWidth: 80 },
-      4: { fontStyle: 'bold', textColor: GOLD_DARK },
-      5: { fontStyle: 'bold', textColor: INK },
+      1: { fontStyle: 'bold', textColor: INK },
+      2: { fontStyle: 'bold', textColor: GOLD_DARK },
+      3: { fontStyle: 'bold', textColor: INK },
     },
     didParseCell: (d: any) => {
       if (d.section === 'body') {
         d.cell.styles.lineWidth = { bottom: 0.15 };
         d.cell.styles.lineColor = LINE;
         const r = rows[d.row.index];
-        if (d.column.index === 6 && r.returnRate !== null) {
+        if (d.column.index === 4 && r.prevMonth.returnRate !== null) {
           d.cell.styles.fontStyle = 'bold';
-          d.cell.styles.textColor = r.returnRate >= 25 ? RED : r.returnRate >= 10 ? AMBER : GREEN;
+          d.cell.styles.textColor = r.prevMonth.returnRate >= 25 ? RED : r.prevMonth.returnRate >= 10 ? AMBER : GREEN;
+        }
+        if (d.column.index === 5 && r.prevMonth.roiPct !== null) {
+          d.cell.styles.fontStyle = 'bold';
+          d.cell.styles.textColor = r.prevMonth.roiPct > 10 ? AMBER : GREEN; // same 10% limit as the support assessment
         }
         if (d.column.index === 1 && hasArabic && AR.test(r.support.customerName)) d.cell.styles.font = 'Amiri';
-        if (d.column.index === 2 && hasArabic && AR.test(r.support.salespersonName)) d.cell.styles.font = 'Amiri';
       }
     },
   });

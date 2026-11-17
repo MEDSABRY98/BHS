@@ -10,7 +10,7 @@ import { getSessionUser, isAdminUser, UnauthorizedError, type SessionUserRecord 
 import { getSupabaseAdmin } from '@/lib/supabaseAdmin';
 import { getSalesDataServer } from '@/app/Sales/Cache/SalesCache';
 import { hasFullDebitAccess } from '@/app/CustomersAnalysis/Service/debit_scope';
-import { SalesWindow } from '../Utils/RoiCalc';
+import { PrevMonthKey, SalesWindow } from '../Utils/RoiCalc';
 import type { CustomerOption, RoiData, RoiLine, SalespersonOption, SupportInput, SupportRecord } from '../Utils/Types';
 
 const TABLE = 'web_ROI';
@@ -217,7 +217,10 @@ export async function GetRoiData(): Promise<RoiData> {
   // sales: always the last 3 full months (not the support month, not the current month)
   const win = SalesWindow();
   if (wanted.size) {
-    const from = `${win[0]}-01`;
+    // the 3 months window, and also the month before the earliest support month (summary: sales of the month before the support)
+    const earliest = supports.reduce((m, s) => (s.month && (!m || s.month < m) ? s.month : m), '');
+    const before = earliest ? PrevMonthKey(earliest) : win[0];
+    const from = `${before < win[0] ? before : win[0]}-01`;
     const to = `${win[win.length - 1]}-31`;
     const showCosts = canSeeCosts(user);
     let productCosts = new Map<string, number>();

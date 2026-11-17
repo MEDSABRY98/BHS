@@ -108,4 +108,16 @@ export type RoiResult = {
   roiPct: number | null; // (profit - support) / support
   lastTransaction: string;
   assessment: Assessment;
+  /** the month BEFORE the (last) support month, e.g. support of October → sales of September */
+  prevMonth: PrevMonthSales;
+};
+
+export type PrevMonthSales = {
+  month: string; // YYYY-MM
+  gross: number;
+  returns: number;
+  net: number;
+  returnRate: number | null; // GRV % = returns / gross of that month
+  /** ROI % = the support of the support month ÷ net sales of this (previous) month × 100 */
+  roiPct: number | null;
 };

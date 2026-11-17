@@ -22,6 +22,13 @@ export function SalesWindow(now: Date = new Date()): string[] {
   return out;
 }
 
+/** 2026-10 → 2026-09 (the month before a support month) */
+export function PrevMonthKey(ym: string): string {
+  const [y, m] = ym.split('-').map(Number);
+  const d = new Date(y, (m || 1) - 2, 1);
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
+}
+
 export const MonthLabel = (ym: string) => {
   const [y, m] = ym.split('-').map(Number);
   const names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -169,6 +176,21 @@ function computeResult(
     };
   });
 
+  // the month before the (last) support month: its sales, GRV % and ROI %
+  const lastSupportMonth = monthKeys[monthKeys.length - 1] || '';
+  const prevKey = lastSupportMonth ? PrevMonthKey(lastSupportMonth) : '';
+  const prevB = newBucket();
+  if (prevKey) for (const l of customerLines) if (l.date.slice(0, 7) === prevKey) addLine(prevB, l);
+  const lastSupport = perMonth.get(lastSupportMonth)?.support || 0;
+  const prevMonth = {
+    month: prevKey,
+    gross: prevB.gross,
+    returns: prevB.returns,
+    net: prevB.gross - prevB.returns,
+    returnRate: prevB.gross > 0 ? (prevB.returns / prevB.gross) * 100 : null,
+    roiPct: prevB.gross - prevB.returns > 0 ? (lastSupport / (prevB.gross - prevB.returns)) * 100 : null,
+  };
+
   const months = supportMonths;
   const n = windowKeys.length; // averages are over the 3 sales months
   const totalSupport = supportTotal;
@@ -221,6 +243,7 @@ function computeResult(
     // the customer's latest sales invoice in the whole database (not only the 3-month window)
     lastTransaction: lastSale && lastSale > lastTransaction ? lastSale : lastTransaction,
     assessment,
+    prevMonth,
   };
 }
 
