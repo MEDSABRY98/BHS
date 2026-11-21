@@ -9,6 +9,7 @@ export * from './DebitTabAudit';
 export * from './DebitNotesTabAudit';
 export * from './CreditNotesTabAudit';
 export * from './AnalyticAllocationTabAudit';
+export * from './AnalyticReportsTabAudit';
 export * from './DocumentsTrackingTabAudit';
 export * from './InventoryCountingTabAudit';
 export * from './InventoryItemCodeTabAudit';

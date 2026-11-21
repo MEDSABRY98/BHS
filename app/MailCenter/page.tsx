@@ -16,13 +16,14 @@ import { useModuleTabAudit } from '@/app/AdminControl/Code/Audit/useModuleTabAud
 import MailSidebar from './Utils/Sidebar';
 import ComposeTab from './Components/ComposeTab';
 import StatementsTab from './Components/StatementsTab';
+import RebatesTab from './Components/RebatesTab';
 import TemplatesTab from './Components/TemplatesTab';
 import SentTab from './Components/SentTab';
 import SettingsTab from './Components/SettingsTab';
-import { getMailPermissions, getMailStatus, listMailCustomers, listMailLog, listMailSuppliers, listMailTemplates } from './Service/MailService';
-import type { MailCustomer, MailLogRow, MailPermissions, MailStatus, MailSupplier, MailTabId, MailTemplate } from './Utils/MailTypes';
+import { getMailPermissions, getMailStatus, listMailCustomers, listMailLog, listRebateItems, listMailSuppliers, listMailTemplates } from './Service/MailService';
+import type { MailCustomer, MailLogRow, MailPermissions, RebateItem, MailStatus, MailSupplier, MailTabId, MailTemplate } from './Utils/MailTypes';
 
-const TITLES: Record<MailTabId, string> = { compose: 'Compose', statements: 'Customer Statement', bulk: 'Bulk Send', templates: 'Templates', sent: 'Sent', settings: 'Settings' };
+const TITLES: Record<MailTabId, string> = { compose: 'Compose', statements: 'Customer Statement', rebates: 'Tax Rebate Requests', bulk: 'Bulk Send', templates: 'Templates', sent: 'Sent', settings: 'Settings' };
 const NO_ACCESS: MailPermissions = { tabs: [], admin: false };
 
 export default function MailCenterPage() {
@@ -41,6 +42,7 @@ export default function MailCenterPage() {
   const [templates, setTemplates] = useState<MailTemplate[]>([]);
   const [customers, setCustomers] = useState<MailCustomer[] | null>(null);
   const [suppliers, setSuppliers] = useState<MailSupplier[] | null>(null);
+  const [rebates, setRebates] = useState<RebateItem[] | null>(null);
   const [log, setLog] = useState<MailLogRow[]>([]);
   const [logLoaded, setLogLoaded] = useState(false);
   const [, setLogLoading] = useState(false);
@@ -113,6 +115,15 @@ export default function MailCenterPage() {
     ]);
   }, []);
 
+  const loadRebates = useCallback(async () => {
+    try {
+      setRebates(await listRebateItems());
+    } catch (e: any) {
+      setRebates([]);
+      toast.error(e?.message || 'Could not load the Tax Rebate list');
+    }
+  }, []);
+
   const loadLog = useCallback(async () => {
     setLogLoading(true);
     try {
@@ -139,6 +150,7 @@ export default function MailCenterPage() {
     if (!tabs.includes(activeTab) || opened.has(activeTab)) return;
     setOpened((p) => new Set(p).add(activeTab));
     if ((activeTab === 'compose' || activeTab === 'statements') && !customers) void loadPickers();
+    if (activeTab === 'rebates' && !rebates) void loadRebates();
     if (activeTab === 'sent' && !logLoaded) void loadLog();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, tabs.join(',')]);
@@ -148,6 +160,7 @@ export default function MailCenterPage() {
     try {
       await loadBase();
       if (activeTab === 'compose' || activeTab === 'statements') await loadPickers();
+      if (activeTab === 'rebates') await loadRebates();
       if (activeTab === 'sent') await loadLog();
     } finally {
       setRefreshing(false);
@@ -176,7 +189,7 @@ export default function MailCenterPage() {
     refreshing,
   };
   const show = (tab: MailTabId) => (activeTab === tab ? '' : 'hidden');
-  const tabLoading = (activeTab === 'sent' && !logLoaded && !logError) || (activeTab === 'statements' && !customers);
+  const tabLoading = (activeTab === 'sent' && !logLoaded && !logError) || (activeTab === 'statements' && !customers) || (activeTab === 'rebates' && !rebates);
 
   return (
     <div className="flex min-h-screen bg-[#F8F9FA] text-black">
@@ -221,6 +234,11 @@ export default function MailCenterPage() {
               {tabs.includes('statements') && (
                 <div className={show('statements')}>
                   <StatementsTab status={status} customers={customers} templates={templates} onSent={(r) => onSent([r])} headerEl={headerEl} active={activeTab === 'statements'} />
+                </div>
+              )}
+              {tabs.includes('rebates') && (
+                <div className={show('rebates')}>
+                  <RebatesTab status={status} items={rebates} onSent={(r) => onSent([r])} headerEl={headerEl} active={activeTab === 'rebates'} />
                 </div>
               )}
               {tabs.includes('templates') && (

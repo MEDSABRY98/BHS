@@ -211,6 +211,7 @@ export const SYSTEMS = [
     { id: 'debit-notes', label: 'Debit Notes' },
     { id: 'credit-notes', label: 'Credit Notes' },
     { id: 'analytic-allocation', label: 'Analytic Allocation' },
+    { id: 'analytic-reports', label: 'Analytic Reports' },
     { id: 'forms', label: 'Forms' },
     { id: 'scheduled-reports', label: 'Scheduled Reports' },
     { id: 'reports', label: 'Reports' },
@@ -314,6 +315,7 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
     'mail-center': [
         { id: 'compose', label: 'Compose' },
         { id: 'statements', label: 'Customer Statement' },
+        { id: 'rebates', label: 'Tax Rebate' },
         { id: 'templates', label: 'Templates' },
         { id: 'sent', label: 'Sent' },
     ],
@@ -325,6 +327,12 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
         { id: 'people', label: 'People' },
         { id: 'allocate', label: 'Allocate' },
         { id: 'archive', label: 'Archive' },
+    ],
+    'analytic-reports': [
+        { id: 'upload', label: 'Upload Report' },
+        { id: 'regions', label: 'Regions' },
+        { id: 'hq', label: 'HQ / Central' },
+        { id: 'accounts', label: 'Analytic Accounts' },
     ],
     // Forms: each form id opens the form, '<id>-archive' its saved forms (app/Forms/Shared/FormsRegistry.ts)
     'forms': [
@@ -350,6 +358,7 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
     // Reports: each id is a ready report (app/Reports/Utils/ReportsList.ts)
     'reports': [
         { id: 'products-cost', label: 'Products Cost' },
+        { id: 'suppliers-payables', label: 'Suppliers Payables' },
     ],
     'suppliers-analysis': [
         { id: 'suppliers', label: 'Suppliers Analysis' },
@@ -451,6 +460,7 @@ const getSystemIcon = (id: string) => {
         case 'debit-notes': return <FileCheck className="w-5 h-5 text-indigo-500" />;
         case 'credit-notes': return <FileCheck className="w-5 h-5 text-emerald-500" />;
         case 'analytic-allocation': return <BarChart3 className="w-5 h-5 text-amber-500" />;
+        case 'analytic-reports': return <BarChart3 className="w-5 h-5 text-amber-500" />;
         case 'forms': return <ClipboardList className="w-5 h-5 text-violet-500" />;
         case 'database': return <Database className="w-5 h-5 text-slate-500" />;
         case 'data-update': return <Database className="w-5 h-5 text-sky-500" />;

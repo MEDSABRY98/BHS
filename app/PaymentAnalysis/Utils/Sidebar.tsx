@@ -18,6 +18,7 @@ import {
   UserX,
   CalendarClock,
   FileDown,
+  FileSpreadsheet,
   Loader2
 } from 'lucide-react';
 import { usePaymentAnalysis } from '../Context/PaymentAnalysisContext';
@@ -57,6 +58,7 @@ export default function PaymentSidebar({
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
   const { data, dateRange, selectedTags, selectedClasses, selectedCities, refresh, isRefreshing: ctxRefreshing } = usePaymentAnalysis();
   const [isExportingReport, setIsExportingReport] = useState(false);
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
 
   // PDF report for the current filters (Pdf/ExportReport.ts)
   const handleExportReport = async () => {
@@ -79,6 +81,28 @@ export default function PaymentSidebar({
       toast.error('Could not create the PDF report');
     } finally {
       setIsExportingReport(false);
+    }
+  };
+  // the same report as Excel: one sheet per part (Pdf/ExportReport.ts)
+  const handleExportExcel = async () => {
+    if (isExportingExcel) return;
+    if (!data || data.length === 0) {
+      toast.error('No payment data to export');
+      return;
+    }
+    setIsExportingExcel(true);
+    try {
+      const [{ exportPaymentsReportExcel }, { getPaymentRepAllocation }] = await Promise.all([
+        import('../Pdf/ExportReport'),
+        import('@/app/CustomersAnalysis/Service/debit_service'),
+      ]);
+      const repAllocation = await getPaymentRepAllocation();
+      await exportPaymentsReportExcel({ data, dateRange, selectedTags, selectedClasses, selectedCities, repAllocation });
+    } catch (err) {
+      console.error('Payments Excel report failed:', err);
+      toast.error('Could not create the Excel report');
+    } finally {
+      setIsExportingExcel(false);
     }
   };
   const handleRefresh = onRefresh ?? (() => { void refresh(); });
@@ -204,6 +228,16 @@ export default function PaymentSidebar({
                     {isExportingReport
                       ? <Loader2 className="w-5 h-5 shrink-0 animate-spin text-[#D4AF37]" />
                       : <FileDown className="w-5 h-5 shrink-0" />}
+                  </button>
+                  <button
+                    onClick={handleExportExcel}
+                    disabled={isExportingExcel}
+                    className="flex items-center justify-center w-10 h-10 hover:bg-emerald-50 rounded-xl transition-all duration-200 text-emerald-600 disabled:opacity-50 group border border-slate-200 shrink-0"
+                    title="Export Excel Report"
+                  >
+                    {isExportingExcel
+                      ? <Loader2 className="w-5 h-5 shrink-0 animate-spin text-[#D4AF37]" />
+                      : <FileSpreadsheet className="w-5 h-5 shrink-0" />}
                   </button>
                 </div>
 

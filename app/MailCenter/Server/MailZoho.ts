@@ -35,7 +35,7 @@ async function readSettings(): Promise<Record<string, string>> {
 
 /** Why sending is not possible right now (null = ready). */
 export async function mailProblem(): Promise<string | null> {
-  if (!mailClientReady()) return 'The Zoho client is not set on the server — add MAIL_ZOHO_CLIENT_ID and MAIL_ZOHO_CLIENT_SECRET in Vercel, then redeploy.';
+  // (a missing Zoho client is not shown as a banner; connecting / sending still report it)
   let s: Record<string, string>;
   try {
     s = await readSettings();

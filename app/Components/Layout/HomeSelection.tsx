@@ -170,6 +170,7 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
     { id: 'debit-notes', title: 'Debit Notes', path: '/DebitNotes', color: 'indigo' },
     { id: 'credit-notes', title: 'Credit Notes', path: '/CreditNotes', color: 'emerald' },
     { id: 'analytic-allocation', title: 'Analytic Allocation', path: '/AnalyticAllocation', color: 'yellow' },
+    { id: 'analytic-reports', title: 'Analytic Reports', path: '/AnalyticReports', color: 'yellow' },
     { id: 'forms', title: 'Forms', path: '/Forms', color: 'violet' },
     { id: 'scheduled-reports', title: 'Scheduled Reports', path: '/ScheduledReports', color: 'yellow' },
     { id: 'reports', title: 'Reports', path: '/Reports', color: 'sky' },

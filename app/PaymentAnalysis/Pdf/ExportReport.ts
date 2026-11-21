@@ -1065,3 +1065,129 @@ export async function exportPaymentsReport(input: PaymentsReportInput): Promise<
 
   saveTrackedPdf(doc, `Payments_Report_${period.start}_${period.end}.pdf`);
 }
+
+
+// ─────────────────────────────────────────────────────────────
+//  Excel — the same report, one sheet per part of the PDF
+// ─────────────────────────────────────────────────────────────
+export async function exportPaymentsReportExcel(input: PaymentsReportInput): Promise<void> {
+  const { period, cur, prev, months, reps, untagged, tagGroups, classStats } = buildReport(input);
+  const { exportStyledExcelWorkbook } = await import('@/app/Components/Export/ExcelExport');
+  const r2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
+  const pct = (c: number, p: number) => {
+    const v = change(c, p);
+    return v === null ? 'NEW' : r2(v);
+  };
+
+  const filterParts: string[] = [];
+  if (input.selectedCities.length) filterParts.push(`Cities: ${input.selectedCities.join(', ')}`);
+  if (input.selectedTags.length) filterParts.push(`Tags: ${input.selectedTags.join(', ')}`);
+  if (input.selectedClasses.length) filterParts.push(`Classes: ${input.selectedClasses.join(', ')}`);
+
+  // 1) overview (the cards + the gross / refunds strip)
+  const overview: Record<string, unknown>[] = [
+    { Metric: 'Period', 'This Period': `${fmtDay(period.start)} - ${fmtDay(period.end)}`, 'Last Year': `${fmtDay(period.prevStart)} - ${fmtDay(period.prevEnd)}`, 'Change %': '' },
+    { Metric: 'Filters', 'This Period': filterParts.length ? filterParts.join(' | ') : 'All customers', 'Last Year': '', 'Change %': '' },
+    { Metric: 'Net Collected', 'This Period': r2(cur.net), 'Last Year': r2(prev.net), 'Change %': pct(cur.net, prev.net) },
+    { Metric: 'Gross Collected', 'This Period': r2(cur.collected), 'Last Year': r2(prev.collected), 'Change %': pct(cur.collected, prev.collected) },
+    { Metric: 'Refunds / Returned', 'This Period': r2(cur.refunded), 'Last Year': r2(prev.refunded), 'Change %': pct(cur.refunded, prev.refunded) },
+    { Metric: 'Paying Customers', 'This Period': cur.customers.size, 'Last Year': prev.customers.size, 'Change %': pct(cur.customers.size, prev.customers.size) },
+    { Metric: 'Number of Payments', 'This Period': cur.payments, 'Last Year': prev.payments, 'Change %': pct(cur.payments, prev.payments) },
+    { Metric: 'Avg Payment', 'This Period': r2(cur.payments ? cur.collected / cur.payments : 0), 'Last Year': r2(prev.payments ? prev.collected / prev.payments : 0), 'Change %': '' },
+    { Metric: 'Avg per Customer', 'This Period': r2(cur.customers.size ? cur.net / cur.customers.size : 0), 'Last Year': r2(prev.customers.size ? prev.net / prev.customers.size : 0), 'Change %': '' },
+  ];
+
+  // 2) monthly chart data
+  const monthly: Record<string, unknown>[] = months.map((m) => ({
+    Month: m.label,
+    'This Period': r2(m.current),
+    'Last Year': r2(m.previous),
+    'Change %': pct(m.current, m.previous),
+  }));
+  if (monthly.length) monthly.push({ Month: 'TOTAL', 'This Period': r2(cur.net), 'Last Year': r2(prev.net), 'Change %': pct(cur.net, prev.net) });
+
+  // 3) sales reps, each with his cities under him
+  const repTotal = reps.reduce((s, r) => s + r.net, 0);
+  const share = (v: number) => (repTotal ? r2((v / repTotal) * 100) : 0);
+  const repRows: Record<string, unknown>[] = [];
+  reps.forEach((r, i) => {
+    repRows.push({ '#': i + 1, 'Sales Rep / City': r.rep, 'Net Collection': r2(r.net), 'Share %': share(r.net), Payments: r.payments, Customers: r.customers, 'Avg Payment': r2(r.payments ? r.net / r.payments : 0) });
+    r.cities.forEach((c) =>
+      repRows.push({ '#': '', 'Sales Rep / City': `    ${c.city}`, 'Net Collection': r2(c.net), 'Share %': share(c.net), Payments: c.payments, Customers: c.customers, 'Avg Payment': r2(c.payments ? c.net / c.payments : 0) }),
+    );
+  });
+  if (repRows.length) repRows.push({ '#': '', 'Sales Rep / City': 'TOTAL', 'Net Collection': r2(repTotal), 'Share %': 100, Payments: cur.payments, Customers: cur.customers.size, 'Avg Payment': r2(cur.payments ? repTotal / cur.payments : 0) });
+
+  // 4) customer classes
+  const sum = (f: (c: (typeof classStats)[number]) => number) => classStats.reduce((s, c) => s + f(c), 0);
+  const totNet = sum((c) => c.net);
+  const totPrev = sum((c) => c.prevNet);
+  const classRows: Record<string, unknown>[] = classStats.map((c) => ({
+    Class: c.cls,
+    'Active Cust.': c.active,
+    Paid: c.paidCustomers,
+    'Net Collected': r2(c.net),
+    'Share %': totNet > 0 ? r2((c.net / totNet) * 100) : 0,
+    'vs Last Year %': pct(c.net, c.prevNet),
+    'Avg Payment': r2(c.payments ? c.net / c.payments : 0),
+    'Unpaid Cust.': c.unpaidCustomers,
+    'Unpaid Balance': r2(c.unpaidBalance),
+  }));
+  if (classRows.length)
+    classRows.push({
+      Class: 'TOTAL',
+      'Active Cust.': sum((c) => c.active),
+      Paid: sum((c) => c.paidCustomers),
+      'Net Collected': r2(totNet),
+      'Share %': 100,
+      'vs Last Year %': pct(totNet, totPrev),
+      'Avg Payment': r2(cur.payments ? cur.net / cur.payments : 0),
+      'Unpaid Cust.': sum((c) => c.unpaidCustomers),
+      'Unpaid Balance': r2(sum((c) => c.unpaidBalance)),
+    });
+
+  // 5) customers paid / not paid: untagged first, then the tagged ones grouped by tag
+  const custRows: Record<string, unknown>[] = [];
+  let n = 0;
+  const addCust = (c: (typeof untagged)[number]) =>
+    custRows.push({
+      '#': ++n,
+      Customer: c.name,
+      Tag: c.tag,
+      City: c.city,
+      Class: c.cls,
+      Status: c.paid ? 'Paid' : 'Not paid',
+      'Net Collected': c.paid ? r2(c.net) : 0,
+      Payments: c.paid ? c.payments : 0,
+      'Last Payment': c.last ? fmtDay(c.last) : 'Never',
+      Balance: r2(c.balance),
+    });
+  untagged.forEach(addCust);
+  tagGroups.forEach((g) => g.rows.forEach(addCust));
+  if (custRows.length) {
+    const all = [...untagged, ...tagGroups.flatMap((g) => g.rows)];
+    custRows.push({
+      '#': '',
+      Customer: 'TOTAL',
+      Tag: '',
+      City: '',
+      Class: '',
+      Status: '',
+      'Net Collected': r2(all.reduce((s, r) => s + r.net, 0)),
+      Payments: all.reduce((s, r) => s + r.payments, 0),
+      'Last Payment': '',
+      Balance: r2(all.reduce((s, r) => s + r.balance, 0)),
+    });
+  }
+
+  await exportStyledExcelWorkbook(
+    [
+      { name: 'Overview', data: overview, options: { columnWidth: 26, numericColumns: ['This Period', 'Last Year', 'Change %'] } },
+      { name: 'Monthly', data: monthly, options: { columnWidth: 20, numericColumns: ['This Period', 'Last Year', 'Change %'] } },
+      { name: 'Sales Reps', data: repRows, options: { columnWidth: 20, numericColumns: ['Net Collection', 'Share %', 'Payments', 'Customers', 'Avg Payment'] } },
+      { name: 'Classes', data: classRows, options: { columnWidth: 18, numericColumns: ['Active Cust.', 'Paid', 'Net Collected', 'Share %', 'vs Last Year %', 'Avg Payment', 'Unpaid Cust.', 'Unpaid Balance'] } },
+      { name: 'Customers', data: custRows, options: { columnWidth: 20, numericColumns: ['Net Collected', 'Payments', 'Balance'] } },
+    ],
+    `Payments_Report_${period.start}_${period.end}`,
+  );
+}

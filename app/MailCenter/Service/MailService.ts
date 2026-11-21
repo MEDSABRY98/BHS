@@ -18,6 +18,7 @@ import {
   MAIL_PERMISSION_TABS,
   MAIL_SYSTEM_ID,
   bodyToHtml,
+  buildRebateEmail,
   renderVariables,
   resolveDateMode,
   formatDate,
@@ -34,6 +35,8 @@ import {
   type MailSupplier,
   type MailTabId,
   type MailTemplate,
+  type RebateItem,
+  type RebateSection,
   type TemplateAttachment,
 } from '../Utils/MailTypes';
 
@@ -71,7 +74,7 @@ function permissionsOf(user: SessionUserRecord): MailPermissions {
 }
 
 /** the user can open that module (attachments come from it); Customers Analysis is granted as 'debit' */
-function moduleAllowed(user: SessionUserRecord, systemId: 'customers-analysis' | 'suppliers-analysis'): boolean {
+function moduleAllowed(user: SessionUserRecord, systemId: 'customers-analysis' | 'suppliers-analysis' | 'customers-discounts'): boolean {
   const ids = systemId === 'customers-analysis' ? ['debit', 'customers-analysis'] : [systemId];
   if (ids.some((id) => isAdminUser(user, id))) return true;
   const perms = rolePerms(user);
@@ -251,13 +254,13 @@ async function writeLog(row: Record<string, unknown>, user: SessionUserRecord): 
 /** builds every attachment, fills the variables, sends one email and logs it */
 async function sendOne(
   user: SessionUserRecord,
-  input: { to: string[]; cc: string[]; bcc: string[]; subject: string; body: string; attachments: AttachmentSpec[]; batchId?: string | null },
+  input: { to: string[]; cc: string[]; bcc: string[]; subject: string; body: string; attachments: AttachmentSpec[]; batchId?: string | null; html?: string; party?: string },
 ): Promise<MailLogRow> {
   const conn = await getMailConnection();
   const from = conn?.fromEmail || '';
   let subject = input.subject;
   let body = input.body;
-  let party: string | null = null;
+  let party: string | null = input.party || null;
   const names: { name: string; spec: AttachmentSpec }[] = [];
 
   try {
@@ -278,7 +281,7 @@ async function sendOne(
     }
     subject = renderVariables(subject, vars);
     body = renderVariables(body, vars);
-    await sendFromMailbox({ to: input.to, cc: input.cc, bcc: input.bcc, subject, html: bodyToHtml(body), attachments: files });
+    await sendFromMailbox({ to: input.to, cc: input.cc, bcc: input.bcc, subject, html: input.html ?? bodyToHtml(body), attachments: files });
     return writeLog(
       { BATCH_ID: input.batchId || null, FROM_EMAIL: from, TO_EMAILS: input.to, CC_EMAILS: input.cc, BCC_EMAILS: input.bcc, SUBJECT: subject, BODY: body, ATTACHMENTS: names, PARTY: party, STATUS: 'sent', ERROR: null, SENT_BY: String(user.id) },
       user,
@@ -453,6 +456,133 @@ async function bulkOne(
         ]
       : [{ kind: 'customer-statement', customerName: name, customerId: input.customerId || null, format: input.attachment.format, scope: input.attachment.scope, dateTo: input.dateTo }];
   return sendOne(user, { to, cc, bcc: [], subject: String(input.subject || '').trim().slice(0, 250) || 'Statement of Account', body: String(input.body || ''), attachments, batchId: input.batchId });
+}
+
+// ─────────────────────────────────────────────────────────────
+//  Tax Rebate Requests (Customers Discounts: pending past months)
+// ─────────────────────────────────────────────────────────────
+async function fetchAllRows(table: string, columns: string, order: string, filter?: (q: any) => any): Promise<any[]> {
+  const out: any[] = [];
+  for (let from = 0; ; from += 1000) {
+    let q = getSupabaseAdmin().from(table).select(columns);
+    if (filter) q = filter(q);
+    const { data, error } = await q.order(order, { ascending: true }).range(from, from + 999);
+    if (error) throw new Error(error.message);
+    out.push(...(data || []));
+    if (!data || data.length < 1000) break;
+  }
+  return out;
+}
+
+const normKey = (v: unknown) => String(v ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+
+// kept for one minute: a bulk send asks for the same list once per customer
+let rebateCache: { at: number; items: RebateItem[] } | null = null;
+
+/** customers with a discount and Pending months before the current month, split like the Customer Statement tab */
+async function rebateItems(): Promise<RebateItem[]> {
+  if (rebateCache && Date.now() - rebateCache.at < 60_000) return rebateCache.items;
+  const [cy, cm] = uaeToday().split('-').map(Number);
+  const isPast = (m: number, y: number) => y < cy || (y === cy && m < cm);
+
+  const [discounts, pendingRows, custRows] = await Promise.all([
+    fetchAllRows('web_CUSTOMERS_DISCOUNTS', 'CUSTOMER_ID', 'ID'),
+    fetchAllRows('web_CUSTOMERS_DISCOUNTS_SETTLEMENTS', 'CUSTOMER_ID, MONTH, YEAR', 'ID', (q) => q.eq('STATUS', 'Pending')),
+    fetchAllRows('bhs_CUSTOMERS', '"CUSTOMER ID", "CUSTOMER MAIN NAME", "CUSTOMER TAG"', 'CUSTOMER ID'),
+  ]);
+  const withDiscount = new Set(discounts.map((d: any) => String(d.CUSTOMER_ID || '').trim()).filter(Boolean));
+  const info = new Map<string, { name: string; tag: string }>();
+  custRows.forEach((r: any) => {
+    const id = String(r['CUSTOMER ID'] ?? '').trim();
+    if (id) info.set(id, { name: String(r['CUSTOMER MAIN NAME'] ?? '').trim(), tag: String(r['CUSTOMER TAG'] ?? '').trim() });
+  });
+
+  const periods = new Map<string, { month: number; year: number }[]>();
+  pendingRows.forEach((r: any) => {
+    const id = String(r.CUSTOMER_ID || '').trim();
+    const month = Number(r.MONTH);
+    const year = Number(r.YEAR);
+    if (!id || !withDiscount.has(id) || !month || !year || !isPast(month, year)) return;
+    const list = periods.get(id) || [];
+    if (!list.some((p) => p.month === month && p.year === year)) list.push({ month, year });
+    periods.set(id, list);
+  });
+
+  let emails: { customerId: string; email: string }[] = [];
+  try {
+    emails = await getAllCustomerEmailsStrict();
+  } catch {
+    emails = [];
+  }
+  const emailById = new Map(emails.map((e) => [normKey(e.customerId), e.email]));
+  const lulu = await luluMap();
+
+  const sectionOf = (id: string): RebateSection => ({
+    customerId: id,
+    customerName: info.get(id)?.name || id,
+    periods: (periods.get(id) || []).slice().sort((a, b) => a.year - b.year || a.month - b.month),
+  });
+  const emailsOf = (id: string) => splitStoredEmails(emailById.get(normKey(id)) || emailById.get(normKey(info.get(id)?.name)) || '');
+
+  const items: RebateItem[] = [];
+  const byTag = new Map<string, string[]>();
+  for (const id of periods.keys()) {
+    const tag = info.get(id)?.tag || '';
+    const l = lulu.get(normKey(id)) || lulu.get(normKey(info.get(id)?.name));
+    const isLulu = !!l || tag.toUpperCase().includes('LULU');
+    if (tag && !isLulu) {
+      byTag.set(tag, [...(byTag.get(tag) || []), id]);
+      continue;
+    }
+    const to = l ? l.to : emailsOf(id);
+    items.push({
+      key: `c:${id}`,
+      name: info.get(id)?.name || id,
+      sub: id,
+      emails: to,
+      cc: l ? l.cc.filter((e) => !l.to.includes(e)) : [],
+      lulu: isLulu,
+      tag: null,
+      sections: [sectionOf(id)],
+    });
+  }
+  byTag.forEach((ids, tag) => {
+    const sections = ids.map(sectionOf).sort((a, b) => a.customerName.localeCompare(b.customerName, 'en', { sensitivity: 'base' }));
+    items.push({
+      key: `t:${tag}`,
+      name: tag,
+      sub: `${ids.length} customer${ids.length === 1 ? '' : 's'}`,
+      emails: cleanList(ids.flatMap(emailsOf)),
+      cc: [],
+      lulu: false,
+      tag,
+      sections,
+    });
+  });
+  items.sort((a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }));
+  rebateCache = { at: Date.now(), items };
+  return items;
+}
+
+export async function listRebateItems(): Promise<RebateItem[]> {
+  const { user } = await requireTab('rebates');
+  if (!moduleAllowed(user, 'customers-discounts')) return [];
+  return rebateItems();
+}
+
+/** one customer (or one group): the email that asks for the invoices of the pending months */
+export async function sendRebateRequest(input: { key: string }): Promise<ActionResult<MailLogRow>> {
+  return asResult(async () => {
+    const { user } = await requireTab('rebates');
+    if (!moduleAllowed(user, 'customers-discounts')) throw new UnauthorizedError("You don't have access to Customers Discounts.");
+    const item = (await rebateItems()).find((i) => i.key === String(input?.key || ''));
+    if (!item) throw new Error('No pending months for this customer any more — refresh the list');
+    if (!item.emails.length) throw new Error(`${item.name}: no email saved`);
+    checkEmails(item.name, item.emails);
+    checkEmails('CC', item.cc);
+    const mail = buildRebateEmail(item);
+    return sendOne(user, { to: item.emails, cc: item.cc, bcc: [], subject: mail.subject, body: mail.text, html: mail.html, party: item.name, attachments: [] });
+  });
 }
 
 // ─────────────────────────────────────────────────────────────

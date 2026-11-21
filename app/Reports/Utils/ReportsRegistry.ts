@@ -3,10 +3,11 @@
 
 import type { ComponentType } from 'react';
 import type { LucideIcon } from 'lucide-react';
-import { Tags, Users } from 'lucide-react';
+import { Tags, Truck, Users } from 'lucide-react';
 import { REPORT_META, type ReportMeta } from './ReportsList';
 import ProductsCostReport from '../ProductsCost/ProductsCostReport';
 import SalespersonsDebitReport from '../SalespersonsDebit/SalespersonsDebitReport';
+import SuppliersPayablesReport from '../SuppliersPayables/SuppliersPayablesReport';
 
 export interface ReportComponentProps {
   onClose: () => void;
@@ -20,6 +21,7 @@ export interface ReportDefinition extends ReportMeta {
 const PARTS: Record<string, { icon: LucideIcon; Component: ComponentType<ReportComponentProps> }> = {
   'products-cost': { icon: Tags, Component: ProductsCostReport },
   'salespersons-debit': { icon: Users, Component: SalespersonsDebitReport },
+  'suppliers-payables': { icon: Truck, Component: SuppliersPayablesReport },
 };
 
 export const REPORTS: ReportDefinition[] = REPORT_META.filter((m) => PARTS[m.id]).map((m) => ({ ...m, ...PARTS[m.id] }));

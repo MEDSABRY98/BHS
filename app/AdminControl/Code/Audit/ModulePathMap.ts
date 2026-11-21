@@ -5,6 +5,7 @@ const MODULE_ROUTES: { prefix: string; name: string }[] = [
   { prefix: '/DebitNotes', name: 'Debit Notes' },
   { prefix: '/CreditNotes', name: 'Credit Notes' },
   { prefix: '/AnalyticAllocation', name: 'Analytic Allocation' },
+  { prefix: '/AnalyticReports', name: 'Analytic Reports' },
   { prefix: '/Forms', name: 'Forms' },
   { prefix: '/DocumentsTracking', name: 'Documents Tracking' },
   { prefix: '/CustomersAnalysis', name: 'Customers Analysis' },

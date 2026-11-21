@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { ArrowLeft, ChevronLeft, ChevronRight, FileSpreadsheet, PenSquare, LayoutTemplate, Send, Settings, X, RefreshCw, Mail } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, FileSpreadsheet, Percent, PenSquare, LayoutTemplate, Send, Settings, X, RefreshCw, Mail } from 'lucide-react';
 import type { MailTabId } from './MailTypes';
 
 interface MailSidebarProps {
@@ -17,6 +17,7 @@ interface MailSidebarProps {
 const ALL_TABS = [
   { id: 'compose' as const, label: 'Compose', icon: PenSquare },
   { id: 'statements' as const, label: 'Customer Statement', icon: FileSpreadsheet },
+  { id: 'rebates' as const, label: 'Tax Rebate', icon: Percent },
   { id: 'templates' as const, label: 'Templates', icon: LayoutTemplate },
   { id: 'sent' as const, label: 'Sent', icon: Send },
   { id: 'settings' as const, label: 'Settings', icon: Settings },

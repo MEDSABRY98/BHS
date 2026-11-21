@@ -4,9 +4,9 @@
 
 export const MAIL_SYSTEM_ID = 'mail-center';
 
-export type MailTabId = 'compose' | 'statements' | 'bulk' | 'templates' | 'sent' | 'settings';
+export type MailTabId = 'compose' | 'statements' | 'rebates' | 'bulk' | 'templates' | 'sent' | 'settings';
 /** tabs given in Admin Control; 'settings' (the mailbox) is admin only; 'bulk' is not shown any more */
-export const MAIL_PERMISSION_TABS: MailTabId[] = ['compose', 'statements', 'templates', 'sent'];
+export const MAIL_PERMISSION_TABS: MailTabId[] = ['compose', 'statements', 'rebates', 'templates', 'sent'];
 
 export interface MailPermissions {
   tabs: MailTabId[];
@@ -118,6 +118,65 @@ export interface MailCustomer {
   balance: number;
   lulu: boolean; // emails come from the Lulu list (TO + CC)
   cc: string[]; // Lulu CC
+}
+
+/** Tax Rebate Requests: customers with discounts whose past months are still Pending (Customers Discounts) */
+export interface RebateSection {
+  customerId: string;
+  customerName: string;
+  periods: { month: number; year: number }[];
+}
+export interface RebateItem {
+  key: string;
+  name: string;
+  sub: string;
+  emails: string[];
+  cc: string[];
+  lulu: boolean;
+  tag: string | null; // a group: one email to the tag with every customer's months
+  sections: RebateSection[];
+}
+
+export const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+const escHtml = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] as string);
+
+/** the "request the outstanding Tax Rebate invoices" email (same wording as the EML draft of Customers Discounts) */
+export function buildRebateEmail(item: Pick<RebateItem, 'name' | 'tag' | 'sections'>): { subject: string; text: string; html: string } {
+  const subject = 'Request for Outstanding Tax Rebate Invoices - Al Marai Al Arabia Trading Sole Proprietorship L.L.C';
+  const who = item.tag ? `customers under tag ${item.tag}` : item.name;
+  const intro = item.tag
+    ? `We are writing to kindly request the outstanding Tax Rebate Invoices (Discounts) for customers under tag ${item.tag} for the following pending periods:`
+    : `We are writing to kindly request the outstanding Tax Rebate Invoices (Discounts) for the following pending periods for ${item.name}:`;
+  const label = (p: { month: number; year: number }) => `${MONTH_NAMES[p.month - 1]} ${p.year}`;
+  const text = [
+    'Dear Team,',
+    '',
+    'We hope this email finds you well.',
+    '',
+    intro,
+    '',
+    ...item.sections.flatMap((s) => [s.customerName, ...s.periods.map((p) => `  - ${label(p)}`), '']),
+    'Please share the pending Tax Rebate Invoices at your earliest convenience so we can reconcile and update our accounts.',
+    '',
+    'Best regards,',
+    'Accounts Department',
+    'Al Marai Al Arabia Trading Sole Proprietorship L.L.C',
+  ].join('\n');
+  void who;
+  const introHtml = item.tag
+    ? `We are writing to kindly request the outstanding <strong>Tax Rebate Invoices</strong> (Discounts) for customers under tag <strong>${escHtml(item.tag)}</strong> for the following pending periods:`
+    : `We are writing to kindly request the outstanding <strong>Tax Rebate Invoices</strong> (Discounts) for the following pending periods for <strong>${escHtml(item.name)}</strong>:`;
+  const sections = item.sections
+    .map(
+      (s) =>
+        `<p style="margin: 16px 0 6px;"><strong>${escHtml(s.customerName)}</strong></p><ul style="font-size: 15px; color: #dc2626; font-weight: bold; margin: 0 0 0 10px; padding-left: 20px; list-style-type: square;">${s.periods
+          .map((p) => `<li style="margin-bottom: 4px;">${label(p)}</li>`)
+          .join('')}</ul>`,
+    )
+    .join('');
+  const html = `<div dir="auto" style="font-family: Arial, sans-serif; font-size: 14px; color: #333; line-height: 1.6;"><p>Dear Team,</p><p>We hope this email finds you well.</p><p>${introHtml}</p>${sections}<p>Please share the pending Tax Rebate Invoices at your earliest convenience so we can reconcile and update our accounts.</p><p>Best regards,<br><br>Accounts Department<br>Al Marai Al Arabia Trading Sole Proprietorship L.L.C</p></div>`;
+  return { subject, text, html };
 }
 
 export interface MailSupplier {
