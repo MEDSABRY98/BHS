@@ -3,6 +3,7 @@
 // Suppliers Payables PDF — same visual identity as the supplier statement (gold / black, Amiri for Arabic names).
 
 import { addArabicFont } from '@/app/Components/Pdf/shared';
+import { enableArabicBidi } from '@/app/Components/Pdf/bidi';
 import { saveTrackedPdf } from '@/app/AdminControl/Code/Audit/TrackedDownload';
 import { periodLabel, type PayablesPeriod, type PayablesRow } from './SuppliersPayablesData';
 
@@ -31,6 +32,7 @@ export async function generateSuppliersPayablesPdf(rows: PayablesRow[], period: 
   const doc = new jsPDF('p', 'mm', 'a4');
   doc.setProperties({ title: 'Suppliers Payables' });
   await addArabicFont(doc);
+  enableArabicBidi(doc);
   const margin = 10;
   const W = doc.internal.pageSize.getWidth();
   const cw = W - margin * 2;
@@ -42,33 +44,35 @@ export async function generateSuppliersPayablesPdf(rows: PayablesRow[], period: 
   doc.setLineWidth(0.7);
   doc.line(margin, y + 4, margin + cw, y + 4);
   y += 15;
-  // title + company name on the same row
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(20);
   doc.setTextColor(...C.black);
   doc.text('SUPPLIERS PAYABLES', margin, y);
-  const titleW = doc.getTextWidth('SUPPLIERS PAYABLES');
-  doc.setFontSize(12);
+  y += 6;
+  doc.setFontSize(11);
   doc.setTextColor(...C.gold);
-  doc.text('ALMARAI ALARABIA TRADING', margin + titleW + 6, y);
-  y += 5;
+  doc.text('ALMARAI ALARABIA TRADING', margin, y);
+  // total payables, on the same line, right side
+  doc.setFontSize(9);
+  doc.setTextColor(...C.gray);
+  doc.text('TOTAL PAYABLES', margin + cw - 48, y, { align: 'right' });
+  doc.setFontSize(13);
+  doc.setTextColor(...C.black);
+  doc.text(`${fmt(total)} AED`, margin + cw, y, { align: 'right' });
+  y += 3;
 
   doc.setFillColor(...C.goldLight);
   doc.rect(margin, y, cw, 20, 'F');
   doc.setFontSize(8);
   doc.setTextColor(...C.gray);
   doc.text('PERIOD', margin + 5, y + 6);
-  doc.text('SUPPLIERS', margin + cw * 0.42, y + 6);
-  doc.text('TOTAL PAYABLES (AED)', margin + cw * 0.56, y + 6);
-  doc.text('REPORT DATE', margin + cw * 0.82, y + 6);
+  doc.text('SUPPLIERS', margin + cw * 0.52, y + 6);
+  doc.text('REPORT DATE', margin + cw * 0.72, y + 6);
   doc.setFontSize(11);
   doc.setTextColor(...C.black);
   doc.text(periodLabel(period), margin + 5, y + 14);
-  doc.text(String(rows.length), margin + cw * 0.42, y + 14);
-  doc.setFont('helvetica', 'bold');
-  doc.text(fmt(total), margin + cw * 0.56, y + 14);
-  doc.setFont('helvetica', 'normal');
-  doc.text(today(), margin + cw * 0.82, y + 14);
+  doc.text(String(rows.length), margin + cw * 0.52, y + 14);
+  doc.text(today(), margin + cw * 0.72, y + 14);
   y += 26;
 
   const body = rows.map((r, i) => [String(i + 1), r.name, term(r.termDays), fmt(r.open)]);

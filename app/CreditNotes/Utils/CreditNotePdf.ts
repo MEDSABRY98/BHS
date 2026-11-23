@@ -7,6 +7,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { addArabicFont } from '@/app/Components/Pdf/shared';
+import { enableArabicBidi } from '@/app/Components/Pdf/bidi';
 import { saveTrackedPdf } from '@/app/AdminControl/Code/Audit/TrackedDownload';
 import { HEADER_NAME, ISSUED_BY, ISSUED_TO, SUPPORTING_TEXT, formatAmount, formatLongDate, type CreditNote } from './CreditNoteTypes';
 import { pickSignatures } from '@/app/Components/Signatures/SignaturePicker';
@@ -38,6 +39,7 @@ export async function generateCreditNotePdf(note: CreditNote) {
   if (!signers) return null;
 
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  enableArabicBidi(doc); // Arabic + English + brackets in the right order
   if ([note.BODY_TEXT, ...note.LINES.map((l) => l.description)].some(hasArabic)) {
     try {
       await addArabicFont(doc);

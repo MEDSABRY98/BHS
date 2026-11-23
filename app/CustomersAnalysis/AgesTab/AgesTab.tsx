@@ -28,6 +28,8 @@ interface CustomerAgingSummary {
   customerName: string;
   cities: string[];
   customerTags: string[];
+  /** the customer's payment term in days (most common among his invoices) */
+  paymentTerm: number | null;
   atDate: number;
   oneToThirty: number;
   thirtyOneToSixty: number;
@@ -124,10 +126,20 @@ export default function AgesTab({ data }: AgesTabProps) {
         if (tag) tagsSet.add(tag);
       });
 
+      const termCount = new Map<number, number>();
+      customerInvoices.forEach((inv) => {
+        if (inv.paymentTerm !== undefined && inv.paymentTerm !== null && !Number.isNaN(Number(inv.paymentTerm))) {
+          const t = Number(inv.paymentTerm);
+          termCount.set(t, (termCount.get(t) || 0) + 1);
+        }
+      });
+      const paymentTerm = Array.from(termCount.entries()).sort((a, b) => b[1] - a[1] || b[0] - a[0])[0]?.[0] ?? null;
+
       const summary: CustomerAgingSummary = {
         customerName,
         cities: Array.from(citiesSet).sort(),
         customerTags: Array.from(tagsSet).sort(),
+        paymentTerm,
         atDate: 0,
         oneToThirty: 0,
         thirtyOneToSixty: 0,
@@ -282,15 +294,17 @@ export default function AgesTab({ data }: AgesTabProps) {
       return b.total - a.total; // then by Net Debit descending
     });
 
-    const numericColumns = ['NET DEBIT', '0 - 30', '31 - 60', '61 - 90', '91 - 120', 'OLDER'];
+    // '0' is written as '0 ' (with a space): a plain '0' key is an integer key, which JS puts BEFORE every other column
+    const numericColumns = ['NET DEBIT', '0 ', '1 - 30', '31 - 60', '61 - 90', '91 - 120', 'OLDER'];
     const options = { numericColumns };
 
     const getRowData = (item: CustomerAgingSummary, index: number) => ({
       '#': index + 1,
       'Customer Name': item.customerName,
       'City': item.cities.join(', ') || '',
+      'Payment Term': item.paymentTerm === null ? '' : `${item.paymentTerm} Days`,
       'NET DEBIT': item.total,
-      '0': item.atDate,
+      '0 ': item.atDate,
       '1 - 30': item.oneToThirty,
       '31 - 60': item.thirtyOneToSixty,
       '61 - 90': item.sixtyOneToNinety,
@@ -304,8 +318,10 @@ export default function AgesTab({ data }: AgesTabProps) {
       '#': '',
       'Customer Name': 'TOTAL',
       'City': '',
+      'Payment Term': '',
       'NET DEBIT': grandTotal,
-      '0 - 30': total1To30,
+      '0 ': totalAtDate,
+      '1 - 30': total1To30,
       '31 - 60': total31To60,
       '61 - 90': total61To90,
       '91 - 120': total91To120,
@@ -347,8 +363,9 @@ export default function AgesTab({ data }: AgesTabProps) {
         '#': '',
         'Customer Name': 'TOTAL',
         'City': '',
+        'Payment Term': '',
         'NET DEBIT': cityTotal,
-        '0': cityAtDate,
+        '0 ': cityAtDate,
         '1 - 30': city1To30,
         '31 - 60': city31To60,
         '61 - 90': city61To90,
@@ -566,6 +583,7 @@ export default function AgesTab({ data }: AgesTabProps) {
   });
 
   // Calculate Totals
+  const totalAtDate = filteredData.reduce((sum, item) => sum + item.atDate, 0);
   const total1To30 = filteredData.reduce((sum, item) => sum + item.oneToThirty, 0);
   const total31To60 = filteredData.reduce((sum, item) => sum + item.thirtyOneToSixty, 0);
   const total61To90 = filteredData.reduce((sum, item) => sum + item.sixtyOneToNinety, 0);

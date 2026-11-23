@@ -3,11 +3,13 @@
 import React, { useMemo, useState } from 'react';
 import NoData from '../../Components/DataState/NoDataTab';
 import { useSuppliersData } from '../Context/SuppliersDataContext';
-import { Search, Loader2, Eye, EyeOff, FileSpreadsheet, FileText } from 'lucide-react';
+import { Search, Loader2, Eye, EyeOff, FileSpreadsheet, FileText, FileArchive } from 'lucide-react';
 import { exportStyledExcel } from '../../Components/Export/ExcelExport';
 import { buildSupplierStatement } from './Statement/StatementData';
 import { generateSupplierStatementPDF } from './Statement/StatementPdf';
 import { generateSupplierStatementExcel } from './Statement/StatementExcel';
+import { generateSuppliersStatementsZip } from './Statement/StatementZip';
+import { saveTrackedAs } from '@/app/AdminControl/Code/Audit/TrackedDownload';
 import { toast } from '../../Components/Notification';
 import SupplierMonthlyModal from './Modal/SupplierMonthlyModal';
 import { SupplierRecord } from '../Service/suppliers_service';
@@ -26,9 +28,10 @@ export default function SuppliersTab() {
   const [hideZero, setHideZero] = useState(false);
   const [selectedSupplierForModal, setSelectedSupplierForModal] = useState<SupplierRecord | null>(null);
   const [sorting, setSorting] = useState<SortingState>([{ id: 'SUPPLIER NAME', desc: false }]);
-  const [exportModal, setExportModal] = useState<{ id: string; name: string; kind: 'excel' | 'pdf' } | null>(null);
+  const [exportModal, setExportModal] = useState<{ id: string; name: string; kind: 'excel' | 'pdf' | 'zip' } | null>(null);
   const [exportYear, setExportYear] = useState('');
   const [exportMonth, setExportMonth] = useState('');
+  const [zipProgress, setZipProgress] = useState('');
 
   // Calculate balances per supplier
   const supplierBalances = useMemo(() => {
@@ -123,6 +126,27 @@ export default function SuppliersTab() {
     const { id, name, kind } = exportModal;
     const key = `${kind}-${id}`;
     if (busy) return;
+    if (kind === 'zip') {
+      try {
+        setExportModal(null);
+        setBusy(key);
+        const { blob, files, skipped } = await generateSuppliersStatementsZip(suppliers, transactions, filterType, exportYear, exportMonth, (done, total, who) => setZipProgress(`${done}/${total} · ${who}`));
+        if (!files) {
+          toast.warning(`No ${filterType === 'all' ? '' : filterType + ' '}transactions for any supplier.`);
+          return;
+        }
+        const period = exportYear ? `${exportYear}${exportMonth ? '-' + exportMonth.padStart(2, '0') : ''}_` : '';
+        saveTrackedAs(blob, `Suppliers_Statements_${period}${filterType}.zip`);
+        toast.success(`${files} statement${files === 1 ? '' : 's'} downloaded${skipped ? ` (${skipped} suppliers had nothing to show)` : ''}.`);
+      } catch (err) {
+        console.error('Statements ZIP failed:', err);
+        toast.error('Failed to generate the statements ZIP.');
+      } finally {
+        setBusy(null);
+        setZipProgress('');
+      }
+      return;
+    }
     try {
       setExportModal(null);
       setBusy(key);
@@ -335,6 +359,17 @@ export default function SuppliersTab() {
           >
             <FileSpreadsheet className="w-4 h-4" />
           </button>
+          <button
+            id="export-suppliers-statements-zip"
+            type="button"
+            onClick={() => setExportModal({ id: '', name: 'All suppliers', kind: 'zip' })}
+            disabled={!!busy}
+            title="All suppliers' statements (ZIP of PDFs)"
+            className="flex items-center justify-center gap-2 h-9 px-3 bg-red-500 hover:bg-red-600 text-white rounded-xl transition-colors shadow-sm cursor-pointer disabled:opacity-60"
+          >
+            {busy === 'zip-' ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileArchive className="w-4 h-4" />}
+            {busy === 'zip-' && zipProgress && <span className="text-xs font-bold max-w-[220px] truncate">{zipProgress}</span>}
+          </button>
         </div>
 
         <div className="flex items-center gap-3">
@@ -423,7 +458,7 @@ export default function SuppliersTab() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-200">
             <div className="p-6 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
-              <h3 className="font-black text-lg text-slate-800">Export Options</h3>
+              <h3 className="font-black text-lg text-slate-800">{exportModal.kind === 'zip' ? 'All Statements (ZIP)' : 'Export Options'}</h3>
               <button 
                 onClick={() => setExportModal(null)}
                 className="text-slate-400 hover:text-slate-600 transition-colors"
