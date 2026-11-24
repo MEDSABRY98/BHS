@@ -5,13 +5,11 @@
 export interface IntercompanyLine {
   ENTRY_DATE: string; // YYYY-MM-DD
   ACCOUNT_NAME: string | null;
-  AIN_ENTRY_NUMBER: string | null;
-  DUBAI_ENTRY_NUMBER: string | null;
+  /** the entry reference (one column; the old Al Ain / Dubai entry numbers were merged into it) */
+  REFERENCE: string | null;
   LABEL: string | null;
   DEBIT: number;
   CREDIT: number;
-  /** YES = the entry has its attachment; NO (or empty) = no attachment */
-  ATTACHMENT: boolean;
 }
 
 export function round2(n: number): number {
@@ -22,10 +20,18 @@ export function cleanText(value: unknown): string {
   return String(value ?? '').replace(/\s+/g, ' ').trim();
 }
 
+/** forms saved before the change kept the reference in AIN_ENTRY_NUMBER (Dubai's was never filled): read both shapes; the removed Attachment flag is dropped */
+export function normalizeLines(lines: any[] | null | undefined): IntercompanyLine[] {
+  return (lines || []).map((l: any) => {
+    const { AIN_ENTRY_NUMBER, DUBAI_ENTRY_NUMBER, ATTACHMENT: _attachment, ...rest } = l || {};
+    return { ...rest, REFERENCE: l?.REFERENCE ?? AIN_ENTRY_NUMBER ?? DUBAI_ENTRY_NUMBER ?? null } as IntercompanyLine;
+  });
+}
+
 export function compareEntries(a: IntercompanyLine, b: IntercompanyLine): number {
   if (a.ENTRY_DATE !== b.ENTRY_DATE) return a.ENTRY_DATE < b.ENTRY_DATE ? -1 : 1;
-  const na = a.AIN_ENTRY_NUMBER || a.DUBAI_ENTRY_NUMBER || '';
-  const nb = b.AIN_ENTRY_NUMBER || b.DUBAI_ENTRY_NUMBER || '';
+  const na = a.REFERENCE || '';
+  const nb = b.REFERENCE || '';
   return na.localeCompare(nb, undefined, { numeric: true, sensitivity: 'base' });
 }
 

@@ -9,7 +9,7 @@ import { toast } from '@/app/Components/Notification';
 import FormShell from '../Shared/FormShell';
 import { uaeToday } from '../Shared/FormsUtils';
 import type { FormEditorContext } from '../Shared/FormsArchiveTypes';
-import { compareEntries, formatAmount, formatDate, round2, type IntercompanyLine } from './IntercompanyTypes';
+import { compareEntries, formatAmount, formatDate, normalizeLines, round2, type IntercompanyLine } from './IntercompanyTypes';
 
 const FORM_ID = 'intercompany';
 
@@ -39,7 +39,7 @@ const CARD = 'bg-white rounded-3xl border border-slate-200/60 shadow-[0_4px_20px
 
 function IntercompanyTool({ ctx }: { ctx: FormEditorContext<IntercompanyData> }) {
   const init = ctx.editing?.DATA;
-  const [lines, setLines] = useState<IntercompanyLine[] | null>(init?.LINES?.length ? init.LINES : null);
+  const [lines, setLines] = useState<IntercompanyLine[] | null>(init?.LINES?.length ? normalizeLines(init.LINES) : null);
   const [fileName, setFileName] = useState(init?.FILE_NAME || '');
   // typed by the user (when editing a saved form: its saved title)
   const [title, setTitle] = useState(ctx.editing?.TITLE || '');
@@ -109,8 +109,7 @@ function IntercompanyTool({ ctx }: { ctx: FormEditorContext<IntercompanyData> })
   const debit = round2((lines || []).reduce((s, l) => s + l.DEBIT, 0));
   const credit = round2((lines || []).reduce((s, l) => s + l.CREDIT, 0));
   const dates = (lines || []).map((l) => l.ENTRY_DATE).sort();
-  const missing = (lines || []).filter((l) => !l.AIN_ENTRY_NUMBER || !l.DUBAI_ENTRY_NUMBER).length;
-  const noAttachment = (lines || []).filter((l) => !l.ATTACHMENT).length;
+  const missing = (lines || []).filter((l) => !l.REFERENCE).length;
   const hasLines = !!lines?.length;
 
   const step = (n: number, title: string, icon: React.ReactNode, button: React.ReactNode, disabled = false) => (
@@ -196,12 +195,7 @@ function IntercompanyTool({ ctx }: { ctx: FormEditorContext<IntercompanyData> })
           </div>
           {missing > 0 && (
             <p className="text-xs font-bold text-amber-700">
-              {missing} line{missing === 1 ? '' : 's'} without an Al Ain or Dubai entry number (marked MISSING in the PDF).
-            </p>
-          )}
-          {noAttachment > 0 && (
-            <p className="text-xs font-bold text-rose-700">
-              {noAttachment} line{noAttachment === 1 ? '' : 's'} without an attachment (highlighted in red in the PDF).
+              {missing} line{missing === 1 ? '' : 's'} without a reference (marked MISSING in the PDF).
             </p>
           )}
         </div>

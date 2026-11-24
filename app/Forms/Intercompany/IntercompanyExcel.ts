@@ -4,7 +4,7 @@
 
 import ExcelJS from 'exceljs';
 import { saveTrackedAs } from '@/app/AdminControl/Code/Audit/TrackedDownload';
-import { cleanText, compareEntries, isValidIsoDate, round2, type IntercompanyLine } from './IntercompanyTypes';
+import { cleanText, compareEntries, isValidIsoDate, normalizeLines, round2, type IntercompanyLine } from './IntercompanyTypes';
 
 // Same look as the other BHS Excel exports
 const HEADER_FILL = 'FF000000';
@@ -17,19 +17,11 @@ type ReadField = keyof IntercompanyLine;
 const HEADER_ALIASES: Record<ReadField, string[]> = {
   ENTRY_DATE: ['date', 'entrydate', 'accountingdate'],
   ACCOUNT_NAME: ['accountname', 'account', 'accounttitle'],
-  AIN_ENTRY_NUMBER: ['alainentryno', 'alainentrynumber', 'alainentry', 'ainentryno', 'ainentrynumber', 'entryno', 'entrynumber', 'number', 'journalentry', 'journalentrynumber'],
-  DUBAI_ENTRY_NUMBER: ['dubaientryno', 'dubaientrynumber', 'dubaientry', 'dubaino'],
+  REFERENCE: ['reference', 'ref', 'refno', 'referenceno', 'referencenumber', 'alainentryno', 'alainentrynumber', 'alainentry', 'ainentryno', 'ainentrynumber', 'entryno', 'entrynumber', 'number', 'journalentry', 'journalentrynumber'],
   LABEL: ['label', 'description', 'memo', 'narration'],
   DEBIT: ['debit'],
   CREDIT: ['credit'],
-  ATTACHMENT: ['attachment', 'attachments', 'attached', 'hasattachment'],
 };
-
-/** YES / Y / TRUE / 1 / نعم = has an attachment; anything else (NO, empty) = no attachment. */
-function toYes(raw: any): boolean {
-  const v = cleanText(cellPlain(raw)).toLowerCase();
-  return ['yes', 'y', 'true', '1', 'نعم'].includes(v);
-}
 
 function headerKey(value: unknown): string {
   return cleanText(value).toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -43,12 +35,10 @@ export async function downloadIntercompanyTemplate() {
   ws.columns = [
     { header: 'Date', key: 'date', width: 14 },
     { header: 'Account Name', key: 'account', width: 30 },
-    { header: 'Al Ain Entry No', key: 'ain', width: 22 },
-    { header: 'Dubai Entry No', key: 'dubai', width: 22 },
+    { header: 'Reference', key: 'reference', width: 24 },
     { header: 'Label', key: 'label', width: 55 },
     { header: 'Debit', key: 'debit', width: 16 },
     { header: 'Credit', key: 'credit', width: 16 },
-    { header: 'Attachment', key: 'attachment', width: 14 },
   ];
   const header = ws.getRow(1);
   header.height = 25;
@@ -60,14 +50,12 @@ export async function downloadIntercompanyTemplate() {
   });
   for (let r = 2; r <= 200; r++) {
     const row = ws.getRow(r);
-    for (let c = 1; c <= 8; c++) row.getCell(c).alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+    for (let c = 1; c <= 6; c++) row.getCell(c).alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
     row.getCell(1).numFmt = 'dd/mm/yyyy';
+    row.getCell(5).numFmt = NUM_FMT;
     row.getCell(6).numFmt = NUM_FMT;
-    row.getCell(7).numFmt = NUM_FMT;
-    // Attachment: pick YES or NO
-    row.getCell(8).dataValidation = { type: 'list', allowBlank: true, formulae: ['"YES,NO"'] };
   }
-  ws.autoFilter = { from: 'A1', to: 'H1' };
+  ws.autoFilter = { from: 'A1', to: 'F1' };
   const buffer = await wb.xlsx.writeBuffer();
   saveTrackedAs(new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), 'Intercompany_Template.xlsx');
 }
@@ -159,7 +147,7 @@ export async function readIntercompanyFile(file: File): Promise<ParsedExcel> {
           if (found[field] === undefined && HEADER_ALIASES[field].includes(key)) found[field] = col;
         });
       });
-      if (found.ENTRY_DATE && (found.AIN_ENTRY_NUMBER || found.DUBAI_ENTRY_NUMBER) && found.DEBIT && found.CREDIT) {
+      if (found.ENTRY_DATE && found.REFERENCE && found.DEBIT && found.CREDIT) {
         headerRow = r;
         cols = found;
       }
@@ -173,8 +161,7 @@ export async function readIntercompanyFile(file: File): Promise<ParsedExcel> {
     for (let r = headerRow + 1; r <= ws.rowCount; r++) {
       const row = ws.getRow(r);
       const rawDate = get(row, 'ENTRY_DATE');
-      const ain = toText(get(row, 'AIN_ENTRY_NUMBER'));
-      const dubai = toText(get(row, 'DUBAI_ENTRY_NUMBER'));
+      const reference = toText(get(row, 'REFERENCE'));
       const label = toText(get(row, 'LABEL'));
       const account = toText(get(row, 'ACCOUNT_NAME'));
       const date = toIsoDate(rawDate);
@@ -182,10 +169,10 @@ export async function readIntercompanyFile(file: File): Promise<ParsedExcel> {
       const credit = toAmount(get(row, 'CREDIT'));
 
       // Empty rows and total rows (no date and no entry number) are skipped
-      if (!toText(rawDate) && !ain && !dubai) continue;
+      if (!toText(rawDate) && !reference) continue;
 
       if (!date) { errors.push({ row: r, message: 'Invalid or missing date' }); continue; }
-      if (!ain && !dubai) { errors.push({ row: r, message: 'Missing entry number (Al Ain or Dubai)' }); continue; }
+      if (!reference) { errors.push({ row: r, message: 'Missing reference' }); continue; }
       if (debit === null || credit === null) { errors.push({ row: r, message: 'Debit / Credit is not a number' }); continue; }
       if (debit < 0 || credit < 0) { errors.push({ row: r, message: 'Negative debit / credit' }); continue; }
       if (debit === 0 && credit === 0) { errors.push({ row: r, message: 'Debit and credit are both zero' }); continue; }
@@ -194,34 +181,30 @@ export async function readIntercompanyFile(file: File): Promise<ParsedExcel> {
         ROW: r,
         ENTRY_DATE: date,
         ACCOUNT_NAME: account || null,
-        AIN_ENTRY_NUMBER: ain || null,
-        DUBAI_ENTRY_NUMBER: dubai || null,
+        REFERENCE: reference || null,
         LABEL: label || null,
         DEBIT: debit,
         CREDIT: credit,
-        ATTACHMENT: toYes(get(row, 'ATTACHMENT')),
       });
     }
     return { lines, errors, sheetName: ws.name };
   }
 
-  throw new Error('No sheet with the columns Date, Al Ain / Dubai Entry No, Debit and Credit was found');
+  throw new Error('No sheet with the columns Date, Reference, Debit and Credit was found');
 }
 
 /** The lines of a saved form as an Excel file (same columns as the template, so it can be uploaded again). */
-export async function exportIntercompanyLinesExcel(lines: IntercompanyLine[], fileName = 'Intercompany_Lines') {
+export async function exportIntercompanyLinesExcel(rawLines: IntercompanyLine[], fileName = 'Intercompany_Lines') {
   const wb = new ExcelJS.Workbook();
   wb.creator = 'BHS Analysis';
   const ws = wb.addWorksheet('Entries', { views: [{ state: 'frozen', ySplit: 1, showGridLines: false }] });
   ws.columns = [
     { header: 'Date', key: 'date', width: 14 },
     { header: 'Account Name', key: 'account', width: 30 },
-    { header: 'Al Ain Entry No', key: 'ain', width: 22 },
-    { header: 'Dubai Entry No', key: 'dubai', width: 22 },
+    { header: 'Reference', key: 'reference', width: 24 },
     { header: 'Label', key: 'label', width: 55 },
     { header: 'Debit', key: 'debit', width: 16 },
     { header: 'Credit', key: 'credit', width: 16 },
-    { header: 'Attachment', key: 'attachment', width: 14 },
   ];
   const header = ws.getRow(1);
   header.height = 25;
@@ -231,23 +214,21 @@ export async function exportIntercompanyLinesExcel(lines: IntercompanyLine[], fi
     cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
     cell.border = { bottom: { style: 'medium', color: { argb: GOLD_BORDER } } };
   });
-  [...lines].sort(compareEntries).forEach((l) => {
+  [...normalizeLines(rawLines)].sort(compareEntries).forEach((l) => {
     const row = ws.addRow({
       date: l.ENTRY_DATE ? new Date(`${l.ENTRY_DATE}T00:00:00Z`) : null,
       account: l.ACCOUNT_NAME || '',
-      ain: l.AIN_ENTRY_NUMBER || '',
-      dubai: l.DUBAI_ENTRY_NUMBER || '',
+      reference: l.REFERENCE || '',
       label: l.LABEL || '',
       debit: round2(l.DEBIT),
       credit: round2(l.CREDIT),
-      attachment: l.ATTACHMENT ? 'YES' : 'NO',
     });
-    for (let c = 1; c <= 8; c++) row.getCell(c).alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+    for (let c = 1; c <= 6; c++) row.getCell(c).alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
     row.getCell(1).numFmt = 'dd/mm/yyyy';
+    row.getCell(5).numFmt = NUM_FMT;
     row.getCell(6).numFmt = NUM_FMT;
-    row.getCell(7).numFmt = NUM_FMT;
   });
-  ws.autoFilter = { from: 'A1', to: 'H1' };
+  ws.autoFilter = { from: 'A1', to: 'F1' };
   const buffer = await wb.xlsx.writeBuffer();
   const safe = fileName.replace(/[\\/:*?"<>|]+/g, ' ').trim() || 'Intercompany_Lines';
   saveTrackedAs(new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `${safe}.xlsx`);
