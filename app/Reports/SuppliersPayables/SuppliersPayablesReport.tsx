@@ -1,32 +1,49 @@
 'use client';
 
 // Report: Suppliers Payables. Pop-up content: pick the year + month (and whether to count only that month or everything up to it),
-// then download the PDF: supplier name · payment term · the open amount owed to him.
+// (several months can be ticked: one PDF, one page per month), then download the PDF: supplier name · payment term · the open amount owed to him.
 
 import { useState } from 'react';
 import { ChevronLeft, ChevronRight, FileText, Loader2 } from 'lucide-react';
 import { toast } from '@/app/Components/Notification';
 import type { ReportComponentProps } from '../Utils/ReportsRegistry';
-import { MONTH_NAMES, loadPayables, type PayablesScope } from './SuppliersPayablesData';
+import { MONTH_NAMES, loadPayablesMany, type PayablesPeriod, type PayablesScope } from './SuppliersPayablesData';
 
 const LABEL = 'text-[11px] font-black uppercase tracking-widest text-slate-400';
 
 export default function SuppliersPayablesReport({ onClose }: ReportComponentProps) {
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
-  const [month, setMonth] = useState(now.getMonth() + 1); // 0 = whole year
+  // picked periods as 'year-month' (month 0 = the whole year); ticking a month drops that year's 'whole year' and vice versa
+  const [picked, setPicked] = useState<string[]>([`${now.getFullYear()}-${now.getMonth() + 1}`]);
   const [scope, setScope] = useState<PayablesScope>('upto');
   const [busy, setBusy] = useState(false);
 
+  const toggle = (m: number) =>
+    setPicked((prev) => {
+      const key = `${year}-${m}`;
+      if (prev.includes(key)) return prev.filter((k) => k !== key);
+      const sameYear = (k: string) => k.startsWith(`${year}-`);
+      // whole year is exclusive inside its year
+      return m === 0 ? [...prev.filter((k) => !sameYear(k)), key] : [...prev.filter((k) => k !== `${year}-0`), key];
+    });
+  const periods: PayablesPeriod[] = picked
+    .map((k) => {
+      const [y, m] = k.split('-').map(Number);
+      return { year: y, month: m, scope } as PayablesPeriod;
+    })
+    .sort((a, b) => a.year - b.year || a.month - b.month);
+  const label = (p: PayablesPeriod) => (p.month === 0 ? `${p.year}` : `${MONTH_NAMES[p.month - 1].slice(0, 3)} ${p.year}`);
+
   const download = async () => {
+    if (!periods.length) return toast.error('Pick at least one month');
     setBusy(true);
     try {
-      const period = { year, month, scope };
-      const rows = await loadPayables(period);
-      if (!rows.length) return toast.error('No open payables for this period');
-      const { generateSuppliersPayablesPdf } = await import('./SuppliersPayablesPdf');
-      await generateSuppliersPayablesPdf(rows, period);
-      toast.success(`${rows.length} supplier${rows.length === 1 ? '' : 's'}`);
+      const sections = await loadPayablesMany(periods);
+      if (sections.every((s) => !s.rows.length)) return toast.error('No open payables for the selected period');
+      const { generateSuppliersPayablesMultiPdf } = await import('./SuppliersPayablesPdf');
+      await generateSuppliersPayablesMultiPdf(sections);
+      toast.success(sections.length === 1 ? `${sections[0].rows.length} supplier${sections[0].rows.length === 1 ? '' : 's'}` : `${sections.length} months in one PDF`);
       onClose();
     } catch (e: any) {
       toast.error(e?.message || 'Could not create the report');
@@ -54,13 +71,14 @@ export default function SuppliersPayablesReport({ onClose }: ReportComponentProp
               key={m}
               type="button"
               disabled={busy}
-              onClick={() => setMonth(m)}
-              className={`h-10 rounded-xl text-xs font-black transition-all ${m === 0 ? 'col-span-4' : ''} ${month === m ? 'bg-[#0a0f1d] text-[#D4AF37] shadow' : 'bg-slate-50 border border-slate-200 text-slate-600 hover:border-amber-300 hover:text-slate-900'}`}
+              onClick={() => toggle(m)}
+              className={`h-10 rounded-xl text-xs font-black transition-all ${m === 0 ? 'col-span-4' : ''} ${picked.includes(`${year}-${m}`) ? 'bg-[#0a0f1d] text-[#D4AF37] shadow' : 'bg-slate-50 border border-slate-200 text-slate-600 hover:border-amber-300 hover:text-slate-900'}`}
             >
               {m === 0 ? 'Whole year' : MONTH_NAMES[m - 1].slice(0, 3)}
             </button>
           ))}
         </div>
+        {periods.length > 0 && <p className="text-[11px] font-bold text-slate-500">Selected: {periods.map(label).join(' · ')}</p>}
       </div>
 
       <div className="flex flex-col gap-1.5">
@@ -72,15 +90,12 @@ export default function SuppliersPayablesReport({ onClose }: ReportComponentProp
             </button>
           ))}
         </div>
-        <p className="text-[11px] font-semibold text-slate-400">
-          {scope === 'upto' ? 'Every open invoice dated up to the end of the period' : 'Only open invoices dated inside the period'} — the amount still unpaid today.
-        </p>
       </div>
 
       <button
         type="button"
         onClick={() => void download()}
-        disabled={busy}
+        disabled={busy || periods.length === 0}
         className="h-12 w-full rounded-xl bg-[#0a0f1d] text-[#D4AF37] text-sm font-black inline-flex items-center justify-center gap-2 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />} {busy ? 'Working…' : 'Download PDF'}

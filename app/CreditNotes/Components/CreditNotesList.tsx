@@ -1,13 +1,65 @@
 'use client';
 
-import { Fragment, useEffect, useMemo, useState } from 'react';
-import { FileText, Loader2, Pencil, Search, Trash2, X } from 'lucide-react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { Check, ChevronDown, FileSpreadsheet, FileText, Loader2, Pencil, Search, Trash2, X } from 'lucide-react';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import { toast } from '@/app/Components/Notification';
 import ConfirmDialog from './ConfirmDialog';
 import { deleteCreditNote } from '../Service/CreditNoteService';
 import { generateCreditNotePdf } from '../Utils/CreditNotePdf';
 import { formatAmount, formatDate, round2, type CreditNote } from '../Utils/CreditNoteTypes';
+
+/** Styled dropdown for the filters pop-up (replaces the browser's plain <select>). */
+function FilterSelect({ value, onChange, options }: { value: string; onChange: (v: string) => void; options: { value: string; label: string }[] }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, [open]);
+  const current = options.find((o) => o.value === value) || options[0];
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className={`w-full h-11 px-3.5 rounded-xl border bg-white text-sm font-semibold text-slate-800 flex items-center justify-between gap-2 transition-all ${
+          open ? 'border-[#D4AF37] ring-2 ring-[#D4AF37]/25' : 'border-slate-200 hover:border-slate-300'
+        }`}
+      >
+        <span className="truncate" dir="auto">{current?.label}</span>
+        <ChevronDown className={`w-4 h-4 shrink-0 text-slate-400 transition-transform ${open ? 'rotate-180 text-[#B8860B]' : ''}`} />
+      </button>
+      {open && (
+        <div className="absolute left-0 right-0 top-full mt-1.5 z-30 max-h-60 overflow-y-auto rounded-xl border border-slate-100 bg-white p-1.5 shadow-xl shadow-slate-900/10 animate-in fade-in slide-in-from-top-1 duration-150">
+          {options.map((o) => {
+            const active = o.value === value;
+            return (
+              <button
+                key={o.value || '__all'}
+                type="button"
+                onClick={() => {
+                  onChange(o.value);
+                  setOpen(false);
+                }}
+                className={`w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg text-sm text-left transition-colors ${
+                  active ? 'bg-[#FDF6DC] text-[#8a6508] font-bold' : 'text-slate-700 font-medium hover:bg-slate-50'
+                }`}
+              >
+                <span className="truncate" dir="auto">{o.label}</span>
+                {active && <Check className="w-4 h-4 shrink-0 text-[#B8860B]" />}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 const PAGE_SIZE = 50;
 
@@ -23,8 +75,16 @@ export interface ListFilters {
   dateFrom: string;
   dateTo: string;
   user: string;
+  sort?: string; // '' = grouped by month; otherwise one flat list in this order
 }
-const NO_FILTERS: ListFilters = { search: '', dateFrom: '', dateTo: '', user: '' };
+const NO_FILTERS: ListFilters = { search: '', dateFrom: '', dateTo: '', user: '', sort: '' };
+const SORT_OPTIONS: { value: string; label: string }[] = [
+  { value: '', label: 'Default (grouped by month)' },
+  { value: 'amount_desc', label: 'Amount: highest first' },
+  { value: 'amount_asc', label: 'Amount: lowest first' },
+  { value: 'date_desc', label: 'Date: newest first' },
+  { value: 'date_asc', label: 'Date: oldest first' },
+];
 
 interface CreditNotesListProps {
   notes: CreditNote[];
@@ -40,6 +100,7 @@ interface CreditNotesListProps {
 
 export default function CreditNotesList({ notes, admin, canEdit, onEdit, onDeleted, filters, onFiltersChange, filtersOpen, onCloseFilters }: CreditNotesListProps) {
   const { search, dateFrom, dateTo, user } = filters;
+  const sort = filters.sort || '';
   const [draft, setDraft] = useState<ListFilters>(filters);
   useEffect(() => {
     if (filtersOpen) setDraft(filters);
@@ -50,6 +111,7 @@ export default function CreditNotesList({ notes, admin, canEdit, onEdit, onDelet
   const [pdfId, setPdfId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<CreditNote | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -69,17 +131,19 @@ export default function CreditNotesList({ notes, admin, canEdit, onEdit, onDelet
   }, [notes, search, dateFrom, dateTo, user]);
 
   // grouped by month (newest first), then by user
-  const sorted = useMemo(
-    () =>
-      [...filtered].sort(
-        (a, b) =>
-          monthKey(b.NOTE_DATE).localeCompare(monthKey(a.NOTE_DATE)) ||
-          userOf(a).localeCompare(userOf(b)) ||
-          b.NOTE_DATE.localeCompare(a.NOTE_DATE) ||
-          b.ID.localeCompare(a.ID),
-      ),
-    [filtered],
-  );
+  const sorted = useMemo(() => {
+    const byDefault = (a: CreditNote, b: CreditNote) =>
+      monthKey(b.NOTE_DATE).localeCompare(monthKey(a.NOTE_DATE)) ||
+      b.NOTE_DATE.localeCompare(a.NOTE_DATE) ||
+      b.ID.localeCompare(a.ID);
+    const flat: Record<string, (a: CreditNote, b: CreditNote) => number> = {
+      amount_desc: (a, b) => b.TOTAL - a.TOTAL || byDefault(a, b),
+      amount_asc: (a, b) => a.TOTAL - b.TOTAL || byDefault(a, b),
+      date_desc: (a, b) => b.NOTE_DATE.localeCompare(a.NOTE_DATE) || b.ID.localeCompare(a.ID),
+      date_asc: (a, b) => a.NOTE_DATE.localeCompare(b.NOTE_DATE) || a.ID.localeCompare(b.ID),
+    };
+    return [...filtered].sort(flat[sort] || byDefault);
+  }, [filtered, sort]);
   const groupTotals = useMemo(() => {
     const m = new Map<string, { count: number; amount: number }>();
     const add = (k: string, v: number) => {
@@ -96,7 +160,7 @@ export default function CreditNotesList({ notes, admin, canEdit, onEdit, onDelet
 
   const total = round2(filtered.reduce((s, n) => s + n.TOTAL, 0));
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  useEffect(() => setPage(1), [search, dateFrom, dateTo, user]);
+  useEffect(() => setPage(1), [search, dateFrom, dateTo, user, sort]);
   useEffect(() => {
     if (page > pageCount) setPage(pageCount);
   }, [page, pageCount]);
@@ -111,6 +175,51 @@ export default function CreditNotesList({ notes, admin, canEdit, onEdit, onDelet
       toast.error(err?.message || 'Could not create the PDF');
     } finally {
       setPdfId(null);
+    }
+  };
+
+  // Excel of everything currently shown (all pages, respecting search + filters), in the same order as the list
+  const exportExcel = async () => {
+    if (sorted.length === 0) {
+      toast.error('Nothing to export');
+      return;
+    }
+    setExporting(true);
+    try {
+      const { exportStyledExcelWorkbook } = await import('@/app/Components/Export/ExcelExport');
+      const notesSheet: Record<string, unknown>[] = sorted.map((n) => ({
+        'Credit Note No.': n.ID,
+        'Date': formatDate(n.NOTE_DATE),
+        'Description': n.LINES.map((l) => l.description).filter(Boolean).join(' | ') || n.BODY_TEXT,
+        'Amount (AED)': n.TOTAL,
+        ...(admin ? { 'Created By': userOf(n) } : {}),
+      }));
+      notesSheet.push({
+        'Credit Note No.': 'TOTAL',
+        'Date': '',
+        'Description': `${sorted.length} notes`,
+        'Amount (AED)': total,
+        ...(admin ? { 'Created By': '' } : {}),
+      });
+      const linesSheet: Record<string, unknown>[] = sorted.flatMap((n) =>
+        n.LINES.map((l) => ({
+          'Credit Note No.': n.ID,
+          'Date': formatDate(n.NOTE_DATE),
+          'Line Description': l.description,
+          'Amount (AED)': l.amount,
+        })),
+      );
+      await exportStyledExcelWorkbook(
+        [
+          { name: 'Credit Notes', data: notesSheet, options: { columnWidth: 24, numericColumns: ['Amount (AED)'] } },
+          { name: 'Lines', data: linesSheet, options: { columnWidth: 24, numericColumns: ['Amount (AED)'] } },
+        ],
+        `credit_notes_${new Date().toISOString().split('T')[0]}`,
+      );
+    } catch (err: any) {
+      toast.error(err?.message || 'Could not export to Excel');
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -129,15 +238,26 @@ export default function CreditNotesList({ notes, admin, canEdit, onEdit, onDelet
     }
   };
 
+  const grouped = !sort; // month headers only in the default order
   const colCount = 5 + (admin ? 1 : 0);
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <h1 className="text-3xl sm:text-4xl font-normal text-black tracking-tighter">Credit Notes</h1>
-        <span className="self-start sm:self-auto px-3.5 py-2 rounded-xl bg-white border border-slate-100 shadow-sm text-sm font-bold text-slate-700">
-          <span className="text-slate-400 mr-1">{filtered.length} ·</span>AED {formatAmount(total)}
-        </span>
+        <div className="self-start sm:self-auto flex items-center gap-2">
+          <span className="px-3.5 py-2 rounded-xl bg-white border border-slate-100 shadow-sm text-sm font-bold text-slate-700">
+            <span className="text-slate-400 mr-1">{filtered.length} ·</span>AED {formatAmount(total)}
+          </span>
+          <button
+            onClick={() => void exportExcel()}
+            disabled={exporting || filtered.length === 0}
+            title="Export to Excel"
+            className="flex items-center justify-center w-10 h-10 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-colors disabled:opacity-50"
+          >
+            {exporting ? <Loader2 className="w-5 h-5 animate-spin" /> : <FileSpreadsheet className="w-5 h-5" />}
+          </button>
+        </div>
       </div>
 
       {/* Search (dates / user: the Filters icon in the sidebar) */}
@@ -175,8 +295,7 @@ export default function CreditNotesList({ notes, admin, canEdit, onEdit, onDelet
                 rows.map((n, i) => {
                   const mk = monthKey(n.NOTE_DATE);
                   const prev = rows[i - 1];
-                  const newMonth = !prev || monthKey(prev.NOTE_DATE) !== mk;
-                  const newUser = newMonth || userOf(prev) !== userOf(n);
+                  const newMonth = grouped && (!prev || monthKey(prev.NOTE_DATE) !== mk);
                   const mt = groupTotals.get(mk);
                   return (
                     <Fragment key={n.ID}>
@@ -188,15 +307,6 @@ export default function CreditNotesList({ notes, admin, canEdit, onEdit, onDelet
                               <span className="text-xs font-bold text-slate-600">
                                 <span className="text-slate-400 mr-1">{mt?.count} ·</span>AED {formatAmount(mt?.amount || 0)}
                               </span>
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                      {newUser && (
-                        <tr className="bg-slate-50/60">
-                          <td colSpan={colCount} className="py-2 px-4 pl-8">
-                            <div className="flex items-center justify-between gap-3">
-                              <span className="font-bold text-slate-700 text-xs" dir="auto">{userOf(n)}</span>
                             </div>
                           </td>
                         </tr>
@@ -262,8 +372,8 @@ export default function CreditNotesList({ notes, admin, canEdit, onEdit, onDelet
       {/* Filters modal */}
       {filtersOpen && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={onCloseFilters}>
-          <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
-            <div className="px-6 py-4 bg-[#0a0f1d] text-[#D4AF37] flex items-center justify-between">
+          <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="px-6 py-4 bg-[#0a0f1d] text-[#D4AF37] flex items-center justify-between rounded-t-3xl">
               <h3 className="text-base font-black tracking-wide">Filters</h3>
               <button onClick={onCloseFilters} className="p-1.5 rounded-lg hover:bg-white/10" title="Close">
                 <X className="w-5 h-5" />
@@ -280,17 +390,14 @@ export default function CreditNotesList({ notes, admin, canEdit, onEdit, onDelet
                   <input type="date" value={draft.dateTo} onChange={(e) => setDraft({ ...draft, dateTo: e.target.value })} className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm" />
                 </div>
               </div>
+              <div>
+                <label className="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Sort rows by</label>
+                <FilterSelect value={draft.sort || ''} onChange={(v) => setDraft({ ...draft, sort: v })} options={SORT_OPTIONS} />
+              </div>
               {admin && (
                 <div>
                   <label className="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Created by</label>
-                  <select value={draft.user} onChange={(e) => setDraft({ ...draft, user: e.target.value })} className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm bg-white">
-                    <option value="">All users</option>
-                    {users.map((u) => (
-                      <option key={u} value={u}>
-                        {u}
-                      </option>
-                    ))}
-                  </select>
+                  <FilterSelect value={draft.user} onChange={(v) => setDraft({ ...draft, user: v })} options={[{ value: '', label: 'All users' }, ...users.map((u) => ({ value: u, label: u }))]} />
                 </div>
               )}
             </div>

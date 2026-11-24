@@ -16,7 +16,7 @@ import DebitNotesList from './Components/DebitNotesList';
 import { getDebitNotePermissions, listDebitNotes } from './Service/DebitNoteService';
 import type { DebitNote, DebitNotePermissions, DebitNotesTabId } from './Utils/DebitNoteTypes';
 
-const NO_FILTERS = { search: '', dateFrom: '', dateTo: '', user: '' };
+const NO_FILTERS = { search: '', dateFrom: '', dateTo: '', user: '', sort: '' };
 
 const NO_ACCESS: DebitNotePermissions = { tabs: [], admin: false };
 const newestFirst = (a: DebitNote, b: DebitNote) => (a.NOTE_DATE !== b.NOTE_DATE ? (a.NOTE_DATE < b.NOTE_DATE ? 1 : -1) : a.ID < b.ID ? 1 : -1);
@@ -137,7 +137,7 @@ export default function DebitNotesPage() {
     onRefresh: canSeeNotes ? () => void loadData(true) : undefined,
     refreshing,
     onOpenFilters: canSeeNotes && activeTab === 'notes' ? () => setFiltersOpen(true) : undefined,
-    filtersActive: !!(filters.dateFrom || filters.dateTo || filters.user),
+    filtersActive: !!(filters.dateFrom || filters.dateTo || filters.user || filters.sort),
   };
 
   return (

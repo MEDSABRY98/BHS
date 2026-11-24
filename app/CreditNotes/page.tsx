@@ -16,7 +16,7 @@ import CreditNotesList from './Components/CreditNotesList';
 import { getCreditNotePermissions, listCreditNotes } from './Service/CreditNoteService';
 import type { CreditNote, CreditNotePermissions, CreditNotesTabId } from './Utils/CreditNoteTypes';
 
-const NO_FILTERS = { search: '', dateFrom: '', dateTo: '', user: '' };
+const NO_FILTERS = { search: '', dateFrom: '', dateTo: '', user: '', sort: '' };
 
 const NO_ACCESS: CreditNotePermissions = { tabs: [], admin: false };
 const newestFirst = (a: CreditNote, b: CreditNote) => (a.NOTE_DATE !== b.NOTE_DATE ? (a.NOTE_DATE < b.NOTE_DATE ? 1 : -1) : a.ID < b.ID ? 1 : -1);
@@ -137,7 +137,7 @@ export default function CreditNotesPage() {
     onRefresh: canSeeNotes ? () => void loadData(true) : undefined,
     refreshing,
     onOpenFilters: canSeeNotes && activeTab === 'notes' ? () => setFiltersOpen(true) : undefined,
-    filtersActive: !!(filters.dateFrom || filters.dateTo || filters.user),
+    filtersActive: !!(filters.dateFrom || filters.dateTo || filters.user || filters.sort),
   };
 
   return (

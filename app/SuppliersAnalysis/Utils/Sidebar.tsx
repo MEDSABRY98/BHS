@@ -11,7 +11,6 @@ import {
   ChevronRight,
   X,
   RefreshCcw,
-  Wallet,
   Filter
 } from 'lucide-react';
 import { useSuppliersData } from '../Context/SuppliersDataContext';
@@ -30,7 +29,6 @@ interface SidebarProps {
 const navItems = [
   { id: 'suppliers', label: 'Suppliers Overview', icon: Users },
   { id: 'aging', label: 'Aging of Suppliers', icon: CalendarDays },
-  { id: 'expected', label: 'Expected Payments', icon: Wallet },
 ];
 
 export default function SuppliersSidebar({

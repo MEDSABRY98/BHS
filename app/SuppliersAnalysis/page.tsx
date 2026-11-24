@@ -5,7 +5,6 @@ import { Menu } from 'lucide-react';
 import SuppliersSidebar from './Utils/Sidebar';
 import SuppliersTab from './SuppliersTab/SuppliersTab';
 import AgingTab from './AgingTab/AgingTab';
-import ExpectedPaymentsTab from './ExpectedPaymentsTab/ExpectedPaymentsTab';
 import { SuppliersDataProvider, useSuppliersData } from './Context/SuppliersDataContext';
 import TabLoader from '../Components/Loading/TabLoader';
 import MainLoader from '../Components/Loading/MainLoader';
@@ -54,7 +53,6 @@ function SuppliersPageShell({
       <div className="max-w-[92%] 2xl:max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-12 flex-1 w-full relative">
         {activeTab === 'suppliers' && <SuppliersTab />}
         {activeTab === 'aging' && <AgingTab />}
-        {activeTab === 'expected' && <ExpectedPaymentsTab />}
       </div>
     );
   };

@@ -11,6 +11,7 @@ const MODULE_ROUTES: { prefix: string; name: string }[] = [
   { prefix: '/CustomersAnalysis', name: 'Customers Analysis' },
   { prefix: '/SuppliersAnalysis', name: 'Suppliers Analysis' },
   { prefix: '/PaymentAnalysis', name: 'Payments Analysis' },
+  { prefix: '/ExpectedCash', name: 'Expected Cash' },
   { prefix: '/SalespersonAnalysis', name: 'Salesperson Analysis' },
   { prefix: '/CustomersDocuments', name: 'Customers Documents' },
   { prefix: '/FinancialModel', name: 'Financial Model' },

@@ -98,8 +98,8 @@ export default function SuppliersTab() {
   const filteredSuppliers = useMemo(() => {
     let list = suppliers;
     if (hideZero) {
-      // Keep only suppliers with a negative (payable) balance
-      list = list.filter(s => (supplierBalances[s['SUPPLIER ID']]?.balance || 0) <= -0.01);
+      // Hide only the suppliers whose balance is zero (negative and positive balances stay)
+      list = list.filter(s => Math.abs(supplierBalances[s['SUPPLIER ID']]?.balance || 0) >= 0.01);
     }
     if (!searchTerm) return list;
     const lower = searchTerm.toLowerCase();
@@ -341,7 +341,7 @@ export default function SuppliersTab() {
             role="checkbox"
             aria-checked={hideZero}
             onClick={() => setHideZero(v => !v)}
-            title={hideZero ? 'Show all suppliers' : 'Hide zero & positive balance suppliers'}
+            title={hideZero ? 'Show all suppliers' : 'Hide zero balance suppliers'}
             className={`flex items-center justify-center w-9 h-9 rounded-xl border transition-all ${
               hideZero
                 ? 'bg-[#D4AF37]/10 border-[#D4AF37]/40 text-[#D4AF37]'

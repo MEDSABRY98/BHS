@@ -3,6 +3,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { addArabicFont } from '@/app/Components/Pdf/shared';
+import { enableArabicBidi } from '@/app/Components/Pdf/bidi';
 import { saveTrackedPdf } from '@/app/AdminControl/Code/Audit/TrackedDownload';
 import {
   COMPANY_NAME,
@@ -79,6 +80,7 @@ export async function generatePettyCashPdf(items: PettyCash[], opts: { printedBy
   const single = items.length === 1 ? items[0] : null;
 
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  enableArabicBidi(doc); // Arabic + English + brackets in the right order
   try {
     await addArabicFont(doc);
   } catch {

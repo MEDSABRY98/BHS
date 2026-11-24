@@ -2,16 +2,22 @@
 
 import React, { useMemo, useState } from 'react';
 import NoData from '../../Components/DataState/NoDataTab';
-import { useSuppliersData } from '../Context/SuppliersDataContext';
-import { Search, FileSpreadsheet } from 'lucide-react';
+import { useExpectedCash } from '../Context/ExpectedCashContext';
+import { Search } from 'lucide-react';
 import { exportStyledExcel } from '../../Components/Export/ExcelExport';
+import { ExportExcelButton } from '../Export/ExportExcel';
 
 import MonthDetailsModal from './Modal/MonthDetailsModal';
 
 export default function ExpectedPaymentsTab() {
-  const { suppliers, transactions, loading, error } = useSuppliersData();
+  const { payments } = useExpectedCash();
+  const { suppliers, transactions } = payments;
+  const error = payments.error;
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedMonth, setSelectedMonth] = useState<any>(null);
+  // only the invoices dated inside this range are shown (credits are still used oldest-first against ALL the invoices)
+  const [filterFromDate, setFilterFromDate] = useState<string>('');
+  const [filterToDate, setFilterToDate] = useState<string>('');
 
   const projectedData = useMemo(() => {
     const today = new Date();
@@ -38,7 +44,7 @@ export default function ExpectedPaymentsTab() {
       const paymentTerm = Number(supp?.['PAYMENT TERM']) || 0;
       
       let unappliedPayments = 0;
-      let invoices: { amount: number, dueDate: Date }[] = [];
+      let invoices: { amount: number, dueDate: Date, include: boolean }[] = [];
 
       supplierTx[suppId].forEach(t => {
         const residual = Number(t['RESIDUAL AMOUNT']) || 0;
@@ -48,6 +54,8 @@ export default function ExpectedPaymentsTab() {
           unappliedPayments += residual;
         } else {
           let dueDate = new Date();
+          const invoiceDay = t.DATE ? String(t.DATE).split('T')[0] : '';
+          const include = !invoiceDay || ((!filterFromDate || invoiceDay >= filterFromDate) && (!filterToDate || invoiceDay <= filterToDate));
           if (t.DATE) {
             const [year, month, day] = String(t.DATE).split('T')[0].split('-');
             const invDate = new Date(Number(year), Number(month) - 1, Number(day));
@@ -60,7 +68,7 @@ export default function ExpectedPaymentsTab() {
               dueDate.setHours(0, 0, 0, 0);
             }
           }
-          invoices.push({ amount: -residual, dueDate });
+          invoices.push({ amount: -residual, dueDate, include });
         }
       });
 
@@ -81,7 +89,7 @@ export default function ExpectedPaymentsTab() {
       const monthAmounts: Record<string, number> = {};
 
       invoices.forEach(inv => {
-        if (inv.amount <= 0) return;
+        if (!inv.include || inv.amount <= 0) return;
         
         const y = inv.dueDate.getFullYear();
         const m = String(inv.dueDate.getMonth() + 1).padStart(2, '0');
@@ -111,7 +119,7 @@ export default function ExpectedPaymentsTab() {
     const result = Object.values(monthsMap).filter(g => g.totalAmount > 0.01);
     result.sort((a, b) => a.monthKey.localeCompare(b.monthKey));
     return result;
-  }, [transactions, suppliers]);
+  }, [transactions, suppliers, filterFromDate, filterToDate]);
 
   const filteredData = useMemo(() => {
     let list = projectedData;
@@ -168,16 +176,38 @@ export default function ExpectedPaymentsTab() {
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <h2 className="text-2xl font-black text-slate-900 tracking-tight">Expected Payments</h2>
-          <button
-            type="button"
-            onClick={exportToExcel}
-            title="Export Detailed Excel"
-            className="flex items-center justify-center w-9 h-9 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition-colors shadow-sm cursor-pointer"
-          >
-            <FileSpreadsheet className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl ml-2 shadow-sm">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Source From:</span>
+            <input
+              type="date"
+              value={filterFromDate}
+              onChange={(e) => setFilterFromDate(e.target.value)}
+              className="text-sm bg-transparent font-medium text-slate-700 focus:outline-none focus:text-indigo-600 cursor-pointer"
+            />
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">To:</span>
+            <input
+              type="date"
+              value={filterToDate}
+              onChange={(e) => setFilterToDate(e.target.value)}
+              className="text-sm bg-transparent font-medium text-slate-700 focus:outline-none focus:text-indigo-600 cursor-pointer"
+            />
+            {(filterFromDate || filterToDate) && (
+              <button
+                onClick={() => { setFilterFromDate(''); setFilterToDate(''); }}
+                className="ml-2 text-[10px] font-bold text-red-500 hover:text-red-700 bg-red-50 px-2 py-1 rounded-md"
+              >
+                CLEAR
+              </button>
+            )}
+          </div>
+
+          <ExportExcelButton
+            onExport={exportToExcel}
+            disabled={projectedData.length === 0}
+            title="Export Expected Payments to Excel"
+          />
         </div>
 
         <div className="flex items-center gap-3">

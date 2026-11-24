@@ -16,7 +16,6 @@ import {
   MapPin,
   UserCheck,
   UserX,
-  CalendarClock,
   FileDown,
   FileSpreadsheet,
   Loader2
@@ -42,7 +41,6 @@ const navItems = [
   { id: 'collections', label: 'Customer Collections', icon: Users },
   { id: 'unpaid-customers', label: 'Unpaid Customers', icon: UserX },
   { id: 'periods', label: 'Periods Analysis', icon: CalendarDays },
-  { id: 'expected-collections', label: 'Expected Collections', icon: CalendarClock },
 ];
 
 export default function PaymentSidebar({

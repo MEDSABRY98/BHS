@@ -66,3 +66,9 @@ export async function loadPayables(period: PayablesPeriod): Promise<PayablesRow[
   const [suppliers, transactions] = await Promise.all([fetchSuppliersList(), fetchSupplierTransactions()]);
   return buildPayables(suppliers, transactions, period);
 }
+
+/** Several periods at once (one fetch): rows per period, same order as asked. */
+export async function loadPayablesMany(periods: PayablesPeriod[]): Promise<{ period: PayablesPeriod; rows: PayablesRow[] }[]> {
+  const [suppliers, transactions] = await Promise.all([fetchSuppliersList(), fetchSupplierTransactions()]);
+  return periods.map((period) => ({ period, rows: buildPayables(suppliers, transactions, period) }));
+}

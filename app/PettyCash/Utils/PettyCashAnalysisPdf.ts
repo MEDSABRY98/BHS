@@ -6,6 +6,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { addArabicFont } from '@/app/Components/Pdf/shared';
+import { enableArabicBidi } from '@/app/Components/Pdf/bidi';
 import { saveTrackedPdf } from '@/app/AdminControl/Code/Audit/TrackedDownload';
 import { COMPANY_NAME, compareLines, type PettyCash } from './PettyCashTypes';
 
@@ -337,6 +338,7 @@ export async function generatePettyCashAnalysisPdf(items: PettyCash[], opts: { g
   if (!D.lines.length) throw new Error('No rows to analyse');
 
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  enableArabicBidi(doc); // Arabic + English + brackets in the right order
   try {
     await addArabicFont(doc);
   } catch {

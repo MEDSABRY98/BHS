@@ -15,7 +15,6 @@ import SalespersonsTab from './SalespersonsTab/SalespersonsTab';
 import CollectionsTab from './CollectionsTab/CollectionsTab';
 import UnpaidCustomersTab from './UnpaidCustomersTab/UnpaidCustomersTab';
 import PeriodsTab from './PeriodsTab/PeriodsTab';
-import ExpectedCollectionsTab from './ExpectedCollectionsTab/ExpectedCollectionsTab';
 
 function PaymentAnalysisShell({
   activeTab,
@@ -63,7 +62,6 @@ function PaymentAnalysisShell({
         {activeTab === 'collections' && <CollectionsTab />}
         {activeTab === 'unpaid-customers' && <UnpaidCustomersTab />}
         {activeTab === 'periods' && <PeriodsTab />}
-        {activeTab === 'expected-collections' && <ExpectedCollectionsTab />}
       </div>
     );
   };

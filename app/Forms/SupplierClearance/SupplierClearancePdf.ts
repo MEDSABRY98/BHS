@@ -43,17 +43,8 @@ const RESPONSIBILITY =
   'By signing, the Warehouse Manager and the Supply Chain Manager confirm that the checkpoints above were verified, ' +
   'and they accept the responsibility for the supplier clearance decision recorded in this form.';
 
-function currentUserName(): string {
-  try {
-    const u = JSON.parse(localStorage.getItem('currentUser') || '{}');
-    return String(u.NAME || u.name || '').trim();
-  } catch {
-    return '';
-  }
-}
-
 export async function generateSupplierClearancePdf(form: SupplierClearance) {
-  // the people offered when exporting: who prepared it + the two managers who take the responsibility
+  // the people offered when exporting: the two managers who take the responsibility
   let list: { TITLE: string; NAME: string; IS_ACTIVE: boolean }[] = [];
   try {
     list = await listSignatories();
@@ -62,7 +53,6 @@ export async function generateSupplierClearancePdf(form: SupplierClearance) {
   }
   const find = (re: RegExp) => list.find((p) => p.IS_ACTIVE && re.test(p.TITLE))?.NAME || '';
   const suggested: Signer[] = [
-    { title: 'Prepared By', name: currentUserName() },
     { title: 'Warehouse Manager', name: find(/warehouse\s*manager|store\s*manager/i) },
     { title: 'Supply Chain Manager', name: find(/supply\s*chain\s*manager/i) },
   ];

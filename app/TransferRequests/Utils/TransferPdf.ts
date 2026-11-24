@@ -4,6 +4,7 @@
 // Signatures (on paper): chosen when exporting (Data Base → Signatories DB)
 
 import { addArabicFont } from '@/app/Components/Pdf/shared';
+import { enableArabicBidi } from '@/app/Components/Pdf/bidi';
 import { saveTrackedPdf, trackFileDownload } from '@/app/AdminControl/Code/Audit/TrackedDownload';
 import {
   amountToWords,
@@ -91,6 +92,7 @@ export async function generateTransferPdf({ request: r, beneficiary, beneficiary
   if (!signers) return; // cancelled
   const jsPDF = (await import('jspdf')).default;
   const doc: any = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  enableArabicBidi(doc); // Arabic + English + brackets in the right order
   doc.setProperties({ title: `Transfer Request ${r.REQUEST_NO}` });
   try {
     await addArabicFont(doc);

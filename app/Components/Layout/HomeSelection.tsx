@@ -148,6 +148,7 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
     { id: 'customers-analysis', title: 'Customers Analysis', path: '/CustomersAnalysis', color: 'red' },
     { id: 'suppliers-analysis', title: 'Suppliers Analysis', path: '/SuppliersAnalysis', color: 'orange' },
     { id: 'payment-analysis', title: 'Payments Analysis', path: '/PaymentAnalysis', color: 'emerald' },
+    { id: 'expected-cash', title: 'Expected Cash', path: '/ExpectedCash', color: 'teal' },
     { id: 'salesperson-analysis', title: 'Salesperson Analysis', path: '/SalespersonAnalysis', color: 'violet' },
     { id: 'roi', title: 'ROI', path: '/ROI', color: 'emerald' },
     { id: 'value-chain', title: 'Value Chain', path: '/ValueChain', color: 'yellow' },

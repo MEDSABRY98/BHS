@@ -201,6 +201,7 @@ export const SYSTEMS = [
     { id: 'lpo-management', label: 'Invoices Tracking' },
     { id: 'customers-discounts', label: 'Customers Discounts' },
     { id: 'payment-analysis', label: 'Payment Analysis' },
+    { id: 'expected-cash', label: 'Expected Cash' },
     { id: 'salesperson-analysis', label: 'Salesperson Analysis' },
     { id: 'roi', label: 'ROI' },
     { id: 'value-chain', label: 'Value Chain' },
@@ -363,7 +364,11 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
     'suppliers-analysis': [
         { id: 'suppliers', label: 'Suppliers Analysis' },
         { id: 'aging', label: 'Aging Analysis' },
-        { id: 'expected', label: 'Expected Payments' },
+    ],
+    // same ids as app/ExpectedCash/Utils/ExpectedCashTabs.ts
+    'expected-cash': [
+        { id: 'collections', label: 'Expected Collections' },
+        { id: 'payments', label: 'Expected Payments' },
     ],
     'cash-receipt': [
         { id: 'new', label: 'Create Receipt' },
@@ -456,6 +461,7 @@ const getSystemIcon = (id: string) => {
         case 'customers-discounts': return <Shield className="w-5 h-5 text-amber-500" />;
         case 'financial-model': return <BarChart3 className="w-5 h-5 text-emerald-500" />;
         case 'suppliers-analysis': return <Truck className="w-5 h-5 text-indigo-400" />;
+        case 'expected-cash': return <Wallet className="w-5 h-5 text-teal-500" />;
         case 'transfer-requests': return <CreditCard className="w-5 h-5 text-emerald-500" />;
         case 'debit-notes': return <FileCheck className="w-5 h-5 text-indigo-500" />;
         case 'credit-notes': return <FileCheck className="w-5 h-5 text-emerald-500" />;

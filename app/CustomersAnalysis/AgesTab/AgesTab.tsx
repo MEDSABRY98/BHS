@@ -81,6 +81,7 @@ export default function AgesTab({ data }: AgesTabProps) {
 
   const [isCityDropdownOpen, setIsCityDropdownOpen] = useState(false);
   const [isPdfExportOpen, setIsPdfExportOpen] = useState(false);
+  const [isExcelExportOpen, setIsExcelExportOpen] = useState(false);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const cityDropdownRef = useRef<HTMLDivElement>(null);
 
@@ -219,7 +220,7 @@ export default function AgesTab({ data }: AgesTabProps) {
           }
 
           if (daysOverdue <= 0) {
-            summary.atDate += amountToAge;
+            summary.oneToThirty += amountToAge; // not yet due is part of 0 - 30
           } else if (daysOverdue <= 30) {
             summary.oneToThirty += amountToAge;
           } else if (daysOverdue <= 60) {
@@ -284,121 +285,112 @@ export default function AgesTab({ data }: AgesTabProps) {
     return filtered;
   }, [agingData, debouncedSearch, selectedSalesRep]);
 
-  const exportToExcel = async () => {
-    // Sort for main sheet: City first, then Net Debit
-    const sortedForExport = [...filteredData].sort((a, b) => {
-      const cityA = a.cities.join(', ') || 'No City';
-      const cityB = b.cities.join(', ') || 'No City';
-      if (cityA < cityB) return -1;
-      if (cityA > cityB) return 1;
-      return b.total - a.total; // then by Net Debit descending
-    });
+  // same 4 reports as the PDF, every one sorted by debt (largest first)
+  const exportToExcel = async (mode: AgesPdfExportMode) => {
+    const data =
+      mode === 'without_tags' ? filteredData.filter((item) => item.customerTags.length === 0) : mode === 'by_tags' ? filteredData.filter((item) => item.customerTags.length > 0) : filteredData;
+    if (data.length === 0) {
+      alert(mode === 'without_tags' ? 'No customers without tags in the current view.' : mode === 'by_tags' ? 'No customers with tags in the current view.' : 'No customers found in the current view.');
+      return;
+    }
+    setIsExportingPdf(true);
+    try {
+      const numericColumns = ['NET DEBIT', '0 - 30', '31 - 60', '61 - 90', '91 - 120', 'OLDER'];
+      const options = { numericColumns };
+      const byDebt = (items: CustomerAgingSummary[]) => [...items].sort((a, b) => b.total - a.total);
+      const sum = (items: CustomerAgingSummary[], f: (i: CustomerAgingSummary) => number) => items.reduce((t, i) => t + f(i), 0);
 
-    // '0' is written as '0 ' (with a space): a plain '0' key is an integer key, which JS puts BEFORE every other column
-    const numericColumns = ['NET DEBIT', '0 ', '1 - 30', '31 - 60', '61 - 90', '91 - 120', 'OLDER'];
-    const options = { numericColumns };
-
-    const getRowData = (item: CustomerAgingSummary, index: number) => ({
-      '#': index + 1,
-      'Customer Name': item.customerName,
-      'City': item.cities.join(', ') || '',
-      'Payment Term': item.paymentTerm === null ? '' : `${item.paymentTerm} Days`,
-      'NET DEBIT': item.total,
-      '0 ': item.atDate,
-      '1 - 30': item.oneToThirty,
-      '31 - 60': item.thirtyOneToSixty,
-      '61 - 90': item.sixtyOneToNinety,
-      '91 - 120': item.ninetyOneToOneTwenty,
-      'OLDER': item.older,
-    });
-
-    // Main sheet data
-    const mainSheetData = sortedForExport.map((item, idx) => getRowData(item, idx));
-    mainSheetData.push({
-      '#': '',
-      'Customer Name': 'TOTAL',
-      'City': '',
-      'Payment Term': '',
-      'NET DEBIT': grandTotal,
-      '0 ': totalAtDate,
-      '1 - 30': total1To30,
-      '31 - 60': total31To60,
-      '61 - 90': total61To90,
-      '91 - 120': total91To120,
-      'OLDER': totalOlder,
-    } as any);
-
-    const sheets = [
-      {
-        name: 'All Cities',
-        data: mainSheetData,
-        options,
-      }
-    ];
-
-    // Group by City
-    const cityMap = new Map<string, typeof sortedForExport>();
-    sortedForExport.forEach(item => {
-      const city = item.cities.join(', ') || 'No City';
-      const group = cityMap.get(city) || [];
-      group.push(item);
-      cityMap.set(city, group);
-    });
-
-    // Sort city names alphabetically
-    const sortedCities = Array.from(cityMap.keys()).sort();
-
-    sortedCities.forEach(city => {
-      const cityData = cityMap.get(city)!;
-      const cityTotal = cityData.reduce((sum, item) => sum + item.total, 0);
-      const cityAtDate = cityData.reduce((sum, item) => sum + item.atDate, 0);
-      const city1To30 = cityData.reduce((sum, item) => sum + item.oneToThirty, 0);
-      const city31To60 = cityData.reduce((sum, item) => sum + item.thirtyOneToSixty, 0);
-      const city61To90 = cityData.reduce((sum, item) => sum + item.sixtyOneToNinety, 0);
-      const city91To120 = cityData.reduce((sum, item) => sum + item.ninetyOneToOneTwenty, 0);
-      const cityOlder = cityData.reduce((sum, item) => sum + item.older, 0);
-
-      const sheetData = cityData.map((item, idx) => getRowData(item, idx));
-      sheetData.push({
-        '#': '',
-        'Customer Name': 'TOTAL',
-        'City': '',
-        'Payment Term': '',
-        'NET DEBIT': cityTotal,
-        '0 ': cityAtDate,
-        '1 - 30': city1To30,
-        '31 - 60': city31To60,
-        '61 - 90': city61To90,
-        '91 - 120': city91To120,
-        'OLDER': cityOlder,
-      } as any);
-
-      // Safe sheet name for Excel (max 31 chars, no invalid chars)
-      let safeSheetName = city.replace(/[\/\\:*?"<>|]/g, '_').substring(0, 31).trim();
-      if (!safeSheetName) safeSheetName = 'Sheet';
-
-      // Ensure unique sheet name
-      let finalSheetName = safeSheetName;
-      let counter = 1;
-      while (sheets.some(s => s.name.toLowerCase() === finalSheetName.toLowerCase())) {
-        finalSheetName = `${safeSheetName.substring(0, 28)}_${counter}`;
-        counter++;
-      }
-
-      sheets.push({
-        name: finalSheetName,
-        data: sheetData,
-        options,
+      const rowOf = (item: CustomerAgingSummary, index: number) => ({
+        '#': index + 1,
+        'Customer Name': item.customerName,
+        'City': item.cities.join(', ') || '',
+        'Payment Term': item.paymentTerm === null ? '' : `${item.paymentTerm} Days`,
+        'NET DEBIT': item.total,
+        '0 - 30': item.oneToThirty,
+        '31 - 60': item.thirtyOneToSixty,
+        '61 - 90': item.sixtyOneToNinety,
+        '91 - 120': item.ninetyOneToOneTwenty,
+        'OLDER': item.older,
       });
-    });
+      const sheetRows = (items: CustomerAgingSummary[]) => {
+        const rows: Record<string, unknown>[] = items.map((item, i) => rowOf(item, i));
+        rows.push({
+          '#': '',
+          'Customer Name': 'TOTAL',
+          'City': '',
+          'Payment Term': '',
+          'NET DEBIT': sum(items, (i) => i.total),
+          '0 - 30': sum(items, (i) => i.oneToThirty),
+          '31 - 60': sum(items, (i) => i.thirtyOneToSixty),
+          '61 - 90': sum(items, (i) => i.sixtyOneToNinety),
+          '91 - 120': sum(items, (i) => i.ninetyOneToOneTwenty),
+          'OLDER': sum(items, (i) => i.older),
+        });
+        return rows;
+      };
 
-    await exportDebitExcelWorkbook(sheets, `ages_export_${new Date().toISOString().split('T')[0]}`);
+      const sheets: { name: string; data: any[]; options: typeof options }[] = [];
+      const addSheet = (rawName: string, rows: Record<string, unknown>[]) => {
+        const base = rawName.replace(/[\/\\:*?"<>|\[\]]/g, '_').substring(0, 31).trim() || 'Sheet';
+        let name = base;
+        for (let n = 1; sheets.some((x) => x.name.toLowerCase() === name.toLowerCase()); n++) name = `${base.substring(0, 28)}_${n}`;
+        sheets.push({ name, data: rows, options });
+      };
+
+      if (mode === 'by_city') {
+        addSheet('All Cities', sheetRows([...data].sort((a, b) => (a.cities.join(', ') || 'No City').localeCompare(b.cities.join(', ') || 'No City') || b.total - a.total)));
+        const cityMap = new Map<string, CustomerAgingSummary[]>();
+        data.forEach((item) => {
+          const city = item.cities.join(', ') || 'No City';
+          cityMap.set(city, [...(cityMap.get(city) || []), item]);
+        });
+        Array.from(cityMap.keys()).sort().forEach((city) => addSheet(city, sheetRows(byDebt(cityMap.get(city)!))));
+      } else if (mode === 'by_tags') {
+        const tagMap = new Map<string, CustomerAgingSummary[]>();
+        data.forEach((item) => item.customerTags.forEach((tag) => tagMap.set(tag, [...(tagMap.get(tag) || []), item])));
+        const tags = Array.from(tagMap.keys()).sort((a, b) => a.localeCompare(b));
+        addSheet(
+          'Summary',
+          [
+            ...tags.map((tag, i) => {
+              const items = tagMap.get(tag)!;
+              return {
+                '#': i + 1,
+                'Tag': tag,
+                'Customers': items.length,
+                'NET DEBIT': sum(items, (x) => x.total),
+                '0 - 30': sum(items, (x) => x.oneToThirty),
+                '31 - 60': sum(items, (x) => x.thirtyOneToSixty),
+                '61 - 90': sum(items, (x) => x.sixtyOneToNinety),
+                '91 - 120': sum(items, (x) => x.ninetyOneToOneTwenty),
+                'OLDER': sum(items, (x) => x.older),
+              };
+            }),
+          ],
+        );
+        sheets[0].options = { numericColumns: ['Customers', ...numericColumns] };
+        tags.forEach((tag) => addSheet(tag, sheetRows(byDebt(tagMap.get(tag)!))));
+      } else {
+        addSheet(mode === 'without_tags' ? 'Without Tags' : 'All Customers', sheetRows(mode === 'without_tags' ? [...data].sort((a, b) => (a.cities.join(', ') || 'No City').localeCompare(b.cities.join(', ') || 'No City') || b.total - a.total) : byDebt(data)));
+      }
+
+      const fileKey = mode === 'by_city' ? 'by_city' : mode === 'by_tags' ? 'by_tag' : mode === 'without_tags' ? 'without_tags' : 'all_customers';
+      await exportDebitExcelWorkbook(sheets, `ages_${fileKey}_${new Date().toISOString().split('T')[0]}`);
+      setIsPdfExportOpen(false);
+      setIsExcelExportOpen(false);
+    } catch (error) {
+      console.error('Error generating Excel:', error);
+      alert('Failed to generate Excel');
+    } finally {
+      setIsExportingPdf(false);
+    }
   };
 
   // 4 reports, every one sorted by debt (largest first)
   const handleExportPDF = async (mode: AgesPdfExportMode) => {
     setIsExportingPdf(true);
     try {
+      const agingLabel = agingMode === 'months' ? 'Calendar Months' : 'Exact Days';
       const { generateAgesPDF, generateSingleRegionAgesPDF, generateCombinedTagsAgesPDF } = await import('@/app/CustomersAnalysis/AgesTab/Pdf/AgesUtils');
       const dateStr = new Date().toISOString().split('T')[0];
 
@@ -411,16 +403,16 @@ export default function AgesTab({ data }: AgesTabProps) {
       let blob: Blob;
       let fileName: string;
       if (mode === 'by_city') {
-        blob = await generateAgesPDF(data, 'All Customers');
+        blob = await generateAgesPDF(data, 'All Customers', agingLabel);
         fileName = `Aging_By_City_${dateStr}.pdf`;
       } else if (mode === 'by_tags') {
-        blob = await generateCombinedTagsAgesPDF(data, 'Customers With Tags');
+        blob = await generateCombinedTagsAgesPDF(data, 'Customers With Tags', agingLabel);
         fileName = `Aging_By_Tag_${dateStr}.pdf`;
       } else if (mode === 'without_tags') {
-        blob = await generateSingleRegionAgesPDF('Without Customer Tags', data, 'Without Customer Tags');
+        blob = await generateSingleRegionAgesPDF('Without Customer Tags', data, 'Without Customer Tags', agingLabel, true);
         fileName = `Aging_Without_Tags_${dateStr}.pdf`;
       } else {
-        blob = await generateSingleRegionAgesPDF('All Customers', data, 'All Customers');
+        blob = await generateSingleRegionAgesPDF('All Customers', data, 'All Customers', agingLabel);
         fileName = `Aging_All_Customers_${dateStr}.pdf`;
       }
       saveTrackedAs(blob, fileName);
@@ -459,12 +451,8 @@ export default function AgesTab({ data }: AgesTabProps) {
           );
         },
       }),
-      columnHelper.accessor('atDate', {
-        header: '0',
-        cell: (info) => (info.getValue() || 0).toLocaleString('en-US'),
-      }),
       columnHelper.accessor('oneToThirty', {
-        header: '1 - 30',
+        header: '0 - 30',
         cell: (info) => (
           <span className="whitespace-nowrap">
             {info.getValue().toLocaleString('en-US')}
@@ -519,7 +507,6 @@ export default function AgesTab({ data }: AgesTabProps) {
   });
 
   // Calculate Totals
-  const totalAtDate = filteredData.reduce((sum, item) => sum + item.atDate, 0);
   const total1To30 = filteredData.reduce((sum, item) => sum + item.oneToThirty, 0);
   const total31To60 = filteredData.reduce((sum, item) => sum + item.thirtyOneToSixty, 0);
   const total61To90 = filteredData.reduce((sum, item) => sum + item.sixtyOneToNinety, 0);
@@ -599,7 +586,8 @@ export default function AgesTab({ data }: AgesTabProps) {
           className="w-1/2 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-lg text-center"
         />
         <button
-          onClick={exportToExcel}
+          onClick={() => setIsExcelExportOpen(true)}
+          disabled={isExportingPdf}
           className="flex items-center justify-center h-10 w-10 bg-emerald-600 text-white rounded-xl shadow-sm hover:bg-emerald-700 transition-colors"
           title="Export to Excel"
         >
@@ -615,7 +603,7 @@ export default function AgesTab({ data }: AgesTabProps) {
         </button>
       </div>
 
-      {isPdfExportOpen &&
+      {(isPdfExportOpen || isExcelExportOpen) &&
         typeof document !== 'undefined' &&
         createPortal(
           <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
@@ -623,18 +611,18 @@ export default function AgesTab({ data }: AgesTabProps) {
               type="button"
               aria-label="Close PDF export options"
               className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-all"
-              onClick={() => !isExportingPdf && setIsPdfExportOpen(false)}
+              onClick={() => !isExportingPdf && (setIsPdfExportOpen(false), setIsExcelExportOpen(false))}
             />
             <div className="relative w-full max-w-sm bg-white rounded-3xl border border-slate-100 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.1)] overflow-hidden animate-in fade-in zoom-in-95 duration-300">
               <div className="flex items-center justify-between gap-3 px-6 pt-6 pb-4">
                 <div>
-                  <h3 className="text-base font-bold text-slate-900">Export Aging PDF</h3>
+                  <h3 className="text-base font-bold text-slate-900">Export Aging {isExcelExportOpen ? 'Excel' : 'PDF'}</h3>
                   <p className="text-xs text-slate-500 mt-0.5">Choose the report (all sorted by debt)</p>
                 </div>
                 <button
                   type="button"
                   disabled={isExportingPdf}
-                  onClick={() => setIsPdfExportOpen(false)}
+                  onClick={() => (setIsPdfExportOpen(false), setIsExcelExportOpen(false))}
                   className="p-2 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors disabled:opacity-50"
                   aria-label="Close"
                 >
@@ -646,7 +634,7 @@ export default function AgesTab({ data }: AgesTabProps) {
                 <button
                   type="button"
                   disabled={isExportingPdf}
-                  onClick={() => handleExportPDF('all')}
+                  onClick={() => (isExcelExportOpen ? exportToExcel('all') : handleExportPDF('all'))}
                   className="group w-full flex items-center gap-4 p-3 rounded-2xl border border-transparent bg-slate-50 hover:bg-white hover:border-slate-200 hover:shadow-sm text-left transition-all duration-200 active:scale-[0.98] disabled:opacity-60"
                 >
                   <div className="w-10 h-10 rounded-xl bg-white shadow-sm border border-slate-100 text-slate-600 flex items-center justify-center shrink-0 group-hover:text-rose-600 group-hover:scale-110 transition-all duration-300">
@@ -661,7 +649,7 @@ export default function AgesTab({ data }: AgesTabProps) {
                 <button
                   type="button"
                   disabled={isExportingPdf}
-                  onClick={() => handleExportPDF('by_city')}
+                  onClick={() => (isExcelExportOpen ? exportToExcel('by_city') : handleExportPDF('by_city'))}
                   className="group w-full flex items-center gap-4 p-3 rounded-2xl border border-transparent bg-slate-50 hover:bg-white hover:border-slate-200 hover:shadow-sm text-left transition-all duration-200 active:scale-[0.98] disabled:opacity-60"
                 >
                   <div className="w-10 h-10 rounded-xl bg-white shadow-sm border border-slate-100 text-slate-600 flex items-center justify-center shrink-0 group-hover:text-emerald-600 group-hover:scale-110 transition-all duration-300">
@@ -676,7 +664,7 @@ export default function AgesTab({ data }: AgesTabProps) {
                 <button
                   type="button"
                   disabled={isExportingPdf}
-                  onClick={() => handleExportPDF('without_tags')}
+                  onClick={() => (isExcelExportOpen ? exportToExcel('without_tags') : handleExportPDF('without_tags'))}
                   className="group w-full flex items-center gap-4 p-3 rounded-2xl border border-transparent bg-slate-50 hover:bg-white hover:border-slate-200 hover:shadow-sm text-left transition-all duration-200 active:scale-[0.98] disabled:opacity-60"
                 >
                   <div className="w-10 h-10 rounded-xl bg-white shadow-sm border border-slate-100 text-slate-600 flex items-center justify-center shrink-0 group-hover:text-amber-500 group-hover:scale-110 transition-all duration-300">
@@ -684,14 +672,14 @@ export default function AgesTab({ data }: AgesTabProps) {
                   </div>
                   <div className="min-w-0">
                     <div className="text-[15px] font-semibold text-slate-700 group-hover:text-slate-900 transition-colors">Without Tags</div>
-                    <div className="text-[11px] font-medium text-slate-400">Customers with no tag, sorted by debt</div>
+                    <div className="text-[11px] font-medium text-slate-400">Customers with no tag, by city then debt</div>
                   </div>
                 </button>
 
                 <button
                   type="button"
                   disabled={isExportingPdf}
-                  onClick={() => handleExportPDF('by_tags')}
+                  onClick={() => (isExcelExportOpen ? exportToExcel('by_tags') : handleExportPDF('by_tags'))}
                   className="group w-full flex items-center gap-4 p-3 rounded-2xl border border-transparent bg-slate-50 hover:bg-white hover:border-slate-200 hover:shadow-sm text-left transition-all duration-200 active:scale-[0.98] disabled:opacity-60"
                 >
                   <div className="w-10 h-10 rounded-xl bg-white shadow-sm border border-slate-100 text-slate-600 flex items-center justify-center shrink-0 group-hover:text-indigo-600 group-hover:scale-110 transition-all duration-300">
@@ -707,7 +695,7 @@ export default function AgesTab({ data }: AgesTabProps) {
               {isExportingPdf && (
                 <div className="px-5 pb-4 flex items-center justify-center gap-2 text-sm font-semibold text-slate-600">
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Generating PDF...
+                  Generating {isExcelExportOpen ? 'Excel' : 'PDF'}...
                 </div>
               )}
             </div>
