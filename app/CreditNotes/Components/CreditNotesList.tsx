@@ -18,18 +18,34 @@ const monthLabel = (k: string) => {
   return y && m ? new Date(y, m - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : '—';
 };
 
+export interface ListFilters {
+  search: string;
+  dateFrom: string;
+  dateTo: string;
+  user: string;
+}
+const NO_FILTERS: ListFilters = { search: '', dateFrom: '', dateTo: '', user: '' };
+
 interface CreditNotesListProps {
   notes: CreditNote[];
   admin: boolean; // sees all, edits & deletes
   canEdit: boolean;
   onEdit: (n: CreditNote) => void;
   onDeleted: (id: string) => void;
+  filters: ListFilters;
+  onFiltersChange: (f: ListFilters) => void;
+  filtersOpen: boolean;
+  onCloseFilters: () => void;
 }
 
-export default function CreditNotesList({ notes, admin, canEdit, onEdit, onDeleted }: CreditNotesListProps) {
-  const [search, setSearch] = useState('');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
+export default function CreditNotesList({ notes, admin, canEdit, onEdit, onDeleted, filters, onFiltersChange, filtersOpen, onCloseFilters }: CreditNotesListProps) {
+  const { search, dateFrom, dateTo, user } = filters;
+  const [draft, setDraft] = useState<ListFilters>(filters);
+  useEffect(() => {
+    if (filtersOpen) setDraft(filters);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtersOpen]);
+  const users = useMemo(() => Array.from(new Set(notes.map(userOf))).sort((a, b) => a.localeCompare(b)), [notes]);
   const [page, setPage] = useState(1);
   const [pdfId, setPdfId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<CreditNote | null>(null);
@@ -40,6 +56,7 @@ export default function CreditNotesList({ notes, admin, canEdit, onEdit, onDelet
     return notes.filter((n) => {
       if (dateFrom && n.NOTE_DATE < dateFrom) return false;
       if (dateTo && n.NOTE_DATE > dateTo) return false;
+      if (user && userOf(n) !== user) return false;
       if (!q) return true;
       return (
         n.ID.toLowerCase().includes(q) ||
@@ -49,7 +66,7 @@ export default function CreditNotesList({ notes, admin, canEdit, onEdit, onDelet
         n.LINES.some((l) => l.description.toLowerCase().includes(q))
       );
     });
-  }, [notes, search, dateFrom, dateTo]);
+  }, [notes, search, dateFrom, dateTo, user]);
 
   // grouped by month (newest first), then by user
   const sorted = useMemo(
@@ -79,12 +96,12 @@ export default function CreditNotesList({ notes, admin, canEdit, onEdit, onDelet
 
   const total = round2(filtered.reduce((s, n) => s + n.TOTAL, 0));
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  useEffect(() => setPage(1), [search, dateFrom, dateTo]);
+  useEffect(() => setPage(1), [search, dateFrom, dateTo, user]);
   useEffect(() => {
     if (page > pageCount) setPage(pageCount);
   }, [page, pageCount]);
   const rows = sorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-  const filtersActive = !!(search || dateFrom || dateTo);
+  const filtersActive = !!(search || dateFrom || dateTo || user);
 
   const pdf = async (n: CreditNote) => {
     setPdfId(n.ID);
@@ -123,35 +140,18 @@ export default function CreditNotesList({ notes, admin, canEdit, onEdit, onDelet
         </span>
       </div>
 
-      {/* Filters */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-3 flex flex-col lg:flex-row gap-3">
-        <div className="relative flex-1">
+      {/* Search (dates / user: the Filters icon in the sidebar) */}
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-3">
+        <div className="relative">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => onFiltersChange({ ...filters, search: e.target.value })}
             placeholder="Search number, description, amount…"
             dir="auto"
             className="w-full h-11 pl-10 pr-4 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#1F3864]/25"
           />
         </div>
-        <div className="flex items-center gap-2">
-          <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="h-11 px-3 rounded-xl border border-slate-200 text-sm" title="From date" />
-          <span className="text-slate-300">—</span>
-          <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="h-11 px-3 rounded-xl border border-slate-200 text-sm" title="To date" />
-        </div>
-        {filtersActive && (
-          <button
-            onClick={() => {
-              setSearch('');
-              setDateFrom('');
-              setDateTo('');
-            }}
-            className="h-11 px-4 rounded-xl border border-slate-200 text-sm font-bold text-slate-500 hover:bg-slate-50 flex items-center gap-1.5"
-          >
-            <X className="w-4 h-4" /> Clear
-          </button>
-        )}
       </div>
 
       {/* Table */}
@@ -258,6 +258,65 @@ export default function CreditNotesList({ notes, admin, canEdit, onEdit, onDelet
           </div>
         )}
       </div>
+
+      {/* Filters modal */}
+      {filtersOpen && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={onCloseFilters}>
+          <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="px-6 py-4 bg-[#0a0f1d] text-[#D4AF37] flex items-center justify-between">
+              <h3 className="text-base font-black tracking-wide">Filters</h3>
+              <button onClick={onCloseFilters} className="p-1.5 rounded-lg hover:bg-white/10" title="Close">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">From date</label>
+                  <input type="date" value={draft.dateFrom} onChange={(e) => setDraft({ ...draft, dateFrom: e.target.value })} className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">To date</label>
+                  <input type="date" value={draft.dateTo} onChange={(e) => setDraft({ ...draft, dateTo: e.target.value })} className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm" />
+                </div>
+              </div>
+              {admin && (
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Created by</label>
+                  <select value={draft.user} onChange={(e) => setDraft({ ...draft, user: e.target.value })} className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm bg-white">
+                    <option value="">All users</option>
+                    {users.map((u) => (
+                      <option key={u} value={u}>
+                        {u}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+            <div className="px-6 pb-6 grid grid-cols-2 gap-3">
+              <button
+                onClick={() => {
+                  onFiltersChange({ ...NO_FILTERS, search });
+                  onCloseFilters();
+                }}
+                className="h-11 rounded-xl border border-slate-200 text-sm font-bold text-slate-600 hover:bg-slate-50"
+              >
+                Clear all
+              </button>
+              <button
+                onClick={() => {
+                  onFiltersChange({ ...draft, search });
+                  onCloseFilters();
+                }}
+                className="h-11 rounded-xl bg-black text-[#C4A052] text-sm font-bold"
+              >
+                Apply
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <ConfirmDialog
         open={!!deleteTarget}

@@ -1,6 +1,6 @@
 'use client';
 
-// Supplier Clearance: a checkpoint list (returns, quality, deliveries, settlement) answered Yes / No / N/A
+// Supplier Clearance: a checkpoint list (returns, quality, deliveries, settlement) answered Yes / No
 // before a supplier is cleared; the responsibility goes to the Warehouse Manager and the Supply Chain Manager.
 // Fill the form, download the PDF and save it to the archive.
 
@@ -218,9 +218,6 @@ function SupplierClearanceForm({ ctx }: { ctx: FormEditorContext<SupplierClearan
               <div className="flex gap-1.5">
                 <button type="button" onClick={() => markAll('yes')} className="h-8 px-3 rounded-lg border border-slate-200 text-xs font-bold text-emerald-700 hover:bg-emerald-50">
                   All Yes
-                </button>
-                <button type="button" onClick={() => markAll('na')} className="h-8 px-3 rounded-lg border border-slate-200 text-xs font-bold text-slate-500 hover:bg-slate-50">
-                  All N/A
                 </button>
               </div>
             </div>

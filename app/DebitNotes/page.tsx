@@ -16,6 +16,8 @@ import DebitNotesList from './Components/DebitNotesList';
 import { getDebitNotePermissions, listDebitNotes } from './Service/DebitNoteService';
 import type { DebitNote, DebitNotePermissions, DebitNotesTabId } from './Utils/DebitNoteTypes';
 
+const NO_FILTERS = { search: '', dateFrom: '', dateTo: '', user: '' };
+
 const NO_ACCESS: DebitNotePermissions = { tabs: [], admin: false };
 const newestFirst = (a: DebitNote, b: DebitNote) => (a.NOTE_DATE !== b.NOTE_DATE ? (a.NOTE_DATE < b.NOTE_DATE ? 1 : -1) : a.ID < b.ID ? 1 : -1);
 
@@ -37,6 +39,8 @@ export default function DebitNotesPage() {
   const [loaded, setLoaded] = useState(false);
   const [editNote, setEditNote] = useState<DebitNote | null>(null); // admin edit
   const [formKey, setFormKey] = useState(0);
+  const [filters, setFilters] = useState(NO_FILTERS);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   useDebitNotesTabAudit(activeTab);
 
@@ -132,6 +136,8 @@ export default function DebitNotesPage() {
     visibleTabs,
     onRefresh: canSeeNotes ? () => void loadData(true) : undefined,
     refreshing,
+    onOpenFilters: canSeeNotes && activeTab === 'notes' ? () => setFiltersOpen(true) : undefined,
+    filtersActive: !!(filters.dateFrom || filters.dateTo || filters.user),
   };
 
   return (
@@ -185,6 +191,10 @@ export default function DebitNotesPage() {
                 ) : (
                   <DebitNotesList
                     notes={notes}
+                    filters={filters}
+                    onFiltersChange={setFilters}
+                    filtersOpen={filtersOpen}
+                    onCloseFilters={() => setFiltersOpen(false)}
                     admin={permissions.admin}
                     canEdit={permissions.admin && visibleTabs.includes('new')} // edit: admin only
                     onEdit={(n) => {

@@ -74,7 +74,7 @@ export async function generateAgesPDF(
 
     summaryData.push({ city, ...totals });
 
-    tableData.push(['', 'TOTAL', '', totals.total.toLocaleString('en-US'), totals.atDate.toLocaleString('en-US'), totals.oneToThirty.toLocaleString('en-US'),
+    tableData.push(['', 'TOTAL', '', totals.total.toLocaleString('en-US'), totals.oneToThirty.toLocaleString('en-US'),
       totals.thirtyOneToSixty.toLocaleString('en-US'), totals.sixtyOneToNinety.toLocaleString('en-US'),
       totals.ninetyOneToOneTwenty.toLocaleString('en-US'), totals.older.toLocaleString('en-US')]);
 
@@ -125,7 +125,7 @@ export async function generateAgesPDF(
       ninetyOneToOneTwenty: acc.ninetyOneToOneTwenty + item.ninetyOneToOneTwenty, older: acc.older + item.older
     }), { total: 0, atDate: 0, oneToThirty: 0, thirtyOneToSixty: 0, sixtyOneToNinety: 0, ninetyOneToOneTwenty: 0, older: 0 });
 
-    summaryTableData.push(['', 'GRAND TOTAL', grandTotals.total.toLocaleString('en-US'), grandTotals.atDate.toLocaleString('en-US'), grandTotals.oneToThirty.toLocaleString('en-US'),
+    summaryTableData.push(['', 'GRAND TOTAL', grandTotals.total.toLocaleString('en-US'), grandTotals.oneToThirty.toLocaleString('en-US'),
       grandTotals.thirtyOneToSixty.toLocaleString('en-US'), grandTotals.sixtyOneToNinety.toLocaleString('en-US'),
       grandTotals.ninetyOneToOneTwenty.toLocaleString('en-US'), grandTotals.older.toLocaleString('en-US')]);
 
@@ -269,12 +269,8 @@ export async function generateCombinedTagsAgesPDF(
   for (const tag of sortedTags) {
     const tagData = tagGroups.get(tag) || [];
 
-    const sortedData = [...tagData].sort((a, b) => {
-      const cityA = (a.cities.join(', ') || 'No City').toLowerCase();
-      const cityB = (b.cities.join(', ') || 'No City').toLowerCase();
-      if (cityA !== cityB) return cityA.localeCompare(cityB);
-      return b.total - a.total;
-    });
+    // sorted by debt, largest first
+    const sortedData = [...tagData].sort((a, b) => b.total - a.total);
 
     if (!isFirstPage) doc.addPage('a4', 'l');
     isFirstPage = false;
@@ -305,7 +301,7 @@ export async function generateCombinedTagsAgesPDF(
 
     summaryData.push({ tag, ...totals });
 
-    tableData.push(['', 'TOTAL', '', totals.total.toLocaleString('en-US'), totals.atDate.toLocaleString('en-US'), totals.oneToThirty.toLocaleString('en-US'),
+    tableData.push(['', 'TOTAL', '', totals.total.toLocaleString('en-US'), totals.oneToThirty.toLocaleString('en-US'),
       totals.thirtyOneToSixty.toLocaleString('en-US'), totals.sixtyOneToNinety.toLocaleString('en-US'),
       totals.ninetyOneToOneTwenty.toLocaleString('en-US'), totals.older.toLocaleString('en-US')]);
 
@@ -356,7 +352,7 @@ export async function generateCombinedTagsAgesPDF(
       ninetyOneToOneTwenty: acc.ninetyOneToOneTwenty + item.ninetyOneToOneTwenty, older: acc.older + item.older
     }), { total: 0, atDate: 0, oneToThirty: 0, thirtyOneToSixty: 0, sixtyOneToNinety: 0, ninetyOneToOneTwenty: 0, older: 0 });
 
-    summaryTableData.push(['', 'GRAND TOTAL', grandTotals.total.toLocaleString('en-US'), grandTotals.atDate.toLocaleString('en-US'), grandTotals.oneToThirty.toLocaleString('en-US'),
+    summaryTableData.push(['', 'GRAND TOTAL', grandTotals.total.toLocaleString('en-US'), grandTotals.oneToThirty.toLocaleString('en-US'),
       grandTotals.thirtyOneToSixty.toLocaleString('en-US'), grandTotals.sixtyOneToNinety.toLocaleString('en-US'),
       grandTotals.ninetyOneToOneTwenty.toLocaleString('en-US'), grandTotals.older.toLocaleString('en-US')]);
 

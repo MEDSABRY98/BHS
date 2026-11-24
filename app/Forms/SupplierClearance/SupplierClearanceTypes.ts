@@ -3,11 +3,11 @@
 
 export const SUPPLIER_CLEARANCE_FORM_ID = 'supplier-clearance';
 
+// 'na' is no longer offered; it stays in the type only to read forms saved before it was removed
 export type ClearanceAnswer = 'yes' | 'no' | 'na';
 export const ANSWERS: { id: ClearanceAnswer; label: string }[] = [
   { id: 'yes', label: 'Yes' },
   { id: 'no', label: 'No' },
-  { id: 'na', label: 'N/A' },
 ];
 
 export type ClearanceDecision = 'cleared' | 'conditional' | 'not-cleared';
@@ -23,7 +23,7 @@ export interface Checkpoint {
   text: string;
 }
 
-/** The SOP: every checkpoint is answered Yes / No / N/A (a "No" needs a remark). */
+/** The SOP: every checkpoint is answered Yes / No (a "No" needs a remark). */
 export const CHECKPOINTS: Checkpoint[] = [
   { id: 'ret-collected', section: 'Returns', text: 'All goods returned to the supplier have been collected by the supplier.' },
   { id: 'ret-credit', section: 'Returns', text: 'Credit notes for all returned goods have been received from the supplier.' },
@@ -57,4 +57,4 @@ export interface SupplierClearance {
 }
 
 export const decisionLabel = (d: ClearanceDecision) => DECISIONS.find((x) => x.id === d)?.label || d;
-export const answerLabel = (a: ClearanceAnswer) => ANSWERS.find((x) => x.id === a)?.label || a;
+export const answerLabel = (a: ClearanceAnswer) => ANSWERS.find((x) => x.id === a)?.label || (a === 'na' ? 'N/A' : a);

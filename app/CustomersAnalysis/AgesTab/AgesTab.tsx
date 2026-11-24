@@ -22,7 +22,7 @@ interface AgesTabProps {
   data: InvoiceRow[];
 }
 
-type AgesPdfExportMode = 'normal' | 'without_tags' | 'tags_only' | 'tags_combined';
+type AgesPdfExportMode = 'all' | 'by_city' | 'without_tags' | 'by_tags';
 
 interface CustomerAgingSummary {
   customerName: string;
@@ -395,99 +395,35 @@ export default function AgesTab({ data }: AgesTabProps) {
     await exportDebitExcelWorkbook(sheets, `ages_export_${new Date().toISOString().split('T')[0]}`);
   };
 
+  // 4 reports, every one sorted by debt (largest first)
   const handleExportPDF = async (mode: AgesPdfExportMode) => {
     setIsExportingPdf(true);
     try {
-      const JSZip = (await import('jszip')).default;
-      const { generateAgesPDF, generateSingleRegionAgesPDF } = await import('@/app/CustomersAnalysis/AgesTab/Pdf/AgesUtils');
-
+      const { generateAgesPDF, generateSingleRegionAgesPDF, generateCombinedTagsAgesPDF } = await import('@/app/CustomersAnalysis/AgesTab/Pdf/AgesUtils');
       const dateStr = new Date().toISOString().split('T')[0];
-      const zip = new JSZip();
 
-      if (mode === 'tags_combined') {
-        const tagged = filteredData.filter((item) => item.customerTags.length > 0);
-        if (tagged.length === 0) {
-          alert('No customers with tags found in the current view.');
-          return;
-        }
-        const { generateCombinedTagsAgesPDF } = await import('@/app/CustomersAnalysis/AgesTab/Pdf/AgesUtils');
-        const pdfBlob = await generateCombinedTagsAgesPDF(tagged, 'All Tagged Customers');
-        saveTrackedAs(pdfBlob, `Combined_Tags_Aging_${dateStr}.pdf`);
-        setIsExportingPdf(false);
+      const data = mode === 'without_tags' ? filteredData.filter((item) => item.customerTags.length === 0) : mode === 'by_tags' ? filteredData.filter((item) => item.customerTags.length > 0) : filteredData;
+      if (data.length === 0) {
+        alert(mode === 'without_tags' ? 'No customers without tags in the current view.' : mode === 'by_tags' ? 'No customers with tags in the current view.' : 'No customers found in the current view.');
         return;
       }
 
-      if (mode === 'tags_only') {
-        const tagged = filteredData.filter((item) => item.customerTags.length > 0);
-        if (tagged.length === 0) {
-          alert('No customers with tags found in the current view.');
-          return;
-        }
-
-        const tagMap = new Map<string, typeof filteredData>();
-        tagged.forEach((item) => {
-          item.customerTags.forEach((tag) => {
-            const group = tagMap.get(tag) || [];
-            group.push(item);
-            tagMap.set(tag, group);
-          });
-        });
-
-        const sortedTags = Array.from(tagMap.keys()).sort((a, b) => a.localeCompare(b));
-        for (const tag of sortedTags) {
-          const tagData = tagMap.get(tag) || [];
-          const tagPdf = await generateSingleRegionAgesPDF(tag, tagData, `Customer Tag: ${tag}`);
-          const safeTagName = tag.replace(/[\/\\:*?"<>|]/g, '_').trim() || 'Tag';
-          zip.file(`Tag_${safeTagName}_Aging_${dateStr}.pdf`, tagPdf);
-        }
-
-        const zipBlob = await zip.generateAsync({ type: 'blob' });
-        saveTrackedAs(zipBlob, `Aging_By_Tags_${dateStr}.zip`);
-        setIsPdfExportOpen(false);
-        return;
+      let blob: Blob;
+      let fileName: string;
+      if (mode === 'by_city') {
+        blob = await generateAgesPDF(data, 'All Customers');
+        fileName = `Aging_By_City_${dateStr}.pdf`;
+      } else if (mode === 'by_tags') {
+        blob = await generateCombinedTagsAgesPDF(data, 'Customers With Tags');
+        fileName = `Aging_By_Tag_${dateStr}.pdf`;
+      } else if (mode === 'without_tags') {
+        blob = await generateSingleRegionAgesPDF('Without Customer Tags', data, 'Without Customer Tags');
+        fileName = `Aging_Without_Tags_${dateStr}.pdf`;
+      } else {
+        blob = await generateSingleRegionAgesPDF('All Customers', data, 'All Customers');
+        fileName = `Aging_All_Customers_${dateStr}.pdf`;
       }
-
-      const exportData =
-        mode === 'without_tags'
-          ? filteredData.filter((item) => item.customerTags.length === 0)
-          : filteredData;
-
-      if (exportData.length === 0) {
-        alert(
-          mode === 'without_tags'
-            ? 'No untagged customers found in the current view.'
-            : 'No customers found in the current view.'
-        );
-        return;
-      }
-
-      const filterDesc =
-        mode === 'without_tags' ? 'Without Customer Tags' : 'All Customers';
-
-      const fullPdfBlob = await generateAgesPDF(exportData, filterDesc);
-
-      const regionMap = new Map<string, typeof exportData>();
-      exportData.forEach((item) => {
-        const regionKey = item.cities.join(', ') || 'No Region';
-        const group = regionMap.get(regionKey) || [];
-        group.push(item);
-        regionMap.set(regionKey, group);
-      });
-
-      zip.file(`Aging_Report_${dateStr}.pdf`, fullPdfBlob);
-
-      for (const [region, regionData] of regionMap) {
-        const regionPdfBlob = await generateSingleRegionAgesPDF(region, regionData, filterDesc);
-        const safeRegionName = region.replace(/[\/\\:*?"<>|]/g, '_');
-        zip.file(`${safeRegionName}_Aging_${dateStr}.pdf`, regionPdfBlob);
-      }
-
-      const zipBlob = await zip.generateAsync({ type: 'blob' });
-      const zipName =
-        mode === 'without_tags'
-          ? `Aging_Report_NoTags_${dateStr}.zip`
-          : `Aging_Report_${dateStr}.zip`;
-      saveTrackedAs(zipBlob, zipName);
+      saveTrackedAs(blob, fileName);
       setIsPdfExportOpen(false);
     } catch (error) {
       console.error('Error generating PDF:', error);
@@ -693,7 +629,7 @@ export default function AgesTab({ data }: AgesTabProps) {
               <div className="flex items-center justify-between gap-3 px-6 pt-6 pb-4">
                 <div>
                   <h3 className="text-base font-bold text-slate-900">Export Aging PDF</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">Choose how customer tags are included</p>
+                  <p className="text-xs text-slate-500 mt-0.5">Choose the report (all sorted by debt)</p>
                 </div>
                 <button
                   type="button"
@@ -710,14 +646,30 @@ export default function AgesTab({ data }: AgesTabProps) {
                 <button
                   type="button"
                   disabled={isExportingPdf}
-                  onClick={() => handleExportPDF('normal')}
+                  onClick={() => handleExportPDF('all')}
                   className="group w-full flex items-center gap-4 p-3 rounded-2xl border border-transparent bg-slate-50 hover:bg-white hover:border-slate-200 hover:shadow-sm text-left transition-all duration-200 active:scale-[0.98] disabled:opacity-60"
                 >
                   <div className="w-10 h-10 rounded-xl bg-white shadow-sm border border-slate-100 text-slate-600 flex items-center justify-center shrink-0 group-hover:text-rose-600 group-hover:scale-110 transition-all duration-300">
                     <Users className="w-4 h-4" />
                   </div>
                   <div className="min-w-0">
-                    <div className="text-[15px] font-semibold text-slate-700 group-hover:text-slate-900 transition-colors">Normal Download</div>
+                    <div className="text-[15px] font-semibold text-slate-700 group-hover:text-slate-900 transition-colors">All Customers</div>
+                    <div className="text-[11px] font-medium text-slate-400">One list, sorted by debt (largest first)</div>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={isExportingPdf}
+                  onClick={() => handleExportPDF('by_city')}
+                  className="group w-full flex items-center gap-4 p-3 rounded-2xl border border-transparent bg-slate-50 hover:bg-white hover:border-slate-200 hover:shadow-sm text-left transition-all duration-200 active:scale-[0.98] disabled:opacity-60"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-white shadow-sm border border-slate-100 text-slate-600 flex items-center justify-center shrink-0 group-hover:text-emerald-600 group-hover:scale-110 transition-all duration-300">
+                    <MapPin className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-[15px] font-semibold text-slate-700 group-hover:text-slate-900 transition-colors">By City</div>
+                    <div className="text-[11px] font-medium text-slate-400">Split by city, sorted by debt inside each city</div>
                   </div>
                 </button>
 
@@ -731,35 +683,23 @@ export default function AgesTab({ data }: AgesTabProps) {
                     <FileText className="w-4 h-4" />
                   </div>
                   <div className="min-w-0">
-                    <div className="text-[15px] font-semibold text-slate-700 group-hover:text-slate-900 transition-colors">Without Customer Tags</div>
+                    <div className="text-[15px] font-semibold text-slate-700 group-hover:text-slate-900 transition-colors">Without Tags</div>
+                    <div className="text-[11px] font-medium text-slate-400">Customers with no tag, sorted by debt</div>
                   </div>
                 </button>
 
                 <button
                   type="button"
                   disabled={isExportingPdf}
-                  onClick={() => handleExportPDF('tags_combined')}
-                  className="group w-full flex items-center gap-4 p-3 rounded-2xl border border-transparent bg-slate-50 hover:bg-white hover:border-slate-200 hover:shadow-sm text-left transition-all duration-200 active:scale-[0.98] disabled:opacity-60"
-                >
-                  <div className="w-10 h-10 rounded-xl bg-white shadow-sm border border-slate-100 text-slate-600 flex items-center justify-center shrink-0 group-hover:text-blue-600 group-hover:scale-110 transition-all duration-300">
-                    <Users className="w-4 h-4" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-[15px] font-semibold text-slate-700 group-hover:text-slate-900 transition-colors">Combined Customer Tags</div>
-                  </div>
-                </button>
-
-                <button
-                  type="button"
-                  disabled={isExportingPdf}
-                  onClick={() => handleExportPDF('tags_only')}
+                  onClick={() => handleExportPDF('by_tags')}
                   className="group w-full flex items-center gap-4 p-3 rounded-2xl border border-transparent bg-slate-50 hover:bg-white hover:border-slate-200 hover:shadow-sm text-left transition-all duration-200 active:scale-[0.98] disabled:opacity-60"
                 >
                   <div className="w-10 h-10 rounded-xl bg-white shadow-sm border border-slate-100 text-slate-600 flex items-center justify-center shrink-0 group-hover:text-indigo-600 group-hover:scale-110 transition-all duration-300">
                     <Tag className="w-4 h-4" />
                   </div>
                   <div className="min-w-0">
-                    <div className="text-[15px] font-semibold text-slate-700 group-hover:text-slate-900 transition-colors">Customer Tags Only</div>
+                    <div className="text-[15px] font-semibold text-slate-700 group-hover:text-slate-900 transition-colors">By Customer Tag</div>
+                    <div className="text-[11px] font-medium text-slate-400">Split by tag, sorted by debt inside each tag</div>
                   </div>
                 </button>
               </div>

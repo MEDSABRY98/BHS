@@ -1,7 +1,7 @@
 'use client';
 
 // Supplier Clearance PDF — same look as the Supplier Payment form: navy/gold header, date / period /
-// strip, supplier card, the checkpoint table (grouped, Yes / No / N/A + remarks),
+// strip, supplier card, the checkpoint table (grouped, Yes / No + remarks),
 // the decision, the responsibility statement, notes and signatures.
 
 import jsPDF from 'jspdf';

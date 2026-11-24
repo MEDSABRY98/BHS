@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { ArrowLeft, FileMinus, ChevronLeft, ChevronRight, FilePlus2, ListOrdered, X, RefreshCw } from 'lucide-react';
+import { ArrowLeft, FileMinus, ChevronLeft, ChevronRight, FilePlus2, ListOrdered, X, RefreshCw, SlidersHorizontal } from 'lucide-react';
 import type { CreditNotesTabId } from './CreditNoteTypes';
 
 interface CreditNotesSidebarProps {
@@ -12,6 +12,9 @@ interface CreditNotesSidebarProps {
   onCloseMobile?: () => void;
   onRefresh?: () => void;
   refreshing?: boolean;
+  /** the list's filters (shown only while the list is open) */
+  onOpenFilters?: () => void;
+  filtersActive?: boolean;
 }
 
 const ALL_TABS = [
@@ -28,6 +31,8 @@ export default function CreditNotesSidebar({
   onCloseMobile,
   onRefresh,
   refreshing = false,
+  onOpenFilters,
+  filtersActive = false,
 }: CreditNotesSidebarProps) {
   const [hoveredTab, setHoveredTab] = useState<{ label: string; top: number } | null>(null);
   const tabs = ALL_TABS.filter((tab) => visibleTabs.includes(tab.id));
@@ -115,6 +120,19 @@ export default function CreditNotesSidebar({
         >
           {isCollapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
         </button>
+        {onOpenFilters && (
+          <button
+            onClick={() => {
+              onOpenFilters();
+              if (onCloseMobile) onCloseMobile();
+            }}
+            className="relative flex items-center justify-center w-10 h-10 hover:bg-white/10 rounded-xl transition-all duration-200 text-amber-400"
+            title="Filters"
+          >
+            <SlidersHorizontal className="w-5 h-5" />
+            {filtersActive && <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full bg-amber-400 border-2 border-[#0a0f1d]" />}
+          </button>
+        )}
         {onRefresh && (
           <button
             onClick={onRefresh}
