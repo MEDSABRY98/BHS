@@ -75,7 +75,7 @@ export interface ListFilters {
   dateFrom: string;
   dateTo: string;
   user: string;
-  sort?: string; // '' = grouped by month; otherwise one flat list in this order
+  sort: string; // '' = grouped by month; otherwise one flat list in this order
 }
 const NO_FILTERS: ListFilters = { search: '', dateFrom: '', dateTo: '', user: '', sort: '' };
 const SORT_OPTIONS: { value: string; label: string }[] = [
