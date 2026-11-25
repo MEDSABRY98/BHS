@@ -61,9 +61,7 @@ function SupplierClearanceForm({ ctx }: { ctx: FormEditorContext<SupplierClearan
   const [answers, setAnswers] = useState<Record<string, ClearanceAnswer | ''>>(() =>
     Object.fromEntries(CHECKPOINTS.map((c) => [c.id, savedItem(c.id)?.ANSWER || ''])),
   );
-  const [remarks, setRemarks] = useState<Record<string, string>>(() => Object.fromEntries(CHECKPOINTS.map((c) => [c.id, savedItem(c.id)?.REMARK || ''])));
   const [decision, setDecision] = useState<ClearanceDecision | ''>(init?.DECISION || '');
-  const [notes, setNotes] = useState(init?.NOTES || '');
   const [errors, setErrors] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
@@ -94,7 +92,6 @@ function SupplierClearanceForm({ ctx }: { ctx: FormEditorContext<SupplierClearan
   const setAnswer = (id: string, a: ClearanceAnswer) => {
     setAnswers((p) => ({ ...p, [id]: a }));
     clearErr(id);
-    clearErr(`remark-${id}`);
   };
   const markAll = (a: ClearanceAnswer) => {
     setAnswers(Object.fromEntries(CHECKPOINTS.map((c) => [c.id, a])));
@@ -105,9 +102,7 @@ function SupplierClearanceForm({ ctx }: { ctx: FormEditorContext<SupplierClearan
     setDate(uaeToday());
     setSupplier('');
     setAnswers(Object.fromEntries(CHECKPOINTS.map((c) => [c.id, ''])));
-    setRemarks(Object.fromEntries(CHECKPOINTS.map((c) => [c.id, ''])));
     setDecision('');
-    setNotes('');
     setErrors({});
   };
 
@@ -118,13 +113,11 @@ function SupplierClearanceForm({ ctx }: { ctx: FormEditorContext<SupplierClearan
     if (!supplier.trim()) errs.supplier = true;
     CHECKPOINTS.forEach((c) => {
       if (!answers[c.id]) errs[c.id] = true;
-      else if (answers[c.id] === 'no' && !remarks[c.id].trim()) errs[`remark-${c.id}`] = true;
     });
     if (!decision) errs.decision = true;
     setErrors(errs);
     if (Object.keys(errs).length) {
-      if (CHECKPOINTS.some((c) => errs[`remark-${c.id}`])) toast.error('Write a remark for every checkpoint answered "No"');
-      else toast.error('Fill the highlighted fields');
+      toast.error('Fill the highlighted fields');
       return null;
     }
     if (decision === 'cleared' && noCount > 0) {
@@ -135,9 +128,9 @@ function SupplierClearanceForm({ ctx }: { ctx: FormEditorContext<SupplierClearan
     return {
       DATE: date,
       SUPPLIER_NAME: supplier.trim(),
-      ITEMS: CHECKPOINTS.map((c) => ({ ID: c.id, SECTION: c.section, TEXT: c.text, ANSWER: answers[c.id] as ClearanceAnswer, REMARK: remarks[c.id].trim() })),
+      ITEMS: CHECKPOINTS.map((c) => ({ ID: c.id, SECTION: c.section, TEXT: c.text, ANSWER: answers[c.id] as ClearanceAnswer, REMARK: '' })),
       DECISION: decision as ClearanceDecision,
-      NOTES: notes.trim(),
+      NOTES: '',
     };
   };
 
@@ -229,7 +222,7 @@ function SupplierClearanceForm({ ctx }: { ctx: FormEditorContext<SupplierClearan
                   {s.items.map((c) => {
                     const a = answers[c.id];
                     return (
-                      <div key={c.id} className={`p-4 space-y-2.5 ${errors[c.id] ? 'bg-red-50/50' : ''}`}>
+                      <div key={c.id} className={`p-4 ${errors[c.id] ? 'bg-red-50/50' : ''}`}>
                         <div className="flex flex-col md:flex-row md:items-center gap-3">
                           <p className="flex-1 text-sm font-semibold text-slate-800 leading-relaxed">{c.text}</p>
                           <div className="flex gap-1.5 shrink-0">
@@ -245,17 +238,6 @@ function SupplierClearanceForm({ ctx }: { ctx: FormEditorContext<SupplierClearan
                             ))}
                           </div>
                         </div>
-                        <input
-                          value={remarks[c.id]}
-                          onChange={(e) => {
-                            setRemarks((p) => ({ ...p, [c.id]: e.target.value }));
-                            clearErr(`remark-${c.id}`);
-                          }}
-                          dir="auto"
-                          maxLength={300}
-                          placeholder={a === 'no' ? 'Remark (required)' : 'Remark (optional)'}
-                          className={`${field} h-10 px-3 text-xs ${err(`remark-${c.id}`)}`}
-                        />
                       </div>
                     );
                   })}
@@ -289,19 +271,6 @@ function SupplierClearanceForm({ ctx }: { ctx: FormEditorContext<SupplierClearan
             </div>
           </div>
 
-          {/* Notes */}
-          <div>
-            <label className={labelCls}>Notes</label>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={3}
-              dir="auto"
-              maxLength={2000}
-              placeholder="Optional — anything else the Warehouse Manager and the Supply Chain Manager should know…"
-              className={`${field} px-4 py-3 leading-relaxed resize-y`}
-            />
-          </div>
         </div>
       </div>
     </div>
