@@ -325,6 +325,7 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
     ],
     'analytic-allocation': [
         { id: 'accounts', label: 'Analytic Accounts' },
+        { id: 'projects', label: 'Projects' },
         { id: 'people', label: 'People' },
         { id: 'allocate', label: 'Allocate' },
         { id: 'archive', label: 'Archive' },
