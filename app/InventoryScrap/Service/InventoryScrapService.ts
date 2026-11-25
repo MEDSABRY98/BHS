@@ -492,6 +492,28 @@ export async function updateScrapReport(
   }
 }
 
+/**
+ * Saves the scrap reason and the disposal method of a report (written on every line of the report,
+ * so they are remembered and filled in the next time the PDF is downloaded).
+ * Needs the columns SCRAP_REASON and DISPOSAL_METHOD on web_INVENTORY_SCRAB_REPORT.
+ */
+export async function saveScrapReportDetails(reportId: string, scrapReason: string, disposalMethod: string): Promise<{ success: true }> {
+  await requireSession();
+  const rid = String(reportId || '').trim();
+  if (!/^SCR-\d{4}-\d+$/.test(rid)) throw new Error('Invalid report number');
+  try {
+    const { error } = await bhs_supabas
+      .from(REPORT_TABLE)
+      .update({ SCRAP_REASON: String(scrapReason || '').trim(), DISPOSAL_METHOD: String(disposalMethod || '').trim() })
+      .eq('REPORT_ID', rid);
+    if (error) throw error;
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error saving scrap report details:', error);
+    throw new Error(error.message || 'Failed to save the report details');
+  }
+}
+
 export async function deleteScrapReport(reportId: string) {
   await requireSession();
   try {

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { fetchSavedScrapReports, deleteScrapReport, updateProductCosts } from '../Service/InventoryScrapService';
+import { fetchSavedScrapReports, deleteScrapReport, updateProductCosts, saveScrapReportDetails } from '../Service/InventoryScrapService';
 import { Download, Calendar, FileText, Search, Loader2, StickyNote, FileSpreadsheet, Trash2, Pencil } from 'lucide-react';
 import EditReportModal from './EditReportModal';
 import { downloadInventoryScrapReportPDF } from '@/app/InventoryScrap/Pdf/InventoryScrapReportPdf';
@@ -28,6 +28,8 @@ interface SavedReport {
   createdAt: string;
   totalQty: number;
   itemCount: number;
+  scrapReason: string;
+  disposalMethod: string;
   items: ReportItem[];
 }
 
@@ -43,7 +45,7 @@ export default function SavedReportsTab({ refreshTrigger = 0 }: SavedReportsTabP
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [downloadingExcelId, setDownloadingExcelId] = useState<string | null>(null);
   const [reportToDownload, setReportToDownload] = useState<SavedReport | null>(null);
-  const [notes, setNotes] = useState('');
+  const [reason, setReason] = useState('');
   const [disposalMethod, setDisposalMethod] = useState('');
   const [reportToDelete, setReportToDelete] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -95,9 +97,13 @@ export default function SavedReportsTab({ refreshTrigger = 0 }: SavedReportsTabP
             createdAt,
             totalQty: 0,
             itemCount: 0,
+            scrapReason: '',
+            disposalMethod: '',
             items: [],
           };
         }
+        if (!groupedMap[reportId].scrapReason && row.SCRAP_REASON) groupedMap[reportId].scrapReason = String(row.SCRAP_REASON);
+        if (!groupedMap[reportId].disposalMethod && row.DISPOSAL_METHOD) groupedMap[reportId].disposalMethod = String(row.DISPOSAL_METHOD);
 
         groupedMap[reportId].totalQty += qty;
         groupedMap[reportId].items.push(item);
@@ -123,14 +129,14 @@ export default function SavedReportsTab({ refreshTrigger = 0 }: SavedReportsTabP
 
   const openDownloadModal = (report: SavedReport) => {
     setReportToDownload(report);
-    setNotes('');
-    setDisposalMethod('');
+    setReason(report.scrapReason || '');
+    setDisposalMethod(report.disposalMethod || '');
   };
 
   const closeDownloadModal = () => {
     if (downloadingId) return;
     setReportToDownload(null);
-    setNotes('');
+    setReason('');
     setDisposalMethod('');
   };
 
@@ -139,14 +145,25 @@ export default function SavedReportsTab({ refreshTrigger = 0 }: SavedReportsTabP
 
     setDownloadingId(reportToDownload.reportId);
     try {
+      // remember both answers in the database (only when they changed)
+      if (reason.trim() !== reportToDownload.scrapReason || disposalMethod.trim() !== reportToDownload.disposalMethod) {
+        try {
+          await saveScrapReportDetails(reportToDownload.reportId, reason, disposalMethod);
+          const rid = reportToDownload.reportId;
+          setReports((prev) => prev.map((r) => (r.reportId === rid ? { ...r, scrapReason: reason.trim(), disposalMethod: disposalMethod.trim() } : r)));
+        } catch (saveErr) {
+          console.error('Could not save the report details:', saveErr);
+          toast.error('The reason / disposal could not be saved (the PDF will still download).');
+        }
+      }
       await downloadInventoryScrapReportPDF(
         reportToDownload.items,
-        notes.trim(),
+        reason.trim(),
         reportToDownload.reportId,
         disposalMethod.trim()
       );
       setReportToDownload(null);
-      setNotes('');
+      setReason('');
       setDisposalMethod('');
     } catch (err) {
       console.error('Error downloading scrap report PDF:', err);
@@ -400,9 +417,23 @@ export default function SavedReportsTab({ refreshTrigger = 0 }: SavedReportsTabP
             <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center text-[#D4AF37] mb-4">
               <StickyNote className="w-6 h-6" />
             </div>
-            <h4 className="text-xl font-black text-black mb-6">Report Notes</h4>
+            <h4 className="text-xl font-black text-black mb-6">Report Details</h4>
 
             <div className="mb-4">
+              <label className="block text-sm font-bold text-slate-800 mb-2">
+                Why will these goods be scrapped? <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                rows={2}
+                placeholder="E.g., Expired, damaged during storage..."
+                className="w-full resize-none bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-black/5"
+                autoFocus
+              />
+            </div>
+
+            <div className="mb-2">
               <label className="block text-sm font-bold text-slate-800 mb-2">
                 How will you dispose of these goods? <span className="text-red-500">*</span>
               </label>
@@ -411,20 +442,6 @@ export default function SavedReportsTab({ refreshTrigger = 0 }: SavedReportsTabP
                 onChange={(e) => setDisposalMethod(e.target.value)}
                 rows={2}
                 placeholder="E.g., Sent to recycling, destroyed in warehouse..."
-                className="w-full resize-none bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-black/5"
-                autoFocus
-              />
-            </div>
-
-            <div className="mb-2">
-              <label className="block text-sm font-bold text-slate-800 mb-2">
-                Optional Notes
-              </label>
-              <textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                rows={3}
-                placeholder="Write your remarks / notes here..."
                 className="w-full resize-none bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-black/5"
               />
             </div>
@@ -441,7 +458,7 @@ export default function SavedReportsTab({ refreshTrigger = 0 }: SavedReportsTabP
               <button
                 type="button"
                 onClick={confirmDownloadPdf}
-                disabled={!!downloadingId || !disposalMethod.trim()}
+                disabled={!!downloadingId || !reason.trim() || !disposalMethod.trim()}
                 className="flex-1 py-3 bg-black text-[#D4AF37] hover:bg-zinc-800 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
               >
                 {downloadingId ? (

@@ -1,7 +1,15 @@
 import autoTable from 'jspdf-autotable';
 import { saveTrackedPdf } from '@/app/AdminControl/Code/Audit/TrackedDownload';
-import { pickSignatures } from '@/app/Components/Signatures/SignaturePicker';
+import type { Signer } from '@/app/Components/Signatures/SignatureTypes';
 import { drawSignatures } from '@/app/Components/Signatures/DrawSignatures';
+
+/** Fixed signatures of every scrap report, in this order (not selectable). */
+const SCRAP_SIGNERS: Signer[] = [
+  { title: 'Warehouse Manager', name: '' },
+  { title: 'Supply Chain Department', name: '' },
+  { title: 'Accounts Department', name: '' },
+  { title: 'CEO', name: '' },
+];
 
 export type ScrapReportPdfItem = {
   barcode?: string;
@@ -25,12 +33,10 @@ function formatScrapCost(value: number): string {
  */
 export async function downloadInventoryScrapReportPDF(
   items: ScrapReportPdfItem[],
-  notes: string = '',
+  reason: string = '',
   reportNo: string,
   disposalMethod: string = '',
 ) {
-  const signers = await pickSignatures('inventory-scrap', { title: 'Inventory Scrap Report' });
-  if (!signers) return; // cancelled
   const jsPDFModule = await import('jspdf');
   const doc = new jsPDFModule.default({
     orientation: 'portrait',
@@ -178,6 +184,25 @@ export async function downloadInventoryScrapReportPDF(
 
   y += summaryH + 10;
 
+  // ── Reason for scrap (required) ──
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setTextColor(...gold);
+  doc.text('REASON FOR SCRAP', M, y);
+  y += 3;
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  const reasonLines: string[] = reason.trim() ? doc.splitTextToSize(reason, W - M * 2 - 6) : [];
+  const reasonHeight = boxHeight(reasonLines.length);
+  y = ensureSpace(y, reasonHeight);
+  doc.setDrawColor(224, 208, 160);
+  doc.setFillColor(253, 252, 248);
+  doc.rect(M, y, W - M * 2, reasonHeight, 'FD');
+  doc.setTextColor(...gray);
+  if (reasonLines.length) doc.text(reasonLines, M + 3, y + 5, { lineHeightFactor: LINE_FACTOR });
+  y += reasonHeight + 10;
+
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8);
   doc.setTextColor(...gold);
@@ -196,28 +221,8 @@ export async function downloadInventoryScrapReportPDF(
   if (disposalLines.length) doc.text(disposalLines, M + 3, y + 5, { lineHeightFactor: LINE_FACTOR });
   y += disposalHeight + 10;
 
-  if (notes.trim()) {
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8);
-    doc.setTextColor(...gold);
-    doc.text('REMARKS & NOTES', M, y);
-    y += 3;
-
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
-    const noteLines: string[] = doc.splitTextToSize(notes, W - M * 2 - 6);
-    const notesHeight = boxHeight(noteLines.length);
-    y = ensureSpace(y, notesHeight);
-    doc.setDrawColor(224, 208, 160);
-    doc.setFillColor(253, 252, 248);
-    doc.rect(M, y, W - M * 2, notesHeight, 'FD');
-    doc.setTextColor(...gray);
-    doc.text(noteLines, M + 3, y + 5, { lineHeightFactor: LINE_FACTOR });
-    y += notesHeight + 10;
-  }
-
-  // ── Signatures: the people chosen when exporting ──
-  y = drawSignatures(doc, signers, { y: y + 4, margin: M, heading: 'Authorized Signatures', footer: 14 });
+  // ── Signatures: fixed ──
+  y = drawSignatures(doc, SCRAP_SIGNERS, { y: y + 4, margin: M, heading: 'Authorized Signatures', footer: 14 });
 
   // ── Footer: page X of Y on every page ───────────────────
   const pages = doc.getNumberOfPages();
