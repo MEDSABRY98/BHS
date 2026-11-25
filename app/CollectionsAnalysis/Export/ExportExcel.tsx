@@ -1,6 +1,6 @@
 'use client';
 
-// Payments Analysis — every Excel export of the module lives here:
+// Collections Analysis — every Excel export of the module lives here:
 //  • ExportExcelButton  — the green icon-only Export button used by the tabs
 //  • exportCitiesExcel / exportCollectionsExcel / exportExpectedCollectionsExcel — the sheets
 

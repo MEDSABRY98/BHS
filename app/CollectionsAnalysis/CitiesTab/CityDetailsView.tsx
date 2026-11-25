@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { usePaymentAnalysis } from '../Context/PaymentAnalysisContext';
+import { useCollectionsAnalysis } from '../Context/CollectionsAnalysisContext';
 import { getPaymentCategory } from '../Utils/PaymentType';
 import { ArrowLeft, Calendar } from 'lucide-react';
 import { 
@@ -17,7 +17,7 @@ interface CityDetailsViewProps {
 }
 
 export default function CityDetailsView({ cityName, onBack }: CityDetailsViewProps) {
-  const { paymentsData } = usePaymentAnalysis();
+  const { paymentsData } = useCollectionsAnalysis();
   const [sorting, setSorting] = React.useState<SortingState>([{ id: 'monthSort', desc: true }]);
 
   const monthlyData = useMemo(() => {

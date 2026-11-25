@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import type { InvoiceRow } from '@/types';
 import { getPaymentCategory } from '../Utils/PaymentType';
-import type { RepAllocation } from '../Context/PaymentAnalysisContext';
+import type { RepAllocation } from '../Context/CollectionsAnalysisContext';
 
 // ════════════════════════════════════════════════════════════════
 //  Collections per sales rep.

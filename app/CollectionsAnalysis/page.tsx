@@ -3,7 +3,7 @@
 import { useState, Suspense } from 'react';
 import { Menu } from 'lucide-react';
 import PaymentSidebar from './Utils/Sidebar';
-import { PaymentAnalysisProvider, usePaymentAnalysis } from './Context/PaymentAnalysisContext';
+import { CollectionsAnalysisProvider, useCollectionsAnalysis } from './Context/CollectionsAnalysisContext';
 import TabLoader from '../Components/Loading/TabLoader';
 import MainLoader from '../Components/Loading/MainLoader';
 import NoData from '../Components/DataState/NoDataTab';
@@ -16,7 +16,7 @@ import CollectionsTab from './CollectionsTab/CollectionsTab';
 import UnpaidCustomersTab from './UnpaidCustomersTab/UnpaidCustomersTab';
 import PeriodsTab from './PeriodsTab/PeriodsTab';
 
-function PaymentAnalysisShell({
+function CollectionsAnalysisShell({
   activeTab,
   setActiveTab,
   isSidebarCollapsed,
@@ -31,7 +31,7 @@ function PaymentAnalysisShell({
   isMobileSidebarOpen: boolean;
   setIsMobileSidebarOpen: (open: boolean) => void;
 }) {
-  const { loading, data, error, refresh, isRefreshing } = usePaymentAnalysis();
+  const { loading, data, error, refresh, isRefreshing } = useCollectionsAnalysis();
 
   const renderBody = () => {
     if (loading) {
@@ -109,7 +109,7 @@ function PaymentAnalysisShell({
           >
             <Menu className="w-6 h-6" />
           </button>
-          <span className="ml-3 font-bold text-slate-900 tracking-wide">Payments Analysis</span>
+          <span className="ml-3 font-bold text-slate-900 tracking-wide">Collections Analysis</span>
         </div>
 
         {renderBody()}
@@ -118,7 +118,7 @@ function PaymentAnalysisShell({
   );
 }
 
-function PaymentAnalysisContent() {
+function CollectionsAnalysisContent() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
@@ -128,8 +128,8 @@ function PaymentAnalysisContent() {
   };
 
   return (
-    <PaymentAnalysisProvider>
-      <PaymentAnalysisShell
+    <CollectionsAnalysisProvider>
+      <CollectionsAnalysisShell
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         isSidebarCollapsed={isSidebarCollapsed}
@@ -137,18 +137,18 @@ function PaymentAnalysisContent() {
         isMobileSidebarOpen={isMobileSidebarOpen}
         setIsMobileSidebarOpen={setIsMobileSidebarOpen}
       />
-    </PaymentAnalysisProvider>
+    </CollectionsAnalysisProvider>
   );
 }
 
-export default function PaymentAnalysisPage() {
+export default function CollectionsAnalysisPage() {
   return (
     <Suspense
       fallback={
         <MainLoader />
       }
     >
-      <PaymentAnalysisContent />
+      <CollectionsAnalysisContent />
     </Suspense>
   );
 }

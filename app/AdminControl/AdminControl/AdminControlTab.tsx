@@ -200,7 +200,7 @@ export const SYSTEMS = [
     { id: 'sales', label: 'Sales Analysis' },
     { id: 'lpo-management', label: 'Invoices Tracking' },
     { id: 'customers-discounts', label: 'Customers Discounts' },
-    { id: 'payment-analysis', label: 'Payment Analysis' },
+    { id: 'collections-analysis', label: 'Collections Analysis' },
     { id: 'expected-cash', label: 'Expected Cash' },
     { id: 'salesperson-analysis', label: 'Salesperson Analysis' },
     { id: 'roi', label: 'ROI' },
@@ -263,7 +263,7 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
         { id: 'customers', label: 'Customers' },
         { id: 'months', label: 'Months' },
     ],
-    'payment-analysis': [
+    'collections-analysis': [
         { id: 'dashboard', label: 'Collections Overview' },
         { id: 'cities', label: 'Cities Collections' },
         { id: 'collections', label: 'Customer Collections' },

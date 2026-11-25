@@ -20,7 +20,7 @@ import {
   FileSpreadsheet,
   Loader2
 } from 'lucide-react';
-import { usePaymentAnalysis } from '../Context/PaymentAnalysisContext';
+import { useCollectionsAnalysis } from '../Context/CollectionsAnalysisContext';
 import GlobalFiltersModal from './GlobalFiltersModal';
 import { toast } from '@/app/Components/Notification';
 
@@ -54,7 +54,7 @@ export default function PaymentSidebar({
 }: SidebarProps) {
   const [hoveredTab, setHoveredTab] = useState<{ label: string; top: number } | null>(null);
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
-  const { data, dateRange, selectedTags, selectedClasses, selectedCities, refresh, isRefreshing: ctxRefreshing } = usePaymentAnalysis();
+  const { data, dateRange, selectedTags, selectedClasses, selectedCities, refresh, isRefreshing: ctxRefreshing } = useCollectionsAnalysis();
   const [isExportingReport, setIsExportingReport] = useState(false);
   const [isExportingExcel, setIsExportingExcel] = useState(false);
 
@@ -145,7 +145,7 @@ export default function PaymentSidebar({
           </div>
           {!isCollapsed && (
             <div className="animate-in fade-in duration-300">
-              <h2 className="text-lg font-bold tracking-tight text-slate-900">Payments Analysis</h2>
+              <h2 className="text-lg font-bold tracking-tight text-slate-900">Collections Analysis</h2>
             </div>
           )}
         </div>

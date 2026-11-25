@@ -28,7 +28,7 @@ const PATH_SYSTEMS: { prefix: string; ids: string[] }[] = [
   { prefix: '/DocumentsTracking', ids: ['documents-tracking'] },
   { prefix: '/CustomersAnalysis', ids: ['debit', 'customers-analysis'] },
   { prefix: '/SuppliersAnalysis', ids: ['suppliers-analysis'] },
-  { prefix: '/PaymentAnalysis', ids: ['payment-analysis'] },
+  { prefix: '/CollectionsAnalysis', ids: ['collections-analysis'] },
   { prefix: '/SalespersonAnalysis', ids: ['salesperson-analysis'] },
   { prefix: '/CustomersDocuments', ids: ['customers-documents'] },
   { prefix: '/FinancialModel', ids: ['financial-model'] },

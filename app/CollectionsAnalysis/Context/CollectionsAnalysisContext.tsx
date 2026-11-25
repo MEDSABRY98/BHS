@@ -8,7 +8,7 @@ import { getInvoiceType } from '@/app/CustomersAnalysis/Utils/InvoiceType';
 /** How each payment / refund row is split between sales reps (same rules as Salesperson Analysis). */
 export type RepAllocation = Awaited<ReturnType<typeof getPaymentRepAllocation>>;
 
-interface PaymentAnalysisContextType {
+interface CollectionsAnalysisContextType {
   data: InvoiceRow[];
   paymentsData: InvoiceRow[]; // ONLY payments and r-payments
   /** Same as paymentsData but WITHOUT the date filter (tags/classes/cities still applied) — used for year-over-year comparison. */
@@ -32,9 +32,9 @@ interface PaymentAnalysisContextType {
   setSelectedCities: (cities: string[]) => void;
 }
 
-const PaymentAnalysisContext = createContext<PaymentAnalysisContextType | undefined>(undefined);
+const CollectionsAnalysisContext = createContext<CollectionsAnalysisContextType | undefined>(undefined);
 
-export function PaymentAnalysisProvider({ children, enabled = true }: { children: ReactNode; enabled?: boolean }) {
+export function CollectionsAnalysisProvider({ children, enabled = true }: { children: ReactNode; enabled?: boolean }) {
   const [data, setData] = useState<InvoiceRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -168,7 +168,7 @@ export function PaymentAnalysisProvider({ children, enabled = true }: { children
   }, [data, selectedTags, selectedClasses, selectedCities]);
 
   return (
-    <PaymentAnalysisContext.Provider value={{ 
+    <CollectionsAnalysisContext.Provider value={{ 
       data,
       paymentsData,
       paymentsAllDates,
@@ -190,14 +190,14 @@ export function PaymentAnalysisProvider({ children, enabled = true }: { children
       setSelectedCities
     }}>
       {children}
-    </PaymentAnalysisContext.Provider>
+    </CollectionsAnalysisContext.Provider>
   );
 }
 
-export function usePaymentAnalysis() {
-  const context = useContext(PaymentAnalysisContext);
+export function useCollectionsAnalysis() {
+  const context = useContext(CollectionsAnalysisContext);
   if (context === undefined) {
-    throw new Error('usePaymentAnalysis must be used within a PaymentAnalysisProvider');
+    throw new Error('useCollectionsAnalysis must be used within a CollectionsAnalysisProvider');
   }
   return context;
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
-import { usePaymentAnalysis } from '../Context/PaymentAnalysisContext';
+import { useCollectionsAnalysis } from '../Context/CollectionsAnalysisContext';
 import { getPaymentCategory } from '../Utils/PaymentType';
 import { Search, MapPin } from 'lucide-react';
 import { 
@@ -15,7 +15,7 @@ import CityDetailsView from './CityDetailsView';
 import { ExportExcelButton, exportCitiesExcel } from '../Export/ExportExcel';
 
 export default function CitiesTab() {
-  const { paymentsData } = usePaymentAnalysis();
+  const { paymentsData } = useCollectionsAnalysis();
   const [searchTerm, setSearchTerm] = useState('');
   const [sorting, setSorting] = useState<SortingState>([{ id: 'netCollection', desc: true }]);
   const [selectedCity, setSelectedCity] = useState<string | null>(null);

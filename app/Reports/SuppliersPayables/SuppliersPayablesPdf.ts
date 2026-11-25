@@ -75,7 +75,8 @@ export async function generateSuppliersPayablesMultiPdf(sections: PayablesSectio
     doc.text(today(), margin + cw * 0.72, y + 14);
     y += 26;
 
-    const body = rows.map((r, i) => [String(i + 1), r.name, term(r.termDays), fmt(r.open)]);
+    const sorted = [...rows].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true }));
+    const body = sorted.map((r, i) => [String(i + 1), r.name, term(r.termDays), fmt(r.open)]);
     const options: any = {
       startY: y,
       margin: { left: margin, right: margin, top: 15, bottom: 20 },

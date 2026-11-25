@@ -10,7 +10,7 @@ const MODULE_ROUTES: { prefix: string; name: string }[] = [
   { prefix: '/DocumentsTracking', name: 'Documents Tracking' },
   { prefix: '/CustomersAnalysis', name: 'Customers Analysis' },
   { prefix: '/SuppliersAnalysis', name: 'Suppliers Analysis' },
-  { prefix: '/PaymentAnalysis', name: 'Payments Analysis' },
+  { prefix: '/CollectionsAnalysis', name: 'Collections Analysis' },
   { prefix: '/ExpectedCash', name: 'Expected Cash' },
   { prefix: '/SalespersonAnalysis', name: 'Salesperson Analysis' },
   { prefix: '/CustomersDocuments', name: 'Customers Documents' },

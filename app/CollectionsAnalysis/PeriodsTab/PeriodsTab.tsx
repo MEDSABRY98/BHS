@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
-import { usePaymentAnalysis } from '../Context/PaymentAnalysisContext';
+import { useCollectionsAnalysis } from '../Context/CollectionsAnalysisContext';
 import { getPaymentCategory } from '../Utils/PaymentType';
 import { 
   useReactTable, 
@@ -16,7 +16,7 @@ import PeriodDetailsView from './PeriodDetailsView';
 type PeriodType = 'daily' | 'weekly' | 'monthly' | 'yearly';
 
 export default function PeriodsTab() {
-  const { paymentsData } = usePaymentAnalysis();
+  const { paymentsData } = useCollectionsAnalysis();
   const [periodType, setPeriodType] = useState<PeriodType>('monthly');
   const [sorting, setSorting] = useState<SortingState>([{ id: 'sortKey', desc: true }]);
   const [selectedPeriod, setSelectedPeriod] = useState<{ sortKey: string, label: string } | null>(null);

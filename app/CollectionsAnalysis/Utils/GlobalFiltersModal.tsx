@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { X, Filter, Tag, LayoutGrid, ChevronDown, Check, MapPin, RotateCcw } from 'lucide-react';
-import { usePaymentAnalysis } from '../Context/PaymentAnalysisContext';
+import { useCollectionsAnalysis } from '../Context/CollectionsAnalysisContext';
 import { bhs_supabase } from '@/lib/secureDb';
 
 interface GlobalFiltersModalProps {
@@ -103,7 +103,7 @@ function MultiSelectDropdown({
 }
 
 export default function GlobalFiltersModal({ onClose }: GlobalFiltersModalProps) {
-  const { data, dateRange, setDateRange, selectedTags, setSelectedTags, selectedClasses, setSelectedClasses, selectedCities, setSelectedCities } = usePaymentAnalysis();
+  const { data, dateRange, setDateRange, selectedTags, setSelectedTags, selectedClasses, setSelectedClasses, selectedCities, setSelectedCities } = useCollectionsAnalysis();
   const [draftDateRange, setDraftDateRange] = useState(dateRange);
   const [draftTags, setDraftTags] = useState<string[]>(selectedTags);
   const [draftClasses, setDraftClasses] = useState<string[]>(selectedClasses);

@@ -9,7 +9,7 @@
 import type { InvoiceRow } from '@/types';
 import { computeCustomerAging, computeDaysOverdue } from '@/app/CustomersAnalysis/DebitInsightsTab/Utils/PortfolioAging';
 import { getInvoiceType } from '@/app/CustomersAnalysis/Utils/InvoiceType';
-import { getPaymentCategory } from '@/app/PaymentAnalysis/Utils/PaymentType';
+import { getPaymentCategory } from '@/app/CollectionsAnalysis/Utils/PaymentType';
 import type { AgingMode, LedgerRow, Period, SalespersonData } from './Types';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];

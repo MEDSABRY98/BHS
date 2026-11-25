@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { ArrowLeft, Search, Info, X } from 'lucide-react';
-import { usePaymentAnalysis } from '../Context/PaymentAnalysisContext';
+import { useCollectionsAnalysis } from '../Context/CollectionsAnalysisContext';
 import { getPaymentCategory } from '../Utils/PaymentType';
 import { 
   useReactTable, 
@@ -10,50 +10,22 @@ import {
   SortingState
 } from '@tanstack/react-table';
 
-interface PeriodDetailsViewProps {
-  periodType: 'daily' | 'weekly' | 'monthly' | 'yearly';
-  sortKey: string;
-  periodLabel: string;
+interface CustomerDetailsViewProps {
+  customerId: string;
+  customerName: string;
   onBack: () => void;
 }
 
-const getWeekNumber = (d: Date) => {
-  const date = new Date(d.getTime());
-  date.setHours(0, 0, 0, 0);
-  date.setDate(date.getDate() + 3 - (date.getDay() + 6) % 7);
-  const week1 = new Date(date.getFullYear(), 0, 4);
-  return 1 + Math.round(((date.getTime() - week1.getTime()) / 86400000 - 3 + (week1.getDay() + 6) % 7) / 7);
-};
-
-export default function PeriodDetailsView({ periodType, sortKey, periodLabel, onBack }: PeriodDetailsViewProps) {
-  const { paymentsData } = usePaymentAnalysis();
+export default function CustomerDetailsView({ customerId, customerName, onBack }: CustomerDetailsViewProps) {
+  const { paymentsData } = useCollectionsAnalysis();
   const [searchTerm, setSearchTerm] = useState('');
   const [sorting, setSorting] = useState<SortingState>([{ id: 'date', desc: true }]);
   const [selectedDesc, setSelectedDesc] = useState<string | null>(null);
 
   const tableData = useMemo(() => {
     return paymentsData
-      .filter(row => {
-        if (!row.date) return false;
-        const d = new Date(row.date);
-        if (isNaN(d.getTime())) return false;
-
-        let rowSortKey = '';
-        if (periodType === 'daily') {
-          rowSortKey = d.toISOString().split('T')[0];
-        } else if (periodType === 'weekly') {
-          const w = getWeekNumber(d);
-          const y = d.getFullYear();
-          rowSortKey = `${y}-W${w.toString().padStart(2, '0')}`;
-        } else if (periodType === 'monthly') {
-          const m = d.getMonth() + 1;
-          const y = d.getFullYear();
-          rowSortKey = `${y}-${m.toString().padStart(2, '0')}`;
-        } else if (periodType === 'yearly') {
-          rowSortKey = `${d.getFullYear()}`;
-        }
-        return rowSortKey === sortKey && getPaymentCategory(row) !== 'Other';
-      })
+      .filter(row => row.customerId === customerId)
+      .filter(row => getPaymentCategory(row) !== 'Other')
       .map(row => {
         const category = getPaymentCategory(row);
         const isRefund = category === 'Refund';
@@ -62,47 +34,45 @@ export default function PeriodDetailsView({ periodType, sortKey, periodLabel, on
         return {
           id: row.id,
           date: row.date ? String(row.date).split('T')[0] : '',
-          customerName: row.customerName || 'Unknown Customer',
           description: [row.number, row.matching].filter(Boolean).join(' | '),
           amount,
         };
       });
-  }, [paymentsData, periodType, sortKey]);
+  }, [paymentsData, customerId]);
 
   const filteredData = useMemo(() => {
     if (!searchTerm.trim()) return tableData;
     const q = searchTerm.toLowerCase();
     return tableData.filter(item => 
-      item.customerName.toLowerCase().includes(q) || 
-      item.description.toLowerCase().includes(q) || 
-      item.date.includes(q)
+      item.description.toLowerCase().includes(q) || item.date.includes(q)
     );
   }, [tableData, searchTerm]);
 
   const stats = useMemo(() => {
     let totalCollected = 0;
     let paymentCount = 0;
-    const daysSet = new Set<string>();
+    const monthsSet = new Set<string>();
 
     tableData.forEach(item => {
       if (item.amount > 0) {
         totalCollected += item.amount;
         paymentCount++;
       } else {
-        totalCollected += item.amount; // Refunds reduce total
+        totalCollected += item.amount; // refunds reduce total
       }
+
       if (item.date) {
-        daysSet.add(item.date);
+        monthsSet.add(item.date.substring(0, 7)); // YYYY-MM
       }
     });
 
-    const numDays = Math.max(1, daysSet.size);
-    const dailyAverage = totalCollected / numDays;
+    const numMonths = Math.max(1, monthsSet.size);
+    const monthlyAverage = totalCollected / numMonths;
     const averagePayment = paymentCount > 0 ? totalCollected / paymentCount : 0;
 
     return {
       totalCollected,
-      dailyAverage,
+      monthlyAverage,
       averagePayment
     };
   }, [tableData]);
@@ -113,13 +83,6 @@ export default function PeriodDetailsView({ periodType, sortKey, periodLabel, on
       header: 'Date',
       cell: (info: any) => (
         <span className="font-semibold text-slate-700">{info.getValue() || '-'}</span>
-      )
-    },
-    {
-      accessorKey: 'customerName',
-      header: 'Customer',
-      cell: (info: any) => (
-        <span className="font-bold text-slate-800">{info.getValue()}</span>
       )
     },
     {
@@ -172,8 +135,8 @@ export default function PeriodDetailsView({ periodType, sortKey, periodLabel, on
           <ArrowLeft className="w-5 h-5" />
         </button>
         <div>
-          <h2 className="text-2xl font-black text-slate-900 tracking-tight">{periodLabel}</h2>
-          <p className="text-sm font-medium text-slate-500 mt-1">Period Transactions Detail</p>
+          <h2 className="text-2xl font-black text-slate-900 tracking-tight">{customerName}</h2>
+          <p className="text-sm font-medium text-slate-500 mt-1">Payment Details & History</p>
         </div>
       </div>
 
@@ -185,9 +148,9 @@ export default function PeriodDetailsView({ periodType, sortKey, periodLabel, on
           </span>
         </div>
         <div className="bg-white border border-slate-200 p-6 rounded-2xl flex flex-col justify-center shadow-sm">
-          <span className="font-bold text-slate-400 uppercase tracking-wider text-xs mb-1">Daily Average</span>
+          <span className="font-bold text-slate-400 uppercase tracking-wider text-xs mb-1">Monthly Average</span>
           <span className="font-black text-2xl text-indigo-600">
-            {stats.dailyAverage.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            {stats.monthlyAverage.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </span>
         </div>
         <div className="bg-white border border-slate-200 p-6 rounded-2xl flex flex-col justify-center shadow-sm">
@@ -202,7 +165,7 @@ export default function PeriodDetailsView({ periodType, sortKey, periodLabel, on
         <div className="relative w-full sm:w-80">
           <input 
             type="text" 
-            placeholder="Search customer, date or description..." 
+            placeholder="Search date or description..." 
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:border-[#D4AF37] focus:ring-1 focus:ring-[#D4AF37] transition-all"
@@ -228,7 +191,7 @@ export default function PeriodDetailsView({ periodType, sortKey, periodLabel, on
             <tbody className="text-center divide-y divide-slate-50">
               {table.getRowModel().rows.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-6 py-12 text-center text-slate-500 font-medium">
+                  <td colSpan={3} className="px-6 py-12 text-center text-slate-500 font-medium">
                     No transactions match your search.
                   </td>
                 </tr>

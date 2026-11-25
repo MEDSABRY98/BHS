@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { X, Search } from 'lucide-react';
-import { usePaymentAnalysis } from '../../Context/PaymentAnalysisContext';
+import { useCollectionsAnalysis } from '../../Context/CollectionsAnalysisContext';
 import { getPaymentCategory } from '../../Utils/PaymentType';
 import { 
   useReactTable, 
@@ -18,7 +18,7 @@ interface CustomerDetailsModalProps {
 }
 
 export default function CustomerDetailsModal({ customerId, customerName, onClose }: CustomerDetailsModalProps) {
-  const { paymentsData } = usePaymentAnalysis();
+  const { paymentsData } = useCollectionsAnalysis();
   const [searchTerm, setSearchTerm] = useState('');
   const [sorting, setSorting] = useState<SortingState>([{ id: 'date', desc: true }]);
 

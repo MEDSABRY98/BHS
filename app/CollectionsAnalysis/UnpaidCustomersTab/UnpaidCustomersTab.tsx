@@ -1,13 +1,13 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
-import { usePaymentAnalysis } from '../Context/PaymentAnalysisContext';
+import { useCollectionsAnalysis } from '../Context/CollectionsAnalysisContext';
 import { getPaymentCategory } from '../Utils/PaymentType';
 import { Search, Tags, AlertCircle, Users, UserX } from 'lucide-react';
 import { getInvoiceType } from '@/app/CustomersAnalysis/Utils/InvoiceType';
 
 export default function UnpaidCustomersTab() {
-  const { data, paymentsData, dateRange, selectedTags, selectedClasses, selectedCities } = usePaymentAnalysis();
+  const { data, paymentsData, dateRange, selectedTags, selectedClasses, selectedCities } = useCollectionsAnalysis();
   const [searchTerm, setSearchTerm] = useState('');
   const [viewMode, setViewMode] = useState<'DEFAULT' | 'NO TAGS' | 'TAGS ONLY'>('DEFAULT');
 

@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Search, UserCheck, Info } from 'lucide-react';
 import { useReactTable, getCoreRowModel, getSortedRowModel, flexRender, SortingState } from '@tanstack/react-table';
-import { usePaymentAnalysis } from '../Context/PaymentAnalysisContext';
+import { useCollectionsAnalysis } from '../Context/CollectionsAnalysisContext';
 import TabLoader from '../../Components/Loading/TabLoader';
 import TabFetchError from '../../Components/DataState/TabFetchError';
 import { ExportExcelButton, exportSalespersonsExcel } from '../Export/ExportExcel';
@@ -13,7 +13,7 @@ import { useRepCollections, type RepAgg } from './useRepCollections';
 const money = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export default function SalespersonsTab() {
-  const { paymentsData, repAllocation, repAllocationLoading, repAllocationError, loadRepAllocation } = usePaymentAnalysis();
+  const { paymentsData, repAllocation, repAllocationLoading, repAllocationError, loadRepAllocation } = useCollectionsAnalysis();
   const [searchTerm, setSearchTerm] = useState('');
   const [sorting, setSorting] = useState<SortingState>([{ id: 'net', desc: true }]);
   const [selectedRep, setSelectedRep] = useState<string | null>(null);

@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { usePaymentAnalysis } from '../Context/PaymentAnalysisContext';
+import { useCollectionsAnalysis } from '../Context/CollectionsAnalysisContext';
 import { getPaymentCategory } from '../Utils/PaymentType';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell
@@ -25,7 +25,7 @@ const compactMoney = (val: number) =>
 const fullMoney = (val: number) => val.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 
 export default function DashboardTab() {
-  const { paymentsData, paymentsAllDates, dateRange } = usePaymentAnalysis();
+  const { paymentsData, paymentsAllDates, dateRange } = useCollectionsAnalysis();
 
   // All-time totals for the cards (follow the date filter, like before)
   const stats = useMemo(() => {

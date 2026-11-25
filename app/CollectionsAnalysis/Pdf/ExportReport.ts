@@ -1,7 +1,7 @@
 'use client';
 
 // ════════════════════════════════════════════════════════════════
-//  Payments Analysis — PDF report
+//  Collections Analysis — PDF report
 //   Page 1 : KPI cards (net collected vs last year, paying customers,
 //            number of payments) + monthly chart (this period vs last year)
 //   Page 2 : Sales reps collections — each rep with his cities under him
@@ -457,7 +457,7 @@ export async function exportPaymentsReport(input: PaymentsReportInput): Promise<
     doc.text(subtitle, M, 21);
     font('bold', 9);
     setText(C.gold);
-    doc.text('PAYMENTS ANALYSIS', W - M, 12, { align: 'right' });
+    doc.text('COLLECTIONS ANALYSIS', W - M, 12, { align: 'right' });
     font('normal', 8);
     setText([203, 213, 225]);
     doc.text(periodText, W - M, 18, { align: 'right' });
