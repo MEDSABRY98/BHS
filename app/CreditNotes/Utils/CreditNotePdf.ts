@@ -10,6 +10,7 @@ import { addArabicFont } from '@/app/Components/Pdf/shared';
 import { enableArabicBidi } from '@/app/Components/Pdf/bidi';
 import { saveTrackedPdf } from '@/app/AdminControl/Code/Audit/TrackedDownload';
 import { HEADER_NAME, ISSUED_BY, ISSUED_TO, SUPPORTING_TEXT, formatAmount, formatLongDate, type CreditNote } from './CreditNoteTypes';
+import type { Signer } from '@/app/Components/Signatures/SignatureTypes';
 import { pickSignatures } from '@/app/Components/Signatures/SignaturePicker';
 import { drawSignatures } from '@/app/Components/Signatures/DrawSignatures';
 
@@ -33,22 +34,21 @@ const W = 210;
 const M = 16;
 const CW = W - M * 2;
 
-export async function generateCreditNotePdf(note: CreditNote) {
-  // who signs (Data Base → Signatories DB); cancelled = no PDF, nobody = no signature part
-  const signers = await pickSignatures('credit-note', { title: 'Credit Note' });
-  if (!signers) return null;
-
+async function makeDoc(notes: CreditNote[]) {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   enableArabicBidi(doc); // Arabic + English + brackets in the right order
-  if ([note.BODY_TEXT, ...note.LINES.map((l) => l.description)].some(hasArabic)) {
+  if (notes.some((n) => [n.BODY_TEXT, ...n.LINES.map((l) => l.description)].some(hasArabic))) {
     try {
       await addArabicFont(doc);
     } catch {
       // continue without Arabic font
     }
   }
-  doc.setProperties({ title: `Credit Note ${note.ID}`, author: HEADER_NAME });
+  return doc;
+}
 
+/** Draws one credit note on the current page of the document. */
+function drawNote(doc: jsPDF, note: CreditNote, signers: Signer[]) {
   const label = (t: string, x: number, y: number, c: RGB = C.grey, size = 6.6) => {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(size);
@@ -256,7 +256,36 @@ export async function generateCreditNotePdf(note: CreditNote) {
   // ── Signatures: the people chosen when exporting (bottom of the page) ──
   drawSignatures(doc, signers, { y, margin: M, bottom: true, footer: 20 });
 
+}
+
+export async function generateCreditNotePdf(note: CreditNote) {
+  // who signs (Data Base → Signatories DB); cancelled = no PDF, nobody = no signature part
+  const signers = await pickSignatures('credit-note', { title: 'Credit Note' });
+  if (!signers) return null;
+
+  const doc = await makeDoc([note]);
+  doc.setProperties({ title: `Credit Note ${note.ID}`, author: HEADER_NAME });
+  drawNote(doc, note, signers);
   const fileName = `${note.ID}_Credit_Note.pdf`;
+  saveTrackedPdf(doc, fileName);
+  return fileName;
+}
+
+/** Every given credit note in ONE PDF (each note starts on its own page), in the given order. */
+export async function generateCreditNotesBulkPdf(notes: CreditNote[]) {
+  if (!notes.length) return null;
+  const signers = await pickSignatures('credit-note', { title: `Credit Notes (${notes.length})` });
+  if (!signers) return null;
+
+  const doc = await makeDoc(notes);
+  doc.setProperties({ title: `Credit Notes (${notes.length})`, author: HEADER_NAME });
+  notes.forEach((n, i) => {
+    if (i > 0) doc.addPage();
+    drawNote(doc, n, signers);
+  });
+  const d = new Date();
+  const stamp = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const fileName = `Credit_Notes_${notes.length}_${stamp}.pdf`;
   saveTrackedPdf(doc, fileName);
   return fileName;
 }

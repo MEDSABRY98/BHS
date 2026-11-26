@@ -1,12 +1,12 @@
 'use client';
 
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
-import { Check, ChevronDown, FileSpreadsheet, FileText, Loader2, Pencil, Search, Trash2, X } from 'lucide-react';
+import { Check, ChevronDown, FileSpreadsheet, FileText, Printer, Loader2, Pencil, Search, Trash2, X } from 'lucide-react';
 import NoData from '@/app/Components/DataState/NoDataTab';
 import { toast } from '@/app/Components/Notification';
 import ConfirmDialog from './ConfirmDialog';
 import { deleteCreditNote } from '../Service/CreditNoteService';
-import { generateCreditNotePdf } from '../Utils/CreditNotePdf';
+import { generateCreditNotePdf, generateCreditNotesBulkPdf } from '../Utils/CreditNotePdf';
 import { formatAmount, formatDate, round2, type CreditNote } from '../Utils/CreditNoteTypes';
 
 /** Styled dropdown for the filters pop-up (replaces the browser's plain <select>). */
@@ -112,6 +112,7 @@ export default function CreditNotesList({ notes, admin, canEdit, onEdit, onDelet
   const [deleteTarget, setDeleteTarget] = useState<CreditNote | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [bulkPdf, setBulkPdf] = useState(false);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -175,6 +176,19 @@ export default function CreditNotesList({ notes, admin, canEdit, onEdit, onDelet
       toast.error(err?.message || 'Could not create the PDF');
     } finally {
       setPdfId(null);
+    }
+  };
+
+  // One PDF with every note currently shown (all pages, search + filters, same order as the list)
+  const printAll = async () => {
+    if (sorted.length === 0) return;
+    setBulkPdf(true);
+    try {
+      await generateCreditNotesBulkPdf(sorted);
+    } catch (err: any) {
+      toast.error(err?.message || 'Could not create the PDF');
+    } finally {
+      setBulkPdf(false);
     }
   };
 
@@ -249,6 +263,14 @@ export default function CreditNotesList({ notes, admin, canEdit, onEdit, onDelet
           <span className="px-3.5 py-2 rounded-xl bg-white border border-slate-100 shadow-sm text-sm font-bold text-slate-700">
             <span className="text-slate-400 mr-1">{filtered.length} ·</span>AED {formatAmount(total)}
           </span>
+          <button
+            onClick={() => void printAll()}
+            disabled={bulkPdf || filtered.length === 0}
+            title="Print all the notes shown (one PDF)"
+            className="flex items-center justify-center w-10 h-10 rounded-xl bg-[#1F3864] hover:bg-[#182E56] text-white shadow-sm transition-colors disabled:opacity-50"
+          >
+            {bulkPdf ? <Loader2 className="w-5 h-5 animate-spin" /> : <Printer className="w-5 h-5" />}
+          </button>
           <button
             onClick={() => void exportExcel()}
             disabled={exporting || filtered.length === 0}
