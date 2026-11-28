@@ -14,6 +14,7 @@ import PettyCashSidebar from './Utils/Sidebar';
 import PettyCashForm from './Components/PettyCashForm';
 import PettyCashCards from './Components/PettyCashCards';
 import PettyCashAnalysisTab from './Components/PettyCashAnalysisTab';
+import PettyCashAccountsTab from './Components/PettyCashAccountsTab';
 import { getPettyCashPermissions, listPettyCash } from './Service/PettyCashService';
 import type { PettyCash, PettyCashPermissions, PettyCashTabId } from './Utils/PettyCashTypes';
 
@@ -199,6 +200,7 @@ export default function PettyCashPage() {
                 )
               )}
               {activeTab === 'analysis' && visibleTabs.includes('analysis') && <PettyCashAnalysisTab />}
+              {activeTab === 'accounts' && visibleTabs.includes('accounts') && <PettyCashAccountsTab />}
             </>
           )}
         </div>

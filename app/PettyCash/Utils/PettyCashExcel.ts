@@ -34,10 +34,9 @@ export async function exportPettyCashExcel(items: PettyCash[], opts: { period?: 
     'Amount (AED)',
     'Has Invoice',
     'Employee',
-    'Tax Invoice',
     ...(withAccount ? ['Account'] : []),
   ];
-  const widths = [8, ...(single ? [] : [14]), 16, 42, 28, 18, 14, 22, 14, ...(withAccount ? [26] : [])];
+  const widths = [8, ...(single ? [] : [14]), 16, 42, 28, 18, 14, 22, ...(withAccount ? [26] : [])];
   ws.columns = headers.map((h, i) => ({ header: h, width: widths[i] }));
   const lastCol = headers.length;
   const amountCol = headers.indexOf('Amount (AED)') + 1;
@@ -53,7 +52,6 @@ export async function exportPettyCashExcel(items: PettyCash[], opts: { period?: 
       l.AMOUNT,
       l.HAS_INVOICE ? 'Yes' : 'No',
       p.EMPLOYEE_NAME || p.CREATED_BY,
-      l.IS_TAX_INVOICE ? 'Yes' : 'No',
       ...(withAccount ? [String(l.ACCOUNT || '').trim()] : []),
     ]);
   });

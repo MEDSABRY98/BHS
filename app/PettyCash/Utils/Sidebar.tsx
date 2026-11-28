@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { ArrowLeft, Wallet, ChevronLeft, ChevronRight, FilePlus2, LayoutGrid, X, RefreshCw, BarChart3 } from 'lucide-react';
+import { ArrowLeft, Wallet, ChevronLeft, ChevronRight, FilePlus2, LayoutGrid, X, RefreshCw, BarChart3, Layers } from 'lucide-react';
 import type { PettyCashTabId } from './PettyCashTypes';
 
 interface PettyCashSidebarProps {
@@ -18,6 +18,7 @@ const ALL_TABS = [
   { id: 'new' as const, label: 'New Petty Cash', icon: FilePlus2 },
   { id: 'records' as const, label: 'My Petty Cash', icon: LayoutGrid },
   { id: 'analysis' as const, label: 'Analysis', icon: BarChart3 },
+  { id: 'accounts' as const, label: 'Accounts', icon: Layers },
 ];
 
 export default function PettyCashSidebar({

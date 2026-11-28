@@ -37,7 +37,7 @@ export default function SuggestInput({ value, onChange, suggestions, className =
     const r = el.getBoundingClientRect();
     const spaceBelow = window.innerHeight - r.bottom;
     const up = spaceBelow < 260 && r.top > spaceBelow;
-    setPos({ top: up ? r.top - 6 : r.bottom + 6, left: r.left, width: Math.max(r.width, 220), up });
+    setPos({ top: up ? r.top - 6 : r.bottom + 6, left: r.left, width: r.width, up });
   }, []);
 
   useLayoutEffect(() => {
@@ -128,7 +128,7 @@ export default function SuggestInput({ value, onChange, suggestions, className =
                         onClick={() => pick(s)}
                         className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl text-left transition-colors ${isActive ? 'bg-[#0a0f1d]' : 'hover:bg-slate-50'}`}
                       >
-                        <span className={`flex-1 min-w-0 text-sm font-bold truncate ${isActive ? 'text-white' : 'text-slate-700'}`} dir="auto">
+                        <span title={s} className={`flex-1 min-w-0 text-sm font-bold truncate ${isActive ? 'text-white' : 'text-slate-700'}`} dir="auto">
                           {s}
                         </span>
                         {isActive && <Check className="w-3.5 h-3.5 text-[#D4AF37] shrink-0" />}

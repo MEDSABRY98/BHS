@@ -95,7 +95,6 @@ export async function generatePettyCashPdf(items: PettyCash[], opts: { printedBy
   // all rows together, by invoice date (oldest first)
   const rows: (PettyCashLine & { NO: string })[] = items.flatMap((p) => p.LINES.map((l) => ({ ...l, NO: p.ID }))).sort(compareByDate);
   const total = round2(rows.reduce((s, l) => s + l.AMOUNT, 0));
-  const taxTotal = round2(rows.reduce((s, l) => s + (l.IS_TAX_INVOICE ? l.AMOUNT : 0), 0));
   const noInvoice = missingInvoices(rows);
   const employees = Array.from(new Set(items.map((p) => p.EMPLOYEE_NAME || p.CREATED_BY).filter(Boolean)));
 
@@ -166,8 +165,7 @@ export async function generatePettyCashPdf(items: PettyCash[], opts: { printedBy
     doc.setTextColor(...color);
     doc.text(value, x, y + 15.5);
   };
-  stat('Tax Invoices', formatAmount(taxTotal), M + CW * 0.52, C.ink);
-  stat('Without Invoice', `${noInvoice} row${noInvoice === 1 ? '' : 's'}`, M + CW * 0.77, noInvoice ? C.red : C.green);
+  stat('Without Invoice', `${noInvoice} row${noInvoice === 1 ? '' : 's'}`, M + CW * 0.6, noInvoice ? C.red : C.green);
   y += 22 + 6;
 
   if (single?.NOTES) {

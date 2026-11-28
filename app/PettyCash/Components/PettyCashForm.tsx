@@ -6,7 +6,7 @@ import { toast } from '@/app/Components/Notification';
 import SuggestInput from './SuggestInput';
 import EmployeePicker from './EmployeePicker';
 import {
-  getAccountSuggestions,
+  getAccountHints,
   getMyOpenPettyCash,
   getPettyCashSuggestions,
   listPettyCashEmployees,
@@ -32,9 +32,9 @@ type FormRow = {
   DESCRIPTION: string;
   BENEFICIARY: string;
   AMOUNT: string;
-  IS_TAX_INVOICE: boolean;
   HAS_INVOICE: boolean;
   ACCOUNT: string;
+  ACCOUNT_MANUAL?: boolean; // typed / picked by the user (not filled automatically)
   LINE_ID?: number;
 };
 
@@ -54,9 +54,9 @@ const emptyRow = (base?: Partial<FormRow>): FormRow => ({
   DESCRIPTION: base?.DESCRIPTION ?? '',
   BENEFICIARY: base?.BENEFICIARY ?? '',
   AMOUNT: base?.AMOUNT ?? '',
-  IS_TAX_INVOICE: base?.IS_TAX_INVOICE ?? false,
   HAS_INVOICE: base?.HAS_INVOICE ?? true,
   ACCOUNT: base?.ACCOUNT ?? '',
+  ACCOUNT_MANUAL: base?.ACCOUNT_MANUAL ?? !!base?.ACCOUNT,
   LINE_ID: base?.LINE_ID,
 });
 
@@ -67,7 +67,6 @@ const rowsFrom = (p: PettyCash): FormRow[] =>
       DESCRIPTION: l.DESCRIPTION,
       BENEFICIARY: l.BENEFICIARY,
       AMOUNT: formatAmount(l.AMOUNT),
-      IS_TAX_INVOICE: l.IS_TAX_INVOICE,
       HAS_INVOICE: l.HAS_INVOICE,
       ACCOUNT: l.ACCOUNT || '',
       LINE_ID: l.ID,
@@ -131,12 +130,13 @@ function Toggle({ checked, onChange, onLabel, offLabel, tone }: { checked: boole
 
 export default function PettyCashForm({ onSaved, editItem = null, onCancelEdit, admin }: PettyCashFormProps) {
   const isEdit = !!editItem;
-  const showAccount = isEdit && admin; // the account column is the admin's only
+  const showAccount = true; // everybody records the account (filled automatically from the description / beneficiary)
   const maxRows = isEdit ? MAX_OPEN_LINES : MAX_LINES;
   const [openPc, setOpenPc] = useState<{ ID: string; LINES_COUNT: number; TOTAL_AMOUNT: number } | null | undefined>(undefined);
   const [rows, setRows] = useState<FormRow[]>(() => (editItem && editItem.LINES.length ? rowsFrom(editItem) : [emptyRow()]));
   const [notes, setNotes] = useState(editItem?.NOTES || '');
   const [accounts, setAccounts] = useState<string[]>([]);
+  const hints = useRef<{ byDescription: Record<string, string>; byBeneficiary: Record<string, string> }>({ byDescription: {}, byBeneficiary: {} });
   const [errors, setErrors] = useState<Record<number, RowErrors>>({});
   const [saving, setSaving] = useState(false);
   const [suggestions, setSuggestions] = useState<{ beneficiaries: string[]; descriptions: string[] }>({ beneficiaries: [], descriptions: [] });
@@ -151,9 +151,14 @@ export default function PettyCashForm({ onSaved, editItem = null, onCancelEdit, 
 
   useEffect(() => {
     getPettyCashSuggestions().then(setSuggestions).catch(() => {});
-    if (showAccount) getAccountSuggestions().then(setAccounts).catch(() => {});
+    getAccountHints()
+      .then((h) => {
+        setAccounts(h.accounts);
+        hints.current = { byDescription: h.byDescription, byBeneficiary: h.byBeneficiary };
+      })
+      .catch(() => {});
     if (pickEmployee) listPettyCashEmployees().then(setEmployeeNames).catch(() => setEmployeeNames([]));
-  }, [showAccount, pickEmployee]);
+  }, [pickEmployee]);
 
   useEffect(() => {
     const t = setTimeout(() => setLookupName(employeeName), 400);
@@ -186,7 +191,18 @@ export default function PettyCashForm({ onSaved, editItem = null, onCancelEdit, 
   const noInvoice = filled.filter((r) => !r.HAS_INVOICE).length;
 
   const update = (key: number, patch: Partial<FormRow>) => {
-    setRows((prev) => prev.map((r) => (r.key === key ? { ...r, ...patch } : r)));
+    setRows((prev) =>
+      prev.map((r) => {
+        if (r.key !== key) return r;
+        const next = { ...r, ...patch };
+        if ('ACCOUNT' in patch) next.ACCOUNT_MANUAL = !!String(patch.ACCOUNT ?? '').trim(); // cleared = automatic again
+        if (!next.ACCOUNT_MANUAL && ('DESCRIPTION' in patch || 'BENEFICIARY' in patch)) {
+          const norm = (s: string) => s.replace(/\s+/g, ' ').trim().toLowerCase();
+          next.ACCOUNT = hints.current.byDescription[norm(next.DESCRIPTION)] || hints.current.byBeneficiary[norm(next.BENEFICIARY)] || '';
+        }
+        return next;
+      }),
+    );
     setErrors((prev) => {
       if (!prev[key]) return prev;
       const next = { ...prev, [key]: { ...prev[key] } };
@@ -206,7 +222,7 @@ export default function PettyCashForm({ onSaved, editItem = null, onCancelEdit, 
     setRows((prev) => [...prev, row]);
   };
 
-  const duplicate = (r: FormRow) => addRow({ ...r, AMOUNT: '' });
+  const duplicate = (r: FormRow) => addRow({ ...r, AMOUNT: '', LINE_ID: undefined });
 
   const remove = (key: number) => {
     setRows((prev) => (prev.length === 1 ? [emptyRow()] : prev.filter((r) => r.key !== key)));
@@ -256,9 +272,8 @@ export default function PettyCashForm({ onSaved, editItem = null, onCancelEdit, 
       DESCRIPTION: r.DESCRIPTION.trim(),
       BENEFICIARY: r.BENEFICIARY.trim(),
       AMOUNT: parseAmount(r.AMOUNT),
-      IS_TAX_INVOICE: r.IS_TAX_INVOICE,
       HAS_INVOICE: r.HAS_INVOICE,
-      ...(showAccount ? { ACCOUNT: r.ACCOUNT.trim() } : {}),
+      ACCOUNT: r.ACCOUNT.trim(),
       ...(isEdit && r.LINE_ID ? { LINE_ID: r.LINE_ID } : {}),
     }));
 
@@ -380,7 +395,6 @@ export default function PettyCashForm({ onSaved, editItem = null, onCancelEdit, 
                 {showAccount && <th className="py-4 px-2 w-[220px]">Account</th>}
                 <th className="py-4 px-2 w-[220px]">Beneficiary</th>
                 <th className="py-4 px-2 w-[130px]">Amount</th>
-                <th className="py-4 px-2 w-[100px]">Tax Invoice</th>
                 <th className="py-4 px-2 w-[100px]">Invoice</th>
                 <th className="py-4 px-2 w-[84px]"></th>
               </tr>
@@ -448,9 +462,6 @@ export default function PettyCashForm({ onSaved, editItem = null, onCancelEdit, 
                     />
                   </td>
                   <td className="py-2 px-2">
-                    <Toggle checked={r.IS_TAX_INVOICE} onChange={(v) => update(r.key, { IS_TAX_INVOICE: v })} onLabel="Tax ✓" offLabel="No" tone="gold" />
-                  </td>
-                  <td className="py-2 px-2">
                     <Toggle checked={r.HAS_INVOICE} onChange={(v) => update(r.key, { HAS_INVOICE: v })} onLabel="Yes ✓" offLabel="No" tone="green" />
                   </td>
                   <td className="py-2 px-2">
@@ -479,7 +490,7 @@ export default function PettyCashForm({ onSaved, editItem = null, onCancelEdit, 
                   </button>
                 </td>
                 <td className="py-3 px-3 text-right font-black text-slate-900 whitespace-nowrap">{formatAmount(total)}</td>
-                <td colSpan={3} className="py-3 px-3 text-xs font-bold text-slate-500 whitespace-nowrap">
+                <td colSpan={2} className="py-3 px-3 text-xs font-bold text-slate-500 whitespace-nowrap">
                   {noInvoice > 0 ? <span className="text-red-600">{noInvoice} without invoice</span> : filled.length ? <span className="text-emerald-600">All have invoices</span> : null}
                 </td>
               </tr>

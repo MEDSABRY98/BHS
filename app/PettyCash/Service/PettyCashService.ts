@@ -36,7 +36,7 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 //  Permissions (Admin Control → 'petty-cash', tabs: new / records)
 // ─────────────────────────────────────────────────────────────
 function permissionsOf(user: SessionUserRecord): PettyCashPermissions {
-  if (isAdminUser(user, PETTY_CASH_SYSTEM_ID)) return { tabs: [...ALL_TABS, 'analysis'], viewAll: true }; // Analysis (upload an Excel): admin only
+  if (isAdminUser(user, PETTY_CASH_SYSTEM_ID)) return { tabs: [...ALL_TABS, 'analysis', 'accounts'], viewAll: true }; // Analysis (upload an Excel) + Accounts (merge): admin only
 
   const raw = String(user.role || '').trim();
   if (!raw) return { tabs: [...ALL_TABS], viewAll: false };
@@ -66,18 +66,16 @@ async function requireTab(tab: PettyCashTabId): Promise<{ user: SessionUserRecor
   return { user, perms };
 }
 
-/** admin = false → the ACCOUNT (and who edited) never leaves the server. */
+/** admin = false → who edited never leaves the server (the account is visible to everybody). */
 function normalize(row: any, admin: boolean, userId: string): PettyCash {
   const lines: PettyCashLine[] = (Array.isArray(row.LINES) ? row.LINES : [])
     .map((l: any) => {
       const line: any = {
         ...l,
         AMOUNT: Number(l.AMOUNT) || 0,
-        IS_TAX_INVOICE: !!l.IS_TAX_INVOICE,
         HAS_INVOICE: !!l.HAS_INVOICE,
       };
       if (!admin) {
-        delete line.ACCOUNT;
         delete line.UPDATED_BY;
         delete line.UPDATED_AT;
       }
@@ -89,14 +87,13 @@ function normalize(row: any, admin: boolean, userId: string): PettyCash {
     EMPLOYEE_NAME: String(row.EMPLOYEE_NAME || row.CREATED_BY || ''),
     LINES_COUNT: Number(row.LINES_COUNT) || lines.length,
     TOTAL_AMOUNT: Number(row.TOTAL_AMOUNT) || 0,
-    TAX_AMOUNT_TOTAL: Number(row.TAX_AMOUNT_TOTAL) || 0,
     STATUS: (['OPEN', 'SUBMITTED', 'SETTLED'].includes(row.STATUS) ? row.STATUS : 'SUBMITTED') as PettyCashStatus,
     MINE: String(row.CREATED_BY_ID) === String(userId),
     LINES: lines,
   };
 }
 
-function cleanLines(input: unknown, opts: { allowFuture?: boolean; withAccount?: boolean; max?: number } = {}): PettyCashLineInput[] {
+function cleanLines(input: unknown, opts: { allowFuture?: boolean; max?: number } = {}): PettyCashLineInput[] {
   const max = opts.max ?? MAX_LINES;
   if (!Array.isArray(input) || input.length === 0) throw new Error('Add at least one row');
   if (input.length > max) throw new Error(`Maximum ${max} rows`);
@@ -120,9 +117,8 @@ function cleanLines(input: unknown, opts: { allowFuture?: boolean; withAccount?:
       DESCRIPTION: description.slice(0, 500),
       BENEFICIARY: beneficiary.slice(0, 200),
       AMOUNT: amount,
-      IS_TAX_INVOICE: !!l?.IS_TAX_INVOICE,
       HAS_INVOICE: !!l?.HAS_INVOICE,
-      ...(opts.withAccount ? { ACCOUNT: String(l?.ACCOUNT || '').trim().slice(0, 200) } : {}),
+      ACCOUNT: String(l?.ACCOUNT || '').replace(/\s+/g, ' ').trim().slice(0, 200),
       ...(Number.isInteger(Number(l?.LINE_ID)) && Number(l?.LINE_ID) > 0 ? { LINE_ID: Number(l.LINE_ID) } : {}),
     };
   });
@@ -189,10 +185,30 @@ export async function savePettyCash(input: PettyCashInput): Promise<PettyCash> {
     p_lines: lines,
   });
   if (error) throw new Error(error.message);
+  await applyAccounts(String(id), lines);
 
   const { data, error: readErr } = await db.from(HEADERS).select(SELECT).eq('ID', String(id)).single();
   if (readErr) throw new Error(readErr.message);
   return normalize(data, perms.viewAll, String(user.id));
+}
+
+/**
+ * Makes sure the accounts typed on the new rows are saved (whatever the save function does with them):
+ * every saved row of this petty cash that has no account yet takes the account of the matching input row.
+ */
+async function applyAccounts(pcId: string, input: PettyCashLineInput[]) {
+  const wanted = input.filter((l) => l.ACCOUNT);
+  if (wanted.length === 0) return;
+  const db = getSupabaseAdmin();
+  const { data } = await db.from('web_PETTY_CASH_LINES').select('ID, INVOICE_DATE, DESCRIPTION, BENEFICIARY, AMOUNT, ACCOUNT').eq('PETTY_CASH_ID', pcId);
+  const free = (data || []).filter((r: any) => !String(r.ACCOUNT || '').trim());
+  const sig = (d: string, desc: string, ben: string, amt: number) => `${d}|${desc}|${ben}|${round2(Number(amt) || 0)}`;
+  for (const l of wanted) {
+    const at = free.findIndex((r: any) => sig(String(r.INVOICE_DATE).slice(0, 10), String(r.DESCRIPTION), String(r.BENEFICIARY), r.AMOUNT) === sig(l.INVOICE_DATE, l.DESCRIPTION, l.BENEFICIARY, l.AMOUNT));
+    if (at < 0) continue;
+    const [row] = free.splice(at, 1);
+    await db.from('web_PETTY_CASH_LINES').update({ ACCOUNT: l.ACCOUNT }).eq('ID', (row as any).ID);
+  }
 }
 
 /** The user's open petty cash (number, rows, total) — shown on the New tab. Admin: the one for this employee name. */
@@ -302,7 +318,7 @@ export async function deletePettyCash(id: string): Promise<{ success: true }> {
 
 /**
  * Replace the rows of a petty cash.
- * Admin: anything (accounts too). Employee: only his own OPEN one — the accounts the admin set stay on the same rows.
+ * Admin: anything. Employee: only his own OPEN one. Everybody can set the account of the rows he edits.
  */
 export async function updatePettyCash(id: string, input: PettyCashInput): Promise<PettyCash> {
   const user = await requireUser();
@@ -314,13 +330,7 @@ export async function updatePettyCash(id: string, input: PettyCashInput): Promis
   const pcId = head.ID;
   const db = getSupabaseAdmin();
 
-  let lines = cleanLines(input?.LINES, { allowFuture: admin, withAccount: admin, max: MAX_OPEN_LINES });
-  if (!admin) {
-    // keep the account of each saved row the employee didn't remove
-    const { data: old } = await db.from('web_PETTY_CASH_LINES').select('ID, ACCOUNT').eq('PETTY_CASH_ID', pcId);
-    const accounts = new Map((old || []).map((r: any) => [Number(r.ID), String(r.ACCOUNT || '')]));
-    lines = lines.map((l) => ({ ...l, ACCOUNT: (l.LINE_ID && accounts.get(l.LINE_ID)) || '' }));
-  }
+  const lines = cleanLines(input?.LINES, { allowFuture: admin, max: MAX_OPEN_LINES });
   const notes = String(input?.NOTES || '').trim().slice(0, 1000);
 
   // admin: the employee name can be changed too (empty = keep it)
@@ -346,7 +356,84 @@ export async function updatePettyCash(id: string, input: PettyCashInput): Promis
   return normalize(data, admin, String(user.id));
 }
 
-/** Admin only: accounts used before (for the Account column suggestions). */
+export type AccountSummary = { name: string; lines: number; total: number };
+
+/** Admin: every account written on the rows (exactly as saved, so different spellings stay separate) + rows without one. */
+export async function listAccountsSummary(): Promise<{ accounts: AccountSummary[]; withoutAccount: { lines: number; total: number } }> {
+  await requireTab('accounts');
+  const db = getSupabaseAdmin();
+  const map = new Map<string, AccountSummary>();
+  const none = { lines: 0, total: 0 };
+  const PAGE = 1000;
+  for (let from = 0; from < 100000; from += PAGE) {
+    const { data, error } = await db.from('web_PETTY_CASH_LINES').select('ID, ACCOUNT, AMOUNT').order('ID').range(from, from + PAGE - 1);
+    if (error) throw new Error(error.message);
+    for (const r of data || []) {
+      const raw = String((r as any).ACCOUNT ?? '');
+      const amount = Number((r as any).AMOUNT) || 0;
+      if (!raw.trim()) {
+        none.lines += 1;
+        none.total += amount;
+        continue;
+      }
+      const e = map.get(raw) || { name: raw, lines: 0, total: 0 };
+      e.lines += 1;
+      e.total += amount;
+      map.set(raw, e);
+    }
+    if (!data || data.length < PAGE) break;
+  }
+  const accounts = Array.from(map.values())
+    .map((a) => ({ ...a, total: round2(a.total) }))
+    .sort((a, b) => a.name.trim().localeCompare(b.name.trim()));
+  return { accounts, withoutAccount: { lines: none.lines, total: round2(none.total) } };
+}
+
+/** Admin: every row that has one of the `from` accounts gets the `to` account (merge / rename). */
+export async function mergeAccounts(from: string[], to: string): Promise<{ success: true }> {
+  await requireTab('accounts');
+  const target = String(to || '').replace(/\s+/g, ' ').trim().slice(0, 120);
+  if (!target) throw new Error('Write the account name');
+  const sources = Array.from(new Set((Array.isArray(from) ? from : []).map((s) => String(s ?? '')).filter((s) => s.trim()))).slice(0, 300);
+  if (sources.length === 0) throw new Error('Select the accounts to merge');
+  const { error } = await getSupabaseAdmin().from('web_PETTY_CASH_LINES').update({ ACCOUNT: target }).in('ACCOUNT', sources);
+  if (error) throw new Error(error.message);
+  return { success: true };
+}
+
+/** Account column helpers for everybody who records: all accounts used + the account usually used for a description / beneficiary. */
+export async function getAccountHints(): Promise<{ accounts: string[]; byDescription: Record<string, string>; byBeneficiary: Record<string, string> }> {
+  await requireTab('new');
+  const empty = { accounts: [] as string[], byDescription: {}, byBeneficiary: {} };
+  const { data, error } = await getSupabaseAdmin()
+    .from('web_PETTY_CASH_LINES')
+    .select('ACCOUNT, DESCRIPTION, BENEFICIARY')
+    .not('ACCOUNT', 'is', null)
+    .order('ID', { ascending: false })
+    .limit(5000);
+  if (error) return empty;
+  const key = (s: unknown) => String(s ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
+  const counts = (field: 'DESCRIPTION' | 'BENEFICIARY') => {
+    const per = new Map<string, Map<string, number>>();
+    for (const r of data || []) {
+      const acc = String((r as any).ACCOUNT || '').replace(/\s+/g, ' ').trim();
+      const k = key((r as any)[field]);
+      if (!acc || !k) continue;
+      const m = per.get(k) || new Map<string, number>();
+      m.set(acc, (m.get(acc) || 0) + 1);
+      per.set(k, m);
+    }
+    const out: Record<string, string> = {};
+    per.forEach((m, k) => {
+      out[k] = Array.from(m.entries()).sort((a, b) => b[1] - a[1])[0][0]; // the most used (ties: the most recent, it was counted first)
+    });
+    return out;
+  };
+  const accounts = Array.from(new Set((data || []).map((r: any) => String(r.ACCOUNT || '').replace(/\s+/g, ' ').trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+  return { accounts, byDescription: counts('DESCRIPTION'), byBeneficiary: counts('BENEFICIARY') };
+}
+
+/** Admin only: accounts used before (old Account column suggestions). */
 export async function getAccountSuggestions(): Promise<string[]> {
   const user = await requireUser();
   if (!isAdminUser(user, PETTY_CASH_SYSTEM_ID)) return [];

@@ -13,7 +13,7 @@ export const STATUS_META: Record<PettyCashStatus, { label: string; badge: string
   SETTLED: { label: 'Closed', badge: 'bg-blue-100 text-blue-700', dot: 'bg-blue-500' },
 };
 
-export type PettyCashTabId = 'new' | 'records' | 'analysis'; // analysis: admin only
+export type PettyCashTabId = 'new' | 'records' | 'analysis' | 'accounts'; // analysis + accounts: admin only
 
 export interface PettyCashPermissions {
   tabs: PettyCashTabId[];
@@ -28,7 +28,6 @@ export interface PettyCashLine {
   DESCRIPTION: string;      // البيان
   BENEFICIARY: string;      // المستفيد
   AMOUNT: number;
-  IS_TAX_INVOICE: boolean;  // فاتورة ضريبية
   HAS_INVOICE: boolean;     // معاه فاتورة أصلية
   ACCOUNT?: string | null;  // admin only — never sent to employees
   UPDATED_BY?: string | null;
@@ -39,7 +38,6 @@ export interface PettyCash {
   ID: string;               // PC-0001
   LINES_COUNT: number;
   TOTAL_AMOUNT: number;
-  TAX_AMOUNT_TOTAL: number;
   NOTES: string | null;
   CREATED_BY: string;       // who recorded it (he sees / edits / submits it)
   CREATED_BY_ID: string;
@@ -60,7 +58,6 @@ export type PettyCashLineInput = {
   DESCRIPTION: string;
   BENEFICIARY: string;
   AMOUNT: number;
-  IS_TAX_INVOICE: boolean;
   HAS_INVOICE: boolean;
   ACCOUNT?: string;         // admin edit only
   LINE_ID?: number;         // edit: the saved row this came from (keeps its account)
@@ -103,10 +100,6 @@ export function uaeDateOf(ts: string | null | undefined): string {
 
 export function linesTotal(lines: { AMOUNT: number }[]): number {
   return round2(lines.reduce((s, l) => s + (Number(l.AMOUNT) || 0), 0));
-}
-
-export function taxTotal(lines: { AMOUNT: number; IS_TAX_INVOICE: boolean }[]): number {
-  return round2(lines.reduce((s, l) => s + (l.IS_TAX_INVOICE ? Number(l.AMOUNT) || 0 : 0), 0));
 }
 
 export function missingInvoices(lines: { HAS_INVOICE: boolean }[]): number {
