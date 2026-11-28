@@ -971,85 +971,97 @@ export async function exportPaymentsReport(input: PaymentsReportInput): Promise<
       `${allRows.length} customers  •  ${paidCount} paid in the period  •  ${allRows.length - paidCount} did not pay`,
     );
   custHeader();
-  const custStart = doc.internal.getCurrentPageInfo().pageNumber;
 
   type RowKind = 'banner' | 'tag' | 'paid' | 'unpaid' | 'tagCustomer';
-  const kinds: { kind: RowKind; tagPaid?: boolean }[] = [];
-  const body: any[] = [];
-  const banner = (text: string, soft: RGB) => {
-    kinds.push({ kind: 'banner' });
-    body.push([{ content: text, colSpan: 7, styles: { fillColor: soft, textColor: C.ink, fontStyle: 'bold', halign: 'left', fontSize: 9 } }]);
-  };
   const lastCell = (c: { last: string }) => (c.last ? fmtDay(c.last) : 'Never');
   let n = 0;
 
-  // 1) customers without a tag — the ones who paid get a green row
-  banner(`CUSTOMERS WITHOUT TAG  (${untagged.length})`, C.goldSoft);
-  untagged.forEach((c) => {
-    kinds.push({ kind: c.paid ? 'paid' : 'unpaid' });
-    body.push([++n, c.name, c.city, c.paid ? money(c.net) : '-', c.paid ? whole(c.payments) : '-', lastCell(c), money(c.balance)]);
-  });
-
-  // 2) tagged customers — the green is on the TAG row (when the tag paid), not on its customers
-  banner(`CUSTOMERS WITH TAG  (${tagGroups.length} tags)`, C.goldSoft);
-  tagGroups.forEach((g) => {
-    kinds.push({ kind: 'tag', tagPaid: g.paid });
-    body.push([
-      '',
-      `${g.tag}  (${g.paidCount}/${g.rows.length} paid)`,
-      '',
-      g.paid ? money(g.net) : '-',
-      g.paid ? whole(g.payments) : '-',
-      lastCell(g),
-      money(g.balance),
-    ]);
-    g.rows.forEach((c) => {
-      kinds.push({ kind: 'tagCustomer' });
-      body.push([++n, c.name, c.city, c.paid ? money(c.net) : '-', c.paid ? whole(c.payments) : '-', lastCell(c), money(c.balance)]);
+  const drawCustTable = (body: any[], kinds: { kind: RowKind; tagPaid?: boolean }[], showFoot: boolean) => {
+    const firstPage = doc.internal.getCurrentPageInfo().pageNumber;
+    autoTable(doc, {
+      ...tableBase,
+      startY: 40,
+      head: [['#', 'Customer / Tag', 'City', 'Net Collected', 'Payments', 'Last Payment', 'Balance']],
+      body,
+      foot: showFoot ? [['', 'TOTAL', '', money(totalNet), whole(totalPays), '', money(totalBal)]] : undefined,
+      alternateRowStyles: {},
+      columnStyles: {
+        0: { halign: 'center', cellWidth: 10, textColor: C.muted },
+        1: { halign: 'center', font: nameFont, textColor: C.ink, cellWidth: 70 },
+        2: { halign: 'center', cellWidth: 24 },
+        3: { halign: 'center', fontStyle: 'bold' },
+        4: { halign: 'center', cellWidth: 18 },
+        5: { halign: 'center', cellWidth: 24 },
+        6: { halign: 'center' },
+      },
+      didParseCell: (d: any) => {
+        tableBase.didParseCell(d);
+        if (d.section !== 'body') return;
+        const k = kinds[d.row.index];
+        if (!k || k.kind === 'banner') return;
+        if (k.kind === 'paid') {
+          d.cell.styles.fillColor = C.greenSoft;
+          d.cell.styles.textColor = C.ink;
+        } else if (k.kind === 'tag') {
+          d.cell.styles.fillColor = k.tagPaid ? C.greenSoft : C.soft;
+          d.cell.styles.textColor = C.ink;
+          d.cell.styles.fontStyle = 'bold';
+          d.cell.styles.lineWidth = { top: 0.3, bottom: 0.15 };
+          d.cell.styles.lineColor = k.tagPaid ? C.green : C.line;
+        } else if (k.kind === 'tagCustomer') {
+          d.cell.styles.fillColor = C.white;
+          d.cell.styles.fontSize = 7.5;
+        }
+        // "Never" in red
+        if (d.column.index === 5 && d.cell.raw === 'Never') d.cell.styles.textColor = C.red;
+      },
+      didDrawPage: () => {
+        if (doc.internal.getCurrentPageInfo().pageNumber !== firstPage) custHeader();
+      },
     });
-  });
+  };
 
-  autoTable(doc, {
-    ...tableBase,
-    startY: 40,
-    head: [['#', 'Customer / Tag', 'City', 'Net Collected', 'Payments', 'Last Payment', 'Balance']],
-    body,
-    foot: [['', 'TOTAL', '', money(totalNet), whole(totalPays), '', money(totalBal)]],
-    alternateRowStyles: {},
-    columnStyles: {
-      0: { halign: 'center', cellWidth: 10, textColor: C.muted },
-      1: { halign: 'center', font: nameFont, textColor: C.ink, cellWidth: 70 },
-      2: { halign: 'center', cellWidth: 24 },
-      3: { halign: 'center', fontStyle: 'bold' },
-      4: { halign: 'center', cellWidth: 18 },
-      5: { halign: 'center', cellWidth: 24 },
-      6: { halign: 'center' },
-    },
-    didParseCell: (d: any) => {
-      tableBase.didParseCell(d);
-      if (d.section !== 'body') return;
-      const k = kinds[d.row.index];
-      if (!k || k.kind === 'banner') return;
-      if (k.kind === 'paid') {
-        d.cell.styles.fillColor = C.greenSoft;
-        d.cell.styles.textColor = C.ink;
-      } else if (k.kind === 'tag') {
-        d.cell.styles.fillColor = k.tagPaid ? C.greenSoft : C.soft;
-        d.cell.styles.textColor = C.ink;
-        d.cell.styles.fontStyle = 'bold';
-        d.cell.styles.lineWidth = { top: 0.3, bottom: 0.15 };
-        d.cell.styles.lineColor = k.tagPaid ? C.green : C.line;
-      } else if (k.kind === 'tagCustomer') {
-        d.cell.styles.fillColor = C.white;
-        d.cell.styles.fontSize = 7.5;
-      }
-      // "Never" in red
-      if (d.column.index === 5 && d.cell.raw === 'Never') d.cell.styles.textColor = C.red;
-    },
-    didDrawPage: () => {
-      if (doc.internal.getCurrentPageInfo().pageNumber !== custStart) custHeader();
-    },
+  const makeBanner = (text: string, kinds: { kind: RowKind }[], body: any[]) => {
+    kinds.push({ kind: 'banner' });
+    body.push([{ content: text, colSpan: 7, styles: { fillColor: C.goldSoft, textColor: C.ink, fontStyle: 'bold', halign: 'left', fontSize: 9 } }]);
+  };
+
+  // 1) customers without a tag — the ones who paid get a green row
+  const kinds1: { kind: RowKind; tagPaid?: boolean }[] = [];
+  const body1: any[] = [];
+  makeBanner(`CUSTOMERS WITHOUT TAG  (${untagged.length})`, kinds1, body1);
+  untagged.forEach((c) => {
+    kinds1.push({ kind: c.paid ? 'paid' : 'unpaid' });
+    body1.push([++n, c.name, c.city, c.paid ? money(c.net) : '-', c.paid ? whole(c.payments) : '-', lastCell(c), money(c.balance)]);
   });
+  drawCustTable(body1, kinds1, tagGroups.length === 0);
+
+  // 2) tagged customers — always on its own page, starting from the top
+  //    (the green is on the TAG row when the tag paid, not on its customers)
+  if (tagGroups.length > 0) {
+    doc.addPage();
+    custHeader();
+    const kinds2: { kind: RowKind; tagPaid?: boolean }[] = [];
+    const body2: any[] = [];
+    makeBanner(`CUSTOMERS WITH TAG  (${tagGroups.length} tags)`, kinds2, body2);
+    tagGroups.forEach((g) => {
+      kinds2.push({ kind: 'tag', tagPaid: g.paid });
+      body2.push([
+        '',
+        `${g.tag}  (${g.paidCount}/${g.rows.length} paid)`,
+        '',
+        g.paid ? money(g.net) : '-',
+        g.paid ? whole(g.payments) : '-',
+        lastCell(g),
+        money(g.balance),
+      ]);
+      g.rows.forEach((c) => {
+        kinds2.push({ kind: 'tagCustomer' });
+        body2.push([++n, c.name, c.city, c.paid ? money(c.net) : '-', c.paid ? whole(c.payments) : '-', lastCell(c), money(c.balance)]);
+      });
+    });
+    drawCustTable(body2, kinds2, true);
+  }
 
   // ── footer on every page ──
   const pages = doc.internal.getNumberOfPages();
@@ -1063,7 +1075,7 @@ export async function exportPaymentsReport(input: PaymentsReportInput): Promise<
     doc.text(`Page ${p} of ${pages}`, W - M, H - 6, { align: 'right' });
   }
 
-  saveTrackedPdf(doc, `Payments_Report_${period.start}_${period.end}.pdf`);
+  saveTrackedPdf(doc, `Collections_Analysis_${period.start}_${period.end}.pdf`);
 }
 
 
@@ -1188,6 +1200,6 @@ export async function exportPaymentsReportExcel(input: PaymentsReportInput): Pro
       { name: 'Classes', data: classRows, options: { columnWidth: 18, numericColumns: ['Active Cust.', 'Paid', 'Net Collected', 'Share %', 'vs Last Year %', 'Avg Payment', 'Unpaid Cust.', 'Unpaid Balance'] } },
       { name: 'Customers', data: custRows, options: { columnWidth: 20, numericColumns: ['Net Collected', 'Payments', 'Balance'] } },
     ],
-    `Payments_Report_${period.start}_${period.end}`,
+    `Collections_Analysis_${period.start}_${period.end}`,
   );
 }
